@@ -1,89 +1,110 @@
 
-# Plano: Corrigir Cache Compartilhado que Impede Captura de Publicações
+# Agendamento Automático Simples - DJEN Termos (05:30 BRT)
 
-## Problema Identificado
+## Objetivo
+Adicionar um scheduler muito simples que dispara a execução do DJEN Termos automaticamente às **05:30 BRT** todos os dias, **somente se não houver execução em andamento**. Sem retry automático (já existe no monitoramento).
 
-A publicação do processo **0737746-12.2025.8.07.0001** (TJDFT, 04/02/2026) contendo "OSMAR MENDES PAIXAO CORTES - OAB DF-15553" **não foi capturada** pelo monitoramento configurado para tribunais TJDFT, TRF1 e STJ.
+## Arquitetura Simplificada
 
-### Causa Raiz
+### 1. Novo Hook: `src/hooks/useDjenTermosScheduler.ts`
+Um singleton simples que:
+- Roda `setInterval(30000)` = verifica a cada 30 segundos
+- Converte horário BRT atual e compara com 05:30 BRT (margem: ±2 minutos)
+- Se bateu o horário:
+  - Verifica se `isDjenTermosRunning()` = true → pula (já executando)
+  - Verifica se existe execução ativa em `execucoes_agendadas` → pula
+  - Senão: dispara `executarDjenTermos()`
+  - Marca no `localStorage` que executou naquele horário hoje para evitar duplicata
+- API pública:
+  - `startDjenTermosScheduler()` / `stopDjenTermosScheduler()`
+  - `getDjenTermosSchedulerStatus()` → retorna `{ ativo, proximoHorario, proximaExecucao }`
+  - `subscribeDjenTermosScheduler(listener)` → para reatividade
 
-O **cache compartilhado de advogados** (`sharedAdvogadoCache`) usa uma chave que **não inclui o tribunal**:
+### 2. Modificar: `src/components/configuracoes/DjenTermosDashboardCardV2.tsx`
+Adicionar seção simples **abaixo** dos botões principais:
+- Toggle "Agendamento automático" com switch (onOff)
+- Texto: "Executa automaticamente todos os dias às 05:30 BRT"
+- Badge mostrando "Próxima execução: HH:mm de hoje/amanhã"
+- Aviso pequeno: "Mantenha esta aba aberta"
+- Ao clicar no toggle, chama `startDjenTermosScheduler()` ou `stopDjenTermosScheduler()`
+- Status React via `useDjenTermosScheduler()`
 
+### 3. Modificar: `src/components/layout/MainLayout.tsx`
+Inicializa o scheduler ao montar a aplicação:
 ```typescript
-const cacheKey = `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
-// Ex: "2026-02-04|15553|DF"
+useEffect(() => {
+  const preferencia = localStorage.getItem('djen-termos-scheduler-enabled') === 'true';
+  if (preferencia) {
+    startDjenTermosScheduler();
+  }
+  return () => stopDjenTermosScheduler();
+}, []);
 ```
 
-Isso causa o seguinte problema:
+## Fluxo Simplificado
 
-1. Sistema busca para **TJDFT** (OAB 15553 / UF DF) → API retorna X publicações
-2. Resultado é salvo no cache com chave `"2026-02-04|15553|DF"`
-3. Sistema vai buscar para **STJ** (OAB 15553 / UF DF) → **usa o cache do TJDFT!**
-4. Sistema vai buscar para **TRF1** (OAB 15553 / UF DF) → **usa o mesmo cache!**
-
-**O cache foi projetado para evitar requisições duplicadas quando NÃO se filtra por tribunal**, mas quando `advogadoForcarTribunalNaBusca = true` (3 ou menos tribunais), cada tribunal deveria ter sua própria requisição separada.
-
-### Por que a publicação não apareceu
-
-Se a primeira requisição (ex: TJDFT) falhou silenciosamente, retornou vazio, ou a API não incluiu essa publicação específica, o cache salva esse resultado vazio. As requisições subsequentes para STJ e TRF1 usam esse cache vazio, perdendo a chance de capturar a publicação que estava disponível no TJDFT.
-
-## Solução Proposta
-
-### Mudança 1: Incluir Tribunal na Chave do Cache
-
-Quando `advogadoForcarTribunalNaBusca = true`, a chave do cache DEVE incluir o tribunal:
-
-```typescript
-const cacheKey = isAdvogadoComOab
-  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}|${advogadoForcarTribunalNaBusca ? trib ?? 'ALL' : 'ALL'}`
-  : null;
+```text
+setInterval(30s)
+  ↓
+Hora BRT agora == 05:30? (±2min)
+  ↓
+  NÃO → próximo ciclo
+  SIM
+    ↓
+    isDjenTermosRunning() == true?
+      SIM → pular (já executando)
+      NÃO
+        ↓
+        Existe execução ativa em execucoes_agendadas?
+          SIM → pular
+          NÃO
+            ↓
+            Já executou neste horário hoje? (localStorage)
+              SIM → pular
+              NÃO
+                ↓
+                executarDjenTermos() [sem parâmetros = últimas 24h padrão]
+                marcar localStorage como executado hoje
 ```
 
-Isso garante que cada tribunal tenha seu próprio cache, evitando interferência entre buscas.
-
-### Mudança 2: Não Usar Cache Quando Filtrando por Tribunal
-
-Alternativa mais segura: simplesmente **desabilitar o cache** quando `advogadoForcarTribunalNaBusca = true`, pois nesse cenário temos poucas requisições (≤3 tribunais):
-
-```typescript
-const cacheKey = isAdvogadoComOab && !advogadoForcarTribunalNaBusca
-  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
-  : null; // Não cachear quando buscando por tribunal específico
-```
+## Persistência
+- `djen-termos-scheduler-enabled`: boolean no localStorage
+- `djen-termos-scheduler-last-run-{YYYY-MM-DD}`: timestamp de última execução do dia
 
 ## Detalhes Técnicos
 
-### Arquivo a Modificar
-
-`src/hooks/useDjenTermosEngine.ts`
-
-### Localização
-
-Linhas 752-754:
-
+### Conversão BRT
 ```typescript
-const cacheKey = isAdvogadoComOab
-  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}`
-  : null;
+const horaAtualBrt = new Date(Date.now() - 3 * 60 * 60 * 1000); // UTC-3
+const [h, m] = [horaAtualBrt.getHours(), horaAtualBrt.getMinutes()];
+const ehAgora = (h === 5 && m >= 28 && m <= 32); // 05:30 ±2min
 ```
 
-### Nova Lógica
-
+### Verificação de Execução Existente
+Dupla verificação (local + banco):
 ```typescript
-// Quando advogadoForcarTribunalNaBusca = true, cada tribunal tem seu próprio cache
-// porque a API retorna resultados diferentes para cada siglaTribunal.
-// Sem esse fix, o cache do 1º tribunal é reutilizado para os demais, perdendo publicações.
-const cacheKey = isAdvogadoComOab
-  ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}${advogadoForcarTribunalNaBusca ? `|${trib ?? 'ALL'}` : ''}`
-  : null;
+// Local: engine running?
+if (isDjenTermosRunning()) return; // skip
+
+// Banco: execução ativa?
+const { data } = await supabase
+  .from('execucoes_agendadas')
+  .select('id')
+  .eq('tipo', 'djen')
+  .eq('status', 'executando')
+  .is('finalizado_em', null)
+  .limit(1);
+if (data?.length > 0) return; // skip
 ```
 
-## Impacto
+## Diferenças do Plano Anterior
+✅ Sem retry automático (já existe no monitoramento)  
+✅ Apenas dispara a rotina existente (sem mexer em lógica)  
+✅ Horário fixo: 05:30 BRT  
+✅ UI simples: toggle + badge  
+✅ Verificação: não permite duplicata (executando check)  
 
-- **Positivo**: Publicações de advogados para tribunais específicos (TJDFT, STJ, TRF1) serão corretamente buscadas e capturadas
-- **Performance**: Ligeiro aumento no número de requisições quando há poucos tribunais configurados (máximo 3 requisições adicionais por termo), mas isso já era o comportamento esperado
-- **Backward Compatible**: Não afeta monitoramentos sem filtro de tribunal (continuam usando cache compartilhado)
-
-## Validação
-
-Após a correção, executar o monitoramento DJEN para o dia 04/02/2026 e verificar se a publicação do processo 0737746-12.2025.8.07.0001 é capturada pelo monitoramento "DJEN do TJDFT, TRF1 e STJ".
+## Arquivos a criar/modificar
+- **Novo**: `src/hooks/useDjenTermosScheduler.ts`
+- **Modifica**: `src/components/configuracoes/DjenTermosDashboardCardV2.tsx` (adiciona seção de agendamento)
+- **Modifica**: `src/components/layout/MainLayout.tsx` (inicializa scheduler)
