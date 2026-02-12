@@ -31,7 +31,7 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
 
 export interface PublicacaoUnificada {
   id: string;
-  tipo_origem: 'termo' | 'processo' | 'descartada';
+  tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
   processo_id: string | null;
   processo_numero: string | null;
   conteudo: string | null;
@@ -717,10 +717,19 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   // Marcar como lida - usa RPC que marca TODOS os registros duplicados (mesmo hash de dedup)
   // Isso resolve o problema onde a UI mostra 1 publicação deduplicada, mas existem N registros subjacentes
   const marcarComoLida = useMutation({
-    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' }[]) => {
+    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
       const processos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
       const descartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
+      const datajudIds = items.filter(i => i.tipo_origem === 'datajud').map(i => i.id);
+
+      // Mark DataJud items directly
+      if (datajudIds.length > 0) {
+        await supabase
+          .from('movimentacoes_datajud')
+          .update({ lida: true })
+          .in('id', datajudIds);
+      }
 
       // Usa RPC que encontra e marca TODOS os registros que compartilham o mesmo hash de deduplicação
       const { data, error } = await (supabase as any).rpc('marcar_publicacoes_lidas_por_dedup', {
