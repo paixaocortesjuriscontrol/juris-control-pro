@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Database } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -21,6 +21,7 @@ import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
 import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel";
+import { MonitoramentoDataJudCard } from "@/components/configuracoes/MonitoramentoDataJudCard";
 
 export default function Configuracoes() {
   const [showDiagnostico, setShowDiagnostico] = useState(false);
@@ -85,6 +86,10 @@ export default function Configuracoes() {
           <TabsTrigger value="vps-workers" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             <span className="hidden sm:inline">VPS Workers</span>
+          </TabsTrigger>
+          <TabsTrigger value="datajud-termos" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            <span className="hidden sm:inline">DataJud Termos</span>
           </TabsTrigger>
         </TabsList>
 
@@ -269,6 +274,17 @@ export default function Configuracoes() {
         {/* Aba VPS Workers - Busca distribuída */}
         <TabsContent value="vps-workers" className="space-y-4">
           <WorkersDjenVpsPanel />
+        </TabsContent>
+
+        {/* Aba DataJud Termos - API CNJ */}
+        <TabsContent value="datajud-termos" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Monitoramento DataJud (CNJ)</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca complementar de movimentações via API pública do DataJud/CNJ
+            </p>
+          </div>
+          <MonitoramentoDataJudCard />
         </TabsContent>
       </Tabs>
     </MainLayout>

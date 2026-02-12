@@ -2754,6 +2754,72 @@ export type Database = {
           },
         ]
       }
+      movimentacoes_datajud: {
+        Row: {
+          assuntos: string | null
+          classe_processual: string | null
+          complemento: string | null
+          coordenacao_id: string
+          created_at: string
+          data_movimentacao: string | null
+          id: string
+          lida: boolean
+          monitoramento_id: string
+          numero_processo: string
+          orgao_julgador: string | null
+          tipo_movimentacao: string | null
+          tribunal: string
+          updated_at: string
+        }
+        Insert: {
+          assuntos?: string | null
+          classe_processual?: string | null
+          complemento?: string | null
+          coordenacao_id: string
+          created_at?: string
+          data_movimentacao?: string | null
+          id?: string
+          lida?: boolean
+          monitoramento_id: string
+          numero_processo: string
+          orgao_julgador?: string | null
+          tipo_movimentacao?: string | null
+          tribunal: string
+          updated_at?: string
+        }
+        Update: {
+          assuntos?: string | null
+          classe_processual?: string | null
+          complemento?: string | null
+          coordenacao_id?: string
+          created_at?: string
+          data_movimentacao?: string | null
+          id?: string
+          lida?: boolean
+          monitoramento_id?: string
+          numero_processo?: string
+          orgao_julgador?: string | null
+          tipo_movimentacao?: string | null
+          tribunal?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_datajud_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimentacoes_datajud_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notificacoes: {
         Row: {
           created_at: string
