@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FileText,
+  Database,
   Filter,
   Eye,
   Sparkles,
@@ -66,8 +67,8 @@ import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublic
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
 
-type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada';
-type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada';
+type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud';
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
@@ -143,6 +144,8 @@ const AnaliseDjen = () => {
       ? undefined // todas
       : coordenacaoId; // coordenação específica
   
+  const { data: coordenacoes } = useCoordenacoes();
+
   const { 
     publicacoes, 
     estatisticas, 
@@ -161,14 +164,122 @@ const AnaliseDjen = () => {
     apenasNaoLidas,
     apenasHoje,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal') ? undefined : tipoOrigem,
+    // datajud é tratado separadamente
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
   });
-  // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
-  const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes;
 
-  const { data: coordenacoes } = useCoordenacoes();
+  // ===== DataJud (CNJ) query =====
+  const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
+    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas],
+    queryFn: async () => {
+      let query = supabase
+        .from('movimentacoes_datajud')
+        .select(`
+          id, monitoramento_id, coordenacao_id, numero_processo, tribunal,
+          orgao_julgador, tipo_movimentacao, data_movimentacao, complemento,
+          classe_processual, assuntos, lida, created_at
+        `)
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (coordenacaoFiltroEfetivo) {
+        query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      }
+      if (apenasNaoLidas) {
+        query = query.eq('lida', false);
+      }
+      if (monitoramentoId) {
+        query = query.eq('monitoramento_id', monitoramentoId);
+      }
+      if (apenasHoje) {
+        const today = new Date().toISOString().slice(0, 10);
+        query = query.gte('created_at', `${today}T00:00:00Z`);
+      } else {
+        if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
+        if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
+      }
+      if (termoBusca) {
+        const digits = termoBusca.replace(/\D/g, '');
+        if (digits.length >= 5) {
+          query = query.ilike('numero_processo', `%${digits}%`);
+        } else {
+          query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+        }
+      }
+
+      const { data, error } = await query;
+      if (error) { console.warn('Erro DataJud:', error); return []; }
+      return (data || []) as any[];
+    },
+    enabled: tipoOrigem === 'datajud' || tipoOrigem === 'todos' || tipoOrigem === 'normal',
+    staleTime: 30_000,
+  });
+
+  // Count DataJud for stats
+  const { data: totalDatajudHoje = 0 } = useQuery({
+    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      let query = supabase
+        .from('movimentacoes_datajud')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', `${today}T00:00:00Z`);
+      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      const { count } = await query;
+      return count || 0;
+    },
+    staleTime: 30_000,
+  });
+
+  // Map DataJud results to PublicacaoUnificada format
+  const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
+    return datajudResults.map((mov: any) => ({
+      id: mov.id,
+      tipo_origem: 'datajud' as const,
+      processo_id: null,
+      processo_numero: mov.numero_processo,
+      conteudo: [
+        mov.tipo_movimentacao && `<strong>Movimentação:</strong> ${mov.tipo_movimentacao}`,
+        mov.complemento && `<strong>Complemento:</strong> ${mov.complemento}`,
+        mov.classe_processual && `<strong>Classe:</strong> ${mov.classe_processual}`,
+        mov.assuntos && `<strong>Assuntos:</strong> ${mov.assuntos}`,
+        mov.orgao_julgador && `<strong>Órgão:</strong> ${mov.orgao_julgador}`,
+      ].filter(Boolean).join('<br/>'),
+      data_publicacao: mov.data_movimentacao,
+      data_disponibilizacao: null,
+      fonte: 'DataJud (CNJ)',
+      lida: mov.lida ?? false,
+      created_at: mov.created_at,
+      monitoramento_id: mov.monitoramento_id,
+      monitoramento_termo: null,
+      monitoramento_descricao: null,
+      monitoramento_tipo: null,
+      monitoramento_oab: null,
+      monitoramento_uf: null,
+      coordenacao_id: mov.coordenacao_id,
+      coordenacao_nome: coordenacoes?.find((c: any) => c.id === mov.coordenacao_id)?.nome || null,
+      polo_ativo: null,
+      polo_passivo: null,
+      tribunal: mov.tribunal,
+    }));
+  }, [datajudResults, coordenacoes]);
+
+  // Merge publications based on filter
+  const mergedPublicacoes = useMemo(() => {
+    if (tipoOrigem === 'datajud') return datajudAsPublicacoes;
+    if (tipoOrigem === 'todos' || tipoOrigem === 'normal') {
+      return [...publicacoes, ...datajudAsPublicacoes].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+    return publicacoes;
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes]);
+
+  // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
+  const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes || (tipoOrigem === 'datajud' && isLoadingDatajud);
+
 
   // Buscar termos (monitoramentos) da coordenação selecionada (ordem alfabética)
   const { data: monitoramentos = [] } = useQuery({
@@ -200,11 +311,11 @@ const AnaliseDjen = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === publicacoes.length) {
+    if (selectedIds.size === allPublicacoes.length) {
       setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     } else {
       const newMap = new Map<string, TipoOrigemPublicacao>();
-      publicacoes.forEach(p => newMap.set(p.id, p.tipo_origem as TipoOrigemPublicacao));
+      allPublicacoes.forEach(p => newMap.set(p.id, p.tipo_origem as TipoOrigemPublicacao));
       setSelectedIds(newMap);
     }
   };
@@ -421,10 +532,10 @@ const AnaliseDjen = () => {
   };
 
   const toggleExpandAll = () => {
-    if (expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0) {
+    if (expandedPublicacoes.size === allPublicacoes.length && allPublicacoes.length > 0) {
       setExpandedPublicacoes(new Set());
     } else {
-      setExpandedPublicacoes(new Set(publicacoes.map(p => p.id)));
+      setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
     }
   };
 
@@ -456,8 +567,11 @@ const AnaliseDjen = () => {
     }
   };
 
+  // Use merged data for all rendering (shadow the hook's publicacoes)
+  const allPublicacoes = mergedPublicacoes;
+
   // Agrupar publicações por coordenação
-  const publicacoesPorCoordenacao = publicacoes.reduce((acc, pub) => {
+  const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
     const coordId = pub.coordenacao_id || 'sem-coordenacao';
     if (!acc[coordId]) {
       acc[coordId] = {
@@ -481,7 +595,7 @@ const AnaliseDjen = () => {
         <DjenExecutionBanner />
 
         {/* Stats Cards - Mobile optimized */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
@@ -553,6 +667,20 @@ const AnaliseDjen = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800">
+            <CardContent className="p-3 md:pt-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-cyan-600 dark:text-cyan-400 truncate">DataJud (CNJ)</p>
+                  <p className="text-xl md:text-3xl font-bold text-cyan-700 dark:text-cyan-300">
+                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudHoje}
+                  </p>
+                </div>
+                <Database className="w-6 h-6 md:w-10 md:h-10 text-cyan-500/50 flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filtros - Mobile optimized */}
@@ -594,6 +722,7 @@ const AnaliseDjen = () => {
                   <option value="termo">Por Termos/OAB</option>
                   <option value="parte">Por Parte</option>
                   <option value="processo">Por Processos</option>
+                  <option value="datajud">DataJud (CNJ)</option>
                   <option value="descartada">Descartadas (auditoria)</option>
                 </select>
               </div>
@@ -712,12 +841,12 @@ const AnaliseDjen = () => {
             variant="outline"
             size="sm"
             onClick={toggleSelectAll}
-            disabled={publicacoes.length === 0}
+            disabled={allPublicacoes.length === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
-            {selectedIds.size === publicacoes.length && publicacoes.length > 0
+            {selectedIds.size === allPublicacoes.length && allPublicacoes.length > 0
               ? "Desmarcar"
-              : `Selecionar (${publicacoes.length})`}
+              : `Selecionar (${allPublicacoes.length})`}
           </Button>
 
           <Button
@@ -741,17 +870,17 @@ const AnaliseDjen = () => {
             variant="outline"
             size="sm"
             onClick={toggleExpandAll}
-            disabled={publicacoes.length === 0}
+            disabled={allPublicacoes.length === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             <ChevronsUpDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             <span className="hidden sm:inline">
-              {expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0
+              {expandedPublicacoes.size === allPublicacoes.length && allPublicacoes.length > 0
                 ? "Recolher"
                 : "Expandir"}
             </span>
             <span className="sm:hidden">
-              {expandedPublicacoes.size === publicacoes.length && publicacoes.length > 0
+              {expandedPublicacoes.size === allPublicacoes.length && allPublicacoes.length > 0
                 ? "−"
                 : "+"}
             </span>
@@ -763,7 +892,7 @@ const AnaliseDjen = () => {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
-        ) : publicacoes.length === 0 ? (
+        ) : allPublicacoes.length === 0 ? (
           <Card>
             <CardContent className="py-12">
               <div className="text-center text-muted-foreground">
@@ -860,7 +989,12 @@ const AnaliseDjen = () => {
                                     </Badge>
                                   )}
                                   
-                                  {pub.tipo_origem === 'descartada' ? (
+                                  {pub.tipo_origem === 'datajud' ? (
+                                    <Badge className="bg-cyan-100 text-cyan-700 border-cyan-200 hover:bg-cyan-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                      <Database className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
+                                      DataJud (CNJ)
+                                    </Badge>
+                                  ) : pub.tipo_origem === 'descartada' ? (
                                     <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       DESCARTADA
                                     </Badge>
