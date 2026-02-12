@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.buscar-dje-interno]
 verify_jwt = false
+
+[functions.monitorar-datajud-termos]
+verify_jwt = false
