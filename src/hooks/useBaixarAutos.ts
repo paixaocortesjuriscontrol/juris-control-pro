@@ -50,6 +50,7 @@ export function useBaixarAutos(processoId: string) {
     cofre_senha_id: string;
     processo_numero: string;
     tribunal?: string;
+    modo?: "consulta_publica" | "login_certificado";
   }) => {
     setBuscando(true);
     setErro(null);
@@ -62,6 +63,7 @@ export function useBaixarAutos(processoId: string) {
           processo_numero: params.processo_numero,
           processo_id: processoId,
           tribunal: params.tribunal,
+          modo: params.modo,
         },
       });
 
