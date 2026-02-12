@@ -8,7 +8,6 @@ const corsHeaders = {
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
 const DATAJUD_BASE = "https://api-publica.datajud.cnj.jus.br";
 const DATAJUD_TIMEOUT_MS = 10_000;
-const MAX_EXECUTION_MS = 50_000;
 
 // Mapa sigla tribunal -> endpoint DataJud
 const TRIBUNAL_ENDPOINTS: Record<string, string> = {
@@ -35,7 +34,6 @@ const TRIBUNAL_ENDPOINTS: Record<string, string> = {
   "TSE": "api_publica_tse",
 };
 
-// Mapeia UF para tribunais estaduais
 const UF_TRIBUNAL: Record<string, string> = {
   AC: "TJAC", AL: "TJAL", AP: "TJAP", AM: "TJAM", BA: "TJBA", CE: "TJCE",
   DF: "TJDFT", ES: "TJES", GO: "TJGO", MA: "TJMA", MT: "TJMT", MS: "TJMS",
@@ -55,67 +53,37 @@ interface MonitoramentoDjen {
 }
 
 function getTribunaisParaBuscar(mon: MonitoramentoDjen): string[] {
-  // If specific tribunais/UFs are configured, use those
   if (mon.tribunais_ufs && mon.tribunais_ufs.length > 0) {
     const result: string[] = [];
     for (const item of mon.tribunais_ufs) {
       const upper = item.toUpperCase();
-      // If it's a UF, map to TJ
-      if (UF_TRIBUNAL[upper]) {
-        result.push(UF_TRIBUNAL[upper]);
-      } else if (TRIBUNAL_ENDPOINTS[upper]) {
-        result.push(upper);
-      }
+      if (UF_TRIBUNAL[upper]) result.push(UF_TRIBUNAL[upper]);
+      else if (TRIBUNAL_ENDPOINTS[upper]) result.push(upper);
     }
     return [...new Set(result)];
   }
-  
-  // For advogado type with UF, search just that state TJ
   if (mon.tipo === 'advogado' && mon.uf) {
     const tj = UF_TRIBUNAL[mon.uf.toUpperCase()];
     return tj ? [tj] : [];
   }
-
-  // Default: all state courts
   return Object.values(UF_TRIBUNAL);
 }
 
 function buildSearchQuery(mon: MonitoramentoDjen, dataInicio: string, dataFim: string) {
   const termo = mon.termo_busca.trim();
-  
-  // For advogado, search in the lawyer name field
-  // For others, search in general text
-  const searchField = mon.tipo === 'advogado' 
-    ? "movimentos.complementosTabelados.descricao"
-    : "movimentos.complementosTabelados.descricao";
-
   return {
     query: {
       bool: {
         must: [
-          { match_phrase: { [searchField]: termo } }
+          { match_phrase: { "movimentos.complementosTabelados.descricao": termo } }
         ],
         filter: [
-          {
-            range: {
-              "dataHoraUltimaAtualizacao": {
-                gte: dataInicio,
-                lte: dataFim,
-              }
-            }
-          }
+          { range: { "dataHoraUltimaAtualizacao": { gte: dataInicio, lte: dataFim } } }
         ]
       }
     },
     size: 20,
-    _source: [
-      "numeroProcesso",
-      "classe.nome",
-      "orgaoJulgador.nome",
-      "movimentos",
-      "dataAjuizamento",
-      "assuntos"
-    ],
+    _source: ["numeroProcesso", "classe.nome", "orgaoJulgador.nome", "movimentos", "dataAjuizamento", "assuntos"],
     sort: [{ "dataHoraUltimaAtualizacao": { order: "desc" } }]
   };
 }
@@ -131,29 +99,18 @@ async function buscarDataJud(tribunal: string, query: object): Promise<any[]> {
   try {
     const resp = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `ApiKey ${DATAJUD_API_KEY}`,
-      },
+      headers: { "Content-Type": "application/json", "Authorization": `ApiKey ${DATAJUD_API_KEY}` },
       body: JSON.stringify(query),
       signal: controller.signal,
     });
     clearTimeout(timeout);
-
-    if (!resp.ok) {
-      console.warn(`DataJud ${tribunal}: HTTP ${resp.status}`);
-      return [];
-    }
-
+    if (!resp.ok) { console.warn(`DataJud ${tribunal}: HTTP ${resp.status}`); return []; }
     const data = await resp.json();
     return data?.hits?.hits?.map((h: any) => h._source) || [];
   } catch (e: any) {
     clearTimeout(timeout);
-    if (e.name === 'AbortError') {
-      console.warn(`DataJud ${tribunal}: timeout`);
-    } else {
-      console.warn(`DataJud ${tribunal}: ${e.message}`);
-    }
+    if (e.name === 'AbortError') console.warn(`DataJud ${tribunal}: timeout`);
+    else console.warn(`DataJud ${tribunal}: ${e.message}`);
     return [];
   }
 }
@@ -163,7 +120,6 @@ function extrairMovimentacoes(source: any, tribunal: string, monId: string, coor
   const classe = source.classe?.nome || '';
   const orgao = source.orgaoJulgador?.nome || '';
   const assuntos = (source.assuntos || []).map((a: any) => a.nome || '').filter(Boolean).join('; ');
-  
   const movs = source.movimentos || [];
   const records: any[] = [];
 
@@ -176,10 +132,8 @@ function extrairMovimentacoes(source: any, tribunal: string, monId: string, coor
       .join(' | ');
 
     records.push({
-      monitoramento_id: monId,
-      coordenacao_id: coordId,
-      numero_processo: numero,
-      tribunal,
+      monitoramento_id: monId, coordenacao_id: coordId,
+      numero_processo: numero, tribunal,
       orgao_julgador: orgao,
       tipo_movimentacao: tipo.substring(0, 200),
       data_movimentacao: dataStr,
@@ -189,13 +143,10 @@ function extrairMovimentacoes(source: any, tribunal: string, monId: string, coor
     });
   }
 
-  // If no movements, create one record for the process itself
   if (records.length === 0 && numero) {
     records.push({
-      monitoramento_id: monId,
-      coordenacao_id: coordId,
-      numero_processo: numero,
-      tribunal,
+      monitoramento_id: monId, coordenacao_id: coordId,
+      numero_processo: numero, tribunal,
       orgao_julgador: orgao,
       tipo_movimentacao: 'Processo encontrado',
       data_movimentacao: null,
@@ -204,38 +155,31 @@ function extrairMovimentacoes(source: any, tribunal: string, monId: string, coor
       assuntos: assuntos || null,
     });
   }
-
   return records;
 }
 
 async function updateMetadata(supabase: any, metadata: Record<string, any>) {
   await supabase
     .from('configuracoes_monitoramento')
-    .update({ metadata, ultima_execucao: new Date().toISOString() })
+    .update({ metadata, updated_at: new Date().toISOString() })
     .eq('tipo', 'datajud_termos')
     .is('coordenacao_id', null);
 }
 
-export default async function handler(req: Request) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+async function updateExecucao(supabase: any, execId: string, updates: Record<string, any>) {
+  await supabase.from('execucoes_agendadas').update(updates).eq('id', execId);
+}
 
-  const startTime = Date.now();
-
-  const supabase = createClient(
+// ========== BACKGROUND PROCESSING ==========
+async function processDataJud(execucaoId: string, diasBusca: number) {
+  const supabaseClient = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  try {
-    // Parse body
-    let diasBusca = 7;
-    try {
-      const body = await req.json();
-      if (body?.dias) diasBusca = Math.min(body.dias, 30);
-    } catch { /* use default */ }
+  const startTime = Date.now();
 
+  try {
     const hoje = new Date();
     const inicio = new Date(hoje);
     inicio.setDate(inicio.getDate() - diasBusca);
@@ -243,131 +187,212 @@ export default async function handler(req: Request) {
     const dataFim = hoje.toISOString().substring(0, 10);
 
     // Mark as running
-    await updateMetadata(supabase, {
+    await updateMetadata(supabaseClient, {
       status: 'em_andamento',
       started_at: new Date().toISOString(),
-      novas: 0,
-      duplicadas: 0,
-      tribunaisProcessados: 0,
-      erros: [],
+      execucaoId,
+      novas: 0, duplicadas: 0, tribunaisProcessados: 0, erros: [],
+    });
+
+    await updateExecucao(supabaseClient, execucaoId, {
+      status: 'executando',
+      iniciado_em: new Date().toISOString(),
     });
 
     // Fetch all active DJEN monitorings
-    const { data: monitoramentos, error: monErr } = await supabase
+    const { data: monitoramentos, error: monErr } = await supabaseClient
       .from('monitoramentos_djen')
       .select('id, termo_busca, tipo, oab, uf, coordenacao_id, tribunais_ufs')
       .eq('ativo', true);
 
     if (monErr) throw monErr;
     if (!monitoramentos || monitoramentos.length === 0) {
-      await updateMetadata(supabase, { status: 'concluido', novas: 0, duplicadas: 0, tribunaisProcessados: 0, monitoramentos: 0 });
-      return new Response(JSON.stringify({ status: 'sucesso', monitoramentosProcessados: 0, novasMovimentacoes: 0 }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      await updateMetadata(supabaseClient, { status: 'concluido', novas: 0, duplicadas: 0, tribunaisProcessados: 0, monitoramentos: 0 });
+      await updateExecucao(supabaseClient, execucaoId, {
+        status: 'concluido', finalizado_em: new Date().toISOString(),
+        registros_processados: 0, registros_encontrados: 0,
+        detalhes: { novas: 0, duplicadas: 0, tribunaisProcessados: 0 },
       });
+      return;
     }
 
-    let totalNovas = 0;
-    let totalDuplicadas = 0;
-    let totalTribunais = 0;
-    let totalErros: string[] = [];
+    // Calculate total tribunais for progress
+    let totalTribunaisEstimado = 0;
+    for (const mon of monitoramentos as MonitoramentoDjen[]) {
+      totalTribunaisEstimado += getTribunaisParaBuscar(mon).length;
+    }
+
+    let totalNovas = 0, totalDuplicadas = 0, totalTribunais = 0;
+    const totalErros: string[] = [];
     let monProcessados = 0;
 
     for (const mon of monitoramentos as MonitoramentoDjen[]) {
-      // Check time limit
-      if (Date.now() - startTime > MAX_EXECUTION_MS) {
-        console.log('Time limit reached, stopping');
-        break;
-      }
-
       const tribunais = getTribunaisParaBuscar(mon);
       const query = buildSearchQuery(mon, dataInicio, dataFim);
 
       for (const tribunal of tribunais) {
-        if (Date.now() - startTime > MAX_EXECUTION_MS) break;
-
         try {
           const resultados = await buscarDataJud(tribunal, query);
           totalTribunais++;
 
-          if (resultados.length === 0) continue;
+          if (resultados.length > 0) {
+            const records: any[] = [];
+            for (const source of resultados) {
+              records.push(...extrairMovimentacoes(source, tribunal, mon.id, mon.coordenacao_id));
+            }
 
-          // Extract all records
-          const records: any[] = [];
-          for (const source of resultados) {
-            records.push(...extrairMovimentacoes(source, tribunal, mon.id, mon.coordenacao_id));
-          }
+            if (records.length > 0) {
+              const { data: inserted, error: insertErr } = await supabaseClient
+                .from('movimentacoes_datajud')
+                .upsert(records, {
+                  onConflict: 'monitoramento_id,numero_processo,data_movimentacao,tipo_movimentacao',
+                  ignoreDuplicates: true,
+                })
+                .select('id');
 
-          if (records.length === 0) continue;
-
-          // Upsert with ON CONFLICT to deduplicate
-          const { data: inserted, error: insertErr } = await supabase
-            .from('movimentacoes_datajud')
-            .upsert(records, {
-              onConflict: 'monitoramento_id,numero_processo,data_movimentacao,tipo_movimentacao',
-              ignoreDuplicates: true,
-            })
-            .select('id');
-
-          if (insertErr) {
-            console.warn(`Insert error for ${tribunal}: ${insertErr.message}`);
-            totalErros.push(`${tribunal}: ${insertErr.message}`);
-          } else {
-            const newCount = inserted?.length || 0;
-            totalNovas += newCount;
-            totalDuplicadas += records.length - newCount;
+              if (insertErr) {
+                console.warn(`Insert error ${tribunal}: ${insertErr.message}`);
+                totalErros.push(`${tribunal}: ${insertErr.message}`);
+              } else {
+                const newCount = inserted?.length || 0;
+                totalNovas += newCount;
+                totalDuplicadas += records.length - newCount;
+              }
+            }
           }
         } catch (e: any) {
           totalErros.push(`${tribunal}: ${e.message}`);
         }
 
-        // Update progress periodically
-        if (totalTribunais % 5 === 0) {
-          await updateMetadata(supabase, {
+        // Update progress every 3 tribunais
+        if (totalTribunais % 3 === 0) {
+          const pct = totalTribunaisEstimado > 0 ? Math.round((totalTribunais / totalTribunaisEstimado) * 100) : 0;
+          await updateMetadata(supabaseClient, {
             status: 'em_andamento',
-            novas: totalNovas,
-            duplicadas: totalDuplicadas,
+            novas: totalNovas, duplicadas: totalDuplicadas,
             tribunaisProcessados: totalTribunais,
+            totalTribunais: totalTribunaisEstimado,
             monitoramentosProcessados: monProcessados,
+            percentage: pct,
+          });
+          await updateExecucao(supabaseClient, execucaoId, {
+            registros_processados: totalTribunais,
+            registros_encontrados: totalNovas,
+            total_lotes: totalTribunaisEstimado,
+            lotes_processados: totalTribunais,
+            detalhes: {
+              novas: totalNovas, duplicadas: totalDuplicadas,
+              tribunaisProcessados: totalTribunais,
+              totalTribunais: totalTribunaisEstimado,
+              progress: { current: totalTribunais, total: totalTribunaisEstimado, percentage: pct },
+            },
           });
         }
       }
-
       monProcessados++;
     }
 
+    const duracao = Math.round((Date.now() - startTime) / 1000);
+
     // Final metadata
-    await updateMetadata(supabase, {
+    await updateMetadata(supabaseClient, {
       status: 'concluido',
-      novas: totalNovas,
-      duplicadas: totalDuplicadas,
+      novas: totalNovas, duplicadas: totalDuplicadas,
       tribunaisProcessados: totalTribunais,
+      totalTribunais: totalTribunaisEstimado,
       monitoramentosProcessados: monProcessados,
       erros: totalErros.slice(0, 10),
       finished_at: new Date().toISOString(),
-      diasBusca,
+      diasBusca, duracao,
+      percentage: 100,
     });
 
+    await updateExecucao(supabaseClient, execucaoId, {
+      status: 'concluido',
+      finalizado_em: new Date().toISOString(),
+      registros_processados: totalTribunais,
+      registros_encontrados: totalNovas,
+      total_lotes: totalTribunaisEstimado,
+      lotes_processados: totalTribunais,
+      detalhes: {
+        novas: totalNovas, duplicadas: totalDuplicadas,
+        tribunaisProcessados: totalTribunais,
+        totalTribunais: totalTribunaisEstimado,
+        erros: totalErros.slice(0, 10),
+        duracao, diasBusca,
+        progress: { current: totalTribunais, total: totalTribunaisEstimado, percentage: 100 },
+      },
+    });
+
+    console.log(`DataJud concluído: ${totalNovas} novas, ${totalDuplicadas} duplicadas, ${totalTribunais} tribunais em ${duracao}s`);
+  } catch (e: any) {
+    console.error('Error in processDataJud:', e);
+    await updateMetadata(supabaseClient, {
+      status: 'erro', erro: e.message,
+      finished_at: new Date().toISOString(),
+    });
+    await updateExecucao(supabaseClient, execucaoId, {
+      status: 'falhou',
+      finalizado_em: new Date().toISOString(),
+      ultimo_erro: e.message,
+    });
+  }
+}
+
+// ========== HANDLER ==========
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  try {
+    let diasBusca = 7;
+    try {
+      const body = await req.json();
+      if (body?.dias) diasBusca = Math.min(body.dias, 30);
+    } catch { /* use default */ }
+
+    // Create execution record
+    const { data: exec, error: execErr } = await supabaseClient
+      .from('execucoes_agendadas')
+      .insert({
+        tipo: 'datajud_termos',
+        status: 'executando',
+        iniciado_em: new Date().toISOString(),
+        detalhes: { diasBusca },
+      })
+      .select('id')
+      .single();
+
+    if (execErr) throw execErr;
+
+    const execucaoId = exec.id;
+
+    // Use EdgeRuntime.waitUntil to run processing in background
+    (globalThis as any).EdgeRuntime?.waitUntil?.(
+      processDataJud(execucaoId, diasBusca).catch((err) => {
+        console.error('Background processDataJud failed:', err);
+      })
+    );
+
+    // Return immediately
     return new Response(JSON.stringify({
-      status: 'sucesso',
-      monitoramentosProcessados: monProcessados,
-      tribunaisProcessados: totalTribunais,
-      novasMovimentacoes: totalNovas,
-      duplicadasIgnoradas: totalDuplicadas,
-      erros: totalErros.slice(0, 10),
-      duracaoSegundos: Math.round((Date.now() - startTime) / 1000),
+      status: 'iniciado',
+      execucaoId,
+      message: 'Processamento DataJud iniciado em background',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e: any) {
-    console.error('Error in monitorar-datajud-termos:', e);
-    await updateMetadata(supabase, {
-      status: 'erro',
-      erro: e.message,
-      finished_at: new Date().toISOString(),
-    });
+    console.error('Error starting monitorar-datajud-termos:', e);
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-}
+});
