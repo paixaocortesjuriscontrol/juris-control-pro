@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { 
-  RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar,
+  RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, Database,
   CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, PlayCircle,
   StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle, Mail
 } from "lucide-react";
@@ -45,6 +45,7 @@ const ICONS: Record<string, React.ElementType> = {
   Newspaper,
   FileSearch,
   Radar,
+  Database,
 };
 
 const STATUS_CONFIG: Record<MonitoringStatus, { 

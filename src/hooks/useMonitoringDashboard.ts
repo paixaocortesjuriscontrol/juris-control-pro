@@ -75,6 +75,7 @@ const MONITORING_TYPES = [
   { tipo: 'djen', nome: 'DJEN Termos', icon: 'Newspaper', funcao: null }, // Browser-only
   { tipo: 'djen_processos', nome: 'DJEN Processos', icon: 'FileSearch', funcao: null }, // Browser-only - evita WORKER_LIMIT
   { tipo: 'termos', nome: 'Monitoração 360', icon: 'Radar', funcao: 'monitorar-termos' },
+  { tipo: 'datajud_termos', nome: 'DataJud (CNJ)', icon: 'Database', funcao: 'monitorar-datajud-termos' },
 ] as const;
 
 type MonitoringDashboardOptions = {
@@ -285,6 +286,13 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
+      // DataJud Termos - movimentações novas hoje
+      const { count: datajudNovas } = await supabase
+        .from('movimentacoes_datajud')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', inicioDia)
+        .lte('created_at', fimDia);
+
       return {
         djen: { novas: djenNovas ?? 0, novas_nao_lidas: djenNovasNaoLidas ?? 0, descartadas: djenDescartadas ?? 0 },
         djen_processos: { novas: djenProcessosNovas ?? 0, descartadas: 0 },
@@ -292,6 +300,7 @@ export function useMonitoringDashboard(options: MonitoringDashboardOptions = {})
         redistribuicoes: { novas: redistribuicoesNovas, descartadas: 0 },
         distribuicoes: { novas: distribuicoesNovas ?? 0, descartadas: 0 },
         andamentos: { novas: andamentosNovos ?? 0, descartadas: 0 },
+        datajud_termos: { novas: datajudNovas ?? 0, descartadas: 0 },
       };
     },
     staleTime: 30000,

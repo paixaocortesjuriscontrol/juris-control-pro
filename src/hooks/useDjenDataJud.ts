@@ -8,11 +8,14 @@ interface DataJudProgress {
   novas: number;
   duplicadas: number;
   tribunaisProcessados: number;
+  totalTribunais: number;
   monitoramentosProcessados?: number;
+  percentage?: number;
   erros?: string[];
   started_at?: string;
   finished_at?: string;
   erro?: string;
+  execucaoId?: string;
 }
 
 const INITIAL: DataJudProgress = {
@@ -20,6 +23,7 @@ const INITIAL: DataJudProgress = {
   novas: 0,
   duplicadas: 0,
   tribunaisProcessados: 0,
+  totalTribunais: 0,
 };
 
 export function useDjenDataJud() {
@@ -51,6 +55,9 @@ export function useDjenDataJud() {
       stopPolling();
       if (meta.status === 'concluido') {
         queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+        queryClient.invalidateQueries({ queryKey: ['monitoring-configs'] });
+        queryClient.invalidateQueries({ queryKey: ['monitoring-executions'] });
+        queryClient.invalidateQueries({ queryKey: ['monitoring-real-db-stats'] });
       }
     }
 
@@ -68,7 +75,7 @@ export function useDjenDataJud() {
       setProgress({ ...INITIAL, status: 'em_andamento' });
       startPolling();
 
-      const { error } = await supabase.functions.invoke('monitorar-datajud-termos', {
+      const { data, error } = await supabase.functions.invoke('monitorar-datajud-termos', {
         body: { dias },
       });
 
@@ -77,15 +84,15 @@ export function useDjenDataJud() {
         setIsRunning(false);
         stopPolling();
       } else {
-        // Fetch final progress
-        await fetchProgress();
+        toast.info(data?.message || 'DataJud iniciado em background');
+        // Continue polling - background process will update metadata
       }
     } catch (e: any) {
       toast.error(`Erro: ${e.message}`);
       setIsRunning(false);
       stopPolling();
     }
-  }, [startPolling, stopPolling, fetchProgress]);
+  }, [startPolling, stopPolling]);
 
   // Check initial state
   useEffect(() => {
