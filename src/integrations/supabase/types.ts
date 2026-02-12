@@ -2564,6 +2564,7 @@ export type Database = {
           termos_or: string[] | null
           tipo: string
           tribunais: string[] | null
+          tribunais_ufs: string[] | null
           uf: string | null
           updated_at: string
         }
@@ -2582,6 +2583,7 @@ export type Database = {
           termos_or?: string[] | null
           tipo: string
           tribunais?: string[] | null
+          tribunais_ufs?: string[] | null
           uf?: string | null
           updated_at?: string
         }
@@ -2600,6 +2602,7 @@ export type Database = {
           termos_or?: string[] | null
           tipo?: string
           tribunais?: string[] | null
+          tribunais_ufs?: string[] | null
           uf?: string | null
           updated_at?: string
         }
