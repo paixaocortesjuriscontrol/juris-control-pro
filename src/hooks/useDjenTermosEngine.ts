@@ -508,28 +508,31 @@ function conteudoContemTermo(
     return contemFraseExata(conteudoNorm, termoNorm);
   }
 
-  // Para advogado: exigir OAB (se houver) E nome (se houver)
+  // Para advogado: exigir nome OU OAB no conteúdo.
+  // IMPORTANTE: advogados podem ter OABs diferentes em estados diferentes
+  // (ex: DF-15553 e SP-310314). Se o NOME COMPLETO é encontrado no texto,
+  // a publicação é válida mesmo que a OAB configurada não apareça.
   if (tipo === 'advogado') {
     const termoNorm = termo ? normalizar(termo) : '';
 
-    if (termoNorm && !contemFraseExata(conteudoNorm, termoNorm)) {
-      return false;
+    // Se o nome completo está no texto, aceitar (validação de identidade suficiente)
+    if (termoNorm && contemFraseExata(conteudoNorm, termoNorm)) {
+      return true;
     }
 
+    // Nome não encontrado: tentar validar pela OAB
     if (oab) {
       const oabDigits = String(oab).replace(/\D/g, '');
-      if (oabDigits.length < 3) return false;
-      // Regex flexível: aceita pontos/espaços entre dígitos (ex: 15.553 ou 15 553)
-      const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
-      if (!oabPattern.test(conteudo)) {
-        return false;
+      if (oabDigits.length >= 3) {
+        const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
+        if (oabPattern.test(conteudo)) {
+          return true;
+        }
       }
     }
 
-    // Se não tem nome nem OAB, não pode “passar” (evita aceitar tudo)
-    if (!termoNorm && !oab) return false;
-
-    return true;
+    // Nem nome nem OAB encontrados
+    return false;
   }
 
   // Para palavra-chave/parte/processo: FRASE EXATA na ordem
