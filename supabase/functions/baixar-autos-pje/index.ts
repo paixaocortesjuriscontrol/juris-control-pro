@@ -12,6 +12,7 @@ interface BaixarAutosRequest {
   processo_numero: string;
   processo_id?: string;
   tribunal?: string;
+  modo?: "consulta_publica" | "login_certificado";
 }
 
 const PJE_URLS: Record<string, string> = {
@@ -42,9 +43,7 @@ const PJE_URLS: Record<string, string> = {
   TJDFT: "https://pje.tjdft.jus.br",
 };
 
-// Detectar tribunal pelo número do processo (segmento J.OO)
 function detectarTribunal(numero: string): string {
-  // Formato CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO
   const match = numero.match(/\d{7}-\d{2}\.\d{4}\.(\d)\.(\d{2})\.\d{4}/);
   if (!match) return "TRT10";
   const justica = match[1];
@@ -81,7 +80,7 @@ serve(async (req) => {
 
   try {
     const body: BaixarAutosRequest = await req.json();
-    const { cofre_senha_id, processo_numero, processo_id, tribunal } = body;
+    const { cofre_senha_id, processo_numero, processo_id, tribunal, modo } = body;
 
     if (!cofre_senha_id || !processo_numero) {
       return new Response(
@@ -90,10 +89,33 @@ serve(async (req) => {
       );
     }
 
-    // Buscar credencial
+    // ============================================================
+    // PROTEÇÃO ANTI-BLOQUEIO:
+    // Por padrão, NUNCA tentamos login com credenciais do advogado.
+    // Usamos apenas consulta processual pública do PJe.
+    // O modo "login_certificado" só será implementado futuramente
+    // com validação prévia e controle de tentativas.
+    // ============================================================
+    const modoEfetivo = modo || "consulta_publica";
+
+    if (modoEfetivo === "login_certificado") {
+      return new Response(
+        JSON.stringify({
+          sucesso: false,
+          erro: "Login com certificado ainda não está disponível. Utilize a consulta pública para evitar bloqueio de credenciais.",
+          documentos_baixados: 0,
+          documentos_total: 0,
+          documentos: [],
+          modo: "bloqueado",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Buscar credencial (apenas para registro, NÃO usamos login/senha)
     const { data: credencial, error: credError } = await supabase
       .from("cofre_senhas")
-      .select("*")
+      .select("id, nome, tribunal, sistema")
       .eq("id", cofre_senha_id)
       .single();
 
@@ -110,115 +132,106 @@ serve(async (req) => {
       : detectarTribunal(processo_numero);
     const baseUrl = PJE_URLS[tribunalKey] || PJE_URLS["TRT10"];
 
+    console.log(`[baixar-autos-pje] Modo: CONSULTA PÚBLICA (sem login)`);
     console.log(`[baixar-autos-pje] Tribunal: ${tribunalKey}, Base: ${baseUrl}`);
 
     const numeroLimpo = processo_numero.replace(/[^0-9.-]/g, "");
+    const numeroDigitos = processo_numero.replace(/[^0-9]/g, "");
 
-    // Usar /scrape endpoint (compatível com Browserless v1/v2)
-    // Consulta processual pública do PJe
-    const consultaUrl = `${baseUrl}/consultaprocessual/detalhe-processo/${numeroLimpo.replace(/[^0-9]/g, "")}`;
-    console.log(`[baixar-autos-pje] Consultando: ${consultaUrl}`);
+    // Consulta processual pública - NÃO requer login
+    const consultaUrl = `${baseUrl}/consultaprocessual/detalhe-processo/${numeroDigitos}`;
+    console.log(`[baixar-autos-pje] Consultando (público): ${consultaUrl}`);
 
-    const scrapeResponse = await fetch(
-      `https://chrome.browserless.io/scrape?token=${browserlessApiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: consultaUrl,
-          elements: [
-            {
-              selector: "a[href*='documento'], a[href*='download'], a[href*='binario'], .documentoLink a, .arquivo a, table.documentos a, #divDocumentos a, .lista-documentos a",
-            },
-            {
-              selector: "title",
-            },
-            {
-              selector: "body",
-            },
-          ],
-          waitForSelector: { selector: "body", timeout: 15000 },
-          gotoOptions: { waitUntil: "domcontentloaded", timeout: 30000 },
-        }),
-      }
-    );
+    // Tentar /scrape primeiro
+    let docs: Array<{ nome: string; url: string; tipo: string }> = [];
+    let htmlSize = 0;
 
-    if (!scrapeResponse.ok) {
-      const errText = await scrapeResponse.text();
-      console.error("[baixar-autos-pje] Scrape error:", errText.substring(0, 500));
-
-      // Fallback: tentar /content para obter HTML bruto
-      console.log("[baixar-autos-pje] Tentando fallback com /content...");
-      const contentResponse = await fetch(
-        `https://chrome.browserless.io/content?token=${browserlessApiKey}`,
+    try {
+      const scrapeResponse = await fetch(
+        `https://chrome.browserless.io/scrape?token=${browserlessApiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             url: consultaUrl,
+            elements: [
+              {
+                selector: "a[href*='documento'], a[href*='download'], a[href*='binario'], .documentoLink a, .arquivo a, table.documentos a, #divDocumentos a, .lista-documentos a",
+              },
+              { selector: "title" },
+              { selector: "body" },
+            ],
+            waitForSelector: { selector: "body", timeout: 15000 },
             gotoOptions: { waitUntil: "domcontentloaded", timeout: 30000 },
           }),
         }
       );
 
-      if (!contentResponse.ok) {
-        const contentErr = await contentResponse.text();
-        console.error("[baixar-autos-pje] Content fallback error:", contentErr.substring(0, 500));
-        throw new Error(`Erro ao acessar portal do PJe: ${scrapeResponse.status}`);
-      }
+      if (scrapeResponse.ok) {
+        const scrapeData = await scrapeResponse.json();
+        const results = scrapeData?.data || [];
 
-      const html = await contentResponse.text();
-      console.log(`[baixar-autos-pje] HTML obtido: ${html.length} bytes`);
+        if (results[0]?.results?.length > 0) {
+          for (const item of results[0].results) {
+            const text = (item.text || "").trim();
+            const href = item.attributes?.find((a: any) => a.name === "href")?.value || "";
+            if (text && text.length > 1) {
+              docs.push({
+                nome: text.substring(0, 200),
+                url: href.startsWith("http") ? href : `${baseUrl}${href}`,
+                tipo: classificarTipo(text),
+              });
+            }
+          }
+        }
 
-      // Extrair documentos do HTML com regex
-      const docs = extrairDocumentosDoHtml(html, baseUrl);
+        // Fallback: extrair do body HTML
+        if (docs.length === 0 && results[2]?.results?.length > 0) {
+          const bodyHtml = results[2].results[0]?.html || "";
+          if (bodyHtml.length > 100) {
+            docs = extrairDocumentosDoHtml(bodyHtml, baseUrl);
+            htmlSize = bodyHtml.length;
+          }
+        }
+      } else {
+        console.log("[baixar-autos-pje] Scrape falhou, tentando /content...");
+        // Fallback: /content
+        const contentResponse = await fetch(
+          `https://chrome.browserless.io/content?token=${browserlessApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: consultaUrl,
+              gotoOptions: { waitUntil: "domcontentloaded", timeout: 30000 },
+            }),
+          }
+        );
 
-      return await salvarESucesso(supabase, docs, processo_id, cofre_senha_id, userId, numeroLimpo, html.length);
-    }
-
-    // Processar resultado do scrape
-    const scrapeData = await scrapeResponse.json();
-    console.log(`[baixar-autos-pje] Scrape OK, data keys: ${Object.keys(scrapeData).join(", ")}`);
-
-    const docs: Array<{ nome: string; url: string; tipo: string }> = [];
-    const results = scrapeData?.data || [];
-
-    // O primeiro elemento são os links de documentos
-    if (results[0]?.results?.length > 0) {
-      for (const item of results[0].results) {
-        const text = (item.text || "").trim();
-        const href = item.attributes?.find((a: any) => a.name === "href")?.value || "";
-
-        if (text && text.length > 1) {
-          docs.push({
-            nome: text.substring(0, 200),
-            url: href.startsWith("http") ? href : `${baseUrl}${href}`,
-            tipo: classificarTipo(text),
-          });
+        if (contentResponse.ok) {
+          const html = await contentResponse.text();
+          htmlSize = html.length;
+          docs = extrairDocumentosDoHtml(html, baseUrl);
+        } else {
+          console.error("[baixar-autos-pje] Content fallback também falhou");
         }
       }
+    } catch (fetchErr) {
+      console.error("[baixar-autos-pje] Erro na requisição ao Browserless:", fetchErr);
     }
 
     // Deduplicar
     const seen = new Set<string>();
     const docsUnicos = docs.filter((d) => {
-      if (seen.has(d.nome)) return false;
-      seen.add(d.nome);
+      const key = d.nome.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     }).slice(0, 50);
 
-    console.log(`[baixar-autos-pje] Documentos encontrados: ${docsUnicos.length}`);
+    console.log(`[baixar-autos-pje] Documentos encontrados (consulta pública): ${docsUnicos.length}`);
 
-    // Se nenhum doc encontrado no scrape, tentar extrair do HTML do body
-    if (docsUnicos.length === 0 && results[2]?.results?.length > 0) {
-      const bodyHtml = results[2].results[0]?.html || "";
-      if (bodyHtml.length > 100) {
-        const fallbackDocs = extrairDocumentosDoHtml(bodyHtml, baseUrl);
-        docsUnicos.push(...fallbackDocs);
-      }
-    }
-
-    return await salvarESucesso(supabase, docsUnicos, processo_id, cofre_senha_id, userId, numeroLimpo, 0);
+    return await salvarESucesso(supabase, docsUnicos, processo_id, cofre_senha_id, userId, numeroLimpo, htmlSize);
   } catch (error: unknown) {
     console.error("[baixar-autos-pje] Erro geral:", error);
     const msg = error instanceof Error ? error.message : "Erro interno";
@@ -246,7 +259,6 @@ function classificarTipo(text: string): string {
 
 function extrairDocumentosDoHtml(html: string, baseUrl: string): Array<{ nome: string; url: string; tipo: string }> {
   const docs: Array<{ nome: string; url: string; tipo: string }> = [];
-  // Regex para extrair links de documentos
   const linkRegex = /<a[^>]*href=["']([^"']*(?:documento|download|binario)[^"']*)["'][^>]*>([^<]*)<\/a>/gi;
   let match;
   const seen = new Set<string>();
@@ -314,24 +326,17 @@ async function salvarESucesso(
     }
   }
 
-  // Atualizar credencial
-  await supabase.from("cofre_senhas").update({
-    status_validacao: "acessivel",
-    mensagem_erro: null,
-    ultima_validacao: new Date().toISOString(),
-  }).eq("id", cofre_senha_id);
-
   return new Response(
     JSON.stringify({
       sucesso: true,
-      login_sucesso: false,
-      pagina_processo: true,
+      login_utilizado: false,
+      modo: "consulta_publica",
       documentos_baixados: docsSalvos.length,
       documentos_total: docs.length,
       documentos: docsSalvos,
       mensagem: docs.length > 0
-        ? `${docsSalvos.length} documento(s) encontrado(s) na consulta processual pública.`
-        : `Consulta realizada. Nenhum documento encontrado na consulta pública. O processo pode requerer login autenticado.`,
+        ? `${docsSalvos.length} documento(s) encontrado(s) via consulta pública. Nenhuma credencial foi usada para login.`
+        : `Consulta pública realizada. Nenhum documento encontrado. O processo pode requerer login autenticado (não disponível por segurança).`,
     }),
     { headers: corsH }
   );
