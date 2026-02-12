@@ -1,217 +1,169 @@
 
-## Plano: Download de Autos via PJe com Certificado A1
+# Plano de Integração MNI - Fase 1: Implementação Inicial
 
-### Visão Geral
-Implementar funcionalidade para que advogados façam login automaticamente no PJe usando o certificado digital A1 (arquivo `.pfx`/`.p12` armazenado no Supabase Storage) e baixem automaticamente os autos (documentos) dos processos, armazenando os PDFs no Supabase Storage e criando referências no banco de dados.
+## Objetivo
+Integrar a API MNI do PJe como método primário para buscar autos quando o advogado clica em "Buscar Autos" na aba Portal do detalhe de processos.
 
-### Arquitetura de Fluxo
+## Contexto Técnico
+- **Localização do botão**: Na aba "Portal" do `ProcessoPortalTab.tsx`, já existe `BaixarAutosButton.tsx` que dispara a busca
+- **Fluxo atual**: O botão chama `useBaixarAutos` que invoca a Edge Function `baixar-autos-pje`
+- **Novo fluxo**: Será adicionada uma chamada MNI antes do método atual (Browserless)
+- **Controle de tentativas**: Já implementado (3 tentativas falhas = bloqueio 1h)
+
+## Arquitetura MNI
+
+### O que é MNI
+- API oficial do CNJ (Modelo Nacional de Interoperabilidade)
+- Usa SOAP/XML (podemos usar biblioteca `xml2js` para parsear)
+- Autenticação com CPF + Senha do PJe (credenciais já armazenadas no cofre)
+- Cada tribunal tem seu próprio endpoint WSDL
+
+### Identificação do Tribunal
+O número CNJ tem formato: `NNNNNNN-DD.AAAA.J.TT.OOOO`
+- `J` (dígito 9) = Justiça (5=Trabalhista, 8=Estadual, 4=Federal)
+- `TT` (dígitos 10-11) = Tribunal (02=TRT2, 06=TJCE, etc.)
+
+### Exemplos de Endpoints WSDL
 ```
-[Advogado no ProcessoDetalhes]
-    ↓
-[Seleciona "Baixar Autos" na aba ProcessoPortalTab]
-    ↓
-[Sistema valida credencial com A1 no cofre_senhas]
-    ↓
-[Invoca edge function: baixar-autos-pje]
-    ↓
-[Browserless + A1 = Login automatizado no PJe]
-    ↓
-[Scrape de documentos/autos do processo]
-    ↓
-[Download dos PDFs para Supabase Storage]
-    ↓
-[Salva referências em tabela: processos_documentos_download]
-    ↓
-[UI atualiza mostrando documentos obtidos]
+TRT1: https://pje.trt1.jus.br/pje1grau/intercomunicacao?wsdl
+TRT2: https://pje.trt2.jus.br/pje1grau/intercomunicacao?wsdl
+TJSP: https://pje.tjsp.jus.br/pje1grau/intercomunicacao?wsdl
 ```
 
-### Componentes a Serem Implementados
+## Escopo da Implementação
 
-#### 1. **Nova Tabela: `processos_documentos_download`**
-- Armazena referência aos documentos baixados
-- Campos:
-  - `id` (uuid, pk)
-  - `processo_id` (uuid, fk → processos)
-  - `cofre_senha_id` (uuid, fk → cofre_senhas) - qual credencial foi usada
-  - `nome_arquivo` (text) - nome do documento
-  - `tipo_documento` (text) - auto, sentença, despacho, etc
-  - `storage_path` (text) - caminho no Supabase Storage
-  - `tamanho_bytes` (integer)
-  - `data_documento` (date, nullable) - data da sentença/auto
-  - `status_download` (enum: sucesso|erro|pendente)
-  - `mensagem_erro` (text, nullable)
-  - `downloaded_at` (timestamp)
-  - `created_at` (timestamp)
-  - `updated_at` (timestamp)
+### 1. Criar Arquivo de Mapeamento Tribunal → WSDL
+**Arquivo**: `src/utils/mniTribunalMap.ts`
+- Map com identificadores de tribunal (extraídos do CNJ) → URLs WSDL
+- Função helper para extrair TT do número CNJ
+- Função para obter endpoint WSDL correto
 
-#### 2. **Edge Function: `baixar-autos-pje/index.ts`**
+### 2. Criar Edge Function `consultar-processo-mni`
+**Arquivo**: `supabase/functions/consultar-processo-mni/index.ts`
+- Recebe: `numero_processo`, `cofre_senha_id`, `modo`
+- **Lógica principal**:
+  1. Busca credencial no cofre (CPF, senha)
+  2. Extrai tribunal do número CNJ
+  3. Valida se credencial está bloqueada (usa `bloqueado_ate`)
+  4. Constrói envelope SOAP com `consultarProcesso`
+  5. Faz POST ao endpoint WSDL correto
+  6. Parseia resposta XML → JSON
+  7. Extrai: partes (polos), classe, assuntos, documentos, movimentações
+  8. Em caso de falha: registra tentativa, incrementa contador, bloqueia se necessário
+  9. Retorna dados estruturados ou erro
+- **Segurança**: Usa CORS headers, valida JWT, checks de bloqueio
 
-**Entrada:**
-```typescript
+### 3. Modificar `BaixarAutosButton.tsx`
+- Adicionar toggle para "Modo MNI" (opcional, ou detectar automaticamente)
+- Quando usuário clica "Buscar Autos":
+  - Mostrar loading "Consultando API MNI..."
+  - Chamar `consultar-processo-mni` primeiro
+  - Se sucesso: mostrar dados (partes, documentos, movimentações)
+  - Se falha: mostrar erro + fallback para Browserless (opcional)
+
+### 4. Criar Hook `useMniConsultaProcesso.ts`
+**Similar ao `useBaixarAutos.ts`**
+- Estados: `consultando`, `resultado`, `erro`
+- Função: `consultarViasMni()` que invoca Edge Function
+- Retorna dados estruturados com partes, documentos, movimentações
+
+### 5. Atualizar `useBaixarAutos.ts` (Opcional)
+- Se implementar fallback: tentar MNI primeiro, depois Browserless
+- Se apenas MNI: remover dependência de Browserless para modo login
+
+## Fluxo de Execução
+
+```
+Usuário clica "Buscar Autos" (BaixarAutosButton)
+    ↓
+Modo = "login_certificado" selecionado?
+    ↓ SIM
+Verifica se credencial está bloqueada (bloqueado_ate)
+    ↓ SIM
+Mostra: "Bloqueada por XX minutos" → Retorna
+    ↓ NÃO
+Chama Edge Function "consultar-processo-mni"
+    ↓
+[Edge Function]
+Extrai TT do CNJ → Encontra endpoint WSDL
+Constrói SOAP consultarProcesso
+    ↓
+Envia POST a tribunal.pje.jus.br/pje1grau/intercomunicacao
+    ↓
+Login falho?
+    ↓ SIM
+Incrementa tentativas_falhas em cofre_senhas
+    ↓
+tentativas_falhas >= 3?
+    ↓ SIM
+Bloqueia credencial: bloqueado_ate = agora + 1h
+    ↓ NÃO
+Retorna erro + contador
+    ↓ NÃO (Sucesso)
+Parseia XML → Extrai partes, documentos, movimentações
+Retorna dados em JSON estruturado
+    ↓
+[UI]
+Mostra partes (polos ativo/passivo)
+Lista documentos com IDs MNI
+Exibe movimentações processadas
+```
+
+## Dados que Serão Retornados (JSON)
+
+```json
 {
-  cofre_senha_id: string;       // ID da credencial com A1
-  processo_numero: string;       // Número do processo
-  tribunal?: string;            // TRT1, TRT2, TJSP, etc
+  "sucesso": true,
+  "origem": "mni",
+  "dadosBasicos": {
+    "numero": "0001234-56.2024.5.02.0001",
+    "classe": "Reclamação Trabalhista",
+    "assuntos": ["Horas Extras", "Adicionais"],
+    "valorCausa": 50000.00
+  },
+  "partes": {
+    "poloAtivo": [
+      {"nome": "Fulano de Tal", "cpf": "123.456.789-00", "advogado": "OAB SP 12345"}
+    ],
+    "poloPassivo": [
+      {"nome": "Empresa XYZ", "cnpj": "00.000.000/0001-00"}
+    ]
+  },
+  "documentos": [
+    {"id": "doc123", "tipo": "Petição Inicial", "data": "2024-01-15", "mimetype": "application/pdf"}
+  ],
+  "movimentacoes": [
+    {"data": "2024-01-20", "descricao": "Distribuição", "tipoMov": "distribuição"}
+  ]
 }
 ```
 
-**Lógica:**
-1. Buscar credencial no `cofre_senhas` incluindo:
-   - `login` / `senha_hash`
-   - `certificado_a1_path` (arquivo .pfx no Storage)
-   - `certificado_a1_senha` (senha do certificado)
+## Tabelas Envolvidas
+- `cofre_senhas`: Lê credenciais, atualiza `tentativas_falhas` e `bloqueado_ate`
+- `processos_documentos_download`: Registra documentos encontrados (opcional)
 
-2. **Buscar arquivo A1 do Storage:**
-   - Usar `supabase.storage.from('cofre_certificados').download(path)`
-   - Armazenar em memória como buffer
+## Casos de Erro Tratados
 
-3. **Autenticar no PJe com A1:**
-   - Usar Browserless `/function` endpoint
-   - Código Puppeteer injetado que:
-     - Carrega o arquivo `.pfx` como certificado do cliente
-     - Envia requisição HTTPS com certificado
-     - Navega até a página de autenticação
-     - Realiza handshake de certificado automaticamente
-   - PJe tipicamente NÃO exige password quando usa certificado (apenas aperta "Continuar")
+| Erro | Ação |
+|------|------|
+| Credencial bloqueada | Retorna status 403 + tempo restante |
+| Tentativa falha de login | Incrementa contador, bloqueia se >= 3 |
+| Tribunal não encontrado | Retorna erro 400 (número CNJ inválido) |
+| Endpoint WSDL inativo | Retorna erro 503 (tribunal offline) |
+| XML malformado | Retorna erro 500 (problema na resposta) |
 
-4. **Buscar lista de autos:**
-   - Navega até `/primeirograu/processo/{numero}`
-   - Scrape da listagem de documentos
-   - Detecta links para download (PDFs)
-   - Extrai metadata: tipo documento, data, tamanho
+## Próximas Fases (Não Incluídas Aqui)
+- Fase 2: Criar `baixar-documento-mni` para download autenticado
+- Fase 3: Integrar MNI em `useBaixarAutos.ts` como fallback + Browserless
+- Fase 4: UI para mostrar lista de documentos + download direto
 
-5. **Download dos PDFs:**
-   - Para cada documento encontrado:
-     - Faz requisição HTTPS com certificado para o link do PDF
-     - Faz upload para `supabase.storage.from('processos_autos')`
-     - Salva referência em `processos_documentos_download`
+## Dependências
+- `xml2js`: Para parsear SOAP responses (já pode estar instalada ou precisar adicionar)
+- Axios/Fetch: Para fazer requisições HTTP (já disponível via Supabase/Deno)
 
-6. **Retorna status:**
-   ```typescript
-   {
-     sucesso: boolean;
-     documentos_baixados: number;
-     documentos_total: number;
-     documentos: {
-       nome: string;
-       tipo: string;
-       storage_path: string;
-       tamanho: number;
-       status: 'sucesso' | 'erro';
-       erro?: string;
-     }[];
-   }
-   ```
-
-#### 3. **Componente UI: `BaixarAutosButton.tsx`**
-- Novo botão na aba `ProcessoPortalTab`
-- Estados:
-  - Aguardando seleção de credencial com A1
-  - Carregando (download em progresso)
-  - Sucesso (mostra lista de docs baixados)
-  - Erro (mostra mensagem)
-- Mostra progresso: "Baixando documento 3 de 7..."
-- Ao sucesso, lista documentos com link para abrir/baixar
-
-#### 4. **Hook: `useBaixarAutos.ts`**
-- Mutation para invocar edge function
-- Gerencia estado de loading/erro
-- Refetch automático após sucesso
-
-#### 5. **Atualização: `ProcessoDocumentosTab.tsx`**
-- Integrar abas:
-  - "Documentos Armazenados" (autos já baixados via A1)
-  - "Meus Documentos" (uploads manuais)
-  - "Baixar Autos" (busca nova captura)
-
-### Detalhes Técnicos Críticos
-
-#### Autenticação com Certificado A1 via Browserless/Puppeteer
-
-```javascript
-// Pseudocódigo - o que roda dentro do Browserless
-const https = require('https');
-const fs = require('fs');
-
-// Carregar certificado .pfx
-const pfxData = Buffer.from(base64CertData, 'base64');
-const pfxPassword = 'senha_do_a1';
-
-// Criar agent HTTPS com certificado
-const agent = new https.Agent({
-  pfx: pfxData,
-  passphrase: pfxPassword,
-  rejectUnauthorized: false, // PJe usa cert auto-assinado em alguns casos
-});
-
-// Usar agent em fetch/axios
-const response = await fetch(pjeUrl, {
-  method: 'GET',
-  agent: agent,
-});
-```
-
-#### Challenges & Soluções
-
-**1. Arquivo .pfx em memória no Edge Function**
-- ✅ Possível: Browserless roda Puppeteer em Node.js
-- Solução: Converter arquivo binário para base64, passar como string
-
-**2. Senha do certificado segura**
-- ✅ Já armazenada em `cofre_senhas.certificado_a1_senha`
-- Solução: Decodificar na edge function (não no cliente)
-
-**3. Timeout para downloads longos**
-- ✅ Browserless suporta timeouts até 120s (pode estender)
-- Solução: Implementar progresso parcial (salvar docs conforme baixados)
-
-**4. Erro se certificado expirou**
-- ✅ Detectar erro de certificado inválido
-- Solução: Retornar erro claro ao usuário, sugerir renovação
-
-### Sequência de Implementação
-
-1. **Criar tabela `processos_documentos_download`** via SQL migration
-   - Incluir RLS policies (usuário pode ver docs de processos que ele acessa)
-
-2. **Implementar edge function `baixar-autos-pje`**
-   - Começar com TRT (trabalhista) - mais simples que TJSP
-   - Testar com credencial real ou mock
-   - Validar download e armazenamento no Storage
-
-3. **Criar hook `useBaixarAutos`**
-   - Mutation que chama a edge function
-
-4. **Criar componente `BaixarAutosButton`**
-   - Integrar em `ProcessoPortalTab`
-   - Estados de loading/sucesso/erro
-
-5. **Atualizar `ProcessoDocumentosTab`**
-   - Listar documentos baixados
-
-6. **Testar end-to-end**
-   - Navegar até um processo real (ex: na rota `/processos/d1d04239...`)
-   - Selecionar credencial com A1
-   - Clicar em "Baixar Autos"
-   - Verificar que PDFs aparecem em "Documentos Armazenados"
-
-### Limitações & Fallbacks
-
-- **Se certificado expirou:** Edge function retorna erro, usuário renova certificado no Cofre
-- **Se PJe mudou URL/estrutura:** Atualizar seletores no Browserless (manutenção periódica)
-- **Se tribunal não suporta certificado:** Fallback para login manual (já existe)
-- **Se documento é muito grande (> 50MB):** Avisar usuário, não tentar baixar
-
-### Dados Armazenados
-
-- **Cofre Storage (`cofre_certificados`):** Já existe, armazena `.pfx`
-- **Novo Storage (`processos_autos`):** Criar bucket novo para os PDFs baixados
-  - RLS policy: usuário pode ver/baixar autos de processos da sua coordenação
-  - Reter por 90 dias (limpeza automática via cron)
-
-### Segurança
-
-- ✅ Certificado A1 já encriptado em trânsito (HTTPS)
-- ✅ Senha do certificado não transmitida ao navegador (apenas edge function)
-- ✅ Logs de acesso: qual usuário baixou quais docs em que data
-- ✅ RLS policies garantem acesso apenas a processos permitidos
+## Esforço Estimado
+- Edge Function `consultar-processo-mni`: ~2h
+- Arquivo `mniTribunalMap.ts`: ~30min
+- Hook `useMniConsultaProcesso.ts`: ~1h
+- Atualização UI `BaixarAutosButton.tsx`: ~1h
+- **Total**: ~4.5h para integração básica funcional
