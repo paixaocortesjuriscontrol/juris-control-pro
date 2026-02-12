@@ -93,8 +93,8 @@ export function DataJudDashboardCard({ stats, onAfterMutation }: Props) {
       : 0
   );
 
-  const duracao = progress.finished_at && progress.started_at
-    ? Math.round((new Date(progress.finished_at).getTime() - new Date(progress.started_at).getTime()) / 1000)
+  const duracao = progress.started_at
+    ? Math.round((new Date(progress.finished_at || new Date()).getTime() - new Date(progress.started_at).getTime()) / 1000)
     : 0;
 
   const handleExecutar = useCallback(() => {
