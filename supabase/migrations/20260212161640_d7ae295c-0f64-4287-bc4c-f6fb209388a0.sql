@@ -1,0 +1,1 @@
+ALTER TABLE public.monitoramentos_djen ADD COLUMN IF NOT EXISTS tribunais_ufs TEXT[];
