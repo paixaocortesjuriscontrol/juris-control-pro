@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.monitorar-datajud-termos]
 verify_jwt = false
+
+[functions.baixar-autos-pje]
+verify_jwt = true

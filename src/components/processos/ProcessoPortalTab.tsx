@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { BaixarAutosButton } from "./BaixarAutosButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -411,6 +412,13 @@ export function ProcessoPortalTab({ processoId, processoNumero, tribunal }: Proc
             </div>
           </div>
         )}
+
+        {/* Baixar Autos do PJe */}
+        <BaixarAutosButton
+          processoId={processoId}
+          processoNumero={processoNumero}
+          tribunal={tribunal}
+        />
 
         {/* Info adicional */}
         <div className="pt-4 border-t">

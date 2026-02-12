@@ -3689,6 +3689,72 @@ export type Database = {
           },
         ]
       }
+      processos_documentos_download: {
+        Row: {
+          cofre_senha_id: string | null
+          created_at: string
+          data_documento: string | null
+          downloaded_at: string | null
+          downloaded_by: string | null
+          id: string
+          mensagem_erro: string | null
+          nome_arquivo: string
+          processo_id: string
+          status_download: string
+          storage_path: string
+          tamanho_bytes: number | null
+          tipo_documento: string
+          updated_at: string
+        }
+        Insert: {
+          cofre_senha_id?: string | null
+          created_at?: string
+          data_documento?: string | null
+          downloaded_at?: string | null
+          downloaded_by?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          nome_arquivo: string
+          processo_id: string
+          status_download?: string
+          storage_path: string
+          tamanho_bytes?: number | null
+          tipo_documento?: string
+          updated_at?: string
+        }
+        Update: {
+          cofre_senha_id?: string | null
+          created_at?: string
+          data_documento?: string | null
+          downloaded_at?: string | null
+          downloaded_by?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          nome_arquivo?: string
+          processo_id?: string
+          status_download?: string
+          storage_path?: string
+          tamanho_bytes?: number | null
+          tipo_documento?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_documentos_download_cofre_senha_id_fkey"
+            columns: ["cofre_senha_id"]
+            isOneToOne: false
+            referencedRelation: "cofre_senhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_documentos_download_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processos_responsaveis: {
         Row: {
           ativo: boolean | null
