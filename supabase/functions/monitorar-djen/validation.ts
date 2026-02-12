@@ -97,22 +97,26 @@ export function conteudoContemTermo(
   const conteudoNorm = normalizar(conteudo);
 
   if (tipo === 'advogado' || tipo === 'nome') {
+    if (termo) {
+      const termoBase = extrairPalavraChavePura(termo);
+      // Se o nome completo é encontrado, aceitar (advogados podem ter OABs
+      // diferentes em estados diferentes, ex: DF-15553 e SP-310314)
+      if (validarTermoComAnd(conteudoNorm, termoBase)) {
+        return true;
+      }
+    }
+
+    // Nome não encontrado: tentar validar pela OAB
     if (tipo === 'advogado' && oab) {
       const oabDigits = String(oab).replace(/\D/g, '');
       if (oabDigits.length >= 3) {
         const oabPattern = new RegExp(oabDigits.split('').join('[.\\s-]?'), 'i');
-        if (!oabPattern.test(conteudo)) return false;
+        if (oabPattern.test(conteudo)) return true;
       }
     }
 
-    if (termo) {
-      const termoBase = extrairPalavraChavePura(termo);
-      if (!validarTermoComAnd(conteudoNorm, termoBase)) {
-        return false;
-      }
-    }
-
-    return true;
+    // Nem nome nem OAB encontrados
+    return false;
   }
 
   if (tipo === 'processo') {
