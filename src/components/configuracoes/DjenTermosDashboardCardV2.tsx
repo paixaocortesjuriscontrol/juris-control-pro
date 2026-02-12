@@ -45,6 +45,7 @@ import { useDjenTermos } from "@/hooks/useDjenTermos";
 import type { MonitoringStats } from "@/hooks/useMonitoringDashboard";
 import { toast } from "sonner";
 import { getDjenTermosExecutionProgress } from "@/utils/djenTermosExecutionProgress";
+import { useDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
 
 type Props = {
   stats: MonitoringStats;
@@ -66,10 +67,81 @@ const STATUS_CONFIG: Record<string, {
   erro: { label: 'Erro', color: 'text-destructive', bg: 'bg-destructive/10', icon: XCircle },
 };
 
+
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Componente do Card de Agendamento Automático
+ */
+function SchedulerCard() {
+  const { ativo, proximoHorario, start, stop } = useDjenTermosScheduler();
+
+  return (
+    <Card className="mt-4">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Agendamento Automático</CardTitle>
+          </div>
+          <Badge variant={ativo ? "default" : "secondary"}>
+            {ativo ? "Ativo" : "Inativo"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Descrição */}
+        <p className="text-sm text-muted-foreground">
+          Executa automaticamente todos os dias às <span className="font-semibold text-foreground">05:30 BRT</span>
+        </p>
+
+        {/* Toggle */}
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="djen-scheduler" className="text-sm font-medium">
+              Agendamento automático
+            </Label>
+          </div>
+          <Switch
+            id="djen-scheduler"
+            checked={ativo}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                start();
+                toast.success('Agendamento ativado');
+              } else {
+                stop();
+                toast.info('Agendamento desativado');
+              }
+            }}
+          />
+        </div>
+
+        {/* Status e próximo horário */}
+        {ativo && proximoHorario && (
+          <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3">
+            <Clock className="h-4 w-4 text-primary flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Próxima execução</p>
+              <p className="text-sm font-medium">{proximoHorario}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Aviso */}
+        <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-3 border border-amber-500/20">
+          <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-900">
+            Mantenha esta aba aberta para que o agendamento automático funcione
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
@@ -1323,14 +1395,19 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </TooltipProvider>
           </div>
 
-          {/* Indicador de execução em background */}
-          {effectiveIsRunning && (
-            <p className="text-xs text-center text-muted-foreground">
-              💡 Execução continua em background mesmo ao sair desta tela
-            </p>
-          )}
-        </CardContent>
-      </Card>
+           {/* Indicador de execução em background */}
+           {effectiveIsRunning && (
+             <p className="text-xs text-center text-muted-foreground">
+               💡 Execução continua em background mesmo ao sair desta tela
+             </p>
+           )}
+         </CardContent>
+       </Card>
+
+       {/* Card de Agendamento Automático */}
+       <SchedulerCard />
+
+       {/* Card de Índice Diário */}
 
       <Card className="mt-4">
         <CardHeader className="pb-3">

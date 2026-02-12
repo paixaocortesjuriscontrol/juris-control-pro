@@ -1,7 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
 
 export interface MainLayoutProps {
   children: ReactNode;
@@ -13,6 +14,15 @@ export interface MainLayoutProps {
 
 export function MainLayout({ children, title, subtitle, headerActions, className }: MainLayoutProps) {
   const isMobile = useIsMobile();
+
+  // Inicializa o scheduler de DJEN Termos
+  useEffect(() => {
+    const preferencia = localStorage.getItem('djen-termos-scheduler-enabled') === 'true';
+    if (preferencia) {
+      startDjenTermosScheduler();
+    }
+    return () => stopDjenTermosScheduler();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
