@@ -372,7 +372,7 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                title="Testar conexão"
+                                title="Verificar se o portal está acessível"
                                 onClick={() => handleTestarConexao(cred.id)}
                                 disabled={testingCredencial === cred.id}
                               >
@@ -637,10 +637,10 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-amber-500" />
-              Teste de Conexão com Tribunal
+              Verificação do Portal do Tribunal
             </DialogTitle>
             <DialogDescription>
-              Verificando conexão via Browserless com o sistema do tribunal
+              Verifica apenas se o portal do tribunal está acessível. Não valida login/senha.
             </DialogDescription>
           </DialogHeader>
 
@@ -649,7 +649,7 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
               <div className="flex items-center justify-center py-8">
                 <div className="text-center space-y-3">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                  <p className="text-sm text-muted-foreground">Conectando ao tribunal...</p>
+                  <p className="text-sm text-muted-foreground">Verificando portal do tribunal...</p>
                 </div>
               </div>
             )}
@@ -670,8 +670,13 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
                     )}
                     <div className="flex-1">
                       <p className="font-medium">
-                        {testResult.success ? "Conexão estabelecida!" : "Falha na conexão"}
+                        {testResult.success ? "Portal acessível" : "Portal indisponível"}
                       </p>
+                      {testResult.success && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          ⚠️ Isso confirma apenas que o site do tribunal está no ar. A validação do login/senha não é realizada.
+                        </p>
+                      )}
                       {testResult.error && (
                         <p className="text-sm text-red-600 mt-1">{testResult.error}</p>
                       )}
