@@ -147,41 +147,27 @@ function buildSearchQuery(mon: MonitoramentoDjen, dataInicio: string, dataFim: s
   const termo = mon.termo_busca.trim();
   const dateFilter = { range: { "dataHoraUltimaAtualizacao": { gte: dataInicio, lte: dataFim } } };
 
-  if (mon.tipo === 'advogado') {
-    const shouldClauses: any[] = [
-      { match_phrase: { "_all": termo } },
-      { query_string: { query: `"${termo}"`, default_operator: "AND" } },
-    ];
-    if (mon.oab) {
-      shouldClauses.push({ match: { "_all": mon.oab } });
-      shouldClauses.push({ query_string: { query: `"${mon.oab}"` } });
-    }
-    return {
-      query: {
-        bool: {
-          must: [dateFilter],
-          should: shouldClauses,
-          minimum_should_match: 1,
-        }
-      },
-      size: 20,
-      _source: ["numeroProcesso", "classe.nome", "orgaoJulgador.nome", "movimentos", "dataAjuizamento", "assuntos"],
-      sort: [{ "dataHoraUltimaAtualizacao": { order: "desc" } }]
-    };
+  // Para TODOS os tipos (advogado, parte, palavras-chave), buscar como palavra-chave
+  // A API DataJud não indexa nomes de advogados/partes em campos pesquisáveis,
+  // então a melhor estratégia é buscar o termo nos textos de movimentações e assuntos
+  const shouldClauses: any[] = [
+    { match_phrase: { "movimentos.complementosTabelados.descricao": termo } },
+    { match_phrase: { "assuntos.nome": termo } },
+    { query_string: { query: `"${termo}"`, default_operator: "AND" } },
+  ];
+
+  // Para advogado, adicionar busca pelo OAB também
+  if (mon.tipo === 'advogado' && mon.oab) {
+    shouldClauses.push({ query_string: { query: `"${mon.oab}"`, default_operator: "AND" } });
   }
 
-  // Palavras-chave (default): busca em complementos de movimentações E assuntos
   return {
     query: {
       bool: {
         must: [
           {
             bool: {
-              should: [
-                { match_phrase: { "movimentos.complementosTabelados.descricao": termo } },
-                { match_phrase: { "assuntos.nome": termo } },
-                { query_string: { query: `"${termo}"`, default_operator: "AND" } },
-              ],
+              should: shouldClauses,
               minimum_should_match: 1,
             }
           }
@@ -352,77 +338,7 @@ async function processDataJud(
     let monProcessados = 0;
 
     for (const mon of monitoramentos as MonitoramentoDjen[]) {
-      // PARTE: buscar por número dos processos cadastrados no banco
-      if (mon.tipo === 'parte') {
-        const termo = mon.termo_busca.trim();
-        console.log(`[DataJud] tipo=parte, termo="${termo}" - buscando processos no banco...`);
-        
-        const { data: procs, error: procErr } = await supabaseClient
-          .from('processos')
-          .select('numero, tribunal')
-          .or(`polo_ativo.ilike.%${termo}%,polo_passivo.ilike.%${termo}%`)
-          .not('numero', 'is', null);
-        
-        if (procErr) {
-          console.warn(`[DataJud] Erro buscando processos para parte "${termo}": ${procErr.message}`);
-          totalErros.push(`parte-query: ${procErr.message}`);
-          monProcessados++;
-          continue;
-        }
-        
-        if (!procs || procs.length === 0) {
-          console.log(`[DataJud] Nenhum processo no banco para parte "${termo}"`);
-          monProcessados++;
-          continue;
-        }
-        
-        console.log(`[DataJud] ${procs.length} processos para parte "${termo}"`);
-        
-        for (const proc of procs) {
-          if (!proc.numero) continue;
-          const tribunalEndpoint = resolverTribunal(proc.tribunal, proc.numero);
-          
-          if (!tribunalEndpoint) {
-            console.warn(`[DataJud] Tribunal não resolvido: "${proc.tribunal}" para ${proc.numero}`);
-            continue;
-          }
-          
-          try {
-            const q = buildSearchQueryByNumber(proc.numero, dataInicio, dataFim);
-            const resultados = await buscarDataJud(tribunalEndpoint, q);
-            totalTribunais++;
-            
-            if (resultados.length > 0) {
-              const records: any[] = [];
-              for (const source of resultados) {
-                records.push(...extrairMovimentacoes(source, tribunalEndpoint, mon.id, mon.coordenacao_id, dataInicio));
-              }
-              if (records.length > 0) {
-                const { data: inserted, error: insertErr } = await supabaseClient
-                  .from('movimentacoes_datajud')
-                  .upsert(records, {
-                    onConflict: 'monitoramento_id,numero_processo,data_movimentacao,tipo_movimentacao',
-                    ignoreDuplicates: true,
-                  })
-                  .select('id');
-                if (insertErr) {
-                  totalErros.push(`${tribunalEndpoint}: ${insertErr.message}`);
-                } else {
-                  const newCount = inserted?.length || 0;
-                  totalNovas += newCount;
-                  totalDuplicadas += records.length - newCount;
-                }
-              }
-            }
-          } catch (e: any) {
-            totalErros.push(`${proc.numero}: ${e.message}`);
-          }
-        }
-        monProcessados++;
-        continue;
-      }
-      
-      // ADVOGADO e PALAVRAS-CHAVE: busca por tribunais
+      // TODOS os tipos (advogado, parte, palavras-chave): busca unificada como palavras-chave
       const tribunais = getTribunaisParaBuscar(mon);
       const query = buildSearchQuery(mon, dataInicio, dataFim);
 
