@@ -1,356 +1,217 @@
 
+## Plano: Download de Autos via PJe com Certificado A1
 
-# Implementação do Monitoramento DataJud Termos
+### Visão Geral
+Implementar funcionalidade para que advogados façam login automaticamente no PJe usando o certificado digital A1 (arquivo `.pfx`/`.p12` armazenado no Supabase Storage) e baixem automaticamente os autos (documentos) dos processos, armazenando os PDFs no Supabase Storage e criando referências no banco de dados.
 
-## Contextualização
-O sistema atual utiliza a **API PJE Comunica** que indexa apenas publicações com efeito intimatório. A publicação do processo `0016979-04.2015.8.13.0251` (TJMG) foi marcada como "sem efeito intimatório" e portanto não é retornada por essa API. A solução é criar um novo tipo de monitoramento complementar que consulta a **API DataJud (CNJ)** - gratuita e oficial - para capturar movimentações processuais que complementam a cobertura do DJEN Termos.
-
-## Arquitetura Proposta
-
+### Arquitetura de Fluxo
 ```
-┌─────────────────────────────────────────────────────────────┐
-│             PÁGINA DE CONFIGURAÇÕES (Aba Nova)              │
-│                    "DataJud Termos"                          │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  MonitoramentoDataJudCard                             │  │
-│  │  - Botão "Executar Monitoramento"                     │  │
-│  │  - Status: Parado / Executando / Concluído            │  │
-│  │  - Progresso: tribunais processados / total           │  │
-│  │  - Contadores: novos encontrados, duplicados          │  │
-│  │  - Histórico de últimas execuções                     │  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-           ┌───────────────────────────────┐
-           │   Hook: useDjenDataJud        │
-           │  (React State + Mutation)     │
-           │  - Dispara execução manual    │
-           │  - Monitora progresso via DB  │
-           └───────────────────────────────┘
-                           ↓
-        ┌──────────────────────────────────────┐
-        │  Edge Function                       │
-        │  monitorar-datajud-termos            │
-        │  (Executa em background)             │
-        │  - Itera monitoramentos ativos       │
-        │  - Busca DataJud por tribunal        │
-        │  - Deduplica e salva resultados      │
-        │  - Atualiza metadata de execução     │
-        └──────────────────────────────────────┘
-                           ↓
-   ┌─────────────────────────────────────────────┐
-   │   API DataJud (CNJ)                         │
-   │  Endpoints por tribunal                     │
-   │  (api_publica_tjmg, api_publica_tjsp, etc) │
-   │  - Query: match_phrase por nome advogado    │
-   │  - Range: últimos 7 dias                    │
-   │  - Retorna: metadados de movimentações      │
-   └─────────────────────────────────────────────┘
-                           ↓
-       ┌──────────────────────────────────┐
-       │   Nova Tabela: movimentacoes_datajud  │
-       │   - id (uuid)                    │
-       │   - monitoramento_id (FK)        │
-       │   - coordenacao_id (FK)          │
-       │   - numero_processo              │
-       │   - tribunal                     │
-       │   - orgao_julgador               │
-       │   - tipo_movimentacao            │
-       │   - data_movimentacao            │
-       │   - complemento (description)    │
-       │   - lida (bool)                  │
-       │   - created_at                   │
-       └──────────────────────────────────┘
+[Advogado no ProcessoDetalhes]
+    ↓
+[Seleciona "Baixar Autos" na aba ProcessoPortalTab]
+    ↓
+[Sistema valida credencial com A1 no cofre_senhas]
+    ↓
+[Invoca edge function: baixar-autos-pje]
+    ↓
+[Browserless + A1 = Login automatizado no PJe]
+    ↓
+[Scrape de documentos/autos do processo]
+    ↓
+[Download dos PDFs para Supabase Storage]
+    ↓
+[Salva referências em tabela: processos_documentos_download]
+    ↓
+[UI atualiza mostrando documentos obtidos]
 ```
 
-## Etapas de Implementação (Sequencial)
+### Componentes a Serem Implementados
 
-### **Etapa 1: Criar Tabela `movimentacoes_datajud` no Banco de Dados**
+#### 1. **Nova Tabela: `processos_documentos_download`**
+- Armazena referência aos documentos baixados
+- Campos:
+  - `id` (uuid, pk)
+  - `processo_id` (uuid, fk → processos)
+  - `cofre_senha_id` (uuid, fk → cofre_senhas) - qual credencial foi usada
+  - `nome_arquivo` (text) - nome do documento
+  - `tipo_documento` (text) - auto, sentença, despacho, etc
+  - `storage_path` (text) - caminho no Supabase Storage
+  - `tamanho_bytes` (integer)
+  - `data_documento` (date, nullable) - data da sentença/auto
+  - `status_download` (enum: sucesso|erro|pendente)
+  - `mensagem_erro` (text, nullable)
+  - `downloaded_at` (timestamp)
+  - `created_at` (timestamp)
+  - `updated_at` (timestamp)
 
-**Objetivo:** Armazenar os resultados encontrados via DataJud, separados das publicações DJEN.
+#### 2. **Edge Function: `baixar-autos-pje/index.ts`**
 
-**Estrutura da Tabela:**
-
-```sql
-CREATE TABLE public.movimentacoes_datajud (
-  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  monitoramento_id UUID NOT NULL REFERENCES public.monitoramentos_djen(id) ON DELETE CASCADE,
-  coordenacao_id UUID NOT NULL REFERENCES public.coordenacoes(id) ON DELETE CASCADE,
-  numero_processo TEXT NOT NULL,
-  tribunal TEXT NOT NULL,
-  orgao_julgador TEXT,
-  tipo_movimentacao TEXT,
-  data_movimentacao DATE,
-  complemento TEXT,
-  classe_processual TEXT,
-  assuntos TEXT,
-  lida BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  
-  -- Índices para performance
-  UNIQUE(monitoramento_id, numero_processo, data_movimentacao, tipo_movimentacao)
-);
-
--- RLS: Acesso por coordenação
-ALTER TABLE public.movimentacoes_datajud ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their coordination's DataJud records"
-  ON public.movimentacoes_datajud FOR SELECT
-  USING (
-    public.is_admin_or_coordenador(auth.uid())
-    OR EXISTS (
-      SELECT 1 FROM public.membros_coordenacao
-      WHERE coordenacao_id = movimentacoes_datajud.coordenacao_id
-      AND usuario_id = auth.uid()
-    )
-  );
-
--- Trigger para update_at
-CREATE TRIGGER update_movimentacoes_datajud_timestamp
-  BEFORE UPDATE ON public.movimentacoes_datajud
-  FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
-```
-
-**Chave de Deduplicação:** 
-- UNIQUE(monitoramento_id, numero_processo, data_movimentacao, tipo_movimentacao)
-- Garante que a mesma movimentação não seja inserida duas vezes para o mesmo monitoramento
-
----
-
-### **Etapa 2: Criar Edge Function `monitorar-datajud-termos`**
-
-**Arquivo:** `supabase/functions/monitorar-datajud-termos/index.ts`
-
-**Responsabilidades:**
-1. Buscar todos os `monitoramentos_djen` ativos
-2. Para cada monitoramento, extrair o termo de busca (advogado, parte, palavra-chave)
-3. Para cada tribunal configurado:
-   - Montar query Elasticsearch para DataJud
-   - Buscar por `match_phrase` do nome do advogado/parte
-   - Filtrar por range de data (últimos 7 dias)
-   - Processar resultados e deduplica com banco
-4. Salvar novos registros em `movimentacoes_datajud`
-5. Atualizar `configuracoes_monitoramento` tipo='datajud_termos' com metadata de execução
-
-**Configuração supabase/config.toml:**
-```toml
-[functions.monitorar-datajud-termos]
-verify_jwt = false
-```
-
-**Estrutura do Código:**
-
+**Entrada:**
 ```typescript
-// Constantes
-const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const TRIBUNAIS_MAP = { /* mapa tribunal -> endpoint */ };
-const DATAJUD_TIMEOUT_MS = 8000;
-const BATCH_SIZE = 100;
-const MAX_EXECUTION_TIME_MS = 50000;
-
-// Funções auxiliares
-async function buscarNoDataJud(
-  endpoint: string,
-  nomeBusca: string,
-  dataInicio: string,
-  dataFim: string
-): Promise<any[]>
-
-async function deduplicar(
-  supabase: any,
-  monitoramentoId: string,
-  resultados: any[]
-): Promise<any[]>
-
-// Handler principal
-Deno.serve(async (req) => {
-  // 1. Validar autenticação
-  // 2. Buscar todos monitoramentos_djen ativos
-  // 3. Para cada monitoramento:
-  //    - Extrair termo de busca
-  //    - Buscar em DataJud por tribunal
-  //    - Deduplica
-  //    - Salva em movimentacoes_datajud
-  // 4. Atualizar configuracoes_monitoramento metadata
-  // 5. Retornar stats (novos encontrados, etc)
-})
-```
-
-**Respostas Esperadas:**
-```json
 {
-  "status": "sucesso",
-  "monitoramentosProcessados": 5,
-  "tribunaisProcessados": 12,
-  "novasMovimentacoes": 23,
-  "duplicadasIgnoradas": 3,
-  "erros": [],
-  "duracaoSegundos": 45
+  cofre_senha_id: string;       // ID da credencial com A1
+  processo_numero: string;       // Número do processo
+  tribunal?: string;            // TRT1, TRT2, TJSP, etc
 }
 ```
 
----
+**Lógica:**
+1. Buscar credencial no `cofre_senhas` incluindo:
+   - `login` / `senha_hash`
+   - `certificado_a1_path` (arquivo .pfx no Storage)
+   - `certificado_a1_senha` (senha do certificado)
 
-### **Etapa 3: Criar Hook React `useDjenDataJud`**
+2. **Buscar arquivo A1 do Storage:**
+   - Usar `supabase.storage.from('cofre_certificados').download(path)`
+   - Armazenar em memória como buffer
 
-**Arquivo:** `src/hooks/useDjenDataJud.ts`
+3. **Autenticar no PJe com A1:**
+   - Usar Browserless `/function` endpoint
+   - Código Puppeteer injetado que:
+     - Carrega o arquivo `.pfx` como certificado do cliente
+     - Envia requisição HTTPS com certificado
+     - Navega até a página de autenticação
+     - Realiza handshake de certificado automaticamente
+   - PJe tipicamente NÃO exige password quando usa certificado (apenas aperta "Continuar")
 
-**Responsabilidades:**
-- Disparar execução manual da Edge Function
-- Monitorar progresso via polling de `configuracoes_monitoramento`
-- Gerenciar estado de execução (rodando, parado, erro)
-- Invalidar queries ao concluir
+4. **Buscar lista de autos:**
+   - Navega até `/primeirograu/processo/{numero}`
+   - Scrape da listagem de documentos
+   - Detecta links para download (PDFs)
+   - Extrai metadata: tipo documento, data, tamanho
 
-**Interface:**
-```typescript
-export function useDjenDataJud() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [progress, setProgress] = useState<DjenDataJudProgress>(initial);
-  
-  const executar = useCallback(async () => {
-    // Dispara Edge Function
-    // Inicia polling de progresso
-  }, []);
-  
-  const cancelar = useCallback(async () => {
-    // Marca como cancelada em configuracoes_monitoramento
-  }, []);
-  
-  return {
-    isRunning,
-    progress,
-    executar,
-    cancelar,
-    stats: { novas, duplicadas, tribunais }
-  };
-}
+5. **Download dos PDFs:**
+   - Para cada documento encontrado:
+     - Faz requisição HTTPS com certificado para o link do PDF
+     - Faz upload para `supabase.storage.from('processos_autos')`
+     - Salva referência em `processos_documentos_download`
+
+6. **Retorna status:**
+   ```typescript
+   {
+     sucesso: boolean;
+     documentos_baixados: number;
+     documentos_total: number;
+     documentos: {
+       nome: string;
+       tipo: string;
+       storage_path: string;
+       tamanho: number;
+       status: 'sucesso' | 'erro';
+       erro?: string;
+     }[];
+   }
+   ```
+
+#### 3. **Componente UI: `BaixarAutosButton.tsx`**
+- Novo botão na aba `ProcessoPortalTab`
+- Estados:
+  - Aguardando seleção de credencial com A1
+  - Carregando (download em progresso)
+  - Sucesso (mostra lista de docs baixados)
+  - Erro (mostra mensagem)
+- Mostra progresso: "Baixando documento 3 de 7..."
+- Ao sucesso, lista documentos com link para abrir/baixar
+
+#### 4. **Hook: `useBaixarAutos.ts`**
+- Mutation para invocar edge function
+- Gerencia estado de loading/erro
+- Refetch automático após sucesso
+
+#### 5. **Atualização: `ProcessoDocumentosTab.tsx`**
+- Integrar abas:
+  - "Documentos Armazenados" (autos já baixados via A1)
+  - "Meus Documentos" (uploads manuais)
+  - "Baixar Autos" (busca nova captura)
+
+### Detalhes Técnicos Críticos
+
+#### Autenticação com Certificado A1 via Browserless/Puppeteer
+
+```javascript
+// Pseudocódigo - o que roda dentro do Browserless
+const https = require('https');
+const fs = require('fs');
+
+// Carregar certificado .pfx
+const pfxData = Buffer.from(base64CertData, 'base64');
+const pfxPassword = 'senha_do_a1';
+
+// Criar agent HTTPS com certificado
+const agent = new https.Agent({
+  pfx: pfxData,
+  passphrase: pfxPassword,
+  rejectUnauthorized: false, // PJe usa cert auto-assinado em alguns casos
+});
+
+// Usar agent em fetch/axios
+const response = await fetch(pjeUrl, {
+  method: 'GET',
+  agent: agent,
+});
 ```
 
----
+#### Challenges & Soluções
 
-### **Etapa 4: Criar Componente `MonitoramentoDataJudCard`**
+**1. Arquivo .pfx em memória no Edge Function**
+- ✅ Possível: Browserless roda Puppeteer em Node.js
+- Solução: Converter arquivo binário para base64, passar como string
 
-**Arquivo:** `src/components/configuracoes/MonitoramentoDataJudCard.tsx`
+**2. Senha do certificado segura**
+- ✅ Já armazenada em `cofre_senhas.certificado_a1_senha`
+- Solução: Decodificar na edge function (não no cliente)
 
-**Features:**
-- Card similar ao `MonitoramentoTermosCard`
-- Botão "Executar" (dispara Edge Function)
-- Barra de progresso (tribunais processados / total)
-- Contadores: novos, duplicados ignorados
-- Histórico de últimas execuções
-- Status: Parado / Executando / Concluído / Erro
+**3. Timeout para downloads longos**
+- ✅ Browserless suporta timeouts até 120s (pode estender)
+- Solução: Implementar progresso parcial (salvar docs conforme baixados)
 
-**Layout:**
-```
-┌─────────────────────────────────────────────────┐
-│ 🔍 Monitoramento DataJud Termos                  │
-│ Busca complementar em movimentações via CNJ     │
-├─────────────────────────────────────────────────┤
-│ Status: [Parado] / [●○ Executando (67%)]       │
-│                                                 │
-│ Tribunais: 5/8 processados (62%)                │
-│ Novos encontrados: 12                           │
-│ Duplicados ignorados: 2                         │
-│                                                 │
-│ [▶ Executar] [■ Cancelar] [↺ Retomar]          │
-│                                                 │
-│ ╭─ Histórico de Execuções ─────────────────╮  │
-│ │ 12/02 14:30 - Sucesso - 8 novos          │  │
-│ │ 11/02 09:15 - Sucesso - 5 novos          │  │
-│ │ 10/02 18:00 - Erro (timeout)             │  │
-│ ╰──────────────────────────────────────────╯  │
-└─────────────────────────────────────────────────┘
-```
+**4. Erro se certificado expirou**
+- ✅ Detectar erro de certificado inválido
+- Solução: Retornar erro claro ao usuário, sugerir renovação
 
----
+### Sequência de Implementação
 
-### **Etapa 5: Adicionar Aba em `src/pages/Configuracoes.tsx`**
+1. **Criar tabela `processos_documentos_download`** via SQL migration
+   - Incluir RLS policies (usuário pode ver docs de processos que ele acessa)
 
-**Mudanças:**
-1. Importar `MonitoramentoDataJudCard`
-2. Adicionar novo TabsTrigger: `datajud-termos`
-3. Adicionar novo TabsContent com o card
+2. **Implementar edge function `baixar-autos-pje`**
+   - Começar com TRT (trabalhista) - mais simples que TJSP
+   - Testar com credencial real ou mock
+   - Validar download e armazenamento no Storage
 
-**Novo Trigger:**
-```tsx
-<TabsTrigger value="datajud-termos" className="flex items-center gap-2">
-  <Zap className="h-4 w-4" /> {/* ou outro ícone apropriado */}
-  <span className="hidden sm:inline">DataJud Termos</span>
-</TabsTrigger>
-```
+3. **Criar hook `useBaixarAutos`**
+   - Mutation que chama a edge function
 
----
+4. **Criar componente `BaixarAutosButton`**
+   - Integrar em `ProcessoPortalTab`
+   - Estados de loading/sucesso/erro
 
-### **Etapa 6: Criar Configuração em `configuracoes_monitoramento`**
+5. **Atualizar `ProcessoDocumentosTab`**
+   - Listar documentos baixados
 
-**Mudança no Banco:**
-- Inserir registro com `tipo='datajud_termos'`, `coordenacao_id=null` (global)
-- `frequencia='manual'` (sem cron automático, apenas disparos manuais)
-- `metadata` com stats de execução
+6. **Testar end-to-end**
+   - Navegar até um processo real (ex: na rota `/processos/d1d04239...`)
+   - Selecionar credencial com A1
+   - Clicar em "Baixar Autos"
+   - Verificar que PDFs aparecem em "Documentos Armazenados"
 
-**Query SQL:**
-```sql
-INSERT INTO public.configuracoes_monitoramento (
-  tipo, frequencia, ativo, coordenacao_id, metadata
-) VALUES (
-  'datajud_termos',
-  'manual',
-  true,
-  null,
-  '{"status": "idle", "novas": 0, "duplicadas": 0, "tribunaisProcessados": 0}'
-)
-ON CONFLICT DO NOTHING;
-```
+### Limitações & Fallbacks
 
----
+- **Se certificado expirou:** Edge function retorna erro, usuário renova certificado no Cofre
+- **Se PJe mudou URL/estrutura:** Atualizar seletores no Browserless (manutenção periódica)
+- **Se tribunal não suporta certificado:** Fallback para login manual (já existe)
+- **Se documento é muito grande (> 50MB):** Avisar usuário, não tentar baixar
 
-## Fluxo de Execução End-to-End
+### Dados Armazenados
 
-1. **Usuário clica em "Executar"** na aba "DataJud Termos"
-2. Hook `useDjenDataJud` dispara `monitorar-datajud-termos` via Edge Function
-3. Edge Function:
-   - Consulta todos `monitoramentos_djen` ativos
-   - Para cada monitoramento, extrai termo e lista de tribunais
-   - Faz request Elasticsearch à API DataJud para cada tribunal
-   - Filtra movimentações dos últimos 7 dias
-   - Deduplica contra `movimentacoes_datajud`
-   - Insere novas movimentações no banco
-   - Atualiza metadata em `configuracoes_monitoramento`
-4. Hook detecta conclusão via polling e invalida queries
-5. UI atualiza com contadores finais
+- **Cofre Storage (`cofre_certificados`):** Já existe, armazena `.pfx`
+- **Novo Storage (`processos_autos`):** Criar bucket novo para os PDFs baixados
+  - RLS policy: usuário pode ver/baixar autos de processos da sua coordenação
+  - Reter por 90 dias (limpeza automática via cron)
 
----
+### Segurança
 
-## Vantagens desta Abordagem
-
-| Aspecto | Benefício |
-|---------|-----------|
-| **Fonte Oficial** | API DataJud é oficial do CNJ, 100% gratuita |
-| **Cobertura Ampla** | Cobre todos os tribunais brasileiros (TJMG, TJSP, TRTs, STJ, TRFs, etc) |
-| **Não Invasivo** | Complementa DJEN Termos sem substituí-lo |
-| **Metadados Estruturados** | Retorna tipo de movimentação, data, órgão julgador, etc |
-| **Deduplicação Inteligente** | Mesma lógica de DJEN: evita duplicações sem substituir termos |
-| **Escalável** | Reutiliza infraestrutura de polling e metadata de `configuracoes_monitoramento` |
-
----
-
-## Limitações Conhecidas
-
-1. **Metadados vs Texto Integral**: DataJud retorna descrição resumida da movimentação, não o texto completo da publicação DJE (similar a what DataJud returns today)
-2. **Latência**: Movimentações no DataJud pode ter atraso de 1-3 dias em relação à publicação no DJE
-3. **Rate Limiting**: API DataJud tem limites de requisição não documentados (será tratado com retry logic)
-4. **Associação com Processo**: Se o processo `0016979` não estiver cadastrado em `processos`, a movimentação será salva mas desassociada do processo
-
----
-
-## Ordem de Implementação
-
-1. ✅ Tabela `movimentacoes_datajud` (migration)
-2. ✅ Edge Function `monitorar-datajud-termos`
-3. ✅ Hook `useDjenDataJud`
-4. ✅ Componente `MonitoramentoDataJudCard`
-5. ✅ Aba em `Configuracoes.tsx`
-6. ✅ Inserção de config em `configuracoes_monitoramento`
-
+- ✅ Certificado A1 já encriptado em trânsito (HTTPS)
+- ✅ Senha do certificado não transmitida ao navegador (apenas edge function)
+- ✅ Logs de acesso: qual usuário baixou quais docs em que data
+- ✅ RLS policies garantem acesso apenas a processos permitidos
