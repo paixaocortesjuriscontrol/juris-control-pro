@@ -16,6 +16,9 @@ interface DataJudProgress {
   finished_at?: string;
   erro?: string;
   execucaoId?: string;
+  termoAtual?: string;
+  termoTipo?: string;
+  filtros?: { coordenacaoId?: string; monitoramentoIds?: string[] } | null;
 }
 
 const INITIAL: DataJudProgress = {
@@ -69,15 +72,20 @@ export function useDjenDataJud() {
     pollingRef.current = setInterval(fetchProgress, 3000);
   }, [fetchProgress, stopPolling]);
 
-  const executar = useCallback(async (dias = 7) => {
+  const executar = useCallback(async (
+    dias = 7,
+    filtros?: { coordenacaoId?: string; monitoramentoIds?: string[] },
+  ) => {
     try {
       setIsRunning(true);
       setProgress({ ...INITIAL, status: 'em_andamento' });
       startPolling();
 
-      const { data, error } = await supabase.functions.invoke('monitorar-datajud-termos', {
-        body: { dias },
-      });
+      const body: any = { dias };
+      if (filtros?.coordenacaoId) body.coordenacaoId = filtros.coordenacaoId;
+      if (filtros?.monitoramentoIds) body.monitoramentoIds = filtros.monitoramentoIds;
+
+      const { data, error } = await supabase.functions.invoke('monitorar-datajud-termos', { body });
 
       if (error) {
         toast.error(`Erro ao executar DataJud: ${error.message}`);
@@ -85,7 +93,6 @@ export function useDjenDataJud() {
         stopPolling();
       } else {
         toast.info(data?.message || 'DataJud iniciado em background');
-        // Continue polling - background process will update metadata
       }
     } catch (e: any) {
       toast.error(`Erro: ${e.message}`);
@@ -93,6 +100,27 @@ export function useDjenDataJud() {
       stopPolling();
     }
   }, [startPolling, stopPolling]);
+
+  const forceReset = useCallback(async () => {
+    try {
+      stopPolling();
+      setIsRunning(false);
+
+      const { error } = await supabase.functions.invoke('monitorar-datajud-termos', {
+        body: { forceReset: true },
+      });
+
+      if (error) {
+        toast.error(`Erro ao resetar: ${error.message}`);
+      } else {
+        setProgress(INITIAL);
+        toast.success('Estado DataJud resetado com sucesso');
+        queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
+      }
+    } catch (e: any) {
+      toast.error(`Erro: ${e.message}`);
+    }
+  }, [stopPolling, queryClient]);
 
   // Check initial state
   useEffect(() => {
@@ -105,5 +133,5 @@ export function useDjenDataJud() {
     return stopPolling;
   }, [fetchProgress, startPolling, stopPolling]);
 
-  return { isRunning, progress, executar };
+  return { isRunning, progress, executar, forceReset };
 }
