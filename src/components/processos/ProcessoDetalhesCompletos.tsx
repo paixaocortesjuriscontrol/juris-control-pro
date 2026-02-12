@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BaixarAutosButton } from "./BaixarAutosButton";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1334,16 +1335,14 @@ export function ProcessoDetalhesCompletos({
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <Globe className="w-4 h-4" />
-                      Portal do Cliente
+                      Portal do Tribunal
                     </h3>
                   </div>
-                  <div className="text-center py-8">
-                    <Globe className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Portal do cliente disponível na visualização resumida</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={onVoltar}>
-                      Voltar para resumo
-                    </Button>
-                  </div>
+                  <BaixarAutosButton
+                    processoId={processo?.id}
+                    processoNumero={processo?.numero}
+                    tribunal={processo?.tribunal}
+                  />
                 </div>
               )}
 
