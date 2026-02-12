@@ -9,7 +9,6 @@ const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGR
 const DATAJUD_BASE = "https://api-publica.datajud.cnj.jus.br";
 const DATAJUD_TIMEOUT_MS = 10_000;
 
-// Mapa sigla tribunal -> endpoint DataJud
 const TRIBUNAL_ENDPOINTS: Record<string, string> = {
   "TJAC": "api_publica_tjac", "TJAL": "api_publica_tjal", "TJAP": "api_publica_tjap",
   "TJAM": "api_publica_tjam", "TJBA": "api_publica_tjba", "TJCE": "api_publica_tjce",
@@ -69,17 +68,84 @@ function getTribunaisParaBuscar(mon: MonitoramentoDjen): string[] {
   return Object.values(UF_TRIBUNAL);
 }
 
+/**
+ * Constrói a query Elasticsearch de acordo com o TIPO do monitoramento.
+ * - advogado: busca pelo nome do advogado em campos de representação/texto geral
+ * - parte: busca pelo nome da parte nos campos de partes processuais
+ * - palavras-chave (default): busca em complementos de movimentações + assuntos
+ */
 function buildSearchQuery(mon: MonitoramentoDjen, dataInicio: string, dataFim: string) {
   const termo = mon.termo_busca.trim();
+  const dateFilter = { range: { "dataHoraUltimaAtualizacao": { gte: dataInicio, lte: dataFim } } };
+
+  if (mon.tipo === 'advogado') {
+    // Advogado: busca multi_match no nome do advogado + OAB
+    // Campos relevantes: texto geral (catch-all), representantes, movimentos
+    const shouldClauses: any[] = [
+      { match_phrase: { "_all": termo } },
+      { query_string: { query: `"${termo}"`, default_operator: "AND" } },
+    ];
+    // Se tiver OAB, busca também pelo número
+    if (mon.oab) {
+      shouldClauses.push({ match: { "_all": mon.oab } });
+      shouldClauses.push({ query_string: { query: `"${mon.oab}"` } });
+    }
+    return {
+      query: {
+        bool: {
+          must: [dateFilter],
+          should: shouldClauses,
+          minimum_should_match: 1,
+        }
+      },
+      size: 20,
+      _source: ["numeroProcesso", "classe.nome", "orgaoJulgador.nome", "movimentos", "dataAjuizamento", "assuntos"],
+      sort: [{ "dataHoraUltimaAtualizacao": { order: "desc" } }]
+    };
+  }
+
+  if (mon.tipo === 'parte') {
+    // Parte: busca pelo nome da parte em campos genéricos
+    return {
+      query: {
+        bool: {
+          must: [
+            dateFilter,
+            {
+              bool: {
+                should: [
+                  { match_phrase: { "_all": termo } },
+                  { query_string: { query: `"${termo}"`, default_operator: "AND" } },
+                ],
+                minimum_should_match: 1,
+              }
+            }
+          ],
+        }
+      },
+      size: 20,
+      _source: ["numeroProcesso", "classe.nome", "orgaoJulgador.nome", "movimentos", "dataAjuizamento", "assuntos"],
+      sort: [{ "dataHoraUltimaAtualizacao": { order: "desc" } }]
+    };
+  }
+
+  // Palavras-chave (default): busca em complementos de movimentações E assuntos
   return {
     query: {
       bool: {
         must: [
-          { match_phrase: { "movimentos.complementosTabelados.descricao": termo } }
+          {
+            bool: {
+              should: [
+                { match_phrase: { "movimentos.complementosTabelados.descricao": termo } },
+                { match_phrase: { "assuntos.nome": termo } },
+                { query_string: { query: `"${termo}"`, default_operator: "AND" } },
+              ],
+              minimum_should_match: 1,
+            }
+          }
         ],
-        filter: [
-          { range: { "dataHoraUltimaAtualizacao": { gte: dataInicio, lte: dataFim } } }
-        ]
+        filter: [dateFilter]
       }
     },
     size: 20,
@@ -171,7 +237,11 @@ async function updateExecucao(supabase: any, execId: string, updates: Record<str
 }
 
 // ========== BACKGROUND PROCESSING ==========
-async function processDataJud(execucaoId: string, diasBusca: number) {
+async function processDataJud(
+  execucaoId: string,
+  diasBusca: number,
+  filtros?: { coordenacaoId?: string; monitoramentoIds?: string[] },
+) {
   const supabaseClient = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -192,6 +262,7 @@ async function processDataJud(execucaoId: string, diasBusca: number) {
       started_at: new Date().toISOString(),
       execucaoId,
       novas: 0, duplicadas: 0, tribunaisProcessados: 0, erros: [],
+      filtros: filtros || null,
     });
 
     await updateExecucao(supabaseClient, execucaoId, {
@@ -199,11 +270,20 @@ async function processDataJud(execucaoId: string, diasBusca: number) {
       iniciado_em: new Date().toISOString(),
     });
 
-    // Fetch all active DJEN monitorings
-    const { data: monitoramentos, error: monErr } = await supabaseClient
+    // Fetch active DJEN monitorings (with optional filters)
+    let query = supabaseClient
       .from('monitoramentos_djen')
       .select('id, termo_busca, tipo, oab, uf, coordenacao_id, tribunais_ufs')
       .eq('ativo', true);
+
+    if (filtros?.coordenacaoId) {
+      query = query.eq('coordenacao_id', filtros.coordenacaoId);
+    }
+    if (filtros?.monitoramentoIds && filtros.monitoramentoIds.length > 0) {
+      query = query.in('id', filtros.monitoramentoIds);
+    }
+
+    const { data: monitoramentos, error: monErr } = await query;
 
     if (monErr) throw monErr;
     if (!monitoramentos || monitoramentos.length === 0) {
@@ -274,6 +354,8 @@ async function processDataJud(execucaoId: string, diasBusca: number) {
             totalTribunais: totalTribunaisEstimado,
             monitoramentosProcessados: monProcessados,
             percentage: pct,
+            termoAtual: mon.termo_busca,
+            termoTipo: mon.tipo,
           });
           await updateExecucao(supabaseClient, execucaoId, {
             registros_processados: totalTribunais,
@@ -352,10 +434,34 @@ Deno.serve(async (req: Request) => {
 
   try {
     let diasBusca = 7;
+    let filtros: { coordenacaoId?: string; monitoramentoIds?: string[] } | undefined;
+    let forceReset = false;
+
     try {
       const body = await req.json();
       if (body?.dias) diasBusca = Math.min(body.dias, 30);
+      if (body?.coordenacaoId) {
+        filtros = filtros || {};
+        filtros.coordenacaoId = body.coordenacaoId;
+      }
+      if (body?.monitoramentoIds && Array.isArray(body.monitoramentoIds)) {
+        filtros = filtros || {};
+        filtros.monitoramentoIds = body.monitoramentoIds;
+      }
+      if (body?.forceReset) forceReset = true;
     } catch { /* use default */ }
+
+    // Force reset: clear metadata and return
+    if (forceReset) {
+      await updateMetadata(supabaseClient, {
+        status: 'idle',
+        novas: 0, duplicadas: 0, tribunaisProcessados: 0,
+        percentage: 0, erros: [],
+      });
+      return new Response(JSON.stringify({ status: 'reset', message: 'Estado resetado com sucesso' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Create execution record
     const { data: exec, error: execErr } = await supabaseClient
@@ -364,7 +470,7 @@ Deno.serve(async (req: Request) => {
         tipo: 'datajud_termos',
         status: 'executando',
         iniciado_em: new Date().toISOString(),
-        detalhes: { diasBusca },
+        detalhes: { diasBusca, filtros },
       })
       .select('id')
       .single();
@@ -375,7 +481,7 @@ Deno.serve(async (req: Request) => {
 
     // Use EdgeRuntime.waitUntil to run processing in background
     (globalThis as any).EdgeRuntime?.waitUntil?.(
-      processDataJud(execucaoId, diasBusca).catch((err) => {
+      processDataJud(execucaoId, diasBusca, filtros).catch((err) => {
         console.error('Background processDataJud failed:', err);
       })
     );
