@@ -222,7 +222,7 @@ async function buscarDataJud(tribunal: string, query: object): Promise<any[]> {
   }
 }
 
-function extrairMovimentacoes(source: any, tribunal: string, monId: string, coordId: string) {
+function extrairMovimentacoes(source: any, tribunal: string, monId: string, coordId: string, dataInicioFiltro?: string) {
   const numero = source.numeroProcesso || '';
   const classe = source.classe?.nome || '';
   const orgao = source.orgaoJulgador?.nome || '';
@@ -233,6 +233,10 @@ function extrairMovimentacoes(source: any, tribunal: string, monId: string, coor
   for (const mov of movs) {
     const tipo = mov.nome || mov.codigo?.toString() || 'Movimentação';
     const dataStr = mov.dataHora?.substring(0, 10) || null;
+
+    // Filtrar movimentações anteriores ao período solicitado
+    if (dataInicioFiltro && dataStr && dataStr < dataInicioFiltro) continue;
+
     const complementos = (mov.complementosTabelados || [])
       .map((c: any) => c.descricao || c.nome || '')
       .filter(Boolean)
@@ -391,7 +395,7 @@ async function processDataJud(
             if (resultados.length > 0) {
               const records: any[] = [];
               for (const source of resultados) {
-                records.push(...extrairMovimentacoes(source, tribunalEndpoint, mon.id, mon.coordenacao_id));
+                records.push(...extrairMovimentacoes(source, tribunalEndpoint, mon.id, mon.coordenacao_id, dataInicio));
               }
               if (records.length > 0) {
                 const { data: inserted, error: insertErr } = await supabaseClient
@@ -430,7 +434,7 @@ async function processDataJud(
           if (resultados.length > 0) {
             const records: any[] = [];
             for (const source of resultados) {
-              records.push(...extrairMovimentacoes(source, tribunal, mon.id, mon.coordenacao_id));
+              records.push(...extrairMovimentacoes(source, tribunal, mon.id, mon.coordenacao_id, dataInicio));
             }
 
             if (records.length > 0) {

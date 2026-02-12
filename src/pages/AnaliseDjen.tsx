@@ -235,7 +235,14 @@ const AnaliseDjen = () => {
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
-    return datajudResults.map((mov: any) => ({
+    // Deduplicar por processo + tipo_movimentacao + data para evitar entradas repetidas
+    const seen = new Set<string>();
+    return datajudResults.filter((mov: any) => {
+      const key = `${mov.numero_processo}|${mov.tipo_movimentacao}|${mov.data_movimentacao}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).map((mov: any) => ({
       id: mov.id,
       tipo_origem: 'datajud' as const,
       processo_id: null,
