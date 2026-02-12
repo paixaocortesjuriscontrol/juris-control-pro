@@ -110,3 +110,6 @@ verify_jwt = false
 
 [functions.baixar-autos-pje]
 verify_jwt = true
+
+[functions.consultar-processo-mni]
+verify_jwt = true
