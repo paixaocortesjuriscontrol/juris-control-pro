@@ -807,6 +807,7 @@ export type Database = {
         Row: {
           aceite_termos_em: string | null
           ativo: boolean
+          bloqueado_ate: string | null
           certificado_a1_path: string | null
           certificado_a1_senha: string | null
           created_at: string
@@ -818,14 +819,17 @@ export type Database = {
           senha_hash: string
           sistema: string
           status_validacao: string | null
+          tentativas_falhas: number
           tribunal: string
           ultima_validacao: string | null
+          ultimo_erro_login: string | null
           updated_at: string
           usuario_id: string
         }
         Insert: {
           aceite_termos_em?: string | null
           ativo?: boolean
+          bloqueado_ate?: string | null
           certificado_a1_path?: string | null
           certificado_a1_senha?: string | null
           created_at?: string
@@ -837,14 +841,17 @@ export type Database = {
           senha_hash: string
           sistema: string
           status_validacao?: string | null
+          tentativas_falhas?: number
           tribunal: string
           ultima_validacao?: string | null
+          ultimo_erro_login?: string | null
           updated_at?: string
           usuario_id: string
         }
         Update: {
           aceite_termos_em?: string | null
           ativo?: boolean
+          bloqueado_ate?: string | null
           certificado_a1_path?: string | null
           certificado_a1_senha?: string | null
           created_at?: string
@@ -856,8 +863,10 @@ export type Database = {
           senha_hash?: string
           sistema?: string
           status_validacao?: string | null
+          tentativas_falhas?: number
           tribunal?: string
           ultima_validacao?: string | null
+          ultimo_erro_login?: string | null
           updated_at?: string
           usuario_id?: string
         }
