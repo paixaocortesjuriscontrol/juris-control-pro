@@ -15,7 +15,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaPaginado } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo, collectMetaAdvogadoText } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
@@ -952,6 +952,86 @@ async function processarTermo(
   }
 
   // Bloco buscar_parte REMOVIDO - substituído pelo tipo 'parte' dedicado
+
+  // ==================================================================
+  // BUSCA COMPLEMENTAR POR TEXTO (advogado UF=TODAS)
+  // Quando UF="TODAS", a busca por nomeAdvogado retorna apenas publicações
+  // onde o advogado é o destinatário direto. Para capturar publicações onde
+  // ele é mencionado no corpo (ex: advogado de uma parte), fazemos uma
+  // busca adicional por `texto` com o nome do advogado e mesclamos.
+  // ==================================================================
+  if (isAdvogadoComOab && !signal.aborted) {
+    const ufValue = String(mon.uf || '').trim().toUpperCase();
+    const ufValida = ufValue && ufValue !== 'TODAS' && ufValue !== 'UNDEFINED';
+    
+    if (!ufValida && baseParams.nomeAdvogado) {
+      const nomeAdv = baseParams.nomeAdvogado;
+      console.log(`[DJEN] Busca complementar por texto="${nomeAdv}" (UF=TODAS)`);
+      
+      updateProgress({
+        mensagem: `🔎 Busca complementar por nome "${nomeAdv}" no texto...`,
+      });
+
+      // Buscar por texto nos tribunais configurados
+      const tribsTexto = tribunais.length > 0 && tribunais.length <= 5
+        ? tribunais
+        : [undefined as string | undefined];
+
+      for (const trib of tribsTexto) {
+        if (signal.aborted) break;
+        
+        try {
+          const textoCacheKey = `texto|${baseParams.dataInicio}|${nomeAdv}|${trib ?? 'ALL'}`;
+          
+          let respItems: any[] | null = null;
+          if (singletonState.sharedAdvogadoCache.has(textoCacheKey)) {
+            respItems = singletonState.sharedAdvogadoCache.get(textoCacheKey) || [];
+          } else {
+            const resp = await buscarPjeComunicaPaginado(
+              {
+                tipo: 'palavra-chave' as PjeSearchType,
+                palavraChave: nomeAdv,
+                siglaTribunal: trib,
+                dataInicio: baseParams.dataInicio,
+                dataFim: baseParams.dataFim,
+                page: 0,
+                pageSize: baseParams.pageSize,
+              },
+              {
+                signal,
+                maxPages: 5,
+                delayMs: dynamicPageDelay,
+                maxRetries: runtimeConfig.max_retries,
+                retryBaseDelay: runtimeConfig.retry_base_delay,
+                onRateLimit: (waitMs) => { onRateLimit?.(waitMs); },
+              }
+            );
+            respItems = resp.items;
+            singletonState.sharedAdvogadoCache.set(textoCacheKey, respItems);
+          }
+
+          for (const item of respItems || []) {
+            const id = String(item?.id ?? '');
+            const key = id || JSON.stringify(item).slice(0, 400);
+            if (!seen.has(key)) {
+              seen.add(key);
+              const enriched = trib
+                ? { ...item, siglaTribunal: item?.siglaTribunal ?? trib }
+                : item;
+              resultados.push(enriched);
+            }
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          console.warn(`[DJEN] Erro busca texto ${trib ?? 'TODOS'}:`, e?.message);
+        }
+
+        if (dynamicTribunalDelay > 0) {
+          await delay(dynamicTribunalDelay);
+        }
+      }
+    }
+  }
 
   if (signal.aborted || resultados.length === 0) {
     return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
