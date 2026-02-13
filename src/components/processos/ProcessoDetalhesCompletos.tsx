@@ -271,12 +271,12 @@ export function ProcessoDetalhesCompletos({
         // === ZIP flow ===
         setUploadStep('uploading');
         sonnerToast.info("Descompactando ZIP...");
-        setUploadProgress(5);
+        setUploadProgress(2);
 
         const zip = await JSZip.loadAsync(file, {
-          // Report decompression progress
+          // @ts-ignore - JSZip supports this callback
         });
-        setUploadProgress(15);
+        setUploadProgress(10);
 
         const entries = Object.entries(zip.files).filter(([name, entry]) => {
           if (entry.dir) return false;
@@ -294,28 +294,38 @@ export function ProcessoDetalhesCompletos({
           return;
         }
 
-        sonnerToast.info(`Enviando ${entries.length} arquivo(s)...`);
-        let uploaded = 0;
-        // Process files: extract blob then upload (skip repo save for speed)
-        for (const [name, entry] of entries) {
+        // Pre-extract all blobs first (fast, in-memory)
+        const mimeMap: Record<string, string> = {
+          pdf: 'application/pdf', doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          txt: 'text/plain', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          xls: 'application/vnd.ms-excel', csv: 'text/csv',
+        };
+
+        sonnerToast.info(`Extraindo ${entries.length} arquivo(s) do ZIP...`);
+        const extractedFiles: File[] = [];
+        for (let i = 0; i < entries.length; i++) {
+          const [name, entry] = entries[i];
           const blob = await entry.async("blob");
           const fileName = name.split('/').pop() || name;
           const ext = fileName.split('.').pop()?.toLowerCase() || '';
-          const mimeMap: Record<string, string> = {
-            pdf: 'application/pdf', doc: 'application/msword',
-            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            txt: 'text/plain', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            xls: 'application/vnd.ms-excel', csv: 'text/csv',
-          };
-          const extractedFile = new File([blob], fileName, {
+          extractedFiles.push(new File([blob], fileName, {
             type: mimeMap[ext] || 'application/octet-stream',
-          });
+          }));
+          // Extraction progress: 10% to 25%
+          setUploadProgress(10 + Math.round(((i + 1) / entries.length) * 15));
+        }
 
-          // Direct upload (skip repo duplication for ZIP-extracted files)
-          const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-          const filePath = `processos/${processo.id}/${Date.now()}_${sanitizedName}`;
-          
+        // Upload in parallel batches of 3
+        sonnerToast.info(`Enviando ${extractedFiles.length} arquivo(s)...`);
+        let uploaded = 0;
+        const BATCH_SIZE = 3;
+
+        const uploadOneFile = async (extractedFile: File) => {
+          const sanitizedName = extractedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const filePath = `processos/${processo.id}/${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${sanitizedName}`;
+
           if (extractedFile.size > 6 * 1024 * 1024) {
             const { data: sessionData } = await supabase.auth.getSession();
             const accessToken = sessionData?.session?.access_token;
@@ -324,7 +334,7 @@ export function ProcessoDetalhesCompletos({
             await new Promise<void>((resolve, reject) => {
               const upload = new tus.Upload(extractedFile, {
                 endpoint: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/upload/resumable`,
-                retryDelays: [0, 3000, 5000],
+                retryDelays: [0, 3000],
                 headers: { authorization: `Bearer ${accessToken}`, "x-upsert": "false" },
                 uploadDataDuringCreation: true,
                 removeFingerprintOnSuccess: true,
@@ -353,8 +363,14 @@ export function ProcessoDetalhesCompletos({
           });
 
           uploaded++;
-          // Progress: 15% decompression done, 85% remaining for uploads
-          setUploadProgress(15 + Math.round((uploaded / entries.length) * 85));
+          // Upload progress: 25% to 100%
+          setUploadProgress(25 + Math.round((uploaded / extractedFiles.length) * 75));
+        };
+
+        // Process in batches of BATCH_SIZE for parallelism
+        for (let i = 0; i < extractedFiles.length; i += BATCH_SIZE) {
+          const batch = extractedFiles.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(f => uploadOneFile(f)));
         }
 
         sonnerToast.success(`${uploaded} documento(s) extraído(s) do ZIP e enviado(s)!`);
@@ -1527,7 +1543,11 @@ export function ProcessoDetalhesCompletos({
                   {uploading && (
                     <div className="mb-3 space-y-1">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>📤 Enviando arquivo...</span>
+                        <span>
+                          {uploadProgress <= 10 ? "📦 Descompactando ZIP..." :
+                           uploadProgress <= 25 ? "📂 Extraindo arquivos..." :
+                           "📤 Enviando arquivos..."}
+                        </span>
                         <span>{Math.round(uploadProgress)}%</span>
                       </div>
                       <Progress value={uploadProgress} className="h-2" />
