@@ -140,6 +140,7 @@ export function ProcessoDetalhesCompletos({
   const [uploading, setUploading] = useState(false);
   const [uploadStep, setUploadStep] = useState<'idle' | 'uploading' | 'analyzing' | 'done'>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [zipPhase, setZipPhase] = useState<'none' | 'decompressing' | 'extracting' | 'uploading'>('none');
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
@@ -269,13 +270,12 @@ export function ProcessoDetalhesCompletos({
     try {
       if (isZip) {
         // === ZIP flow ===
+        setZipPhase('decompressing');
         setUploadStep('uploading');
         sonnerToast.info("Descompactando ZIP...");
         setUploadProgress(2);
 
-        const zip = await JSZip.loadAsync(file, {
-          // @ts-ignore - JSZip supports this callback
-        });
+        const zip = await JSZip.loadAsync(file);
         setUploadProgress(10);
 
         const entries = Object.entries(zip.files).filter(([name, entry]) => {
@@ -303,6 +303,7 @@ export function ProcessoDetalhesCompletos({
           xls: 'application/vnd.ms-excel', csv: 'text/csv',
         };
 
+        setZipPhase('extracting');
         sonnerToast.info(`Extraindo ${entries.length} arquivo(s) do ZIP...`);
         const extractedFiles: File[] = [];
         for (let i = 0; i < entries.length; i++) {
@@ -318,6 +319,7 @@ export function ProcessoDetalhesCompletos({
         }
 
         // Upload in parallel batches of 3
+        setZipPhase('uploading');
         sonnerToast.info(`Enviando ${extractedFiles.length} arquivo(s)...`);
         let uploaded = 0;
         const BATCH_SIZE = 3;
@@ -396,6 +398,7 @@ export function ProcessoDetalhesCompletos({
       setUploading(false);
       setUploadStep('idle');
       setUploadProgress(0);
+      setZipPhase('none');
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -1544,9 +1547,10 @@ export function ProcessoDetalhesCompletos({
                     <div className="mb-3 space-y-1">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>
-                          {uploadProgress <= 10 ? "📦 Descompactando ZIP..." :
-                           uploadProgress <= 25 ? "📂 Extraindo arquivos..." :
-                           "📤 Enviando arquivos..."}
+                          {zipPhase === 'decompressing' ? "📦 Descompactando ZIP..." :
+                           zipPhase === 'extracting' ? "📂 Extraindo arquivos..." :
+                           zipPhase === 'uploading' ? "📤 Enviando arquivos..." :
+                           "📤 Enviando arquivo..."}
                         </span>
                         <span>{Math.round(uploadProgress)}%</span>
                       </div>
