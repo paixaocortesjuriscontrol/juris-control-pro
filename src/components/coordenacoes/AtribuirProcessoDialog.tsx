@@ -162,25 +162,33 @@ export function AtribuirProcessoDialog({
 
     setLoading(true);
     try {
-      // For each process, insert the responsible lawyers
-      for (const processoId of values.processos) {
-        // First, set the primary responsible in the legacy field (first one)
-        await supabase
-          .from("processos")
-          .update({ advogado_responsavel_id: responsaveis[0].usuario_id })
-          .eq("id", processoId);
+      // Batch update: set primary responsible for all processes at once
+      const primaryId = responsaveis[0].usuario_id;
+      const { error: updateError } = await supabase
+        .from("processos")
+        .update({ advogado_responsavel_id: primaryId })
+        .in("id", values.processos);
 
-        // Then, upsert into processos_responsaveis
-        for (const resp of responsaveis) {
-          await supabase
-            .from("processos_responsaveis")
-            .upsert({
-              processo_id: processoId,
-              usuario_id: resp.usuario_id,
-              coordenacao_id: resp.coordenacao_id,
-              papel: resp.papel || "responsavel",
-            }, { onConflict: "processo_id,usuario_id" });
-        }
+      if (updateError) throw updateError;
+
+      // Batch upsert all processos_responsaveis in one call
+      const inserts = values.processos.flatMap((processoId) =>
+        responsaveis.map((resp) => ({
+          processo_id: processoId,
+          usuario_id: resp.usuario_id,
+          coordenacao_id: resp.coordenacao_id,
+          papel: resp.papel || "responsavel",
+        }))
+      );
+
+      // Supabase handles up to ~1000 rows per upsert; batch if needed
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
+        const batch = inserts.slice(i, i + BATCH_SIZE);
+        const { error: upsertError } = await supabase
+          .from("processos_responsaveis")
+          .upsert(batch, { onConflict: "processo_id,usuario_id" });
+        if (upsertError) throw upsertError;
       }
 
       toast({ 
