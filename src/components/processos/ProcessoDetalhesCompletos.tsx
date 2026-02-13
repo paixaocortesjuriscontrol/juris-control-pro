@@ -208,21 +208,41 @@ export function ProcessoDetalhesCompletos({
         processo_id: processo.id,
       });
 
-      // Read only first 50KB of text files for AI analysis (avoids loading huge files in memory)
-      const MAX_CONTENT_SIZE = 50_000;
-      const fileContent = await new Promise<string>((resolve) => {
+      // Extract text for AI analysis (up to 50 pages for PDFs, 50KB for text files)
+      const fileContent = await (async () => {
+        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        if (isPdf) {
+          try {
+            const pdfjsLib = await import("pdfjs-dist");
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const maxPages = Math.min(pdf.numPages, 50);
+            const pages: string[] = [];
+            for (let i = 1; i <= maxPages; i++) {
+              const page = await pdf.getPage(i);
+              const tc = await page.getTextContent();
+              const text = tc.items.map((item: any) => item.str).join(" ");
+              if (text.trim()) pages.push(`--- Página ${i} ---\n${text}`);
+            }
+            return pages.join("\n\n") || `[PDF sem texto extraível: ${file.name}]`;
+          } catch (e) {
+            console.error("Erro ao extrair texto do PDF:", e);
+            return `[Erro ao ler PDF: ${file.name}]`;
+          }
+        }
         const isText = file.type.includes("text") || file.type.includes("json") || file.type.includes("xml") || file.type.includes("csv");
         if (isText) {
-          const slice = file.slice(0, MAX_CONTENT_SIZE);
-          const reader = new FileReader();
-          reader.onload = (ev) => resolve((ev.target?.result as string) || "");
-          reader.onerror = () => resolve("");
-          reader.readAsText(slice);
-        } else {
-          // For binary files (PDF, images, etc.), send only the file name for analysis
-          resolve(`[Arquivo binário: ${file.name}, tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB]`);
+          const slice = file.slice(0, 50_000);
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve((ev.target?.result as string) || "");
+            reader.onerror = () => resolve("");
+            reader.readAsText(slice);
+          });
         }
-      });
+        return `[Arquivo binário: ${file.name}, tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB]`;
+      })();
 
       sonnerToast.info("Analisando documento com IA...");
       const { data: session } = await supabase.auth.getSession();
