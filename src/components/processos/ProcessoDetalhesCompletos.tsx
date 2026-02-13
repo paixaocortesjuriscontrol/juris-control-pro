@@ -62,7 +62,7 @@ import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
-import { Loader2, Upload as UploadIcon, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, Upload as UploadIcon, Sparkles, Trash2, Save } from "lucide-react";
 
 interface Responsavel {
   id: string;
@@ -144,6 +144,70 @@ export function ProcessoDetalhesCompletos({
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
+
+  // Inline editable resumo
+  const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
+  const [resumoInitialized, setResumoInitialized] = useState(false);
+  const [savingResumo, setSavingResumo] = useState(false);
+
+  if (processo && !resumoInitialized) {
+    setResumoForm({
+      assunto: processo.assunto || "",
+      tribunal: processo.tribunal || "",
+      comarca: processo.comarca || "",
+      vara: processo.vara || "",
+      orgao_julgador: processo.orgao_julgador || "",
+      polo_ativo: processo.polo_ativo || "",
+      polo_passivo: processo.polo_passivo || "",
+      valor_causa: processo.valor_causa || "",
+      area: processo.area || "",
+      fase: processo.fase || "",
+      sistema: processo.sistema || "",
+      pasta_fisica: processo.pasta_fisica || "",
+      pasta_cliente: processo.pasta_cliente || "",
+      descricao: processo.descricao || "",
+      data_distribuicao: processo.data_distribuicao || "",
+    });
+    setResumoInitialized(true);
+  }
+
+  const updateResumoField = (field: string, value: any) => {
+    setResumoForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const salvarResumo = async () => {
+    if (!processo?.id) return;
+    setSavingResumo(true);
+    try {
+      const { error } = await supabase
+        .from("processos")
+        .update({
+          assunto: resumoForm.assunto || null,
+          tribunal: resumoForm.tribunal || null,
+          comarca: resumoForm.comarca || null,
+          vara: resumoForm.vara || null,
+          orgao_julgador: resumoForm.orgao_julgador || null,
+          polo_ativo: resumoForm.polo_ativo || null,
+          polo_passivo: resumoForm.polo_passivo || null,
+          valor_causa: resumoForm.valor_causa ? Number(resumoForm.valor_causa) : null,
+          area: resumoForm.area || null,
+          fase: resumoForm.fase || null,
+          sistema: resumoForm.sistema || null,
+          pasta_fisica: resumoForm.pasta_fisica || null,
+          pasta_cliente: resumoForm.pasta_cliente || null,
+          descricao: resumoForm.descricao || null,
+          data_distribuicao: resumoForm.data_distribuicao || null,
+        } as any)
+        .eq("id", processo.id);
+      if (error) throw error;
+      sonnerToast.success("Processo atualizado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["processo"] });
+    } catch (err: any) {
+      sonnerToast.error("Erro ao salvar: " + err.message);
+    } finally {
+      setSavingResumo(false);
+    }
+  };
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return "Não informado";
@@ -743,202 +807,161 @@ export function ProcessoDetalhesCompletos({
                   {/* Card de Resumo Principal */}
                   <Card>
                     <CardContent className="p-4 md:p-6">
-                      {/* Título */}
-                      <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
+                      {/* Título + Salvar */}
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-base font-semibold text-foreground">Resumo do processo</h2>
+                        <Button size="sm" onClick={salvarResumo} disabled={savingResumo}>
+                          {savingResumo ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                          Salvar
+                        </Button>
+                      </div>
                       
-                      {/* Número */}
-                      <div className="mt-2">
-                        <p className="text-[10px] text-muted-foreground uppercase">Número</p>
+                      {/* Número (read-only) */}
+                      <div className="mb-3">
+                        <Label className="text-[10px] text-muted-foreground uppercase">Número</Label>
                         <div className="flex items-center gap-1">
                           <p className="text-sm font-mono">{processo.numero}</p>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-5 w-5"
-                            onClick={() => copyToClipboard(processo.numero)}
-                          >
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(processo.numero)}>
                             <Copy className="w-3 h-3" />
                           </Button>
                         </div>
                       </div>
                       
                       {/* Assunto */}
-                      <div className="mt-3 mb-4 pb-3 border-b">
-                        <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
-                        <p className="text-sm">{processo.assunto || "Não informado"}</p>
+                      <div className="mb-4 pb-3 border-b">
+                        <Label className="text-[10px] text-muted-foreground uppercase">Assunto</Label>
+                        <Input className="mt-1 h-8 text-sm" value={resumoForm.assunto} onChange={e => updateResumoField("assunto", e.target.value)} placeholder="Assunto do processo" />
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                         {/* Coluna Esquerda */}
-                        <div className="space-y-4">
-
-
-
-                          {/* Situação - Seletor inline */}
+                        <div className="space-y-3">
+                          {/* Situação */}
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Situação</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <Select
-                                value={processo.status || "ativo"}
-                                onValueChange={async (newStatus) => {
-                                  try {
-                                    const { error } = await supabase
-                                      .from("processos")
-                                      .update({ status: newStatus as any })
-                                      .eq("id", processo.id);
-
-                                    if (error) throw error;
-
-                                    window.location.reload();
-                                  } catch (err) {
-                                    console.error("Erro ao atualizar situação:", err);
-                                    toast({
-                                      title: "Erro",
-                                      description: "Não foi possível atualizar a situação do processo.",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="w-auto h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="ativo">Ativo</SelectItem>
-                                  <SelectItem value="arquivado_parcialmente">Arquivado Parcialmente</SelectItem>
-                                  <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
-                                  <SelectItem value="suspenso">Suspenso</SelectItem>
-                                  <SelectItem value="encerrado">Encerrado</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-
-                          {/* Órgão */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão</p>
-                            <p className="text-sm text-foreground mt-1">
-                              {processo.tribunal || processo.vara || "Não informado"}
-                              {processo.comarca && ` - ${processo.comarca}`}
-                            </p>
-                          </div>
-
-                          {/* Envolvidos */}
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Envolvidos</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {processo.polo_passivo && (
-                                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400">
-                                  {processo.polo_passivo}
-                                  <span className="ml-2 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">Req.</span>
-                                </Badge>
-                              )}
-                              {processo.polo_ativo && (
-                                <Badge variant="outline" className="bg-muted border-border text-muted-foreground">
-                                  {processo.polo_ativo}
-                                  <span className="ml-2 text-[10px] bg-muted-foreground text-background px-1.5 py-0.5 rounded">Reqte.</span>
-                                </Badge>
-                              )}
-                            </div>
-                            <Button 
-                              variant="link" 
-                              size="sm" 
-                              className="text-xs p-0 h-auto mt-1 text-primary"
-                              onClick={() => setActiveSection("envolvidos")}
+                            <Label className="text-[10px] text-muted-foreground uppercase">Situação</Label>
+                            <Select
+                              value={processo.status || "ativo"}
+                              onValueChange={async (newStatus) => {
+                                try {
+                                  const { error } = await supabase.from("processos").update({ status: newStatus as any }).eq("id", processo.id);
+                                  if (error) throw error;
+                                  queryClient.invalidateQueries({ queryKey: ["processo"] });
+                                  sonnerToast.success("Situação atualizada!");
+                                } catch (err) {
+                                  sonnerToast.error("Erro ao atualizar situação.");
+                                }
+                              }}
                             >
-                              Expandir
-                            </Button>
+                              <SelectTrigger className="w-full h-8 text-xs mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ativo">Ativo</SelectItem>
+                                <SelectItem value="arquivado_parcialmente">Arquivado Parcialmente</SelectItem>
+                                <SelectItem value="arquivado_definitivamente">Arquivado Definitivamente</SelectItem>
+                                <SelectItem value="suspenso">Suspenso</SelectItem>
+                                <SelectItem value="encerrado">Encerrado</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
 
-                          {/* Responsáveis */}
+                          {/* Polo Passivo (Reclamado) */}
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsáveis</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {responsaveis.length > 0 ? (
-                                responsaveis.map((r) => (
-                                  <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
-                                    <Avatar className="w-6 h-6 border border-background">
-                                      <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
-                                        {r.nome.substring(0, 2).toUpperCase()}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span className="text-sm font-medium">{r.nome}</span>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-sm text-muted-foreground">Não atribuído</p>
-                              )}
-                            </div>
+                            <Label className="text-[10px] text-muted-foreground uppercase">Polo Passivo (Reclamado)</Label>
+                            <Input className="mt-1 h-8 text-sm" value={resumoForm.polo_passivo} onChange={e => updateResumoField("polo_passivo", e.target.value)} placeholder="Reclamado" />
+                          </div>
+
+                          {/* Polo Ativo (Reclamante) */}
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground uppercase">Polo Ativo (Reclamante)</Label>
+                            <Input className="mt-1 h-8 text-sm" value={resumoForm.polo_ativo} onChange={e => updateResumoField("polo_ativo", e.target.value)} placeholder="Reclamante" />
                           </div>
 
                           {/* Valor da ação */}
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor da ação</p>
-                            <p className="text-lg font-semibold text-foreground">{formatCurrency(processo.valor_causa)}</p>
+                            <Label className="text-[10px] text-muted-foreground uppercase">Valor da ação</Label>
+                            <Input className="mt-1 h-8 text-sm" type="number" step="0.01" value={resumoForm.valor_causa} onChange={e => updateResumoField("valor_causa", e.target.value)} placeholder="0.00" />
                           </div>
 
-                          {/* Campos movidos da coluna direita - abaixo do valor da ação */}
+                          {/* Responsáveis (read-only) */}
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground uppercase">Responsáveis</Label>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {responsaveis.length > 0 ? responsaveis.map((r) => (
+                                <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
+                                  <Avatar className="w-6 h-6 border border-background">
+                                    <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
+                                      {r.nome.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm font-medium">{r.nome}</span>
+                                </div>
+                              )) : <p className="text-sm text-muted-foreground">Não atribuído</p>}
+                            </div>
+                          </div>
+
+                          {/* Grid 2 cols */}
                           <div className="pt-3 border-t space-y-3">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data de distribuição</p>
-                                <p className="text-sm text-foreground">{formatDate(processo.data_distribuicao)}</p>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Tribunal</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.tribunal} onChange={e => updateResumoField("tribunal", e.target.value)} placeholder="Tribunal" />
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Órgão julgador</p>
-                                <p className="text-sm text-foreground">{processo.orgao_julgador || "Não informado"}</p>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Comarca</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.comarca} onChange={e => updateResumoField("comarca", e.target.value)} placeholder="Comarca" />
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Área</p>
-                                <p className="text-sm text-foreground">{processo.area || "Não informado"}</p>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Vara</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.vara} onChange={e => updateResumoField("vara", e.target.value)} placeholder="Vara" />
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fase</p>
-                                <p className="text-sm text-foreground">{processo.fase || "Não informado"}</p>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Órgão julgador</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.orgao_julgador} onChange={e => updateResumoField("orgao_julgador", e.target.value)} placeholder="Órgão julgador" />
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sistema</p>
-                                <p className="text-sm text-foreground">{processo.sistema || "Não informado"}</p>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Data de distribuição</Label>
+                                <Input className="mt-1 h-8 text-sm" type="date" value={resumoForm.data_distribuicao} onChange={e => updateResumoField("data_distribuicao", e.target.value)} />
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta física</p>
-                                <p className="text-sm text-foreground">{processo.pasta_fisica || "Não informado"}</p>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Área</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.area} onChange={e => updateResumoField("area", e.target.value)} placeholder="Área" />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Fase</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.fase} onChange={e => updateResumoField("fase", e.target.value)} placeholder="Fase" />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Sistema</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.sistema} onChange={e => updateResumoField("sistema", e.target.value)} placeholder="Sistema" />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Pasta física</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.pasta_fisica} onChange={e => updateResumoField("pasta_fisica", e.target.value)} placeholder="Pasta física" />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground uppercase">Pasta do Cliente</Label>
+                                <Input className="mt-1 h-8 text-sm" value={resumoForm.pasta_cliente} onChange={e => updateResumoField("pasta_cliente", e.target.value)} placeholder="Pasta do cliente" />
                               </div>
                             </div>
 
                             {/* Descrição */}
-                            {processo.descricao && (
-                              <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</p>
-                                <p className="text-sm text-foreground mt-1">{processo.descricao}</p>
-                              </div>
-                            )}
-
-                            {/* Pasta do Cliente */}
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pasta do Cliente</p>
-                              <p className="text-sm text-foreground">{processo.pasta_cliente || processo.pasta?.nome || "Não vinculado"}</p>
+                              <Label className="text-[10px] text-muted-foreground uppercase">Descrição</Label>
+                              <Textarea className="mt-1 text-sm min-h-[60px]" value={resumoForm.descricao} onChange={e => updateResumoField("descricao", e.target.value)} placeholder="Descrição do processo" />
                             </div>
 
                             {/* Monitoramento */}
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monitoramento</p>
+                              <Label className="text-[10px] text-muted-foreground uppercase">Monitoramento</Label>
                               <div className="mt-2 space-y-2">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-foreground w-24">Andamentos</span>
-                                  <MonitoramentoToggle
-                                    processoId={processo.id}
-                                    campo="monitorar_andamentos"
-                                    valorInicial={!!processo.monitorar_andamentos}
-                                  />
+                                  <MonitoramentoToggle processoId={processo.id} campo="monitorar_andamentos" valorInicial={!!processo.monitorar_andamentos} />
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-foreground w-24">DJEN</span>
-                                  <MonitoramentoToggle
-                                    processoId={processo.id}
-                                    campo="monitorar_djen"
-                                    valorInicial={!!processo.monitorar_djen}
-                                  />
+                                  <MonitoramentoToggle processoId={processo.id} campo="monitorar_djen" valorInicial={!!processo.monitorar_djen} />
                                 </div>
                               </div>
                             </div>
@@ -947,12 +970,7 @@ export function ProcessoDetalhesCompletos({
 
                         {/* Coluna Direita - Cards de Pendências, Depósitos e Custas */}
                         <div className="space-y-3">
-                          <PendenciasProcessoCard
-                            audiencias={audiencias}
-                            intimacoes={intimacoes}
-                            tarefas={tarefas}
-                            movimentacoes={movimentacoes}
-                          />
+                          <PendenciasProcessoCard audiencias={audiencias} intimacoes={intimacoes} tarefas={tarefas} movimentacoes={movimentacoes} />
                           <DepositosRecursaisCard processoId={processo.id} />
                           <CustasProcessuaisCard processoId={processo.id} />
                         </div>
