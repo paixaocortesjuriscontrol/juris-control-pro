@@ -3161,13 +3161,18 @@ export type Database = {
           advogado_externo: string | null
           advogado_responsavel_id: string | null
           andamento_atual: string | null
+          aparelhamento_banco: string | null
+          aparelhamento_reclamante: string | null
           area: string
           assunto: string | null
           ativo_passivo: string | null
           auto_infracao: string | null
           autor: string | null
+          benner_atualizado: boolean | null
           cargo_reconhecimento_vinculo: string | null
           categoria_importacao: string | null
+          chance_exito_banco: string | null
+          chance_exito_reclamante: string | null
           classe: string | null
           cliente_id: string | null
           cnpj_fiscalizado: string | null
@@ -3187,16 +3192,21 @@ export type Database = {
           data_lavratura: string | null
           data_recebimento: string | null
           data_situacao: string | null
+          decisao_quarteirizado: string | null
           deposito_judicial: number | null
           depositos_vinculados: string | null
           descricao: string | null
+          dossie_tst: string | null
           epoca_razao: string | null
+          equipe_tst: string | null
           esfera: string | null
+          execucao_tst: string | null
           fase: string | null
           fiscal_responsavel: string | null
           forma_pagamento: string | null
           funcao: string | null
           funcao_parte_contraria: string | null
+          honra_tst: string | null
           id: string
           identificador_projuris: string | null
           instancia: string | null
@@ -3206,6 +3216,9 @@ export type Database = {
           localidade: string | null
           materia: string | null
           materia_mpt: string | null
+          materias_recurso_banco: string | null
+          materias_recurso_reclamante: string | null
+          midia_negativa_tst: string | null
           monitorar_andamentos: boolean
           monitorar_djen: boolean | null
           motivo_encerramento: string | null
@@ -3219,6 +3232,7 @@ export type Database = {
           observacao_resp_subsidiaria: string | null
           observacoes_processo: string | null
           orgao_origem: string | null
+          parte_recorrente_tst: string | null
           pasta_cliente: string | null
           pasta_fisica: string | null
           pasta_id: string | null
@@ -3261,6 +3275,9 @@ export type Database = {
           provisionamento_remoto: number | null
           reclamados: string | null
           reclamante: string | null
+          recurso_terceiros_tst: string | null
+          relator_favorabilidade: string | null
+          relator_tst: string | null
           requerido: string | null
           responsabilidade_antes_data: number | null
           responsabilidade_apos_data: number | null
@@ -3276,13 +3293,18 @@ export type Database = {
           situacao_original: string | null
           status: Database["public"]["Enums"]["status_processo"]
           status_pedido: string | null
+          tema_tst: string | null
           terceiro_envolvido: string | null
           tipo_controladora: string | null
           tipo_estabilidade: string | null
           tipo_pagamento: string | null
           tipo_processo: string | null
+          tipo_recurso_banco: string | null
+          tipo_recurso_reclamante: string | null
           transitado_julgado: boolean | null
           tribunal: string | null
+          turma_favorabilidade: string | null
+          turma_tst: string | null
           uf: string | null
           ultimo_andamento_mpt: string | null
           unidade_cliente: string | null
@@ -3302,13 +3324,18 @@ export type Database = {
           advogado_externo?: string | null
           advogado_responsavel_id?: string | null
           andamento_atual?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
           area: string
           assunto?: string | null
           ativo_passivo?: string | null
           auto_infracao?: string | null
           autor?: string | null
+          benner_atualizado?: boolean | null
           cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
           classe?: string | null
           cliente_id?: string | null
           cnpj_fiscalizado?: string | null
@@ -3328,16 +3355,21 @@ export type Database = {
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
+          decisao_quarteirizado?: string | null
           deposito_judicial?: number | null
           depositos_vinculados?: string | null
           descricao?: string | null
+          dossie_tst?: string | null
           epoca_razao?: string | null
+          equipe_tst?: string | null
           esfera?: string | null
+          execucao_tst?: string | null
           fase?: string | null
           fiscal_responsavel?: string | null
           forma_pagamento?: string | null
           funcao?: string | null
           funcao_parte_contraria?: string | null
+          honra_tst?: string | null
           id?: string
           identificador_projuris?: string | null
           instancia?: string | null
@@ -3347,6 +3379,9 @@ export type Database = {
           localidade?: string | null
           materia?: string | null
           materia_mpt?: string | null
+          materias_recurso_banco?: string | null
+          materias_recurso_reclamante?: string | null
+          midia_negativa_tst?: string | null
           monitorar_andamentos?: boolean
           monitorar_djen?: boolean | null
           motivo_encerramento?: string | null
@@ -3360,6 +3395,7 @@ export type Database = {
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
           orgao_origem?: string | null
+          parte_recorrente_tst?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
@@ -3402,6 +3438,9 @@ export type Database = {
           provisionamento_remoto?: number | null
           reclamados?: string | null
           reclamante?: string | null
+          recurso_terceiros_tst?: string | null
+          relator_favorabilidade?: string | null
+          relator_tst?: string | null
           requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
@@ -3417,13 +3456,18 @@ export type Database = {
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
+          tema_tst?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
           tipo_estabilidade?: string | null
           tipo_pagamento?: string | null
           tipo_processo?: string | null
+          tipo_recurso_banco?: string | null
+          tipo_recurso_reclamante?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
+          turma_favorabilidade?: string | null
+          turma_tst?: string | null
           uf?: string | null
           ultimo_andamento_mpt?: string | null
           unidade_cliente?: string | null
@@ -3443,13 +3487,18 @@ export type Database = {
           advogado_externo?: string | null
           advogado_responsavel_id?: string | null
           andamento_atual?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
           area?: string
           assunto?: string | null
           ativo_passivo?: string | null
           auto_infracao?: string | null
           autor?: string | null
+          benner_atualizado?: boolean | null
           cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
           classe?: string | null
           cliente_id?: string | null
           cnpj_fiscalizado?: string | null
@@ -3469,16 +3518,21 @@ export type Database = {
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
+          decisao_quarteirizado?: string | null
           deposito_judicial?: number | null
           depositos_vinculados?: string | null
           descricao?: string | null
+          dossie_tst?: string | null
           epoca_razao?: string | null
+          equipe_tst?: string | null
           esfera?: string | null
+          execucao_tst?: string | null
           fase?: string | null
           fiscal_responsavel?: string | null
           forma_pagamento?: string | null
           funcao?: string | null
           funcao_parte_contraria?: string | null
+          honra_tst?: string | null
           id?: string
           identificador_projuris?: string | null
           instancia?: string | null
@@ -3488,6 +3542,9 @@ export type Database = {
           localidade?: string | null
           materia?: string | null
           materia_mpt?: string | null
+          materias_recurso_banco?: string | null
+          materias_recurso_reclamante?: string | null
+          midia_negativa_tst?: string | null
           monitorar_andamentos?: boolean
           monitorar_djen?: boolean | null
           motivo_encerramento?: string | null
@@ -3501,6 +3558,7 @@ export type Database = {
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
           orgao_origem?: string | null
+          parte_recorrente_tst?: string | null
           pasta_cliente?: string | null
           pasta_fisica?: string | null
           pasta_id?: string | null
@@ -3543,6 +3601,9 @@ export type Database = {
           provisionamento_remoto?: number | null
           reclamados?: string | null
           reclamante?: string | null
+          recurso_terceiros_tst?: string | null
+          relator_favorabilidade?: string | null
+          relator_tst?: string | null
           requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
@@ -3558,13 +3619,18 @@ export type Database = {
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
+          tema_tst?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
           tipo_estabilidade?: string | null
           tipo_pagamento?: string | null
           tipo_processo?: string | null
+          tipo_recurso_banco?: string | null
+          tipo_recurso_reclamante?: string | null
           transitado_julgado?: boolean | null
           tribunal?: string | null
+          turma_favorabilidade?: string | null
+          turma_tst?: string | null
           uf?: string | null
           ultimo_andamento_mpt?: string | null
           unidade_cliente?: string | null

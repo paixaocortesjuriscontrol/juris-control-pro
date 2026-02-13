@@ -30,7 +30,8 @@ import {
   downloadJanainaTemplate, 
   downloadPolyanaTemplate, 
   downloadMptTemplate, 
-  downloadPedidosTemplate 
+  downloadPedidosTemplate,
+  downloadRenataTemplate 
 } from "@/utils/generateTemplates";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
@@ -388,6 +389,14 @@ export default function ImportarProcessos() {
   const [astreaProgress, setAstreaProgress] = useState(0);
   const [astreaBuscarAndamentos, setAstreaBuscarAndamentos] = useState(true);
   const astreaCancelledRef = useRef(false);
+
+  // Dr. Renata (TST) import states
+  const [renataFile, setRenataFile] = useState<File | null>(null);
+  const [renataProcessos, setRenataProcessos] = useState<ProcessoImport[]>([]);
+  const [renataImporting, setRenataImporting] = useState(false);
+  const [renataProgress, setRenataProgress] = useState(0);
+  const [renataBuscarAndamentos, setRenataBuscarAndamentos] = useState(true);
+  const renataCancelledRef = useRef(false);
 
   // Excel/Planilha import state for andamentos
   const planilhaCancelledRef = useRef(false);
@@ -4061,6 +4070,278 @@ export default function ImportarProcessos() {
   const mptErrorCount = mptProcessos.filter(p => p.status === "erro").length;
   const mptTotalProblemas = mptInvalidCount + mptErrorCount + mptWarningCount;
 
+  // ===== Dr. Renata (TST) =====
+  const handleRenataFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setRenataFile(selectedFile);
+      parseRenataExcel(selectedFile);
+    }
+  }, []);
+
+  const parseRenataExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      const getCol = (row: any, names: string[]) => {
+        for (const n of names) {
+          if (row[n] !== undefined && row[n] !== null) return row[n];
+        }
+        return null;
+      };
+
+      const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        const numero = String(getCol(row, ["NUMERO DO PROCESSO", "NÚMERO DO PROCESSO", "Numero do Processo", "Número do Processo"]) || "").trim();
+
+        const processo: ProcessoImport = {
+          numero,
+          assunto: null,
+          situacao: null,
+          responsavel: null,
+          descricao: null,
+          justica: "trabalhista",
+          cidade: null,
+          estado: null,
+          instancia: null,
+          orgao: null,
+          orgaoJulgador: null,
+          sistema: null,
+          area: "trabalhista",
+          fase: null,
+          dataDistribuicao: getCol(row, ["DATA DA DISTRIBUIÇÃO", "DATA DA DISTRIBUICAO", "Data da Distribuição"]),
+          classeCNJ: null,
+          valorAcao: null,
+          parteAtiva: getCol(row, ["RECLAMANTE", "Reclamante"]),
+          partePassiva: getCol(row, ["RECLAMADA", "Reclamada"]),
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          transitadoJulgado: (() => {
+            const v = getCol(row, ["TRÂNSITO EM JULGADO?", "TRANSITO EM JULGADO?", "Trânsito em Julgado?"]);
+            if (!v) return null;
+            const s = String(v).toLowerCase().trim();
+            return s === "sim" || s === "s" || s === "true" || s === "1";
+          })(),
+        };
+
+        // Store TST-specific fields
+        (processo as any).renataData = {
+          dossie_tst: getCol(row, ["DOSSIÊ", "DOSSIE", "Dossiê"]),
+          equipe_tst: getCol(row, ["EQUIPE", "Equipe"]),
+          relator_tst: getCol(row, ["RELATOR", "Relator"]),
+          relator_favorabilidade: getCol(row, ["RELATOR (+ OU -)", "Relator (+ ou -)"]),
+          turma_tst: getCol(row, ["TURMA", "Turma"]),
+          turma_favorabilidade: getCol(row, ["TURMA (+ OU -)", "Turma (+ ou -)"]),
+          parte_recorrente_tst: getCol(row, ["PARTE RECORRENTE", "Parte Recorrente"]),
+          tipo_recurso_reclamante: getCol(row, ["TIPO DE RECURSO DO RECLAMANTE", "Tipo de Recurso do Reclamante"]),
+          materias_recurso_reclamante: getCol(row, ["MATÉRIAS RECURSO RECLAMANTE", "MATERIAS RECURSO RECLAMANTE"]),
+          aparelhamento_reclamante: getCol(row, ["APARELHAMENTO (reclamante)", "Aparelhamento (reclamante)"]),
+          chance_exito_reclamante: getCol(row, ["CHANCE DE ÊXITO (reclamante)", "CHANCE DE EXITO (reclamante)"]),
+          tipo_recurso_banco: getCol(row, ["TIPO DE RECURSO DO BANCO", "Tipo de Recurso do Banco"]),
+          materias_recurso_banco: getCol(row, ["MATÉRIAS RECURSO DO BANCO", "MATERIAS RECURSO DO BANCO"]),
+          aparelhamento_banco: getCol(row, ["APARELHAMENTO (banco)", "Aparelhamento (banco)"]),
+          chance_exito_banco: getCol(row, ["CHANCE DE ÊXITO (banco)", "CHANCE DE EXITO (banco)"]),
+          honra_tst: getCol(row, ["HONRA", "Honra"]),
+          tema_tst: getCol(row, ["TEMA", "Tema"]),
+          execucao_tst: getCol(row, ["EXECUÇÃO", "EXECUCAO", "Execução"]),
+          midia_negativa_tst: getCol(row, ["MÍDIA NEGATIVA", "MIDIA NEGATIVA", "Mídia Negativa"]),
+          decisao_quarteirizado: getCol(row, ["DECISÃO (Análise do quarteirizado)", "DECISAO (Analise do quarteirizado)", "Decisão (Análise do quarteirizado)"]),
+          recurso_terceiros_tst: getCol(row, ["RECURSO DE TERCEIROS", "Recurso de Terceiros"]),
+          benner_atualizado: (() => {
+            const v = getCol(row, ["BENNER ATUALIZADO?", "Benner Atualizado?"]);
+            if (!v) return null;
+            const s = String(v).toLowerCase().trim();
+            return s === "sim" || s === "s" || s === "true" || s === "1";
+          })(),
+        };
+
+        processo.erros = validateProcesso(processo);
+        const numeroTrimmed = (processo.numero || "").trim();
+        if (!numeroTrimmed || numeroTrimmed.length < 5) {
+          processo.status = "invalido";
+          processo.erroImport = !numeroTrimmed ? "Número do processo vazio" : `Número muito curto (${numeroTrimmed.length} chars)`;
+          processo.erros = [{ campo: "numero", mensagem: processo.erroImport }];
+        } else {
+          processo.status = "valido";
+        }
+
+        return processo;
+      });
+
+      setRenataProcessos(parsed);
+      const validCount = parsed.filter(p => p.status === "valido").length;
+      const invalidCount = parsed.filter(p => p.status === "invalido").length;
+      toast({
+        title: "Planilha TST carregada",
+        description: `${parsed.length} linha(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+        variant: invalidCount > 0 ? "destructive" : "default",
+      });
+    } catch (error) {
+      console.error("Erro ao ler planilha Dr. Renata:", error);
+      toast({ title: "Erro ao ler planilha", description: "Verifique o formato do arquivo.", variant: "destructive" });
+    }
+  };
+
+  const handleRenataImport = async () => {
+    const validProcessos = renataProcessos.filter(p => p.status === "valido");
+    if (validProcessos.length === 0) {
+      toast({ title: "Nenhum processo válido", variant: "destructive" });
+      return;
+    }
+
+    setRenataImporting(true);
+    renataCancelledRef.current = false;
+    startImport("Importando TST - Dr. Renata");
+    setRenataProgress(0);
+
+    const updatedProcessos = [...renataProcessos];
+    let successCount = 0, updateCount = 0, errorCount = 0, rejectedCount = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      if (renataCancelledRef.current) {
+        toast({ title: "Importação cancelada", description: `Cancelada após ${i} registros.` });
+        setRenataImporting(false);
+        endImport();
+        return;
+      }
+
+      const processo = updatedProcessos[i];
+      if (processo.status === "invalido") {
+        rejectedCount++;
+        setRenataProgress(((i + 1) / updatedProcessos.length) * 100);
+        setRenataProcessos([...updatedProcessos]);
+        continue;
+      }
+
+      try {
+        const renataData = (processo as any).renataData || {};
+
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const areaSlug = await ensureAreaExists("trabalhista");
+
+        const processoData: any = {
+          numero: processo.numero.trim(),
+          area: areaSlug,
+          status: "ativo",
+          polo_ativo: processo.parteAtiva,
+          polo_passivo: processo.partePassiva,
+          data_distribuicao: parseDate(processo.dataDistribuicao),
+          coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
+          cliente_id: selectedCliente || null,
+          monitorar_andamentos: renataBuscarAndamentos,
+          transitado_julgado: processo.transitadoJulgado,
+          // TST-specific fields
+          dossie_tst: renataData.dossie_tst ? String(renataData.dossie_tst) : null,
+          equipe_tst: renataData.equipe_tst ? String(renataData.equipe_tst) : null,
+          relator_tst: renataData.relator_tst ? String(renataData.relator_tst) : null,
+          relator_favorabilidade: renataData.relator_favorabilidade ? String(renataData.relator_favorabilidade) : null,
+          turma_tst: renataData.turma_tst ? String(renataData.turma_tst) : null,
+          turma_favorabilidade: renataData.turma_favorabilidade ? String(renataData.turma_favorabilidade) : null,
+          parte_recorrente_tst: renataData.parte_recorrente_tst ? String(renataData.parte_recorrente_tst) : null,
+          tipo_recurso_reclamante: renataData.tipo_recurso_reclamante ? String(renataData.tipo_recurso_reclamante) : null,
+          materias_recurso_reclamante: renataData.materias_recurso_reclamante ? String(renataData.materias_recurso_reclamante) : null,
+          aparelhamento_reclamante: renataData.aparelhamento_reclamante ? String(renataData.aparelhamento_reclamante) : null,
+          chance_exito_reclamante: renataData.chance_exito_reclamante ? String(renataData.chance_exito_reclamante) : null,
+          tipo_recurso_banco: renataData.tipo_recurso_banco ? String(renataData.tipo_recurso_banco) : null,
+          materias_recurso_banco: renataData.materias_recurso_banco ? String(renataData.materias_recurso_banco) : null,
+          aparelhamento_banco: renataData.aparelhamento_banco ? String(renataData.aparelhamento_banco) : null,
+          chance_exito_banco: renataData.chance_exito_banco ? String(renataData.chance_exito_banco) : null,
+          honra_tst: renataData.honra_tst ? String(renataData.honra_tst) : null,
+          tema_tst: renataData.tema_tst ? String(renataData.tema_tst) : null,
+          execucao_tst: renataData.execucao_tst ? String(renataData.execucao_tst) : null,
+          midia_negativa_tst: renataData.midia_negativa_tst ? String(renataData.midia_negativa_tst) : null,
+          decisao_quarteirizado: renataData.decisao_quarteirizado ? String(renataData.decisao_quarteirizado) : null,
+          recurso_terceiros_tst: renataData.recurso_terceiros_tst ? String(renataData.recurso_terceiros_tst) : null,
+          benner_atualizado: renataData.benner_atualizado,
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          const updateData = { ...processoData };
+          const { data: currentProcesso } = await supabase
+            .from("processos")
+            .select("coordenacao_id, advogado_responsavel_id")
+            .eq("id", existingProcesso.id)
+            .single();
+
+          if (currentProcesso) {
+            if (currentProcesso.coordenacao_id && !selectedCoordenacao) delete updateData.coordenacao_id;
+            if (currentProcesso.advogado_responsavel_id && !selectedMembro) delete updateData.advogado_responsavel_id;
+          }
+
+          const { error } = await supabase
+            .from("processos")
+            .update(updateData)
+            .eq("id", existingProcesso.id);
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCount++;
+            continue;
+          }
+          isUpdate = true;
+        } else {
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert(processoData as any)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCount++;
+            continue;
+          }
+
+          if (renataBuscarAndamentos && insertedProcesso) {
+            const res = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!res.success) console.warn(`Falha andamentos ${processo.numero}:`, res.error);
+          }
+        }
+
+        updatedProcessos[i] = {
+          ...processo,
+          status: "sucesso",
+          erroImport: isUpdate ? "Atualizado (já existia)" : undefined,
+        };
+        if (isUpdate) updateCount++; else successCount++;
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCount++;
+      }
+
+      setRenataProgress(((i + 1) / updatedProcessos.length) * 100);
+      setRenataProcessos([...updatedProcessos]);
+    }
+
+    setRenataImporting(false);
+    endImport();
+    toast({
+      title: "Importação Dr. Renata (TST) concluída",
+      description: `${successCount} novo(s), ${updateCount} atualizado(s), ${rejectedCount} rejeitado(s), ${errorCount} erro(s).`,
+      variant: errorCount > 0 ? "destructive" : "default",
+    });
+  };
+
+  // Renata counts
+  const renataValidCount = renataProcessos.filter(p => p.status === "valido").length;
+  const renataInvalidCount = renataProcessos.filter(p => p.status === "invalido").length;
+  const renataSuccessCount = renataProcessos.filter(p => p.status === "sucesso").length;
+  const renataErrorCount = renataProcessos.filter(p => p.status === "erro").length;
+
   // Pedidos file handling
   const handlePedidosFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -5324,7 +5605,7 @@ export default function ImportarProcessos() {
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-9 max-w-6xl">
+          <TabsList className="grid w-full grid-cols-10 max-w-6xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -5356,6 +5637,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="mpt" className="flex items-center gap-2">
               <Gavel className="h-4 w-4" />
               <span className="hidden sm:inline">Min. Público</span>
+            </TabsTrigger>
+            <TabsTrigger value="renata" className="flex items-center gap-2">
+              <FileBarChart className="h-4 w-4" />
+              <span className="hidden sm:inline">Dr. Renata</span>
             </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -7835,6 +8120,189 @@ export default function ImportarProcessos() {
                       </div>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Dr. Renata (TST) */}
+          <TabsContent value="renata" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileBarChart className="h-5 w-5" />
+                  Importar Processos TST - Dr. Renata
+                </CardTitle>
+                <CardDescription>
+                  Importe processos do Tribunal Superior do Trabalho com campos específicos TST.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[200px] max-w-md">
+                    <Label htmlFor="renata-upload">Planilha TST (.xlsx)</Label>
+                    <Input
+                      id="renata-upload"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleRenataFileChange}
+                      disabled={renataImporting}
+                      className="mt-1"
+                    />
+                  </div>
+                  <Button variant="outline" size="sm" onClick={downloadRenataTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo
+                  </Button>
+                </div>
+
+                {/* Coordenação */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Building2 className="h-4 w-4" />Coordenação</Label>
+                  <Select value={selectedCoordenacao} onValueChange={setSelectedCoordenacao} disabled={renataImporting}>
+                    <SelectTrigger className="max-w-md"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Membro */}
+                {selectedCoordenacao && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Users className="h-4 w-4" />Advogado Responsável</Label>
+                    <Select value={selectedMembro} onValueChange={setSelectedMembro} disabled={renataImporting}>
+                      <SelectTrigger className="max-w-md"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        {(coordenacoes.find((c: any) => c.id === selectedCoordenacao) as any)?.membros?.map((m: any) => (
+                          <SelectItem key={m.usuario_id} value={m.usuario_id}>{m.usuario?.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Cliente */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Users className="h-4 w-4" />Cliente (opcional)</Label>
+                  <Select value={selectedCliente} onValueChange={setSelectedCliente} disabled={renataImporting}>
+                    <SelectTrigger className="max-w-md"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2 font-medium"><Clock className="h-4 w-4" />Buscar andamentos</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {renataBuscarAndamentos ? "Andamentos serão buscados durante a importação." : "Andamentos NÃO serão buscados."}
+                    </p>
+                  </div>
+                  <Switch checked={renataBuscarAndamentos} onCheckedChange={setRenataBuscarAndamentos} disabled={renataImporting} />
+                </div>
+
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> DATA DA DISTRIBUIÇÃO, NÚMERO DO PROCESSO, DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA, RELATOR, TURMA, PARTE RECORRENTE, TIPO DE RECURSO, MATÉRIAS, APARELHAMENTO, CHANCE DE ÊXITO, HONRA, TEMA, EXECUÇÃO, MÍDIA NEGATIVA, DECISÃO, RECURSO DE TERCEIROS, TRÂNSITO EM JULGADO, BENNER ATUALIZADO.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Preview */}
+            {renataFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização TST</CardTitle>
+                      <CardDescription>{renataProcessos.length} processo(s) em "{renataFile.name}"</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">{renataValidCount} importáveis</Badge>
+                      <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">{renataInvalidCount} rejeitados</Badge>
+                      {renataSuccessCount > 0 && <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">{renataSuccessCount} importados</Badge>}
+                      {renataErrorCount > 0 && <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">{renataErrorCount} erros</Badge>}
+                      <div className="flex gap-2">
+                        {renataImporting ? (
+                          <Button variant="destructive" onClick={() => { renataCancelledRef.current = true; }}>
+                            <XCircle className="h-4 w-4 mr-2" />Cancelar
+                          </Button>
+                        ) : (
+                          <Button variant="outline" onClick={() => { setRenataFile(null); setRenataProcessos([]); setRenataProgress(0); }}>
+                            <XCircle className="h-4 w-4 mr-2" />Limpar
+                          </Button>
+                        )}
+                        <Button onClick={handleRenataImport} disabled={renataImporting || renataValidCount === 0}>
+                          {renataImporting ? (
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importando...</>
+                          ) : (
+                            <><Upload className="h-4 w-4 mr-2" />Importar ({renataValidCount})</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {renataImporting && <Progress value={renataProgress} className="mt-4" />}
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[500px] overflow-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background">
+                          <TableRow>
+                            <TableHead className="w-[60px]">Linha</TableHead>
+                            <TableHead className="w-[60px]">Status</TableHead>
+                            <TableHead>Número</TableHead>
+                            <TableHead>Reclamante</TableHead>
+                            <TableHead>Reclamada</TableHead>
+                            <TableHead>Relator</TableHead>
+                            <TableHead>Turma</TableHead>
+                            <TableHead className="min-w-[200px]">Avisos/Erros</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {renataProcessos.map((processo, index) => (
+                            <TableRow key={index} className={
+                              processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" :
+                              processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""
+                            }>
+                              <TableCell className="text-muted-foreground">{processo.linhaOriginal}</TableCell>
+                              <TableCell>
+                                {processo.status === "valido" && <div className="w-3 h-3 rounded-full bg-green-500" />}
+                                {processo.status === "invalido" && <XCircle className="h-4 w-4 text-red-500" />}
+                                {processo.status === "sucesso" && <CheckCircle2 className="h-4 w-4 text-blue-500" />}
+                                {processo.status === "erro" && <XCircle className="h-4 w-4 text-orange-500" />}
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">{processo.numero || <span className="text-red-500 italic">vazio</span>}</TableCell>
+                              <TableCell className="max-w-[150px] truncate">{processo.parteAtiva || "-"}</TableCell>
+                              <TableCell className="max-w-[150px] truncate">{processo.partePassiva || "-"}</TableCell>
+                              <TableCell>{(processo as any).renataData?.relator_tst || "-"}</TableCell>
+                              <TableCell>{(processo as any).renataData?.turma_tst || "-"}</TableCell>
+                              <TableCell className="text-sm">
+                                {processo.status === "invalido" && processo.erros.length > 0 && (
+                                  <div className="text-red-600 space-y-1">
+                                    {processo.erros.map((e, i) => <div key={i}>• {e.campo}: {e.mensagem}</div>)}
+                                  </div>
+                                )}
+                                {processo.erroImport && <div className="text-orange-600">• {processo.erroImport}</div>}
+                                {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                {processo.status === "sucesso" && !processo.erroImport && <span className="text-blue-600">Importado</span>}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
