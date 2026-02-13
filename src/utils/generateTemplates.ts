@@ -67,34 +67,38 @@ export const TEMPLATES = {
   },
   pedidos: {
     columns: [
-      // PROCESSO
       "NÚMERO", "RECLAMANTE", "FUNÇÃO", "SETOR", "RECLAMADO", "VARA", "COMARCA",
-      // CONTRATO TRABALHO
       "PERÍODO CONTRATAÇÃO", "TIPO CONTRATO TRABALHO",
-      // RESPONSABILIDADE SUBSIDIÁRIA
       "POSSUI (SIM/NÃO)", "OBSERVAÇÃO RESPONSABILIDADE SUBSIDIÁRIA",
-      // HORAS EXTRAS
       "EXCESSO JORNADA", "PLANTÕES EXTRAS", "DOBRAS", "INTERVALO INTRAJORNADA", 
       "INTERVALO INTERJORNADA", "DESCARACTERIZAÇÃO JORNADA 12/36", "Domingos/Feriados",
-      // INSALUBRIDADE/PERICULOSIDADE
       "PEDIDO (OBSERVAÇÃO)", "DIFERENÇAS SALARIAIS", "ADICIONAL NOTURNO", "SOBRECARGA DE TRABALHO",
-      // RECONHECIMENTO DE VÍNCULO
       "RECONHECIMENTO DE VÍNCULO", "CARGO RECONHECIMENTO VÍNCULO",
-      // DANOS MORAIS
       "ASSÉDIO", "OUTROS",
-      // ACIDENTE DE TRABALHO/DOENÇA OCUPACIONAL
       "ACIDENTE/DOENÇA", "DANOS MATERIAIS", "PENSÃO VITALÍCIA", "DANOS MORAIS", "LIMBO PREVIDENCIÁRIO",
-      // ESTABILIDADE
       "TIPO", "POSSUI",
-      // INDENIZAÇÃO
       "INDENIZAÇÃO SUBSTITUTIVA", "REVERSÃO JUSTA CAUSA", "RESCISÃO INDIRETA", "REVERSÃO PEDIDO DEMISSÃO",
-      // MULTA CCTs
       "Multas CLT", "SITUAÇÃO", "DATA SITUAÇÃO",
-      // ENCERRAMENTO
       "TIPO", "CUSTO"
     ],
     sheetName: "Pedidos Trabalhistas",
     fileName: "MODELO_IMPORTACAO_PEDIDOS.xlsx"
+  },
+  renata: {
+    columns: [
+      "DATA DA DISTRIBUIÇÃO", "NÚMERO DO PROCESSO", "DOSSIÊ", "EQUIPE",
+      "RECLAMANTE", "RECLAMADA", "RELATOR", "RELATOR (+ OU -)",
+      "TURMA", "TURMA (+ OU -)", "PARTE RECORRENTE",
+      "TIPO DE RECURSO DO RECLAMANTE", "MATÉRIAS RECURSO RECLAMANTE",
+      "APARELHAMENTO (reclamante)", "CHANCE DE ÊXITO (reclamante)",
+      "TIPO DE RECURSO DO BANCO", "MATÉRIAS RECURSO DO BANCO",
+      "APARELHAMENTO (banco)", "CHANCE DE ÊXITO (banco)",
+      "HONRA", "TEMA", "EXECUÇÃO", "MÍDIA NEGATIVA",
+      "DECISÃO (Análise do quarteirizado)", "RECURSO DE TERCEIROS",
+      "TRÂNSITO EM JULGADO?", "BENNER ATUALIZADO?"
+    ],
+    sheetName: "Distribuições TST",
+    fileName: "MODELO_IMPORTACAO_DR_RENATA_TST.xlsx"
   }
 };
 
@@ -120,4 +124,8 @@ export function downloadMptTemplate() {
 
 export function downloadPedidosTemplate() {
   downloadTemplateExcel(TEMPLATES.pedidos.columns, TEMPLATES.pedidos.sheetName, TEMPLATES.pedidos.fileName);
+}
+
+export function downloadRenataTemplate() {
+  downloadTemplateExcel(TEMPLATES.renata.columns, TEMPLATES.renata.sheetName, TEMPLATES.renata.fileName);
 }

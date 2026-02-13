@@ -92,6 +92,7 @@ import { SelecionarResponsaveisProcesso } from "@/components/processos/Seleciona
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
+import { ProcessoTstTab } from "@/components/processos/ProcessoTstTab";
 
 import { ProcessoDetalhesCompletos } from "@/components/processos/ProcessoDetalhesCompletos";
 import { ProcessoEditarCompleto } from "@/components/processos/ProcessoEditarCompleto";
@@ -1385,6 +1386,17 @@ export default function ProcessoDetalhes() {
           <ListPlus className="w-4 h-4" />
           <span className="hidden sm:inline">Pedidos</span>
         </TabsTrigger>
+        <TabsTrigger 
+          value="tst" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "tst" ? "" : "tst");
+          }}
+        >
+          <Gavel className="w-4 h-4" />
+          <span className="hidden sm:inline">TST</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab Contents - Audiências */}
@@ -1809,6 +1821,11 @@ export default function ProcessoDetalhes() {
       {/* Tab Contents - Pedidos Trabalhistas */}
       <TabsContent value="pedidos" className="mt-4">
         <ProcessoPedidosTab processo={processo} />
+      </TabsContent>
+
+      {/* Tab Contents - TST */}
+      <TabsContent value="tst" className="mt-4">
+        <ProcessoTstTab processo={processo} />
       </TabsContent>
     </Tabs>
   );
