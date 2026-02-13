@@ -256,7 +256,9 @@ export function AnaliseDocumentoDialog({
               <div className="text-center py-4">
                 <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  Todos os campos do processo já estão preenchidos!
+                  {advogados.length > 0
+                    ? "Campos do processo já preenchidos. Clique em \"Salvar Advogados\" para registrar os advogados identificados."
+                    : "Todos os campos do processo já estão preenchidos!"}
                 </p>
               </div>
             )}
@@ -267,12 +269,17 @@ export function AnaliseDocumentoDialog({
           <Button variant="outline" onClick={onSkip}>
             Pular
           </Button>
-          {camposDisponiveis.length > 0 && (
+          {camposDisponiveis.length > 0 ? (
             <Button onClick={handleConfirm} className="gap-2">
               <Sparkles className="w-4 h-4" />
               Preencher Selecionados
             </Button>
-          )}
+          ) : advogados.length > 0 ? (
+            <Button onClick={() => onConfirm({})} className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Salvar Advogados
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
