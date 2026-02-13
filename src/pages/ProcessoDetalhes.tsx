@@ -1237,7 +1237,7 @@ export default function ProcessoDetalhes() {
   // Componente de tabs reutilizável
   const renderTabs = () => (
     <Tabs value={activeTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:inline-flex gap-1 h-auto flex-wrap">
+      <TabsList className="w-full inline-flex gap-1 h-auto flex-wrap bg-muted p-1 rounded-md">
         <TabsTrigger 
           value="audiencias" 
           className="gap-1.5"
