@@ -1,68 +1,69 @@
 
-
-## Plano: Armazenar texto extraido das 5 primeiras paginas no Supabase
+## Plano: Suporte a upload de arquivos ZIP com extracao e analise individual
 
 ### Objetivo
-Salvar o texto extraido das primeiras 5 paginas do documento no banco de dados (tabela `documentos`) para que analises futuras leiam diretamente do banco, eliminando a necessidade de baixar e re-processar o PDF no navegador.
+Permitir que o advogado envie um arquivo `.zip` contendo multiplos documentos. O sistema ira extrair os arquivos internos, fazer upload de cada um individualmente no Storage, registrar cada documento no banco e permitir analise IA de cada um separadamente.
 
-### 1. Migracao de banco de dados
+### 1. Instalar dependencia
 
-Adicionar uma coluna `conteudo_extraido` (tipo `text`) na tabela `documentos` para armazenar o texto ja extraido:
+Adicionar a biblioteca `jszip` para descompactar arquivos ZIP no navegador:
+- `jszip` (leve, ~45KB gzipped, roda 100% no client-side)
 
-```sql
-ALTER TABLE public.documentos
-  ADD COLUMN conteudo_extraido text,
-  ADD COLUMN paginas_extraidas integer DEFAULT 0;
+### 2. Alterar o input de arquivo
+
+No `ProcessoDetalhesCompletos.tsx`, adicionar `.zip` na lista de formatos aceitos:
+
+```
+accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls,.csv,.zip"
 ```
 
-- `conteudo_extraido`: texto completo das primeiras 5 paginas (com marcadores `--- Pagina N ---`)
-- `paginas_extraidas`: quantas paginas foram extraidas (para saber se o cache e valido)
+### 3. Modificar `handlePastaFileSelect`
 
-### 2. Salvar texto durante o upload ou na primeira analise
-
-No arquivo `ProcessoDetalhesCompletos.tsx`, na funcao `handleAnalyzeDocument`:
-
-1. Antes de chamar a Edge Function, verificar se `doc.conteudo_extraido` ja existe
-2. Se existir, usar esse texto diretamente (pula download + extracao PDF)
-3. Se nao existir, extrair normalmente e salvar o resultado na coluna `conteudo_extraido` da tabela `documentos`
-
-Fluxo simplificado:
+Atualizar a funcao de upload para detectar arquivos ZIP e trata-los de forma especial:
 
 ```text
-Clique "Analisar IA"
+Arquivo selecionado
       |
       v
-conteudo_extraido existe?
-    /        \
-  SIM        NAO
-   |           |
-   |      Download PDF
-   |      Extrair 5 pags
-   |      Salvar no BD
-   |           |
-   v           v
-Enviar texto para Edge Function analisar-documento
+  E um ZIP?
+   /     \
+ NAO     SIM
+  |        |
+Upload   Descompactar com JSZip
+normal   Filtrar arquivos validos
+  |      (ignorar pastas, __MACOSX, .DS_Store)
+  |        |
+  |      Para cada arquivo interno:
+  |        - Upload no Storage
+  |        - Registrar na tabela documentos
+  |        - (opcional) Salvar no repositorio
+  |        |
+  v        v
+  Fim    Toast: "X documentos extraidos do ZIP"
 ```
 
-### 3. Alteracoes no codigo
+**Detalhes da extracao:**
+- Filtrar apenas extensoes suportadas: `.pdf`, `.doc`, `.docx`, `.txt`, `.jpg`, `.jpeg`, `.png`, `.xlsx`, `.xls`, `.csv`
+- Ignorar arquivos de sistema: `__MACOSX/`, `.DS_Store`, `Thumbs.db`
+- Ignorar pastas vazias
+- Progresso: mostrar barra de progresso geral (ex: "Extraindo 3/7 arquivos...")
+- Cada arquivo interno sera registrado como documento individual vinculado ao processo
 
-**Arquivo: `src/components/processos/ProcessoDetalhesCompletos.tsx`**
+### 4. Analise IA continua individual
 
-- Na query de documentos, incluir `conteudo_extraido, paginas_extraidas` no select
-- Na funcao `handleAnalyzeDocument`:
-  - Se `doc.conteudo_extraido` existir e `doc.paginas_extraidas >= 5`, usar direto
-  - Caso contrario, extrair e salvar com `supabase.from("documentos").update({ conteudo_extraido, paginas_extraidas })`
+Nenhuma mudanca na funcao `handleAnalyzeDocument`. Cada documento extraido do ZIP aparecera na lista com seu botao "Analisar IA" individual, como ja funciona hoje.
 
-### 4. Beneficios
+### 5. Arquivos a modificar
 
-- Primeira analise: mesma velocidade atual (extrai e salva)
-- Analises seguintes: instantaneo (le do banco, sem download do PDF)
-- Permite reanalisar documentos sem reprocessar o PDF
-- Texto fica disponivel para buscas futuras no banco
+- `package.json`: adicionar `jszip`
+- `src/components/processos/ProcessoDetalhesCompletos.tsx`:
+  - Importar JSZip
+  - Adicionar `.zip` ao accept
+  - Modificar `handlePastaFileSelect` para detectar e descompactar ZIPs
+  - Exibir progresso de extracao (reutilizar barra de progresso existente)
 
-### Detalhes tecnicos
+### 6. Limitacoes e seguranca
 
-- O texto das 5 paginas geralmente tem entre 5.000 e 30.000 caracteres, compativel com coluna `text` do Postgres
-- Nenhuma RLS adicional necessaria pois a tabela `documentos` ja possui politicas existentes
-- A coluna `paginas_extraidas` permite invalidar o cache se no futuro quisermos mudar o numero de paginas
-
+- Limite de tamanho por arquivo extraido: 300MB (mesmo limite do Storage)
+- Limite de arquivos por ZIP: 50 (para evitar ZIP bombs)
+- Arquivos duplicados (mesmo nome) receberao timestamp unico no path do Storage
