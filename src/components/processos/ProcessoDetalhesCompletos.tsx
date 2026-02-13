@@ -158,7 +158,7 @@ export function ProcessoDetalhesCompletos({
       tribunal: processo.tribunal || "",
       comarca: processo.comarca || "",
       vara: processo.vara || "",
-      orgao_julgador: processo.orgao_julgador || "",
+      
       polo_ativo: processo.polo_ativo || "",
       polo_passivo: processo.polo_passivo || "",
       valor_causa: processo.valor_causa || "",
@@ -188,7 +188,7 @@ export function ProcessoDetalhesCompletos({
           tribunal: resumoForm.tribunal || null,
           comarca: resumoForm.comarca || null,
           vara: resumoForm.vara || null,
-          orgao_julgador: resumoForm.orgao_julgador || null,
+          
           polo_ativo: resumoForm.polo_ativo || null,
           polo_passivo: resumoForm.polo_passivo || null,
           valor_causa: resumoForm.valor_causa ? Number(resumoForm.valor_causa) : null,
@@ -935,10 +935,6 @@ export function ProcessoDetalhesCompletos({
                               <div>
                                 <Label className="text-[10px] text-muted-foreground uppercase">Vara</Label>
                                 <Input className="mt-1 h-8 text-sm" value={resumoForm.vara} onChange={e => updateResumoField("vara", e.target.value)} placeholder="Vara" />
-                              </div>
-                              <div>
-                                <Label className="text-[10px] text-muted-foreground uppercase">Órgão julgador</Label>
-                                <Input className="mt-1 h-8 text-sm" value={resumoForm.orgao_julgador} onChange={e => updateResumoField("orgao_julgador", e.target.value)} placeholder="Órgão julgador" />
                               </div>
                               <div>
                                 <Label className="text-[10px] text-muted-foreground uppercase">Data de distribuição</Label>
