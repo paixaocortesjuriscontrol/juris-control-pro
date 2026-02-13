@@ -42,19 +42,15 @@ const TIPOS = [
   { value: "outro", label: "Outro" },
 ];
 
-// Regex para identificar números de processo no padrão CNJ
 const PROCESSO_REGEX = /\d{7}[-.]?\d{2}[-.]?\d{4}[-.]?\d[-.]?\d{2}[-.]?\d{4}/g;
 
-// Função para normalizar número de processo (remover pontos e traços)
 function normalizeProcessoNumber(numero: string): string {
   return numero.replace(/[^\d]/g, '');
 }
 
-// Função para buscar processo no banco de dados
 async function findProcessoByNumero(supabase: any, numeroProcesso: string): Promise<{ id: string; numero: string } | null> {
   const normalizedInput = normalizeProcessoNumber(numeroProcesso);
   
-  // Buscar processo pelo número (normalizado)
   const { data, error } = await supabase
     .from('processos')
     .select('id, numero')
@@ -65,7 +61,6 @@ async function findProcessoByNumero(supabase: any, numeroProcesso: string): Prom
     return null;
   }
   
-  // Comparar normalizando ambos os lados
   for (const processo of data) {
     if (normalizeProcessoNumber(processo.numero) === normalizedInput) {
       return processo;
@@ -81,7 +76,7 @@ serve(async (req) => {
   }
 
   try {
-    const { fileName, fileContent, mimeType } = await req.json();
+    const { fileName, fileContent, mimeType, processoAtual } = await req.json();
     
     if (!fileName || !fileContent) {
       return new Response(
@@ -95,52 +90,89 @@ serve(async (req) => {
       throw new Error("OPENAI_API_KEY não configurada");
     }
 
-    // Inicializar cliente Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Limitar conteúdo a ~8000 caracteres para não exceder limites
     const truncatedContent = fileContent.substring(0, 8000);
+
+    // Build context about current processo fields that are empty
+    let camposFaltantes = '';
+    if (processoAtual) {
+      const campos: Record<string, string> = {
+        polo_ativo: 'Reclamante / Polo Ativo',
+        polo_passivo: 'Reclamado / Polo Passivo',
+        advogado_parte_contraria: 'Advogado da Parte Contrária',
+        vara: 'Vara / Câmara',
+        comarca: 'Comarca',
+        tribunal: 'Tribunal',
+        assunto: 'Assunto',
+        valor_causa: 'Valor da Causa',
+        data_distribuicao: 'Data de Distribuição',
+        juiz: 'Juiz',
+        classe_judicial: 'Classe Judicial',
+      };
+      const faltando = Object.entries(campos)
+        .filter(([key]) => !processoAtual[key])
+        .map(([, label]) => label);
+      if (faltando.length > 0) {
+        camposFaltantes = `\n\nCAMPOS FALTANTES NO PROCESSO ATUAL (tente extrair do documento):\n${faltando.join(', ')}`;
+      }
+    }
     
-    const systemPrompt = `Você é um assistente jurídico especializado em classificar documentos legais brasileiros.
-Analise o conteúdo E O NOME DO ARQUIVO do documento para identificar corretamente:
+    const systemPrompt = `Você é um assistente jurídico especializado em analisar documentos legais brasileiros.
+Analise o conteúdo E O NOME DO ARQUIVO do documento para extrair o MÁXIMO de informações possíveis:
 
-1. A categoria mais adequada (obrigatório)
-2. O tipo específico de documento (MUITO IMPORTANTE - seja preciso!)
-3. Uma breve descrição do documento (máximo 100 caracteres)
+1. Categoria do documento
+2. Tipo específico
+3. Breve descrição (máximo 100 caracteres)
 4. Tags relevantes (máximo 5)
-5. Número(s) de processo mencionado(s) no documento (formato CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO)
+5. Número(s) de processo (formato CNJ)
+6. PARTES ENVOLVIDAS: reclamante/polo ativo, reclamado/polo passivo, com nomes completos
+7. ADVOGADOS: nomes dos advogados mencionados, com OAB se disponível
+8. INFORMAÇÕES PROCESSUAIS: vara, comarca, tribunal, juiz, classe judicial, assunto, valor da causa, data de distribuição
+${camposFaltantes}
 
-DICAS PARA CLASSIFICAÇÃO:
-- Se o nome ou conteúdo mencionar "locação", "aluguel", "inquilino", "locador", "APTO", "apartamento", "imóvel" → tipo é "contrato_locacao"
-- Se mencionar "prestação de serviços", "contratada", "contratante" para serviços → tipo é "contrato_prestacao"
-- Se mencionar "honorários advocatícios", "advogado" → tipo é "contrato_honorarios"
-- Se mencionar "compra e venda", "vendedor", "comprador" → tipo é "contrato_compra_venda"
-- Se for um formulário/modelo para preenchimento → tipo é "formulario"
-- Se for uma declaração formal → tipo é "declaracao"
-- Se for notificação para terceiros → tipo é "notificacao_extrajudicial"
+Categorias: ${CATEGORIAS.map(c => `${c.value} (${c.label})`).join(", ")}
+Tipos: ${TIPOS.map(t => `${t.value} (${t.label})`).join(", ")}
 
-IMPORTANTE: Procure atentamente por números de processo judicial no formato CNJ (ex: 0001234-56.2024.5.01.0001).
-
-Categorias disponíveis: ${CATEGORIAS.map(c => `${c.value} (${c.label})`).join(", ")}
-
-Tipos disponíveis: ${TIPOS.map(t => `${t.value} (${t.label})`).join(", ")}
-
-Se o tipo do documento NÃO se encaixar em nenhum dos tipos acima, você pode sugerir um novo tipo no formato snake_case.
-Neste caso, adicione um campo "novo_tipo" com o valor sugerido e "novo_tipo_label" com o rótulo legível.
-
-Responda APENAS em JSON válido no formato:
+Responda APENAS em JSON válido:
 {
-  "categoria": "valor_da_categoria",
-  "tipo_documento": "valor_do_tipo ou null",
-  "novo_tipo": "novo_tipo_snake_case (opcional, apenas se criar novo)",
-  "novo_tipo_label": "Rótulo do Novo Tipo (opcional)",
-  "descricao": "breve descrição do documento",
+  "categoria": "valor",
+  "tipo_documento": "valor ou null",
+  "novo_tipo": "snake_case (opcional)",
+  "novo_tipo_label": "Rótulo (opcional)",
+  "descricao": "breve descrição",
   "tags": ["tag1", "tag2"],
   "confianca": "alta|media|baixa",
-  "numeros_processo": ["1234567-89.2024.5.01.0001"] // array de números encontrados, ou vazio se nenhum
-}`;
+  "numeros_processo": ["1234567-89.2024.5.01.0001"],
+  "partes": {
+    "polo_ativo": "Nome completo do reclamante/autor",
+    "polo_passivo": "Nome completo do reclamado/réu",
+    "outros_envolvidos": ["Nome - Papel"]
+  },
+  "advogados": [
+    {"nome": "Dr. Fulano", "oab": "OAB/UF 12345", "parte": "reclamante|reclamado|outro"}
+  ],
+  "info_processual": {
+    "vara": "1ª Vara do Trabalho",
+    "comarca": "São Paulo",
+    "tribunal": "TRT-2",
+    "juiz": "Nome do Juiz",
+    "classe_judicial": "Reclamação Trabalhista",
+    "assunto": "Verbas Rescisórias",
+    "valor_causa": 50000.00,
+    "data_distribuicao": "2024-01-15"
+  },
+  "campos_extraidos": {
+    "campo_supabase": "valor extraído"
+  }
+}
+
+IMPORTANTE: 
+- Extraia TODOS os nomes de partes e advogados que conseguir.
+- Se não encontrar alguma informação, use null.
+- Em "campos_extraidos", mapeie para nomes de colunas do banco: polo_ativo, polo_passivo, advogado_parte_contraria, vara, comarca, tribunal, assunto, valor_causa, data_distribuicao, juiz, classe_judicial.`;
 
     const userPrompt = `Nome do arquivo: ${fileName}
 Tipo MIME: ${mimeType || "desconhecido"}
@@ -165,7 +197,7 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.3,
-        max_tokens: 600,
+        max_tokens: 1200,
       }),
     });
 
@@ -182,44 +214,40 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
       throw new Error("Resposta vazia da OpenAI");
     }
 
-    // Tentar extrair JSON da resposta
     let analysis;
     try {
-      // Remove possíveis markdown code blocks
       const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       analysis = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('Erro ao parsear resposta:', content);
-      // Fallback com valores padrão
       analysis = {
         categoria: "outros",
         tipo_documento: null,
         descricao: `Documento: ${fileName}`,
         tags: [],
         confianca: "baixa",
-        numeros_processo: []
+        numeros_processo: [],
+        partes: { polo_ativo: null, polo_passivo: null, outros_envolvidos: [] },
+        advogados: [],
+        info_processual: {},
+        campos_extraidos: {}
       };
     }
 
-    // Validar categoria
     if (!CATEGORIAS.find(c => c.value === analysis.categoria)) {
       analysis.categoria = "outros";
     }
 
-    // Validar tipo - se não existir e tiver novo_tipo, usar o novo tipo
     if (analysis.tipo_documento && !TIPOS.find(t => t.value === analysis.tipo_documento)) {
-      // Verificar se é um novo tipo sugerido pela IA
       if (analysis.novo_tipo) {
         analysis.tipo_documento = analysis.novo_tipo;
       }
     }
 
-    // Se tiver novo_tipo mas não tiver tipo_documento, usar o novo tipo
     if (analysis.novo_tipo && !analysis.tipo_documento) {
       analysis.tipo_documento = analysis.novo_tipo;
     }
 
-    // Também tentar extrair números de processo via regex como fallback
     const regexMatches = truncatedContent.match(PROCESSO_REGEX) || [];
     const allNumeros = [...new Set([
       ...(analysis.numeros_processo || []),
@@ -228,12 +256,11 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
     
     analysis.numeros_processo = allNumeros;
 
-    // Buscar se algum dos processos existe no banco de dados
     let processoEncontrado = null;
     let numeroProcessoExtraido = null;
 
     if (allNumeros.length > 0) {
-      numeroProcessoExtraido = allNumeros[0]; // Primeiro número encontrado
+      numeroProcessoExtraido = allNumeros[0];
       
       for (const numero of allNumeros) {
         const processo = await findProcessoByNumero(supabase, numero);
@@ -246,10 +273,15 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
       }
     }
 
-    // Adicionar informações do processo ao resultado
     analysis.numero_processo_extraido = numeroProcessoExtraido;
     analysis.processo_id = processoEncontrado?.id || null;
     analysis.processo_numero = processoEncontrado?.numero || null;
+
+    // Ensure new fields have defaults
+    analysis.partes = analysis.partes || { polo_ativo: null, polo_passivo: null, outros_envolvidos: [] };
+    analysis.advogados = analysis.advogados || [];
+    analysis.info_processual = analysis.info_processual || {};
+    analysis.campos_extraidos = analysis.campos_extraidos || {};
 
     console.log(`Análise concluída: ${JSON.stringify(analysis)}`);
 
@@ -263,7 +295,6 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
     return new Response(
       JSON.stringify({ 
         error: errorMessage,
-        // Retornar valores padrão em caso de erro
         categoria: "outros",
         tipo_documento: null,
         descricao: "",
@@ -272,7 +303,11 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
         numeros_processo: [],
         numero_processo_extraido: null,
         processo_id: null,
-        processo_numero: null
+        processo_numero: null,
+        partes: { polo_ativo: null, polo_passivo: null, outros_envolvidos: [] },
+        advogados: [],
+        info_processual: {},
+        campos_extraidos: {}
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
