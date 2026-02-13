@@ -37,11 +37,17 @@ export function AnaliseDocumentoDialog({
   const advogados = analise?.advogados || [];
   const infoProcessual = analise?.info_processual || {};
 
-  // Build list of fields that can be auto-filled (only if processo is missing them)
+  // Only show fields that exist in the processos table
+  const VALID_COLUMNS = new Set([
+    'polo_ativo', 'polo_passivo', 'vara', 'comarca', 'tribunal',
+    'assunto', 'valor_causa', 'data_distribuicao', 'classe', 'juiz',
+    'esfera', 'instancia', 'justica', 'natureza', 'materia',
+    'advogado_externo', 'cpf_cnpj_parte_contraria', 'funcao_parte_contraria',
+  ]);
   const camposDisponiveis: { key: string; label: string; valor: any; atual: any }[] = [];
 
   const addCampo = (key: string, label: string, valor: any) => {
-    if (valor && !processo?.[key]) {
+    if (valor && !processo?.[key] && VALID_COLUMNS.has(key)) {
       camposDisponiveis.push({ key, label, valor, atual: processo?.[key] });
     }
   };
