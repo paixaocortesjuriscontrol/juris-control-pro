@@ -151,6 +151,22 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         </Button>
       </div>
 
+      {/* Info do Processo */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-lg border p-4 bg-muted/30">
+        <div>
+          <span className="text-xs font-medium text-muted-foreground">Número do Processo</span>
+          <p className="font-mono font-semibold text-sm">{processo?.numero || "—"}</p>
+        </div>
+        <div>
+          <span className="text-xs font-medium text-muted-foreground">Data de Distribuição</span>
+          <p className="font-semibold text-sm">{processo?.data_distribuicao || "—"}</p>
+        </div>
+        <div>
+          <span className="text-xs font-medium text-muted-foreground">Reclamante</span>
+          <p className="font-semibold text-sm">{processo?.polo_ativo || "—"}</p>
+        </div>
+      </div>
+
       {/* Dados Básicos */}
       <div>
         <h4 className="text-sm font-semibold mb-3 text-foreground">Dados Básicos</h4>
