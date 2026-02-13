@@ -267,6 +267,7 @@ export function ProcessoDetalhesCompletos({
 
       setUploadProgress(100);
       sonnerToast.success("Documento enviado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["documentos-processo", processo.id] });
       queryClient.invalidateQueries({ queryKey: ["documentos"] });
       queryClient.invalidateQueries({ queryKey: ["repositorio-documentos"] });
     } catch (error: any) {

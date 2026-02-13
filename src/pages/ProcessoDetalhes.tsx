@@ -259,7 +259,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "documentos",
+    enabled: !!id,
   });
 
   // Publicações DJEN query - lazy load
