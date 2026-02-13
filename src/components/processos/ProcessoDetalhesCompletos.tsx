@@ -300,7 +300,7 @@ export function ProcessoDetalhesCompletos({
             pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            const maxPages = Math.min(pdf.numPages, 10);
+            const maxPages = Math.min(pdf.numPages, 5);
             const pages: string[] = [];
             for (let i = 1; i <= maxPages; i++) {
               const page = await pdf.getPage(i);
@@ -355,8 +355,9 @@ export function ProcessoDetalhesCompletos({
         const hasCampos = analise.campos_extraidos && Object.keys(analise.campos_extraidos).length > 0;
         const hasPartes = analise.partes?.polo_ativo || analise.partes?.polo_passivo;
         const hasInfo = analise.info_processual && Object.keys(analise.info_processual).length > 0;
+        const hasAdvogados = analise.advogados && analise.advogados.length > 0;
 
-        if (hasCampos || hasPartes || hasInfo) {
+        if (hasCampos || hasPartes || hasInfo || hasAdvogados) {
           setAnaliseResult(analise);
           setAnaliseDialogOpen(true);
         } else {
@@ -375,7 +376,7 @@ export function ProcessoDetalhesCompletos({
   };
 
   const handleAnaliseConfirm = async (camposParaPreencher: Record<string, any>) => {
-    if (!processo?.id || Object.keys(camposParaPreencher).length === 0) {
+    if (!processo?.id) {
       setAnaliseDialogOpen(false);
       return;
     }
@@ -389,16 +390,17 @@ export function ProcessoDetalhesCompletos({
         }
       }
 
+      // Always save advogados_identificados if available
+      if (analiseResult?.advogados?.length > 0) {
+        validCampos.advogados_identificados = analiseResult.advogados;
+      }
+
       if (Object.keys(validCampos).length === 0) {
         sonnerToast.info("Nenhum campo válido para preencher.");
         setAnaliseDialogOpen(false);
         return;
       }
 
-      // Also save advogados_identificados if available in the analysis
-      if (analiseResult?.advogados?.length > 0) {
-        validCampos.advogados_identificados = analiseResult.advogados;
-      }
 
       const { error } = await supabase
         .from("processos")
