@@ -286,40 +286,60 @@ export function ProcessoDetalhesCompletos({
     setAnalyzingDocId(doc.id);
 
     try {
-      // Fetch the file from URL
-      const response = await fetch(doc.url);
-      const blob = await response.blob();
-      const file = new File([blob], doc.nome, { type: doc.tipo || 'application/octet-stream' });
+      // Check if we already have cached extracted text
+      let fileContent: string;
+      const hasCachedContent = doc.conteudo_extraido && doc.paginas_extraidas >= 5;
 
-      // Extract text content
-      const fileContent = await (async () => {
-        const isPdf = (doc.tipo || '').includes('pdf') || doc.nome?.toLowerCase().endsWith('.pdf');
-        if (isPdf) {
-          try {
-            const pdfjsLib = await import("pdfjs-dist");
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            const maxPages = Math.min(pdf.numPages, 5);
-            const pages: string[] = [];
-            for (let i = 1; i <= maxPages; i++) {
-              const page = await pdf.getPage(i);
-              const tc = await page.getTextContent();
-              const text = tc.items.map((item: any) => item.str).join(" ");
-              if (text.trim()) pages.push(`--- Página ${i} ---\n${text}`);
+      if (hasCachedContent) {
+        console.log("Usando texto extraído do cache (banco de dados)");
+        fileContent = doc.conteudo_extraido;
+      } else {
+        // Fetch the file from URL
+        const response = await fetch(doc.url);
+        const blob = await response.blob();
+        const file = new File([blob], doc.nome, { type: doc.tipo || 'application/octet-stream' });
+
+        // Extract text content
+        fileContent = await (async () => {
+          const isPdf = (doc.tipo || '').includes('pdf') || doc.nome?.toLowerCase().endsWith('.pdf');
+          if (isPdf) {
+            try {
+              const pdfjsLib = await import("pdfjs-dist");
+              pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+              const arrayBuffer = await file.arrayBuffer();
+              const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+              const maxPages = Math.min(pdf.numPages, 5);
+              const pages: string[] = [];
+              for (let i = 1; i <= maxPages; i++) {
+                const page = await pdf.getPage(i);
+                const tc = await page.getTextContent();
+                const text = tc.items.map((item: any) => item.str).join(" ");
+                if (text.trim()) pages.push(`--- Página ${i} ---\n${text}`);
+              }
+              return pages.join("\n\n") || `[PDF sem texto extraível: ${doc.nome}]`;
+            } catch (e) {
+              console.error("Erro ao extrair texto do PDF:", e);
+              return `[Erro ao ler PDF: ${doc.nome}]`;
             }
-            return pages.join("\n\n") || `[PDF sem texto extraível: ${doc.nome}]`;
-          } catch (e) {
-            console.error("Erro ao extrair texto do PDF:", e);
-            return `[Erro ao ler PDF: ${doc.nome}]`;
           }
+          const isText = (doc.tipo || '').includes("text") || (doc.tipo || '').includes("json");
+          if (isText) {
+            return await file.text();
+          }
+          return `[Arquivo binário: ${doc.nome}]`;
+        })();
+
+        // Save extracted content to DB for future use
+        const isPdf = (doc.tipo || '').includes('pdf') || doc.nome?.toLowerCase().endsWith('.pdf');
+        if (isPdf && !fileContent.startsWith('[')) {
+          const paginasExtraidas = (fileContent.match(/--- Página \d+ ---/g) || []).length;
+          await supabase.from("documentos").update({
+            conteudo_extraido: fileContent,
+            paginas_extraidas: paginasExtraidas,
+          }).eq("id", doc.id);
+          console.log(`Texto de ${paginasExtraidas} páginas salvo no banco`);
         }
-        const isText = (doc.tipo || '').includes("text") || (doc.tipo || '').includes("json");
-        if (isText) {
-          return await file.text();
-        }
-        return `[Arquivo binário: ${doc.nome}]`;
-      })();
+      }
 
       const { data: session } = await supabase.auth.getSession();
       const aiResponse = await fetch(
