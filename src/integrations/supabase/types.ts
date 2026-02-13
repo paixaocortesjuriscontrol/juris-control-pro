@@ -1826,10 +1826,12 @@ export type Database = {
           analisado_ia: boolean | null
           categoria: string | null
           confianca_ia: string | null
+          conteudo_extraido: string | null
           created_at: string
           descricao: string | null
           id: string
           nome: string
+          paginas_extraidas: number | null
           pasta_id: string | null
           processo_id: string | null
           tags: string[] | null
@@ -1844,10 +1846,12 @@ export type Database = {
           analisado_ia?: boolean | null
           categoria?: string | null
           confianca_ia?: string | null
+          conteudo_extraido?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
           nome: string
+          paginas_extraidas?: number | null
           pasta_id?: string | null
           processo_id?: string | null
           tags?: string[] | null
@@ -1862,10 +1866,12 @@ export type Database = {
           analisado_ia?: boolean | null
           categoria?: string | null
           confianca_ia?: string | null
+          conteudo_extraido?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
           nome?: string
+          paginas_extraidas?: number | null
           pasta_id?: string | null
           processo_id?: string | null
           tags?: string[] | null
