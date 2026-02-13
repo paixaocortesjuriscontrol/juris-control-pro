@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,6 +137,8 @@ export function ProcessoDetalhesCompletos({
   const [activeSection, setActiveSection] = useState<string>("resumo");
   const [comentario, setComentario] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState<'idle' | 'uploading' | 'analyzing' | 'done'>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [pendingUploadFile, setPendingUploadFile] = useState<{ docId: string; file: File } | null>(null);
@@ -163,17 +166,36 @@ export function ProcessoDetalhesCompletos({
   const handlePastaFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !processo?.id) return;
-    
+
+    // Limite de 50MB (Supabase Storage default)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      sonnerToast.error(`Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Limite: 50MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setUploading(true);
+    setUploadStep('uploading');
+    setUploadProgress(0);
+
     try {
+      // === STEP 1: Upload completo do arquivo ===
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const filePath = `${processo.id}/${Date.now()}_${sanitizedName}`;
+
+      // Simulate progress during upload (Supabase SDK doesn't expose upload progress)
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 5, 85));
+      }, 200);
 
       const { error: uploadError } = await supabase.storage
         .from("documentos_processos")
         .upload(filePath, file);
 
+      clearInterval(progressInterval);
       if (uploadError) throw uploadError;
+      setUploadProgress(90);
 
       const { data: urlData } = supabase.storage
         .from("documentos_processos")
@@ -208,7 +230,15 @@ export function ProcessoDetalhesCompletos({
         processo_id: processo.id,
       });
 
-      // Extract text for AI analysis (up to 50 pages for PDFs, 50KB for text files)
+      setUploadProgress(100);
+      sonnerToast.success("Documento enviado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["documentos"] });
+      queryClient.invalidateQueries({ queryKey: ["repositorio-documentos"] });
+
+      // === STEP 2: Análise IA (em segundo plano) ===
+      setUploadStep('analyzing');
+      setUploadProgress(0);
+
       const fileContent = await (async () => {
         const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
         if (isPdf) {
@@ -224,6 +254,7 @@ export function ProcessoDetalhesCompletos({
               const tc = await page.getTextContent();
               const text = tc.items.map((item: any) => item.str).join(" ");
               if (text.trim()) pages.push(`--- Página ${i} ---\n${text}`);
+              setUploadProgress(Math.round((i / maxPages) * 50));
             }
             return pages.join("\n\n") || `[PDF sem texto extraível: ${file.name}]`;
           } catch (e) {
@@ -244,7 +275,8 @@ export function ProcessoDetalhesCompletos({
         return `[Arquivo binário: ${file.name}, tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB]`;
       })();
 
-      sonnerToast.info("Analisando documento com IA...");
+      setUploadProgress(60);
+
       const { data: session } = await supabase.auth.getSession();
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analisar-documento`,
@@ -262,6 +294,8 @@ export function ProcessoDetalhesCompletos({
           }),
         }
       );
+
+      setUploadProgress(100);
 
       if (response.ok) {
         const analise = await response.json();
@@ -286,18 +320,15 @@ export function ProcessoDetalhesCompletos({
           setPendingUploadFile({ docId: docData?.id || '', file });
           setAnaliseDialogOpen(true);
         } else {
-          sonnerToast.success("Documento enviado e analisado pela IA!");
+          sonnerToast.info("Documento analisado pela IA. Nenhum campo novo encontrado.");
         }
-      } else {
-        sonnerToast.success("Documento enviado! (análise IA indisponível)");
       }
-
-      queryClient.invalidateQueries({ queryKey: ["documentos"] });
-      queryClient.invalidateQueries({ queryKey: ["repositorio-documentos"] });
     } catch (error: any) {
       sonnerToast.error("Erro ao enviar documento: " + error.message);
     } finally {
       setUploading(false);
+      setUploadStep('idle');
+      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -1264,7 +1295,7 @@ export function ProcessoDetalhesCompletos({
                       disabled={uploading}
                     >
                       {uploading ? (
-                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Analisando...</>
+                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> {uploadStep === 'uploading' ? 'Enviando...' : 'Analisando...'}</>
                       ) : (
                         <><UploadIcon className="w-3 h-3 mr-1" /> Adicionar</>
                       )}
@@ -1277,6 +1308,15 @@ export function ProcessoDetalhesCompletos({
                       accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls,.csv"
                     />
                   </div>
+                  {uploading && (
+                    <div className="mb-3 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{uploadStep === 'uploading' ? '📤 Enviando arquivo...' : '🤖 Analisando com IA...'}</span>
+                        <span>{Math.round(uploadProgress)}%</span>
+                      </div>
+                      <Progress value={uploadProgress} className="h-2" />
+                    </div>
+                  )}
                   {documentos.length > 0 ? (
                     <div className="space-y-2">
                       {documentos.map((doc: any) => (
