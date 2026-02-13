@@ -167,34 +167,62 @@ export function ProcessoDetalhesCompletos({
     const file = e.target.files?.[0];
     if (!file || !user || !processo?.id) return;
 
-    // Limite de 50MB (Supabase Storage default)
-    const MAX_FILE_SIZE = 50 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      sonnerToast.error(`Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Limite: 50MB.`);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
     setUploading(true);
     setUploadStep('uploading');
     setUploadProgress(0);
 
     try {
-      // === STEP 1: Upload completo do arquivo ===
+      // === STEP 1: Upload completo do arquivo (resumável para arquivos grandes) ===
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const filePath = `${processo.id}/${Date.now()}_${sanitizedName}`;
 
-      // Simulate progress during upload (Supabase SDK doesn't expose upload progress)
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 5, 85));
-      }, 200);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
 
-      const { error: uploadError } = await supabase.storage
-        .from("documentos_processos")
-        .upload(filePath, file);
+      if (file.size > 6 * 1024 * 1024) {
+        // Resumable upload via tus protocol for files > 6MB
+        const tus = await import("tus-js-client");
+        await new Promise<void>((resolve, reject) => {
+          const upload = new tus.Upload(file, {
+            endpoint: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/upload/resumable`,
+            retryDelays: [0, 3000, 5000, 10000],
+            headers: {
+              authorization: `Bearer ${accessToken}`,
+              "x-upsert": "false",
+            },
+            uploadDataDuringCreation: true,
+            removeFingerprintOnSuccess: true,
+            metadata: {
+              bucketName: "documentos_processos",
+              objectName: filePath,
+              contentType: file.type || "application/octet-stream",
+            },
+            chunkSize: 6 * 1024 * 1024,
+            onError: (error) => reject(error),
+            onProgress: (bytesUploaded, bytesTotal) => {
+              setUploadProgress(Math.round((bytesUploaded / bytesTotal) * 90));
+            },
+            onSuccess: () => resolve(),
+          });
+          upload.findPreviousUploads().then((prev) => {
+            if (prev.length) upload.resumeFromPreviousUpload(prev[0]);
+            upload.start();
+          });
+        });
+      } else {
+        // Standard upload for small files
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => Math.min(prev + 8, 85));
+        }, 150);
 
-      clearInterval(progressInterval);
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from("documentos_processos")
+          .upload(filePath, file);
+
+        clearInterval(progressInterval);
+        if (uploadError) throw uploadError;
+      }
+
       setUploadProgress(90);
 
       const { data: urlData } = supabase.storage
@@ -216,19 +244,23 @@ export function ProcessoDetalhesCompletos({
 
       if (dbError) throw dbError;
 
-      // Also save to repositorio_documentos
-      const repoPath = `${user.id}/${Date.now()}_${sanitizedName}`;
-      await supabase.storage.from("repositorio_documentos").upload(repoPath, file);
-      await supabase.from("repositorio_documentos").insert({
-        nome: file.name,
-        nome_original: file.name,
-        categoria: "outros",
-        tamanho_bytes: file.size,
-        mime_type: file.type,
-        storage_path: repoPath,
-        uploaded_by: user.id,
-        processo_id: processo.id,
-      });
+      // Also save to repositorio_documentos (best-effort, don't block main flow)
+      try {
+        const repoPath = `${user.id}/${Date.now()}_${sanitizedName}`;
+        await supabase.storage.from("repositorio_documentos").upload(repoPath, file);
+        await supabase.from("repositorio_documentos").insert({
+          nome: file.name,
+          nome_original: file.name,
+          categoria: "outros",
+          tamanho_bytes: file.size,
+          mime_type: file.type,
+          storage_path: repoPath,
+          uploaded_by: user.id,
+          processo_id: processo.id,
+        });
+      } catch (repoErr) {
+        console.warn("Erro ao salvar no repositório (não-crítico):", repoErr);
+      }
 
       setUploadProgress(100);
       sonnerToast.success("Documento enviado com sucesso!");
