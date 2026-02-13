@@ -61,7 +61,7 @@ import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
-import { Loader2, Upload as UploadIcon } from "lucide-react";
+import { Loader2, Upload as UploadIcon, Sparkles } from "lucide-react";
 
 interface Responsavel {
   id: string;
@@ -141,7 +141,7 @@ export function ProcessoDetalhesCompletos({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
-  const [pendingUploadFile, setPendingUploadFile] = useState<{ docId: string; file: File } | null>(null);
+  const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return "Não informado";
@@ -162,7 +162,15 @@ export function ProcessoDetalhesCompletos({
     navigator.clipboard.writeText(text);
   };
 
-  // Upload & AI analysis handler for Pasta section
+  // Valid processos columns for auto-fill (whitelist)
+  const VALID_PROCESSOS_COLUMNS = new Set([
+    'polo_ativo', 'polo_passivo', 'vara', 'comarca', 'tribunal',
+    'assunto', 'valor_causa', 'data_distribuicao', 'classe', 'juiz',
+    'esfera', 'instancia', 'justica', 'natureza', 'materia',
+    'advogado_externo', 'cpf_cnpj_parte_contraria', 'funcao_parte_contraria',
+  ]);
+
+  // Upload handler - only uploads, no analysis
   const handlePastaFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !processo?.id) return;
@@ -172,7 +180,6 @@ export function ProcessoDetalhesCompletos({
     setUploadProgress(0);
 
     try {
-      // === STEP 1: Upload completo do arquivo (resumável para arquivos grandes) ===
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const filePath = `${processo.id}/${Date.now()}_${sanitizedName}`;
 
@@ -180,7 +187,6 @@ export function ProcessoDetalhesCompletos({
       const accessToken = sessionData.session?.access_token;
 
       if (file.size > 6 * 1024 * 1024) {
-        // Resumable upload via tus protocol for files > 6MB
         const tus = await import("tus-js-client");
         await new Promise<void>((resolve, reject) => {
           const upload = new tus.Upload(file, {
@@ -210,7 +216,6 @@ export function ProcessoDetalhesCompletos({
           });
         });
       } else {
-        // Standard upload for small files
         const progressInterval = setInterval(() => {
           setUploadProgress(prev => Math.min(prev + 8, 85));
         }, 150);
@@ -229,7 +234,7 @@ export function ProcessoDetalhesCompletos({
         .from("documentos_processos")
         .getPublicUrl(filePath);
 
-      const { data: docData, error: dbError } = await supabase
+      const { error: dbError } = await supabase
         .from("documentos")
         .insert({
           nome: file.name,
@@ -238,13 +243,11 @@ export function ProcessoDetalhesCompletos({
           tamanho_bytes: file.size,
           processo_id: processo.id,
           uploaded_by: user.id,
-        })
-        .select("id")
-        .single();
+        });
 
       if (dbError) throw dbError;
 
-      // Also save to repositorio_documentos (best-effort, don't block main flow)
+      // Best-effort repo save
       try {
         const repoPath = `${user.id}/${Date.now()}_${sanitizedName}`;
         await supabase.storage.from("repositorio_documentos").upload(repoPath, file);
@@ -266,13 +269,30 @@ export function ProcessoDetalhesCompletos({
       sonnerToast.success("Documento enviado com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["documentos"] });
       queryClient.invalidateQueries({ queryKey: ["repositorio-documentos"] });
-
-      // === STEP 2: Análise IA (em segundo plano) ===
-      setUploadStep('analyzing');
+    } catch (error: any) {
+      sonnerToast.error("Erro ao enviar documento: " + error.message);
+    } finally {
+      setUploading(false);
+      setUploadStep('idle');
       setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
+  // Analyze a specific document with AI
+  const handleAnalyzeDocument = async (doc: any) => {
+    if (!doc?.url || !processo?.id) return;
+    setAnalyzingDocId(doc.id);
+
+    try {
+      // Fetch the file from URL
+      const response = await fetch(doc.url);
+      const blob = await response.blob();
+      const file = new File([blob], doc.nome, { type: doc.tipo || 'application/octet-stream' });
+
+      // Extract text content
       const fileContent = await (async () => {
-        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        const isPdf = (doc.tipo || '').includes('pdf') || doc.nome?.toLowerCase().endsWith('.pdf');
         if (isPdf) {
           try {
             const pdfjsLib = await import("pdfjs-dist");
@@ -286,31 +306,22 @@ export function ProcessoDetalhesCompletos({
               const tc = await page.getTextContent();
               const text = tc.items.map((item: any) => item.str).join(" ");
               if (text.trim()) pages.push(`--- Página ${i} ---\n${text}`);
-              setUploadProgress(Math.round((i / maxPages) * 50));
             }
-            return pages.join("\n\n") || `[PDF sem texto extraível: ${file.name}]`;
+            return pages.join("\n\n") || `[PDF sem texto extraível: ${doc.nome}]`;
           } catch (e) {
             console.error("Erro ao extrair texto do PDF:", e);
-            return `[Erro ao ler PDF: ${file.name}]`;
+            return `[Erro ao ler PDF: ${doc.nome}]`;
           }
         }
-        const isText = file.type.includes("text") || file.type.includes("json") || file.type.includes("xml") || file.type.includes("csv");
+        const isText = (doc.tipo || '').includes("text") || (doc.tipo || '').includes("json");
         if (isText) {
-          const slice = file.slice(0, 50_000);
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => resolve((ev.target?.result as string) || "");
-            reader.onerror = () => resolve("");
-            reader.readAsText(slice);
-          });
+          return await file.text();
         }
-        return `[Arquivo binário: ${file.name}, tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB]`;
+        return `[Arquivo binário: ${doc.nome}]`;
       })();
 
-      setUploadProgress(60);
-
       const { data: session } = await supabase.auth.getSession();
-      const response = await fetch(
+      const aiResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analisar-documento`,
         {
           method: "POST",
@@ -319,29 +330,26 @@ export function ProcessoDetalhesCompletos({
             Authorization: `Bearer ${session.session?.access_token}`,
           },
           body: JSON.stringify({
-            fileName: file.name,
+            fileName: doc.nome,
             fileContent,
-            mimeType: file.type,
+            mimeType: doc.tipo,
             processoAtual: processo,
           }),
         }
       );
 
-      setUploadProgress(100);
+      if (aiResponse.ok) {
+        const analise = await aiResponse.json();
 
-      if (response.ok) {
-        const analise = await response.json();
-        
-        if (docData?.id) {
-          await supabase.from("documentos").update({
-            categoria: analise.categoria,
-            tipo_documento: analise.tipo_documento,
-            descricao: analise.descricao,
-            tags: analise.tags,
-            analisado_ia: true,
-            confianca_ia: analise.confianca,
-          }).eq("id", docData.id);
-        }
+        // Update document with AI metadata
+        await supabase.from("documentos").update({
+          categoria: analise.categoria,
+          tipo_documento: analise.tipo_documento,
+          descricao: analise.descricao,
+          tags: analise.tags,
+          analisado_ia: true,
+          confianca_ia: analise.confianca,
+        }).eq("id", doc.id);
 
         const hasCampos = analise.campos_extraidos && Object.keys(analise.campos_extraidos).length > 0;
         const hasPartes = analise.partes?.polo_ativo || analise.partes?.polo_passivo;
@@ -349,19 +357,19 @@ export function ProcessoDetalhesCompletos({
 
         if (hasCampos || hasPartes || hasInfo) {
           setAnaliseResult(analise);
-          setPendingUploadFile({ docId: docData?.id || '', file });
           setAnaliseDialogOpen(true);
         } else {
           sonnerToast.info("Documento analisado pela IA. Nenhum campo novo encontrado.");
         }
+
+        queryClient.invalidateQueries({ queryKey: ["documentos"] });
+      } else {
+        sonnerToast.error("Erro ao analisar documento com IA.");
       }
     } catch (error: any) {
-      sonnerToast.error("Erro ao enviar documento: " + error.message);
+      sonnerToast.error("Erro ao analisar: " + error.message);
     } finally {
-      setUploading(false);
-      setUploadStep('idle');
-      setUploadProgress(0);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setAnalyzingDocId(null);
     }
   };
 
@@ -372,13 +380,27 @@ export function ProcessoDetalhesCompletos({
     }
 
     try {
+      // Filter only valid processos columns
+      const validCampos: Record<string, any> = {};
+      for (const [key, value] of Object.entries(camposParaPreencher)) {
+        if (VALID_PROCESSOS_COLUMNS.has(key)) {
+          validCampos[key] = value;
+        }
+      }
+
+      if (Object.keys(validCampos).length === 0) {
+        sonnerToast.info("Nenhum campo válido para preencher.");
+        setAnaliseDialogOpen(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("processos")
-        .update(camposParaPreencher)
+        .update(validCampos)
         .eq("id", processo.id);
 
       if (error) throw error;
-      sonnerToast.success(`${Object.keys(camposParaPreencher).length} campo(s) preenchido(s) automaticamente!`);
+      sonnerToast.success(`${Object.keys(validCampos).length} campo(s) preenchido(s) automaticamente!`);
       queryClient.invalidateQueries({ queryKey: ["processos"] });
     } catch (error: any) {
       sonnerToast.error("Erro ao atualizar processo: " + error.message);
@@ -1327,7 +1349,7 @@ export function ProcessoDetalhesCompletos({
                       disabled={uploading}
                     >
                       {uploading ? (
-                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> {uploadStep === 'uploading' ? 'Enviando...' : 'Analisando...'}</>
+                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Enviando...</>
                       ) : (
                         <><UploadIcon className="w-3 h-3 mr-1" /> Adicionar</>
                       )}
@@ -1343,7 +1365,7 @@ export function ProcessoDetalhesCompletos({
                   {uploading && (
                     <div className="mb-3 space-y-1">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{uploadStep === 'uploading' ? '📤 Enviando arquivo...' : '🤖 Analisando com IA...'}</span>
+                        <span>📤 Enviando arquivo...</span>
                         <span>{Math.round(uploadProgress)}%</span>
                       </div>
                       <Progress value={uploadProgress} className="h-2" />
@@ -1352,14 +1374,34 @@ export function ProcessoDetalhesCompletos({
                   {documentos.length > 0 ? (
                     <div className="space-y-2">
                       {documentos.map((doc: any) => (
-                        <div key={doc.id} className="flex items-center justify-between py-2 px-3 border rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Paperclip className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm">{doc.nome}</span>
+                        <div key={doc.id} className="flex items-center justify-between py-2 px-3 border rounded-lg gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <Paperclip className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm truncate">{doc.nome}</span>
+                            {doc.analisado_ia && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex-shrink-0">IA ✓</Badge>
+                            )}
                           </div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <Download className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => handleAnalyzeDocument(doc)}
+                              disabled={analyzingDocId === doc.id}
+                              title="Analisar com IA e preencher campos do processo"
+                            >
+                              {analyzingDocId === doc.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3 h-3" />
+                              )}
+                              {analyzingDocId === doc.id ? 'Analisando...' : 'Analisar IA'}
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(doc.url, '_blank')}>
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
