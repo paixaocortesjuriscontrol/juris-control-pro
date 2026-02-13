@@ -1153,6 +1153,74 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                   )}
                 />
 
+                {/* Coordenação */}
+                <FormField
+                  control={form.control}
+                  name="coordenacao_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Coordenação</FormLabel>
+                      <Select onValueChange={(val) => {
+                        field.onChange(val === "none" ? "" : val);
+                        // Reset advogado when coordination changes
+                        form.setValue("advogado_responsavel_id", "");
+                      }} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a coordenação" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {coordenacoes.map((coord) => (
+                            <SelectItem key={coord.id} value={coord.id}>
+                              {coord.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Advogado Responsável (filtrado por coordenação selecionada) */}
+                <FormField
+                  control={form.control}
+                  name="advogado_responsavel_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Advogado Responsável</FormLabel>
+                      <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o responsável" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {membros.map((m: any) => (
+                            <SelectItem key={m.usuario?.id || m.id} value={m.usuario?.id || ""}>
+                              {m.usuario?.nome || "Sem nome"} {m.cargo ? `(${m.cargo})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Responsáveis adicionais */}
+                {selectedCoordenacao && (
+                  <SelecionarResponsaveisProcesso
+                    processoId={processo?.id}
+                    coordenacaoIdPadrao={selectedCoordenacao}
+                    value={responsaveis}
+                    onChange={setResponsaveis}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
                   name="descricao"
