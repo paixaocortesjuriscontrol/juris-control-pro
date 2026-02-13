@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
+import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,7 @@ export function ProcessoDetalhesCompletos({
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
   const [resumoInitialized, setResumoInitialized] = useState(false);
   const [savingResumo, setSavingResumo] = useState(false);
+  const [resumoResponsaveis, setResumoResponsaveis] = useState<any[]>([]);
 
   if (processo && !resumoInitialized) {
     setResumoForm({
@@ -200,8 +202,32 @@ export function ProcessoDetalhesCompletos({
         } as any)
         .eq("id", processo.id);
       if (error) throw error;
+
+      // Salvar responsáveis
+      if (resumoResponsaveis.length > 0) {
+        // Desativar existentes
+        await supabase
+          .from("processos_responsaveis")
+          .update({ ativo: false } as any)
+          .eq("processo_id", processo.id);
+
+        // Inserir novos
+        const inserts = resumoResponsaveis.map((r: any) => ({
+          processo_id: processo.id,
+          usuario_id: r.usuario_id,
+          coordenacao_id: r.coordenacao_id || null,
+          papel: r.papel || "responsavel",
+          ativo: true,
+        }));
+        const { error: errResp } = await supabase
+          .from("processos_responsaveis")
+          .upsert(inserts as any, { onConflict: "processo_id,usuario_id" });
+        if (errResp) throw errResp;
+      }
+
       sonnerToast.success("Processo atualizado com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["processo"] });
+      queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] });
     } catch (err: any) {
       sonnerToast.error("Erro ao salvar: " + err.message);
     } finally {
@@ -883,20 +909,15 @@ export function ProcessoDetalhesCompletos({
                             <Input className="mt-1 h-8 text-sm" type="number" step="0.01" value={resumoForm.valor_causa} onChange={e => updateResumoField("valor_causa", e.target.value)} placeholder="0.00" />
                           </div>
 
-                          {/* Responsáveis (read-only) */}
+                          {/* Responsáveis (editável) */}
                           <div>
                             <Label className="text-[10px] text-muted-foreground uppercase">Responsáveis</Label>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {responsaveis.length > 0 ? responsaveis.map((r) => (
-                                <div key={r.id} className="flex items-center gap-2 bg-muted/50 rounded-md px-2 py-1">
-                                  <Avatar className="w-6 h-6 border border-background">
-                                    <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-semibold">
-                                      {r.nome.substring(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-sm font-medium">{r.nome}</span>
-                                </div>
-                              )) : <p className="text-sm text-muted-foreground">Não atribuído</p>}
+                            <div className="mt-1">
+                              <SelecionarResponsaveisProcesso
+                                processoId={processo.id}
+                                value={resumoResponsaveis}
+                                onChange={setResumoResponsaveis}
+                              />
                             </div>
                           </div>
 
