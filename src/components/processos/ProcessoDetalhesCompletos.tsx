@@ -165,7 +165,7 @@ export function ProcessoDetalhesCompletos({
   // Valid processos columns for auto-fill (whitelist)
   const VALID_PROCESSOS_COLUMNS = new Set([
     'polo_ativo', 'polo_passivo', 'vara', 'comarca', 'tribunal',
-    'assunto', 'valor_causa', 'data_distribuicao', 'classe', 'juiz',
+    'assunto', 'valor_causa', 'data_distribuicao', 'classe',
     'esfera', 'instancia', 'justica', 'natureza', 'materia',
     'advogado_externo', 'cpf_cnpj_parte_contraria', 'funcao_parte_contraria',
   ]);
@@ -300,7 +300,7 @@ export function ProcessoDetalhesCompletos({
             pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            const maxPages = Math.min(pdf.numPages, 50);
+            const maxPages = Math.min(pdf.numPages, 10);
             const pages: string[] = [];
             for (let i = 1; i <= maxPages; i++) {
               const page = await pdf.getPage(i);
