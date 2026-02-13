@@ -61,7 +61,7 @@ import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
-import { Loader2, Upload as UploadIcon, Sparkles } from "lucide-react";
+import { Loader2, Upload as UploadIcon, Sparkles, Trash2 } from "lucide-react";
 
 interface Responsavel {
   id: string;
@@ -1401,6 +1401,20 @@ export function ProcessoDetalhesCompletos({
                             </Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(doc.url, '_blank')}>
                               <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={async () => {
+                                if (!confirm('Excluir este documento?')) return;
+                                const { error } = await supabase.from("documentos").delete().eq("id", doc.id);
+                                if (error) { sonnerToast.error("Erro ao excluir documento"); return; }
+                                sonnerToast.success("Documento excluído");
+                                queryClient.invalidateQueries({ queryKey: ["documentos-processo", processo?.id] });
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
