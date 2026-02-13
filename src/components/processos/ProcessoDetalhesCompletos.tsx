@@ -269,7 +269,15 @@ export function ProcessoDetalhesCompletos({
     try {
       if (isZip) {
         // === ZIP flow ===
-        const zip = await JSZip.loadAsync(file);
+        setUploadStep('uploading');
+        sonnerToast.info("Descompactando ZIP...");
+        setUploadProgress(5);
+
+        const zip = await JSZip.loadAsync(file, {
+          // Report decompression progress
+        });
+        setUploadProgress(15);
+
         const entries = Object.entries(zip.files).filter(([name, entry]) => {
           if (entry.dir) return false;
           if (isSystemFile(name)) return false;
@@ -286,7 +294,9 @@ export function ProcessoDetalhesCompletos({
           return;
         }
 
+        sonnerToast.info(`Enviando ${entries.length} arquivo(s)...`);
         let uploaded = 0;
+        // Process files: extract blob then upload (skip repo save for speed)
         for (const [name, entry] of entries) {
           const blob = await entry.async("blob");
           const fileName = name.split('/').pop() || name;
@@ -302,9 +312,49 @@ export function ProcessoDetalhesCompletos({
             type: mimeMap[ext] || 'application/octet-stream',
           });
 
-          await uploadSingleFile(extractedFile, processo.id, user.id);
+          // Direct upload (skip repo duplication for ZIP-extracted files)
+          const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const filePath = `processos/${processo.id}/${Date.now()}_${sanitizedName}`;
+          
+          if (extractedFile.size > 6 * 1024 * 1024) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+            if (!accessToken) throw new Error("Sessão expirada");
+            const tus = await import("tus-js-client");
+            await new Promise<void>((resolve, reject) => {
+              const upload = new tus.Upload(extractedFile, {
+                endpoint: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/upload/resumable`,
+                retryDelays: [0, 3000, 5000],
+                headers: { authorization: `Bearer ${accessToken}`, "x-upsert": "false" },
+                uploadDataDuringCreation: true,
+                removeFingerprintOnSuccess: true,
+                metadata: { bucketName: "documentos_processos", objectName: filePath, contentType: extractedFile.type },
+                chunkSize: 6 * 1024 * 1024,
+                onError: (error) => reject(error),
+                onSuccess: () => resolve(),
+              });
+              upload.start();
+            });
+          } else {
+            const { error: uploadError } = await supabase.storage
+              .from("documentos_processos")
+              .upload(filePath, extractedFile);
+            if (uploadError) throw uploadError;
+          }
+
+          const { data: urlData } = supabase.storage.from("documentos_processos").getPublicUrl(filePath);
+          await supabase.from("documentos").insert({
+            nome: extractedFile.name,
+            tipo: extractedFile.type || "application/octet-stream",
+            url: urlData.publicUrl,
+            tamanho_bytes: extractedFile.size,
+            processo_id: processo.id,
+            uploaded_by: user.id,
+          });
+
           uploaded++;
-          setUploadProgress(Math.round((uploaded / entries.length) * 100));
+          // Progress: 15% decompression done, 85% remaining for uploads
+          setUploadProgress(15 + Math.round((uploaded / entries.length) * 85));
         }
 
         sonnerToast.success(`${uploaded} documento(s) extraído(s) do ZIP e enviado(s)!`);
