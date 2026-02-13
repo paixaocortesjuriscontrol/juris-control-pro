@@ -94,7 +94,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const truncatedContent = fileContent.substring(0, 8000);
+    const truncatedContent = fileContent.substring(0, 60000);
 
     // Build context about current processo fields that are empty
     let camposFaltantes = '';
