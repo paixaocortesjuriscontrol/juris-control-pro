@@ -746,7 +746,7 @@ Deno.serve(async (req) => {
           detalhes: {
             progress: {
               current: processedCount,
-              total: totalRegistros,
+              total: maxTotal,
               percentage: isComplete ? 100 : progressPercentage,
             },
             alertasGeradosLote: alertasGerados,
