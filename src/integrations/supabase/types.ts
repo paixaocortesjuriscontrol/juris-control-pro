@@ -3160,6 +3160,7 @@ export type Database = {
           adicao_baixa: string | null
           advogado_externo: string | null
           advogado_responsavel_id: string | null
+          advogados_identificados: Json | null
           andamento_atual: string | null
           aparelhamento_banco: string | null
           aparelhamento_reclamante: string | null
@@ -3323,6 +3324,7 @@ export type Database = {
           adicao_baixa?: string | null
           advogado_externo?: string | null
           advogado_responsavel_id?: string | null
+          advogados_identificados?: Json | null
           andamento_atual?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
@@ -3486,6 +3488,7 @@ export type Database = {
           adicao_baixa?: string | null
           advogado_externo?: string | null
           advogado_responsavel_id?: string | null
+          advogados_identificados?: Json | null
           andamento_atual?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null

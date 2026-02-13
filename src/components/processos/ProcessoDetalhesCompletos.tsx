@@ -395,6 +395,11 @@ export function ProcessoDetalhesCompletos({
         return;
       }
 
+      // Also save advogados_identificados if available in the analysis
+      if (analiseResult?.advogados?.length > 0) {
+        validCampos.advogados_identificados = analiseResult.advogados;
+      }
+
       const { error } = await supabase
         .from("processos")
         .update(validCampos)
@@ -1117,6 +1122,36 @@ export function ProcessoDetalhesCompletos({
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Advogados Identificados (IA) */}
+                  {processo.advogados_identificados && Array.isArray(processo.advogados_identificados) && processo.advogados_identificados.length > 0 && (
+                    <Card className="border-amber-200 dark:border-amber-900/50">
+                      <CardHeader className="py-3 px-4 bg-amber-50 dark:bg-amber-900/20">
+                        <CardTitle className="text-sm flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                          <Scale className="w-4 h-4" />
+                          Advogados Identificados (IA)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-3 px-4">
+                        <div className="space-y-2">
+                          {(processo.advogados_identificados as any[]).map((adv: any, i: number) => (
+                            <div key={i} className="flex items-center gap-3 rounded-md border p-2 bg-muted/30">
+                              <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium">{adv.nome}</span>
+                                {adv.oab && <span className="text-xs text-muted-foreground ml-2">({adv.oab})</span>}
+                              </div>
+                              {adv.parte && (
+                                <Badge variant="outline" className="text-xs flex-shrink-0">
+                                  {adv.parte}
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Informações do Sistema */}
                   <Card className="border-muted">
