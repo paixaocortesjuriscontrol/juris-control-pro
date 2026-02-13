@@ -40,7 +40,7 @@ export function AnaliseDocumentoDialog({
   // Only show fields that exist in the processos table
   const VALID_COLUMNS = new Set([
     'polo_ativo', 'polo_passivo', 'vara', 'comarca', 'tribunal',
-    'assunto', 'valor_causa', 'data_distribuicao', 'classe', 'juiz',
+    'assunto', 'valor_causa', 'data_distribuicao', 'classe',
     'esfera', 'instancia', 'justica', 'natureza', 'materia',
     'advogado_externo', 'cpf_cnpj_parte_contraria', 'funcao_parte_contraria',
   ]);
