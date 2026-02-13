@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ProcessoTstTab } from "./ProcessoTstTab";
 import { BaixarAutosButton } from "./BaixarAutosButton";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -183,6 +184,7 @@ export function ProcessoDetalhesCompletos({
     { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
     { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.length },
+    { id: "tst", label: "TST", icon: Gavel },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
     { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
@@ -1110,6 +1112,11 @@ export function ProcessoDetalhesCompletos({
               {/* Pedidos Trabalhistas Section */}
               {activeSection === "pedidos" && (
                 <ProcessoPedidosTab processo={processo} />
+              )}
+
+              {/* TST Section */}
+              {activeSection === "tst" && (
+                <ProcessoTstTab processo={processo} />
               )}
 
               {/* Publicações DJEN Section */}
