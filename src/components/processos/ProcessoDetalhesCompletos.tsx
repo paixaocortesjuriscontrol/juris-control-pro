@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { BaixarAutosButton } from "./BaixarAutosButton";
 import { useNavigate } from "react-router-dom";
@@ -56,6 +56,11 @@ import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
+import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast as sonnerToast } from "sonner";
+import { Loader2, Upload as UploadIcon } from "lucide-react";
 
 interface Responsavel {
   id: string;
@@ -125,8 +130,15 @@ export function ProcessoDetalhesCompletos({
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeSection, setActiveSection] = useState<string>("resumo");
   const [comentario, setComentario] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [analiseResult, setAnaliseResult] = useState<any>(null);
+  const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
+  const [pendingUploadFile, setPendingUploadFile] = useState<{ docId: string; file: File } | null>(null);
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return "Não informado";
@@ -147,7 +159,147 @@ export function ProcessoDetalhesCompletos({
     navigator.clipboard.writeText(text);
   };
 
-  // Envolvidos extraídos dos polos
+  // Upload & AI analysis handler for Pasta section
+  const handlePastaFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !processo?.id) return;
+    
+    setUploading(true);
+    try {
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${processo.id}/${Date.now()}_${sanitizedName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("documentos_processos")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("documentos_processos")
+        .getPublicUrl(filePath);
+
+      const { data: docData, error: dbError } = await supabase
+        .from("documentos")
+        .insert({
+          nome: file.name,
+          tipo: file.type,
+          url: urlData.publicUrl,
+          tamanho_bytes: file.size,
+          processo_id: processo.id,
+          uploaded_by: user.id,
+        })
+        .select("id")
+        .single();
+
+      if (dbError) throw dbError;
+
+      // Also save to repositorio_documentos
+      const repoPath = `${user.id}/${Date.now()}_${sanitizedName}`;
+      await supabase.storage.from("repositorio_documentos").upload(repoPath, file);
+      await supabase.from("repositorio_documentos").insert({
+        nome: file.name,
+        nome_original: file.name,
+        categoria: "outros",
+        tamanho_bytes: file.size,
+        mime_type: file.type,
+        storage_path: repoPath,
+        uploaded_by: user.id,
+        processo_id: processo.id,
+      });
+
+      // Read file content for AI analysis
+      const fileContent = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve((ev.target?.result as string) || "");
+        reader.onerror = () => resolve("");
+        if (file.type.includes("text") || file.type.includes("json")) {
+          reader.readAsText(file);
+        } else {
+          resolve(`[Arquivo binário: ${file.name}]`);
+        }
+      });
+
+      sonnerToast.info("Analisando documento com IA...");
+      const { data: session } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analisar-documento`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileContent,
+            mimeType: file.type,
+            processoAtual: processo,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const analise = await response.json();
+        
+        if (docData?.id) {
+          await supabase.from("documentos").update({
+            categoria: analise.categoria,
+            tipo_documento: analise.tipo_documento,
+            descricao: analise.descricao,
+            tags: analise.tags,
+            analisado_ia: true,
+            confianca_ia: analise.confianca,
+          }).eq("id", docData.id);
+        }
+
+        const hasCampos = analise.campos_extraidos && Object.keys(analise.campos_extraidos).length > 0;
+        const hasPartes = analise.partes?.polo_ativo || analise.partes?.polo_passivo;
+        const hasInfo = analise.info_processual && Object.keys(analise.info_processual).length > 0;
+
+        if (hasCampos || hasPartes || hasInfo) {
+          setAnaliseResult(analise);
+          setPendingUploadFile({ docId: docData?.id || '', file });
+          setAnaliseDialogOpen(true);
+        } else {
+          sonnerToast.success("Documento enviado e analisado pela IA!");
+        }
+      } else {
+        sonnerToast.success("Documento enviado! (análise IA indisponível)");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["documentos"] });
+      queryClient.invalidateQueries({ queryKey: ["repositorio-documentos"] });
+    } catch (error: any) {
+      sonnerToast.error("Erro ao enviar documento: " + error.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAnaliseConfirm = async (camposParaPreencher: Record<string, any>) => {
+    if (!processo?.id || Object.keys(camposParaPreencher).length === 0) {
+      setAnaliseDialogOpen(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("processos")
+        .update(camposParaPreencher)
+        .eq("id", processo.id);
+
+      if (error) throw error;
+      sonnerToast.success(`${Object.keys(camposParaPreencher).length} campo(s) preenchido(s) automaticamente!`);
+      queryClient.invalidateQueries({ queryKey: ["processos"] });
+    } catch (error: any) {
+      sonnerToast.error("Erro ao atualizar processo: " + error.message);
+    }
+    setAnaliseDialogOpen(false);
+  };
+
+
   const envolvidos: Envolvido[] = [
     ...(processo.polo_passivo ? [{ nome: processo.polo_passivo, tipo: "requerido" as const, principal: true }] : []),
     ...(processo.polo_ativo ? [{ nome: processo.polo_ativo, tipo: "requerente" as const, principal: true }] : []),
@@ -256,7 +408,6 @@ export function ProcessoDetalhesCompletos({
           </div>
         </div>
       </div>
-
 
       {/* Main Content - Sidebar + Content */}
       <div className="flex flex-col sm:flex-row min-w-0">
@@ -1082,9 +1233,25 @@ export function ProcessoDetalhesCompletos({
                       <FileBox className="w-4 h-4" />
                       Pasta
                     </h3>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7">
-                      Adicionar
+                    <Button 
+                      size="sm" 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? (
+                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Analisando...</>
+                      ) : (
+                        <><UploadIcon className="w-3 h-3 mr-1" /> Adicionar</>
+                      )}
                     </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handlePastaFileSelect}
+                      accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls,.csv"
+                    />
                   </div>
                   {documentos.length > 0 ? (
                     <div className="space-y-2">
@@ -1419,6 +1586,18 @@ export function ProcessoDetalhesCompletos({
             </div>
         </div>
       </div>
+      {/* AI Analysis Dialog */}
+      <AnaliseDocumentoDialog
+        open={analiseDialogOpen}
+        onOpenChange={setAnaliseDialogOpen}
+        analise={analiseResult}
+        processo={processo}
+        onConfirm={handleAnaliseConfirm}
+        onSkip={() => {
+          setAnaliseDialogOpen(false);
+          sonnerToast.success("Documento enviado com sucesso!");
+        }}
+      />
     </div>
   );
 }
