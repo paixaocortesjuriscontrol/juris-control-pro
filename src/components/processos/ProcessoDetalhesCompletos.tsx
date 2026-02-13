@@ -164,7 +164,7 @@ export function ProcessoDetalhesCompletos({
       valor_causa: processo.valor_causa || "",
       area: processo.area || "",
       fase: processo.fase || "",
-      sistema: processo.sistema || "",
+      
       pasta_fisica: processo.pasta_fisica || "",
       pasta_cliente: processo.pasta_cliente || "",
       descricao: processo.descricao || "",
@@ -194,7 +194,7 @@ export function ProcessoDetalhesCompletos({
           valor_causa: resumoForm.valor_causa ? Number(resumoForm.valor_causa) : null,
           area: resumoForm.area || null,
           fase: resumoForm.fase || null,
-          sistema: resumoForm.sistema || null,
+          
           pasta_fisica: resumoForm.pasta_fisica || null,
           pasta_cliente: resumoForm.pasta_cliente || null,
           descricao: resumoForm.descricao || null,
@@ -948,10 +948,7 @@ export function ProcessoDetalhesCompletos({
                                 <Label className="text-[10px] text-muted-foreground uppercase">Fase</Label>
                                 <Input className="mt-1 h-8 text-sm" value={resumoForm.fase} onChange={e => updateResumoField("fase", e.target.value)} placeholder="Fase" />
                               </div>
-                              <div>
-                                <Label className="text-[10px] text-muted-foreground uppercase">Sistema</Label>
-                                <Input className="mt-1 h-8 text-sm" value={resumoForm.sistema} onChange={e => updateResumoField("sistema", e.target.value)} placeholder="Sistema" />
-                              </div>
+                              
                               <div>
                                 <Label className="text-[10px] text-muted-foreground uppercase">Pasta física</Label>
                                 <Input className="mt-1 h-8 text-sm" value={resumoForm.pasta_fisica} onChange={e => updateResumoField("pasta_fisica", e.target.value)} placeholder="Pasta física" />
