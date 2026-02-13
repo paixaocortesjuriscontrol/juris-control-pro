@@ -116,12 +116,16 @@ export function ReatribuirProcessoDialog({
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("processos")
-        .update({ advogado_responsavel_id: values.novo_advogado_id })
-        .in("id", values.processos);
-
-      if (error) throw error;
+      // Batch updates to avoid URL length limits
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < values.processos.length; i += BATCH_SIZE) {
+        const batch = values.processos.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase
+          .from("processos")
+          .update({ advogado_responsavel_id: values.novo_advogado_id })
+          .in("id", batch);
+        if (error) throw error;
+      }
 
       toast({ 
         title: "Processos reatribuídos!", 
