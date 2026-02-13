@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { BaixarAutosButton } from "./BaixarAutosButton";
 import { useNavigate } from "react-router-dom";
@@ -170,103 +171,156 @@ export function ProcessoDetalhesCompletos({
     'advogado_externo', 'cpf_cnpj_parte_contraria', 'funcao_parte_contraria',
   ]);
 
+  // Supported extensions for ZIP extraction
+  const SUPPORTED_EXTENSIONS = new Set([
+    '.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.xlsx', '.xls', '.csv',
+  ]);
+
+  const isSystemFile = (name: string) => {
+    return name.startsWith('__MACOSX/') || name.endsWith('.DS_Store') || name.endsWith('Thumbs.db');
+  };
+
+  const uploadSingleFile = async (file: File, processoId: string, userId: string) => {
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${processoId}/${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${sanitizedName}`;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
+    if (file.size > 6 * 1024 * 1024) {
+      const tus = await import("tus-js-client");
+      await new Promise<void>((resolve, reject) => {
+        const upload = new tus.Upload(file, {
+          endpoint: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/upload/resumable`,
+          retryDelays: [0, 3000, 5000, 10000],
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "x-upsert": "false",
+          },
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          metadata: {
+            bucketName: "documentos_processos",
+            objectName: filePath,
+            contentType: file.type || "application/octet-stream",
+          },
+          chunkSize: 6 * 1024 * 1024,
+          onError: (error) => reject(error),
+          onSuccess: () => resolve(),
+        });
+        upload.findPreviousUploads().then((prev) => {
+          if (prev.length) upload.resumeFromPreviousUpload(prev[0]);
+          upload.start();
+        });
+      });
+    } else {
+      const { error: uploadError } = await supabase.storage
+        .from("documentos_processos")
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("documentos_processos")
+      .getPublicUrl(filePath);
+
+    const { error: dbError } = await supabase
+      .from("documentos")
+      .insert({
+        nome: file.name,
+        tipo: file.type || "application/octet-stream",
+        url: urlData.publicUrl,
+        tamanho_bytes: file.size,
+        processo_id: processoId,
+        uploaded_by: userId,
+      });
+    if (dbError) throw dbError;
+
+    // Best-effort repo save
+    try {
+      const repoPath = `${userId}/${Date.now()}_${sanitizedName}`;
+      await supabase.storage.from("repositorio_documentos").upload(repoPath, file);
+      await supabase.from("repositorio_documentos").insert({
+        nome: file.name,
+        nome_original: file.name,
+        categoria: "outros",
+        tamanho_bytes: file.size,
+        mime_type: file.type,
+        storage_path: repoPath,
+        uploaded_by: userId,
+        processo_id: processoId,
+      });
+    } catch (repoErr) {
+      console.warn("Erro ao salvar no repositório (não-crítico):", repoErr);
+    }
+  };
+
   // Upload handler - only uploads, no analysis
   const handlePastaFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !processo?.id) return;
+
+    const isZip = file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip';
 
     setUploading(true);
     setUploadStep('uploading');
     setUploadProgress(0);
 
     try {
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filePath = `${processo.id}/${Date.now()}_${sanitizedName}`;
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
-      if (file.size > 6 * 1024 * 1024) {
-        const tus = await import("tus-js-client");
-        await new Promise<void>((resolve, reject) => {
-          const upload = new tus.Upload(file, {
-            endpoint: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/upload/resumable`,
-            retryDelays: [0, 3000, 5000, 10000],
-            headers: {
-              authorization: `Bearer ${accessToken}`,
-              "x-upsert": "false",
-            },
-            uploadDataDuringCreation: true,
-            removeFingerprintOnSuccess: true,
-            metadata: {
-              bucketName: "documentos_processos",
-              objectName: filePath,
-              contentType: file.type || "application/octet-stream",
-            },
-            chunkSize: 6 * 1024 * 1024,
-            onError: (error) => reject(error),
-            onProgress: (bytesUploaded, bytesTotal) => {
-              setUploadProgress(Math.round((bytesUploaded / bytesTotal) * 90));
-            },
-            onSuccess: () => resolve(),
-          });
-          upload.findPreviousUploads().then((prev) => {
-            if (prev.length) upload.resumeFromPreviousUpload(prev[0]);
-            upload.start();
-          });
+      if (isZip) {
+        // === ZIP flow ===
+        const zip = await JSZip.loadAsync(file);
+        const entries = Object.entries(zip.files).filter(([name, entry]) => {
+          if (entry.dir) return false;
+          if (isSystemFile(name)) return false;
+          const ext = '.' + name.split('.').pop()?.toLowerCase();
+          return SUPPORTED_EXTENSIONS.has(ext);
         });
+
+        if (entries.length === 0) {
+          sonnerToast.error("Nenhum arquivo válido encontrado no ZIP.");
+          return;
+        }
+        if (entries.length > 50) {
+          sonnerToast.error("O ZIP contém mais de 50 arquivos. Limite excedido.");
+          return;
+        }
+
+        let uploaded = 0;
+        for (const [name, entry] of entries) {
+          const blob = await entry.async("blob");
+          const fileName = name.split('/').pop() || name;
+          const ext = fileName.split('.').pop()?.toLowerCase() || '';
+          const mimeMap: Record<string, string> = {
+            pdf: 'application/pdf', doc: 'application/msword',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            txt: 'text/plain', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            xls: 'application/vnd.ms-excel', csv: 'text/csv',
+          };
+          const extractedFile = new File([blob], fileName, {
+            type: mimeMap[ext] || 'application/octet-stream',
+          });
+
+          await uploadSingleFile(extractedFile, processo.id, user.id);
+          uploaded++;
+          setUploadProgress(Math.round((uploaded / entries.length) * 100));
+        }
+
+        sonnerToast.success(`${uploaded} documento(s) extraído(s) do ZIP e enviado(s)!`);
       } else {
+        // === Normal single file flow ===
         const progressInterval = setInterval(() => {
           setUploadProgress(prev => Math.min(prev + 8, 85));
         }, 150);
 
-        const { error: uploadError } = await supabase.storage
-          .from("documentos_processos")
-          .upload(filePath, file);
+        await uploadSingleFile(file, processo.id, user.id);
 
         clearInterval(progressInterval);
-        if (uploadError) throw uploadError;
+        setUploadProgress(100);
+        sonnerToast.success("Documento enviado com sucesso!");
       }
 
-      setUploadProgress(90);
-
-      const { data: urlData } = supabase.storage
-        .from("documentos_processos")
-        .getPublicUrl(filePath);
-
-      const { error: dbError } = await supabase
-        .from("documentos")
-        .insert({
-          nome: file.name,
-          tipo: file.type,
-          url: urlData.publicUrl,
-          tamanho_bytes: file.size,
-          processo_id: processo.id,
-          uploaded_by: user.id,
-        });
-
-      if (dbError) throw dbError;
-
-      // Best-effort repo save
-      try {
-        const repoPath = `${user.id}/${Date.now()}_${sanitizedName}`;
-        await supabase.storage.from("repositorio_documentos").upload(repoPath, file);
-        await supabase.from("repositorio_documentos").insert({
-          nome: file.name,
-          nome_original: file.name,
-          categoria: "outros",
-          tamanho_bytes: file.size,
-          mime_type: file.type,
-          storage_path: repoPath,
-          uploaded_by: user.id,
-          processo_id: processo.id,
-        });
-      } catch (repoErr) {
-        console.warn("Erro ao salvar no repositório (não-crítico):", repoErr);
-      }
-
-      setUploadProgress(100);
-      sonnerToast.success("Documento enviado com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["documentos-processo", processo.id] });
       queryClient.invalidateQueries({ queryKey: ["documentos"] });
       queryClient.invalidateQueries({ queryKey: ["repositorio-documentos"] });
@@ -1417,7 +1471,7 @@ export function ProcessoDetalhesCompletos({
                       type="file"
                       className="hidden"
                       onChange={handlePastaFileSelect}
-                      accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls,.csv"
+                      accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls,.csv,.zip"
                     />
                   </div>
                   {uploading && (
