@@ -208,15 +208,19 @@ export function ProcessoDetalhesCompletos({
         processo_id: processo.id,
       });
 
-      // Read file content for AI analysis
+      // Read only first 50KB of text files for AI analysis (avoids loading huge files in memory)
+      const MAX_CONTENT_SIZE = 50_000;
       const fileContent = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve((ev.target?.result as string) || "");
-        reader.onerror = () => resolve("");
-        if (file.type.includes("text") || file.type.includes("json")) {
-          reader.readAsText(file);
+        const isText = file.type.includes("text") || file.type.includes("json") || file.type.includes("xml") || file.type.includes("csv");
+        if (isText) {
+          const slice = file.slice(0, MAX_CONTENT_SIZE);
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve((ev.target?.result as string) || "");
+          reader.onerror = () => resolve("");
+          reader.readAsText(slice);
         } else {
-          resolve(`[Arquivo binário: ${file.name}]`);
+          // For binary files (PDF, images, etc.), send only the file name for analysis
+          resolve(`[Arquivo binário: ${file.name}, tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB]`);
         }
       });
 
