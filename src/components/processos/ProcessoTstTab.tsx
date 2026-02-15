@@ -377,6 +377,25 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         </div>
       </div>
 
+      {/* Resumo IA - acima dos Dados Básicos, auto-resize */}
+      {form.resumo_ia_tst && (
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Resumo IA</Label>
+          <Textarea
+            value={form.resumo_ia_tst}
+            onChange={e => handleChange("resumo_ia_tst", e.target.value)}
+            className="min-h-[60px] resize-none overflow-hidden"
+            style={{ height: "auto" }}
+            ref={(el) => {
+              if (el) {
+                el.style.height = "auto";
+                el.style.height = el.scrollHeight + "px";
+              }
+            }}
+          />
+        </div>
+      )}
+
       {/* Dados Básicos */}
       <div>
         <h4 className="text-sm font-semibold mb-3 text-foreground">Dados Básicos</h4>
@@ -413,13 +432,6 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         </div>
       </div>
 
-      {/* Resumo IA */}
-      {form.resumo_ia_tst && (
-        <div>
-          <h4 className="text-sm font-semibold mb-3 text-foreground">Resumo IA</h4>
-          <InputField label="Resumo gerado pela IA" field="resumo_ia_tst" textarea />
-        </div>
-      )}
 
       {/* Análise e Status */}
       <div>
