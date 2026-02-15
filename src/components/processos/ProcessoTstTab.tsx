@@ -303,21 +303,21 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
     }
   };
 
-  const InputField = ({ label, field, textarea }: { label: string; field: string; textarea?: boolean }) => (
+  const InputField = ({ label, field }: { label: string; field: string; textarea?: boolean }) => (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
-      {textarea ? (
-        <Textarea
-          value={form[field as keyof typeof form] as string}
-          onChange={e => handleChange(field, e.target.value)}
-          className="min-h-[60px]"
-        />
-      ) : (
-        <Input
-          value={form[field as keyof typeof form] as string}
-          onChange={e => handleChange(field, e.target.value)}
-        />
-      )}
+      <Textarea
+        value={form[field as keyof typeof form] as string}
+        onChange={e => handleChange(field, e.target.value)}
+        className="min-h-[40px] resize-none overflow-hidden"
+        style={{ height: "auto" }}
+        ref={(el) => {
+          if (el) {
+            el.style.height = "auto";
+            el.style.height = Math.max(40, el.scrollHeight) + "px";
+          }
+        }}
+      />
     </div>
   );
 
