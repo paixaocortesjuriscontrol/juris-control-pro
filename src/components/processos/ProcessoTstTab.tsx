@@ -4,10 +4,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Save, Loader2, Gavel } from "lucide-react";
+import { Save, Loader2, Gavel, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast as sonnerToast } from "sonner";
 
 interface ProcessoTstTabProps {
   processo: any;
@@ -17,6 +18,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [form, setForm] = useState({
     dossie_tst: "",
     equipe_tst: "",
@@ -73,6 +75,37 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
 
   const handleChange = (field: string, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAnalyzeIA = async () => {
+    if (!processo?.id) return;
+    setAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("analisar-tst-ia", {
+        body: { processoId: processo.id },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      const campos = data.campos || {};
+      const count = Object.keys(campos).length;
+
+      if (count === 0) {
+        sonnerToast.warning("A IA não conseguiu extrair campos TST dos documentos anexados.");
+        return;
+      }
+
+      setForm(prev => ({ ...prev, ...campos }));
+      sonnerToast.success(`${count} campos preenchidos pela IA!`, {
+        description: data.observacoes || `${data.documentos_analisados} documento(s) analisado(s). Revise antes de salvar.`,
+      });
+    } catch (err: any) {
+      console.error("Erro na análise TST IA:", err);
+      sonnerToast.error(err.message || "Erro ao analisar com IA");
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const handleSave = async () => {
@@ -145,10 +178,26 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
           <Gavel className="w-5 h-5" />
           Dados TST
         </h3>
-        <Button onClick={handleSave} disabled={saving} size="sm">
-          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Salvar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleAnalyzeIA}
+            disabled={analyzing || !processo?.id}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+          >
+            {analyzing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {analyzing ? "Analisando..." : "Preencher com IA"}
+          </Button>
+          <Button onClick={handleSave} disabled={saving} size="sm">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Salvar
+          </Button>
+        </div>
       </div>
 
       {/* Info do Processo */}
