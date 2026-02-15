@@ -210,38 +210,41 @@ INSTRUÇÕES ESPECÍFICAS PARA A ANÁLISE:
 
 REGRAS CRÍTICAS:
 - Analise TODOS os documentos fornecidos antes de responder
+- TODOS os campos devem ser preenchidos com algum valor - NUNCA retorne null
+- Se a informação não estiver disponível nos documentos, preencha com "Não encontrado nos documentos"
+- Se o campo não for aplicável à fase processual atual, preencha com "N/A - [motivo breve]"
 - Quando um campo puder ser preenchido, SEMPRE preencha com o máximo de detalhamento
 - Para campos de "matérias", seja exaustivo - liste todas as matérias encontradas
 - Para "aparelhamento", cite as Súmulas, OJs, artigos e teses específicas encontradas
 - Para "chance de êxito", forneça percentual E justificativa breve
 - Para avaliações de favorabilidade, fundamente com base nos documentos
-- Use null APENAS quando realmente não houver informação nos documentos
 - Na observação final, indique o nível de confiança geral e quais documentos foram mais relevantes
+- IMPORTANTE: Mesmo que o processo esteja em fase inicial, preencha todos os campos com as informações disponíveis ou indique claramente o motivo de não ser aplicável
 
-Responda APENAS em JSON válido:
+Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca null):
 {
-  "dossie_tst": "valor ou null",
-  "equipe_tst": "valor ou null",
-  "relator_tst": "valor ou null",
-  "relator_favorabilidade": "valor ou null",
-  "turma_tst": "valor ou null",
-  "turma_favorabilidade": "valor ou null",
-  "parte_recorrente_tst": "valor ou null",
-  "tipo_recurso_reclamante": "valor ou null",
-  "materias_recurso_reclamante": "valor ou null",
-  "aparelhamento_reclamante": "valor ou null",
-  "chance_exito_reclamante": "valor ou null",
-  "tipo_recurso_banco": "valor ou null",
-  "materias_recurso_banco": "valor ou null",
-  "aparelhamento_banco": "valor ou null",
-  "chance_exito_banco": "valor ou null",
-  "honra_tst": "valor ou null",
-  "tema_tst": "valor ou null",
-  "execucao_tst": "valor ou null",
-  "midia_negativa_tst": "valor ou null",
-  "decisao_quarteirizado": "valor ou null",
-  "recurso_terceiros_tst": "valor ou null",
-  "observacoes": "resumo detalhado da análise, confiança nos dados e documentos mais relevantes"
+  "dossie_tst": "valor ou N/A",
+  "equipe_tst": "valor ou N/A",
+  "relator_tst": "valor ou N/A",
+  "relator_favorabilidade": "+ ou - ou N/A",
+  "turma_tst": "valor ou N/A",
+  "turma_favorabilidade": "+ ou - ou N/A",
+  "parte_recorrente_tst": "valor ou N/A",
+  "tipo_recurso_reclamante": "valor ou N/A",
+  "materias_recurso_reclamante": "valor ou N/A",
+  "aparelhamento_reclamante": "valor ou N/A",
+  "chance_exito_reclamante": "porcentagem + justificativa ou N/A",
+  "tipo_recurso_banco": "valor ou N/A",
+  "materias_recurso_banco": "valor ou N/A",
+  "aparelhamento_banco": "valor ou N/A",
+  "chance_exito_banco": "porcentagem + justificativa ou N/A",
+  "honra_tst": "valor ou N/A",
+  "tema_tst": "valor ou N/A",
+  "execucao_tst": "valor ou N/A",
+  "midia_negativa_tst": "Sim - motivo ou Não",
+  "decisao_quarteirizado": "valor ou N/A",
+  "recurso_terceiros_tst": "Sim - quem ou Não",
+  "observacoes": "resumo detalhado da análise"
 }`;
 
     console.log(
@@ -294,7 +297,7 @@ Responda APENAS em JSON válido:
       throw new Error("Não foi possível processar a resposta da IA");
     }
 
-    // Filter out null values
+    // Include all valid fields from the AI response
     const filtered: Record<string, string> = {};
     const validFields = [
       "dossie_tst", "equipe_tst", "relator_tst", "relator_favorabilidade",
@@ -307,8 +310,9 @@ Responda APENAS em JSON válido:
     ];
 
     for (const field of validFields) {
-      if (result[field] && result[field] !== "null" && result[field] !== null) {
-        filtered[field] = String(result[field]);
+      const val = result[field];
+      if (val !== undefined && val !== null && String(val).trim() !== "" && String(val).toLowerCase() !== "null") {
+        filtered[field] = String(val);
       }
     }
 
