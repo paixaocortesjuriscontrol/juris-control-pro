@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { Save, Loader2, Gavel, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +20,8 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeStatus, setAnalyzeStatus] = useState("");
+  const [analyzeProgress, setAnalyzeProgress] = useState(0);
   const [form, setForm] = useState({
     dossie_tst: "",
     equipe_tst: "",
@@ -77,13 +80,111 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const extractAndIndexDocuments = async (processoId: string): Promise<number> => {
+    // Fetch documents for this process
+    const { data: docs } = await supabase
+      .from("documentos")
+      .select("id, nome, tipo, url, texto_completo_indexado")
+      .eq("processo_id", processoId)
+      .order("created_at", { ascending: false });
+
+    if (!docs || docs.length === 0) {
+      throw new Error("Nenhum documento encontrado na aba Pasta. Envie documentos primeiro.");
+    }
+
+    const docsToIndex = docs.filter(d => !d.texto_completo_indexado);
+    let indexed = 0;
+
+    for (let di = 0; di < docsToIndex.length; di++) {
+      const doc = docsToIndex[di];
+      const isPdf = (doc.tipo || "").includes("pdf") || doc.nome?.toLowerCase().endsWith(".pdf");
+      if (!isPdf || !doc.url) continue;
+
+      setAnalyzeStatus(`Extraindo texto: ${doc.nome} (${di + 1}/${docsToIndex.length})`);
+      setAnalyzeProgress(Math.round(((di) / docsToIndex.length) * 40));
+
+      try {
+        const response = await fetch(doc.url);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+        const batchSize = 20;
+        for (let start = 1; start <= pdf.numPages; start += batchSize) {
+          const end = Math.min(start + batchSize - 1, pdf.numPages);
+          const rows: { documento_id: string; processo_id: string; pagina: number; conteudo_texto: string }[] = [];
+
+          for (let i = start; i <= end; i++) {
+            const page = await pdf.getPage(i);
+            const tc = await page.getTextContent();
+            const text = tc.items.map((item: any) => item.str).join(" ");
+            if (text.trim()) {
+              rows.push({
+                documento_id: doc.id,
+                processo_id: processoId,
+                pagina: i,
+                conteudo_texto: text.trim(),
+              });
+            }
+          }
+
+          if (rows.length > 0) {
+            await supabase.from("documentos_texto_indexado" as any).upsert(rows as any, {
+              onConflict: "documento_id,pagina",
+            });
+          }
+
+          setAnalyzeProgress(Math.round(((di + (end / pdf.numPages)) / docsToIndex.length) * 40));
+        }
+
+        // Mark document as fully indexed and save full content for backwards compat
+        const fullText = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const tc = await page.getTextContent();
+          const text = tc.items.map((item: any) => item.str).join(" ");
+          if (text.trim()) fullText.push(`--- Página ${i} ---\n${text}`);
+        }
+        // We already extracted pages above, but let's just mark it
+        await supabase.from("documentos").update({
+          texto_completo_indexado: true,
+          conteudo_extraido: fullText.join("\n\n").substring(0, 60000),
+          paginas_extraidas: pdf.numPages,
+        } as any).eq("id", doc.id);
+
+        indexed++;
+      } catch (e) {
+        console.error(`Erro ao indexar ${doc.nome}:`, e);
+      }
+    }
+
+    return docs.filter(d => d.texto_completo_indexado).length + indexed;
+  };
+
   const handleAnalyzeIA = async () => {
     if (!processo?.id) return;
     setAnalyzing(true);
+    setAnalyzeProgress(0);
+    setAnalyzeStatus("Verificando documentos...");
     try {
+      // Step 1: Extract and index documents if needed
+      const totalIndexed = await extractAndIndexDocuments(processo.id);
+      if (totalIndexed === 0) {
+        throw new Error("Nenhum documento PDF pôde ser indexado.");
+      }
+
+      // Step 2: Call the AI analysis edge function
+      setAnalyzeStatus("Enviando para análise IA...");
+      setAnalyzeProgress(50);
+
       const { data, error } = await supabase.functions.invoke("analisar-tst-ia", {
         body: { processoId: processo.id },
       });
+
+      setAnalyzeProgress(90);
 
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -97,6 +198,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
       }
 
       setForm(prev => ({ ...prev, ...campos }));
+      setAnalyzeProgress(100);
       sonnerToast.success(`${count} campos preenchidos pela IA!`, {
         description: data.observacoes || `${data.documentos_analisados} documento(s) analisado(s). Revise antes de salvar.`,
       });
@@ -105,6 +207,8 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
       sonnerToast.error(err.message || "Erro ao analisar com IA");
     } finally {
       setAnalyzing(false);
+      setAnalyzeStatus("");
+      setAnalyzeProgress(0);
     }
   };
 
@@ -199,6 +303,17 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
           </Button>
         </div>
       </div>
+
+      {/* Progress bar during analysis */}
+      {analyzing && (
+        <div className="space-y-2 rounded-lg border p-4 bg-muted/20">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">{analyzeStatus}</span>
+            <span className="font-medium">{analyzeProgress}%</span>
+          </div>
+          <Progress value={analyzeProgress} className="h-2" />
+        </div>
+      )}
 
       {/* Info do Processo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-lg border p-4 bg-muted/30">

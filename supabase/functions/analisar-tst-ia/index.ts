@@ -46,53 +46,96 @@ serve(async (req) => {
       throw new Error("Processo não encontrado");
     }
 
-    // Fetch documents with extracted content
-    const { data: documentos, error: docError } = await supabase
-      .from("documentos")
-      .select("id, nome, conteudo_extraido, paginas_extraidas")
+    // Fetch indexed text pages for this process (from documentos_texto_indexado)
+    const { data: paginasIndexadas, error: idxError } = await supabase
+      .from("documentos_texto_indexado")
+      .select("documento_id, pagina, conteudo_texto")
       .eq("processo_id", processoId)
-      .not("conteudo_extraido", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(5);
+      .order("documento_id")
+      .order("pagina")
+      .limit(500);
 
-    if (docError) {
-      console.error("Erro ao buscar documentos:", docError);
-    }
-
-    if (!documentos || documentos.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Nenhum documento com conteúdo extraído encontrado. Envie documentos na aba Pasta e clique em 'Analisar IA' primeiro.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Build document content (max ~50k chars total)
-    let totalChars = 0;
-    const maxChars = 50000;
-    const docTexts: string[] = [];
-
-    for (const doc of documentos) {
-      const content = doc.conteudo_extraido || "";
-      if (totalChars + content.length > maxChars) {
-        const remaining = maxChars - totalChars;
-        if (remaining > 500) {
-          docTexts.push(
-            `=== Documento: ${doc.nome} (truncado) ===\n${content.substring(0, remaining)}`
-          );
-        }
-        break;
+    // Also fetch document names for context
+    const docIds = [...new Set((paginasIndexadas || []).map((p: any) => p.documento_id))];
+    let docNames: Record<string, string> = {};
+    if (docIds.length > 0) {
+      const { data: docs } = await supabase
+        .from("documentos")
+        .select("id, nome")
+        .in("id", docIds);
+      if (docs) {
+        docNames = Object.fromEntries(docs.map((d: any) => [d.id, d.nome]));
       }
-      docTexts.push(`=== Documento: ${doc.nome} ===\n${content}`);
-      totalChars += content.length;
     }
 
-    const allDocContent = docTexts.join("\n\n");
+    // If no indexed content, fallback to conteudo_extraido
+    let allDocContent = "";
+    let docsCount = 0;
+
+    if (paginasIndexadas && paginasIndexadas.length > 0) {
+      // Group by document
+      const grouped: Record<string, string[]> = {};
+      for (const p of paginasIndexadas) {
+        const key = p.documento_id;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(`[Pág ${p.pagina}] ${p.conteudo_texto}`);
+      }
+
+      const parts: string[] = [];
+      let totalChars = 0;
+      const maxChars = 50000;
+
+      for (const [docId, pages] of Object.entries(grouped)) {
+        const docName = docNames[docId] || "Documento";
+        const docText = `=== ${docName} ===\n${pages.join("\n")}`;
+        if (totalChars + docText.length > maxChars) {
+          const remaining = maxChars - totalChars;
+          if (remaining > 500) parts.push(docText.substring(0, remaining) + "\n[...truncado]");
+          break;
+        }
+        parts.push(docText);
+        totalChars += docText.length;
+        docsCount++;
+      }
+
+      allDocContent = parts.join("\n\n");
+    } else {
+      // Fallback: use conteudo_extraido from documentos
+      const { data: documentos } = await supabase
+        .from("documentos")
+        .select("id, nome, conteudo_extraido")
+        .eq("processo_id", processoId)
+        .not("conteudo_extraido", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!documentos || documentos.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "Nenhum documento com conteúdo extraído encontrado. Envie documentos na aba Pasta primeiro.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      let totalChars = 0;
+      const maxChars = 50000;
+      const docTexts: string[] = [];
+
+      for (const doc of documentos) {
+        const content = doc.conteudo_extraido || "";
+        if (totalChars + content.length > maxChars) break;
+        docTexts.push(`=== ${doc.nome} ===\n${content}`);
+        totalChars += content.length;
+        docsCount++;
+      }
+
+      allDocContent = docTexts.join("\n\n");
+    }
 
     // Build context about current processo
     const processoContext = `
@@ -165,7 +208,7 @@ Responda APENAS em JSON válido com os campos que conseguir preencher. Use null 
 }`;
 
     console.log(
-      `Analisando TST para processo ${processo.numero}, ${documentos.length} documentos`
+      `Analisando TST para processo ${processo.numero}, ${docsCount} documentos, ${paginasIndexadas?.length || 0} páginas indexadas`
     );
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -239,7 +282,8 @@ Responda APENAS em JSON válido com os campos que conseguir preencher. Use null 
       JSON.stringify({
         campos: filtered,
         observacoes: result.observacoes || null,
-        documentos_analisados: documentos.length,
+        documentos_analisados: docsCount,
+        paginas_indexadas: paginasIndexadas?.length || 0,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

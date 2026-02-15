@@ -1837,6 +1837,7 @@ export type Database = {
           tags: string[] | null
           tamanho_bytes: number | null
           tarefa_id: string | null
+          texto_completo_indexado: boolean | null
           tipo: string | null
           tipo_documento: string | null
           uploaded_by: string | null
@@ -1857,6 +1858,7 @@ export type Database = {
           tags?: string[] | null
           tamanho_bytes?: number | null
           tarefa_id?: string | null
+          texto_completo_indexado?: boolean | null
           tipo?: string | null
           tipo_documento?: string | null
           uploaded_by?: string | null
@@ -1877,6 +1879,7 @@ export type Database = {
           tags?: string[] | null
           tamanho_bytes?: number | null
           tarefa_id?: string | null
+          texto_completo_indexado?: boolean | null
           tipo?: string | null
           tipo_documento?: string | null
           uploaded_by?: string | null
@@ -1916,6 +1919,48 @@ export type Database = {
             columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos_texto_indexado: {
+        Row: {
+          conteudo_texto: string
+          created_at: string
+          documento_id: string
+          id: string
+          pagina: number
+          processo_id: string
+        }
+        Insert: {
+          conteudo_texto: string
+          created_at?: string
+          documento_id: string
+          id?: string
+          pagina: number
+          processo_id: string
+        }
+        Update: {
+          conteudo_texto?: string
+          created_at?: string
+          documento_id?: string
+          id?: string
+          pagina?: number
+          processo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_texto_indexado_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_texto_indexado_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
             referencedColumns: ["id"]
           },
         ]
