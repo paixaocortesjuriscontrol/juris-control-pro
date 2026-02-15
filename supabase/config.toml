@@ -113,3 +113,6 @@ verify_jwt = true
 
 [functions.consultar-processo-mni]
 verify_jwt = true
+
+[functions.analisar-tst-ia]
+verify_jwt = true
