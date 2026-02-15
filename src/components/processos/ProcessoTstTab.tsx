@@ -111,12 +111,44 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
       setAnalyzeProgress(Math.round(((di) / pdfDocs.length) * 40));
 
       try {
+        let arrayBuffer: ArrayBuffer;
         const response = await fetch(doc.url!);
         if (!response.ok) {
-          throw new Error(`Falha ao baixar PDF (status ${response.status})`);
+          // URL may be stale — try to find the file in storage by listing the folder
+          const urlParts = doc.url!.split("/documentos_processos/");
+          if (urlParts.length === 2) {
+            const pathSegments = urlParts[1].split("/");
+            const folder = pathSegments.slice(0, -1).join("/");
+            const { data: files } = await supabase.storage
+              .from("documentos_processos")
+              .list(folder, { limit: 10, sortBy: { column: "created_at", order: "desc" } });
+            
+            const match = files?.find(f => f.name.includes(doc.nome?.replace(/^\d+_/, "") || "___"));
+            if (match) {
+              const correctPath = folder ? `${folder}/${match.name}` : match.name;
+              const { data: dlData, error: dlError } = await supabase.storage
+                .from("documentos_processos")
+                .download(correctPath);
+              if (dlError || !dlData) throw new Error(`Falha ao baixar PDF do storage: ${dlError?.message}`);
+              arrayBuffer = await dlData.arrayBuffer();
+              
+              // Fix the stale URL for future use
+              const { data: urlData } = supabase.storage
+                .from("documentos_processos")
+                .getPublicUrl(correctPath);
+              if (urlData?.publicUrl) {
+                await supabase.from("documentos").update({ url: urlData.publicUrl } as any).eq("id", doc.id);
+              }
+            } else {
+              throw new Error(`Arquivo não encontrado no storage (status ${response.status})`);
+            }
+          } else {
+            throw new Error(`Falha ao baixar PDF (status ${response.status})`);
+          }
+        } else {
+          const blob = await response.blob();
+          arrayBuffer = blob.arrayBuffer ? await blob.arrayBuffer() : await new Response(blob).arrayBuffer();
         }
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
 
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
