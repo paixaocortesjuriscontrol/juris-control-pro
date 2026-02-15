@@ -3337,6 +3337,7 @@ export type Database = {
           responsabilidade_tipo: string | null
           responsaveis_projuris: string | null
           resultado: string | null
+          resumo_ia_tst: string | null
           risco: string | null
           risco_anterior: string | null
           risco_atual: string | null
@@ -3501,6 +3502,7 @@ export type Database = {
           responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
           resultado?: string | null
+          resumo_ia_tst?: string | null
           risco?: string | null
           risco_anterior?: string | null
           risco_atual?: string | null
@@ -3665,6 +3667,7 @@ export type Database = {
           responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
           resultado?: string | null
+          resumo_ia_tst?: string | null
           risco?: string | null
           risco_anterior?: string | null
           risco_atual?: string | null
