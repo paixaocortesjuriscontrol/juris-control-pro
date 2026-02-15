@@ -1,0 +1,1 @@
+ALTER TABLE public.processos ADD COLUMN resumo_ia_tst TEXT;

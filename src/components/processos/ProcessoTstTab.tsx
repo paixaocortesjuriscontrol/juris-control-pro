@@ -44,6 +44,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
     midia_negativa_tst: "",
     decisao_quarteirizado: "",
     recurso_terceiros_tst: "",
+    resumo_ia_tst: "",
     benner_atualizado: false,
   });
 
@@ -71,6 +72,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         midia_negativa_tst: processo.midia_negativa_tst || "",
         decisao_quarteirizado: processo.decisao_quarteirizado || "",
         recurso_terceiros_tst: processo.recurso_terceiros_tst || "",
+        resumo_ia_tst: processo.resumo_ia_tst || "",
         benner_atualizado: processo.benner_atualizado || false,
       });
     }
@@ -238,7 +240,9 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         return;
       }
 
-      setForm(prev => ({ ...prev, ...campos }));
+      // Also set resumo_ia_tst from observacoes
+      const resumo = data.observacoes || "";
+      setForm(prev => ({ ...prev, ...campos, resumo_ia_tst: resumo || prev.resumo_ia_tst }));
       setAnalyzeProgress(100);
       sonnerToast.success(`${count} campos preenchidos pela IA!`, {
         description: data.observacoes || `${data.documentos_analisados} documento(s) analisado(s). Revise antes de salvar.`,
@@ -264,6 +268,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         "chance_exito_reclamante", "tipo_recurso_banco", "materias_recurso_banco",
         "aparelhamento_banco", "chance_exito_banco", "honra_tst", "tema_tst",
         "execucao_tst", "midia_negativa_tst", "decisao_quarteirizado", "recurso_terceiros_tst",
+        "resumo_ia_tst",
       ];
 
       textFields.forEach(field => {
@@ -407,6 +412,14 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
           <InputField label="Chance de Êxito" field="chance_exito_banco" />
         </div>
       </div>
+
+      {/* Resumo IA */}
+      {form.resumo_ia_tst && (
+        <div>
+          <h4 className="text-sm font-semibold mb-3 text-foreground">Resumo IA</h4>
+          <InputField label="Resumo gerado pela IA" field="resumo_ia_tst" textarea />
+        </div>
+      )}
 
       {/* Análise e Status */}
       <div>
