@@ -93,18 +93,28 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
     }
 
     const docsToIndex = docs.filter(d => !d.texto_completo_indexado);
+    const pdfDocs = docsToIndex.filter(d => 
+      ((d.tipo || "").includes("pdf") || d.nome?.toLowerCase().endsWith(".pdf")) && d.url
+    );
+
+    if (pdfDocs.length === 0 && docs.every(d => !d.texto_completo_indexado)) {
+      throw new Error("Nenhum documento PDF encontrado na aba Pasta. Envie documentos PDF primeiro.");
+    }
+
     let indexed = 0;
+    let lastError = "";
 
-    for (let di = 0; di < docsToIndex.length; di++) {
-      const doc = docsToIndex[di];
-      const isPdf = (doc.tipo || "").includes("pdf") || doc.nome?.toLowerCase().endsWith(".pdf");
-      if (!isPdf || !doc.url) continue;
+    for (let di = 0; di < pdfDocs.length; di++) {
+      const doc = pdfDocs[di];
 
-      setAnalyzeStatus(`Extraindo texto: ${doc.nome} (${di + 1}/${docsToIndex.length})`);
-      setAnalyzeProgress(Math.round(((di) / docsToIndex.length) * 40));
+      setAnalyzeStatus(`Extraindo texto: ${doc.nome} (${di + 1}/${pdfDocs.length})`);
+      setAnalyzeProgress(Math.round(((di) / pdfDocs.length) * 40));
 
       try {
-        const response = await fetch(doc.url);
+        const response = await fetch(doc.url!);
+        if (!response.ok) {
+          throw new Error(`Falha ao baixar PDF (status ${response.status})`);
+        }
         const blob = await response.blob();
         const arrayBuffer = await blob.arrayBuffer();
 
@@ -112,6 +122,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
+        const allPageTexts: string[] = [];
         const batchSize = 20;
         for (let start = 1; start <= pdf.numPages; start += batchSize) {
           const end = Math.min(start + batchSize - 1, pdf.numPages);
@@ -128,6 +139,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
                 pagina: i,
                 conteudo_texto: text.trim(),
               });
+              allPageTexts.push(`--- Página ${i} ---\n${text.trim()}`);
             }
           }
 
@@ -137,31 +149,28 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
             });
           }
 
-          setAnalyzeProgress(Math.round(((di + (end / pdf.numPages)) / docsToIndex.length) * 40));
+          setAnalyzeProgress(Math.round(((di + (end / pdf.numPages)) / pdfDocs.length) * 40));
         }
 
-        // Mark document as fully indexed and save full content for backwards compat
-        const fullText = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const tc = await page.getTextContent();
-          const text = tc.items.map((item: any) => item.str).join(" ");
-          if (text.trim()) fullText.push(`--- Página ${i} ---\n${text}`);
-        }
-        // We already extracted pages above, but let's just mark it
+        // Mark document as fully indexed
         await supabase.from("documentos").update({
           texto_completo_indexado: true,
-          conteudo_extraido: fullText.join("\n\n").substring(0, 60000),
+          conteudo_extraido: allPageTexts.join("\n\n").substring(0, 60000),
           paginas_extraidas: pdf.numPages,
         } as any).eq("id", doc.id);
 
         indexed++;
-      } catch (e) {
+      } catch (e: any) {
+        lastError = e.message || String(e);
         console.error(`Erro ao indexar ${doc.nome}:`, e);
       }
     }
 
-    return docs.filter(d => d.texto_completo_indexado).length + indexed;
+    const totalIndexed = docs.filter(d => d.texto_completo_indexado).length + indexed;
+    if (totalIndexed === 0 && lastError) {
+      throw new Error(`Erro ao processar PDF: ${lastError}`);
+    }
+    return totalIndexed;
   };
 
   const handleAnalyzeIA = async () => {
