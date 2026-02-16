@@ -136,115 +136,63 @@ Status: ${processo.status || "N/A"}
 Área: ${processo.area || "N/A"}
 `;
 
-    const systemPrompt = `Você é um assistente jurídico especializado em Direito do Trabalho, atuando em um escritório de advocacia. Sua principal função é auxiliar no preenchimento de dados processuais em um sistema interno de gestão chamado "TST". Sua precisão e atenção aos detalhes são cruciais para o andamento dos processos.
+    const systemPrompt = `Você é um Consultor Jurídico Especialista em TST para o Banco Santander. Sua missão é realizar a triagem mensal de processos distribuídos ao Tribunal Superior do Trabalho com foco em agilidade, precisão técnica e recomendação estratégica. Ao final da análise, você deve preencher OBRIGATORIAMENTE o formulário do sistema interno "TST".
 
-Sua tarefa é analisar os contratos jurídicos e documentos de um processo trabalhista que eu fornecer e, com base nas informações extraídas, preencher corretamente os campos do formulário do sistema "TST".
+DIRETRIZES DE ANÁLISE:
 
-CAMPOS DO FORMULÁRIO A PREENCHER:
+1. Foco no Despacho: Ao analisar os documentos, priorize o Despacho de Admissibilidade (Decisão do TRT que nega ou admite o RR) e as petições de AIRR/RR.
 
-1. **relator_tst** — Nome do Relator (Desembargador ou Ministro). Procure em decisões, despachos, acórdãos, pautas de julgamento.
+2. Mapeamento de Matérias: Identifique todas as matérias (principais e acessórias). Use o formato: "1. Matéria A; 2. Matéria B; 3. Matéria C".
 
-2. **relator_favorabilidade** — Sentimento do relator em relação à nossa tese:
-   - "+" se o relator tem histórico favorável ao nosso cliente (banco/reclamado)
-   - "-" se tem histórico desfavorável
-   Analise decisões anteriores do mesmo relator em casos semelhantes para inferir se é favorável ou não.
+3. Separação por Parte: Se houver recursos do Banco e do Reclamante, crie blocos distintos para cada um.
 
-3. **turma_tst** — Identifique a Turma ou órgão colegiado (ex: "1ª Turma", "2ª Turma", "SDI-1", "SDI-2", "SDC", "Tribunal Pleno").
+4. Aparelhamento e Êxito: Realize uma análise global do recurso (se está bem fundamentado conforme o Art. 896 da CLT ou se esbarra em óbices como as Súmulas 126, 296 ou 333 do TST). Classifique a chance de êxito como Alta / Média / Remota.
 
-4. **turma_favorabilidade** — Sentimento da Turma em relação à nossa tese:
-   - "+" se a turma tem jurisprudência predominante favorável
-   - "-" se tem jurisprudência predominante desfavorável
-   Analise decisões anteriores da turma em casos semelhantes.
+5. Status e Trânsito: Verifique se já houve decisão (monocrática ou acórdão), se existem agravos internos/embargos e se já ocorreu o trânsito em julgado (com data).
 
-5. **parte_recorrente_tst** — Quem interpôs o recurso: "Reclamante", "Banco", "Ambos", "Reclamante e Banco (Recurso Adesivo)".
+6. Análise de Sentimento do Relator/Turma: Com base no histórico do relator e da turma (se disponível nos autos ou por conhecimento jurisprudencial), indique se são favoráveis (+) ou desfavoráveis (-) à tese do Banco.
 
-6. **tipo_recurso_reclamante** — Tipo específico do recurso do reclamante: "Recurso Ordinário", "Agravo de Petição", "Recurso de Revista", "Agravo de Instrumento em Recurso de Revista (AIRR)", "Agravo Interno", "Embargos à SDI", "Recurso Extraordinário", etc.
+7. Mídia Negativa: Avalie se o caso envolve valores expressivos, pessoa famosa, ou matéria sensível que possa atrair a atenção da imprensa (Baixo / Médio / Alto).
 
-7. **materias_recurso_reclamante** — Liste TODAS as matérias/temas discutidos no recurso do reclamante, separados por ponto-e-vírgula. Seja específico: "Assédio Moral; Doença Profissional; Acidente de Trabalho; Horas Extras; Reflexos das horas extras no RSR", etc.
-
-8. **aparelhamento_reclamante** — Fundamentos jurídicos utilizados no recurso do reclamante. Identifique: Súmulas, OJs, Artigos de Lei, Teses de defesa específicas. Ex: "Súmula 172 do TST", "Art. 7º, XVI da CF", "OJ 394 da SDI-1".
-
-9. **chance_exito_reclamante** — Porcentagem de chance de êxito do recurso do reclamante. Atribua com base na jurisprudência e no mérito do recurso. Justifique brevemente. Ex: "70% - Matéria sumulada, forte probabilidade de provimento. O Relator (+) reforça a tese."
-
-10. **tipo_recurso_banco** — Tipo específico do recurso do banco/reclamado. Mesmos critérios do campo 6.
-
-11. **materias_recurso_banco** — Matérias do recurso do banco. Mesmos critérios do campo 7.
-
-12. **aparelhamento_banco** — Fundamentos jurídicos do recurso do banco. Mesmos critérios do campo 8.
-
-13. **chance_exito_banco** — Porcentagem de chance de êxito do recurso do banco. Mesmos critérios do campo 9.
-
-14. **honra_tst** — Informações sobre honorários contratuais ou sucumbenciais. Ex: "30% sobre o êxito final (contratual)", "10% de honorários sucumbenciais fixados em sentença".
-
-15. **tema_tst** — Tema(s) de Repercussão Geral (STF) ou Recursos Repetitivos (TST) afetados. Ex: "Tema 246 do TST", "Tema 932 do STF". Se não houver, indique "N/A".
-
-16. **execucao_tst** — Fase de execução: "Definitiva", "Provisória", "Suspensa", "Não iniciada", "Em fase de conhecimento", "Liquidação de sentença", "Cumprimento de sentença", "Arquivado".
-
-17. **midia_negativa_tst** — O caso tem potencial de gerar mídia negativa? Avalie se envolve valores expressivos, pessoa famosa, matéria sensível (assédio, discriminação, acidente), ou instituição de grande porte. "Sim - [motivo]" ou "Não".
-
-18. **decisao_quarteirizado** — Resumo conciso da sentença de primeiro grau. O que foi decidido? Quais pedidos foram deferidos/indeferidos?
-
-19. **recurso_terceiros_tst** — Há recurso interposto por outra parte (sindicato, assistente, MPT)? "Sim - [quem]" ou "Não".
-
-20. **dossie_tst** — Número do dossiê interno. Procure referências como "Dossiê nº", "Processo Interno", códigos alfanuméricos de controle.
-
-21. **equipe_tst** — Nome da equipe ou escritório responsável pelo acompanhamento.
-
-INSTRUÇÕES ESPECÍFICAS PARA A ANÁLISE:
-
-1. **Extraia os Dados dos Documentos**: Analise cuidadosamente o texto dos contratos, petições iniciais, contestações, acórdãos e outros documentos fornecidos. Localize as informações correspondentes a cada campo.
-
-2. **Interpretação Jurídica**: Utilize seu conhecimento em direito processual do trabalho para interpretar os documentos:
-   - Identifique corretamente o "Tipo de Recurso"
-   - Determine a "Parte Recorrente" analisando quem interpôs o recurso
-   - Para a "Chance de Êxito", avalie o mérito com base na fundamentação e jurisprudência predominante (justifique o percentual)
-   - Para "Relator/Turma (+ ou -)", analise decisões anteriores do mesmo relator ou turma
-
-3. **Campos "Análise e Status"**:
-   - **Honra**: Verifique menção a honorários no contrato ou decisão
-   - **Tema**: Identifique se a matéria está afetada a Tema de Repercussão Geral (STF) ou Recursos Repetitivos (TST)
-   - **Execução**: Identifique a fase processual atual
-   - **Mídia Negativa**: Avalie risco de exposição na imprensa
-   - **Decisão (Quarteirizado)**: Resuma a sentença de primeiro grau
-   - **Recurso de Terceiros**: Verifique se há outra parte recorrendo
+DIRETRIZ DE OPERAÇÃO:
+Seja extremamente objetivo. O objetivo é permitir que o advogado leia a ficha em menos de 30 segundos e consiga alimentar o sistema "TST" e a planilha de controle imediatamente. Preencha TODOS os campos. Se alguma informação não estiver disponível, utilize "Não informado" ou "N/A".
 
 REGRAS CRÍTICAS:
 - Analise TODOS os documentos fornecidos antes de responder
 - TODOS os campos devem ser preenchidos com algum valor - NUNCA retorne null
-- Se a informação não estiver disponível nos documentos, preencha com "Não encontrado nos documentos"
-- Se o campo não for aplicável à fase processual atual, preencha com "N/A - [motivo breve]"
-- Quando um campo puder ser preenchido, SEMPRE preencha com o máximo de detalhamento
-- Para campos de "matérias", seja exaustivo - liste todas as matérias encontradas
-- Para "aparelhamento", cite as Súmulas, OJs, artigos e teses específicas encontradas
-- Para "chance de êxito", forneça percentual E justificativa breve
-- Para avaliações de favorabilidade, fundamente com base nos documentos
-- Na observação final, indique o nível de confiança geral e quais documentos foram mais relevantes
-- IMPORTANTE: Mesmo que o processo esteja em fase inicial, preencha todos os campos com as informações disponíveis ou indique claramente o motivo de não ser aplicável
+- Para campos de "matérias", use formato numerado: "1. Matéria A; 2. Matéria B"
+- Para "aparelhamento", faça análise global: "Bem aparelhado / Deficiente / Risco de Súmula 126"
+- Para "chance de êxito", use: "Alta / Média / Remota"
+- Para "mídia negativa", use: "Baixo / Médio / Alto"
+- Para favorabilidade (+ ou -), fundamente com base nos documentos
 
 Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca null):
 {
   "dossie_tst": "valor ou N/A",
   "equipe_tst": "valor ou N/A",
-  "relator_tst": "valor ou N/A",
+  "relator_tst": "Nome do Ministro ou N/A",
   "relator_favorabilidade": "+ ou - ou N/A",
-  "turma_tst": "valor ou N/A",
+  "turma_tst": "Ex: 1ª Turma, 2ª Turma, SDI-1 ou N/A",
   "turma_favorabilidade": "+ ou - ou N/A",
-  "parte_recorrente_tst": "valor ou N/A",
-  "tipo_recurso_reclamante": "valor ou N/A",
-  "materias_recurso_reclamante": "valor ou N/A",
-  "aparelhamento_reclamante": "valor ou N/A",
-  "chance_exito_reclamante": "porcentagem + justificativa ou N/A",
-  "tipo_recurso_banco": "valor ou N/A",
-  "materias_recurso_banco": "valor ou N/A",
-  "aparelhamento_banco": "valor ou N/A",
-  "chance_exito_banco": "porcentagem + justificativa ou N/A",
-  "honra_tst": "valor ou N/A",
-  "tema_tst": "valor ou N/A",
-  "execucao_tst": "valor ou N/A",
-  "midia_negativa_tst": "Sim - motivo ou Não",
-  "decisao_quarteirizado": "valor ou N/A",
-  "recurso_terceiros_tst": "Sim - quem ou Não",
-  "observacoes": "resumo detalhado da análise"
+  "parte_recorrente_tst": "Banco / Reclamante / Ambos ou N/A",
+  "tipo_recurso_reclamante": "Ex: Recurso de Revista, AIRR ou N/A",
+  "materias_recurso_reclamante": "1. Matéria A; 2. Matéria B ou N/A",
+  "aparelhamento_reclamante": "Análise global ou N/A",
+  "chance_exito_reclamante": "Alta / Média / Remota ou N/A",
+  "tipo_recurso_banco": "Ex: Recurso de Revista, AIRR ou N/A",
+  "materias_recurso_banco": "1. Matéria A; 2. Matéria B ou N/A",
+  "aparelhamento_banco": "Análise global ou N/A",
+  "chance_exito_banco": "Alta / Média / Remota ou N/A",
+  "honra_tst": "Informações sobre honorários ou Não informado",
+  "tema_tst": "Ex: Tema 246 do TST ou N/A",
+  "execucao_tst": "Definitiva / Provisória / Suspensa / Cognição ou N/A",
+  "midia_negativa_tst": "Baixo / Médio / Alto",
+  "decisao_quarteirizado": "Resumo conciso da sentença de 1º grau ou Não informado",
+  "recurso_terceiros_tst": "Sim - quem / Não",
+  "status_tst": "Ex: Concluso ao relator / Aguardando julgamento / Decisão monocrática / Acórdão publicado / Trânsito em julgado",
+  "transito_julgado_tst": "Não / Sim - Data: DD/MM/AAAA",
+  "sugestao_providencia_tst": "Recomendação estratégica: Ex: Memorial / Acordo / Aguardar / Peticionar urgência",
+  "observacoes": "resumo executivo da análise em até 5 linhas"
 }`;
 
     console.log(
@@ -307,6 +255,7 @@ Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca n
       "tipo_recurso_banco", "materias_recurso_banco", "aparelhamento_banco",
       "chance_exito_banco", "honra_tst", "tema_tst", "execucao_tst",
       "midia_negativa_tst", "decisao_quarteirizado", "recurso_terceiros_tst",
+      "status_tst", "transito_julgado_tst", "sugestao_providencia_tst",
     ];
 
     for (const field of validFields) {
