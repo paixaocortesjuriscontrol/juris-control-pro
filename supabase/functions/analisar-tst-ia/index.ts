@@ -163,8 +163,10 @@ REGRAS CRÍTICAS:
 - Para campos de "matérias", use formato numerado: "1. Matéria A; 2. Matéria B"
 - Para "aparelhamento", faça análise global: "Bem aparelhado / Deficiente / Risco de Súmula 126"
 - Para "chance de êxito", use: "Alta / Média / Remota"
-- Para "mídia negativa", use: "Baixo / Médio / Alto"
 - Para favorabilidade (+ ou -), fundamente com base nos documentos
+- CAMPO "tema_tst": Identifique TODOS os temas repetitivos do TST aplicáveis (ex: "Tema 246 - Honorários advocatícios; Tema 1046 - Prevalência do negociado"). Se nenhum tema se aplicar, use "Nenhum tema repetitivo identificado". NUNCA use apenas "N/A" se houver matérias relevantes nos autos.
+- CAMPO "midia_negativa_tst": Avalie criteriosamente considerando: (1) valor da causa/condenação acima de R$1 milhão = Médio ou Alto, (2) envolvimento de pessoa pública/famosa = Alto, (3) matérias sensíveis como assédio moral/sexual, discriminação, acidente de trabalho fatal = Alto, (4) casos rotineiros de verbas rescisórias = Baixo. Justifique brevemente: "Baixo - caso rotineiro de verbas rescisórias" ou "Alto - acidente de trabalho com óbito, valor expressivo"
+- CADA campo deve receber atenção individual e análise fundamentada nos documentos. Não preencha campos de forma genérica ou apressada.
 
 Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca null):
 {
