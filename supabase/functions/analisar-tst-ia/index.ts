@@ -192,7 +192,7 @@ Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca n
   "status_tst": "Ex: Concluso ao relator / Aguardando julgamento / Decisão monocrática / Acórdão publicado / Trânsito em julgado",
   "transito_julgado_tst": "Não / Sim - Data: DD/MM/AAAA",
   "sugestao_providencia_tst": "Recomendação estratégica: Ex: Memorial / Acordo / Aguardar / Peticionar urgência",
-  "observacoes": "resumo executivo da análise em até 5 linhas"
+  "observacoes": "Resumo completo e detalhado: (1) visão geral do caso e fase processual, (2) principais riscos e pontos de atenção para o Banco, (3) qualidade do aparelhamento de cada recurso e óbices processuais identificados (Súmulas 126/296/333), (4) jurisprudência do relator e turma sobre as matérias, (5) recomendação estratégica fundamentada, (6) nível de confiança e documentos mais relevantes. Seja técnico e detalhado."
 }`;
 
     console.log(
