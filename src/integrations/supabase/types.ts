@@ -3346,6 +3346,8 @@ export type Database = {
           situacao_original: string | null
           status: Database["public"]["Enums"]["status_processo"]
           status_pedido: string | null
+          status_tst: string | null
+          sugestao_providencia_tst: string | null
           tema_tst: string | null
           terceiro_envolvido: string | null
           tipo_controladora: string | null
@@ -3355,6 +3357,7 @@ export type Database = {
           tipo_recurso_banco: string | null
           tipo_recurso_reclamante: string | null
           transitado_julgado: boolean | null
+          transito_julgado_tst: string | null
           tribunal: string | null
           turma_favorabilidade: string | null
           turma_tst: string | null
@@ -3511,6 +3514,8 @@ export type Database = {
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
+          status_tst?: string | null
+          sugestao_providencia_tst?: string | null
           tema_tst?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
@@ -3520,6 +3525,7 @@ export type Database = {
           tipo_recurso_banco?: string | null
           tipo_recurso_reclamante?: string | null
           transitado_julgado?: boolean | null
+          transito_julgado_tst?: string | null
           tribunal?: string | null
           turma_favorabilidade?: string | null
           turma_tst?: string | null
@@ -3676,6 +3682,8 @@ export type Database = {
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
+          status_tst?: string | null
+          sugestao_providencia_tst?: string | null
           tema_tst?: string | null
           terceiro_envolvido?: string | null
           tipo_controladora?: string | null
@@ -3685,6 +3693,7 @@ export type Database = {
           tipo_recurso_banco?: string | null
           tipo_recurso_reclamante?: string | null
           transitado_julgado?: boolean | null
+          transito_julgado_tst?: string | null
           tribunal?: string | null
           turma_favorabilidade?: string | null
           turma_tst?: string | null

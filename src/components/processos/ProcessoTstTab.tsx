@@ -45,6 +45,9 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
     decisao_quarteirizado: "",
     recurso_terceiros_tst: "",
     resumo_ia_tst: "",
+    status_tst: "",
+    transito_julgado_tst: "",
+    sugestao_providencia_tst: "",
     benner_atualizado: false,
   });
 
@@ -73,6 +76,9 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         decisao_quarteirizado: processo.decisao_quarteirizado || "",
         recurso_terceiros_tst: processo.recurso_terceiros_tst || "",
         resumo_ia_tst: processo.resumo_ia_tst || "",
+        status_tst: processo.status_tst || "",
+        transito_julgado_tst: processo.transito_julgado_tst || "",
+        sugestao_providencia_tst: processo.sugestao_providencia_tst || "",
         benner_atualizado: processo.benner_atualizado || false,
       });
     }
@@ -268,7 +274,7 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         "chance_exito_reclamante", "tipo_recurso_banco", "materias_recurso_banco",
         "aparelhamento_banco", "chance_exito_banco", "honra_tst", "tema_tst",
         "execucao_tst", "midia_negativa_tst", "decisao_quarteirizado", "recurso_terceiros_tst",
-        "resumo_ia_tst",
+        "resumo_ia_tst", "status_tst", "transito_julgado_tst", "sugestao_providencia_tst",
       ];
 
       textFields.forEach(field => {
@@ -443,6 +449,9 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
           <InputField label="Mídia Negativa" field="midia_negativa_tst" />
           <InputField label="Decisão (Quarteirizado)" field="decisao_quarteirizado" textarea />
           <InputField label="Recurso de Terceiros" field="recurso_terceiros_tst" />
+          <InputField label="Status TST" field="status_tst" />
+          <InputField label="Trânsito em Julgado" field="transito_julgado_tst" />
+          <InputField label="Sugestão de Providência" field="sugestao_providencia_tst" />
           <div className="flex items-center justify-between rounded-lg border p-3">
             <Label className="text-xs font-medium text-muted-foreground">Benner Atualizado?</Label>
             <Switch
