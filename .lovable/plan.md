@@ -1,69 +1,85 @@
 
-## Plano: Suporte a upload de arquivos ZIP com extracao e analise individual
+# Problema: Advogados da publicação DJEN não aparecem no conteúdo salvo
 
-### Objetivo
-Permitir que o advogado envie um arquivo `.zip` contendo multiplos documentos. O sistema ira extrair os arquivos internos, fazer upload de cada um individualmente no Storage, registrar cada documento no banco e permitir analise IA de cada um separadamente.
+## Diagnóstico preciso
 
-### 1. Instalar dependencia
+A publicação foi capturada corretamente pelo sistema (o falso positivo de OAB é um problema separado). O problema reportado agora é: **os nomes dos advogados que constam na publicação DJEN não aparecem no conteúdo exibido**.
 
-Adicionar a biblioteca `jszip` para descompactar arquivos ZIP no navegador:
-- `jszip` (leve, ~45KB gzipped, roda 100% no client-side)
+### Por que os advogados somem?
 
-### 2. Alterar o input de arquivo
+A API PJE Comunica retorna os advogados em campos estruturados do JSON, como:
+- `pub.destinatarios[]` com `nome`, `oab`, `siglaUf`
+- `pub.advogados[]`
+- `pub.destinatarioNome`
 
-No `ProcessoDetalhesCompletos.tsx`, adicionar `.zip` na lista de formatos aceitos:
+No arquivo `src/utils/djenLikeConteudo.ts`, a função `buildDjenLikeConteudo` (linha 128) é responsável por montar o texto da publicação que será salvo no banco. Ela monta cabeçalho (Órgão, Data, Processo) e extrai partes do texto original — mas na **linha 193** há um comentário explícito bloqueando a injeção de dados de advogados:
 
-```
-accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xlsx,.xls,.csv,.zip"
-```
-
-### 3. Modificar `handlePastaFileSelect`
-
-Atualizar a funcao de upload para detectar arquivos ZIP e trata-los de forma especial:
-
-```text
-Arquivo selecionado
-      |
-      v
-  E um ZIP?
-   /     \
- NAO     SIM
-  |        |
-Upload   Descompactar com JSZip
-normal   Filtrar arquivos validos
-  |      (ignorar pastas, __MACOSX, .DS_Store)
-  |        |
-  |      Para cada arquivo interno:
-  |        - Upload no Storage
-  |        - Registrar na tabela documentos
-  |        - (opcional) Salvar no repositorio
-  |        |
-  v        v
-  Fim    Toast: "X documentos extraidos do ZIP"
+```typescript
+// NÃO injetar dados do monitoramento (termo/OAB/UF) na seção de advogados.
+// O conteúdo deve refletir apenas o texto original da publicação DJEN.
 ```
 
-**Detalhes da extracao:**
-- Filtrar apenas extensoes suportadas: `.pdf`, `.doc`, `.docx`, `.txt`, `.jpg`, `.jpeg`, `.png`, `.xlsx`, `.xls`, `.csv`
-- Ignorar arquivos de sistema: `__MACOSX/`, `.DS_Store`, `Thumbs.db`
-- Ignorar pastas vazias
-- Progresso: mostrar barra de progresso geral (ex: "Extraindo 3/7 arquivos...")
-- Cada arquivo interno sera registrado como documento individual vinculado ao processo
+Essa regra foi criada para evitar que o **nome do monitoramento** (ex: "OAB TODAS-15553") fosse injetado artificialmente. Mas ela é ampla demais: também impede a extração dos advogados **reais da publicação** que vêm nos metadados da API.
 
-### 4. Analise IA continua individual
+A função `collectMetaAdvogadoText(pub)` em `djenLikeConteudo.ts` linha 95 já existe e já coleta esses campos — mas ela só é usada na **validação** (linha 1074 de `useDjenTermosEngine.ts`), nunca para montar o conteúdo salvo.
 
-Nenhuma mudanca na funcao `handleAnalyzeDocument`. Cada documento extraido do ZIP aparecera na lista com seu botao "Analisar IA" individual, como ja funciona hoje.
+Resultado:
+- Publicação chega com `pub.destinatarios = [{nome: "ADELIO MENDES DOS SANTOS JUNIOR", oab: "15553", siglaUf: "PA"}]`
+- `buildDjenLikeConteudo` ignora esse campo
+- Banco salva sem seção de advogados
+- Interface exibe publicação sem advogados
 
-### 5. Arquivos a modificar
+## O que NÃO vai mudar (conforme instrução do usuário)
 
-- `package.json`: adicionar `jszip`
-- `src/components/processos/ProcessoDetalhesCompletos.tsx`:
-  - Importar JSZip
-  - Adicionar `.zip` ao accept
-  - Modificar `handlePastaFileSelect` para detectar e descompactar ZIPs
-  - Exibir progresso de extracao (reutilizar barra de progresso existente)
+- Publicações sigilosas (conteúdo vazio) **NÃO serão descartadas**. O sistema já as aceita via fallback de metadata (linha 1076-1082 do engine), e isso está correto.
+- A regra de não injetar o **termo do monitoramento** como advogado permanece válida.
 
-### 6. Limitacoes e seguranca
+## Solução: extrair advogados reais dos metadados da API
 
-- Limite de tamanho por arquivo extraido: 300MB (mesmo limite do Storage)
-- Limite de arquivos por ZIP: 50 (para evitar ZIP bombs)
-- Arquivos duplicados (mesmo nome) receberao timestamp unico no path do Storage
+### Arquivo: `src/utils/djenLikeConteudo.ts`
+
+Adicionar a função `extractAdvogadosFromMeta(pub)` que percorre os campos estruturados da API e monta a lista de advogados reais da publicação no formato padrão.
+
+A função deve cobrir os formatos conhecidos da API PJE Comunica:
+
+```
+pub.destinatarios[]     → { nome, oab/numeroOab/numeroInscricao, uf/siglaUf/ufOab }
+pub.advogados[]         → { nome/nomeAdvogado, numeroOab/oab, siglaUf/uf }
+pub.destinatarioNome    → string simples (campo já normalizado pelo optimizeItem)
+pub.nomeAdvogado        → string simples
+```
+
+Na função `buildDjenLikeConteudo`, após o bloco de partes, adicionar:
+
+```typescript
+// Verificar se o texto original já contém seção de advogados
+const jaTemAdvogados = /\b(?:Advogado[s]?:|ADV\.|OAB\s)/i.test(original);
+
+if (!jaTemAdvogados) {
+  const advsMeta = extractAdvogadosFromMeta(pub);
+  if (advsMeta.length > 0) {
+    sections.push('Advogados:\n' + advsMeta.join('\n'));
+  }
+}
+```
+
+A seção só é injetada quando o texto original **não contém** informações de advogados (evita duplicidade). Para publicações sigilosas com conteúdo vazio, o original será vazio e os metadados serão usados integralmente.
+
+### Detalhe crítico: não confundir com dados do monitoramento
+
+A função `extractAdvogadosFromMeta` extrai apenas dados do objeto `pub` retornado pela API — nunca do objeto `monitoramento`. Assim a regra original de integridade de dados é preservada: o conteúdo reflete o que o tribunal publicou, não o que foi configurado no monitoramento.
+
+## Arquivo a modificar
+
+**`src/utils/djenLikeConteudo.ts`** — único arquivo, mudança cirúrgica:
+
+1. Adicionar função `extractAdvogadosFromMeta(pub: any): string[]` antes de `buildDjenLikeConteudo`
+2. Chamar essa função dentro de `buildDjenLikeConteudo` para injetar seção de advogados quando o texto original não a contém
+
+## Impacto
+
+- Publicações novas passarão a exibir os advogados retornados pela API
+- Publicações sigilosas (conteúdo vazio) terão a seção "Advogados:" preenchida com os metadados
+- Publicações que já têm advogados no texto não são afetadas (guarda `jaTemAdvogados`)
+- Nenhuma mudança na lógica de validação/descarte
+- Nenhuma mudança no falso positivo de OAB (esse é um problema separado, a corrigir posteriormente)
