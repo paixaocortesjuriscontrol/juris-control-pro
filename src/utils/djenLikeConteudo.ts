@@ -125,6 +125,58 @@ function extractPartesFromConteudo(conteudo: string): string[] {
   return Array.from(new Set(partes));
 }
 
+/**
+ * Extrai advogados reais dos metadados estruturados retornados pela API PJE Comunica.
+ * NÃO usa dados do monitoramento — apenas o que o tribunal publicou no objeto `pub`.
+ */
+export function extractAdvogadosFromMeta(pub: any): string[] {
+  const advs: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (nome: string, oab?: string, uf?: string) => {
+    const nomeTrim = (nome || '').trim();
+    if (!nomeTrim || nomeTrim.length < 3) return;
+    const key = nomeTrim.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    const oabNum = (oab || '').replace(/\D/g, '');
+    const ufNorm = (uf || '').trim().toUpperCase();
+    if (oabNum && ufNorm) {
+      advs.push(`${nomeTrim} - OAB ${ufNorm}-${oabNum}`);
+    } else if (oabNum) {
+      advs.push(`${nomeTrim} - OAB ${oabNum}`);
+    } else {
+      advs.push(nomeTrim);
+    }
+  };
+
+  // Formato 1: pub.destinatarios[] (mais comum no PJE Comunica)
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) {
+      const nome = d?.nome || d?.nomeAdvogado || d?.destinatarioNome || '';
+      const oab = d?.oab || d?.numeroOab || d?.numeroInscricao || '';
+      const uf = d?.uf || d?.siglaUf || d?.ufOab || '';
+      if (nome) add(nome, oab, uf);
+    }
+  }
+
+  // Formato 2: pub.advogados[]
+  if (Array.isArray(pub?.advogados)) {
+    for (const a of pub.advogados) {
+      const nome = a?.nome || a?.nomeAdvogado || '';
+      const oab = a?.numeroOab || a?.oab || '';
+      const uf = a?.siglaUf || a?.uf || '';
+      if (nome) add(nome, oab, uf);
+    }
+  }
+
+  // Formato 3: campos simples de destinatário/advogado
+  if (pub?.destinatarioNome) add(pub.destinatarioNome, pub?.destinatarioOab, pub?.destinatarioUf);
+  if (pub?.nomeAdvogado) add(pub.nomeAdvogado, pub?.oabAdvogado, pub?.ufAdvogado);
+
+  return advs;
+}
+
 export function buildDjenLikeConteudo(params: {
   pub: any;
   diaYmd: string;
@@ -190,8 +242,15 @@ export function buildDjenLikeConteudo(params: {
     sections.push(['Parte(s)', ...partes].join('\n'));
   }
 
-  // NÃO injetar dados do monitoramento (termo/OAB/UF) na seção de advogados.
-  // O conteúdo deve refletir apenas o texto original da publicação DJEN.
+  // Injetar advogados dos metadados da API quando o texto original não os contém.
+  // Extrai apenas de `pub` (dados do tribunal) — nunca do objeto `monitoramento`.
+  const jaTemAdvogados = /\b(?:Advogados?:|ADV\.|OAB[\s/])/i.test(original);
+  if (!jaTemAdvogados) {
+    const advsMeta = extractAdvogadosFromMeta(pub);
+    if (advsMeta.length > 0) {
+      sections.push('Advogados:\n' + advsMeta.join('\n'));
+    }
+  }
 
   const blocks = [
     headerLines.filter(Boolean).join('\n'),
