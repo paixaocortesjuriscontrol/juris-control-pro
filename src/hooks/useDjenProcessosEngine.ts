@@ -678,6 +678,12 @@ async function runEngine(
       
       // Notificar conclusão com toast
       toast.success(`DJEN Processos: ${novasTotal} novas publicações encontradas!`);
+
+      // Enviar resumo automático por coordenação ao concluir (browser engine)
+      if (novasTotal > 0) {
+        const hoje = getBrazilISODate();
+        await enviarResumoDjenProcessosPorCoordenacao(hoje);
+      }
     }
 
   } catch (error: any) {
@@ -708,6 +714,122 @@ async function runEngine(
     }
     // Sempre notificar listeners para garantir que a UI seja atualizada
     notifyListeners();
+  }
+}
+
+// ============================================================================
+// ENVIO AUTOMÁTICO DE RESUMO AO CONCLUIR (BROWSER ENGINE)
+// ============================================================================
+
+async function enviarResumoDjenProcessosPorCoordenacao(dataYmd: string): Promise<void> {
+  try {
+    const inicioDia = `${dataYmd}T00:00:00.000Z`;
+    const fimDia = `${dataYmd}T23:59:59.999Z`;
+
+    // Query 1: publicações do dia com processo_id
+    const { data: publicacoes, error: errPub } = await supabase
+      .from('publicacoes_djen_processos')
+      .select('id, processo_numero, conteudo, processo_id')
+      .gte('created_at', inicioDia)
+      .lte('created_at', fimDia);
+
+    if (errPub || !publicacoes || publicacoes.length === 0) {
+      console.log('[DJEN Processos] Nenhuma publicação para resumo:', errPub?.message || 'vazio');
+      return;
+    }
+
+    // Extrair IDs únicos de processo
+    const processoIds = [...new Set(
+      publicacoes.map(p => p.processo_id).filter(Boolean)
+    )] as string[];
+
+    if (processoIds.length === 0) return;
+
+    // Query 2: buscar processos com coordenação (FK formal existe)
+    const { data: processos, error: errProc } = await supabase
+      .from('processos')
+      .select('id, coordenacao_id, coordenacoes(id, nome)')
+      .in('id', processoIds);
+
+    if (errProc || !processos) {
+      console.warn('[DJEN Processos] Erro ao buscar processos para resumo:', errProc?.message);
+      return;
+    }
+
+    // Mapa processo_id → { coordenacao_id, coordenacao_nome }
+    const procMap = new Map<string, { coordenacao_id: string; coordenacao_nome: string }>();
+    for (const p of processos) {
+      if (p.coordenacao_id) {
+        procMap.set(p.id, {
+          coordenacao_id: p.coordenacao_id,
+          coordenacao_nome: (p as any).coordenacoes?.nome || 'Sem nome',
+        });
+      }
+    }
+
+    // Agrupar por coordenação em memória
+    const porCoordenacao = new Map<string, {
+      coordenacao_id: string;
+      coordenacao_nome: string;
+      total_encontrados: number;
+      total_verificados: number;
+      exemplos: Array<{ processo_numero: string; descricao: string }>;
+    }>();
+
+    for (const pub of publicacoes) {
+      const coord = procMap.get(pub.processo_id!);
+      if (!coord) continue;
+
+      const { coordenacao_id, coordenacao_nome } = coord;
+      if (!porCoordenacao.has(coordenacao_id)) {
+        porCoordenacao.set(coordenacao_id, {
+          coordenacao_id,
+          coordenacao_nome,
+          total_encontrados: 0,
+          total_verificados: 0,
+          exemplos: [],
+        });
+      }
+
+      const entry = porCoordenacao.get(coordenacao_id)!;
+      entry.total_encontrados++;
+      entry.total_verificados++;
+
+      let numeroProcesso = pub.processo_numero;
+      if (!numeroProcesso && pub.conteudo) {
+        const match = pub.conteudo.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+        numeroProcesso = match ? match[0] : null;
+      }
+
+      const descricao = pub.conteudo
+        ? pub.conteudo.replace(/<[^>]*>/g, ' ').substring(0, 200).trim()
+        : 'Publicação DJEN Processos';
+
+      entry.exemplos.push({
+        processo_numero: numeroProcesso || 'N/A',
+        descricao: descricao + (descricao.length >= 200 ? '...' : ''),
+      });
+    }
+
+    const resumos = Array.from(porCoordenacao.values()).filter(r => r.total_encontrados > 0);
+    if (resumos.length === 0) return;
+
+    console.log(`[DJEN Processos] Enviando resumo: ${resumos.length} coordenação(ões), ${publicacoes.length} publicação(ões)`);
+
+    const { error: funcError } = await supabase.functions.invoke('enviar-resumo-monitoramento', {
+      body: {
+        tipo_monitoramento: 'djen_processos',
+        resumos_por_coordenacao: resumos,
+      },
+    });
+
+    if (funcError) {
+      console.warn('[DJEN Processos] Erro ao enviar resumo:', funcError.message);
+    } else {
+      console.log('[DJEN Processos] Resumo automático enviado com sucesso!');
+    }
+  } catch (err: any) {
+    console.warn('[DJEN Processos] Falha no envio de resumo:', err?.message || err);
   }
 }
 
