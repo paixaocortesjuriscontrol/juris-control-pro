@@ -1821,27 +1821,19 @@ async function enviarResumoDjenPorCoordenacao(
   dataFimYmd: string,
 ): Promise<void> {
   try {
-    // Buscar publicações salvas no período desta execução, com dados da coordenação
+    // CORREÇÃO: usa duas queries separadas para evitar join implícito com FK não registrada
     const dataInicio = `${dataInicioYmd}T00:00:00.000Z`;
     const dataFim = `${dataFimYmd}T23:59:59.999Z`;
 
-    const { data: publicacoes, error } = await supabase
+    // Query 1: buscar publicações do período com monitoramento_id
+    const { data: publicacoes, error: errPub } = await supabase
       .from('publicacoes_djen')
-      .select(`
-        id,
-        processo_numero,
-        conteudo,
-        monitoramentos_djen!inner (
-          id,
-          coordenacao_id,
-          coordenacoes (id, nome)
-        )
-      `)
+      .select('id, processo_numero, conteudo, monitoramento_id')
       .gte('created_at', dataInicio)
       .lte('created_at', dataFim);
 
-    if (error) {
-      console.warn('[DJEN] Erro ao buscar publicações para resumo:', error.message);
+    if (errPub) {
+      console.warn('[DJEN] Erro ao buscar publicações para resumo:', errPub.message);
       return;
     }
 
@@ -1850,53 +1842,91 @@ async function enviarResumoDjenPorCoordenacao(
       return;
     }
 
-    // Agrupar por coordenação
+    // Extrair IDs únicos de monitoramento
+    const monitoramentoIds = [...new Set(
+      publicacoes.map(p => (p as any).monitoramento_id).filter(Boolean)
+    )] as string[];
+
+    if (monitoramentoIds.length === 0) {
+      console.log('[DJEN] Publicações sem monitoramento_id — resumo não enviado.');
+      return;
+    }
+
+    // Query 2: buscar monitoramentos com coordenação vinculada
+    const { data: monitoramentos, error: errMon } = await supabase
+      .from('monitoramentos_djen')
+      .select('id, coordenacao_id, coordenacoes(id, nome)')
+      .in('id', monitoramentoIds);
+
+    if (errMon) {
+      console.warn('[DJEN] Erro ao buscar monitoramentos para resumo:', errMon.message);
+      return;
+    }
+
+    // Montar mapa monitoramento_id → { coordenacao_id, coordenacao_nome }
+    const monMap = new Map<string, { coordenacao_id: string; coordenacao_nome: string }>();
+    for (const m of monitoramentos || []) {
+      if (m.coordenacao_id) {
+        monMap.set(m.id, {
+          coordenacao_id: m.coordenacao_id,
+          coordenacao_nome: (m as any).coordenacoes?.nome || 'Sem nome',
+        });
+      }
+    }
+
+    // Agrupar publicações por coordenação (cruzamento em memória)
     const porCoordenacao = new Map<string, {
       coordenacao_id: string;
       coordenacao_nome: string;
       total_encontrados: number;
+      total_verificados: number;
       exemplos: Array<{ processo_numero: string; descricao: string }>;
     }>();
 
     for (const pub of publicacoes) {
-      const mon = (pub as any).monitoramentos_djen;
-      if (!mon?.coordenacao_id) continue;
+      const monId = (pub as any).monitoramento_id;
+      const coord = monMap.get(monId);
+      if (!coord) continue;
 
-      const coordId = mon.coordenacao_id;
-      const coordNome = mon.coordenacoes?.nome || 'Sem nome';
+      const { coordenacao_id, coordenacao_nome } = coord;
 
-      if (!porCoordenacao.has(coordId)) {
-        porCoordenacao.set(coordId, {
-          coordenacao_id: coordId,
-          coordenacao_nome: coordNome,
+      if (!porCoordenacao.has(coordenacao_id)) {
+        porCoordenacao.set(coordenacao_id, {
+          coordenacao_id,
+          coordenacao_nome,
           total_encontrados: 0,
+          total_verificados: 0,
           exemplos: [],
         });
       }
 
-      const coord = porCoordenacao.get(coordId)!;
-      coord.total_encontrados++;
+      const entry = porCoordenacao.get(coordenacao_id)!;
+      entry.total_encontrados++;
+      entry.total_verificados++;
 
-      // Extrair número do processo do conteúdo se não houver no campo direto
+      // Extrair número do processo
       let numeroProcesso = pub.processo_numero;
       if (!numeroProcesso && pub.conteudo) {
         const match = pub.conteudo.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
         numeroProcesso = match ? match[0] : null;
       }
 
-      // Extrair um trecho relevante do conteúdo como descrição
+      // Trecho relevante como descrição
       const descricao = pub.conteudo
-        ? pub.conteudo.replace(/^[\s\S]{0,200}Processo[:\s]*/i, '').substring(0, 200).trim() || pub.conteudo.substring(0, 200).trim()
+        ? pub.conteudo.replace(/<[^>]*>/g, ' ').substring(0, 200).trim()
         : 'Publicação DJEN';
 
-      coord.exemplos.push({
+      entry.exemplos.push({
         processo_numero: numeroProcesso || 'N/A',
         descricao: descricao + (descricao.length >= 200 ? '...' : ''),
       });
     }
 
     const resumos = Array.from(porCoordenacao.values()).filter(r => r.total_encontrados > 0);
-    if (resumos.length === 0) return;
+    if (resumos.length === 0) {
+      console.log('[DJEN] Nenhuma publicação vinculada a coordenação — resumo não enviado.');
+      return;
+    }
 
     console.log(`[DJEN] Enviando resumo automático: ${resumos.length} coordenação(ões), ${publicacoes.length} publicação(ões)`);
 

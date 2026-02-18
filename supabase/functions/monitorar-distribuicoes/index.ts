@@ -686,6 +686,99 @@ Deno.serve(async (req) => {
             },
             executado_em: new Date().toISOString(),
           });
+
+          // Enviar resumo por coordenação ao concluir run completo
+          if (totalNovasDistribuicoes > 0) {
+            try {
+              const hoje = new Date();
+              const inicioDoDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString();
+
+              // Buscar distribuições encontradas hoje com coordenação vinculada
+              const { data: distribsHoje } = await supabase
+                .from('distribuicoes_encontradas')
+                .select(`
+                  id,
+                  numero_processo,
+                  polo_ativo,
+                  polo_passivo,
+                  tribunal,
+                  classe,
+                  assunto,
+                  monitoramento_id,
+                  monitoramentos_distribuicao!inner (
+                    id,
+                    coordenacao_id,
+                    coordenacoes (id, nome)
+                  )
+                `)
+                .gte('created_at', inicioDoDia);
+
+              if (distribsHoje && distribsHoje.length > 0) {
+                // Agrupar por coordenação
+                const porCoordenacao = new Map<string, {
+                  coordenacao_id: string;
+                  coordenacao_nome: string;
+                  total_encontrados: number;
+                  total_verificados: number;
+                  exemplos: Array<{ processo_numero: string; descricao: string }>;
+                }>();
+
+                for (const dist of distribsHoje) {
+                  const mon = (dist as any).monitoramentos_distribuicao;
+                  if (!mon?.coordenacao_id) continue;
+
+                  const coordId = mon.coordenacao_id;
+                  const coordNome = mon.coordenacoes?.nome || 'Sem nome';
+
+                  if (!porCoordenacao.has(coordId)) {
+                    porCoordenacao.set(coordId, {
+                      coordenacao_id: coordId,
+                      coordenacao_nome: coordNome,
+                      total_encontrados: 0,
+                      total_verificados: totalTribunaisProcessados,
+                      exemplos: [],
+                    });
+                  }
+
+                  const entry = porCoordenacao.get(coordId)!;
+                  entry.total_encontrados++;
+
+                  const descricao = [
+                    dist.classe,
+                    dist.polo_ativo ? `Polo Ativo: ${dist.polo_ativo}` : null,
+                    dist.polo_passivo ? `Polo Passivo: ${dist.polo_passivo}` : null,
+                    dist.tribunal ? `Tribunal: ${dist.tribunal}` : null,
+                  ].filter(Boolean).join(' | ').substring(0, 200);
+
+                  entry.exemplos.push({
+                    processo_numero: dist.numero_processo || 'N/A',
+                    descricao: descricao || 'Nova distribuição detectada',
+                  });
+                }
+
+                const resumos = Array.from(porCoordenacao.values()).filter(r => r.total_encontrados > 0);
+
+                if (resumos.length > 0) {
+                  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+                  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+                  await fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseKey}`,
+                    },
+                    body: JSON.stringify({
+                      tipo_monitoramento: 'distribuicoes',
+                      resumos_por_coordenacao: resumos,
+                    }),
+                  });
+                  console.log(`[Distribuicoes] Resumo enviado para ${resumos.length} coordenação(ões)`);
+                }
+              }
+            } catch (resumoErr) {
+              console.warn('[Distribuicoes] Falha ao enviar resumo por coordenação:', resumoErr);
+            }
+          }
           
           break;
         }
