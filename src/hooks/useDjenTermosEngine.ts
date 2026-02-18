@@ -1746,6 +1746,13 @@ async function runEngine(
         run_key: runKey,
         last_run: new Date().toISOString(),
       }, { force: true });
+
+      // Enviar resumo automático por coordenação ao concluir
+      if (novas > 0) {
+        await enviarResumoDjenPorCoordenacao(dataInicioYmd, dataFimYmd);
+      } else {
+        console.log('[DJEN] Nenhuma publicação nova — resumo não enviado.');
+      }
     }
 
     // Finalizar execução
@@ -1798,6 +1805,115 @@ async function runEngine(
     singletonState.isRunning = false;
     singletonState.abortController = null;
     singletonState.executionId = null;
+  }
+}
+
+// ============================================================================
+// ENVIO AUTOMÁTICO DE RESUMO AO CONCLUIR
+// ============================================================================
+
+/**
+ * Ao finalizar a execução DJEN Termos, busca as publicações salvas no período
+ * e envia o resumo por coordenação via edge function enviar-resumo-monitoramento.
+ */
+async function enviarResumoDjenPorCoordenacao(
+  dataInicioYmd: string,
+  dataFimYmd: string,
+): Promise<void> {
+  try {
+    // Buscar publicações salvas no período desta execução, com dados da coordenação
+    const dataInicio = `${dataInicioYmd}T00:00:00.000Z`;
+    const dataFim = `${dataFimYmd}T23:59:59.999Z`;
+
+    const { data: publicacoes, error } = await supabase
+      .from('publicacoes_djen')
+      .select(`
+        id,
+        processo_numero,
+        conteudo,
+        monitoramentos_djen!inner (
+          id,
+          coordenacao_id,
+          coordenacoes (id, nome)
+        )
+      `)
+      .gte('created_at', dataInicio)
+      .lte('created_at', dataFim);
+
+    if (error) {
+      console.warn('[DJEN] Erro ao buscar publicações para resumo:', error.message);
+      return;
+    }
+
+    if (!publicacoes || publicacoes.length === 0) {
+      console.log('[DJEN] Nenhuma publicação nova encontrada para enviar resumo.');
+      return;
+    }
+
+    // Agrupar por coordenação
+    const porCoordenacao = new Map<string, {
+      coordenacao_id: string;
+      coordenacao_nome: string;
+      total_encontrados: number;
+      exemplos: Array<{ processo_numero: string; descricao: string }>;
+    }>();
+
+    for (const pub of publicacoes) {
+      const mon = (pub as any).monitoramentos_djen;
+      if (!mon?.coordenacao_id) continue;
+
+      const coordId = mon.coordenacao_id;
+      const coordNome = mon.coordenacoes?.nome || 'Sem nome';
+
+      if (!porCoordenacao.has(coordId)) {
+        porCoordenacao.set(coordId, {
+          coordenacao_id: coordId,
+          coordenacao_nome: coordNome,
+          total_encontrados: 0,
+          exemplos: [],
+        });
+      }
+
+      const coord = porCoordenacao.get(coordId)!;
+      coord.total_encontrados++;
+
+      // Extrair número do processo do conteúdo se não houver no campo direto
+      let numeroProcesso = pub.processo_numero;
+      if (!numeroProcesso && pub.conteudo) {
+        const match = pub.conteudo.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+        numeroProcesso = match ? match[0] : null;
+      }
+
+      // Extrair um trecho relevante do conteúdo como descrição
+      const descricao = pub.conteudo
+        ? pub.conteudo.replace(/^[\s\S]{0,200}Processo[:\s]*/i, '').substring(0, 200).trim() || pub.conteudo.substring(0, 200).trim()
+        : 'Publicação DJEN';
+
+      coord.exemplos.push({
+        processo_numero: numeroProcesso || 'N/A',
+        descricao: descricao + (descricao.length >= 200 ? '...' : ''),
+      });
+    }
+
+    const resumos = Array.from(porCoordenacao.values()).filter(r => r.total_encontrados > 0);
+    if (resumos.length === 0) return;
+
+    console.log(`[DJEN] Enviando resumo automático: ${resumos.length} coordenação(ões), ${publicacoes.length} publicação(ões)`);
+
+    const { error: funcError } = await supabase.functions.invoke('enviar-resumo-monitoramento', {
+      body: {
+        tipo_monitoramento: 'djen',
+        resumos_por_coordenacao: resumos,
+      },
+    });
+
+    if (funcError) {
+      console.warn('[DJEN] Erro ao enviar resumo automático:', funcError.message);
+    } else {
+      console.log('[DJEN] Resumo automático enviado com sucesso!');
+    }
+  } catch (err: any) {
+    console.warn('[DJEN] Falha no envio automático de resumo:', err?.message || err);
   }
 }
 
