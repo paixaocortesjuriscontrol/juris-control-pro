@@ -35,8 +35,61 @@ export interface TarefaEquipe {
 }
 
 /**
+ * Hook para buscar coordenações do usuário logado.
+ * Admins veem todas; usuários comuns veem apenas as suas.
+ */
+export function useMinhasCoordenacoes() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["minhas-coordenacoes-equipe", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      // Verificar se é admin
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const isAdmin = roles?.some(r => r.role === "admin");
+
+      if (isAdmin) {
+        const { data, error } = await supabase
+          .from("coordenacoes")
+          .select("id, nome, area")
+          .order("nome");
+        if (error) throw error;
+        return data || [];
+      }
+
+      // Usuário comum: buscar coordenações que é membro
+      const { data: membros, error: memberError } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+
+      if (memberError) throw memberError;
+
+      const coordIds = (membros || []).map(m => m.coordenacao_id);
+      if (coordIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome, area")
+        .in("id", coordIds)
+        .order("nome");
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+    staleTime: 60000,
+  });
+}
+
+/**
  * Hook otimizado para buscar estatísticas de tarefas por membro
- * Usa RPC no banco para evitar N+1 queries
  */
 export function useEquipeTarefasStats(
   coordenacaoId: string | null,
@@ -64,13 +117,11 @@ export function useEquipeTarefasStats(
 
       if (coordIds.length === 0) return [] as MembroTarefaStats[];
 
-      // Usar RPC otimizada que faz tudo em uma única query
       const { data, error } = await supabase
         .rpc('get_equipe_tarefas_stats', { p_coordenacao_ids: coordIds });
 
       if (error) throw error;
 
-      // Mapear para interface esperada
       return (data || []).map((row: any) => ({
         usuario_id: row.usuario_id,
         nome: row.nome || "Sem nome",
@@ -83,8 +134,13 @@ export function useEquipeTarefasStats(
         urgentes: Number(row.urgentes) || 0,
       })) as MembroTarefaStats[];
     },
-    enabled: !!user && !coordLoading,
-    staleTime: 30000, // Cache por 30s
+    // Só executa quando não está carregando coordenações E os IDs estão prontos
+    enabled: !!user && !coordLoading && (
+      coordenacaoId !== null ||
+      allCoordenacaoIds === undefined || // admin sem seleção específica
+      (allCoordenacaoIds !== undefined && allCoordenacaoIds.length > 0)
+    ),
+    staleTime: 30000,
   });
 }
 
@@ -114,7 +170,7 @@ export function useEquipeTarefas(
       } else if (allCoordenacaoIds !== undefined) {
         coordIds = allCoordenacaoIds;
       } else {
-        // Admin global fallback: fetch all coordinations
+        // Admin global fallback
         const { data: todasCoords } = await supabase
           .from("coordenacoes")
           .select("id");
@@ -123,12 +179,10 @@ export function useEquipeTarefas(
 
       if (coordIds.length === 0) return [] as TarefaEquipe[];
 
-      // Se já temos membro específico, buscar direto
       if (filters.membroId && filters.membroId !== "all") {
         return await fetchTarefasForMembers([filters.membroId], filters);
       }
 
-      // Buscar IDs dos membros das coordenações
       const { data: membros, error: membrosError } = await supabase
         .from("membros_coordenacao")
         .select("usuario_id")
@@ -136,23 +190,22 @@ export function useEquipeTarefas(
 
       if (membrosError) throw membrosError;
 
-      // Deduplicate member IDs
       const membroIds = [...new Set(membros?.map(m => m.usuario_id) || [])];
-      
       if (membroIds.length === 0) return [];
 
       return await fetchTarefasForMembers(membroIds, filters);
     },
-    enabled: !!user && !coordLoading,
-    staleTime: 30000, // Cache por 30s
+    enabled: !!user && !coordLoading && (
+      coordenacaoId !== null ||
+      allCoordenacaoIds === undefined ||
+      (allCoordenacaoIds !== undefined && allCoordenacaoIds.length > 0)
+    ),
+    staleTime: 30000,
   });
 }
 
-/**
- * Função auxiliar para buscar tarefas de membros específicos
- */
 async function fetchTarefasForMembers(
-  memberIds: string[], 
+  memberIds: string[],
   filters: { status?: string; prioridade?: string; search?: string }
 ): Promise<TarefaEquipe[]> {
   let query = supabase
@@ -187,10 +240,8 @@ async function fetchTarefasForMembers(
   }
 
   const { data, error } = await query.limit(200);
-
   if (error) throw error;
 
-  // Normalize nested objects
   const normalized = (data || []).map(item => ({
     ...item,
     responsavel: Array.isArray(item.responsavel) ? item.responsavel[0] : item.responsavel,
@@ -198,60 +249,4 @@ async function fetchTarefasForMembers(
   }));
 
   return normalized as unknown as TarefaEquipe[];
-}
-
-/**
- * Hook para buscar coordenações do usuário
- */
-export function useMinhasCoordenacoes() {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ["minhas-coordenacoes", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-
-      // Check if admin or coordinator
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-
-      const isAdminOrCoord = roles?.some(r => r.role === "admin" || r.role === "coordenador");
-
-      if (isAdminOrCoord) {
-        // Return all coordinations for admins/coordinators
-        const { data, error } = await supabase
-          .from("coordenacoes")
-          .select("id, nome, area")
-          .order("nome");
-
-        if (error) throw error;
-        return data || [];
-      }
-
-      // For regular users, return coordinations they belong to
-      const { data: memberships, error: memberError } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          coordenacao:coordenacoes!membros_coordenacao_coordenacao_id_fkey(id, nome, area)
-        `)
-        .eq("usuario_id", user.id);
-
-      if (memberError) throw memberError;
-
-      // Flatten the nested coordenacao objects properly
-      const coordenacoes = memberships?.map(m => {
-        const coord = m.coordenacao;
-        if (Array.isArray(coord)) {
-          return coord[0];
-        }
-        return coord;
-      }).filter(Boolean) || [];
-
-      return coordenacoes as { id: string; nome: string; area: string }[];
-    },
-    enabled: !!user,
-    staleTime: 60000, // Cache por 1 minuto
-  });
 }
