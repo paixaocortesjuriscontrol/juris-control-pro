@@ -582,7 +582,7 @@ export default function PainelControle() {
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
-                                  <span className="truncate hidden md:inline">
+                                  <span className="truncate">
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
                                 </div>
