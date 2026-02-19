@@ -26,24 +26,22 @@ import {
   ChevronRight,
   CalendarDays,
   CheckCircle2,
-  Gavel,
-  Bell,
   FileText,
-  X,
-  ExternalLink,
-  Users,
-  Tag,
-  MapPin,
-  CalendarCheck,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   useAgendaUnificada,
+  useUpdateItemAgenda,
   ItemAgendaUnificado,
+  AGENDA_INFINITE_QUERY_KEY,
 } from "@/hooks/useAgendaUnificada";
+import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
+import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { toZonedTime } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
 
@@ -78,9 +76,18 @@ export default function PainelControle() {
   const { user } = useAuth();
   const { isAdminOrCoordinator } = useUserRole();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
+  const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
+  const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
+
+  const updateItemAgenda = useUpdateItemAgenda();
+  const updateEvento = useUpdateEvento();
+  const deleteEvento = useDeleteEvento();
 
   const nowBrt = toZonedTime(new Date(), TIME_ZONE);
   const hoje = startOfDay(nowBrt);
@@ -192,12 +199,62 @@ export default function PainelControle() {
     return map;
   }, [itensAgenda]);
 
-  const handleDayClick = (dia: Date) => {
-    // Apenas para visualização — se quiser navegar para agenda filtrada
+  const handleDayClick = (_dia: Date) => {
+    // Apenas para visualização
   };
 
   const handleItemClick = (item: ItemAgendaUnificado) => {
-    setSelectedItem(item);
+    if (item.tipo === "parcelamento") {
+      setSelectedParcelamento(item as unknown as EventoAgenda);
+      setParcelasDialogOpen(true);
+    } else if (item.origem === "evento") {
+      setSelectedItem(item);
+    } else {
+      setSelectedItem(item);
+    }
+  };
+
+  const handleEditItem = (item: ItemAgendaUnificado) => {
+    if (item.tipo === "parcelamento") {
+      setSelectedParcelamento(item as unknown as EventoAgenda);
+      setParcelasDialogOpen(true);
+    } else if (item.origem === "evento") {
+      setSelectedEvento(item as unknown as EventoAgenda);
+      setDialogOpen(true);
+    } else {
+      setSelectedItem(item);
+    }
+  };
+
+  const handleConcluirItem = async (item: ItemAgendaUnificado) => {
+    const isConcluido = item.status === "concluido" || item.status === "cumprido";
+    const nextStatus = isConcluido ? "pendente" : "concluido";
+    const concluidoEm = isConcluido ? null : new Date().toISOString();
+
+    queryClient.setQueriesData({ queryKey: [AGENDA_INFINITE_QUERY_KEY] }, (oldData: any) => {
+      if (!oldData?.pages) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: ItemAgendaUnificado[]) =>
+          page.map((it) =>
+            it.id === item.id
+              ? { ...it, status: nextStatus, concluido_em: concluidoEm, is_atrasado: nextStatus === "concluido" ? false : it.is_atrasado }
+              : it
+          )
+        ),
+      };
+    });
+
+    try {
+      await updateItemAgenda.mutateAsync({
+        id: item.id,
+        origem: item.origem,
+        status: nextStatus,
+        concluido_em: concluidoEm,
+      });
+    } catch {
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+    }
   };
 
   const navMes = (delta: number) => {
@@ -497,219 +554,40 @@ export default function PainelControle() {
             </div>
           </div>
 
-          {/* Painel de detalhes */}
+          {/* Painel de detalhes — TarefaAgendaPanel idêntico ao da Agenda */}
           {selectedItem && (
             <div className="w-[45%] flex flex-col border-l border-border bg-card overflow-hidden">
-              {/* Header do painel */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-bold text-sm text-foreground truncate">
-                    {selectedItem.identificador_projuris ||
-                      (selectedItem.origem === "tarefa" ? "TAR" : "EVT") +
-                        "." +
-                        selectedItem.id.slice(0, 7).toUpperCase()}
-                  </span>
-                  <Badge
-                    variant={
-                      selectedItem.status === "cumprido" || selectedItem.status === "concluido"
-                        ? "default"
-                        : selectedItem.is_atrasado
-                        ? "destructive"
-                        : "secondary"
-                    }
-                    className="text-[10px] px-1.5 py-0"
-                  >
-                    {selectedItem.status === "cumprido" || selectedItem.status === "concluido"
-                      ? "Concluída"
-                      : selectedItem.is_atrasado
-                      ? "Atrasada"
-                      : "Pendente"}
-                  </Badge>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 flex-shrink-0"
-                  onClick={() => setSelectedItem(null)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* Conteúdo do painel */}
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-4">
-                  {/* Processo vinculado */}
-                  {selectedItem.processo && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1 font-semibold">
-                        Processo vinculado
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="text-xs text-primary hover:underline font-medium"
-                          onClick={() =>
-                            navigate(`/processos/${selectedItem.processo_id}`)
-                          }
-                        >
-                          {selectedItem.processo.numero}
-                        </button>
-                        <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tipo e Título */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5 font-semibold">
-                        Tipo
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {selectedItem.tipo_tarefa ||
-                          TIPO_LABELS[selectedItem.tipo] ||
-                          "Não informado"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5 font-semibold">
-                        Título
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {selectedItem.titulo || "Não informado"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Datas */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5 font-semibold">
-                        Data de vencimento
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {selectedItem.data_vencimento
-                          ? format(parseISO(selectedItem.data_vencimento), "dd/MM/yyyy")
-                          : selectedItem.data_inicio
-                          ? format(parseISO(selectedItem.data_inicio), "dd/MM/yyyy")
-                          : "Não informado"}
-                      </p>
-                    </div>
-                    {selectedItem.data_fatal && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-0.5 font-semibold">
-                          Data Fatal
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {format(parseISO(selectedItem.data_fatal), "dd/MM/yyyy")}
-                        </p>
-                      </div>
-                    )}
-                    {selectedItem.concluido_em && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-0.5 font-semibold">
-                          Data de conclusão
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {format(parseISO(selectedItem.concluido_em), "dd/MM/yyyy")}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Responsável */}
-                  {selectedItem.responsavel && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1 font-semibold flex items-center gap-1">
-                        <Users className="w-3 h-3" /> Responsável
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-primary-foreground font-bold flex-shrink-0">
-                          {selectedItem.responsavel.nome
-                            .split(" ")
-                            .slice(0, 2)
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()}
-                        </div>
-                        <span className="text-sm text-foreground">
-                          {selectedItem.responsavel.nome}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Partes */}
-                  {(selectedItem.partes_ativas || selectedItem.partes_passivas) && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1 font-semibold">
-                        Envolvidos
-                      </p>
-                      {selectedItem.partes_ativas && (
-                        <div className="text-xs bg-muted border border-border rounded px-2 py-1 mb-1">
-                          <span className="text-muted-foreground">Ativo: </span>
-                          <span className="text-foreground">{selectedItem.partes_ativas}</span>
-                        </div>
-                      )}
-                      {selectedItem.partes_passivas && (
-                        <div className="text-xs bg-muted border border-border rounded px-2 py-1">
-                          <span className="text-muted-foreground">Passivo: </span>
-                          <span className="text-foreground">{selectedItem.partes_passivas}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Local */}
-                  {selectedItem.local && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5 font-semibold flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> Local
-                      </p>
-                      <p className="text-sm text-foreground">{selectedItem.local}</p>
-                    </div>
-                  )}
-
-                  {/* Marcadores */}
-                  {selectedItem.marcadores && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5 font-semibold flex items-center gap-1">
-                        <Tag className="w-3 h-3" /> Marcadores
-                      </p>
-                      <p className="text-sm text-foreground">{selectedItem.marcadores}</p>
-                    </div>
-                  )}
-
-                  {/* Descrição */}
-                  {selectedItem.descricao && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5 font-semibold">
-                        Descrição
-                      </p>
-                      <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                        {selectedItem.descricao}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Botão para ver na agenda */}
-                  <div className="pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs"
-                      onClick={() => navigate("/minha-agenda")}
-                    >
-                      <CalendarDays className="w-3 h-3 mr-1" />
-                      Ver na Agenda completa
-                    </Button>
-                  </div>
-                </div>
-              </ScrollArea>
+              <TarefaAgendaPanel
+                tarefa={selectedItem}
+                onClose={() => setSelectedItem(null)}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                }}
+              />
             </div>
           )}
         </div>
       </div>
+
+      {/* EventoDialog para edição de eventos */}
+      <EventoDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setSelectedEvento(null);
+        }}
+        evento={selectedEvento}
+      />
+
+      {/* GerarParcelasDialog para parcelamentos */}
+      <GerarParcelasDialog
+        open={parcelasDialogOpen}
+        onOpenChange={(open) => {
+          setParcelasDialogOpen(open);
+          if (!open) setSelectedParcelamento(null);
+        }}
+        evento={selectedParcelamento}
+      />
     </MainLayout>
   );
 }
