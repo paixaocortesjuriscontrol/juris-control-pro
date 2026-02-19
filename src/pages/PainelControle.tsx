@@ -131,20 +131,34 @@ export default function PainelControle() {
         fetchAll: false,
       };
     }
+
     // Escritório:
-    // - Admin puro: fetchAll=true (visão global)
+    // - Admin SEM coordenação própria: fetchAll=true (visão global de toda a firma)
+    // - Admin COM coordenação própria: filtra pelos membros das suas coordenações
+    //   (igual a coordenadores) para respeitar o isolamento por equipe
     // - Coordenador ou usuário comum: filtra pelos membros das suas coordenações
-    if (isAdmin) {
-      return { fetchAll: true };
-    }
-    // Aguardar carregamento dos membros
+
+    // Aguardar carregamento antes de decidir
     if (coordLoading || membrosLoading) {
       return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
     }
+
+    // Se o usuário (seja admin ou não) tem coordenações vinculadas, filtra por elas
+    if (membrosDasCoordenacoes.length > 0) {
+      return {
+        responsavelIds: membrosDasCoordenacoes,
+        fetchAll: false,
+      };
+    }
+
+    // Admin sem coordenação própria: visão global
+    if (isAdmin) {
+      return { fetchAll: true };
+    }
+
+    // Fallback: apenas o próprio usuário
     return {
-      responsavelIds: membrosDasCoordenacoes.length > 0
-        ? membrosDasCoordenacoes
-        : (user?.id ? [user.id] : undefined),
+      responsavelIds: user?.id ? [user.id] : undefined,
       fetchAll: false,
     };
   }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes]);
@@ -156,18 +170,23 @@ export default function PainelControle() {
     queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin],
     queryFn: async () => {
       if (!user?.id) return [];
-      // Admin vê tudo — sem filtro
-      if (tabMode === "escritorio" && isAdmin) return [];
 
-      // Pessoal: processos onde o usuário é responsável ou cliente vinculado
-      // Escritório: processos das coordenações do usuário
-      if (tabMode === "escritorio" && coordenacoesUsuario.length > 0) {
-        const { data } = await supabase
-          .from("processos")
-          .select("id")
-          .in("coordenacao_id", coordenacoesUsuario);
-        return (data || []).map((p) => p.id);
+      // Escritório: processos das coordenações do usuário (mesma lógica do filtro da agenda)
+      if (tabMode === "escritorio") {
+        // Se tem coordenações vinculadas, filtra por elas (inclui admins com coordenação)
+        if (coordenacoesUsuario.length > 0) {
+          const { data } = await supabase
+            .from("processos")
+            .select("id")
+            .in("coordenacao_id", coordenacoesUsuario);
+          return (data || []).map((p) => p.id);
+        }
+        // Admin sem coordenação própria: vê tudo (retorna [] como sinal de "sem filtro")
+        if (isAdmin) return [];
+        // Usuário sem coordenação: retorna vazio
+        return [];
       }
+
       // Pessoal: processos onde é responsável
       const { data } = await supabase
         .from("processos")
@@ -211,7 +230,7 @@ export default function PainelControle() {
     };
   }, [itensAgenda, nowBrt, hoje]);
 
-  // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin)
+  // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
   const { data: intimacoesPendentes = 0 } = useQuery({
     queryKey: ["painel-controle-intimacoes", tabMode, user?.id, coordenacoesUsuario, isAdmin],
     queryFn: async () => {
@@ -220,8 +239,8 @@ export default function PainelControle() {
         .select("id", { count: "exact", head: true })
         .eq("status", "pendente");
 
-      // Admin em modo escritório: vê tudo
-      if (tabMode === "escritorio" && isAdmin) {
+      // Admin SEM coordenação em modo escritório: vê tudo
+      if (tabMode === "escritorio" && isAdmin && coordenacoesUsuario.length === 0) {
         const { count } = await q;
         return count ?? 0;
       }
@@ -240,7 +259,7 @@ export default function PainelControle() {
     enabled: !!user?.id,
   });
 
-  // Publicações DJEN não lidas — filtradas por processos da coordenação (ou todas para admin)
+  // Publicações DJEN não lidas — filtradas por coordenação (ou todas para admin sem coordenação)
   const { data: andamentosNaoLidos = 0 } = useQuery({
     queryKey: ["painel-controle-andamentos", tabMode, user?.id, coordenacoesUsuario, isAdmin],
     queryFn: async () => {
@@ -249,8 +268,8 @@ export default function PainelControle() {
         .select("id", { count: "exact", head: true })
         .eq("lida", false);
 
-      // Admin em modo escritório: vê tudo
-      if (tabMode === "escritorio" && isAdmin) {
+      // Admin SEM coordenação em modo escritório: vê tudo
+      if (tabMode === "escritorio" && isAdmin && coordenacoesUsuario.length === 0) {
         const { count } = await q;
         return count ?? 0;
       }
