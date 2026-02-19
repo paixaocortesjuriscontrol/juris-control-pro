@@ -159,13 +159,15 @@ export default function ProcessoDetalhes() {
   const urlTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<string>(urlTab || "");
   
-  // Limpar o param do URL após ler (UX limpa)
+  // Sincroniza o activeTab sempre que o parâmetro ?tab= mudar na URL
   useEffect(() => {
     if (urlTab) {
-      searchParams.delete("tab");
-      setSearchParams(searchParams, { replace: true });
+      setActiveTab(urlTab);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("tab");
+      setSearchParams(newParams, { replace: true });
     }
-  }, []);
+  }, [urlTab]);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -1656,7 +1658,7 @@ export default function ProcessoDetalhes() {
                               </Badge>
                               <span className="text-xs text-muted-foreground">{formatDate(pub.data_publicacao)}</span>
                             </div>
-                            <p className="text-sm line-clamp-3">{pub.conteudo}</p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{pub.conteudo}</p>
                           </div>
                           <Button 
                             variant="ghost" 
@@ -1786,7 +1788,7 @@ export default function ProcessoDetalhes() {
                             </div>
                             <p className="font-medium">{alerta.termo_encontrado}</p>
                             {alerta.contexto && (
-                              <p className="text-sm text-muted-foreground line-clamp-2">{alerta.contexto}</p>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{alerta.contexto}</p>
                             )}
                           </div>
                           <Badge variant={alerta.status === 'tratado' ? 'default' : 'outline'}>
