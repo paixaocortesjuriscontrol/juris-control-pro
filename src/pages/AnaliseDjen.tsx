@@ -276,16 +276,28 @@ const AnaliseDjen = () => {
     }));
   }, [datajudResults, coordenacoes]);
 
+  // Filtro de coordenações do usuário para quando "Todas" está selecionado por não-admin
+  // Se não-admin e "Todas" selecionado, restringir publicações às suas coordenações
+  const deveRestringirPorCoordenacao = !isAdmin && coordenacaoId === "" && userCoordenacaoIds.length > 0;
+
+  const filtrarPorCoordenacaoUsuario = (pubs: PublicacaoUnificada[]) => {
+    if (!deveRestringirPorCoordenacao) return pubs;
+    return pubs.filter(p => p.coordenacao_id && userCoordenacaoIds.includes(p.coordenacao_id));
+  };
+
   // Merge publications based on filter
   const mergedPublicacoes = useMemo(() => {
-    if (tipoOrigem === 'datajud') return datajudAsPublicacoes;
-    if (tipoOrigem === 'todos' || tipoOrigem === 'normal') {
-      return [...publicacoes, ...datajudAsPublicacoes].sort(
+    let result: PublicacaoUnificada[];
+    if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
+    else if (tipoOrigem === 'todos' || tipoOrigem === 'normal') {
+      result = [...publicacoes, ...datajudAsPublicacoes].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+    } else {
+      result = publicacoes;
     }
-    return publicacoes;
-  }, [tipoOrigem, publicacoes, datajudAsPublicacoes]);
+    return filtrarPorCoordenacaoUsuario(result);
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, deveRestringirPorCoordenacao, userCoordenacaoIds]);
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
   const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes || (tipoOrigem === 'datajud' && isLoadingDatajud);
@@ -712,7 +724,10 @@ const AnaliseDjen = () => {
                   disabled={coordenacaoId === null}
                 >
                   {coordenacaoId === null && <option value="__loading__">Carregando...</option>}
-                  <option value="__all__">Todas as Coordenações</option>
+                  {/* "Todas" só aparece se o usuário tem acesso a mais de 1 coordenação */}
+                  {coordenacoesDoCombo.length > 1 && (
+                    <option value="__all__">Todas as Coordenações</option>
+                  )}
                   {coordenacoesDoCombo?.map((c: any) => (
                     <option key={c.id} value={c.id}>
                       {c.nome} {c.id === userCoordenacao ? "(Minha)" : ""}
