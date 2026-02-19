@@ -156,18 +156,23 @@ export default function ProcessoDetalhes() {
   const abrirTarefaPublicacaoAtRef = useRef<number>(0);
 
   // Tab toggle state - inicializa do URL param se existir
+  // urlTab é lido na inicialização do estado E via efeito para navegações SPA
   const urlTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<string>(urlTab || "");
   
-  // Sincroniza o activeTab sempre que o parâmetro ?tab= mudar na URL
+  // Lê ?tab= sempre que o search params mudar (navegação da Central de Notificações)
+  const prevUrlTabRef = useRef<string | null>(urlTab);
   useEffect(() => {
-    if (urlTab) {
+    if (urlTab && urlTab !== prevUrlTabRef.current) {
+      prevUrlTabRef.current = urlTab;
       setActiveTab(urlTab);
       const newParams = new URLSearchParams(searchParams);
       newParams.delete("tab");
       setSearchParams(newParams, { replace: true });
+    } else if (!urlTab) {
+      prevUrlTabRef.current = null;
     }
-  }, [urlTab]);
+  }, [urlTab, searchParams, setSearchParams]);
   
   // Form state for all fields
   const [formData, setFormData] = useState<Record<string, any>>({});
