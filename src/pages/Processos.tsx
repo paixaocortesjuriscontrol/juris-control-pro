@@ -65,36 +65,44 @@ const Processos = () => {
   // Flag para controlar se já carregou a coordenação do usuário
   const [coordenacaoCarregada, setCoordenacaoCarregada] = useState(false);
   
-  // Buscar coordenação do usuário logado
+  // Buscar coordenações do usuário logado + role
   const { data: userCoordData, isLoading: isLoadingUserCoord } = useQuery({
-    queryKey: ['user-coordenacao-processos', user?.id],
+    queryKey: ['user-coordenacoes-processos', user?.id],
     queryFn: async () => {
-      if (!user?.id) return null;
+      if (!user?.id) return { coordenacoesIds: [], isAdmin: false };
       
-      // Primeiro verifica se é coordenador
-      const { data: coordenador } = await supabase
-        .from('coordenacoes')
-        .select('id')
-        .eq('coordenador_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
+      // Verificar role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
         .maybeSingle();
       
-      if (coordenador) return coordenador.id;
+      const isAdmin = roleData?.role === "admin";
+      
+      if (isAdmin) {
+        return { coordenacoesIds: [], isAdmin: true };
+      }
 
-      // Senão, verifica se é membro de alguma coordenação
-      const { data: membro } = await supabase
-        .from('membros_coordenacao')
-        .select('coordenacao_id')
-        .eq('usuario_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      
-      return membro?.coordenacao_id || null;
+      // Buscar todas coordenações do usuário (como coordenador ou membro)
+      const [coordenadorResult, membroResult] = await Promise.all([
+        supabase.from("coordenacoes").select("id").eq("coordenador_id", user.id),
+        supabase.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", user.id),
+      ]);
+
+      const coordenadorIds = (coordenadorResult.data || []).map((c) => c.id);
+      const membroIds = (membroResult.data || []).map((m) => m.coordenacao_id);
+      const coordenacoesIds = [...new Set([...coordenadorIds, ...membroIds])];
+
+      return { coordenacoesIds, isAdmin: false };
     },
     enabled: !!user?.id,
   });
+
+  const isAdmin = userCoordData?.isAdmin ?? false;
+  const userCoordsIds = userCoordData?.coordenacoesIds ?? [];
+  // Usuário tem acesso a "Todas" somente se for admin ou tiver mais de uma coordenação
+  const canSelectAll = isAdmin || userCoordsIds.length > 1;
   
   // Ler filtros da URL na inicialização
   const urlCoordParam = searchParams.get("coordenacao");
@@ -208,8 +216,8 @@ const Processos = () => {
 
   // Auto-selecionar coordenação do usuário ao carregar (se não veio da URL)
   useEffect(() => {
-    // Aguarda carregar sessão
-    if (!user?.id) return;
+    // Aguarda carregar sessão e dados do usuário
+    if (!user?.id || isLoadingUserCoord || userCoordData === undefined) return;
 
     // Se já carregou, não faz nada
     if (coordenacaoCarregada) return;
@@ -221,13 +229,24 @@ const Processos = () => {
       return;
     }
 
-    // Se ainda está carregando a coordenação do usuário, aguarda
-    if (isLoadingUserCoord || userCoordData === undefined) return;
+    // Admin: mostra todas por padrão
+    if (isAdmin) {
+      setCoordenacaoFilter("all");
+      setCoordenacaoCarregada(true);
+      return;
+    }
 
-    // Quando terminou de carregar, define a coordenação
-    setCoordenacaoFilter(userCoordData ?? "all");
+    // Se tem exatamente uma coordenação, seleciona ela automaticamente
+    if (userCoordsIds.length === 1) {
+      setCoordenacaoFilter(userCoordsIds[0]);
+      setCoordenacaoCarregada(true);
+      return;
+    }
+
+    // Múltiplas coordenações: mostra todas (do usuário) por padrão
+    setCoordenacaoFilter("all");
     setCoordenacaoCarregada(true);
-  }, [user?.id, userCoordData, isLoadingUserCoord, coordenacaoCarregada, urlCoordParam]);
+  }, [user?.id, userCoordData, isLoadingUserCoord, coordenacaoCarregada, urlCoordParam, isAdmin, userCoordsIds]);
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -301,6 +320,10 @@ const Processos = () => {
     area: areaFilter,
     status: statusFilter,
     coordenacao_id: coordenacaoFilter,
+    // Para não-admins com "Todas" selecionado, restringir às coordenações do usuário
+    coordenacoesRestritas: !isAdmin && coordenacaoFilter === "all" && userCoordsIds.length > 1
+      ? userCoordsIds
+      : undefined,
     responsavel_id: filtrosAplicados.responsavelId,
     instancia: filtrosAplicados.instancia,
     comMovimento: comAndamentos,
@@ -504,7 +527,9 @@ const Processos = () => {
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as coordenações</SelectItem>
+                {canSelectAll && (
+                  <SelectItem value="all">Todas as coordenações</SelectItem>
+                )}
                 {coordenacoes?.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nome}

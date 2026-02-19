@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface DashboardStats {
   totalProcessos: number;
@@ -156,17 +157,58 @@ export function useRecentProcessos(limit = 3) {
 }
 
 export function useCoordenacoes() {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ["coordenacoes-dashboard"],
+    queryKey: ["coordenacoes-dashboard", user?.id],
+    enabled: !!user,
     queryFn: async () => {
-      // Use security definer function for process counts (accessible to all users)
+      if (!user) return [];
+
+      // Verificar se é admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const isAdmin = roleData?.role === "admin";
+
+      // Buscar IDs de coordenações do usuário (caso não seja admin)
+      let coordenacoesIds: string[] | null = null;
+      if (!isAdmin) {
+        const [coordenadorResult, membroResult] = await Promise.all([
+          supabase
+            .from("coordenacoes")
+            .select("id")
+            .eq("coordenador_id", user.id),
+          supabase
+            .from("membros_coordenacao")
+            .select("coordenacao_id")
+            .eq("usuario_id", user.id),
+        ]);
+
+        const coordenadorIds = (coordenadorResult.data || []).map((c) => c.id);
+        const membroIds = (membroResult.data || []).map((m) => m.coordenacao_id);
+        coordenacoesIds = [...new Set([...coordenadorIds, ...membroIds])];
+
+        if (coordenacoesIds.length === 0) return [];
+      }
+
+      // Buscar coordenações filtradas
+      let coordQuery = supabase.from("coordenacoes").select(`
+        id,
+        nome,
+        area,
+        coordenador:profiles!coordenacoes_coordenador_id_fkey(id, nome, email, telefone)
+      `);
+
+      if (!isAdmin && coordenacoesIds) {
+        coordQuery = coordQuery.in("id", coordenacoesIds);
+      }
+
       const [coordenacoesResult, statsResult] = await Promise.all([
-        supabase.from("coordenacoes").select(`
-          id,
-          nome,
-          area,
-          coordenador:profiles!coordenacoes_coordenador_id_fkey(id, nome, email, telefone)
-        `),
+        coordQuery,
         supabase.rpc('get_coordenacao_stats'),
       ]);
 
@@ -198,6 +240,7 @@ export function useCoordenacoes() {
             processCount: Number(coordStats?.total_processos || 0),
             processosDistribuidos: Number(coordStats?.processos_distribuidos || 0),
             processosNaoDistribuidos: Number(coordStats?.processos_nao_distribuidos || 0),
+            isAdmin,
           };
         })
       );
