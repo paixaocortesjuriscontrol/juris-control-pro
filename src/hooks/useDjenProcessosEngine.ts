@@ -815,18 +815,35 @@ async function enviarResumoDjenProcessosPorCoordenacao(dataYmd: string): Promise
     if (resumos.length === 0) return;
 
     console.log(`[DJEN Processos] Enviando resumo: ${resumos.length} coordenação(ões), ${publicacoes.length} publicação(ões)`);
+    console.log('[DJEN Processos] Resumos:', resumos.map(r => `${r.coordenacao_nome}: ${r.total_encontrados}`).join(', '));
 
-    const { error: funcError } = await supabase.functions.invoke('enviar-resumo-monitoramento', {
-      body: {
-        tipo_monitoramento: 'djen_processos',
-        resumos_por_coordenacao: resumos,
-      },
-    });
+    // Usar fetch direto para garantir envio mesmo se o token do usuário tiver expirado
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-    if (funcError) {
-      console.warn('[DJEN Processos] Erro ao enviar resumo:', funcError.message);
-    } else {
-      console.log('[DJEN Processos] Resumo automático enviado com sucesso!');
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'apikey': supabaseAnonKey,
+        },
+        body: JSON.stringify({
+          tipo_monitoramento: 'djen_processos',
+          resumos_por_coordenacao: resumos,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn('[DJEN Processos] Erro ao enviar resumo (HTTP):', response.status, errText);
+      } else {
+        const result = await response.json();
+        console.log('[DJEN Processos] Resumo automático enviado com sucesso!', result);
+      }
+    } catch (fetchErr: any) {
+      console.warn('[DJEN Processos] Falha no fetch do resumo:', fetchErr?.message || fetchErr);
     }
   } catch (err: any) {
     console.warn('[DJEN Processos] Falha no envio de resumo:', err?.message || err);
