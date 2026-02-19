@@ -56,9 +56,11 @@ const menuItemsPublicos = [
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
 
-// Itens visíveis apenas para administradores
+// Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin = [
+  { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },
+  { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
 export function Sidebar() {
@@ -140,34 +142,6 @@ export function Sidebar() {
 
       {/* Settings & Collapse */}
       <div className="p-2 lg:p-3 border-t border-sidebar-border space-y-1">
-        {/* Administração - apenas admin */}
-        {isAdmin && (
-          <NavLink
-            to="/admin"
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn("nav-item", isActive && "nav-item-active")
-            }
-          >
-            <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Administração</span>}
-          </NavLink>
-        )}
-
-        {/* Configurações - apenas admin */}
-        {isAdmin && (
-          <NavLink
-            to="/configuracoes"
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn("nav-item", isActive && "nav-item-active")
-            }
-          >
-            <Settings className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Configurações</span>}
-          </NavLink>
-        )}
-        
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="nav-item w-full justify-center hidden lg:flex"
