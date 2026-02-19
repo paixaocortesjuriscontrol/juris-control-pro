@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeFileName } from "@/lib/utils";
@@ -377,14 +378,12 @@ export function TarefaDetalhesDialog({
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('documentos_processos')
-        .getPublicUrl(fileName);
+      const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
 
       const { error: dbError } = await supabase.from('documentos').insert({
         nome: file.name,
         tipo: file.type,
-        url: publicUrl,
+        url: signedUrl,
         tamanho_bytes: file.size,
         processo_id: tarefa.processo?.id || null,
         tarefa_id: tarefa.id,

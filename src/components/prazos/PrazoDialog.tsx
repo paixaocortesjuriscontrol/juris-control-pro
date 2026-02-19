@@ -28,6 +28,7 @@ import { ptBR } from "date-fns/locale";
 import { cn, sanitizeFileName } from "@/lib/utils";
 import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
@@ -319,14 +320,12 @@ export function PrazoDialog({
             continue;
           }
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('documentos_processos')
-            .getPublicUrl(fileName);
+          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
 
           await supabase.from('documentos').insert({
             nome: file.name,
             tipo: file.type,
-            url: publicUrl,
+            url: signedUrl,
             tamanho_bytes: file.size,
             processo_id: processoId,
             uploaded_by: user?.id,

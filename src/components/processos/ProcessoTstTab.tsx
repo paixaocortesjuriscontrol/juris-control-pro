@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Save, Loader2, Gavel, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
@@ -141,11 +142,9 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
               arrayBuffer = await dlData.arrayBuffer();
               
               // Fix the stale URL for future use
-              const { data: urlData } = supabase.storage
-                .from("documentos_processos")
-                .getPublicUrl(correctPath);
-              if (urlData?.publicUrl) {
-                await supabase.from("documentos").update({ url: urlData.publicUrl } as any).eq("id", doc.id);
+              const signedUrl = await getSignedUrlOrEmpty("documentos_processos", correctPath);
+              if (signedUrl) {
+                await supabase.from("documentos").update({ url: signedUrl } as any).eq("id", doc.id);
               }
             } else {
               throw new Error(`Arquivo não encontrado no storage (status ${response.status})`);

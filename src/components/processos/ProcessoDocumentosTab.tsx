@@ -46,6 +46,7 @@ import {
   Tag
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -212,9 +213,7 @@ export function ProcessoDocumentosTab({
           continue;
         }
 
-        const { data: urlData } = supabase.storage
-          .from("documentos_processos")
-          .getPublicUrl(filePath);
+        const signedUrl = await getSignedUrlOrEmpty("documentos_processos", filePath);
 
         // Inserir documento
         const { data: docData, error: dbError } = await supabase
@@ -222,7 +221,7 @@ export function ProcessoDocumentosTab({
           .insert({
             nome: file.name,
             tipo: file.type,
-            url: urlData.publicUrl,
+            url: signedUrl,
             tamanho_bytes: file.size,
             processo_id: processoId,
             uploaded_by: user.id,

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Upload, File, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -80,16 +81,14 @@ export function UploadDocumentoDialog({
 
         if (uploadError) throw uploadError;
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from("documentos_processos")
-          .getPublicUrl(filePath);
+        // Get signed URL (expires in 1h, renewed on next access)
+        const signedUrl = await getSignedUrlOrEmpty("documentos_processos", filePath);
 
         // Insert document record
         const { error: insertError } = await supabase.from("documentos").insert({
           nome: file.name,
           tipo: file.type || "application/octet-stream",
-          url: urlData.publicUrl,
+          url: signedUrl,
           tamanho_bytes: file.size,
           pasta_id: pastaId || null,
           processo_id: processoId || null,
