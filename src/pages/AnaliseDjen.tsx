@@ -61,6 +61,7 @@ import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePu
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
@@ -72,16 +73,17 @@ type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'd
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
   const [savingProcessoId, setSavingProcessoId] = useState<string | null>(null);
 
-  // Buscar a coordenação do usuário logado
-  const { data: userCoordenacao, isLoading: loadingUserCoord } = useQuery({
-    queryKey: ['user-coordenacao', user?.id],
+  // Buscar as coordenações do usuário logado (IDs e primeira para pré-seleção)
+  const { data: userCoordenacaoData, isLoading: loadingUserCoord } = useQuery({
+    queryKey: ['user-coordenacoes-ids', user?.id],
     queryFn: async () => {
-      if (!user?.id) return null;
+      if (!user?.id) return { ids: [] as string[], first: "" };
       const { data, error } = await supabase
         .from('membros_coordenacao')
         .select('coordenacao_id')
@@ -89,16 +91,14 @@ const AnaliseDjen = () => {
 
       if (error) throw error;
 
-      const ids = (data || []).map((r: any) => r.coordenacao_id).filter(Boolean);
-
-      // Se não tem coordenação, mostrar todas
-      if (ids.length === 0) return "";
-
-      // Sempre pré-selecionar a primeira coordenação do usuário
-      return ids[0];
+      const ids = (data || []).map((r: any) => r.coordenacao_id).filter(Boolean) as string[];
+      return { ids, first: ids[0] || "" };
     },
     enabled: !!user?.id,
   });
+
+  const userCoordenacaoIds = userCoordenacaoData?.ids ?? [];
+  const userCoordenacao = userCoordenacaoData?.first ?? null;
 
   // Filtros - inicializar com coordenação do usuário
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null); // null = ainda não inicializado
@@ -113,7 +113,6 @@ const AnaliseDjen = () => {
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
     if (!loadingUserCoord && coordenacaoId === null) {
-      // Inicializa com a coordenação do usuário (ou string vazia para "todas" se não tiver)
       setCoordenacaoId(userCoordenacao || "");
     }
   }, [userCoordenacao, loadingUserCoord, coordenacaoId]);
@@ -133,18 +132,22 @@ const AnaliseDjen = () => {
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
 
-
   // Determinar o filtro efetivo de coordenação
-  // Se coordenacaoId ainda é null, aguardar inicialização
-  // Se é string vazia "", significa "todas as coordenações"
-  // Se tem valor, usar esse valor
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
-    ? undefined // ainda carregando
+    ? undefined
     : coordenacaoId === "" 
-      ? undefined // todas
-      : coordenacaoId; // coordenação específica
+      ? undefined
+      : coordenacaoId;
   
   const { data: coordenacoes } = useCoordenacoes();
+
+  // Filtrar coordenações para o combo: admin vê todas, usuário comum só as suas
+  const coordenacoesDoCombo = useMemo(() => {
+    if (!coordenacoes) return [];
+    if (isAdmin) return coordenacoes;
+    if (userCoordenacaoIds.length === 0) return coordenacoes; // sem vínculo: mostra todas
+    return coordenacoes.filter((c: any) => userCoordenacaoIds.includes(c.id));
+  }, [coordenacoes, isAdmin, userCoordenacaoIds]);
 
   const { 
     publicacoes, 
@@ -710,7 +713,7 @@ const AnaliseDjen = () => {
                 >
                   {coordenacaoId === null && <option value="__loading__">Carregando...</option>}
                   <option value="__all__">Todas as Coordenações</option>
-                  {coordenacoes?.map((c) => (
+                  {coordenacoesDoCombo?.map((c: any) => (
                     <option key={c.id} value={c.id}>
                       {c.nome} {c.id === userCoordenacao ? "(Minha)" : ""}
                     </option>
