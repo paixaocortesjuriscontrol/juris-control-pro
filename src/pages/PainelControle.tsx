@@ -92,6 +92,37 @@ export default function PainelControle() {
   const nowBrt = toZonedTime(new Date(), TIME_ZONE);
   const hoje = startOfDay(nowBrt);
 
+  // Buscar coordenações do usuário (para filtro "Escritório")
+  const { data: coordenacoesUsuario = [], isLoading: coordLoading } = useQuery({
+    queryKey: ["painel-controle-coordenacoes-usuario", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      // Admin: não precisa filtrar por coordenação
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return (data || []).map((r) => r.coordenacao_id);
+    },
+    enabled: !!user?.id,
+  });
+
+  // Buscar IDs de todos os membros das coordenações do usuário (para modo escritório)
+  const { data: membrosDasCoordenacoes = [], isLoading: membrosLoading } = useQuery({
+    queryKey: ["painel-controle-membros-coordenacoes", coordenacoesUsuario],
+    queryFn: async () => {
+      if (!coordenacoesUsuario.length) return [];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id")
+        .in("coordenacao_id", coordenacoesUsuario);
+      if (error) throw error;
+      return [...new Set((data || []).map((r) => r.usuario_id))];
+    },
+    enabled: coordenacoesUsuario.length > 0,
+  });
+
   // Filtros conforme aba selecionada
   const filters = useMemo(() => {
     if (tabMode === "pessoal") {
@@ -100,11 +131,24 @@ export default function PainelControle() {
         fetchAll: false,
       };
     }
-    // escritório: tudo
-    return { fetchAll: true };
-  }, [tabMode, user?.id]);
+    // Escritório:
+    // - Admin: fetchAll=true (vê tudo)
+    // - Não-admin: filtra pelos membros das coordenações do usuário
+    if (isAdminOrCoordinator) {
+      return { fetchAll: true };
+    }
+    // Aguardar carregamento dos membros
+    if (coordLoading || membrosLoading) {
+      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
+    }
+    return {
+      responsavelIds: membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : (user?.id ? [user.id] : undefined),
+      fetchAll: false,
+    };
+  }, [tabMode, user?.id, isAdminOrCoordinator, coordLoading, membrosLoading, membrosDasCoordenacoes]);
 
   const { data: itensAgenda = [], isLoading } = useAgendaUnificada(filters);
+
 
   // ===== CARDS DE RESUMO =====
   const hoje_inicio = startOfDay(nowBrt);
