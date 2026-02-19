@@ -96,21 +96,28 @@ export function useCofreSenhas() {
     enabled: !!user,
   });
 
-  // Criar credencial
+  // Criar credencial (via edge function para criptografar a senha)
   const criarCredencial = useMutation({
-    mutationFn: async (dados: Omit<CofreSenha, "id" | "created_at" | "updated_at" | "usuario_id" | "ultima_validacao" | "status_validacao" | "mensagem_erro">) => {
-      const { data, error } = await supabase
-        .from("cofre_senhas")
-        .insert({
-          ...dados,
-          usuario_id: user!.id,
-          aceite_termos_em: new Date().toISOString(),
-        })
-        .select()
-        .single();
+    mutationFn: async (dados: Omit<CofreSenha, "id" | "created_at" | "updated_at" | "usuario_id" | "ultima_validacao" | "status_validacao" | "mensagem_erro"> & { senha_hash?: string }) => {
+      const { data, error } = await supabase.functions.invoke("cofre-senhas", {
+        body: {
+          action: "salvar",
+          nome: dados.nome,
+          sistema: dados.sistema,
+          tribunal: dados.tribunal,
+          login: dados.login,
+          senha: dados.senha_hash, // plaintext — encrypted server-side
+          certificado_a1_path: dados.certificado_a1_path,
+          certificado_a1_senha: dados.certificado_a1_senha, // encrypted server-side
+          qrcode_2fa_path: dados.qrcode_2fa_path,
+          ativo: dados.ativo,
+          aceite_termos_em: dados.aceite_termos_em,
+        },
+      });
 
       if (error) throw error;
-      return data;
+      if (!data?.success) throw new Error(data?.error || "Erro ao salvar");
+      return data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cofre-senhas"] });
@@ -121,18 +128,28 @@ export function useCofreSenhas() {
     },
   });
 
-  // Atualizar credencial
+  // Atualizar credencial (via edge function para criptografar a senha)
   const atualizarCredencial = useMutation({
-    mutationFn: async ({ id, ...dados }: Partial<CofreSenha> & { id: string }) => {
-      const { data, error } = await supabase
-        .from("cofre_senhas")
-        .update(dados)
-        .eq("id", id)
-        .select()
-        .single();
+    mutationFn: async ({ id, ...dados }: Partial<CofreSenha> & { id: string; senha_hash?: string }) => {
+      const { data, error } = await supabase.functions.invoke("cofre-senhas", {
+        body: {
+          action: "salvar",
+          id,
+          nome: dados.nome,
+          sistema: dados.sistema,
+          tribunal: dados.tribunal,
+          login: dados.login,
+          senha: dados.senha_hash, // plaintext — encrypted server-side
+          certificado_a1_path: dados.certificado_a1_path,
+          certificado_a1_senha: dados.certificado_a1_senha, // encrypted server-side
+          qrcode_2fa_path: dados.qrcode_2fa_path,
+          ativo: dados.ativo,
+        },
+      });
 
       if (error) throw error;
-      return data;
+      if (!data?.success) throw new Error(data?.error || "Erro ao atualizar");
+      return data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cofre-senhas"] });

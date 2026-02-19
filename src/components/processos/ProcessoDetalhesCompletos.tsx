@@ -17,6 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft,
@@ -325,16 +326,14 @@ export function ProcessoDetalhesCompletos({
       if (uploadError) throw uploadError;
     }
 
-    const { data: urlData } = supabase.storage
-      .from("documentos_processos")
-      .getPublicUrl(filePath);
+    const signedUrl = await getSignedUrlOrEmpty("documentos_processos", filePath);
 
     const { error: dbError } = await supabase
       .from("documentos")
       .insert({
         nome: file.name,
         tipo: file.type || "application/octet-stream",
-        url: urlData.publicUrl,
+        url: signedUrl,
         tamanho_bytes: file.size,
         processo_id: processoId,
         uploaded_by: userId,
@@ -458,11 +457,11 @@ export function ProcessoDetalhesCompletos({
             if (uploadError) throw uploadError;
           }
 
-          const { data: urlData } = supabase.storage.from("documentos_processos").getPublicUrl(filePath);
+          const signedUrl2 = await getSignedUrlOrEmpty("documentos_processos", filePath);
           await supabase.from("documentos").insert({
             nome: extractedFile.name,
             tipo: extractedFile.type || "application/octet-stream",
-            url: urlData.publicUrl,
+            url: signedUrl2,
             tamanho_bytes: extractedFile.size,
             processo_id: processo.id,
             uploaded_by: user.id,

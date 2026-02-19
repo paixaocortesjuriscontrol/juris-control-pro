@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { usePastas } from "@/hooks/usePastas";
@@ -572,14 +573,12 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
-          .from("documentos_processos")
-          .getPublicUrl(filePath);
+        const signedUrl = await getSignedUrlOrEmpty("documentos_processos", filePath);
 
         const { error: insertError } = await supabase.from("documentos").insert({
           nome: file.name,
           tipo: file.type || "application/octet-stream",
-          url: urlData.publicUrl,
+          url: signedUrl,
           tamanho_bytes: file.size,
           processo_id: processoId,
           uploaded_by: user.id,

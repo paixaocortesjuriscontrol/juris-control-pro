@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -360,15 +361,13 @@ export function NovaTarefaDialog({
             continue;
           }
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('documentos_processos')
-            .getPublicUrl(fileName);
+          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
 
           // Inserir documento com categorização da IA
           await supabase.from('documentos').insert({
             nome: anexo.file.name,
             tipo: anexo.analise?.categoria || anexo.file.type,
-            url: publicUrl,
+            url: signedUrl,
             tamanho_bytes: anexo.file.size,
             processo_id: values.processo_id || null,
             tarefa_id: novaTarefa.id,
