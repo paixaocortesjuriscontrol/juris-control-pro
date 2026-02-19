@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ImportProvider } from "@/contexts/ImportContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { AdminRoute } from "@/components/layout/AdminRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Processos from "./pages/Processos";
@@ -32,6 +33,7 @@ import MonitoramentoDjen from "./pages/MonitoramentoDjen";
 import MonitoracaoHub from "./pages/MonitoracaoHub";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
+import TermosDjen from "./pages/TermosDjen";
 import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
@@ -100,7 +102,7 @@ function App() {
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><Administracao /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
               <Route path="/importar" element={<ProtectedRoute><ImportarHub /></ProtectedRoute>} />
               <Route path="/importar-processos" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
@@ -108,13 +110,14 @@ function App() {
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
               <Route path="/buscar-djen" element={<ProtectedRoute><BuscarDJEN /></ProtectedRoute>} />
               <Route path="/analise-djen" element={<ProtectedRoute><AnaliseDjen /></ProtectedRoute>} />
+              <Route path="/termos-djen" element={<ProtectedRoute><TermosDjen /></ProtectedRoute>} />
               <Route path="/buscar-pje" element={<ProtectedRoute><BuscarPJE /></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+              <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
               <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
               <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
               <Route path="/monitoramento-360" element={<ProtectedRoute><Monitoramento360 /></ProtectedRoute>} />
               <Route path="/monitoramento-djen" element={<ProtectedRoute><MonitoramentoDjen /></ProtectedRoute>} />
-              <Route path="/monitoracao" element={<ProtectedRoute><MonitoracaoHub /></ProtectedRoute>} />
+              <Route path="/monitoracao" element={<AdminRoute><MonitoracaoHub /></AdminRoute>} />
               <Route path="/pastas" element={<ProtectedRoute><Pastas /></ProtectedRoute>} />
               <Route path="/pastas/:id" element={<ProtectedRoute><PastaDetalhes /></ProtectedRoute>} />
               <Route path="/analise-tarefas-projuris" element={<ProtectedRoute><AnaliseTarefasProjuris /></ProtectedRoute>} />
