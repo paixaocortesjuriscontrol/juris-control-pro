@@ -42,6 +42,7 @@ import {
   useEquipeTarefas,
   useMinhasCoordenacoes,
 } from "@/hooks/useEquipeTarefas";
+import { useUserRole } from "@/hooks/useUserRole";
 import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
 import type { Prazo } from "@/hooks/usePrazos";
 
@@ -68,27 +69,47 @@ export default function PainelEquipe() {
   const [selectedTarefa, setSelectedTarefa] = useState<Prazo | null>(null);
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
 
+  const { isAdmin } = useUserRole();
   const { data: coordenacoes, isLoading: loadingCoord } = useMinhasCoordenacoes();
   
-  // Get all coordination IDs for "all" mode
+  // Get all coordination IDs for the logged-in user's coordinations
   const allCoordenacaoIds = useMemo(() => 
     coordenacoes?.map(c => c.id) || [], 
     [coordenacoes]
   );
 
+  // "Todas as coordenações" option only available for admins or users with multiple coordinations
+  const canSelectAll = isAdmin || allCoordenacaoIds.length > 1;
+
+  // When loading completes and user has exactly one coordination, auto-select it
+  const effectiveCoordenacao = useMemo(() => {
+    if (selectedCoordenacao !== "all") return selectedCoordenacao;
+    if (!canSelectAll && allCoordenacaoIds.length === 1) return allCoordenacaoIds[0];
+    return "all";
+  }, [selectedCoordenacao, canSelectAll, allCoordenacaoIds]);
+
+  // IDs passed to hooks: always restrict to user's coordinations (unless admin with "all" selected)
+  const coordIdsForHooks = useMemo(() => {
+    if (effectiveCoordenacao !== "all") return undefined;
+    // admin selecting "all" → pass undefined (hooks handle global lookup)
+    if (isAdmin) return undefined;
+    // user with multiple coordinations selecting "all" → pass their coord IDs
+    return allCoordenacaoIds.length > 0 ? allCoordenacaoIds : undefined;
+  }, [effectiveCoordenacao, isAdmin, allCoordenacaoIds]);
+
   const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(
-    selectedCoordenacao !== "all" ? selectedCoordenacao : null,
-    selectedCoordenacao === "all" ? allCoordenacaoIds : undefined
+    effectiveCoordenacao !== "all" ? effectiveCoordenacao : null,
+    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined
   );
   const { data: tarefas, isLoading: loadingTarefas } = useEquipeTarefas(
-    selectedCoordenacao !== "all" ? selectedCoordenacao : null,
+    effectiveCoordenacao !== "all" ? effectiveCoordenacao : null,
     {
       membroId: selectedMembro !== "all" ? selectedMembro : undefined,
       status: statusFilter,
       prioridade: prioridadeFilter,
       search: searchQuery,
     },
-    selectedCoordenacao === "all" ? allCoordenacaoIds : undefined
+    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined
   );
 
   // Calculate totals
@@ -203,21 +224,25 @@ export default function PainelEquipe() {
       subtitle="Visão geral das tarefas da sua equipe"
     >
       {/* Coordination Selector */}
-      <div className="mb-6">
-        <Select value={selectedCoordenacao} onValueChange={setSelectedCoordenacao}>
-          <SelectTrigger className="w-full md:w-80">
-            <SelectValue placeholder="Todas as coordenações" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as coordenações</SelectItem>
-            {coordenacoes?.map((coord) => (
-              <SelectItem key={coord.id} value={coord.id}>
-                {coord.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {coordenacoes && coordenacoes.length > 1 || isAdmin ? (
+        <div className="mb-6">
+          <Select value={effectiveCoordenacao} onValueChange={setSelectedCoordenacao}>
+            <SelectTrigger className="w-full md:w-80">
+              <SelectValue placeholder="Selecionar coordenação" />
+            </SelectTrigger>
+            <SelectContent>
+              {canSelectAll && (
+                <SelectItem value="all">Todas as coordenações</SelectItem>
+              )}
+              {coordenacoes?.map((coord) => (
+                <SelectItem key={coord.id} value={coord.id}>
+                  {coord.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
