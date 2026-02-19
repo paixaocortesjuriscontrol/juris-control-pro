@@ -48,10 +48,11 @@ export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenac
 
       if (coordenacaoId) {
         coordIds = [coordenacaoId];
-      } else if (allCoordenacaoIds && allCoordenacaoIds.length > 0) {
+      } else if (allCoordenacaoIds !== undefined) {
+        // allCoordenacaoIds was explicitly provided (even if empty = still loading)
         coordIds = allCoordenacaoIds;
       } else {
-        // Fallback: buscar todas as coordenações diretamente
+        // Only admin global fallback: fetch all coordinations
         const { data: todasCoords } = await supabase
           .from("coordenacoes")
           .select("id");
@@ -106,10 +107,11 @@ export function useEquipeTarefas(
 
       if (coordenacaoId) {
         coordIds = [coordenacaoId];
-      } else if (allCoordenacaoIds && allCoordenacaoIds.length > 0) {
+      } else if (allCoordenacaoIds !== undefined) {
+        // allCoordenacaoIds was explicitly provided (even if empty = still loading)
         coordIds = allCoordenacaoIds;
       } else {
-        // Fallback: buscar todas as coordenações diretamente
+        // Only admin global fallback: fetch all coordinations
         const { data: todasCoords } = await supabase
           .from("coordenacoes")
           .select("id");
