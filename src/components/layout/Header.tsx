@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useImport } from "@/contexts/ImportContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,14 @@ interface HeaderProps {
 export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { user, signOut } = useAuth();
   const { isImporting, importLabel } = useImport();
+  const { role } = useUserRole();
   const navigate = useNavigate();
+
+  const getRoleLabel = () => {
+    if (role === "admin") return "Administrador";
+    if (role === "coordenador") return "Coordenador";
+    return "Usuário";
+  };
 
   const handleSignOut = async () => {
     try {
@@ -104,7 +112,10 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
                   {getInitials()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium hidden md:inline">{getDisplayName()}</span>
+              <div className="hidden md:flex flex-col items-start">
+                <span className="text-sm font-medium leading-tight">{getDisplayName()}</span>
+                <span className="text-[10px] text-muted-foreground leading-tight">{getRoleLabel()}</span>
+              </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
