@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, parseISO, differenceInDays, startOfDay, isAfter } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +36,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   X,
   ExternalLink,
@@ -67,10 +77,12 @@ import {
   Users,
   Hash,
   Info,
+  Save,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
+import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 
 interface TarefaAgendaPanelProps {
   tarefa: {
@@ -167,7 +179,6 @@ export function TarefaAgendaPanel({
 }: TarefaAgendaPanelProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   
   const [comentario, setComentario] = useState("");
@@ -186,10 +197,79 @@ export function TarefaAgendaPanel({
   // Local status override para refletir mudanças imediatamente na UI
   const [statusOverride, setStatusOverride] = useState<string | null>(null);
   
+  // Modo de edição inline
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    titulo: "",
+    descricao: "",
+    tipo_tarefa: "",
+    data_vencimento: "",
+    data_fatal: "",
+    prioridade: "",
+    local: "",
+    responsavel_id: "",
+    // campos de evento
+    tipo: "",
+    data_inicio: "",
+    data_fim: "",
+  });
+
   // Usar statusOverride se disponível, senão usar status original
   const statusAtual = statusOverride ?? tarefa.status;
 
   const isParcelamento = tarefa.tipo === "parcelamento" || tarefa.tipo === "prazo_parcela";
+
+  // Buscar membros para o select de responsável (edição inline)
+  const { data: membrosEdicao = [] } = useQuery({
+    queryKey: ["membros-edicao-panel", tarefa.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isEditing,
+  });
+
+  // Preencher formulário ao abrir edição
+  useEffect(() => {
+    if (isEditing) {
+      if (tarefa.origem === "tarefa") {
+        setEditForm({
+          titulo: tarefa.titulo || "",
+          descricao: tarefa.descricao || "",
+          tipo_tarefa: tarefa.tipo_tarefa || "",
+          data_vencimento: tarefa.data_vencimento?.substring(0, 10) || tarefa.data_inicio?.substring(0, 10) || "",
+          data_fatal: tarefa.data_fatal?.substring(0, 10) || "",
+          prioridade: tarefa.prioridade || "media",
+          local: tarefa.local || "",
+          responsavel_id: tarefa.responsavel_id || "",
+          tipo: "",
+          data_inicio: "",
+          data_fim: "",
+        });
+      } else {
+        setEditForm({
+          titulo: tarefa.titulo || "",
+          descricao: tarefa.descricao || "",
+          tipo_tarefa: "",
+          data_vencimento: "",
+          data_fatal: "",
+          prioridade: "",
+          local: tarefa.local || "",
+          responsavel_id: "",
+          tipo: tarefa.tipo || "evento",
+          data_inicio: tarefa.data_inicio?.substring(0, 16) || "",
+          data_fim: tarefa.data_fim?.substring(0, 16) || "",
+        });
+      }
+    }
+  }, [isEditing]);
+
+
 
   // Fetch comentários de tarefas
   const { data: comentariosTarefas, isLoading: loadingComentariosTarefas } = useQuery({
@@ -693,10 +773,70 @@ export function TarefaAgendaPanel({
   };
 
   const handleEdit = () => {
-    if (tarefa.origem === "tarefa") {
-      navigate(`/nova-tarefa?editar=${tarefa.id}`);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
+    setSavingEdit(true);
+    try {
+      if (tarefa.origem === "tarefa") {
+        const updateData: Record<string, any> = {
+          titulo: editForm.titulo.trim(),
+          descricao: editForm.descricao || null,
+          tipo_tarefa: editForm.tipo_tarefa || null,
+          data_vencimento: editForm.data_vencimento || null,
+          data_fatal: editForm.data_fatal || null,
+          prioridade: editForm.prioridade || "media",
+          local: editForm.local || null,
+          updated_at: new Date().toISOString(),
+        };
+        if (editForm.responsavel_id) {
+          updateData.responsavel_id = editForm.responsavel_id;
+        }
+        const { error } = await supabase
+          .from("tarefas")
+          .update(updateData)
+          .eq("id", tarefa.id);
+        if (error) throw error;
+      } else {
+        const updateData: Record<string, any> = {
+          titulo: editForm.titulo.trim(),
+          descricao: editForm.descricao || null,
+          tipo: editForm.tipo || tarefa.tipo,
+          local: editForm.local || null,
+          updated_at: new Date().toISOString(),
+        };
+        if (editForm.data_inicio) {
+          updateData.data_inicio = new Date(editForm.data_inicio).toISOString();
+        }
+        if (editForm.data_fim) {
+          updateData.data_fim = new Date(editForm.data_fim).toISOString();
+        }
+        const { error } = await supabase
+          .from("eventos_agenda")
+          .update(updateData)
+          .eq("id", tarefa.id);
+        if (error) throw error;
+      }
+      toast({ title: "Salvo com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      onUpdate();
+      setIsEditing(false);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEdit(false);
     }
   };
+
 
   const formatTimeAgo = (dateString: string) => {
     const date = parseISO(dateString);
@@ -771,7 +911,7 @@ export function TarefaAgendaPanel({
             </Button>
           )}
 
-          {canEdit && tarefa.origem === "tarefa" && (
+          {canEdit && (
             <Button size="sm" variant="outline" onClick={handleEdit}>
               <Edit className="w-3 h-3 mr-1" />
               Editar
@@ -805,9 +945,194 @@ export function TarefaAgendaPanel({
         </div>
       </CardHeader>
 
-      <ScrollArea className="flex-1">
-        <CardContent className="space-y-4">
-          {/* Publicação Vinculada Section */}
+      {/* ===== MODO EDIÇÃO INLINE ===== */}
+      {isEditing ? (
+        <ScrollArea className="flex-1">
+          <CardContent className="space-y-4 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Edit className="w-4 h-4 text-primary" />
+                Editar {tarefa.origem === "tarefa" ? "Tarefa" : "Evento"}
+              </h4>
+              <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                <ArrowLeft className="w-3 h-3 mr-1" />
+                Cancelar
+              </Button>
+            </div>
+
+            {/* Título */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Título *</Label>
+              <Input
+                value={editForm.titulo}
+                onChange={(e) => setEditForm(f => ({ ...f, titulo: e.target.value }))}
+                placeholder="Título da tarefa"
+              />
+            </div>
+
+            {/* Descrição */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Descrição</Label>
+              <Textarea
+                value={editForm.descricao}
+                onChange={(e) => setEditForm(f => ({ ...f, descricao: e.target.value }))}
+                placeholder="Descrição..."
+                rows={3}
+              />
+            </div>
+
+            {/* Campos específicos de TAREFA */}
+            {tarefa.origem === "tarefa" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Tipo de Tarefa</Label>
+                    <Select
+                      value={editForm.tipo_tarefa}
+                      onValueChange={(v) => setEditForm(f => ({ ...f, tipo_tarefa: v }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIPOS_TAREFA.map((t) => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Prioridade</Label>
+                    <Select
+                      value={editForm.prioridade}
+                      onValueChange={(v) => setEditForm(f => ({ ...f, prioridade: v }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Prioridade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="urgente">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Prevista</Label>
+                    <Input
+                      type="date"
+                      value={editForm.data_vencimento}
+                      onChange={(e) => setEditForm(f => ({ ...f, data_vencimento: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Fatal</Label>
+                    <Input
+                      type="date"
+                      value={editForm.data_fatal}
+                      onChange={(e) => setEditForm(f => ({ ...f, data_fatal: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Responsável</Label>
+                  <Select
+                    value={editForm.responsavel_id}
+                    onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Selecionar responsável..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {membrosEdicao.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* Campos específicos de EVENTO */}
+            {tarefa.origem === "evento" && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Tipo</Label>
+                  <Select
+                    value={editForm.tipo}
+                    onValueChange={(v) => setEditForm(f => ({ ...f, tipo: v }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Tipo do evento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="evento">Evento</SelectItem>
+                      <SelectItem value="tarefa">Tarefa</SelectItem>
+                      <SelectItem value="prazo">Prazo</SelectItem>
+                      <SelectItem value="audiencia">Audiência</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data/Hora Início</Label>
+                    <Input
+                      type="datetime-local"
+                      value={editForm.data_inicio}
+                      onChange={(e) => setEditForm(f => ({ ...f, data_inicio: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data/Hora Fim</Label>
+                    <Input
+                      type="datetime-local"
+                      value={editForm.data_fim}
+                      onChange={(e) => setEditForm(f => ({ ...f, data_fim: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Local (ambos) */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Local</Label>
+              <Input
+                value={editForm.local}
+                onChange={(e) => setEditForm(f => ({ ...f, local: e.target.value }))}
+                placeholder="Local..."
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                className="flex-1"
+                onClick={handleSaveEdit}
+                disabled={savingEdit || !editForm.titulo.trim()}
+              >
+                {savingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Salvar alterações
+              </Button>
+              <Button variant="outline" onClick={handleCancelEdit} disabled={savingEdit}>
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="flex-1">
+          <CardContent className="space-y-4">
+
           {temPublicacao && publicacao && (
             <>
               <Collapsible open={publicacaoOpen} onOpenChange={setPublicacaoOpen}>
@@ -1421,8 +1746,9 @@ export function TarefaAgendaPanel({
                 )}
               </CollapsibleContent>
             </Collapsible>
-        </CardContent>
-      </ScrollArea>
+          </CardContent>
+        </ScrollArea>
+      )}
 
       {/* Descartar Confirmation Dialog */}
       <AlertDialog open={descartarDialogOpen} onOpenChange={setDescartarDialogOpen}>
