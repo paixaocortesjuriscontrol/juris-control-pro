@@ -354,12 +354,9 @@ export function PublicacoesDjenList({
                         </div>
                       )}
                       
-                      <div 
-                        className={cn(conteudoDisplayClasses, "text-xs md:text-sm")}
-                        dangerouslySetInnerHTML={{ 
-                          __html: formatConteudoParaExibicao(pub.conteudo || "") 
-                        }}
-                      />
+                      <div className={cn(conteudoDisplayClasses, "text-xs md:text-sm")}>
+                        {formatConteudoParaExibicao(pub.conteudo || "")}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -408,12 +405,9 @@ export function PublicacoesDjenList({
               
               <div>
                 <strong>Conteúdo:</strong>
-                <div 
-                  className={cn(conteudoDisplayClasses, "mt-2 p-4 bg-muted/30 rounded-lg text-sm")}
-                  dangerouslySetInnerHTML={{ 
-                    __html: formatConteudoParaExibicao(selectedPub.conteudo || "") 
-                  }}
-                />
+                <div className={cn(conteudoDisplayClasses, "mt-2 p-4 bg-muted/30 rounded-lg text-sm")}>
+                  {formatConteudoParaExibicao(selectedPub.conteudo || "")}
+                </div>
               </div>
             </div>
           )}
