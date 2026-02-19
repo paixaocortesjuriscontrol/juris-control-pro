@@ -155,17 +155,20 @@ export default function ProcessoDetalhes() {
   const [publicacaoParaTarefa, setPublicacaoParaTarefa] = useState<PublicacaoUnificada | null>(null);
   const abrirTarefaPublicacaoAtRef = useRef<number>(0);
 
-  // Tab toggle state - inicializa do URL param se existir
-  // urlTab é lido na inicialização do estado E via efeito para navegações SPA
+  // Tab toggle state
+  // Lê ?tab= da URL para navegação vinda da Central de Notificações
   const urlTab = searchParams.get("tab");
+  // Inicializa com o urlTab se presente (carregamento inicial com ?tab=X)
   const [activeTab, setActiveTab] = useState<string>(urlTab || "");
   
-  // Lê ?tab= sempre que o search params mudar (navegação da Central de Notificações)
-  const prevUrlTabRef = useRef<string | null>(urlTab);
+  // Ref inicializado com null para garantir que o efeito SEMPRE execute no primeiro render
+  // se houver um urlTab (não compara urlTab === null, garante que ative a aba)
+  const prevUrlTabRef = useRef<string | null>(null);
   useEffect(() => {
     if (urlTab && urlTab !== prevUrlTabRef.current) {
       prevUrlTabRef.current = urlTab;
       setActiveTab(urlTab);
+      // Limpa o parâmetro da URL sem afetar a navegação
       const newParams = new URLSearchParams(searchParams);
       newParams.delete("tab");
       setSearchParams(newParams, { replace: true });
@@ -1859,6 +1862,7 @@ export default function ProcessoDetalhes() {
           loadingPublicacoes={loadingPublicacoes}
           loadingTarefas={loadingTarefas}
           selectedTarefaId={selectedTarefaId}
+          initialSection={activeTab || undefined}
           onCriarTarefaPublicacao={handleCriarTarefaPublicacao}
           onVoltar={() => {
             if (window.history.length > 1) {

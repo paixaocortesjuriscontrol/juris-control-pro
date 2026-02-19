@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
@@ -96,6 +96,8 @@ interface ProcessoDetalhesCompletosProps {
   loadingTarefas?: boolean;
   // Tarefa selection
   selectedTarefaId?: string | null;
+  // Seção inicial (para navegação via URL ?tab=)
+  initialSection?: string;
   // Handlers
   onVoltar: () => void;
   onEditar: () => void;
@@ -123,6 +125,7 @@ export function ProcessoDetalhesCompletos({
   loadingPublicacoes = false,
   loadingTarefas = false,
   selectedTarefaId,
+  initialSection,
   onVoltar,
   onEditar,
   onEditAudiencia,
@@ -136,7 +139,18 @@ export function ProcessoDetalhesCompletos({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeSection, setActiveSection] = useState<string>("resumo");
+  // Inicializa com initialSection se fornecido (vem do ?tab= da URL)
+  const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
+  
+  // Sincroniza quando initialSection muda (navegação SPA para o mesmo processo com ?tab= diferente)
+  const prevInitialSectionRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (initialSection && initialSection !== prevInitialSectionRef.current) {
+      prevInitialSectionRef.current = initialSection;
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
+  
   const [comentario, setComentario] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadStep, setUploadStep] = useState<'idle' | 'uploading' | 'analyzing' | 'done'>('idle');
@@ -1792,7 +1806,7 @@ export function ProcessoDetalhesCompletos({
                                     </p>
                                   )}
                                   {alerta.movimentacao.descricao && (
-                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
                                       {alerta.movimentacao.descricao}
                                     </p>
                                   )}
@@ -1810,12 +1824,12 @@ export function ProcessoDetalhesCompletos({
                                     </span>
                                   </div>
                                   {alerta.publicacao_relacionada.resumo_ia ? (
-                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
                                       {alerta.publicacao_relacionada.resumo_ia}
                                     </p>
                                   ) : (
-                                    <p className="text-xs text-muted-foreground line-clamp-3">
-                                      {alerta.publicacao_relacionada.conteudo?.substring(0, 200)}...
+                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                                      {alerta.publicacao_relacionada.conteudo}
                                     </p>
                                   )}
                                 </div>
