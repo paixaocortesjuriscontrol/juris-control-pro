@@ -26,7 +26,8 @@ import {
   Brain,
   Library,
   FileWarning,
-  BookOpen
+  BookOpen,
+  LayoutPanelTop,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const menuItemsPublicos = [
   { icon: Bell, label: "Notificações", path: "/" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
+  { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },

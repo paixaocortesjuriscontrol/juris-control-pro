@@ -45,6 +45,7 @@ import AssistenteJuridico from "./pages/AssistenteJuridico";
 import PainelAudiencias from "./pages/PainelAudiencias";
 import AuditoriaDjenProcessos from "./pages/AuditoriaDjenProcessos";
 import MinhaAgenda from "./pages/MinhaAgenda";
+import PainelControle from "./pages/PainelControle";
 import PainelIntimacoes from "./pages/PainelIntimacoes";
 import NovaTarefa from "./pages/NovaTarefa";
 import CofreSenhas from "./pages/CofreSenhas";
@@ -92,6 +93,7 @@ function App() {
             <Route path="/prazos" element={<Navigate to="/minha-agenda" replace />} />
               <Route path="/nova-tarefa" element={<ProtectedRoute><NovaTarefa /></ProtectedRoute>} />
               <Route path="/minha-agenda" element={<ProtectedRoute><MinhaAgenda /></ProtectedRoute>} />
+              <Route path="/painel-controle" element={<ProtectedRoute><PainelControle /></ProtectedRoute>} />
               <Route path="/minha-carteira" element={<Navigate to="/minha-agenda" replace />} />
               <Route path="/processos" element={<ProtectedRoute><Processos /></ProtectedRoute>} />
               <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
