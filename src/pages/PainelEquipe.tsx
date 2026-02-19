@@ -91,10 +91,11 @@ export default function PainelEquipe() {
   // IDs passed to hooks: always restrict to user's coordinations (unless admin with "all" selected)
   const coordIdsForHooks = useMemo(() => {
     if (effectiveCoordenacao !== "all") return undefined;
-    // admin selecting "all" → pass undefined (hooks handle global lookup)
+    // Admin selecting "all" → pass undefined so hooks do a global lookup
     if (isAdmin) return undefined;
-    // user with multiple coordinations selecting "all" → pass their coord IDs
-    return allCoordenacaoIds.length > 0 ? allCoordenacaoIds : undefined;
+    // Non-admin: ALWAYS pass their coord IDs explicitly (even if empty while loading).
+    // This prevents the hook fallback from fetching all coordinations.
+    return allCoordenacaoIds;
   }, [effectiveCoordenacao, isAdmin, allCoordenacaoIds]);
 
   const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(
