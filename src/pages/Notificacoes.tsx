@@ -214,7 +214,7 @@ export default function Notificacoes() {
     ],
     initialPageParam: 0,
     // Só buscar quando a aba de Tarefas estiver aberta (evita lentidão no Dashboard)
-    enabled: activeTab === "tarefas",
+    enabled: true,
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       const inicio = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
@@ -299,7 +299,7 @@ export default function Notificacoes() {
     initialPageParam: 0,
     // IMPORTANTE: desabilitar no dashboard inicial para evitar lentidão
     // A RPC já retorna o count de prazos; a listagem só é necessária na aba específica
-    enabled: activeTab === "prazos",
+    enabled: true,
     queryFn: async ({ pageParam }) => {
       const q = searchQuery.trim();
       
@@ -412,10 +412,11 @@ export default function Notificacoes() {
       });
   }, [prazosPendentesData]);
 
-  // Buscar audiências pendentes
+  // Buscar audiências pendentes - sempre habilitado para totalizadores corretos
   const { data: audienciasPendentesData = [] } = useQuery({
     queryKey: ["audiencias-pendentes-notificacoes", statusFilter],
-    enabled: activeTab === "audiencias",
+    enabled: true,
+    staleTime: 60_000,
     queryFn: async () => {
       const pageSize = 1000;
 
@@ -427,8 +428,12 @@ export default function Notificacoes() {
             processo_numero,
             data_audiencia,
             hora,
+            hora_brasilia,
             tipo_audiencia,
             status,
+            local_audiencia,
+            polo_ativo,
+            cliente,
             processo:processos!audiencias_detectadas_processo_id_fkey(
               id,
               numero,
@@ -458,10 +463,11 @@ export default function Notificacoes() {
     },
   });
 
-  // Buscar intimações pendentes
+  // Buscar intimações pendentes - sempre habilitado para totalizadores corretos
   const { data: intimacoesPendentesData = [] } = useQuery({
     queryKey: ["intimacoes-pendentes-notificacoes", statusFilter],
-    enabled: activeTab === "intimacoes",
+    enabled: true,
+    staleTime: 60_000,
     queryFn: async () => {
       const pageSize = 1000;
 
@@ -472,8 +478,10 @@ export default function Notificacoes() {
             id,
             processo_numero,
             data_intimacao,
+            data_limite,
             tipo_intimacao,
             status,
+            descricao,
             processo:processos!intimacoes_detectadas_processo_id_fkey(
               id,
               numero,
@@ -507,9 +515,9 @@ export default function Notificacoes() {
   const andamentosPaged = useInfiniteQuery({
     queryKey: ["andamentos-notificacoes-paged", periodoInicio, periodoFim],
     initialPageParam: 0,
-    enabled: activeTab === "andamentos",
+    enabled: true,
+    staleTime: 60_000,
     queryFn: async ({ pageParam }) => {
-      // Se não houver filtro de período, usar últimos N dias para evitar timeout
       const inicioDia = periodoInicio ? format(periodoInicio, "yyyy-MM-dd") : undefined;
       const fimDiaMaisUm = periodoFim ? format(new Date(periodoFim.getTime() + 86400000), "yyyy-MM-dd") : undefined;
 
@@ -705,9 +713,11 @@ export default function Notificacoes() {
     });
   }, [andamentosData, coordenacaoId, searchQuery, periodoInicio, periodoFim, matchesPeriodo]);
 
-  // Stats - valores reais para os cards
+  // Stats - usar dados reais carregados para que os totalizadores batem com a listagem
+  // Para DJEN/Distribuições/Redistribuições: usamos a RPC (lazy loaded) como fallback
+  // Para Audiências/Tarefas/Andamentos/Prazos: usar length real (query sempre habilitada)
   const stats = useMemo(() => {
-    const base = counts ?? {
+    const rpc = counts ?? {
       djen: 0,
       distribuicoes: 0,
       alertas360: 0,
@@ -719,11 +729,28 @@ export default function Notificacoes() {
       intimacoes: 0,
       total: 0,
     };
+    const audienciasReal = audienciasFiltradas.length;
+    const intimacoesReal = intimacoesFiltradas.length;
+    const andamentosReal = andamentosFiltrados.length;
+    const tarefasReal = tarefasFiltradas.length;
+    const prazosReal = prazosFiltrados.length;
+    const alertas360Real = alertasFiltrados.length;
+
     return {
-      ...base,
+      ...rpc,
+      // Substituir pelos dados reais que são efetivamente listados
+      audiencias: audienciasReal,
+      intimacoes: intimacoesReal,
+      andamentos: andamentosReal,
+      tarefas: tarefasReal,
+      prazos: prazosReal,
+      alertas360: alertas360Real,
       notificacoes: notificacoesFiltradas.length,
+      total: rpc.djen + rpc.distribuicoes + alertas360Real + rpc.redistribuicoes +
+             andamentosReal + prazosReal + tarefasReal + audienciasReal + intimacoesReal,
     };
-  }, [counts, notificacoesFiltradas.length]);
+  }, [counts, audienciasFiltradas.length, intimacoesFiltradas.length, andamentosFiltrados.length,
+      tarefasFiltradas.length, prazosFiltrados.length, alertasFiltrados.length, notificacoesFiltradas.length]);
 
   const hasActiveFilters =
     searchQuery ||
@@ -1564,7 +1591,9 @@ export default function Notificacoes() {
               ) : (
                   <div className="space-y-3">
                     {alertasFiltrados.map((alerta) => (
-                      <Card key={alerta.id} className="bg-muted/30">
+                      <Card key={alerta.id} className="bg-muted/30 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => alerta.processo_id && navigate(`/processos/${alerta.processo_id}?tab=monitoramento360`)}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
@@ -1578,7 +1607,7 @@ export default function Notificacoes() {
                                 Processo: {alerta.processo?.numero}
                               </p>
                               {alerta.contexto && (
-                                <p className="text-sm mt-2 p-2 bg-muted rounded line-clamp-2">
+                                <p className="text-sm mt-2 p-2 bg-muted rounded whitespace-pre-wrap break-words">
                                   {alerta.contexto}
                                 </p>
                               )}
@@ -1586,13 +1615,15 @@ export default function Notificacoes() {
                                 {formatDistanceToNow(new Date(alerta.created_at), { addSuffix: true, locale: ptBR })}
                               </p>
                             </div>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate('/monitoramento-360')}
-                            >
-                              Ver detalhes
-                            </Button>
+                            {alerta.processo_id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/processos/${alerta.processo_id}?tab=monitoramento360`); }}
+                              >
+                                Ver 360°
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1770,7 +1801,7 @@ export default function Notificacoes() {
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => navigate('/minha-agenda')}
+                              onClick={() => { const pid = (tarefa.processo as any)?.id; if (pid) navigate(`/processos/${pid}?tab=tarefas`); else navigate('/minha-agenda'); }}
                             >
                               Ver detalhes
                             </Button>
@@ -1801,7 +1832,9 @@ export default function Notificacoes() {
               ) : (
                   <div className="space-y-3">
                     {audienciasFiltradas.map((audiencia) => (
-                      <Card key={audiencia.id} className="bg-muted/30">
+                      <Card key={audiencia.id} className="bg-muted/30 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => { const pid = (audiencia.processo as any)?.id; if (pid) navigate(`/processos/${pid}?tab=audiencias`); else navigate('/painel-audiencias'); }}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
@@ -1811,18 +1844,24 @@ export default function Notificacoes() {
                                 </Badge>
                               </div>
                               <p className="font-medium">{audiencia.processo_numero || (audiencia.processo as any)?.numero}</p>
+                              {(audiencia as any).polo_ativo && (
+                                <p className="text-sm text-muted-foreground">{(audiencia as any).polo_ativo}</p>
+                              )}
                               <p className="text-xs text-muted-foreground mt-2">
                                 {audiencia.data_audiencia && format(new Date(audiencia.data_audiencia), "dd/MM/yyyy")}
-                                {audiencia.hora && ` às ${audiencia.hora}`}
+                                {(audiencia as any).hora_brasilia && ` às ${(audiencia as any).hora_brasilia}`}
+                                {!(audiencia as any).hora_brasilia && audiencia.hora && ` às ${audiencia.hora}`}
                               </p>
                             </div>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate('/painel-audiencias')}
-                            >
-                              Ver detalhes
-                            </Button>
+                            {(audiencia.processo as any)?.id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/processos/${(audiencia.processo as any).id}?tab=audiencias`); }}
+                              >
+                                Ver processo
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1850,7 +1889,9 @@ export default function Notificacoes() {
               ) : (
                   <div className="space-y-3">
                     {intimacoesFiltradas.map((intimacao) => (
-                      <Card key={intimacao.id} className="bg-muted/30">
+                      <Card key={intimacao.id} className="bg-muted/30 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => { const pid = (intimacao.processo as any)?.id; if (pid) navigate(`/processos/${pid}?tab=intimacoes`); else navigate('/painel-intimacoes'); }}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
@@ -1860,17 +1901,24 @@ export default function Notificacoes() {
                                 </Badge>
                               </div>
                               <p className="font-medium">{intimacao.processo_numero || (intimacao.processo as any)?.numero}</p>
-                              <p className="text-xs text-muted-foreground mt-2">
+                              {(intimacao as any).data_limite && (
+                                <p className="text-xs text-primary font-medium mt-1">
+                                  Prazo: {format(new Date((intimacao as any).data_limite), "dd/MM/yyyy")}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
                                 {intimacao.data_intimacao && format(new Date(intimacao.data_intimacao), "dd/MM/yyyy")}
                               </p>
                             </div>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate('/painel-intimacoes')}
-                            >
-                              Ver detalhes
-                            </Button>
+                            {(intimacao.processo as any)?.id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/processos/${(intimacao.processo as any).id}?tab=intimacoes`); }}
+                              >
+                                Ver processo
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1950,7 +1998,7 @@ export default function Notificacoes() {
                                 <Button 
                                   variant="outline" 
                                   size="sm"
-                                  onClick={() => navigate(`/processos/${(andamento.processo as any).id}`)}
+                                  onClick={() => navigate(`/processos/${(andamento.processo as any).id}?tab=andamentos`)}
                                 >
                                   Ver processo
                                 </Button>
