@@ -70,12 +70,51 @@ async function findProcessoByNumero(supabase: any, numeroProcesso: string): Prom
   return null;
 }
 
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/html',
+  'application/rtf',
+];
+
+const MAX_FILE_CONTENT_LENGTH = 10 * 1024 * 1024; // 10MB as string chars
+const MAX_FILENAME_LENGTH = 500;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnon = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    // Verify the user token
+    const supabaseUser = createClient(supabaseUrl, supabaseAnon, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Usuário não autenticado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { fileName, fileContent, mimeType, processoAtual } = await req.json();
     
     if (!fileName || !fileContent) {
@@ -85,13 +124,35 @@ serve(async (req) => {
       );
     }
 
+    // Validate fileName length
+    if (typeof fileName !== 'string' || fileName.length > MAX_FILENAME_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Nome de arquivo inválido ou muito longo" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate file content size
+    if (typeof fileContent !== 'string' || fileContent.length > MAX_FILE_CONTENT_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Arquivo muito grande. Tamanho máximo: 10MB" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate MIME type if provided
+    if (mimeType && !ALLOWED_MIME_TYPES.includes(mimeType)) {
+      return new Response(
+        JSON.stringify({ error: "Tipo de arquivo não permitido" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
       throw new Error("OPENAI_API_KEY não configurada");
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const truncatedContent = fileContent.substring(0, 60000);
