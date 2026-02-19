@@ -948,8 +948,9 @@ export function TarefaAgendaPanel({
       {/* ===== MODO EDIÇÃO INLINE ===== */}
       {isEditing ? (
         <ScrollArea className="flex-1">
-          <CardContent className="space-y-4 py-4">
-            <div className="flex items-center justify-between mb-2">
+          <CardContent className="py-4">
+            {/* Header da edição */}
+            <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <Edit className="w-4 h-4 text-primary" />
                 Editar {tarefa.origem === "tarefa" ? "Tarefa" : "Evento"}
@@ -960,172 +961,202 @@ export function TarefaAgendaPanel({
               </Button>
             </div>
 
-            {/* Título */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Título *</Label>
-              <Input
-                value={editForm.titulo}
-                onChange={(e) => setEditForm(f => ({ ...f, titulo: e.target.value }))}
-                placeholder="Título da tarefa"
-              />
-            </div>
+            <div className="space-y-4">
+              {/* Título — ocupa linha inteira */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Título *</Label>
+                <Input
+                  value={editForm.titulo}
+                  onChange={(e) => setEditForm(f => ({ ...f, titulo: e.target.value }))}
+                  placeholder="Título da tarefa"
+                />
+              </div>
 
-            {/* Descrição */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Descrição</Label>
-              <Textarea
-                value={editForm.descricao}
-                onChange={(e) => setEditForm(f => ({ ...f, descricao: e.target.value }))}
-                placeholder="Descrição..."
-                rows={3}
-              />
-            </div>
+              {/* Descrição — auto-resize, nunca corta */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Descrição</Label>
+                <Textarea
+                  value={editForm.descricao}
+                  onChange={(e) => {
+                    setEditForm(f => ({ ...f, descricao: e.target.value }));
+                    // Auto-resize
+                    e.target.style.height = "auto";
+                    e.target.style.height = e.target.scrollHeight + "px";
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.height = "auto";
+                    e.target.style.height = e.target.scrollHeight + "px";
+                  }}
+                  placeholder="Descrição..."
+                  className="resize-none overflow-hidden min-h-[80px]"
+                  style={{ height: "auto" }}
+                />
+              </div>
 
-            {/* Campos específicos de TAREFA */}
-            {tarefa.origem === "tarefa" && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Tipo de Tarefa</Label>
-                    <Select
-                      value={editForm.tipo_tarefa}
-                      onValueChange={(v) => setEditForm(f => ({ ...f, tipo_tarefa: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecionar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIPOS_TAREFA.map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              {/* Campos específicos de TAREFA */}
+              {tarefa.origem === "tarefa" && (
+                <>
+                  {/* Linha 1: Tipo + Prioridade */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Tipo de Tarefa</Label>
+                      <Select
+                        value={editForm.tipo_tarefa}
+                        onValueChange={(v) => setEditForm(f => ({ ...f, tipo_tarefa: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Selecionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_TAREFA.map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Prioridade</Label>
+                      <Select
+                        value={editForm.prioridade}
+                        onValueChange={(v) => setEditForm(f => ({ ...f, prioridade: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Prioridade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="baixa">Baixa</SelectItem>
+                          <SelectItem value="media">Média</SelectItem>
+                          <SelectItem value="alta">Alta</SelectItem>
+                          <SelectItem value="urgente">Urgente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Prioridade</Label>
-                    <Select
-                      value={editForm.prioridade}
-                      onValueChange={(v) => setEditForm(f => ({ ...f, prioridade: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Prioridade" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="baixa">Baixa</SelectItem>
-                        <SelectItem value="media">Média</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                        <SelectItem value="urgente">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+                  {/* Linha 2: Data Prevista + Data Fatal */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Data Prevista</Label>
+                      <Input
+                        type="date"
+                        value={editForm.data_vencimento}
+                        onChange={(e) => setEditForm(f => ({ ...f, data_vencimento: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Data Fatal</Label>
+                      <Input
+                        type="date"
+                        value={editForm.data_fatal}
+                        onChange={(e) => setEditForm(f => ({ ...f, data_fatal: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data Prevista</Label>
-                    <Input
-                      type="date"
-                      value={editForm.data_vencimento}
-                      onChange={(e) => setEditForm(f => ({ ...f, data_vencimento: e.target.value }))}
-                      className="h-9"
-                    />
+                  {/* Linha 3: Responsável + Local */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Responsável</Label>
+                      <Select
+                        value={editForm.responsavel_id}
+                        onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Selecionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {membrosEdicao.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Local</Label>
+                      <Input
+                        value={editForm.local}
+                        onChange={(e) => setEditForm(f => ({ ...f, local: e.target.value }))}
+                        placeholder="Local..."
+                        className="h-9"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data Fatal</Label>
-                    <Input
-                      type="date"
-                      value={editForm.data_fatal}
-                      onChange={(e) => setEditForm(f => ({ ...f, data_fatal: e.target.value }))}
-                      className="h-9"
-                    />
+                </>
+              )}
+
+              {/* Campos específicos de EVENTO */}
+              {tarefa.origem === "evento" && (
+                <>
+                  {/* Linha 1: Tipo + Local */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Tipo</Label>
+                      <Select
+                        value={editForm.tipo}
+                        onValueChange={(v) => setEditForm(f => ({ ...f, tipo: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Tipo do evento" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="evento">Evento</SelectItem>
+                          <SelectItem value="tarefa">Tarefa</SelectItem>
+                          <SelectItem value="prazo">Prazo</SelectItem>
+                          <SelectItem value="audiencia">Audiência</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Local</Label>
+                      <Input
+                        value={editForm.local}
+                        onChange={(e) => setEditForm(f => ({ ...f, local: e.target.value }))}
+                        placeholder="Local..."
+                        className="h-9"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Responsável</Label>
-                  <Select
-                    value={editForm.responsavel_id}
-                    onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Selecionar responsável..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {membrosEdicao.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-
-            {/* Campos específicos de EVENTO */}
-            {tarefa.origem === "evento" && (
-              <>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Tipo</Label>
-                  <Select
-                    value={editForm.tipo}
-                    onValueChange={(v) => setEditForm(f => ({ ...f, tipo: v }))}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Tipo do evento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="evento">Evento</SelectItem>
-                      <SelectItem value="tarefa">Tarefa</SelectItem>
-                      <SelectItem value="prazo">Prazo</SelectItem>
-                      <SelectItem value="audiencia">Audiência</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data/Hora Início</Label>
-                    <Input
-                      type="datetime-local"
-                      value={editForm.data_inicio}
-                      onChange={(e) => setEditForm(f => ({ ...f, data_inicio: e.target.value }))}
-                      className="h-9"
-                    />
+                  {/* Linha 2: Data/Hora Início + Fim */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Data/Hora Início</Label>
+                      <Input
+                        type="datetime-local"
+                        value={editForm.data_inicio}
+                        onChange={(e) => setEditForm(f => ({ ...f, data_inicio: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Data/Hora Fim</Label>
+                      <Input
+                        type="datetime-local"
+                        value={editForm.data_fim}
+                        onChange={(e) => setEditForm(f => ({ ...f, data_fim: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data/Hora Fim</Label>
-                    <Input
-                      type="datetime-local"
-                      value={editForm.data_fim}
-                      onChange={(e) => setEditForm(f => ({ ...f, data_fim: e.target.value }))}
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
 
-            {/* Local (ambos) */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Local</Label>
-              <Input
-                value={editForm.local}
-                onChange={(e) => setEditForm(f => ({ ...f, local: e.target.value }))}
-                placeholder="Local..."
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                className="flex-1"
-                onClick={handleSaveEdit}
-                disabled={savingEdit || !editForm.titulo.trim()}
-              >
-                {savingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Salvar alterações
-              </Button>
-              <Button variant="outline" onClick={handleCancelEdit} disabled={savingEdit}>
-                Cancelar
-              </Button>
+              {/* Botões de ação */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  className="flex-1"
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit || !editForm.titulo.trim()}
+                >
+                  {savingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  Salvar alterações
+                </Button>
+                <Button variant="outline" onClick={handleCancelEdit} disabled={savingEdit}>
+                  Cancelar
+                </Button>
+              </div>
             </div>
           </CardContent>
         </ScrollArea>
