@@ -613,7 +613,7 @@ export function CoordenacaoDetalhesView({
                     
                     {/* Contexto */}
                     {alerta.contexto && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 p-2 rounded">
+                      <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded whitespace-pre-wrap break-words">
                         {alerta.contexto}
                       </p>
                     )}
