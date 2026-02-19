@@ -713,10 +713,12 @@ export default function Notificacoes() {
     });
   }, [andamentosData, coordenacaoId, searchQuery, periodoInicio, periodoFim, matchesPeriodo]);
 
-  // Stats - usar dados reais carregados para que os totalizadores batem com a listagem
-  // Para DJEN/Distribuições/Redistribuições: usamos a RPC (lazy loaded) como fallback
-  // Para Audiências/Tarefas/Andamentos/Prazos: usar length real (query sempre habilitada)
+  // Stats - os totalizadores superiores usam EXATAMENTE a mesma fonte dos cards de coordenação
+  // (RPC get_notificacoes_counts_by_coordenacao somado por coordenação), garantindo consistência.
+  // Quando uma coordenação específica é selecionada, usa o count individual (mesma RPC).
   const stats = useMemo(() => {
+    // counts já é a soma de countsByCoord para "todas" ou countsSingle para coordenação específica
+    // (calculado no useMemo acima nas linhas 156-202)
     const rpc = counts ?? {
       djen: 0,
       distribuicoes: 0,
@@ -729,28 +731,13 @@ export default function Notificacoes() {
       intimacoes: 0,
       total: 0,
     };
-    const audienciasReal = audienciasFiltradas.length;
-    const intimacoesReal = intimacoesFiltradas.length;
-    const andamentosReal = andamentosFiltrados.length;
-    const tarefasReal = tarefasFiltradas.length;
-    const prazosReal = prazosFiltrados.length;
-    const alertas360Real = alertasFiltrados.length;
 
     return {
       ...rpc,
-      // Substituir pelos dados reais que são efetivamente listados
-      audiencias: audienciasReal,
-      intimacoes: intimacoesReal,
-      andamentos: andamentosReal,
-      tarefas: tarefasReal,
-      prazos: prazosReal,
-      alertas360: alertas360Real,
       notificacoes: notificacoesFiltradas.length,
-      total: rpc.djen + rpc.distribuicoes + alertas360Real + rpc.redistribuicoes +
-             andamentosReal + prazosReal + tarefasReal + audienciasReal + intimacoesReal,
+      // total já é calculado pelo useMemo de counts como soma de todos os campos da RPC
     };
-  }, [counts, audienciasFiltradas.length, intimacoesFiltradas.length, andamentosFiltrados.length,
-      tarefasFiltradas.length, prazosFiltrados.length, alertasFiltrados.length, notificacoesFiltradas.length]);
+  }, [counts, notificacoesFiltradas.length]);
 
   const hasActiveFilters =
     searchQuery ||
