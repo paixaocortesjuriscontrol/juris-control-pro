@@ -27,7 +27,9 @@ import {
   CalendarDays,
   CheckCircle2,
   FileText,
+  Plus,
 } from "lucide-react";
+import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,6 +86,7 @@ export default function PainelControle() {
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
+  const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
@@ -461,6 +464,17 @@ export default function PainelControle() {
               Escritório
             </Button>
           </div>
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              className="h-7 px-3 text-xs gap-1"
+              onClick={() => setNovaTarefaOpen(true)}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Nova Tarefa</span>
+              <span className="sm:hidden">Tarefa</span>
+            </Button>
+          </div>
         </div>
 
         {/* Cards de Resumo — compactos no mobile */}
@@ -730,6 +744,41 @@ export default function PainelControle() {
         }}
         evento={selectedParcelamento}
       />
+
+      {/* Nova Tarefa */}
+      <NovaTarefaDialogWrapper
+        open={novaTarefaOpen}
+        onOpenChange={setNovaTarefaOpen}
+      />
     </MainLayout>
+  );
+}
+
+function NovaTarefaDialogWrapper({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ["coordenacoes-nova-tarefa-painel"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome, area")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  return (
+    <NovaTarefaDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      coordenacoes={coordenacoes}
+    />
   );
 }
