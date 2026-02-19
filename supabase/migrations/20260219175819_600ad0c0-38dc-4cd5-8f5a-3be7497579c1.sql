@@ -1,0 +1,1 @@
+UPDATE pedidos_processo SET observacao = NULL WHERE lower(trim(observacao)) = 'false';
