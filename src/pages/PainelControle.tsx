@@ -317,25 +317,25 @@ export default function PainelControle() {
     stats: { label: string; value: number; highlight?: boolean }[];
     ringClass: string;
   }) => (
-    <div className="flex items-center gap-4 bg-card border border-border rounded-lg px-5 py-4 flex-1 min-w-0">
+    <div className="flex items-center gap-2 md:gap-4 bg-card border border-border rounded-lg px-2 md:px-5 py-2 md:py-4 flex-shrink-0 md:flex-1 min-w-0">
       <div
         className={cn(
-          "w-14 h-14 rounded-full border-4 flex items-center justify-center text-2xl font-bold flex-shrink-0",
+          "w-9 h-9 md:w-14 md:h-14 rounded-full border-2 md:border-4 flex items-center justify-center text-base md:text-2xl font-bold flex-shrink-0",
           ringClass
         )}
       >
         {total}
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+        <p className="text-[10px] md:text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5 md:mb-1">
           {label}
         </p>
-        <div className="space-y-0.5">
+        <div className="space-y-0">
           {stats.map((s) => (
             <p
               key={s.label}
               className={cn(
-                "text-xs",
+                "text-[10px] md:text-xs leading-tight",
                 s.highlight && s.value > 0
                   ? "text-destructive font-medium"
                   : "text-muted-foreground"
@@ -353,8 +353,8 @@ export default function PainelControle() {
     <MainLayout title="Painel de Controle">
       <div className="flex flex-col -m-4 md:-m-6" style={{ height: "calc(100vh - 64px)" }}>
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-4 bg-card border-b border-border flex-shrink-0">
-          <h1 className="text-xl font-bold text-foreground">Painel de Controle</h1>
+        <div className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0">
+          <h1 className="text-base md:text-xl font-bold text-foreground">Painel de Controle</h1>
           <div className="flex gap-1 ml-2">
             <Button
               size="sm"
@@ -375,26 +375,26 @@ export default function PainelControle() {
           </div>
         </div>
 
-        {/* Cards de Resumo */}
-        <div className="flex-shrink-0 px-6 py-3 border-b border-border bg-card">
+        {/* Cards de Resumo — compactos no mobile */}
+        <div className="flex-shrink-0 px-3 md:px-6 py-2 md:py-3 border-b border-border bg-card">
           {isLoading ? (
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-20 flex-1 rounded-lg" />
+                <Skeleton key={i} className="h-14 md:h-20 flex-1 rounded-lg" />
               ))}
             </div>
           ) : (
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-2 md:gap-3 overflow-x-auto pb-1 md:pb-0 md:flex-wrap scrollbar-none">
               {/* Data Atual */}
-              <div className="flex items-center gap-3 bg-primary text-primary-foreground rounded-lg px-4 py-3 flex-shrink-0">
+              <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-3 py-2 flex-shrink-0">
                 <div className="text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wider opacity-80">
-                    {format(nowBrt, "MMMM", { locale: ptBR })}
+                  <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider opacity-80">
+                    {format(nowBrt, "MMM", { locale: ptBR })}
                   </p>
-                  <p className="text-4xl font-bold leading-none">
+                  <p className="text-2xl md:text-4xl font-bold leading-none">
                     {format(nowBrt, "dd")}
                   </p>
-                  <p className="text-xs opacity-80 capitalize">
+                  <p className="text-[10px] md:text-xs opacity-80 capitalize hidden md:block">
                     {format(nowBrt, "EEEE", { locale: ptBR })}
                   </p>
                 </div>
@@ -405,18 +405,18 @@ export default function PainelControle() {
                 total={resumo.tarefas.total}
                 ringClass="border-amber-400/40 bg-amber-400/10 text-amber-600"
                 stats={[
-                  { label: "atrasadas", value: resumo.tarefas.atrasadas, highlight: true },
+                  { label: "atras.", value: resumo.tarefas.atrasadas, highlight: true },
                   { label: "hoje", value: resumo.tarefas.hoje },
-                  { label: "futuras", value: resumo.tarefas.futuras },
+                  { label: "fut.", value: resumo.tarefas.futuras },
                 ]}
               />
 
               <SummaryCard
-                label="Intimações"
+                label="Intim."
                 total={intimacoesPendentes}
                 ringClass="border-blue-400/40 bg-blue-400/10 text-blue-600"
                 stats={[
-                  { label: "pendentes", value: intimacoesPendentes, highlight: true },
+                  { label: "pend.", value: intimacoesPendentes, highlight: true },
                 ]}
               />
 
@@ -426,7 +426,6 @@ export default function PainelControle() {
                 ringClass="border-primary/30 bg-primary/10 text-primary"
                 stats={[
                   { label: "não lidos", value: andamentosNaoLidos, highlight: true },
-                  { label: "lidos", value: 0 },
                 ]}
               />
 
@@ -435,20 +434,20 @@ export default function PainelControle() {
                 total={resumo.audiencias.total}
                 ringClass="border-purple-400/40 bg-purple-400/10 text-purple-600"
                 stats={[
-                  { label: "atrasadas", value: resumo.audiencias.atrasadas, highlight: true },
+                  { label: "atras.", value: resumo.audiencias.atrasadas, highlight: true },
                   { label: "hoje", value: resumo.audiencias.hoje },
-                  { label: "futuras", value: resumo.audiencias.futuras },
+                  { label: "fut.", value: resumo.audiencias.futuras },
                 ]}
               />
 
               <SummaryCard
-                label="Compromissos"
+                label="Comprom."
                 total={resumo.compromissos.total}
                 ringClass="border-emerald-400/40 bg-emerald-400/10 text-emerald-600"
                 stats={[
-                  { label: "atrasados", value: resumo.compromissos.atrasadas, highlight: true },
+                  { label: "atras.", value: resumo.compromissos.atrasadas, highlight: true },
                   { label: "hoje", value: resumo.compromissos.hoje },
-                  { label: "futuros", value: resumo.compromissos.futuras },
+                  { label: "fut.", value: resumo.compromissos.futuras },
                 ]}
               />
             </div>
@@ -456,17 +455,22 @@ export default function PainelControle() {
         </div>
 
         {/* Corpo principal: calendário + painel detalhe */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Calendário Mensal */}
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
+
+          {/* Calendário Mensal — escondido no mobile quando item selecionado */}
           <div
             className={cn(
               "flex flex-col border-r border-border bg-card transition-all duration-300",
-              selectedItem ? "w-[55%]" : "flex-1"
+              // Desktop: lado a lado
+              "md:flex md:flex-col",
+              selectedItem ? "md:w-[55%]" : "md:flex-1",
+              // Mobile: tela cheia ou escondido quando item selecionado
+              selectedItem ? "hidden md:flex" : "flex flex-1"
             )}
           >
             {/* Cabeçalho calendário */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-border flex-shrink-0">
-              <h2 className="text-base font-bold text-foreground flex-1">Agenda</h2>
+            <div className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border-b border-border flex-shrink-0">
+              <h2 className="text-sm md:text-base font-bold text-foreground flex-1">Agenda</h2>
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
@@ -493,8 +497,8 @@ export default function PainelControle() {
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
-              <span className="text-sm font-semibold text-foreground capitalize min-w-[140px] text-center">
-                {format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
+              <span className="text-xs md:text-sm font-semibold text-foreground capitalize min-w-[100px] md:min-w-[140px] text-center">
+                {format(mesAtual, "MMM 'de' yyyy", { locale: ptBR })}
               </span>
             </div>
 
@@ -505,7 +509,7 @@ export default function PainelControle() {
                 {diasDaSemana.map((d) => (
                   <div
                     key={d}
-                    className="text-center py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-r border-border last:border-r-0"
+                    className="text-center py-1.5 md:py-2 text-[10px] md:text-xs font-semibold text-muted-foreground uppercase tracking-wider border-r border-border last:border-r-0"
                   >
                     {d}
                   </div>
@@ -518,7 +522,7 @@ export default function PainelControle() {
                   <div
                     key={semanaIdx}
                     className="grid grid-cols-7 border-b border-border last:border-b-0"
-                    style={{ minHeight: "80px" }}
+                    style={{ minHeight: "60px" }}
                   >
                     {diasDoCalendario
                       .slice(semanaIdx * 7, semanaIdx * 7 + 7)
@@ -535,17 +539,17 @@ export default function PainelControle() {
                           <div
                             key={i}
                             className={cn(
-                              "border-r border-border last:border-r-0 p-1 cursor-pointer hover:bg-muted/30 transition-colors",
+                              "border-r border-border last:border-r-0 p-0.5 md:p-1 cursor-pointer hover:bg-muted/30 transition-colors",
                               !ehMesAtual && "bg-muted/10",
                               ehHoje && "bg-primary/5"
                             )}
                             onClick={() => handleDayClick(dia)}
                           >
                             {/* Número do dia */}
-                            <div className="flex justify-start mb-1">
+                            <div className="flex justify-start mb-0.5 md:mb-1">
                               <span
                                 className={cn(
-                                  "text-xs font-medium w-5 h-5 flex items-center justify-center rounded-full",
+                                  "text-[10px] md:text-xs font-medium w-4 h-4 md:w-5 md:h-5 flex items-center justify-center rounded-full",
                                   ehHoje
                                     ? "bg-primary text-primary-foreground font-bold"
                                     : ehMesAtual
@@ -563,7 +567,7 @@ export default function PainelControle() {
                                 <div
                                   key={item.id}
                                   className={cn(
-                                    "text-[10px] leading-tight px-1 py-0.5 rounded truncate cursor-pointer text-white font-medium flex items-center gap-1",
+                                    "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer text-white font-medium flex items-center gap-0.5",
                                     TIPO_CORES[item.tipo] || "bg-muted"
                                   )}
                                   onClick={(e) => {
@@ -574,18 +578,18 @@ export default function PainelControle() {
                                 >
                                   {item.status === "cumprido" ||
                                   item.status === "concluido" ? (
-                                    <CheckCircle2 className="w-2.5 h-2.5 flex-shrink-0 opacity-90" />
+                                    <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   ) : (
-                                    <FileText className="w-2.5 h-2.5 flex-shrink-0 opacity-90" />
+                                    <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
-                                  <span className="truncate">
+                                  <span className="truncate hidden md:inline">
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
                                 </div>
                               ))}
                               {extras > 0 && (
-                                <div className="text-[10px] text-muted-foreground px-1">
-                                  +{extras} mais
+                                <div className="text-[9px] md:text-[10px] text-muted-foreground px-0.5 md:px-1">
+                                  +{extras}
                                 </div>
                               )}
                             </div>
@@ -598,9 +602,15 @@ export default function PainelControle() {
             </div>
           </div>
 
-          {/* Painel de detalhes — TarefaAgendaPanel idêntico ao da Agenda */}
+          {/* Painel de detalhes — tela cheia no mobile, lado a lado no desktop */}
           {selectedItem && (
-            <div className="w-[45%] flex flex-col border-l border-border bg-card overflow-hidden">
+            <div className={cn(
+              "flex flex-col bg-card overflow-hidden",
+              // Mobile: tela cheia absoluta sobre o calendário
+              "absolute inset-0 md:relative md:inset-auto",
+              // Desktop: 45% ao lado
+              "md:w-[45%] md:border-l md:border-border"
+            )}>
               <TarefaAgendaPanel
                 tarefa={selectedItem}
                 onClose={() => setSelectedItem(null)}
