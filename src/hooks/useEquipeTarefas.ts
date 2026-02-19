@@ -38,7 +38,11 @@ export interface TarefaEquipe {
  * Hook otimizado para buscar estatísticas de tarefas por membro
  * Usa RPC no banco para evitar N+1 queries
  */
-export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenacaoIds?: string[]) {
+export function useEquipeTarefasStats(
+  coordenacaoId: string | null,
+  allCoordenacaoIds?: string[],
+  coordLoading?: boolean
+) {
   const { user } = useAuth();
 
   return useQuery({
@@ -49,10 +53,9 @@ export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenac
       if (coordenacaoId) {
         coordIds = [coordenacaoId];
       } else if (allCoordenacaoIds !== undefined) {
-        // allCoordenacaoIds was explicitly provided (even if empty = still loading)
         coordIds = allCoordenacaoIds;
       } else {
-        // Only admin global fallback: fetch all coordinations
+        // Admin global fallback: fetch all coordinations
         const { data: todasCoords } = await supabase
           .from("coordenacoes")
           .select("id");
@@ -80,7 +83,7 @@ export function useEquipeTarefasStats(coordenacaoId: string | null, allCoordenac
         urgentes: Number(row.urgentes) || 0,
       })) as MembroTarefaStats[];
     },
-    enabled: !!user,
+    enabled: !!user && !coordLoading,
     staleTime: 30000, // Cache por 30s
   });
 }
@@ -96,7 +99,8 @@ export function useEquipeTarefas(
     prioridade?: string;
     search?: string;
   },
-  allCoordenacaoIds?: string[]
+  allCoordenacaoIds?: string[],
+  coordLoading?: boolean
 ) {
   const { user } = useAuth();
 
@@ -108,10 +112,9 @@ export function useEquipeTarefas(
       if (coordenacaoId) {
         coordIds = [coordenacaoId];
       } else if (allCoordenacaoIds !== undefined) {
-        // allCoordenacaoIds was explicitly provided (even if empty = still loading)
         coordIds = allCoordenacaoIds;
       } else {
-        // Only admin global fallback: fetch all coordinations
+        // Admin global fallback: fetch all coordinations
         const { data: todasCoords } = await supabase
           .from("coordenacoes")
           .select("id");
@@ -140,7 +143,7 @@ export function useEquipeTarefas(
 
       return await fetchTarefasForMembers(membroIds, filters);
     },
-    enabled: !!user,
+    enabled: !!user && !coordLoading,
     staleTime: 30000, // Cache por 30s
   });
 }
