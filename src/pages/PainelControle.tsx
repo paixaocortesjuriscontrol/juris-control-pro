@@ -74,7 +74,7 @@ const diasDaSemana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 export default function PainelControle() {
   const { user } = useAuth();
-  const { isAdminOrCoordinator } = useUserRole();
+  const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
@@ -132,9 +132,9 @@ export default function PainelControle() {
       };
     }
     // Escritório:
-    // - Admin: fetchAll=true (vê tudo)
-    // - Não-admin: filtra pelos membros das coordenações do usuário
-    if (isAdminOrCoordinator) {
+    // - Admin puro: fetchAll=true (visão global)
+    // - Coordenador ou usuário comum: filtra pelos membros das suas coordenações
+    if (isAdmin) {
       return { fetchAll: true };
     }
     // Aguardar carregamento dos membros
@@ -142,13 +142,41 @@ export default function PainelControle() {
       return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
     }
     return {
-      responsavelIds: membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : (user?.id ? [user.id] : undefined),
+      responsavelIds: membrosDasCoordenacoes.length > 0
+        ? membrosDasCoordenacoes
+        : (user?.id ? [user.id] : undefined),
       fetchAll: false,
     };
-  }, [tabMode, user?.id, isAdminOrCoordinator, coordLoading, membrosLoading, membrosDasCoordenacoes]);
+  }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes]);
 
   const { data: itensAgenda = [], isLoading } = useAgendaUnificada(filters);
 
+  // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
+  const { data: processosIds = [] } = useQuery({
+    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      // Admin vê tudo — sem filtro
+      if (tabMode === "escritorio" && isAdmin) return [];
+
+      // Pessoal: processos onde o usuário é responsável ou cliente vinculado
+      // Escritório: processos das coordenações do usuário
+      if (tabMode === "escritorio" && coordenacoesUsuario.length > 0) {
+        const { data } = await supabase
+          .from("processos")
+          .select("id")
+          .in("coordenacao_id", coordenacoesUsuario);
+        return (data || []).map((p) => p.id);
+      }
+      // Pessoal: processos onde é responsável
+      const { data } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("advogado_responsavel_id", user.id);
+      return (data || []).map((p) => p.id);
+    },
+    enabled: !!user?.id,
+  });
 
   // ===== CARDS DE RESUMO =====
   const hoje_inicio = startOfDay(nowBrt);
@@ -163,8 +191,6 @@ export default function PainelControle() {
       ["evento", "prazo_parcela", "parcelamento"].includes(i.tipo)
     );
 
-    const agora = nowBrt;
-
     const calcStats = (items: ItemAgendaUnificado[]) => {
       const atrasadas = items.filter((i) => i.is_atrasado && i.status !== "cumprido" && i.status !== "concluido").length;
       const hoje_count = items.filter((i) => {
@@ -178,7 +204,6 @@ export default function PainelControle() {
       return { atrasadas, hoje: hoje_count, futuras, total: items.length };
     };
 
-    // Andamentos / publicações DJEN — mock: buscaremos da query de notificações
     return {
       tarefas: calcStats(tarefas),
       audiencias: calcStats(audiencias),
@@ -186,31 +211,77 @@ export default function PainelControle() {
     };
   }, [itensAgenda, nowBrt, hoje]);
 
-  // Intimações não lidas
+  // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin)
   const { data: intimacoesPendentes = 0 } = useQuery({
-    queryKey: ["painel-controle-intimacoes", tabMode, user?.id],
+    queryKey: ["painel-controle-intimacoes", tabMode, user?.id, coordenacoesUsuario, isAdmin],
     queryFn: async () => {
       let q = supabase
         .from("intimacoes_detectadas")
         .select("id", { count: "exact", head: true })
         .eq("status", "pendente");
-      if (tabMode === "pessoal" && user?.id) {
-        q = q.eq("processo_id", user.id); // melhorar se tiver campo responsável
+
+      // Admin em modo escritório: vê tudo
+      if (tabMode === "escritorio" && isAdmin) {
+        const { count } = await q;
+        return count ?? 0;
       }
+
+      // Filtrar pelos processos das coordenações do usuário (ou pessoal)
+      if (processosIds.length > 0) {
+        q = q.in("processo_id", processosIds);
+      } else {
+        // Sem processos encontrados — retorna 0 em vez de mostrar global
+        return 0;
+      }
+
       const { count } = await q;
       return count ?? 0;
     },
     enabled: !!user?.id,
   });
 
-  // Publicações DJEN não lidas
+  // Publicações DJEN não lidas — filtradas por processos da coordenação (ou todas para admin)
   const { data: andamentosNaoLidos = 0 } = useQuery({
-    queryKey: ["painel-controle-andamentos", tabMode, user?.id],
+    queryKey: ["painel-controle-andamentos", tabMode, user?.id, coordenacoesUsuario, isAdmin],
     queryFn: async () => {
-      const { count } = await supabase
+      let q = supabase
         .from("publicacoes_djen")
         .select("id", { count: "exact", head: true })
         .eq("lida", false);
+
+      // Admin em modo escritório: vê tudo
+      if (tabMode === "escritorio" && isAdmin) {
+        const { count } = await q;
+        return count ?? 0;
+      }
+
+      // Filtrar por monitoramentos das coordenações do usuário
+      if (coordenacoesUsuario.length > 0) {
+        const { data: monitoramentos } = await supabase
+          .from("monitoramentos_djen")
+          .select("id")
+          .in("coordenacao_id", coordenacoesUsuario);
+        const monIds = (monitoramentos || []).map((m) => m.id);
+        if (monIds.length > 0) {
+          q = q.in("monitoramento_id", monIds);
+        } else {
+          return 0;
+        }
+      } else if (tabMode === "pessoal") {
+        // Pessoal: monitoramentos onde o usuário é responsável
+        const { data: monitoramentos } = await supabase
+          .from("monitoramentos_djen")
+          .select("id")
+          .eq("criado_por", user?.id ?? "");
+        const monIds = (monitoramentos || []).map((m) => m.id);
+        if (monIds.length > 0) {
+          q = q.in("monitoramento_id", monIds);
+        } else {
+          return 0;
+        }
+      }
+
+      const { count } = await q;
       return count ?? 0;
     },
     enabled: !!user?.id,
