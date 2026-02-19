@@ -100,7 +100,8 @@ export default function PainelEquipe() {
 
   const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(
     effectiveCoordenacao !== "all" ? effectiveCoordenacao : null,
-    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined
+    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined,
+    loadingCoord
   );
   const { data: tarefas, isLoading: loadingTarefas } = useEquipeTarefas(
     effectiveCoordenacao !== "all" ? effectiveCoordenacao : null,
@@ -110,7 +111,8 @@ export default function PainelEquipe() {
       prioridade: prioridadeFilter,
       search: searchQuery,
     },
-    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined
+    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined,
+    loadingCoord
   );
 
   // Calculate totals
