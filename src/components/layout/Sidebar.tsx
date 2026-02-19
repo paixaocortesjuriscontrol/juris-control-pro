@@ -35,10 +35,10 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 // Itens visíveis para todos os usuários autenticados
 const menuItemsPublicos = [
-  { icon: Bell, label: "Notificações", path: "/" },
+  { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle" },
+  { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
-  { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },

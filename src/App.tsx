@@ -86,7 +86,8 @@ function App() {
                 <Route path="/worker-djen-vps" element={<ProtectedRoute><WorkerDjenVps /></ProtectedRoute>} />
               
               <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute><Navigate to="/painel-controle" replace /></ProtectedRoute>} />
+              <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}
             <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
