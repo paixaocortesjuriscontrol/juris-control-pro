@@ -145,7 +145,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           desembargador_turma: p.desembargador_turma || "",
           tst: p.tst,
           ministro_turma_sessao: p.ministro_turma_sessao || "",
-          observacao: p.observacao || "",
+          observacao: (p.observacao && p.observacao.toLowerCase() !== "false") ? p.observacao : "",
         };
       });
       setEditData(initialData);
