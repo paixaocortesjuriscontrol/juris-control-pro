@@ -103,11 +103,14 @@ interface MonitoramentoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   monitoramento?: MonitoramentoDjen | null;
+  /** Quando fornecido, substitui a lista completa de coordenações (para filtrar por usuário) */
+  coordenacoesOverride?: { id: string; nome: string; area?: string }[];
 }
 
-export function MonitoramentoDialog({ open, onOpenChange, monitoramento }: MonitoramentoDialogProps) {
+export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coordenacoesOverride }: MonitoramentoDialogProps) {
   const { criarMonitoramento, atualizarMonitoramento } = useMonitoramentosDjen();
-  const { data: coordenacoes = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
+  const { data: coordenacoesAll = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
+  const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
   
   const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte'>(
     monitoramento?.tipo || 'palavra-chave'

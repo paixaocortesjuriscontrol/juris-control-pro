@@ -25,24 +25,26 @@ import {
   ClipboardList,
   Brain,
   Library,
-  FileWarning
+  FileWarning,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useUserRole } from "@/hooks/useUserRole";
 
-const menuItems = [
+// Itens visíveis para todos os usuários autenticados
+const menuItemsPublicos = [
   { icon: Bell, label: "Notificações", path: "/" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
+  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen" },
   { icon: Scale, label: "Processos Internos", path: "/processos" },
-  
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
-  { icon: Radar, label: "Monitoração", path: "/monitoracao" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: Search, label: "Buscar Processos", path: "/buscar" },
@@ -54,10 +56,15 @@ const menuItems = [
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
 
+// Itens visíveis apenas para administradores
+const menuItemsAdmin = [
+  { icon: Radar, label: "Monitoração", path: "/monitoracao" },
+];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isAdmin } = useUserRole();
 
   const SidebarContent = () => (
     <>
@@ -79,7 +86,26 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => (
+        {/* Itens públicos */}
+        {menuItemsPublicos.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                "nav-item",
+                isActive && "nav-item-active"
+              )
+            }
+          >
+            <item.icon className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+          </NavLink>
+        ))}
+
+        {/* Itens apenas admin */}
+        {isAdmin && menuItemsAdmin.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -114,26 +140,33 @@ export function Sidebar() {
 
       {/* Settings & Collapse */}
       <div className="p-2 lg:p-3 border-t border-sidebar-border space-y-1">
-        <NavLink
-          to="/admin"
-          onClick={() => setMobileOpen(false)}
-          className={({ isActive }) =>
-            cn("nav-item", isActive && "nav-item-active")
-          }
-        >
-          <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="text-sm font-medium">Administração</span>}
-        </NavLink>
-        <NavLink
-          to="/configuracoes"
-          onClick={() => setMobileOpen(false)}
-          className={({ isActive }) =>
-            cn("nav-item", isActive && "nav-item-active")
-          }
-        >
-          <Settings className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="text-sm font-medium">Configurações</span>}
-        </NavLink>
+        {/* Administração - apenas admin */}
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) =>
+              cn("nav-item", isActive && "nav-item-active")
+            }
+          >
+            <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Administração</span>}
+          </NavLink>
+        )}
+
+        {/* Configurações - apenas admin */}
+        {isAdmin && (
+          <NavLink
+            to="/configuracoes"
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) =>
+              cn("nav-item", isActive && "nav-item-active")
+            }
+          >
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Configurações</span>}
+          </NavLink>
+        )}
         
         <button
           onClick={() => setCollapsed(!collapsed)}
