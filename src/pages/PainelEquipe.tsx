@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,6 @@ import {
   Clock,
   Search,
   BarChart3,
-  TrendingUp,
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,12 +52,6 @@ const prioridadeLabels: Record<string, string> = {
   urgente: "Urgente",
 };
 
-const statusLabels: Record<string, string> = {
-  pendente: "Pendente",
-  cumprido: "Cumprido",
-  atrasado: "Atrasado",
-};
-
 export default function PainelEquipe() {
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("all");
   const [selectedMembro, setSelectedMembro] = useState<string>("all");
@@ -71,38 +64,37 @@ export default function PainelEquipe() {
 
   const { isAdmin } = useUserRole();
   const { data: coordenacoes, isLoading: loadingCoord } = useMinhasCoordenacoes();
-  
-  // Get all coordination IDs for the logged-in user's coordinations
-  const allCoordenacaoIds = useMemo(() => 
-    coordenacoes?.map(c => c.id) || [], 
+
+  // IDs de coordenações autorizadas do usuário logado
+  const allCoordenacaoIds = useMemo(() =>
+    coordenacoes?.map(c => c.id) || [],
     [coordenacoes]
   );
 
-  // "Todas as coordenações" option only available for admins or users with multiple coordinations
-  const canSelectAll = isAdmin || allCoordenacaoIds.length > 1;
-
-  // When loading completes and user has exactly one coordination, auto-select it
+  // Coordenação efetiva: se selecionou uma específica, usa ela;
+  // se não e tem apenas uma, auto-seleciona ela; senão "all"
   const effectiveCoordenacao = useMemo(() => {
     if (selectedCoordenacao !== "all") return selectedCoordenacao;
-    if (!canSelectAll && allCoordenacaoIds.length === 1) return allCoordenacaoIds[0];
+    if (!loadingCoord && allCoordenacaoIds.length === 1) return allCoordenacaoIds[0];
     return "all";
-  }, [selectedCoordenacao, canSelectAll, allCoordenacaoIds]);
+  }, [selectedCoordenacao, loadingCoord, allCoordenacaoIds]);
 
-  // IDs passed to hooks: always restrict to user's coordinations (unless admin with "all" selected)
+  // IDs que passamos aos hooks:
+  // - Se uma coordenação específica foi selecionada: null (o hook recebe coordenacaoId diretamente)
+  // - Se admin sem seleção específica: undefined (fallback global admin)
+  // - Se usuário comum sem seleção específica: seus IDs específicos
   const coordIdsForHooks = useMemo(() => {
-    if (effectiveCoordenacao !== "all") return undefined;
-    // Admin selecting "all" → pass undefined so hooks do a global lookup
-    if (isAdmin) return undefined;
-    // Non-admin: ALWAYS pass their coord IDs explicitly (even if empty while loading).
-    // This prevents the hook fallback from fetching all coordinations.
-    return allCoordenacaoIds;
+    if (effectiveCoordenacao !== "all") return undefined; // hook recebe via coordenacaoId
+    if (isAdmin) return undefined; // admin: fallback global
+    return allCoordenacaoIds; // usuário comum: restringe aos seus
   }, [effectiveCoordenacao, isAdmin, allCoordenacaoIds]);
 
   const { data: membrosStats, isLoading: loadingStats } = useEquipeTarefasStats(
     effectiveCoordenacao !== "all" ? effectiveCoordenacao : null,
-    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined,
+    coordIdsForHooks,
     loadingCoord
   );
+
   const { data: tarefas, isLoading: loadingTarefas } = useEquipeTarefas(
     effectiveCoordenacao !== "all" ? effectiveCoordenacao : null,
     {
@@ -111,33 +103,26 @@ export default function PainelEquipe() {
       prioridade: prioridadeFilter,
       search: searchQuery,
     },
-    effectiveCoordenacao === "all" ? coordIdsForHooks : undefined,
+    coordIdsForHooks,
     loadingCoord
   );
 
-  // Calculate totals
+  // Totais
   const totals = useMemo(() => {
-    if (!membrosStats) return { total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, urgentes: 0 };
+    if (!membrosStats) return { total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0 };
     return membrosStats.reduce(
       (acc, m) => ({
         total: acc.total + m.total_tarefas,
         pendentes: acc.pendentes + m.pendentes,
         atrasadas: acc.atrasadas + m.atrasadas,
         cumpridas: acc.cumpridas + m.cumpridas,
-        urgentes: acc.urgentes + m.urgentes,
       }),
-      { total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, urgentes: 0 }
+      { total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0 }
     );
   }, [membrosStats]);
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-  };
+  const getInitials = (name: string) =>
+    name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   const getPrioridadeBadge = (prioridade: string) => {
     const variants: Record<string, string> = {
@@ -162,13 +147,10 @@ export default function PainelEquipe() {
         </Badge>
       );
     }
-
     if (tarefa.data_vencimento) {
       const today = startOfDay(new Date());
       const dataVencimento = parseISO(tarefa.data_vencimento);
-      const isAtrasado = isAfter(today, dataVencimento);
-
-      if (isAtrasado) {
+      if (isAfter(today, dataVencimento)) {
         return (
           <Badge className="bg-destructive/10 text-destructive text-xs">
             <XCircle className="w-3 h-3 mr-1" />
@@ -177,7 +159,6 @@ export default function PainelEquipe() {
         );
       }
     }
-
     return (
       <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">
         <Clock className="w-3 h-3 mr-1" />
@@ -188,26 +169,19 @@ export default function PainelEquipe() {
 
   const getDiasRestantes = (tarefa: any) => {
     if (tarefa.status === "cumprido" || !tarefa.data_vencimento) return null;
-
     const today = startOfDay(new Date());
     const dataVencimento = parseISO(tarefa.data_vencimento);
     const dias = differenceInDays(dataVencimento, today);
-
-    if (dias < 0) {
-      return (
-        <span className="text-destructive font-medium">
-          {Math.abs(dias)}d atraso
-        </span>
-      );
-    }
-    if (dias === 0) {
-      return <span className="text-amber-600 font-medium">Hoje</span>;
-    }
-    if (dias <= 3) {
-      return <span className="text-amber-600">{dias}d</span>;
-    }
+    if (dias < 0) return <span className="text-destructive font-medium">{Math.abs(dias)}d atraso</span>;
+    if (dias === 0) return <span className="text-amber-600 font-medium">Hoje</span>;
+    if (dias <= 3) return <span className="text-amber-600">{dias}d</span>;
     return <span className="text-muted-foreground">{dias}d</span>;
   };
+
+  // Mostra seletor de coordenação:
+  // - Admin sempre vê
+  // - Usuário comum vê só se tiver mais de 1 coordenação
+  const showCoordenacaoSelector = isAdmin || allCoordenacaoIds.length > 1;
 
   if (loadingCoord) {
     return (
@@ -222,21 +196,16 @@ export default function PainelEquipe() {
   }
 
   return (
-    <MainLayout
-      title="Painel da Equipe"
-      subtitle="Visão geral das tarefas da sua equipe"
-    >
-      {/* Coordination Selector */}
-      {coordenacoes && coordenacoes.length > 1 || isAdmin ? (
+    <MainLayout title="Painel da Equipe" subtitle="Visão geral das tarefas da sua equipe">
+      {/* Seletor de Coordenação */}
+      {showCoordenacaoSelector && (
         <div className="mb-6">
           <Select value={effectiveCoordenacao} onValueChange={setSelectedCoordenacao}>
             <SelectTrigger className="w-full md:w-80">
               <SelectValue placeholder="Selecionar coordenação" />
             </SelectTrigger>
             <SelectContent>
-              {canSelectAll && (
-                <SelectItem value="all">Todas as coordenações</SelectItem>
-              )}
+              <SelectItem value="all">Todas as coordenações</SelectItem>
               {coordenacoes?.map((coord) => (
                 <SelectItem key={coord.id} value={coord.id}>
                   {coord.nome}
@@ -245,9 +214,9 @@ export default function PainelEquipe() {
             </SelectContent>
           </Select>
         </div>
-      ) : null}
+      )}
 
-      {/* Stats Cards */}
+      {/* Cards de Estatísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <Card className="bg-card border-border/50">
           <CardContent className="pt-4">
@@ -260,15 +229,9 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card 
-          className={cn(
-            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
-            statusFilter === "all" && activeTab === "tarefas" && "ring-2 ring-blue-500"
-          )}
-          onClick={() => {
-            setStatusFilter("all");
-            setActiveTab("tarefas");
-          }}
+        <Card
+          className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "all" && activeTab === "tarefas" && "ring-2 ring-blue-500")}
+          onClick={() => { setStatusFilter("all"); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -280,15 +243,9 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card 
-          className={cn(
-            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
-            statusFilter === "pendente" && "ring-2 ring-amber-500"
-          )}
-          onClick={() => {
-            setStatusFilter("pendente");
-            setActiveTab("tarefas");
-          }}
+        <Card
+          className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "pendente" && "ring-2 ring-amber-500")}
+          onClick={() => { setStatusFilter("pendente"); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -300,15 +257,9 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card 
-          className={cn(
-            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
-            statusFilter === "atrasado" && "ring-2 ring-destructive"
-          )}
-          onClick={() => {
-            setStatusFilter("atrasado");
-            setActiveTab("tarefas");
-          }}
+        <Card
+          className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "atrasado" && "ring-2 ring-destructive")}
+          onClick={() => { setStatusFilter("atrasado"); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -320,15 +271,9 @@ export default function PainelEquipe() {
             </div>
           </CardContent>
         </Card>
-        <Card 
-          className={cn(
-            "bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none",
-            statusFilter === "cumprido" && "ring-2 ring-emerald-500"
-          )}
-          onClick={() => {
-            setStatusFilter("cumprido");
-            setActiveTab("tarefas");
-          }}
+        <Card
+          className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "cumprido" && "ring-2 ring-emerald-500")}
+          onClick={() => { setStatusFilter("cumprido"); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -354,7 +299,7 @@ export default function PainelEquipe() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Team Overview Tab */}
+        {/* Aba Visão Geral */}
         <TabsContent value="visao-geral" className="space-y-4">
           {loadingStats ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -368,7 +313,6 @@ export default function PainelEquipe() {
                 const taxaConclusao = membro.total_tarefas > 0
                   ? Math.round((membro.cumpridas / membro.total_tarefas) * 100)
                   : 0;
-
                 return (
                   <Card
                     key={membro.usuario_id}
@@ -376,10 +320,7 @@ export default function PainelEquipe() {
                       "bg-card border-border/50 hover:shadow-md transition-shadow cursor-pointer",
                       membro.atrasadas > 0 && "border-l-4 border-l-destructive"
                     )}
-                    onClick={() => {
-                      setSelectedMembro(membro.usuario_id);
-                      setActiveTab("tarefas");
-                    }}
+                    onClick={() => { setSelectedMembro(membro.usuario_id); setActiveTab("tarefas"); }}
                   >
                     <CardContent className="pt-4">
                       <div className="flex items-start gap-3 mb-3">
@@ -390,9 +331,7 @@ export default function PainelEquipe() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-sm truncate">{membro.nome}</h4>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {membro.cargo || "Membro"}
-                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{membro.cargo || "Membro"}</p>
                         </div>
                         {membro.atrasadas > 0 && (
                           <Badge variant="destructive" className="text-xs">
@@ -400,14 +339,12 @@ export default function PainelEquipe() {
                           </Badge>
                         )}
                       </div>
-
                       <div className="space-y-2">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Conclusão</span>
                           <span className="font-medium">{taxaConclusao}%</span>
                         </div>
                         <Progress value={taxaConclusao} className="h-2" />
-
                         <div className="grid grid-cols-4 gap-2 pt-2">
                           <div className="text-center">
                             <p className="text-lg font-bold">{membro.total_tarefas}</p>
@@ -431,20 +368,18 @@ export default function PainelEquipe() {
                   </Card>
                 );
               })}
-
               {(!membrosStats || membrosStats.length === 0) && (
                 <div className="col-span-full text-center py-12 text-muted-foreground">
                   <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Nenhum membro na coordenação selecionada</p>
+                  <p>Nenhum membro encontrado</p>
                 </div>
               )}
             </div>
           )}
         </TabsContent>
 
-        {/* Tasks Tab */}
+        {/* Aba Tarefas */}
         <TabsContent value="tarefas" className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -493,7 +428,6 @@ export default function PainelEquipe() {
             </Select>
           </div>
 
-          {/* Tasks Table */}
           {loadingTarefas ? (
             <Skeleton className="h-96 rounded-xl" />
           ) : (
@@ -512,21 +446,16 @@ export default function PainelEquipe() {
                 </TableHeader>
                 <TableBody>
                   {tarefas?.map((tarefa) => (
-                    <TableRow 
-                      key={tarefa.id} 
+                    <TableRow
+                      key={tarefa.id}
                       className="hover:bg-muted/50 cursor-pointer"
-                      onClick={() => {
-                        setSelectedTarefa(tarefa as Prazo);
-                        setDetalhesDialogOpen(true);
-                      }}
+                      onClick={() => { setSelectedTarefa(tarefa as Prazo); setDetalhesDialogOpen(true); }}
                     >
                       <TableCell>
                         <div className="max-w-[250px]">
                           <p className="font-medium truncate">{tarefa.titulo}</p>
                           {tarefa.descricao && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {tarefa.descricao}
-                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{tarefa.descricao}</p>
                           )}
                         </div>
                       </TableCell>
@@ -557,7 +486,6 @@ export default function PainelEquipe() {
                       <TableCell>{getStatusBadge(tarefa)}</TableCell>
                     </TableRow>
                   ))}
-
                   {(!tarefas || tarefas.length === 0) && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
@@ -573,7 +501,6 @@ export default function PainelEquipe() {
         </TabsContent>
       </Tabs>
 
-      {/* Task Details Dialog */}
       <TarefaDetalhesDialog
         open={detalhesDialogOpen}
         onOpenChange={setDetalhesDialogOpen}
