@@ -589,7 +589,11 @@ export function CoordenacaoDetalhesView({
               <div
                 key={alerta.id}
                 className="p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => handleNavigateProcesso(alerta.processo_id, "andamentos")}
+                onClick={() => {
+                  // Alertas 360 navegam para a aba de monitoramento 360 do processo
+                  // (os alertas são registros de alertas_monitoramento, não audiencias_detectadas)
+                  handleNavigateProcesso(alerta.processo_id, "monitoramento360");
+                }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0 space-y-2">
