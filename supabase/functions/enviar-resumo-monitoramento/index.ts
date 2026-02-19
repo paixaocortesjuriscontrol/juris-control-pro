@@ -119,21 +119,26 @@ serve(async (req) => {
 
       // Verificar horário de envio (usando horário de Brasília)
       const agora = new Date();
-      const brasiliaOffset = -3 * 60;
-      const localOffset = agora.getTimezoneOffset();
-      const brasiliaTime = new Date(agora.getTime() + (localOffset + brasiliaOffset) * 60 * 1000);
+      // Deno/Edge roda em UTC — converter para BRT (UTC-3)
+      const brasiliaTime = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
       
-      const horaAtual = brasiliaTime.toTimeString().slice(0, 5);
-      const diaSemana = brasiliaTime.getDay();
+      // Formato HH:MM para comparação consistente (sem segundos)
+      const horaAtual = brasiliaTime.toISOString().slice(11, 16); // "HH:MM"
+      const diaSemana = brasiliaTime.getUTCDay();
 
-      if (config.dias_semana && !config.dias_semana.includes(diaSemana)) {
-        console.log(`${TAG} Fora dos dias permitidos para envio`);
+      console.log(`${TAG} Verificando coordenação ${coordenacao_id} | horaAtual BRT: ${horaAtual} | diaSemana: ${diaSemana}`);
+
+      if (config.dias_semana && config.dias_semana.length > 0 && !config.dias_semana.includes(diaSemana)) {
+        console.log(`${TAG} Fora dos dias permitidos (${config.dias_semana.join(',')}) para coordenação ${coordenacao_id}`);
         continue;
       }
 
       if (config.horario_inicio && config.horario_fim) {
-        if (horaAtual < config.horario_inicio || horaAtual > config.horario_fim) {
-          console.log(`${TAG} Fora do horário permitido: ${horaAtual}`);
+        // Normalizar horarios para HH:MM (remover segundos se existirem)
+        const hInicio = String(config.horario_inicio).slice(0, 5);
+        const hFim = String(config.horario_fim).slice(0, 5);
+        if (horaAtual < hInicio || horaAtual > hFim) {
+          console.log(`${TAG} Fora do horário permitido: ${horaAtual} (permitido: ${hInicio}-${hFim})`);
           continue;
         }
       }

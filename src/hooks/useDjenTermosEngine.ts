@@ -1929,18 +1929,35 @@ async function enviarResumoDjenPorCoordenacao(
     }
 
     console.log(`[DJEN] Enviando resumo automático: ${resumos.length} coordenação(ões), ${publicacoes.length} publicação(ões)`);
+    console.log('[DJEN] Resumos por coordenação:', resumos.map(r => `${r.coordenacao_nome}: ${r.total_encontrados} publicações`).join(', '));
 
-    const { error: funcError } = await supabase.functions.invoke('enviar-resumo-monitoramento', {
-      body: {
-        tipo_monitoramento: 'djen',
-        resumos_por_coordenacao: resumos,
-      },
-    });
+    // Usar fetch direto para garantir envio mesmo se o token do usuário tiver expirado
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-    if (funcError) {
-      console.warn('[DJEN] Erro ao enviar resumo automático:', funcError.message);
-    } else {
-      console.log('[DJEN] Resumo automático enviado com sucesso!');
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'apikey': supabaseAnonKey,
+        },
+        body: JSON.stringify({
+          tipo_monitoramento: 'djen',
+          resumos_por_coordenacao: resumos,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn('[DJEN] Erro ao enviar resumo automático (HTTP):', response.status, errText);
+      } else {
+        const result = await response.json();
+        console.log('[DJEN] Resumo automático enviado com sucesso!', result);
+      }
+    } catch (fetchErr: any) {
+      console.warn('[DJEN] Falha no fetch do resumo automático:', fetchErr?.message || fetchErr);
     }
   } catch (err: any) {
     console.warn('[DJEN] Falha no envio automático de resumo:', err?.message || err);
