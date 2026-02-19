@@ -166,7 +166,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
       desembargador_turma: newPedido.desembargador_turma || null,
       tst: newPedido.tst,
       ministro_turma_sessao: newPedido.ministro_turma_sessao || null,
-      observacao: newPedido.observacao || null,
+      observacao: (newPedido.observacao && newPedido.observacao.trim().toLowerCase() !== 'false') ? newPedido.observacao.trim() : null,
     });
     setNewPedido(emptyPedido);
     setIsAddDialogOpen(false);
@@ -196,7 +196,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           desembargador_turma: data.desembargador_turma || null,
           tst: data.tst,
           ministro_turma_sessao: data.ministro_turma_sessao || null,
-          observacao: data.observacao || null,
+          observacao: (data.observacao && data.observacao.trim().toLowerCase() !== 'false') ? data.observacao.trim() : null,
         });
       }
       setIsEditDialogOpen(false);
