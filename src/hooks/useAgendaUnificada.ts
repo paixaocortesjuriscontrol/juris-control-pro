@@ -379,9 +379,6 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           queryTarefas = queryTarefas.lte("data_vencimento", filters.dataFim.toISOString().split("T")[0]);
         }
 
-        // Ordenar por data_vencimento para paginação determinística
-        queryTarefas = queryTarefas.order("data_vencimento", { ascending: true, nullsFirst: false });
-
         // Apply range for pagination
         queryTarefas = queryTarefas.range(from, to);
 
@@ -411,7 +408,6 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (filters.dataFim) {
             queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", filters.dataFim.toISOString().split("T")[0]);
           }
-          queryTarefasFallback = queryTarefasFallback.order("data_vencimento", { ascending: true, nullsFirst: false });
           queryTarefasFallback = queryTarefasFallback.range(from, to);
           const fallbackRes = await queryTarefasFallback;
           tarefas = fallbackRes.data;
