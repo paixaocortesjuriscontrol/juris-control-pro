@@ -214,16 +214,17 @@ export default function PainelControle() {
     );
 
     const calcStats = (items: ItemAgendaUnificado[]) => {
-      const atrasadas = items.filter((i) => i.is_atrasado && i.status !== "cumprido" && i.status !== "concluido").length;
-      const hoje_count = items.filter((i) => {
+      const pendentes = items.filter((i) => i.status !== "cumprido" && i.status !== "concluido");
+      const atrasadas = pendentes.filter((i) => i.is_atrasado).length;
+      const hoje_count = pendentes.filter((i) => {
         const d = parseISO(i.data_inicio);
-        return isToday(d) && i.status !== "cumprido" && i.status !== "concluido";
+        return isToday(d);
       }).length;
-      const futuras = items.filter((i) => {
+      const futuras = pendentes.filter((i) => {
         const d = parseISO(i.data_inicio);
-        return differenceInDays(startOfDay(d), hoje) > 0 && i.status !== "cumprido" && i.status !== "concluido";
+        return differenceInDays(startOfDay(d), hoje) > 0;
       }).length;
-      return { atrasadas, hoje: hoje_count, futuras, total: items.length };
+      return { atrasadas, hoje: hoje_count, futuras, total: pendentes.length };
     };
 
     return {
