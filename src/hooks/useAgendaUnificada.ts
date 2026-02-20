@@ -462,11 +462,13 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 
               const statusUnificado = tarefa.status === "cumprido" ? "concluido" : tarefa.status;
               const tipoTarefaUpper = (tarefa.tipo_tarefa ?? "").toUpperCase().trim();
+              // No modo fetchAll (admin/escritório), não classificar como "delegada" — o tipo vem do banco.
+              // No modo pessoal, tarefas criadas por outros são "delegadas".
               const tipoTarefa = tipoTarefaUpper === "AUDIÊNCIA" || tipoTarefaUpper === "AUDIENCIA"
                 ? "audiencia"
                 : tipoTarefaUpper === "EVENTO"
                 ? "evento"
-                : tarefa.criado_por !== user.id
+                : (!filters.fetchAll && tarefa.criado_por !== user.id && tarefa.responsavel_id === user.id)
                 ? "tarefa_delegada"
                 : "tarefa";
 
