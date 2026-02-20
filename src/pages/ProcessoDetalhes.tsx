@@ -124,6 +124,12 @@ const statusLabels: Record<string, string> = {
 const statusOptions: StatusProcesso[] = ["ativo", "pendente", "urgente", "encerrado", "arquivado"];
 const areaOptions: AreaAtuacao[] = ["civil", "trabalhista", "empresarial"];
 
+const isTarefaAudiencia = (tipo: string | null | undefined) => {
+  if (!tipo) return false;
+  const lower = tipo.toLowerCase().trim();
+  return lower === 'audiência' || lower === 'audiencia' || lower === 'preparação audiência' || lower === 'preparacao audiencia';
+};
+
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1258,8 +1264,8 @@ export default function ProcessoDetalhes() {
         >
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">Audiências</span>
-          {(audiencias.length + tarefas.filter(t => t.tipo_tarefa === 'AUDIÊNCIA' || t.tipo_tarefa === 'AUDIENCIA' || t.tipo_tarefa === 'PREPARAÇÃO AUDIÊNCIA').length) > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length + tarefas.filter(t => t.tipo_tarefa === 'AUDIÊNCIA' || t.tipo_tarefa === 'AUDIENCIA' || t.tipo_tarefa === 'PREPARAÇÃO AUDIÊNCIA').length}</Badge>
+          {(audiencias.length + tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa)).length) > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length + tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa)).length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
@@ -1286,8 +1292,8 @@ export default function ProcessoDetalhes() {
         >
           <ListTodo className="w-4 h-4" />
           <span className="hidden sm:inline">Tarefas</span>
-          {tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').length}</Badge>
+          {tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
@@ -1492,9 +1498,7 @@ export default function ProcessoDetalhes() {
 
           {/* Tarefas classificadas como AUDIÊNCIA */}
           {(() => {
-            const tarefasAudiencia = tarefas.filter(t =>
-              t.tipo_tarefa === 'AUDIÊNCIA' || t.tipo_tarefa === 'AUDIENCIA' || t.tipo_tarefa === 'PREPARAÇÃO AUDIÊNCIA'
-            );
+            const tarefasAudiencia = tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa));
             if (tarefasAudiencia.length === 0) return null;
             return (
               <Card>
@@ -1644,10 +1648,10 @@ export default function ProcessoDetalhes() {
                 processoId={id!}
                 onVoltar={() => setSelectedTarefaId(null)}
               />
-            ) : tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').length > 0 ? (
+            ) : tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).length > 0 ? (
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-3">
-                  {tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').map((tarefa) => (
+                  {tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).map((tarefa) => (
                     <Card 
                       key={tarefa.id} 
                       className="hover:shadow-md transition-shadow cursor-pointer"
