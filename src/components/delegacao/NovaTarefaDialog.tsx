@@ -34,13 +34,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, HelpCircle, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 type AnexoComAnalise = {
@@ -458,20 +452,11 @@ export function NovaTarefaDialog({
     .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
 
   return (
-    <TooltipProvider>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Nova Tarefa
-            <Tooltip>
-              <TooltipTrigger>
-                <HelpCircle className="w-4 h-4 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Crie e delegue uma nova tarefa para sua equipe</p>
-              </TooltipContent>
-            </Tooltip>
           </DialogTitle>
           <DialogDescription>
             Preencha os campos para criar uma nova tarefa
@@ -487,17 +472,7 @@ export function NovaTarefaDialog({
                 name="tipo_vinculo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-1">
-                      Tipo de vínculo
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <HelpCircle className="w-3 h-3 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Vincule a um processo ou crie uma tarefa avulsa</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </FormLabel>
+                    <FormLabel>Tipo de vínculo</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -625,17 +600,7 @@ export function NovaTarefaDialog({
                   name="titulo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-1">
-                        Título
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <HelpCircle className="w-3 h-3 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Título descritivo da tarefa</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </FormLabel>
+                        <FormLabel>Título</FormLabel>
                       <FormControl>
                         <Input placeholder="Título da tarefa" {...field} />
                       </FormControl>
@@ -814,14 +779,7 @@ export function NovaTarefaDialog({
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium flex items-center gap-2">
                     Documentos para Análise
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>A IA categoriza automaticamente os documentos anexados</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   </label>
                   <div className="relative">
                     <input
@@ -925,6 +883,5 @@ export function NovaTarefaDialog({
         </div>
       </DialogContent>
     </Dialog>
-    </TooltipProvider>
   );
 }
