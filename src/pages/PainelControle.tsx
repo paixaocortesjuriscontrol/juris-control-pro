@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,7 +181,17 @@ export default function PainelControle() {
     };
   }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes, dataInicio, dataFim]);
 
-  const { data: itensAgenda = [], isLoading } = useAgendaUnificada(filters);
+  const agendaQuery = useAgendaUnificada(filters);
+  const itensAgenda = agendaQuery.data;
+  const isLoading = agendaQuery.isLoading;
+
+  // Auto-fetch all pages so admin in "Escritório" mode sees all tasks across the full month
+  useEffect(() => {
+    if (agendaQuery.hasNextPage && !agendaQuery.isFetchingNextPage) {
+      agendaQuery.fetchNextPage();
+    }
+  }, [agendaQuery.hasNextPage, agendaQuery.isFetchingNextPage, agendaQuery.fetchNextPage]);
+
 
   // Busca direta ao banco para totalizadores (atrasadas/hoje/futuras) — sem limit de paginação
   const hoje_str = format(nowBrt, "yyyy-MM-dd");
