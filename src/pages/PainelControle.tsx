@@ -199,12 +199,12 @@ export default function PainelControle() {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
 
-      // Filtrar tarefas não cumpridas (neq com cast para evitar erro de tipo)
+      // O enum de status em tarefas é: 'pendente' | 'atrasado' | 'cumprido'
+      // "concluido" não existe no enum — filtrar apenas cumprido
       let q = supabase
         .from("tarefas")
         .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
-        .neq("status", "cumprido" as any)
-        .neq("status", "concluido" as any);
+        .neq("status", "cumprido");
 
       if (filtersResumo.fetchAll) {
         // Admin escritório: sem filtro de responsável — vê tudo
