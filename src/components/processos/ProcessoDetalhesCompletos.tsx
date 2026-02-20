@@ -66,6 +66,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
 import { Loader2, Upload as UploadIcon, Sparkles, Trash2, Save } from "lucide-react";
 
+const isTarefaAudiencia = (tipo: string | null | undefined) => {
+  if (!tipo) return false;
+  const lower = tipo.toLowerCase().trim();
+  return lower === 'audiência' || lower === 'audiencia' || lower === 'preparação audiência' || lower === 'preparacao audiencia';
+};
+
 interface Responsavel {
   id: string;
   nome: string;
@@ -696,9 +702,9 @@ export function ProcessoDetalhesCompletos({
     { id: "resumo", label: "Resumo", icon: Home },
     { id: "detalhes", label: "Detalhes", icon: FileText },
     { id: "cobranca", label: "Cobrança", icon: DollarSign },
-    { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
+    { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length + tarefas.filter((t: any) => isTarefaAudiencia(t.tipo_tarefa)).length },
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.length },
+    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
     { id: "tst", label: "TST", icon: Gavel },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
@@ -1388,7 +1394,7 @@ export function ProcessoDetalhesCompletos({
                     <div className="space-y-3">
                       {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
                     </div>
-                  ) : audiencias.length > 0 ? (
+                  ) : (audiencias.length + tarefas.filter((t: any) => isTarefaAudiencia(t.tipo_tarefa)).length) > 0 ? (
                     <div className="space-y-2">
                       {audiencias.map((aud) => (
                         <Card 
@@ -1415,6 +1421,43 @@ export function ProcessoDetalhesCompletos({
                               <Button variant="ghost" size="icon" className="h-7 w-7">
                                 <Eye className="w-4 h-4" />
                               </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      {tarefas.filter((t: any) => isTarefaAudiencia(t.tipo_tarefa)).map((tarefa: any) => (
+                        <Card 
+                          key={tarefa.id} 
+                          className="hover:shadow-md transition-shadow cursor-pointer"
+                          onClick={() => onSelectTarefa?.(tarefa.id)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-50">
+                                    {tarefa.tipo_tarefa}
+                                  </Badge>
+                                  <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
+                                    {tarefa.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm font-medium">{tarefa.titulo}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  {tarefa.data_vencimento && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {formatDate(tarefa.data_vencimento)}
+                                    </span>
+                                  )}
+                                  {tarefa.responsavel?.nome && (
+                                    <span className="flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      {tarefa.responsavel.nome}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
@@ -1511,9 +1554,9 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : tarefas.length > 0 ? (
+                      ) : tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length > 0 ? (
                         <div className="space-y-2">
-                          {tarefas.map((tarefa: any) => (
+                          {tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).map((tarefa: any) => (
                             <Card 
                               key={tarefa.id} 
                               className="hover:shadow-md transition-shadow cursor-pointer"
