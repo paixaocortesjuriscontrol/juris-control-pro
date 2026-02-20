@@ -711,12 +711,12 @@ export default function PainelControle() {
                                     </button>
                                   </PopoverTrigger>
                                   <PopoverContent
-                                    className="w-64 p-2"
+                                    className="w-72 p-0 overflow-hidden"
                                     side="right"
                                     align="start"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <div className="mb-2 pb-1.5 border-b border-border">
+                                    <div className="px-3 py-2 border-b border-border">
                                       <p className="text-xs font-semibold text-foreground">
                                         {format(dia, "dd 'de' MMMM", { locale: ptBR })}
                                       </p>
@@ -724,8 +724,8 @@ export default function PainelControle() {
                                         +{extras} item(s) não exibido(s)
                                       </p>
                                     </div>
-                                    <ScrollArea className="max-h-60">
-                                      <div className="space-y-1 pr-1">
+                                    <ScrollArea className="h-64">
+                                      <div className="space-y-1 p-2">
                                         {itens.slice(MAX_VISIBLE).map((item) => (
                                           <div
                                             key={item.id}
