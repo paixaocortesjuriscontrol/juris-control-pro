@@ -354,10 +354,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           // Admin vendo todas - sem filtro
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
           // Coordenador/admin filtrando por membros específicos:
-          // Mostra TODAS as tarefas onde o membro é responsável, independente de quem criou.
-          // Isso permite que coordenadores vejam tarefas delegadas por outros usuários.
-          const membrosFilter = filters.responsavelIds.join(",");
-          queryTarefas = queryTarefas.in("responsavel_id", filters.responsavelIds);
+          // Mostra tarefas onde o membro é responsável OU criador.
+          // Isso permite ver tarefas delegadas por esses usuários a outros, e tarefas delegadas a eles.
+          const ids = filters.responsavelIds.join(",");
+          queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
         } else {
           // Usuário comum vendo apenas suas próprias tarefas
           queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
@@ -398,7 +398,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             // sem filtro
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
             // Coordenador/admin filtrando por membros específicos
-            queryTarefasFallback = queryTarefasFallback.in("responsavel_id", filters.responsavelIds);
+            const ids = filters.responsavelIds.join(",");
+            queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
           } else {
             queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
           }
