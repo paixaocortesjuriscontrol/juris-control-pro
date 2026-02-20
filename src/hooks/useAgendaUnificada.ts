@@ -461,8 +461,11 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               const isAtrasado = diasRestantes < 0 && tarefa.status === "pendente";
 
               const statusUnificado = tarefa.status === "cumprido" ? "concluido" : tarefa.status;
-              const tipoTarefa = tarefa.tipo_tarefa === "AUDIÊNCIA"
+              const tipoTarefaUpper = (tarefa.tipo_tarefa ?? "").toUpperCase().trim();
+              const tipoTarefa = tipoTarefaUpper === "AUDIÊNCIA" || tipoTarefaUpper === "AUDIENCIA"
                 ? "audiencia"
+                : tipoTarefaUpper === "EVENTO"
+                ? "evento"
                 : tarefa.criado_por !== user.id
                 ? "tarefa_delegada"
                 : "tarefa";
