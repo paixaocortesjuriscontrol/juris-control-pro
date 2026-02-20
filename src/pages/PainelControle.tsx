@@ -88,6 +88,7 @@ export default function PainelControle() {
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
@@ -690,11 +691,21 @@ export default function PainelControle() {
                                 </div>
                               ))}
                               {extras > 0 && (
-                                <Popover>
+                                <Popover
+                                  open={openPopoverKey === key}
+                                  onOpenChange={(open) =>
+                                    setOpenPopoverKey(open ? key : null)
+                                  }
+                                >
                                   <PopoverTrigger asChild>
                                     <button
                                       className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
-                                      onClick={(e) => e.stopPropagation()}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenPopoverKey(
+                                          openPopoverKey === key ? null : key
+                                        );
+                                      }}
                                     >
                                       +{extras} mais
                                     </button>
@@ -714,7 +725,7 @@ export default function PainelControle() {
                                       </p>
                                     </div>
                                     <ScrollArea className="max-h-60">
-                                      <div className="space-y-1">
+                                      <div className="space-y-1 pr-1">
                                         {itens.map((item) => (
                                           <div
                                             key={item.id}
@@ -724,6 +735,7 @@ export default function PainelControle() {
                                             )}
                                             onClick={(e) => {
                                               e.stopPropagation();
+                                              setOpenPopoverKey(null);
                                               handleItemClick(item);
                                             }}
                                           >
