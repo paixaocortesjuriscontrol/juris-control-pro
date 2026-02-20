@@ -196,33 +196,48 @@ export default function PainelControle() {
   const { data: resumoStats } = useQuery({
     queryKey: ["painel-controle-resumo-stats", tabMode, filtersResumo, hoje_str],
     queryFn: async () => {
-      if (!user?.id) return { tarefas: { atrasadas: 0, hoje: 0, futuras: 0, total: 0 }, audiencias: { atrasadas: 0, hoje: 0, futuras: 0, total: 0 }, compromissos: { atrasadas: 0, hoje: 0, futuras: 0, total: 0 } };
+      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
+      if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
 
+      // Filtrar tarefas não cumpridas (neq com cast para evitar erro de tipo)
       let q = supabase
         .from("tarefas")
         .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
-        .not("status", "in", '("cumprido","concluido")');
+        .neq("status", "cumprido" as any)
+        .neq("status", "concluido" as any);
 
       if (filtersResumo.fetchAll) {
-        // sem filtro de responsável
+        // Admin escritório: sem filtro de responsável — vê tudo
       } else if (filtersResumo.responsavelIds && filtersResumo.responsavelIds.length > 0) {
         q = q.in("responsavel_id", filtersResumo.responsavelIds);
       } else {
         q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
       }
 
-      const { data: tarefas } = await q;
+      const { data: tarefas, error } = await q;
+
+      if (error) {
+        console.error("[resumoStats] erro na query:", error);
+        return { tarefas: empty, audiencias: empty, compromissos: empty };
+      }
 
       const hoje_d = new Date(hoje_str + "T00:00:00");
 
       const calcStats = (items: any[]) => {
         const atrasadas = items.filter(t => {
-          const d = new Date((t.data_vencimento ?? t.data_fatal ?? "") + "T00:00:00");
+          const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
+          if (!dateStr) return false;
+          const d = new Date(dateStr + "T00:00:00");
           return d < hoje_d;
         }).length;
-        const hoje_count = items.filter(t => (t.data_vencimento ?? t.data_fatal ?? "").slice(0, 10) === hoje_str).length;
+        const hoje_count = items.filter(t => {
+          const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
+          return dateStr.slice(0, 10) === hoje_str;
+        }).length;
         const futuras = items.filter(t => {
-          const d = new Date((t.data_vencimento ?? t.data_fatal ?? "") + "T00:00:00");
+          const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
+          if (!dateStr) return false;
+          const d = new Date(dateStr + "T00:00:00");
           return d > hoje_d;
         }).length;
         return { atrasadas, hoje: hoje_count, futuras, total: items.length };
@@ -248,7 +263,8 @@ export default function PainelControle() {
         compromissos: calcStats(compromissoItems),
       };
     },
-    enabled: !!user?.id && !coordLoading && !membrosLoading,
+    // Não bloquear por coordLoading — filtersResumo já depende dos dados carregados
+    enabled: !!user?.id,
     staleTime: 30000,
   });
 
