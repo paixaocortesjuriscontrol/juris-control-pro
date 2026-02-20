@@ -193,6 +193,15 @@ export default function PainelControle() {
   // Busca direta ao banco para totalizadores (atrasadas/hoje/futuras) — sem limit de paginação
   const hoje_str = format(nowBrt, "yyyy-MM-dd");
 
+  // No modo escritório (não-admin), aguardar os membros carregarem antes de disparar a query
+  const resumoStatsReady = useMemo(() => {
+    if (tabMode === "pessoal") return true;
+    if (isAdmin) return true;
+    // Aguardar coordenações e membros carregarem
+    if (coordLoading || membrosLoading) return false;
+    return true;
+  }, [tabMode, isAdmin, coordLoading, membrosLoading]);
+
   const { data: resumoStats } = useQuery({
     queryKey: ["painel-controle-resumo-stats", tabMode, filtersResumo, hoje_str],
     queryFn: async () => {
@@ -200,7 +209,6 @@ export default function PainelControle() {
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
 
       // O enum de status em tarefas é: 'pendente' | 'atrasado' | 'cumprido'
-      // "concluido" não existe no enum — filtrar apenas cumprido
       let q = supabase
         .from("tarefas")
         .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
@@ -263,8 +271,8 @@ export default function PainelControle() {
         compromissos: calcStats(compromissoItems),
       };
     },
-    // Não bloquear por coordLoading — filtersResumo já depende dos dados carregados
-    enabled: !!user?.id,
+    // No modo escritório (não-admin), aguardar membros carregarem para usar os IDs corretos
+    enabled: !!user?.id && resumoStatsReady,
     staleTime: 30000,
   });
 
