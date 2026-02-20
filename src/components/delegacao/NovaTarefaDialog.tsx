@@ -38,6 +38,7 @@ import { Loader2, HelpCircle, X, Upload, FileText, Trash2, Sparkles, CheckCircle
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -197,12 +198,13 @@ export function NovaTarefaDialog({
     enabled: tipoVinculo === "processo" && (!!coordenacaoId || searchProcesso.length >= 3),
   });
 
-  // Reset form when dialog opens
+  // Reset form when dialog opens — auto-select coordenação se houver apenas uma
   useEffect(() => {
     if (open) {
+      const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
       form.reset({
         tipo_vinculo: "processo",
-        coordenacao_id: "",
+        coordenacao_id: coordenacaoInicial,
         processo_id: processoPreSelecionado?.id || "",
         tipo_tarefa: "",
         titulo: "",
@@ -219,7 +221,7 @@ export function NovaTarefaDialog({
       setSearchProcesso("");
       setAnexos([]);
     }
-  }, [open, processoPreSelecionado, form]);
+  }, [open, processoPreSelecionado, form, coordenacoes]);
 
   const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
     try {
@@ -456,6 +458,7 @@ export function NovaTarefaDialog({
     .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
 
   return (
+    <TooltipProvider>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
@@ -922,5 +925,6 @@ export function NovaTarefaDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </TooltipProvider>
   );
 }
