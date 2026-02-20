@@ -791,7 +791,6 @@ export function TarefaAgendaPanel({
           data_vencimento: editForm.data_vencimento || null,
           data_fatal: editForm.data_fatal || null,
           prioridade: editForm.prioridade || "media",
-          local: editForm.local || null,
           updated_at: new Date().toISOString(),
         };
         if (editForm.responsavel_id) {
@@ -1055,33 +1054,22 @@ export function TarefaAgendaPanel({
                     </div>
                   </div>
 
-                  {/* Linha 3: Responsável + Local */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Responsável</Label>
-                      <Select
-                        value={editForm.responsavel_id}
-                        onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Selecionar..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {membrosEdicao.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Local</Label>
-                      <Input
-                        value={editForm.local}
-                        onChange={(e) => setEditForm(f => ({ ...f, local: e.target.value }))}
-                        placeholder="Local..."
-                        className="h-9"
-                      />
-                    </div>
+                  {/* Linha 3: Responsável */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Responsável</Label>
+                    <Select
+                      value={editForm.responsavel_id}
+                      onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosEdicao.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
