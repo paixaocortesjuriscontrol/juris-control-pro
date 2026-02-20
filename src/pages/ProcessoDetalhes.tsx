@@ -1411,81 +1411,146 @@ export default function ProcessoDetalhes() {
 
       {/* Tab Contents - Audiências */}
       <TabsContent value="audiencias" className="mt-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Gavel className="w-5 h-5" />
-              Audiências
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingAudiencias ? (
-              <div className="space-y-3">
-                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
-              </div>
-            ) : audiencias.length > 0 ? (
-              <ScrollArea className="h-[500px] pr-4">
-                <div className="space-y-4">
-                  {audiencias.map((aud) => (
-                    <Card key={aud.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {getAudienciaStatusBadge(aud.status)}
-                              {getOrigemBadge(aud.origem)}
-                              {aud.tipo_audiencia && (
-                                <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-4 text-sm flex-wrap">
-                              <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
-                                <Calendar className="h-5 w-5 text-primary" />
-                                <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
-                                {(aud.hora_brasilia || aud.hora) && (
-                                  <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
+        <div className="space-y-4">
+          {/* Audiências detectadas / manuais (audiencias_detectadas) */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Gavel className="w-5 h-5" />
+                Audiências
+                {audiencias.length > 0 && <Badge variant="secondary">{audiencias.length}</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAudiencias ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+                </div>
+              ) : audiencias.length > 0 ? (
+                <ScrollArea className="h-[500px] pr-4">
+                  <div className="space-y-4">
+                    {audiencias.map((aud) => (
+                      <Card key={aud.id} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {getAudienciaStatusBadge(aud.status)}
+                                {getOrigemBadge(aud.origem)}
+                                {aud.tipo_audiencia && (
+                                  <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
                                 )}
                               </div>
+                              <div className="flex items-center gap-4 text-sm flex-wrap">
+                                <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
+                                  <Calendar className="h-5 w-5 text-primary" />
+                                  <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
+                                  {(aud.hora_brasilia || aud.hora) && (
+                                    <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {aud.resumo_objeto && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
+                              )}
                             </div>
-                            {aud.resumo_objeto && (
-                              <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
-                            )}
+                            <div className="flex gap-2 flex-wrap">
+                              <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Editar
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
+                                <Eye className="h-4 w-4 mr-1" />
+                                Detalhes
+                              </Button>
+                              {aud.status === 'pendente' && (
+                                <>
+                                  <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    Tratado
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                    <XCircle className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex gap-2 flex-wrap">
-                            <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
-                              <Pencil className="h-4 w-4 mr-1" />
-                              Editar
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
-                              <Eye className="h-4 w-4 mr-1" />
-                              Detalhes
-                            </Button>
-                            {aud.status === 'pendente' && (
-                              <>
-                                <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Tratado
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-6">
+                  <Gavel className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground text-sm">Nenhuma audiência registrada</p>
                 </div>
-              </ScrollArea>
-            ) : (
-              <div className="text-center py-8">
-                <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">Nenhuma audiência registrada</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tarefas classificadas como AUDIÊNCIA */}
+          {(() => {
+            const tarefasAudiencia = tarefas.filter(t =>
+              t.tipo_tarefa === 'AUDIÊNCIA' || t.tipo_tarefa === 'AUDIENCIA' || t.tipo_tarefa === 'PREPARAÇÃO AUDIÊNCIA'
+            );
+            if (tarefasAudiencia.length === 0) return null;
+            return (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-amber-600" />
+                    Tarefas de Audiência
+                    <Badge variant="secondary">{tarefasAudiencia.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {tarefasAudiencia.map((tarefa) => (
+                      <Card
+                        key={tarefa.id}
+                        className="hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => { setSelectedTarefaId(tarefa.id); setActiveTab("tarefas"); }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-1">
+                              <p className="font-medium">{tarefa.titulo}</p>
+                              {tarefa.descricao && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">{tarefa.descricao}</p>
+                              )}
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                                {tarefa.data_vencimento && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {formatDate(tarefa.data_vencimento)}
+                                  </span>
+                                )}
+                                {tarefa.responsavel?.nome && (
+                                  <span className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    {tarefa.responsavel.nome}
+                                  </span>
+                                )}
+                                <Badge variant="outline" className="text-[10px] h-4 px-1.5 text-amber-700 border-amber-300 bg-amber-50">
+                                  {tarefa.tipo_tarefa}
+                                </Badge>
+                              </div>
+                            </div>
+                            <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'}>
+                              {tarefa.status}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
       </TabsContent>
 
       {/* Tab Contents - Intimações */}
