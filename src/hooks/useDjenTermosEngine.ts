@@ -1748,11 +1748,8 @@ async function runEngine(
       }, { force: true });
 
       // Enviar resumo automático por coordenação ao concluir
-      if (novas > 0) {
-        await enviarResumoDjenPorCoordenacao(dataInicioYmd, dataFimYmd);
-      } else {
-        console.log('[DJEN] Nenhuma publicação nova — resumo não enviado.');
-      }
+      // Sempre envia ao concluir (mesmo que novas=0, pode haver publicações do período)
+      await enviarResumoDjenPorCoordenacao(dataInicioYmd, dataFimYmd);
     }
 
     // Finalizar execução
@@ -1821,16 +1818,15 @@ async function enviarResumoDjenPorCoordenacao(
   dataFimYmd: string,
 ): Promise<void> {
   try {
-    // CORREÇÃO: usa duas queries separadas para evitar join implícito com FK não registrada
-    const dataInicio = `${dataInicioYmd}T00:00:00.000Z`;
-    const dataFim = `${dataFimYmd}T23:59:59.999Z`;
+    // Filtra por data_disponibilizacao (data do diário) — não por created_at (data do insert)
+    // Isso garante que publicações encontradas em re-execuções também sejam incluídas
 
     // Query 1: buscar publicações do período com monitoramento_id
     const { data: publicacoes, error: errPub } = await supabase
       .from('publicacoes_djen')
       .select('id, processo_numero, conteudo, monitoramento_id')
-      .gte('created_at', dataInicio)
-      .lte('created_at', dataFim);
+      .gte('data_disponibilizacao', dataInicioYmd)
+      .lte('data_disponibilizacao', dataFimYmd);
 
     if (errPub) {
       console.warn('[DJEN] Erro ao buscar publicações para resumo:', errPub.message);
@@ -1945,6 +1941,7 @@ async function enviarResumoDjenPorCoordenacao(
         },
         body: JSON.stringify({
           tipo_monitoramento: 'djen',
+          ignorar_horario: true, // execução automática — ignora janela de horário
           resumos_por_coordenacao: resumos,
         }),
       });
