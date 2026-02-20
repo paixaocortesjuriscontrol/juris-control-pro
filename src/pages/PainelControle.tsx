@@ -128,12 +128,25 @@ export default function PainelControle() {
     enabled: coordenacoesUsuario.length > 0,
   });
 
+  // Intervalo de datas: 6 meses para cada lado do mês exibido (cobre cards de resumo + calendário)
+  const dataInicio = useMemo(() => {
+    const d = subMonths(mesAtual, 6);
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  }, [mesAtual]);
+  const dataFim = useMemo(() => {
+    const d = addMonths(mesAtual, 6);
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  }, [mesAtual]);
+
   // Filtros conforme aba selecionada
   const filters = useMemo(() => {
+    const dateRange = { dataInicio, dataFim };
+
     if (tabMode === "pessoal") {
       return {
         responsavelIds: user?.id ? [user.id] : undefined,
         fetchAll: false,
+        ...dateRange,
       };
     }
 
@@ -143,12 +156,12 @@ export default function PainelControle() {
 
     // Admin sempre vê tudo no escritório
     if (isAdmin) {
-      return { fetchAll: true };
+      return { fetchAll: true, ...dateRange };
     }
 
     // Aguardar carregamento antes de decidir
     if (coordLoading || membrosLoading) {
-      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
+      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false, ...dateRange };
     }
 
     // Coordenador/usuário: filtra pelos membros das suas coordenações
@@ -156,6 +169,7 @@ export default function PainelControle() {
       return {
         responsavelIds: membrosDasCoordenacoes,
         fetchAll: false,
+        ...dateRange,
       };
     }
 
@@ -163,8 +177,9 @@ export default function PainelControle() {
     return {
       responsavelIds: user?.id ? [user.id] : undefined,
       fetchAll: false,
+      ...dateRange,
     };
-  }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes]);
+  }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes, dataInicio, dataFim]);
 
   const { data: itensAgenda = [], isLoading } = useAgendaUnificada(filters);
 
