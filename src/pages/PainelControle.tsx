@@ -182,35 +182,31 @@ export default function PainelControle() {
 
   const { data: itensAgenda = [], isLoading } = useAgendaUnificada(filters);
 
-  // Filtros para cards de RESUMO — sem filtro de data (todos os pendentes)
-  const filtersResumo = useMemo(() => {
-    if (tabMode === "pessoal") {
-      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
-    }
-    if (isAdmin) return { fetchAll: true };
-    if (coordLoading || membrosLoading) {
-      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
-    }
-    if (membrosDasCoordenacoes.length > 0) {
-      return { responsavelIds: membrosDasCoordenacoes, fetchAll: false };
-    }
-    return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
-  }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes]);
-
   // Busca direta ao banco para totalizadores (atrasadas/hoje/futuras) — sem limit de paginação
   const hoje_str = format(nowBrt, "yyyy-MM-dd");
 
-  // No modo escritório (não-admin), aguardar os membros carregarem antes de disparar a query
+  // Aguardar todos os dados necessários antes de disparar a query de totalizadores
   const resumoStatsReady = useMemo(() => {
     if (tabMode === "pessoal") return true;
     if (isAdmin) return true;
-    // Aguardar coordenações e membros carregarem
+    // Modo escritório: aguardar coordenações E membros carregarem completamente
     if (coordLoading || membrosLoading) return false;
+    // Coordenações carregadas mas sem membros: aguardar se houver coordenações (significa que membros ainda chegam)
+    if (coordenacoesUsuario.length > 0 && membrosDasCoordenacoes.length === 0) return false;
     return true;
-  }, [tabMode, isAdmin, coordLoading, membrosLoading]);
+  }, [tabMode, isAdmin, coordLoading, membrosLoading, coordenacoesUsuario.length, membrosDasCoordenacoes.length]);
+
+  // IDs de membros a usar na query de totalizadores (estabilizados para o queryKey)
+  const membrosIdsParaResumo = useMemo(() => {
+    if (tabMode === "pessoal") return user?.id ? [user.id] : [];
+    if (isAdmin) return []; // fetchAll=true, não usa IDs
+    if (membrosDasCoordenacoes.length > 0) return membrosDasCoordenacoes;
+    return user?.id ? [user.id] : [];
+  }, [tabMode, isAdmin, membrosDasCoordenacoes, user?.id]);
 
   const { data: resumoStats } = useQuery({
-    queryKey: ["painel-controle-resumo-stats", tabMode, filtersResumo, hoje_str],
+    // queryKey inclui membrosIdsParaResumo explicitamente para invalidar cache quando mudarem
+    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
@@ -221,10 +217,10 @@ export default function PainelControle() {
         .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
         .neq("status", "cumprido");
 
-      if (filtersResumo.fetchAll) {
+      if (tabMode === "escritorio" && isAdmin) {
         // Admin escritório: sem filtro de responsável — vê tudo
-      } else if (filtersResumo.responsavelIds && filtersResumo.responsavelIds.length > 0) {
-        q = q.in("responsavel_id", filtersResumo.responsavelIds);
+      } else if (membrosIdsParaResumo.length > 0) {
+        q = q.in("responsavel_id", membrosIdsParaResumo);
       } else {
         q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
       }
