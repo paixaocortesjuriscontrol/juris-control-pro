@@ -162,7 +162,7 @@ export default function PainelControle() {
 
     // Aguardar carregamento antes de decidir
     if (coordLoading || membrosLoading) {
-      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false, ...dateRange };
+      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false, pessoal: false, ...dateRange };
     }
 
     // Coordenador/usuário: filtra pelos membros das suas coordenações
