@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
   format,
@@ -641,11 +642,10 @@ export default function PainelControle() {
                           <div
                             key={i}
                             className={cn(
-                              "border-r border-border last:border-r-0 p-0.5 md:p-1 cursor-pointer hover:bg-muted/30 transition-colors",
+                              "border-r border-border last:border-r-0 p-0.5 md:p-1 transition-colors",
                               !ehMesAtual && "bg-muted/10",
                               ehHoje && "bg-primary/5"
                             )}
-                            onClick={() => handleDayClick(dia)}
                           >
                             {/* Número do dia */}
                             <div className="flex justify-start mb-0.5 md:mb-1">
@@ -690,9 +690,58 @@ export default function PainelControle() {
                                 </div>
                               ))}
                               {extras > 0 && (
-                                <div className="text-[9px] md:text-[10px] text-muted-foreground px-0.5 md:px-1">
-                                  +{extras}
-                                </div>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      +{extras} mais
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    className="w-64 p-2"
+                                    side="right"
+                                    align="start"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="mb-2 pb-1.5 border-b border-border">
+                                      <p className="text-xs font-semibold text-foreground">
+                                        {format(dia, "dd 'de' MMMM", { locale: ptBR })}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {itens.length} item(s) neste dia
+                                      </p>
+                                    </div>
+                                    <ScrollArea className="max-h-60">
+                                      <div className="space-y-1">
+                                        {itens.map((item) => (
+                                          <div
+                                            key={item.id}
+                                            className={cn(
+                                              "text-[10px] leading-tight px-2 py-1.5 rounded cursor-pointer text-white font-medium flex items-center gap-1.5",
+                                              TIPO_CORES[item.tipo] || "bg-muted"
+                                            )}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleItemClick(item);
+                                            }}
+                                          >
+                                            {item.status === "cumprido" ||
+                                            item.status === "concluido" ? (
+                                              <CheckCircle2 className="w-3 h-3 flex-shrink-0 opacity-90" />
+                                            ) : (
+                                              <FileText className="w-3 h-3 flex-shrink-0 opacity-90" />
+                                            )}
+                                            <span className="truncate">
+                                              {item.titulo || TIPO_LABELS[item.tipo]}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </ScrollArea>
+                                  </PopoverContent>
+                                </Popover>
                               )}
                             </div>
                           </div>
