@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface ResumoPayload {
   tipo_monitoramento: 'andamentos' | 'redistribuicoes' | 'distribuicoes' | 'djen' | 'djen_processos' | 'termos' | 'prazos' | 'audiencias' | 'intimacoes';
+  ignorar_horario?: boolean; // quando true, ignora a janela de horário configurada (útil para execuções automáticas)
   resumos_por_coordenacao: {
     coordenacao_id: string;
     coordenacao_nome?: string;
@@ -35,7 +36,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const payload: ResumoPayload = await req.json();
-    const { tipo_monitoramento, resumos_por_coordenacao } = payload;
+    const { tipo_monitoramento, resumos_por_coordenacao, ignorar_horario } = payload;
 
     if (!tipo_monitoramento || !resumos_por_coordenacao?.length) {
       console.log(`${TAG} Nenhum resumo para enviar`);
@@ -128,19 +129,23 @@ serve(async (req) => {
 
       console.log(`${TAG} Verificando coordenação ${coordenacao_id} | horaAtual BRT: ${horaAtual} | diaSemana: ${diaSemana}`);
 
-      if (config.dias_semana && config.dias_semana.length > 0 && !config.dias_semana.includes(diaSemana)) {
-        console.log(`${TAG} Fora dos dias permitidos (${config.dias_semana.join(',')}) para coordenação ${coordenacao_id}`);
-        continue;
-      }
-
-      if (config.horario_inicio && config.horario_fim) {
-        // Normalizar horarios para HH:MM (remover segundos se existirem)
-        const hInicio = String(config.horario_inicio).slice(0, 5);
-        const hFim = String(config.horario_fim).slice(0, 5);
-        if (horaAtual < hInicio || horaAtual > hFim) {
-          console.log(`${TAG} Fora do horário permitido: ${horaAtual} (permitido: ${hInicio}-${hFim})`);
+      if (!ignorar_horario) {
+        if (config.dias_semana && config.dias_semana.length > 0 && !config.dias_semana.includes(diaSemana)) {
+          console.log(`${TAG} Fora dos dias permitidos (${config.dias_semana.join(',')}) para coordenação ${coordenacao_id}`);
           continue;
         }
+
+        if (config.horario_inicio && config.horario_fim) {
+          // Normalizar horarios para HH:MM (remover segundos se existirem)
+          const hInicio = String(config.horario_inicio).slice(0, 5);
+          const hFim = String(config.horario_fim).slice(0, 5);
+          if (horaAtual < hInicio || horaAtual > hFim) {
+            console.log(`${TAG} Fora do horário permitido: ${horaAtual} (permitido: ${hInicio}-${hFim}) — para ignorar horário, use ignorar_horario=true`);
+            continue;
+          }
+        }
+      } else {
+        console.log(`${TAG} Coordenação ${coordenacao_id}: ignorar_horario=true — enviando sem verificar janela de horário`);
       }
 
       // Buscar membros da coordenação
