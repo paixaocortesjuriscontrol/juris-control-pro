@@ -808,7 +808,7 @@ export default function PainelControle() {
                                     </button>
                                   </PopoverTrigger>
                                   <PopoverContent
-                                    className="w-72 p-0 overflow-hidden"
+                                    className="w-72 p-0"
                                     side="right"
                                     align="start"
                                     onClick={(e) => e.stopPropagation()}
