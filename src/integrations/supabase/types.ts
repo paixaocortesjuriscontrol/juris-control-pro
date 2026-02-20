@@ -5153,6 +5153,10 @@ export type Database = {
       }
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
       is_cliente: { Args: { _user_id: string }; Returns: boolean }
+      is_member_of_coordenacao: {
+        Args: { _coordenacao_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
       marcar_publicacoes_lidas_por_dedup: {
