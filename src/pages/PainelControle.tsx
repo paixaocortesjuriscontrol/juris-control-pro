@@ -412,14 +412,20 @@ export default function PainelControle() {
   }, [mesAtual]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
+  // Concluídas aparecem no final de cada dia, pendentes primeiro
   const itensPorDia = useMemo(() => {
     const map = new Map<string, ItemAgendaUnificado[]>();
     itensAgenda.forEach((item) => {
-      // Ocultar tarefas cumpridas/concluídas do calendário para alinhar com os totalizadores
-      if (item.status === "cumprido" || item.status === "concluido") return;
       const key = item.data_inicio.slice(0, 10);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
+    });
+    // Ordenar: pendentes/atrasados primeiro, concluídos por último
+    map.forEach((itens, key) => {
+      map.set(key, [
+        ...itens.filter(i => i.status !== "cumprido" && i.status !== "concluido"),
+        ...itens.filter(i => i.status === "cumprido" || i.status === "concluido"),
+      ]);
     });
     return map;
   }, [itensAgenda]);
@@ -754,12 +760,16 @@ export default function PainelControle() {
 
                             {/* Itens do dia */}
                             <div className="space-y-0.5">
-                              {visiveis.map((item) => (
+                              {visiveis.map((item) => {
+                                const isConcluido = item.status === "cumprido" || item.status === "concluido";
+                                return (
                                 <div
                                   key={item.id}
                                   className={cn(
-                                    "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer text-white font-medium flex items-center gap-0.5",
-                                    TIPO_CORES[item.tipo] || "bg-muted"
+                                    "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
+                                    isConcluido
+                                      ? "bg-green-500 text-white opacity-75"
+                                      : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -767,17 +777,16 @@ export default function PainelControle() {
                                   }}
                                   title={item.titulo}
                                 >
-                                  {item.status === "cumprido" ||
-                                  item.status === "concluido" ? (
-                                    <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
+                                  {isConcluido ? (
+                                    <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
-                                  <span className="truncate">
+                                  <span className={cn("truncate", isConcluido && "line-through")}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
                                 </div>
-                              ))}
+                              )})}
                               {extras > 0 && (
                                 <Popover
                                   open={openPopoverKey === key}
@@ -814,12 +823,16 @@ export default function PainelControle() {
                                     </div>
                                     <ScrollArea className="h-64">
                                       <div className="space-y-1 p-2">
-                                        {itens.slice(MAX_VISIBLE).map((item) => (
+                                        {itens.slice(MAX_VISIBLE).map((item) => {
+                                          const isConcluido = item.status === "cumprido" || item.status === "concluido";
+                                          return (
                                           <div
                                             key={item.id}
                                             className={cn(
-                                              "text-[10px] leading-tight px-2 py-1.5 rounded cursor-pointer text-white font-medium flex items-center gap-1.5",
-                                              TIPO_CORES[item.tipo] || "bg-muted"
+                                              "text-[10px] leading-tight px-2 py-1.5 rounded cursor-pointer font-medium flex items-center gap-1.5",
+                                              isConcluido
+                                                ? "bg-green-500 text-white opacity-75"
+                                                : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
                                             )}
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -827,17 +840,16 @@ export default function PainelControle() {
                                               handleItemClick(item);
                                             }}
                                           >
-                                            {item.status === "cumprido" ||
-                                            item.status === "concluido" ? (
-                                              <CheckCircle2 className="w-3 h-3 flex-shrink-0 opacity-90" />
+                                            {isConcluido ? (
+                                              <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
                                             ) : (
                                               <FileText className="w-3 h-3 flex-shrink-0 opacity-90" />
                                             )}
-                                            <span className="truncate">
+                                            <span className={cn("truncate", isConcluido && "line-through")}>
                                               {item.titulo || TIPO_LABELS[item.tipo]}
                                             </span>
                                           </div>
-                                        ))}
+                                        )})}
                                       </div>
                                     </ScrollArea>
                                   </PopoverContent>
