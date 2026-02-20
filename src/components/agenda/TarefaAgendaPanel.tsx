@@ -1594,11 +1594,11 @@ export function TarefaAgendaPanel({
                   </div>
                 )}
 
-                {/* Tipo do Item */}
+                {/* Origem/Tipo do Item */}
                 <div className="space-y-1">
                   <div className="flex items-center gap-1 text-muted-foreground">
                     <Info className="w-3 h-3" />
-                    <span className="text-xs">Tipo</span>
+                    <span className="text-xs">Origem</span>
                   </div>
                   <Badge variant="outline" className="text-xs">
                     {TIPO_LABELS[tarefa.tipo] || tarefa.tipo}
