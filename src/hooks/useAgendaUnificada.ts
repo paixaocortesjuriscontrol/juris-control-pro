@@ -136,8 +136,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
 
       // Calculate pagination ranges for each source separately
-      // We'll fetch PAGE_SIZE/2 from each source to stay under limits
-      const halfPage = Math.floor(PAGE_SIZE / 2);
+      // When fetchAll (admin escritório), use larger page size to reduce round trips
+      const halfPage = filters.fetchAll ? PAGE_SIZE : Math.floor(PAGE_SIZE / 2);
       const from = page * halfPage;
       const to = from + halfPage - 1;
 
