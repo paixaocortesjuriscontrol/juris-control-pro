@@ -1258,8 +1258,8 @@ export default function ProcessoDetalhes() {
         >
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">Audiências</span>
-          {audiencias.length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
+          {(audiencias.length + tarefas.filter(t => t.tipo_tarefa === 'AUDIÊNCIA' || t.tipo_tarefa === 'AUDIENCIA' || t.tipo_tarefa === 'PREPARAÇÃO AUDIÊNCIA').length) > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length + tarefas.filter(t => t.tipo_tarefa === 'AUDIÊNCIA' || t.tipo_tarefa === 'AUDIENCIA' || t.tipo_tarefa === 'PREPARAÇÃO AUDIÊNCIA').length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
@@ -1286,8 +1286,8 @@ export default function ProcessoDetalhes() {
         >
           <ListTodo className="w-4 h-4" />
           <span className="hidden sm:inline">Tarefas</span>
-          {tarefas.length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.length}</Badge>
+          {tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
@@ -1644,10 +1644,10 @@ export default function ProcessoDetalhes() {
                 processoId={id!}
                 onVoltar={() => setSelectedTarefaId(null)}
               />
-            ) : tarefas.length > 0 ? (
+            ) : tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').length > 0 ? (
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-3">
-                  {tarefas.map((tarefa) => (
+                  {tarefas.filter(t => t.tipo_tarefa !== 'AUDIÊNCIA' && t.tipo_tarefa !== 'AUDIENCIA' && t.tipo_tarefa !== 'PREPARAÇÃO AUDIÊNCIA').map((tarefa) => (
                     <Card 
                       key={tarefa.id} 
                       className="hover:shadow-md transition-shadow cursor-pointer"
