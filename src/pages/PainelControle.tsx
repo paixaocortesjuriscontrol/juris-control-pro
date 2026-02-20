@@ -721,12 +721,12 @@ export default function PainelControle() {
                                         {format(dia, "dd 'de' MMMM", { locale: ptBR })}
                                       </p>
                                       <p className="text-[10px] text-muted-foreground">
-                                        {itens.length} item(s) neste dia
+                                        +{extras} item(s) não exibido(s)
                                       </p>
                                     </div>
                                     <ScrollArea className="max-h-60">
                                       <div className="space-y-1 pr-1">
-                                        {itens.map((item) => (
+                                        {itens.slice(MAX_VISIBLE).map((item) => (
                                           <div
                                             key={item.id}
                                             className={cn(
