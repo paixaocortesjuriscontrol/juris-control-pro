@@ -18,8 +18,6 @@ import {
   isSameMonth,
   isToday,
   startOfDay,
-  differenceInDays,
-  parseISO,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -128,17 +126,15 @@ export default function PainelControle() {
     enabled: coordenacoesUsuario.length > 0,
   });
 
-  // Intervalo de datas: 6 meses para cada lado do mês exibido (cobre cards de resumo + calendário)
+  // Intervalo do mês exibido no calendário (apenas o mês atual ±1 semana para margem)
   const dataInicio = useMemo(() => {
-    const d = subMonths(mesAtual, 6);
-    return new Date(d.getFullYear(), d.getMonth(), 1);
+    return new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1);
   }, [mesAtual]);
   const dataFim = useMemo(() => {
-    const d = addMonths(mesAtual, 6);
-    return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0);
   }, [mesAtual]);
 
-  // Filtros conforme aba selecionada
+  // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
     const dateRange = { dataInicio, dataFim };
 
@@ -149,10 +145,6 @@ export default function PainelControle() {
         ...dateRange,
       };
     }
-
-    // Escritório:
-    // - Admin: fetchAll=true (visão global de toda a firma)
-    // - Coordenador ou usuário comum: filtra pelos membros das suas coordenações
 
     // Admin sempre vê tudo no escritório
     if (isAdmin) {
@@ -173,7 +165,6 @@ export default function PainelControle() {
       };
     }
 
-    // Fallback: apenas o próprio usuário
     return {
       responsavelIds: user?.id ? [user.id] : undefined,
       fetchAll: false,
@@ -182,6 +173,84 @@ export default function PainelControle() {
   }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes, dataInicio, dataFim]);
 
   const { data: itensAgenda = [], isLoading } = useAgendaUnificada(filters);
+
+  // Filtros para cards de RESUMO — sem filtro de data (todos os pendentes)
+  const filtersResumo = useMemo(() => {
+    if (tabMode === "pessoal") {
+      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
+    }
+    if (isAdmin) return { fetchAll: true };
+    if (coordLoading || membrosLoading) {
+      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
+    }
+    if (membrosDasCoordenacoes.length > 0) {
+      return { responsavelIds: membrosDasCoordenacoes, fetchAll: false };
+    }
+    return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false };
+  }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes]);
+
+  // Busca direta ao banco para totalizadores (atrasadas/hoje/futuras) — sem limit de paginação
+  const hoje_str = format(nowBrt, "yyyy-MM-dd");
+
+  const { data: resumoStats } = useQuery({
+    queryKey: ["painel-controle-resumo-stats", tabMode, filtersResumo, hoje_str],
+    queryFn: async () => {
+      if (!user?.id) return { tarefas: { atrasadas: 0, hoje: 0, futuras: 0, total: 0 }, audiencias: { atrasadas: 0, hoje: 0, futuras: 0, total: 0 }, compromissos: { atrasadas: 0, hoje: 0, futuras: 0, total: 0 } };
+
+      let q = supabase
+        .from("tarefas")
+        .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
+        .not("status", "in", '("cumprido","concluido")');
+
+      if (filtersResumo.fetchAll) {
+        // sem filtro de responsável
+      } else if (filtersResumo.responsavelIds && filtersResumo.responsavelIds.length > 0) {
+        q = q.in("responsavel_id", filtersResumo.responsavelIds);
+      } else {
+        q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+      }
+
+      const { data: tarefas } = await q;
+
+      const hoje_d = new Date(hoje_str + "T00:00:00");
+
+      const calcStats = (items: any[]) => {
+        const atrasadas = items.filter(t => {
+          const d = new Date((t.data_vencimento ?? t.data_fatal ?? "") + "T00:00:00");
+          return d < hoje_d;
+        }).length;
+        const hoje_count = items.filter(t => (t.data_vencimento ?? t.data_fatal ?? "").slice(0, 10) === hoje_str).length;
+        const futuras = items.filter(t => {
+          const d = new Date((t.data_vencimento ?? t.data_fatal ?? "") + "T00:00:00");
+          return d > hoje_d;
+        }).length;
+        return { atrasadas, hoje: hoje_count, futuras, total: items.length };
+      };
+
+      const all = tarefas || [];
+      const audienciaItems = all.filter(t => {
+        const u = (t.tipo_tarefa ?? "").toUpperCase().trim();
+        return u === "AUDIÊNCIA" || u === "AUDIENCIA";
+      });
+      const compromissoItems = all.filter(t => {
+        const u = (t.tipo_tarefa ?? "").toUpperCase().trim();
+        return u === "EVENTO";
+      });
+      const tarefaItems = all.filter(t => {
+        const u = (t.tipo_tarefa ?? "").toUpperCase().trim();
+        return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO";
+      });
+
+      return {
+        tarefas: calcStats(tarefaItems),
+        audiencias: calcStats(audienciaItems),
+        compromissos: calcStats(compromissoItems),
+      };
+    },
+    enabled: !!user?.id && !coordLoading && !membrosLoading,
+    staleTime: 30000,
+  });
+
 
   // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
   const { data: processosIds = [] } = useQuery({
@@ -215,39 +284,12 @@ export default function PainelControle() {
     enabled: !!user?.id,
   });
 
-  // ===== CARDS DE RESUMO =====
-  const hoje_inicio = startOfDay(nowBrt);
-  const hoje_fim = new Date(hoje_inicio.getTime() + 86400000 - 1);
-
+  // ===== CARDS DE RESUMO — usa resumoStats (query direta sem limite de página) =====
   const resumo = useMemo(() => {
-    const tarefas = itensAgenda.filter((i) =>
-      ["tarefa", "tarefa_delegada", "prazo"].includes(i.tipo)
-    );
-    const audiencias = itensAgenda.filter((i) => i.tipo === "audiencia");
-    const compromissos = itensAgenda.filter((i) =>
-      ["evento", "prazo_parcela", "parcelamento"].includes(i.tipo)
-    );
-
-    const calcStats = (items: ItemAgendaUnificado[]) => {
-      const pendentes = items.filter((i) => i.status !== "cumprido" && i.status !== "concluido");
-      const atrasadas = pendentes.filter((i) => i.is_atrasado).length;
-      const hoje_count = pendentes.filter((i) => {
-        const d = parseISO(i.data_inicio);
-        return isToday(d);
-      }).length;
-      const futuras = pendentes.filter((i) => {
-        const d = parseISO(i.data_inicio);
-        return differenceInDays(startOfDay(d), hoje) > 0;
-      }).length;
-      return { atrasadas, hoje: hoje_count, futuras, total: pendentes.length };
-    };
-
-    return {
-      tarefas: calcStats(tarefas),
-      audiencias: calcStats(audiencias),
-      compromissos: calcStats(compromissos),
-    };
-  }, [itensAgenda, nowBrt, hoje]);
+    const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
+    if (!resumoStats) return { tarefas: empty, audiencias: empty, compromissos: empty };
+    return resumoStats;
+  }, [resumoStats]);
 
   // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
   const { data: intimacoesPendentes = 0 } = useQuery({
