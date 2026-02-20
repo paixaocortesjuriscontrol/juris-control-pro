@@ -761,17 +761,44 @@ function NovaTarefaDialogWrapper({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data: coordenacoes = [] } = useQuery({
-    queryKey: ["coordenacoes-nova-tarefa-painel"],
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+
+  // Buscar coordenações que o usuário pertence (para não-admins)
+  const { data: membrosCoordenacoes = [] } = useQuery({
+    queryKey: ["membros-coordenacoes-nova-tarefa", user?.id],
     queryFn: async () => {
+      if (!user?.id) return [];
       const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return (data || []).map((m) => m.coordenacao_id);
+    },
+    enabled: open && !!user?.id && !isAdmin,
+  });
+
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ["coordenacoes-nova-tarefa-painel", isAdmin, membrosCoordenacoes],
+    queryFn: async () => {
+      let query = supabase
         .from("coordenacoes")
         .select("id, nome, area")
         .order("nome");
+
+      // Não-admins só veem as coordenações que pertencem
+      if (!isAdmin && membrosCoordenacoes.length > 0) {
+        query = query.in("id", membrosCoordenacoes);
+      } else if (!isAdmin && membrosCoordenacoes.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: open,
+    enabled: open && (isAdmin || membrosCoordenacoes.length > 0),
   });
 
   return (
