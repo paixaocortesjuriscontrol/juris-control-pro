@@ -136,8 +136,15 @@ export default function PainelControle() {
   }, [mesAtual]);
 
   // Filtros conforme aba selecionada (apenas para o calendário)
+  // Obs: excluímos tarefas 'cumprido' do calendário para que o visual bata com os totalizadores
   const filters = useMemo(() => {
     const dateRange = { dataInicio, dataFim };
+    // "todas" = sem filtro de status (mostra pendente + atrasado, excluindo cumprido via status !== cumprido no hook)
+    // Não passamos status aqui — o hook filtra por padrão apenas quando status está definido.
+    // Para alinhar com totalizadores, precisamos excluir cumprido no calendário também.
+    // Fazemos isso via status: "pendente" não (pois inclui apenas pendente), mas o hook aceita
+    // qualquer string além de "pendente"/"concluido". Solução: filtrar no lado cliente após busca.
+    // Na prática, passamos sem filtro de status e filtramos os cumprido no itensPorDia.
 
     if (tabMode === "pessoal") {
       return {
@@ -412,6 +419,8 @@ export default function PainelControle() {
   const itensPorDia = useMemo(() => {
     const map = new Map<string, ItemAgendaUnificado[]>();
     itensAgenda.forEach((item) => {
+      // Ocultar tarefas cumpridas/concluídas do calendário para alinhar com os totalizadores
+      if (item.status === "cumprido" || item.status === "concluido") return;
       const key = item.data_inicio.slice(0, 10);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
