@@ -126,12 +126,13 @@ export default function PainelControle() {
     enabled: coordenacoesUsuario.length > 0,
   });
 
-  // Intervalo do mês exibido no calendário (apenas o mês atual ±1 semana para margem)
+  // Intervalo do mês exibido no calendário
   const dataInicio = useMemo(() => {
-    return new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1);
+    return new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1, 0, 0, 0);
   }, [mesAtual]);
   const dataFim = useMemo(() => {
-    return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0);
+    // Último dia do mês, final do dia
+    return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0, 23, 59, 59);
   }, [mesAtual]);
 
   // Filtros conforme aba selecionada (apenas para o calendário)

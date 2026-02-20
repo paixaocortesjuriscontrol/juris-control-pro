@@ -372,11 +372,15 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         }
 
         if (filters.dataInicio) {
-          queryTarefas = queryTarefas.gte("data_vencimento", filters.dataInicio.toISOString().split("T")[0]);
+          const di = filters.dataInicio;
+          const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
+          queryTarefas = queryTarefas.gte("data_vencimento", diStr);
         }
 
         if (filters.dataFim) {
-          queryTarefas = queryTarefas.lte("data_vencimento", filters.dataFim.toISOString().split("T")[0]);
+          const df = filters.dataFim;
+          const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
+          queryTarefas = queryTarefas.lte("data_vencimento", dfStr);
         }
 
         // Ordenar por data_vencimento para que os registros mais próximos cheguem primeiro
@@ -406,10 +410,14 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             }
           }
           if (filters.dataInicio) {
-            queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", filters.dataInicio.toISOString().split("T")[0]);
+            const di = filters.dataInicio;
+            const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
+            queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", diStr);
           }
           if (filters.dataFim) {
-            queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", filters.dataFim.toISOString().split("T")[0]);
+            const df = filters.dataFim;
+            const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
+            queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", dfStr);
           }
           queryTarefasFallback = queryTarefasFallback.range(from, to);
           const fallbackRes = await queryTarefasFallback;
