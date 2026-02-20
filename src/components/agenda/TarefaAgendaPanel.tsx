@@ -851,7 +851,7 @@ export function TarefaAgendaPanel({
     return `há ${Math.floor(diffDays / 365)} anos`;
   };
 
-  const canEdit = tarefa.criado_por === user?.id || !tarefa.criado_por;
+  const canEdit = tarefa.criado_por === user?.id || !tarefa.criado_por || tarefa.responsavel_id === user?.id;
   const isConcluido = tarefa.status === "concluido" || tarefa.status === "cumprido";
 
   return (
