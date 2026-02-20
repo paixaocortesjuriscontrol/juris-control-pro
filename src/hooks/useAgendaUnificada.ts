@@ -75,6 +75,7 @@ export interface AgendaUnificadaFilters {
   clienteId?: string;
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
+  pessoal?: boolean; // Se true, inclui tarefas criadas pelo usuário mesmo que delegadas a outros
 }
 
 const PAGE_SIZE = 1000; // Supabase default limit
@@ -353,11 +354,15 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         if (filters.fetchAll) {
           // Admin vendo todas - sem filtro
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          // Coordenador/admin filtrando por membros específicos:
-          // Mostra tarefas onde o membro é responsável OU criador.
-          // Isso permite ver tarefas delegadas por esses usuários a outros, e tarefas delegadas a eles.
-          const ids = filters.responsavelIds.join(",");
-          queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
+          if (filters.pessoal) {
+            // Modo pessoal: tarefas onde o usuário é responsável OU criador
+            const ids = filters.responsavelIds.join(",");
+            queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
+          } else {
+            // Modo escritório: tarefas onde QUALQUER membro é responsável
+            // (independente de quem criou — inclui tarefas de admins delegadas a membros)
+            queryTarefas = queryTarefas.in("responsavel_id", filters.responsavelIds);
+          }
         } else {
           // Usuário comum vendo apenas suas próprias tarefas
           queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
@@ -397,9 +402,12 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (filters.fetchAll) {
             // sem filtro
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-            // Coordenador/admin filtrando por membros específicos
-            const ids = filters.responsavelIds.join(",");
-            queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
+            if (filters.pessoal) {
+              const ids = filters.responsavelIds.join(",");
+              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
+            } else {
+              queryTarefasFallback = queryTarefasFallback.in("responsavel_id", filters.responsavelIds);
+            }
           } else {
             queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
           }

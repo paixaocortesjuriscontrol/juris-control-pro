@@ -150,6 +150,7 @@ export default function PainelControle() {
       return {
         responsavelIds: user?.id ? [user.id] : undefined,
         fetchAll: false,
+        pessoal: true, // inclui tarefas criadas pelo usuário mesmo que delegadas a outros
         ...dateRange,
       };
     }
@@ -220,8 +221,14 @@ export default function PainelControle() {
       if (tabMode === "escritorio" && isAdmin) {
         // Admin escritório: sem filtro de responsável — vê tudo
       } else if (membrosIdsParaResumo.length > 0) {
-        const ids = membrosIdsParaResumo.join(",");
-        q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
+        if (tabMode === "pessoal") {
+          // Modo pessoal: tarefas onde o usuário é responsável OU criador
+          const ids = membrosIdsParaResumo.join(",");
+          q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
+        } else {
+          // Modo escritório: tarefas onde QUALQUER membro é responsável
+          q = q.in("responsavel_id", membrosIdsParaResumo);
+        }
       } else {
         q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
       }
