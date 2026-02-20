@@ -220,7 +220,8 @@ export default function PainelControle() {
       if (tabMode === "escritorio" && isAdmin) {
         // Admin escritório: sem filtro de responsável — vê tudo
       } else if (membrosIdsParaResumo.length > 0) {
-        q = q.in("responsavel_id", membrosIdsParaResumo);
+        const ids = membrosIdsParaResumo.join(",");
+        q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
       } else {
         q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
       }
