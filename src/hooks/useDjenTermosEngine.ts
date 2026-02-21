@@ -16,7 +16,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
-import { buildDjenLikeConteudo, collectMetaAdvogadoText } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractAdvogadosFromMeta } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -1211,7 +1211,14 @@ async function processarTermo(
         conteudoOriginal,
       });
       const { polo_ativo, polo_passivo } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
-      
+
+      // Campos estruturados da API (armazenados separadamente para exibição fiel)
+      const orgaoEstruturado = pub?.nomeOrgao ?? pub?.nome_orgao ?? pub?.orgao ?? pub?.nomeOrgaoJulgador ?? null;
+      const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
+      const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
+      const advogadosMeta = extractAdvogadosFromMeta(pub);
+      const advogadosJsonPayload = advogadosMeta.length > 0 ? JSON.stringify(advogadosMeta) : null;
+
       return {
         monitoramento_id: mon.id,
         hash_conteudo: pub.hash_conteudo,
@@ -1224,6 +1231,10 @@ async function processarTermo(
         polo_ativo,
         polo_passivo,
         lida: false,
+        orgao: orgaoEstruturado ? String(orgaoEstruturado).trim() : null,
+        tipo_comunicacao: tipoComunicacaoEstruturado ? String(tipoComunicacaoEstruturado).trim() : null,
+        meio: meioEstruturado ? String(meioEstruturado).trim() : null,
+        advogados_json: advogadosJsonPayload,
       };
     });
 

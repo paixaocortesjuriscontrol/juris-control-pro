@@ -1763,6 +1763,11 @@ const AnaliseDjen = () => {
                                       monitoramentoUf={pub.monitoramento_uf}
                                       monitoramentoTermo={pub.monitoramento_termo}
                                       monitoramentoDescricao={pub.monitoramento_descricao}
+                                      maxHeight="500px"
+                                      orgaoEstruturado={(pub as any).orgao}
+                                      tipoComunicacaoEstruturado={(pub as any).tipo_comunicacao}
+                                      meioEstruturado={(pub as any).meio}
+                                      advogadosJson={(pub as any).advogados_json}
                                     />
                                   </div>
                                 )}
@@ -1822,24 +1827,25 @@ const AnaliseDjen = () => {
             </DialogHeader>
 
             {selectedPublicacao && (
-              <ScrollArea className="max-h-[65vh] md:max-h-[60vh]">
-                <div className="pr-2 md:pr-4">
-                  <PublicacaoConteudoDjen
-                    processoNumero={selectedPublicacao.processo_numero}
-                    tribunal={selectedPublicacao.tribunal}
-                    fonte={selectedPublicacao.fonte}
-                    dataDisponibilizacao={selectedPublicacao.data_disponibilizacao}
-                    dataPublicacao={selectedPublicacao.data_publicacao}
-                    conteudo={selectedPublicacao.conteudo}
-                    poloAtivo={selectedPublicacao.polo_ativo}
-                    poloPassivo={selectedPublicacao.polo_passivo}
-                    monitoramentoOab={selectedPublicacao.monitoramento_oab}
-                    monitoramentoUf={selectedPublicacao.monitoramento_uf}
-                    monitoramentoTermo={selectedPublicacao.monitoramento_termo}
-                    monitoramentoDescricao={selectedPublicacao.monitoramento_descricao}
-                  />
-                </div>
-              </ScrollArea>
+              <PublicacaoConteudoDjen
+                processoNumero={selectedPublicacao.processo_numero}
+                tribunal={selectedPublicacao.tribunal}
+                fonte={selectedPublicacao.fonte}
+                dataDisponibilizacao={selectedPublicacao.data_disponibilizacao}
+                dataPublicacao={selectedPublicacao.data_publicacao}
+                conteudo={selectedPublicacao.conteudo}
+                poloAtivo={selectedPublicacao.polo_ativo}
+                poloPassivo={selectedPublicacao.polo_passivo}
+                monitoramentoOab={selectedPublicacao.monitoramento_oab}
+                monitoramentoUf={selectedPublicacao.monitoramento_uf}
+                monitoramentoTermo={selectedPublicacao.monitoramento_termo}
+                monitoramentoDescricao={selectedPublicacao.monitoramento_descricao}
+                maxHeight="60vh"
+                orgaoEstruturado={(selectedPublicacao as any).orgao}
+                tipoComunicacaoEstruturado={(selectedPublicacao as any).tipo_comunicacao}
+                meioEstruturado={(selectedPublicacao as any).meio}
+                advogadosJson={(selectedPublicacao as any).advogados_json}
+              />
             )}
           </DialogContent>
         </Dialog>
