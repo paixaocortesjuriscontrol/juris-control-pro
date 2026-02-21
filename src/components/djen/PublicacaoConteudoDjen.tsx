@@ -51,20 +51,8 @@ export function PublicacaoConteudoDjen({
     }
   };
 
-  // Extrair órgão/vara do conteúdo (geralmente está no início)
-  const extractOrgao = (texto: string | null): string => {
-    if (!texto) return "-";
-    // Tenta encontrar padrões como "1ª Vara Cível de Brasília" ou "4VARCIVBSB"
-    const plainText = texto.replace(/<[^>]*>/g, ' ').trim();
-    
-    // Procura por vara/câmara no início do texto
-    const varaMatch = plainText.match(/(\d+[ªº]?\s*(?:Vara|Câmara|Turma)[^,.\n]+)/i);
-    if (varaMatch) return varaMatch[1].trim();
-    
-    // Procura por padrão do tribunal (ex: 1VARCIVBSB)
-    const siglaTribunal = fonte || tribunal || "-";
-    return siglaTribunal;
-  };
+  // Usar fonte ou tribunal diretamente - o Órgão vem do dado estruturado, não extraído do conteúdo
+  const orgao = fonte || tribunal || "-";
 
   /**
    * Heurísticas LEVES para evitar “sujeira” (ex.: descrição do termo/trechos do texto)
@@ -226,7 +214,6 @@ export function PublicacaoConteudoDjen({
     return { partes, advogados };
   };
 
-  const orgao = extractOrgao(conteudo);
   const { partes, advogados } = extractPartes(conteudo);
 
   const handleCopy = (withFormatting: boolean) => {
