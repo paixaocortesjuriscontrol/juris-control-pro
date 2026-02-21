@@ -754,29 +754,43 @@ const AnaliseDjen = () => {
     }
 
     setGerandoResumo(true);
-    const toastId = toast.loading(`Gerando resumo IA de ${allPublicacoes.length} publicação(ões)...`);
+    const totalPubs = allPublicacoes.length;
+    const toastId = toast.loading(`Resumindo 1/${totalPubs}...`);
 
     try {
-      // 1. Chamar IA para resumir cada publicação individualmente
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
-        body: {
-          resumoIndividual: true,
-          publicacoes: allPublicacoes.map(p => ({
-            id: p.id,
-            conteudo: p.conteudo,
-            processo: p.processo_numero,
-            dataDisponibilizacao: p.data_disponibilizacao,
-          })),
-        },
-      });
-
-      if (aiError) throw aiError;
-
+      // 1. Chamar IA para resumir cada publicação individualmente (uma a uma)
       const resumosMap = new Map<string, string>();
-      if (aiData?.resumos) {
-        for (const r of aiData.resumos) {
-          resumosMap.set(r.id, r.resumo);
+      let erros = 0;
+
+      for (let i = 0; i < totalPubs; i++) {
+        const pub = allPublicacoes[i];
+        toast.loading(`Resumindo ${i + 1}/${totalPubs}...`, { id: toastId });
+
+        try {
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
+            body: {
+              resumoIndividual: true,
+              publicacao: {
+                id: pub.id,
+                conteudo: pub.conteudo,
+                processo: pub.processo_numero,
+                dataDisponibilizacao: pub.data_disponibilizacao,
+              },
+            },
+          });
+
+          if (aiError) throw aiError;
+          if (aiData?.resumo) {
+            resumosMap.set(pub.id, aiData.resumo);
+          }
+        } catch (e) {
+          console.error(`Erro ao resumir publicação ${pub.id}:`, e);
+          erros++;
         }
+      }
+
+      if (erros > 0) {
+        console.warn(`${erros} publicação(ões) não puderam ser resumidas`);
       }
 
       // 2. Gerar PDF com resumos da IA
@@ -904,15 +918,10 @@ const AnaliseDjen = () => {
           y += 2;
         }
 
-        // ── Resumo IA ──
+        // ── Resumo IA (texto corrido, sem título/prefixo) ──
         const resumoIA = resumosMap.get(pub.id);
         if (resumoIA) {
-          checkPage(12);
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 58, 138);
-          doc.text("Resumo (IA):", mL, y);
-          y += 7;
+          y += 4;
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(0, 0, 0);

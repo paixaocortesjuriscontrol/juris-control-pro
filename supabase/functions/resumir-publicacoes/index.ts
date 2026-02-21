@@ -7,6 +7,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const SYSTEM_PROMPT_INDIVIDUAL = `Você é o melhor assessor jurídico do Brasil, especialista em análise de publicações do Diário de Justiça Eletrônico.
+
+Seu trabalho é resumir publicações jurídicas de forma COMPLETA e ESTRATÉGICA. O resumo DEVE conter OBRIGATORIAMENTE (quando presentes na publicação):
+
+1. ACÓRDÃO: Transcreva o dispositivo do acórdão na íntegra ou resuma fielmente
+2. EMENTA: Reproduza a ementa quando houver
+3. DECISÃO / ISTO POSTO / DISPOSITIVO: O que foi decidido, deferido ou indeferido
+4. PRAZOS: Qualquer prazo mencionado (dias, tipo, termo inicial)
+5. CERTIDÃO DE JULGAMENTO / COMPARECIMENTO: Transcreva se presente
+6. INTIMAÇÃO: O que está sendo intimado e para quem
+7. PROVIDÊNCIA NECESSÁRIA: O que o advogado DEVE fazer após esta publicação
+8. RESULTADO DO JULGAMENTO: Se houve votação, resultado (unânime/maioria), turma julgadora
+
+REGRAS DE FORMATAÇÃO:
+- Escreva em texto corrido, parágrafos curtos e fluídos.
+- NÃO use markdown: nada de ###, **, ---, * (bullets), listas numeradas ou qualquer marcador.
+- NÃO inicie com frases como "Aqui está a análise...", "Segue o resumo...", "A publicação trata de..." ou similares.
+- Vá direto ao conteúdo jurídico relevante.
+- Separe os temas por parágrafos naturais, sem títulos ou subtítulos.
+- Seja completo mas objetivo. Não omita informações processuais relevantes. Não repita dados de cabeçalho (número do processo, órgão, data).`;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -21,8 +42,87 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { publicacoes, monitoramentoId, resumoIndividual } = body;
+    const { publicacoes, publicacao, monitoramentoId, resumoIndividual } = body;
 
+    // ── Modo INDIVIDUAL: resumir UMA publicação ──
+    if (resumoIndividual) {
+      // Aceitar tanto `publicacao` (objeto único) quanto `publicacoes` com 1 item
+      const pub = publicacao || (publicacoes && publicacoes[0]);
+      if (!pub) {
+        return new Response(
+          JSON.stringify({ id: null, resumo: 'Nenhuma publicação para resumir.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const conteudo = (pub.conteudo || pub.texto || pub.teor || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!conteudo || conteudo.length < 20) {
+        return new Response(
+          JSON.stringify({ id: pub.id, resumo: 'Publicação sem conteúdo suficiente para resumir.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const truncated = conteudo.substring(0, 4000);
+      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}`;
+
+      let resumo = 'Não foi possível gerar resumo.';
+      try {
+        let aiResponse: any;
+
+        if (LOVABLE_API_KEY) {
+          const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-3-flash-preview',
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
+                { role: 'user', content: userMsg },
+              ],
+              max_tokens: 1200,
+              temperature: 0.3,
+            }),
+          });
+          if (!resp.ok) throw new Error(`AI error: ${resp.status}`);
+          aiResponse = await resp.json();
+        } else {
+          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
+                { role: 'user', content: userMsg },
+              ],
+              max_tokens: 1200,
+              temperature: 0.3,
+            }),
+          });
+          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+          aiResponse = await resp.json();
+        }
+
+        resumo = aiResponse.choices?.[0]?.message?.content?.trim() || resumo;
+      } catch (e) {
+        console.error(`Erro ao resumir pub ${pub.id}:`, e);
+        resumo = 'Erro ao gerar resumo desta publicação.';
+      }
+
+      return new Response(
+        JSON.stringify({ id: pub.id, resumo }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Modo CONSOLIDADO (original) ──
     if (!publicacoes || publicacoes.length === 0) {
       return new Response(
         JSON.stringify({ resumo: 'Nenhuma publicação para resumir.', resumos: [] }),
@@ -30,103 +130,6 @@ serve(async (req) => {
       );
     }
 
-    // ── Modo INDIVIDUAL: resumir cada publicação separadamente ──
-    if (resumoIndividual) {
-      const MAX_PUB = 30;
-      const pubsLimitadas = publicacoes.slice(0, MAX_PUB);
-
-      const systemPrompt = `Você é o melhor assessor jurídico do Brasil, especialista em análise de publicações do Diário de Justiça Eletrônico.
-
-Seu trabalho é resumir publicações jurídicas de forma COMPLETA e ESTRATÉGICA. O resumo DEVE conter OBRIGATORIAMENTE (quando presentes na publicação):
-
-1. **ACÓRDÃO**: Transcreva o dispositivo do acórdão na íntegra ou resuma fielmente
-2. **EMENTA**: Reproduza a ementa quando houver
-3. **DECISÃO / ISTO POSTO / DISPOSITIVO**: O que foi decidido, deferido ou indeferido
-4. **PRAZOS**: Qualquer prazo mencionado (dias, tipo, termo inicial)
-5. **CERTIDÃO DE JULGAMENTO / COMPARECIMENTO**: Transcreva se presente
-6. **INTIMAÇÃO**: O que está sendo intimado e para quem
-7. **PROVIDÊNCIA NECESSÁRIA**: O que o advogado DEVE fazer após esta publicação
-8. **RESULTADO DO JULGAMENTO**: Se houve votação, resultado (unânime/maioria), turma julgadora
-
-Seja completo mas objetivo. Não omita informações processuais relevantes. Não repita dados de cabeçalho (número do processo, órgão, data). Estruture o resumo com tópicos claros usando marcadores.`;
-
-      const resumos: { id: string; resumo: string }[] = [];
-
-      for (let i = 0; i < pubsLimitadas.length; i += 5) {
-        const batch = pubsLimitadas.slice(i, i + 5);
-        const promises = batch.map(async (pub: any) => {
-          const conteudo = (pub.conteudo || pub.texto || pub.teor || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-          if (!conteudo || conteudo.length < 20) {
-            return { id: pub.id, resumo: 'Publicação sem conteúdo suficiente para resumir.' };
-          }
-
-          const truncated = conteudo.substring(0, 4000);
-          const userMsg = `Analise e resuma esta publicação jurídica como o melhor assessor jurídico:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}`;
-
-          try {
-            let aiResponse: any;
-
-            if (LOVABLE_API_KEY) {
-              const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  model: 'google/gemini-3-flash-preview',
-                  messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userMsg },
-                  ],
-                  max_tokens: 1200,
-                  temperature: 0.3,
-                }),
-              });
-              if (!resp.ok) throw new Error(`AI error: ${resp.status}`);
-              aiResponse = await resp.json();
-            } else {
-              const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${openAIApiKey}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  model: 'gpt-4o-mini',
-                  messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userMsg },
-                  ],
-                  max_tokens: 1200,
-                  temperature: 0.3,
-                }),
-              });
-              if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
-              aiResponse = await resp.json();
-            }
-
-            const resumo = aiResponse.choices?.[0]?.message?.content?.trim() || 'Não foi possível gerar resumo.';
-            return { id: pub.id, resumo };
-          } catch (e) {
-            console.error(`Erro ao resumir pub ${pub.id}:`, e);
-            return { id: pub.id, resumo: 'Erro ao gerar resumo desta publicação.' };
-          }
-        });
-
-        const results = await Promise.all(promises);
-        resumos.push(...results);
-      }
-
-      console.log(`Resumos individuais gerados: ${resumos.length} de ${publicacoes.length}`);
-
-      return new Response(
-        JSON.stringify({ resumos, totalProcessado: resumos.length, totalOriginal: publicacoes.length }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ── Modo CONSOLIDADO (original) ──
     if (!openAIApiKey) {
       throw new Error('OPENAI_API_KEY não configurada para resumo consolidado');
     }
@@ -142,11 +145,7 @@ Seja completo mas objetivo. Não omita informações processuais relevantes. Nã
       if (conteudo.length > MAX_CONTEUDO_LENGTH) {
         conteudo = conteudo.substring(0, MAX_CONTEUDO_LENGTH) + '... [truncado]';
       }
-      return `Publicação ${index + 1}:
-- Data: ${pub.data || pub.dataDisponibilizacao || 'N/A'}
-- Processo: ${pub.numeroProcesso || pub.processo || 'N/A'}
-- Conteúdo: ${conteudo}
-`;
+      return `Publicação ${index + 1}:\n- Data: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n- Processo: ${pub.numeroProcesso || pub.processo || 'N/A'}\n- Conteúdo: ${conteudo}\n`;
     }).join('\n---\n');
 
     const avisoTruncamento = totalOriginal > MAX_PUBLICACOES 
