@@ -852,6 +852,7 @@ export async function fetchCertidaoAdvogados(
       ? AbortSignal.any([timeoutController.signal, signal])
       : timeoutController.signal;
 
+    console.log(`[Certidão] 🌐 Fetching: ${url}`);
     const resp = await fetch(url, {
       method: 'GET',
       headers: { Accept: 'text/html, */*' },
@@ -859,19 +860,28 @@ export async function fetchCertidaoAdvogados(
     });
     clearTimeout(timeoutId);
 
+    console.log(`[Certidão] HTTP ${resp.status} | Content-Type: ${resp.headers.get('content-type')} | ID: ${comunicacaoId}`);
+
     if (!resp.ok) {
       if (resp.status === 429) {
         setGlobalCooldown(jitterMs(10000));
       }
-      console.warn(`[Certidão] HTTP ${resp.status} para ${comunicacaoId}`);
+      const body = await resp.text().catch(() => '');
+      console.warn(`[Certidão] HTTP ${resp.status} para ${comunicacaoId}: ${body.slice(0, 200)}`);
       return null;
     }
 
     const html = await resp.text();
-    return parseCertidaoHtml(html);
+    console.log(`[Certidão] ✅ HTML recebido: ${html.length} chars para ${comunicacaoId}`);
+    const result = parseCertidaoHtml(html);
+    console.log(`[Certidão] Parse result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
+    return result;
   } catch (e: any) {
-    if (e?.name === 'AbortError') return null;
-    console.warn(`[Certidão] Erro ao buscar ${comunicacaoId}:`, e?.message?.slice(0, 100));
+    if (e?.name === 'AbortError') {
+      console.warn(`[Certidão] ⏱ Timeout/abort para ${comunicacaoId}`);
+      return null;
+    }
+    console.warn(`[Certidão] ❌ Erro ${comunicacaoId}: ${e?.message?.slice(0, 200)}`);
     return null;
   }
 }

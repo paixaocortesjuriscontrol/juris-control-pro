@@ -1205,21 +1205,40 @@ async function processarTermo(
   if (novas.length > 0) {
     // Buscar certidão para cada publicação nova (com delay para evitar rate limit)
     const certidaoCache = new Map<string, Awaited<ReturnType<typeof fetchCertidaoAdvogados>>>();
+    
+    // DEBUG: Loggar item raw para identificar campo de ID correto
+    if (novas.length > 0) {
+      const sample = novas[0];
+      console.log('[DJEN] 🔍 DEBUG raw pub keys:', Object.keys(sample || {}));
+      console.log('[DJEN] 🔍 DEBUG pub.id:', sample?.id, '| pub.hash:', sample?.hash, '| pub.codigo:', sample?.codigo, '| pub.codigoComunicacao:', sample?.codigoComunicacao);
+      console.log('[DJEN] 🔍 DEBUG pub.destinatarios:', JSON.stringify(sample?.destinatarios)?.slice(0, 300));
+      console.log('[DJEN] 🔍 DEBUG pub.advogados:', JSON.stringify(sample?.advogados)?.slice(0, 300));
+    }
+    
     for (let i = 0; i < novas.length; i++) {
       if (signal.aborted) break;
       const pub = novas[i];
-      const apiId = String(pub?.id ?? '').trim();
+      // O ID da comunicação pode estar em diferentes campos dependendo do endpoint
+      const apiId = String(pub?.id ?? pub?.hash ?? pub?.codigo ?? pub?.codigoComunicacao ?? '').trim();
       if (apiId && !certidaoCache.has(apiId)) {
+        console.log(`[DJEN] 🔎 Buscando certidão para ID: ${apiId} (pub ${i + 1}/${novas.length})`);
         try {
           const certidao = await fetchCertidaoAdvogados(apiId, signal);
           certidaoCache.set(apiId, certidao);
-        } catch {
-          // Falha silenciosa - usará fallback
+          if (certidao) {
+            console.log(`[DJEN] ✅ Certidão OK: ${certidao.advogados?.length || 0} advogados, ${certidao.partes?.length || 0} partes`);
+          } else {
+            console.warn(`[DJEN] ⚠️ Certidão retornou null para ID: ${apiId}`);
+          }
+        } catch (certErr: any) {
+          console.error(`[DJEN] ❌ Erro certidão ID ${apiId}:`, certErr?.message?.slice(0, 150));
         }
         // Delay entre certidões (500ms) para evitar rate limit
         if (i < novas.length - 1 && !signal.aborted) {
           await delay(500);
         }
+      } else if (!apiId) {
+        console.warn(`[DJEN] ⚠️ Publicação ${i} sem ID válido, não é possível buscar certidão`);
       }
     }
 
