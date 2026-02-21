@@ -401,7 +401,7 @@ export function PublicacaoConteudoDjen({
             "p-3 md:p-4 bg-muted/30 rounded-lg border text-sm",
             conteudoDisplayClasses
           )}>
-            {formatConteudoParaExibicao(conteudo)}
+            {formatConteudoParaExibicao(conteudo, true)}
           </div>
         </div>
       </div>

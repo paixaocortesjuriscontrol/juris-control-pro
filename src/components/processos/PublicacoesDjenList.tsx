@@ -240,33 +240,26 @@ export function PublicacoesDjenList({
       doc.text(`PUBLICAÇÕES DJEN (${publicacoes.length})`, mL, y);
       y += 10;
 
-      const printField = (label: string, value: string) => {
-        checkPage(6);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text(`${label}: `, mL, y);
-        const labelW = doc.getTextWidth(`${label}: `);
-        doc.setFont("helvetica", "normal");
-        doc.text(value, mL + labelW, y);
-        y += 5;
+      // Strip metadata from content
+      const stripMeta = (raw: string): string => {
+        const lines = raw.split('\n');
+        let startIdx = 0;
+        const metaP = [/^Órgão\s*:/i, /^Data\s+de\s+disponibiliza/i, /^Data\s+de\s+publica/i, /^Tipo\s+de\s+comunica/i, /^Meio\s*:/i, /^Processo\s*:/i, /^Fonte\s*:/i, /^Inteiro\s+teor\s*:/i];
+        for (let i = 0; i < lines.length && i < 20; i++) {
+          const t = lines[i].trim();
+          if (!t) { startIdx = i + 1; continue; }
+          if (metaP.some(p => p.test(t))) { startIdx = i + 1; continue; }
+          if (/^Advogados?\s*:/i.test(t)) { startIdx = i + 1; while (startIdx < lines.length && startIdx < i + 15) { const nl = lines[startIdx].trim(); if (!nl) { startIdx++; continue; } if (nl.length < 100 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(nl) && !/[.;]$/.test(nl) && !/\b(DECISÃO|DESPACHO|ACÓRDÃO|SENTENÇA)\b/i.test(nl)) { startIdx++; } else break; } continue; }
+          if (/^\d{20}$/.test(t)) { startIdx = i + 1; continue; }
+          break;
+        }
+        return startIdx > 0 ? lines.slice(startIdx).join('\n').replace(/^\n+/, '').trim() : raw;
       };
 
-      const printBulletList = (title: string, items: string[]) => {
-        if (items.length === 0) return;
-        checkPage(8);
-        y += 2;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text(`${title}:`, mL, y);
-        y += 5;
-        doc.setFont("helvetica", "normal");
-        items.forEach(item => {
-          const lines = doc.splitTextToSize(`•  ${item}`, maxW - 5);
-          checkPage(lines.length * 4.5);
-          doc.text(lines, mL + 3, y);
-          y += lines.length * 4.5;
-        });
-      };
+      const colLeftW = 60;
+      const colGap = 4;
+      const colRightX = mL + colLeftW + colGap;
+      const colRightW = maxW - colLeftW - colGap;
 
       publicacoes.forEach((pub, idx) => {
         if (idx > 0) {
@@ -278,21 +271,37 @@ export function PublicacoesDjenList({
           y += 8;
         }
 
+        // Title bar
         checkPage(50);
+        doc.setFillColor(235, 242, 255);
+        doc.rect(mL, y - 4, maxW, 10, "F");
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(30, 58, 95);
-        doc.text(`COMUNICAÇÃO #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
-        y += 8;
+        doc.text(`Processo ${formatProcessoNumero(pub.processo_numero)}`, mL + 2, y + 2);
+        y += 12;
         doc.setTextColor(0, 0, 0);
 
-        printField("Processo", formatProcessoNumero(pub.processo_numero));
-        if (pub.tribunal) printField("Órgão", pub.tribunal);
-        if (pub.data_disponibilizacao) printField("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
-        if (pub.data_publicacao) printField("Data de publicação", formatDateOnlyFull(pub.data_publicacao));
-        printField("Tipo de Comunicação", "Intimação");
-        printField("Meio", "D");
-        if (pub.fonte) printField("Fonte", pub.fonte);
+        const yStart = y;
+
+        // LEFT: Metadata
+        doc.setFontSize(8);
+        let yLeft = yStart;
+        const printMeta = (label: string, value: string) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(`${label}:`, mL, yLeft); yLeft += 3.5;
+          doc.setFont("helvetica", "normal");
+          const vl = doc.splitTextToSize(value, colLeftW);
+          vl.forEach((l: string) => { doc.text(l, mL, yLeft); yLeft += 3.5; });
+          yLeft += 1.5;
+        };
+
+        if (pub.tribunal) printMeta("Órgão", pub.tribunal);
+        if (pub.data_disponibilizacao) printMeta("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
+        if (pub.data_publicacao) printMeta("Data de publicação", formatDateOnlyFull(pub.data_publicacao));
+        printMeta("Tipo de comunicação", "Intimação");
+        printMeta("Meio", "Diário de Justiça Eletrônico Nacional");
+        if (pub.fonte) printMeta("Fonte", pub.fonte);
 
         // Partes
         const partes: string[] = [];
@@ -302,25 +311,37 @@ export function PublicacoesDjenList({
         if (pub.polo_passivo) pub.polo_passivo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
           if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
         });
-        printBulletList("Parte(s)", partes);
+        if (partes.length > 0) {
+          yLeft += 2;
+          doc.setFont("helvetica", "bold");
+          doc.text("Parte(s)", mL, yLeft); yLeft += 4;
+          doc.setFont("helvetica", "normal");
+          partes.forEach(p => { const ls = doc.splitTextToSize(p, colLeftW); ls.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; }); });
+        }
 
-        // Advogados
         const advogados = extractAdvogados(pub.conteudo);
-        printBulletList("Advogado(s)", advogados);
+        if (advogados.length > 0) {
+          yLeft += 2;
+          doc.setFont("helvetica", "bold");
+          doc.text("Advogado(s)", mL, yLeft); yLeft += 4;
+          doc.setFont("helvetica", "normal");
+          advogados.forEach(a => { const ls = doc.splitTextToSize(a, colLeftW); ls.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; }); });
+        }
 
-        // Conteúdo
-        y += 3;
-        checkPage(10);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text("Conteúdo Integral:", mL, y);
-        y += 5;
-        doc.setFont("helvetica", "normal");
+        // RIGHT: Content
         doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
         const rawText = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-        const contentLines: string[] = doc.splitTextToSize(rawText, maxW);
-        contentLines.forEach((line: string) => { checkPage(4); doc.text(line, mL, y); y += 3.5; });
-        y += 6;
+        const cleanText = stripMeta(rawText);
+        const contentLines: string[] = doc.splitTextToSize(cleanText, colRightW);
+        let yRight = yStart;
+        contentLines.forEach((line: string) => {
+          if (yRight + 3.5 > 280) { doc.addPage(); yRight = 15; }
+          doc.text(line, colRightX, yRight);
+          yRight += 3.5;
+        });
+
+        y = Math.max(yLeft, yRight) + 6;
       });
 
       const totalPages = doc.getNumberOfPages();

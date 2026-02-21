@@ -20,7 +20,7 @@ const decodeHtmlEntities = (value: string): string => {
  * Remove scripts, estilos, converte <br>, <p>, <li> etc. em \n.
  * O resultado deve ser renderizado com whitespace-pre-wrap.
  */
-export const formatConteudoParaExibicao = (conteudo: string | null | undefined): string => {
+export const formatConteudoParaExibicao = (conteudo: string | null | undefined, stripMetadataHeader = false): string => {
   const raw = conteudo || "Sem conteúdo";
 
   let s = raw;
@@ -62,7 +62,73 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined):
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+  // Opcionalmente remove cabeçalho de metadados injetado no corpo (Órgão:, Data de disponibilização:, etc.)
+  if (stripMetadataHeader) {
+    s = stripMetadataFromContent(s);
+  }
+
   return s;
+};
+
+/**
+ * Remove cabeçalho de metadados que foi injetado no corpo do conteúdo da publicação.
+ * Identifica e remove linhas como "Órgão: ...", "Data de disponibilização: ...",
+ * "Tipo de comunicação: ...", "Meio: ...", "Processo: ...", "Advogados:" e lista de nomes que seguem.
+ */
+const stripMetadataFromContent = (text: string): string => {
+  const lines = text.split('\n');
+  let startIdx = 0;
+  
+  // Padrões de metadados que aparecem no início do conteúdo
+  const metaPatterns = [
+    /^Órgão\s*:/i,
+    /^Data\s+de\s+disponibiliza/i,
+    /^Data\s+de\s+publica/i,
+    /^Tipo\s+de\s+comunica/i,
+    /^Meio\s*:/i,
+    /^Processo\s*:/i,
+    /^Fonte\s*:/i,
+    /^Inteiro\s+teor\s*:/i,
+  ];
+  
+  // Percorre linhas do início procurando metadados
+  for (let i = 0; i < lines.length && i < 20; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) { startIdx = i + 1; continue; }
+    
+    const isMeta = metaPatterns.some(p => p.test(trimmed));
+    if (isMeta) { startIdx = i + 1; continue; }
+    
+    // Seção "Advogados:" seguida de nomes
+    if (/^Advogados?\s*:/i.test(trimmed)) {
+      startIdx = i + 1;
+      // Pular as linhas seguintes que são nomes de advogados (all caps, curtas)
+      while (startIdx < lines.length && startIdx < i + 15) {
+        const nextLine = lines[startIdx].trim();
+        if (!nextLine) { startIdx++; continue; }
+        // Se parece nome (ALL CAPS, < 100 chars, sem pontuação de sentença)
+        if (nextLine.length < 100 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(nextLine) && !/[.;]$/.test(nextLine) && !/\b(DECISÃO|DESPACHO|ACÓRDÃO|SENTENÇA|CERTIDÃO|EDITAL|PODER|INTIMAÇÃO)\b/i.test(nextLine)) {
+          startIdx++;
+        } else {
+          break;
+        }
+      }
+      continue;
+    }
+    
+    // Linha que é apenas o número do processo (20 dígitos)
+    if (/^\d{20}$/.test(trimmed) || /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(trimmed)) {
+      startIdx = i + 1;
+      continue;
+    }
+    
+    // Se chegou numa linha que não é metadado, parou
+    break;
+  }
+  
+  if (startIdx === 0) return text;
+  
+  return lines.slice(startIdx).join('\n').replace(/^\n+/, '').trim();
 };
 
 /**
