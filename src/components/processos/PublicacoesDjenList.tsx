@@ -25,10 +25,10 @@ import {
   Search,
   CheckCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatProcessoNumero } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -156,15 +156,59 @@ export function PublicacoesDjenList({
 
   const extractAdvogados = (conteudo: string | null): string[] => {
     if (!conteudo) return [];
-    const plain = conteudo.replace(/<[^>]*>/g, " ");
-    const advs: string[] = [];
-    const advRegex = /ADVOGAD[OA](?:\(A\))?[:\s]+([A-ZÀ-Ü][A-ZÀ-Ü\s.'-]+)/gi;
-    let m: RegExpExecArray | null;
-    while ((m = advRegex.exec(plain)) !== null) {
-      const name = m[1].trim().replace(/\s+/g, " ");
-      if (name.length > 3 && !advs.some(a => a.toUpperCase() === name.toUpperCase())) advs.push(name);
+    const plainText = conteudo.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const advogados: string[] = [];
+    const advSet = new Set<string>();
+
+    const pareceNome = (v: string) => {
+      const t = v.trim();
+      if (!t || t.length > 90) return false;
+      if (!/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(t)) return false;
+      const tokens = t.split(" ").filter(w => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(w) && w.length >= 2);
+      return tokens.length >= 2;
+    };
+
+    // Formato 1: "NOME (OAB 12345/DF)"
+    for (const match of plainText.matchAll(
+      /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
+    )) {
+      const nome = (match[1] || "").trim();
+      const numero = (match[2] || "").trim();
+      const uf = (match[3] || "").toUpperCase();
+      const key = `${numero}-${uf}`;
+      if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
     }
-    return advs;
+
+    // Formato 2: "NOME - OAB DF-12345"
+    for (const match of plainText.matchAll(
+      /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
+    )) {
+      const nome = (match[1] || "").trim();
+      const uf = (match[2] || "").toUpperCase();
+      const numero = (match[3] || "").trim();
+      const key = `${numero}-${uf}`;
+      if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+
+    // Formato 3: "Advogados: NOME1 NOME2" no prefixo de metadados
+    if (advogados.length === 0) {
+      const advMatch = plainText.match(/Advogados?:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.\-,]+?)(?:\s+(?:Pauta|Ata |PODER|Processo\s|Decisão|Despacho|ACÓRDÃO|SENTENÇA|CERTIDÃO|EDITAL|ATO ORD|COMUNICAÇÃO|Inteiro))/i);
+      if (advMatch) {
+        const nameTokens = advMatch[1].trim().split(/\s{2,}|,\s*/).map(n => n.trim()).filter(n => n.length > 3 && pareceNome(n));
+        for (const n of nameTokens) {
+          if (!advSet.has(n.toUpperCase())) {
+            advSet.add(n.toUpperCase());
+            advogados.push(n);
+          }
+        }
+      }
+    }
+
+    return advogados;
   };
 
   const handleGerarPdf = () => {
@@ -238,14 +282,14 @@ export function PublicacoesDjenList({
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(30, 58, 95);
-        doc.text(`COMUNICAÇÃO #${pub.processo_numero || "N/A"}`, mL, y);
+        doc.text(`COMUNICAÇÃO #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
         y += 8;
         doc.setTextColor(0, 0, 0);
 
-        printField("Processo", pub.processo_numero || "N/A");
+        printField("Processo", formatProcessoNumero(pub.processo_numero));
         if (pub.tribunal) printField("Órgão", pub.tribunal);
-        if (pub.data_disponibilizacao) printField("Data de disponibilização", formatDateOnly(pub.data_disponibilizacao));
-        if (pub.data_publicacao) printField("Data de publicação", formatDateOnly(pub.data_publicacao));
+        if (pub.data_disponibilizacao) printField("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
+        if (pub.data_publicacao) printField("Data de publicação", formatDateOnlyFull(pub.data_publicacao));
         printField("Tipo de Comunicação", "Intimação");
         printField("Meio", "D");
         if (pub.fonte) printField("Fonte", pub.fonte);
@@ -262,11 +306,7 @@ export function PublicacoesDjenList({
 
         // Advogados
         const advogados = extractAdvogados(pub.conteudo);
-        printBulletList("Advogado(s)", advogados.map(a => {
-          const upper = a.toUpperCase();
-          if (upper.startsWith("DR.") || upper.startsWith("DRA.")) return a;
-          return `DR. ${a}`;
-        }));
+        printBulletList("Advogado(s)", advogados);
 
         // Conteúdo
         y += 3;
