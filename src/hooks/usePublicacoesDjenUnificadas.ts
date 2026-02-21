@@ -54,6 +54,11 @@ export interface PublicacaoUnificada {
   polo_ativo: string | null;
   polo_passivo: string | null;
   tribunal: string | null;
+  // Campos estruturados da API
+  orgao?: string | null;
+  tipo_comunicacao?: string | null;
+  meio?: string | null;
+  advogados_json?: string[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
 }
@@ -361,6 +366,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               polo_ativo: null,
               polo_passivo: null,
               tribunal: pub.tribunal,
+              orgao: null,
+              tipo_comunicacao: null,
+              meio: null,
+              advogados_json: null,
               motivo_descarte: pub.motivo_descarte,
             });
           });
@@ -398,6 +407,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             fonte,
             lida,
             created_at,
+            orgao,
+            tipo_comunicacao,
+            meio,
+            advogados_json,
+            polo_ativo,
+            polo_passivo,
           monitoramento:monitoramentos_djen!inner(
             id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
             coordenacao:coordenacoes(id, nome)
@@ -486,9 +501,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             monitoramento_uf: pub.monitoramento?.uf,
             coordenacao_id: pub.monitoramento?.coordenacao_id,
             coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
-            polo_ativo: null,
-            polo_passivo: null,
+            polo_ativo: pub.polo_ativo || null,
+            polo_passivo: pub.polo_passivo || null,
             tribunal: null,
+            orgao: pub.orgao || null,
+            tipo_comunicacao: pub.tipo_comunicacao || null,
+            meio: pub.meio || null,
+            advogados_json: typeof pub.advogados_json === 'string' ? JSON.parse(pub.advogados_json) : pub.advogados_json || null,
           });
         });
       }
@@ -572,6 +591,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             polo_ativo: pub.processo?.polo_ativo,
             polo_passivo: pub.processo?.polo_passivo,
             tribunal: pub.processo?.tribunal,
+            orgao: null,
+            tipo_comunicacao: null,
+            meio: null,
+            advogados_json: null,
           });
         });
       }
@@ -649,6 +672,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             polo_ativo: null,
             polo_passivo: null,
             tribunal: pub.tribunal,
+            orgao: null,
+            tipo_comunicacao: null,
+            meio: null,
+            advogados_json: null,
             motivo_descarte: pub.motivo_descarte,
           });
         });
