@@ -556,6 +556,64 @@ const AnaliseDjen = () => {
     setExpandedPublicacoes(newExpanded);
   };
 
+  // Helper functions shared between PDF generators
+  const pdfExtractAdvogados = (conteudo: string | null): string[] => {
+    if (!conteudo) return [];
+    const plainText = conteudo.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const advogados: string[] = [];
+    const advSet = new Set<string>();
+
+    const pareceNome = (v: string) => {
+      const t = v.trim();
+      if (!t || t.length > 90) return false;
+      if (!/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(t)) return false;
+      const tokens = t.split(" ").filter(w => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(w) && w.length >= 2);
+      return tokens.length >= 2;
+    };
+
+    for (const match of plainText.matchAll(
+      /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
+    )) {
+      const nome = (match[1] || "").trim();
+      const numero = (match[2] || "").trim();
+      const uf = (match[3] || "").toUpperCase();
+      const key = `${numero}-${uf}`;
+      if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+
+    for (const match of plainText.matchAll(
+      /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
+    )) {
+      const nome = (match[1] || "").trim();
+      const uf = (match[2] || "").toUpperCase();
+      const numero = (match[3] || "").trim();
+      const key = `${numero}-${uf}`;
+      if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+
+    return advogados;
+  };
+
+  const pdfExtractPartes = (pub: typeof allPublicacoes[0]): string[] => {
+    const partes: string[] = [];
+    if (pub.polo_ativo) {
+      pub.polo_ativo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
+        if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
+      });
+    }
+    if (pub.polo_passivo) {
+      pub.polo_passivo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
+        if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
+      });
+    }
+    return partes;
+  };
+
+  // ===== PDF "Gerar PDF" - layout duas colunas (metadados esquerda, conteúdo direita) =====
   const handleGerarPdf = () => {
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
@@ -570,7 +628,7 @@ const AnaliseDjen = () => {
       let y = 15;
       const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 15; } };
 
-      // ── Header ──
+      // Header
       doc.setFillColor(30, 58, 95);
       doc.rect(0, 0, pageW, 28, "F");
       doc.setTextColor(255, 255, 255);
@@ -589,99 +647,12 @@ const AnaliseDjen = () => {
       doc.text(`PUBLICAÇÕES DJEN (${allPublicacoes.length})`, mL, y);
       y += 10;
 
-      // Helper: extract advogados from content text using OAB patterns
-      const extractAdvogados = (conteudo: string | null): string[] => {
-        if (!conteudo) return [];
-        const plainText = conteudo.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-        const advogados: string[] = [];
-        const advSet = new Set<string>();
-
-        const pareceNome = (v: string) => {
-          const t = v.trim();
-          if (!t || t.length > 90) return false;
-          if (!/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(t)) return false;
-          const tokens = t.split(" ").filter(w => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(w) && w.length >= 2);
-          return tokens.length >= 2;
-        };
-
-        for (const match of plainText.matchAll(
-          /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
-        )) {
-          const nome = (match[1] || "").trim();
-          const numero = (match[2] || "").trim();
-          const uf = (match[3] || "").toUpperCase();
-          const key = `${numero}-${uf}`;
-          if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
-          advSet.add(key);
-          advogados.push(`${nome} - OAB ${uf}-${numero}`);
-        }
-
-        for (const match of plainText.matchAll(
-          /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
-        )) {
-          const nome = (match[1] || "").trim();
-          const uf = (match[2] || "").toUpperCase();
-          const numero = (match[3] || "").trim();
-          const key = `${numero}-${uf}`;
-          if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
-          advSet.add(key);
-          advogados.push(`${nome} - OAB ${uf}-${numero}`);
-        }
-
-        return advogados;
-      };
-
-      // Helper: extract partes from polo_ativo/polo_passivo
-      const extractPartes = (pub: typeof allPublicacoes[0]): string[] => {
-        const partes: string[] = [];
-        if (pub.polo_ativo) {
-          pub.polo_ativo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
-            if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
-          });
-        }
-        if (pub.polo_passivo) {
-          pub.polo_passivo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
-            if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
-          });
-        }
-        return partes;
-      };
-
-      // Strip metadata from content for PDF (same logic as stripMetadataFromContent)
-      const stripMetaFromRaw = (raw: string): string => {
-        const lines = raw.split('\n');
-        let startIdx = 0;
-        const metaPatterns = [
-          /^Órgão\s*:/i, /^Data\s+de\s+disponibiliza/i, /^Data\s+de\s+publica/i,
-          /^Tipo\s+de\s+comunica/i, /^Meio\s*:/i, /^Processo\s*:/i, /^Fonte\s*:/i, /^Inteiro\s+teor\s*:/i,
-        ];
-        for (let i = 0; i < lines.length && i < 20; i++) {
-          const trimmed = lines[i].trim();
-          if (!trimmed) { startIdx = i + 1; continue; }
-          if (metaPatterns.some(p => p.test(trimmed))) { startIdx = i + 1; continue; }
-          if (/^Advogados?\s*:/i.test(trimmed)) {
-            startIdx = i + 1;
-            while (startIdx < lines.length && startIdx < i + 15) {
-              const nl = lines[startIdx].trim();
-              if (!nl) { startIdx++; continue; }
-              if (nl.length < 100 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(nl) && !/[.;]$/.test(nl) && !/\b(DECISÃO|DESPACHO|ACÓRDÃO|SENTENÇA|CERTIDÃO|EDITAL|PODER|INTIMAÇÃO)\b/i.test(nl)) { startIdx++; } else break;
-            }
-            continue;
-          }
-          if (/^\d{20}$/.test(trimmed) || /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(trimmed)) { startIdx = i + 1; continue; }
-          break;
-        }
-        return startIdx > 0 ? lines.slice(startIdx).join('\n').replace(/^\n+/, '').trim() : raw;
-      };
-
-      // Two-column layout constants
-      const colLeftW = 60; // mm for metadata column
+      const colLeftW = 60;
       const colGap = 4;
       const colRightX = mL + colLeftW + colGap;
       const colRightW = maxW - colLeftW - colGap;
 
       allPublicacoes.forEach((pub, idx) => {
-        // Separator between publications
         if (idx > 0) {
           checkPage(12);
           y += 3;
@@ -691,7 +662,7 @@ const AnaliseDjen = () => {
           y += 8;
         }
 
-        // ── Title bar ──
+        // Title bar
         checkPage(50);
         doc.setFillColor(235, 242, 255);
         doc.rect(mL, y - 4, maxW, 10, "F");
@@ -702,19 +673,17 @@ const AnaliseDjen = () => {
         y += 12;
         doc.setTextColor(0, 0, 0);
 
-        // ── Two-column layout ──
         const yStart = y;
 
-        // LEFT COLUMN: Metadata
+        // LEFT: Metadata
         doc.setFontSize(8);
         let yLeft = yStart;
         const printMeta = (label: string, value: string) => {
           doc.setFont("helvetica", "bold");
-          const lines = doc.splitTextToSize(`${label}:`, colLeftW);
-          lines.forEach((l: string) => { doc.text(l, mL, yLeft); yLeft += 3.5; });
+          doc.text(`${label}:`, mL, yLeft); yLeft += 3.5;
           doc.setFont("helvetica", "normal");
-          const valLines = doc.splitTextToSize(value, colLeftW);
-          valLines.forEach((l: string) => { doc.text(l, mL, yLeft); yLeft += 3.5; });
+          const vl = doc.splitTextToSize(value, colLeftW);
+          vl.forEach((l: string) => { doc.text(l, mL, yLeft); yLeft += 3.5; });
           yLeft += 1.5;
         };
 
@@ -724,53 +693,45 @@ const AnaliseDjen = () => {
         printMeta("Meio", "Diário de Justiça Eletrônico Nacional");
         if (pub.fonte) printMeta("Fonte", pub.fonte);
 
-        // Partes
-        const partes = extractPartes(pub);
+        const partes = pdfExtractPartes(pub);
         if (partes.length > 0) {
           yLeft += 2;
           doc.setFont("helvetica", "bold");
-          doc.text("Parte(s)", mL, yLeft);
-          yLeft += 4;
+          doc.text("Parte(s)", mL, yLeft); yLeft += 4;
           doc.setFont("helvetica", "normal");
           partes.forEach(p => {
-            const lines = doc.splitTextToSize(`👤 ${p}`, colLeftW);
-            lines.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; });
+            const ls = doc.splitTextToSize(p, colLeftW);
+            ls.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; });
           });
         }
 
-        // Advogados
-        const advogados = extractAdvogados(pub.conteudo);
+        const advogados = pdfExtractAdvogados(pub.conteudo);
         if (advogados.length > 0) {
           yLeft += 2;
           doc.setFont("helvetica", "bold");
-          doc.text("Advogado(s)", mL, yLeft);
-          yLeft += 4;
+          doc.text("Advogado(s)", mL, yLeft); yLeft += 4;
           doc.setFont("helvetica", "normal");
           advogados.forEach(a => {
-            const lines = doc.splitTextToSize(`⚖ ${a}`, colLeftW);
-            lines.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; });
+            const ls = doc.splitTextToSize(a, colLeftW);
+            ls.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; });
           });
         }
 
-        // RIGHT COLUMN: Content
+        // RIGHT: Content
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
         const rawContent = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-        const cleanContent = stripMetaFromRaw(rawContent);
-        const contentLines: string[] = doc.splitTextToSize(cleanContent, colRightW);
-        
+        const contentLines: string[] = doc.splitTextToSize(rawContent, colRightW);
         let yRight = yStart;
         contentLines.forEach((line: string) => {
-          if (yRight + 3.5 > 280) { doc.addPage(); yRight = 15; yLeft = 15; }
+          if (yRight + 3.5 > 280) { doc.addPage(); yRight = 15; }
           doc.text(line, colRightX, yRight);
           yRight += 3.5;
         });
 
-        // Set y to the max of both columns
         y = Math.max(yLeft, yRight) + 6;
       });
 
-      // ── Footer on all pages ──
       const total = doc.getNumberOfPages();
       for (let i = 1; i <= total; i++) {
         doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
@@ -778,6 +739,168 @@ const AnaliseDjen = () => {
       }
       doc.save(`publicacoes_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
       toast.success("PDF gerado com sucesso!");
+    } catch (err: any) {
+      toast.error(`Erro ao gerar PDF: ${err.message}`);
+    }
+  };
+
+  // ===== PDF "Gerar PDF Resumo" - formato DOC do advogado (estilo Comunica PJE) =====
+  const handleGerarPdfResumo = () => {
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    try {
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const mL = 15;
+      const mR = 15;
+      const maxW = pageW - mL - mR;
+      let y = 20;
+      const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+
+      // Data header
+      const dataDisp = allPublicacoes[0]?.data_disponibilizacao;
+      if (dataDisp) {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Data de disponibilização: ${formatDateOnlyFull(dataDisp)}`, mL, y);
+        y += 10;
+      }
+
+      allPublicacoes.forEach((pub, idx) => {
+        if (idx > 0) {
+          checkPage(14);
+          y += 4;
+          doc.setDrawColor(30, 58, 95);
+          doc.setLineWidth(0.8);
+          doc.line(mL, y, pageW - mR, y);
+          y += 10;
+        }
+
+        // ── COMUNICAÇÃO PJE #NUMERO ──
+        checkPage(60);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
+        y += 8;
+
+        // Processo
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Processo: ${formatProcessoNumero(pub.processo_numero)}`, mL, y);
+        y += 6;
+
+        // Órgão
+        if (pub.tribunal) {
+          doc.setFont("helvetica", "bold");
+          doc.text("Órgão: ", mL, y);
+          const lw = doc.getTextWidth("Órgão: ");
+          doc.setFont("helvetica", "normal");
+          doc.text(pub.tribunal, mL + lw, y);
+          y += 6;
+        }
+
+        // Data de disponibilização
+        if (pub.data_disponibilizacao) {
+          doc.setFont("helvetica", "bold");
+          doc.text("Data de disponibilização: ", mL, y);
+          const lw = doc.getTextWidth("Data de disponibilização: ");
+          doc.setFont("helvetica", "normal");
+          doc.text(formatDateOnlyFull(pub.data_disponibilizacao), mL + lw, y);
+          y += 6;
+        }
+
+        // Tipo de Comunicação
+        doc.setFont("helvetica", "bold");
+        doc.text("Tipo de Comunicação: ", mL, y);
+        const tw = doc.getTextWidth("Tipo de Comunicação: ");
+        doc.setFont("helvetica", "normal");
+        doc.text("Intimação", mL + tw, y);
+        y += 6;
+
+        // Meio
+        doc.setFont("helvetica", "bold");
+        doc.text("Meio: ", mL, y);
+        const mw = doc.getTextWidth("Meio: ");
+        doc.setFont("helvetica", "normal");
+        doc.text("D", mL + mw, y);
+        y += 6;
+
+        // Inteiro teor
+        doc.setFont("helvetica", "bold");
+        doc.text("Inteiro teor: ", mL, y);
+        const itw = doc.getTextWidth("Inteiro teor: ");
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(30, 58, 95);
+        doc.text("Clique aqui", mL + itw, y);
+        doc.setTextColor(0, 0, 0);
+        y += 8;
+
+        // ── Parte(s) ──
+        const partes = pdfExtractPartes(pub);
+        if (partes.length > 0) {
+          checkPage(10 + partes.length * 5);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text("Parte(s):", mL, y);
+          y += 6;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          partes.forEach(p => {
+            checkPage(5);
+            const lines = doc.splitTextToSize(`•  ${p}`, maxW - 5);
+            lines.forEach((l: string) => { doc.text(l, mL + 3, y); y += 5; });
+          });
+          y += 2;
+        }
+
+        // ── Advogado(s) ──
+        const advogados = pdfExtractAdvogados(pub.conteudo);
+        if (advogados.length > 0) {
+          checkPage(10 + advogados.length * 5);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text("Advogado(s):", mL, y);
+          y += 6;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          advogados.forEach(a => {
+            checkPage(5);
+            const lines = doc.splitTextToSize(`•  ${a}`, maxW - 5);
+            lines.forEach((l: string) => { doc.text(l, mL + 3, y); y += 5; });
+          });
+          y += 2;
+        }
+
+        // ── Conteúdo Integral ──
+        checkPage(12);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Conteúdo Integral:", mL, y);
+        y += 7;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        const rawText = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const contentLines: string[] = doc.splitTextToSize(rawText, maxW);
+        contentLines.forEach((line: string) => {
+          checkPage(4.5);
+          doc.text(line, mL, y);
+          y += 4;
+        });
+        y += 6;
+      });
+
+      // Footer
+      const total = doc.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
+        doc.text(`Juris Control – Página ${i}/${total}`, pageW / 2, 292, { align: "center" });
+      }
+      doc.save(`resumo_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success("PDF Resumo gerado com sucesso!");
     } catch (err: any) {
       toast.error(`Erro ao gerar PDF: ${err.message}`);
     }
@@ -1149,6 +1272,18 @@ const AnaliseDjen = () => {
             <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             <span className="hidden sm:inline">Gerar PDF</span>
             <span className="sm:hidden">PDF</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarPdfResumo}
+            disabled={allPublicacoes.length === 0}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+          >
+            <FileText className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Gerar PDF Resumo</span>
+            <span className="sm:hidden">Resumo</span>
           </Button>
 
           <Button
