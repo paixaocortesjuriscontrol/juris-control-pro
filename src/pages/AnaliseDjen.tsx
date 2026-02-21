@@ -589,29 +589,76 @@ const AnaliseDjen = () => {
       doc.text(`PUBLICAÇÕES DJEN (${allPublicacoes.length})`, mL, y);
       y += 10;
 
-      // Helper: extract advogados from content text
+      // Helper: extract advogados from content text using OAB patterns (same logic as PublicacaoConteudoDjen)
       const extractAdvogados = (conteudo: string | null): string[] => {
         if (!conteudo) return [];
-        const plain = conteudo.replace(/<[^>]*>/g, " ");
-        const advs: string[] = [];
-        // Match patterns like "ADVOGADO: NAME" or "ADV.: NAME" or "Advogado(a): NAME"
-        const advRegex = /ADVOGAD[OA](?:\(A\))?[:\s]+([A-ZÀ-Ü][A-ZÀ-Ü\s.'-]+)/gi;
-        let m: RegExpExecArray | null;
-        while ((m = advRegex.exec(plain)) !== null) {
-          const name = m[1].trim().replace(/\s+/g, " ");
-          if (name.length > 3 && !advs.some(a => a.toUpperCase() === name.toUpperCase())) {
-            advs.push(name);
+        const plainText = conteudo.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const advogados: string[] = [];
+        const advSet = new Set<string>();
+
+        const pareceNome = (v: string) => {
+          const t = v.trim();
+          if (!t || t.length > 90) return false;
+          if (!/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(t)) return false;
+          const tokens = t.split(" ").filter(w => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(w) && w.length >= 2);
+          return tokens.length >= 2;
+        };
+
+        // Formato 1: "NOME (OAB 12345/DF)"
+        for (const match of plainText.matchAll(
+          /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
+        )) {
+          const nome = (match[1] || "").trim();
+          const numero = (match[2] || "").trim();
+          const uf = (match[3] || "").toUpperCase();
+          const key = `${numero}-${uf}`;
+          if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+          advSet.add(key);
+          advogados.push(`${nome} - OAB ${uf}-${numero}`);
+        }
+
+        // Formato 2: "ADV: NOME (OAB 12345/DF)"
+        for (const match of plainText.matchAll(
+          /ADV(?:OGADO)?[:\s]+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/gi
+        )) {
+          const nome = (match[1] || "").trim();
+          const numero = (match[2] || "").trim();
+          const uf = (match[3] || "").toUpperCase();
+          const key = `${numero}-${uf}`;
+          if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+          advSet.add(key);
+          advogados.push(`${nome} - OAB ${uf}-${numero}`);
+        }
+
+        // Formato 3: "NOME - OAB DF-12345"
+        for (const match of plainText.matchAll(
+          /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
+        )) {
+          const nome = (match[1] || "").trim();
+          const uf = (match[2] || "").toUpperCase();
+          const numero = (match[3] || "").trim();
+          const key = `${numero}-${uf}`;
+          if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
+          advSet.add(key);
+          advogados.push(`${nome} - OAB ${uf}-${numero}`);
+        }
+
+        // Formato 4: "Advogados: NOME1 NOME2 NOME3" no prefixo de metadados
+        const advMatch = plainText.match(/Advogados?:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.\-,]+?)(?:\s+(?:Pauta|Ata |PODER|Processo\s|Decisão|Despacho|ACÓRDÃO|SENTENÇA|CERTIDÃO|EDITAL|ATO ORD|COMUNICAÇÃO|Inteiro))/i);
+        if (advMatch && advogados.length === 0) {
+          // Names are space-separated all-caps, try to split intelligently
+          const rawNames = advMatch[1].trim();
+          // Split by known separators or uppercase name boundaries
+          const nameTokens = rawNames.split(/\s{2,}|,\s*/).map(n => n.trim()).filter(n => n.length > 3 && pareceNome(n));
+          for (const n of nameTokens) {
+            if (!advSet.has(n.toUpperCase())) {
+              advSet.add(n.toUpperCase());
+              advogados.push(n);
+            }
           }
         }
-        // Also match OAB patterns: "DR. NAME - OAB XX-NNNNN" or "DR(A). NAME"
-        const oabRegex = /\bDR[A.]?\.\s+([A-ZÀ-Ü][A-ZÀ-Ü\s.'-]+?)(?:\s*[-–]\s*OAB|\s*$)/gi;
-        while ((m = oabRegex.exec(plain)) !== null) {
-          const name = m[1].trim().replace(/\s+/g, " ");
-          if (name.length > 3 && !advs.some(a => a.toUpperCase() === name.toUpperCase())) {
-            advs.push(name);
-          }
-        }
-        return advs;
+
+        return advogados;
       };
 
       // Helper: extract partes from polo_ativo/polo_passivo
@@ -694,11 +741,7 @@ const AnaliseDjen = () => {
 
         // ── Advogado(s) ──
         const advogados = extractAdvogados(pub.conteudo);
-        printBulletList("Advogado(s)", advogados.map(a => {
-          const upper = a.toUpperCase();
-          if (upper.startsWith("DR.") || upper.startsWith("DRA.") || upper.startsWith("DR ") || upper.startsWith("DRA ")) return a;
-          return `DR. ${a}`;
-        }));
+        printBulletList("Advogado(s)", advogados);
 
         // ── Conteúdo Integral ──
         y += 3;
