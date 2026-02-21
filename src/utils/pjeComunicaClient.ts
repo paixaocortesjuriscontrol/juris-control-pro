@@ -822,17 +822,14 @@ export interface CertidaoData {
 }
 
 /**
- * Busca a certidão HTML de uma comunicação e extrai advogados e partes.
+ * Busca o detalhe JSON de uma comunicação para extrair advogados.
  * 
- * A API de listagem (/comunicacao) retorna apenas nomes de partes no campo
- * 'destinatarios'. Os dados completos de representação jurídica (advogados
- * com OAB) estão disponíveis apenas na certidão HTML.
+ * A API de listagem (/comunicacao) retorna apenas 'destinatarios' (partes).
+ * O detalhe individual (/comunicacao/{hash}) retorna JSON completo com advogados.
  * 
- * URL: https://comunicaapi.pje.jus.br/api/v1/comunicacao/{id}/certidao
- * 
- * @param comunicacaoId - O hash/ID da comunicação retornado pela API de listagem
+ * @param comunicacaoId - O hash da comunicação retornado pela API de listagem
  * @param signal - AbortSignal opcional para cancelamento
- * @returns Dados extraídos da certidão ou null se falhar
+ * @returns Dados extraídos ou null se falhar
  */
 export async function fetchCertidaoAdvogados(
   comunicacaoId: string,
@@ -840,7 +837,6 @@ export async function fetchCertidaoAdvogados(
 ): Promise<CertidaoData | null> {
   if (!comunicacaoId) return null;
 
-  const url = `${PJE_COMUNICA_API}/comunicacao/${comunicacaoId}/certidao`;
   const REQUEST_TIMEOUT_MS = 15000;
 
   try {
@@ -852,48 +848,124 @@ export async function fetchCertidaoAdvogados(
       ? AbortSignal.any([timeoutController.signal, signal])
       : timeoutController.signal;
 
-    console.log(`[Certidão] 🌐 Fetching: ${url}`);
-    const resp = await fetch(url, {
+    // 1) Tentar buscar detalhe JSON da comunicação
+    const urlDetalhe = `${PJE_COMUNICA_API}/comunicacao/${comunicacaoId}`;
+    console.log(`[Detalhe] 🌐 Fetching: ${urlDetalhe}`);
+    const resp = await fetch(urlDetalhe, {
       method: 'GET',
-      headers: { Accept: '*/*' },
+      headers: { Accept: 'application/json, text/plain, */*' },
       signal: combinedSignal,
     });
     clearTimeout(timeoutId);
 
     const contentType = resp.headers.get('content-type') || '';
-    console.log(`[Certidão] HTTP ${resp.status} | Content-Type: ${contentType} | ID: ${comunicacaoId}`);
+    console.log(`[Detalhe] HTTP ${resp.status} | Content-Type: ${contentType} | ID: ${comunicacaoId}`);
 
     if (!resp.ok) {
       if (resp.status === 429) {
         setGlobalCooldown(jitterMs(10000));
       }
-      const body = await resp.text().catch(() => '');
-      console.warn(`[Certidão] HTTP ${resp.status} para ${comunicacaoId}: ${body.slice(0, 200)}`);
+      console.warn(`[Detalhe] HTTP ${resp.status} para ${comunicacaoId}`);
       return null;
     }
 
-    // Ler corpo como texto — a API retorna texto/HTML legível mesmo com Content-Type: application/pdf
-    const html = await resp.text();
-    console.log(`[Certidão] ✅ Recebido: ${html.length} chars para ${comunicacaoId}`);
-    
-    // Log temporário de diagnóstico — mostra trecho para validar regex
-    const advMatch = html.match(/[Aa]dvogado[^:]*:[^\n]{0,200}/g);
-    console.log(`[Certidão] 🔍 Trechos "Advogado" encontrados:`, advMatch?.slice(0, 5) || 'NENHUM');
-    
-    if (!html || html.length < 50) {
-      console.warn(`[Certidão] Corpo vazio/curto para ${comunicacaoId}`);
-      return null;
+    const rawText = await resp.text();
+    console.log(`[Detalhe] 📄 Resposta: ${rawText.length} chars`);
+    console.log(`[Detalhe] 📄 Primeiros 2000 chars:`, rawText.slice(0, 2000));
+
+    // Tentar parsear como JSON
+    let data: any = null;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      // Não é JSON — pode ser HTML/texto da publicação completa
+      console.log(`[Detalhe] Resposta não é JSON, tentando extrair advogados do texto`);
+      const result = parseCertidaoHtml(rawText);
+      console.log(`[Detalhe] Parse texto: ${result.advogados.length} advogados`);
+      return result;
     }
 
-    const result = parseCertidaoHtml(html);
-    console.log(`[Certidão] Parse: ${result.advogados.length} advogados, ${result.partes.length} partes`);
-    return result;
+    // É JSON — logar todas as chaves para entender a estrutura
+    console.log(`[Detalhe] 🔑 Chaves do JSON:`, Object.keys(data));
+    console.log(`[Detalhe] 🔑 JSON completo (até 3000 chars):`, JSON.stringify(data).slice(0, 3000));
+    
+    // Extrair advogados de campos conhecidos do JSON
+    const advogados: string[] = [];
+    const advSet = new Set<string>();
+
+    const addAdv = (nome: string, oab?: string, uf?: string) => {
+      const nomeTrim = (nome || '').trim();
+      if (!nomeTrim || nomeTrim.length < 3) return;
+      const key = nomeTrim.toLowerCase();
+      if (advSet.has(key)) return;
+      advSet.add(key);
+      const oabNum = (oab || '').replace(/\D/g, '');
+      const ufNorm = (uf || '').trim().toUpperCase();
+      if (oabNum && ufNorm) {
+        advogados.push(`${nomeTrim} - OAB ${ufNorm}-${oabNum}`);
+      } else if (oabNum) {
+        advogados.push(`${nomeTrim} - OAB ${oabNum}`);
+      } else {
+        advogados.push(nomeTrim);
+      }
+    };
+
+    // Tentar múltiplos campos possíveis
+    const possiveisArrays = [
+      data?.advogados,
+      data?.representantes,
+      data?.procuradores,
+      data?.poloAtivo?.advogados,
+      data?.poloPassivo?.advogados,
+      data?.partes?.flatMap?.((p: any) => p?.advogados || []),
+    ];
+
+    for (const arr of possiveisArrays) {
+      if (Array.isArray(arr)) {
+        for (const a of arr) {
+          const nome = a?.nome || a?.nomeAdvogado || a?.nomeRepresentante || '';
+          const oab = a?.oab || a?.numeroOab || a?.numeroInscricao || '';
+          const uf = a?.uf || a?.siglaUf || a?.ufOab || '';
+          if (nome) addAdv(nome, oab, uf);
+        }
+      }
+    }
+
+    // Também verificar destinatários com tipo advogado
+    if (Array.isArray(data?.destinatarios)) {
+      for (const d of data.destinatarios) {
+        if (/advogado|procurador|representante/i.test(d?.tipo || d?.papel || '')) {
+          addAdv(d?.nome, d?.oab || d?.numeroOab, d?.uf || d?.siglaUf);
+        }
+      }
+    }
+
+    // Se o JSON tem um campo texto/conteudo, também extrair via regex
+    const textoCompleto = data?.texto || data?.teor || data?.conteudo || data?.conteudoCompleto || '';
+    if (textoCompleto && advogados.length === 0) {
+      const result = parseCertidaoHtml(textoCompleto);
+      if (result.advogados.length > 0) return result;
+    }
+
+    console.log(`[Detalhe] ✅ Advogados extraídos do JSON: ${advogados.length}`);
+    
+    const partes: { papel: string; nome: string }[] = [];
+    if (Array.isArray(data?.destinatarios)) {
+      for (const d of data.destinatarios) {
+        const nome = (d?.nome || '').trim();
+        if (nome) {
+          partes.push({ papel: d?.polo === 'A' ? 'Autor' : d?.polo === 'P' ? 'Réu' : d?.polo || 'Parte', nome });
+        }
+      }
+    }
+
+    return { advogados, partes };
   } catch (e: any) {
     if (e?.name === 'AbortError') {
-      console.warn(`[Certidão] ⏱ Timeout/abort para ${comunicacaoId}`);
+      console.warn(`[Detalhe] ⏱ Timeout/abort para ${comunicacaoId}`);
       return null;
     }
-    console.warn(`[Certidão] ❌ Erro ${comunicacaoId}: ${e?.message?.slice(0, 200)}`);
+    console.warn(`[Detalhe] ❌ Erro ${comunicacaoId}: ${e?.message?.slice(0, 200)}`);
     return null;
   }
 }
