@@ -872,11 +872,22 @@ export async function fetchCertidaoAdvogados(
       return null;
     }
 
-    // A certidão retorna PDF (application/pdf) — extrair texto com pdfjs-dist
-    if (contentType.includes('pdf')) {
+    // Ler o corpo da resposta como texto SEMPRE
+    // Mesmo PDF retorna texto legível quando lido como text() no browser
+    const rawText = await resp.text();
+    console.log(`[Certidão] 📄 Corpo recebido: ${rawText.length} chars | Content-Type: ${contentType} | ID: ${comunicacaoId}`);
+    console.log(`[Certidão] 📄 Primeiros 800 chars:`, rawText.slice(0, 800));
+    
+    // Se é PDF binário, tentar extrair com pdfjs-dist
+    if (contentType.includes('pdf') || rawText.startsWith('%PDF')) {
       try {
-        const arrayBuffer = await resp.arrayBuffer();
-        console.log(`[Certidão] 📄 PDF recebido: ${arrayBuffer.byteLength} bytes para ${comunicacaoId}`);
+        // Re-fetch para obter ArrayBuffer (resp.text() já consumiu o body)
+        const pdfResp = await fetch(url, {
+          method: 'GET',
+          headers: { Accept: '*/*' },
+        });
+        const arrayBuffer = await pdfResp.arrayBuffer();
+        console.log(`[Certidão] 📄 PDF re-fetched: ${arrayBuffer.byteLength} bytes para ${comunicacaoId}`);
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -888,21 +899,22 @@ export async function fetchCertidaoAdvogados(
           pages.push(content.items.map((item: any) => item.str || '').join(' '));
         }
         const fullText = pages.join('\n');
-        console.log(`[Certidão] 📄 PDF texto extraído: ${fullText.length} chars, ${maxPages} páginas`);
+        console.log(`[Certidão] 📄 PDF texto extraído: ${fullText.length} chars, primeiros 800:`, fullText.slice(0, 800));
         const result = parseCertidaoHtml(fullText);
-        console.log(`[Certidão] Parse result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
-        return result;
+        console.log(`[Certidão] Parse PDF result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
+        if (result.advogados.length > 0 || result.partes.length > 0) {
+          return result;
+        }
+        // Se PDF não encontrou nada, tentar com rawText também
+        console.log(`[Certidão] PDF parse vazio, tentando rawText como fallback`);
       } catch (pdfErr: any) {
-        console.warn(`[Certidão] ❌ Erro ao processar PDF ${comunicacaoId}: ${pdfErr?.message?.slice(0, 200)}`);
-        return null;
+        console.warn(`[Certidão] ❌ Erro PDF ${comunicacaoId}: ${pdfErr?.message?.slice(0, 200)}`);
       }
     }
 
-    // Fallback: tentar como HTML
-    const html = await resp.text();
-    console.log(`[Certidão] ✅ HTML recebido: ${html.length} chars para ${comunicacaoId}`);
-    const result = parseCertidaoHtml(html);
-    console.log(`[Certidão] Parse result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
+    // Fallback: parsear o texto bruto (HTML ou texto de PDF lido como string)
+    const result = parseCertidaoHtml(rawText);
+    console.log(`[Certidão] Parse text result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
     return result;
   } catch (e: any) {
     if (e?.name === 'AbortError') {
