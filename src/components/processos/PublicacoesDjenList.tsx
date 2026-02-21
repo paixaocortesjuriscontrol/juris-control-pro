@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Eye,
+  FileDown,
   FileSearch,
   Gavel,
   ListChecks,
@@ -31,6 +32,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } fr
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { jsPDF } from "jspdf";
 
 interface PublicacaoDjen {
   id: string;
@@ -152,6 +154,133 @@ export function PublicacoesDjenList({
     }
   };
 
+  const handleGerarPdf = () => {
+    try {
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const marginL = 15;
+      const marginR = 15;
+      const maxW = pageW - marginL - marginR;
+      let y = 15;
+
+      const addPage = () => { doc.addPage(); y = 15; };
+      const checkPage = (need: number) => { if (y + need > 280) addPage(); };
+
+      // Header
+      doc.setFillColor(30, 58, 95);
+      doc.rect(0, 0, pageW, 28, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("JURIS CONTROL", marginL, 12);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text("Sistema de Gestão Jurídica", marginL, 18);
+      const dataEmissao = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+      doc.text(`Relatório emitido em ${dataEmissao}`, marginL, 24);
+      doc.setTextColor(0, 0, 0);
+      y = 34;
+
+      // Title
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text(`PUBLICAÇÕES DJEN (${publicacoes.length})`, marginL, y);
+      y += 8;
+
+      doc.setDrawColor(200, 200, 200);
+
+      publicacoes.forEach((pub, idx) => {
+        checkPage(50);
+
+        // Separator
+        if (idx > 0) {
+          doc.setDrawColor(180, 180, 180);
+          doc.line(marginL, y, pageW - marginR, y);
+          y += 5;
+        }
+
+        // Process number
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 58, 95);
+        doc.text(`Processo: ${pub.processo_numero || "N/A"}`, marginL, y);
+        y += 6;
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+
+        // Metadata
+        const meta: string[] = [];
+        if (pub.tribunal) meta.push(`Órgão: ${pub.tribunal}`);
+        if (pub.data_disponibilizacao) meta.push(`Data de disponibilização: ${formatDateOnly(pub.data_disponibilizacao)}`);
+        if (pub.data_publicacao) meta.push(`Data de publicação: ${formatDateOnly(pub.data_publicacao)}`);
+        if (pub.fonte) meta.push(`Fonte: ${pub.fonte}`);
+
+        meta.forEach(line => {
+          checkPage(5);
+          doc.text(line, marginL, y);
+          y += 4;
+        });
+
+        // Partes
+        if (pub.polo_ativo || pub.polo_passivo) {
+          y += 2;
+          checkPage(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("Parte(s):", marginL, y);
+          y += 4;
+          doc.setFont("helvetica", "normal");
+          if (pub.polo_ativo) {
+            const lines = doc.splitTextToSize(`• ${pub.polo_ativo}`, maxW - 5);
+            checkPage(lines.length * 4);
+            doc.text(lines, marginL + 3, y);
+            y += lines.length * 4;
+          }
+          if (pub.polo_passivo) {
+            const lines = doc.splitTextToSize(`• ${pub.polo_passivo}`, maxW - 5);
+            checkPage(lines.length * 4);
+            doc.text(lines, marginL + 3, y);
+            y += lines.length * 4;
+          }
+        }
+
+        // Conteúdo
+        y += 2;
+        checkPage(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("Conteúdo Integral:", marginL, y);
+        y += 4;
+        doc.setFont("helvetica", "normal");
+
+        const rawText = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const contentLines: string[] = doc.splitTextToSize(rawText, maxW);
+
+        contentLines.forEach((line: string) => {
+          checkPage(4);
+          doc.text(line, marginL, y);
+          y += 3.5;
+        });
+
+        y += 6;
+      });
+
+      // Footer on all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Juris Control – Página ${i}/${totalPages}`, pageW / 2, 292, { align: "center" });
+      }
+
+      doc.save(`publicacoes_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success("PDF gerado com sucesso!");
+    } catch (err: any) {
+      toast.error(`Erro ao gerar PDF: ${err.message}`);
+    }
+  };
+
   const naoLidas = publicacoes.filter(p => !p.lida).length;
 
   if (loading) {
@@ -192,6 +321,15 @@ export function PublicacoesDjenList({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarPdf}
+            className="h-7 text-xs"
+          >
+            <FileDown className="w-3 h-3 mr-1" />
+            Gerar PDF
+          </Button>
           <Button
             variant="outline"
             size="sm"
