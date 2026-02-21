@@ -51,8 +51,34 @@ export function PublicacaoConteudoDjen({
     }
   };
 
-  // Usar fonte ou tribunal diretamente - o Órgão vem do dado estruturado, não extraído do conteúdo
-  const orgao = fonte || tribunal || "-";
+  // Extrair Órgão, Tipo de comunicação e Meio do cabeçalho de metadados do conteúdo
+  const extractMetadataFromContent = (texto: string | null): {
+    orgaoExtraido: string | null;
+    tipoComunicacao: string | null;
+    meio: string | null;
+  } => {
+    if (!texto) return { orgaoExtraido: null, tipoComunicacao: null, meio: null };
+    const plain = texto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    const orgaoMatch = plain.match(/Órgão\s*:\s*(.+?)(?=\s*(?:Data\s+de|Tipo\s+de|Meio\s*:|Processo\s*:|$))/i);
+    const tipoMatch = plain.match(/Tipo\s+de\s+comunica[çc][ãa]o\s*:\s*(.+?)(?=\s*(?:Meio\s*:|Processo\s*:|Data|$))/i);
+    const meioMatch = plain.match(/Meio\s*:\s*(.+?)(?=\s*(?:Processo\s*:|Data|Tipo|Advogado|$))/i);
+    
+    // Expandir abreviações de Meio
+    let meioValue = meioMatch?.[1]?.trim() || null;
+    if (meioValue === 'D') meioValue = 'Diário de Justiça Eletrônico Nacional';
+    
+    return {
+      orgaoExtraido: orgaoMatch?.[1]?.trim() || null,
+      tipoComunicacao: tipoMatch?.[1]?.trim() || null,
+      meio: meioValue,
+    };
+  };
+
+  const contentMeta = extractMetadataFromContent(conteudo);
+  const orgao = contentMeta.orgaoExtraido || fonte || tribunal || "-";
+  const tipoComunicacao = contentMeta.tipoComunicacao || "Intimação";
+  const meioPublicacao = contentMeta.meio || "Diário de Justiça Eletrônico Nacional";
 
   /**
    * Heurísticas LEVES para evitar “sujeira” (ex.: descrição do termo/trechos do texto)
@@ -249,8 +275,8 @@ export function PublicacaoConteudoDjen({
           <div class="meta">
             <p><strong>Órgão:</strong> ${orgao}</p>
             <p><strong>Data de disponibilização:</strong> ${formatDate(dataDisponibilizacao)}</p>
-            <p><strong>Tipo de comunicação:</strong> Intimação</p>
-            <p><strong>Meio:</strong> Diário de Justiça Eletrônico Nacional</p>
+            <p><strong>Tipo de comunicação:</strong> ${tipoComunicacao}</p>
+            <p><strong>Meio:</strong> ${meioPublicacao}</p>
           </div>
           ${partes.length > 0 ? `
           <div class="partes">
@@ -330,12 +356,12 @@ export function PublicacaoConteudoDjen({
           
           <div>
             <span className="font-semibold text-muted-foreground">Tipo de comunicação: </span>
-            <span>Intimação</span>
+            <span>{tipoComunicacao}</span>
           </div>
           
           <div>
             <span className="font-semibold text-muted-foreground">Meio: </span>
-            <span>Diário de Justiça Eletrônico Nacional</span>
+            <span>{meioPublicacao}</span>
           </div>
           
           <div>
