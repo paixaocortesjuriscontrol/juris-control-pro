@@ -56,7 +56,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
@@ -106,6 +106,7 @@ const AnaliseDjen = () => {
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null); // null = ainda não inicializado
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
+  const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
@@ -673,15 +674,15 @@ const AnaliseDjen = () => {
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(30, 58, 95);
-        doc.text(`COMUNICAÇÃO #${pub.processo_numero || "N/A"}`, mL, y);
+        doc.text(`COMUNICAÇÃO #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
         y += 8;
         doc.setTextColor(0, 0, 0);
 
         // ── Structured fields ──
-        printField("Processo", pub.processo_numero || "N/A");
+        printField("Processo", formatProcessoNumero(pub.processo_numero));
         if (pub.tribunal) printField("Órgão", pub.tribunal);
-        if (pub.data_disponibilizacao) printField("Data de disponibilização", formatDateOnly(pub.data_disponibilizacao));
-        if (pub.data_publicacao) printField("Data de publicação", formatDateOnly(pub.data_publicacao));
+        if (pub.data_disponibilizacao) printField("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
+        if (pub.data_publicacao) printField("Data de publicação", formatDateOnlyFull(pub.data_publicacao));
         printField("Tipo de Comunicação", "Intimação");
         printField("Meio", "D");
         if (pub.fonte) printField("Fonte", pub.fonte);
@@ -764,7 +765,15 @@ const AnaliseDjen = () => {
   };
 
   // Use merged data for all rendering (shadow the hook's publicacoes)
-  const allPublicacoes = mergedPublicacoes;
+  // Filtro client-side por data de disponibilização
+  const allPublicacoes = useMemo(() => {
+    if (!dataDisponibilizacao) return mergedPublicacoes;
+    return mergedPublicacoes.filter(pub => {
+      if (!pub.data_disponibilizacao) return false;
+      const pubDate = pub.data_disponibilizacao.slice(0, 10); // YYYY-MM-DD
+      return pubDate === dataDisponibilizacao;
+    });
+  }, [mergedPublicacoes, dataDisponibilizacao]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
@@ -888,7 +897,7 @@ const AnaliseDjen = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs md:text-sm">Coordenação</Label>
                 <select
@@ -943,6 +952,16 @@ const AnaliseDjen = () => {
                   </select>
                 </div>
               )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Data Disponibilização</Label>
+                <Input
+                  type="date"
+                  value={dataDisponibilizacao}
+                  onChange={(e) => setDataDisponibilizacao(e.target.value)}
+                  className="h-9 md:h-10 text-sm"
+                />
+              </div>
 
               {!apenasHoje && (
                 <>
