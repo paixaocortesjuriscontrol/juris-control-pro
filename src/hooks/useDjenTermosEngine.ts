@@ -1218,27 +1218,27 @@ async function processarTermo(
     for (let i = 0; i < novas.length; i++) {
       if (signal.aborted) break;
       const pub = novas[i];
-      // O ID da comunicação pode estar em diferentes campos dependendo do endpoint
-      const apiId = String(pub?.id ?? pub?.hash ?? pub?.codigo ?? pub?.codigoComunicacao ?? '').trim();
-      if (apiId && !certidaoCache.has(apiId)) {
-        console.log(`[DJEN] 🔎 Buscando certidão para ID: ${apiId} (pub ${i + 1}/${novas.length})`);
+      // O endpoint de certidão requer o HASH alfanumérico, não o ID numérico
+      const apiHash = String(pub?.hash ?? '').trim();
+      if (apiHash && !certidaoCache.has(apiHash)) {
+        console.log(`[DJEN] 🔎 Buscando certidão para hash: ${apiHash} (pub ${i + 1}/${novas.length})`);
         try {
-          const certidao = await fetchCertidaoAdvogados(apiId, signal);
-          certidaoCache.set(apiId, certidao);
+          const certidao = await fetchCertidaoAdvogados(apiHash, signal);
+          certidaoCache.set(apiHash, certidao);
           if (certidao) {
             console.log(`[DJEN] ✅ Certidão OK: ${certidao.advogados?.length || 0} advogados, ${certidao.partes?.length || 0} partes`);
           } else {
-            console.warn(`[DJEN] ⚠️ Certidão retornou null para ID: ${apiId}`);
+            console.warn(`[DJEN] ⚠️ Certidão retornou null para hash: ${apiHash}`);
           }
         } catch (certErr: any) {
-          console.error(`[DJEN] ❌ Erro certidão ID ${apiId}:`, certErr?.message?.slice(0, 150));
+          console.error(`[DJEN] ❌ Erro certidão hash ${apiHash}:`, certErr?.message?.slice(0, 150));
         }
         // Delay entre certidões (500ms) para evitar rate limit
         if (i < novas.length - 1 && !signal.aborted) {
           await delay(500);
         }
-      } else if (!apiId) {
-        console.warn(`[DJEN] ⚠️ Publicação ${i} sem ID válido, não é possível buscar certidão`);
+      } else if (!apiHash) {
+        console.warn(`[DJEN] ⚠️ Publicação ${i} sem hash válido, não é possível buscar certidão`);
       }
     }
 
@@ -1258,14 +1258,14 @@ async function processarTermo(
       const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
 
       // PRIORIDADE: advogados da certidão HTML > advogados do metadata da API > regex do conteúdo
-      const apiId = String(pub?.id ?? '').trim();
-      const certidao = apiId ? certidaoCache.get(apiId) : null;
+      const apiHash = String(pub?.hash ?? '').trim();
+      const certidao = apiHash ? certidaoCache.get(apiHash) : null;
       
       let advogadosFinais: string[] = [];
       if (certidao?.advogados && certidao.advogados.length > 0) {
         // Certidão tem advogados reais com OAB
         advogadosFinais = certidao.advogados;
-        console.log(`[DJEN] ✅ Certidão ${apiId}: ${certidao.advogados.length} advogados extraídos`);
+        console.log(`[DJEN] ✅ Certidão ${apiHash}: ${certidao.advogados.length} advogados extraídos`);
       } else {
         // Fallback: advogados do metadata da API (pode ser nomes de partes)
         advogadosFinais = extractAdvogadosFromMeta(pub);

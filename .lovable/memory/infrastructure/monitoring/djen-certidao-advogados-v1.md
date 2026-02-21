@@ -7,7 +7,7 @@ O sistema agora busca a certidão HTML (`/comunicacao/{id}/certidao`) para cada 
 
 ### Fluxo:
 1. Engine captura publicações via API de listagem (`/comunicacao`)
-2. Para cada publicação NOVA (não duplicada), busca certidão via `fetchCertidaoAdvogados(id)`
+2. Para cada publicação NOVA (não duplicada), busca certidão via `fetchCertidaoAdvogados(hash)` — usa o campo `hash` alfanumérico, NÃO o `id` numérico (que retorna 422 "Hash inválido")
 3. Faz parse do HTML com DOMParser para extrair advogados (OAB) e partes (papéis)
 4. Prioridade: certidão > metadata API > regex do conteúdo
 5. Salva em `advogados_json` com formato `["NOME - OAB UF-NUMERO"]`
