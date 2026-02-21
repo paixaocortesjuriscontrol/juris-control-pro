@@ -125,145 +125,133 @@ const pareceNomeAdvogado = (value: string): boolean => {
   return meaningful.length >= 2;
 };
 
-const extractPartes = (
+/**
+ * Extrai partes e advogados do conteúdo da publicação e dos campos estruturados.
+ * Estratégia: 
+ *   1. Partes: polo_ativo/passivo, bloco "Advogados:" no header (que na verdade contém partes),
+ *      advogados_json sem OAB, e padrões rotulados (AGRAVANTE, RECLAMANTE, etc.)
+ *   2. Advogados: advogados_json com OAB, padrões OAB no texto, e padrões "Dr./Dra." no texto
+ */
+const extractPartesAndAdvogados = (
   texto: string | null,
   poloAtivo: string | null,
-  poloPassivo: string | null
+  poloPassivo: string | null,
+  advogadosJson: string[] | null,
 ): { partes: string[]; advogados: string[] } => {
   const partes: string[] = [];
   const advogados: string[] = [];
   const advSet = new Set<string>();
   const partesSet = new Set<string>();
 
-  // Limpar polos contaminados
-  const cleanAtivo = cleanPolo(poloAtivo);
-  const cleanPassivo = cleanPolo(poloPassivo);
+  const addParte = (nome: string) => {
+    const clean = nome.trim();
+    if (!clean || !pareceNomeParte(clean)) return;
+    const key = clean.toUpperCase();
+    if (partesSet.has(key)) return;
+    partes.push(clean);
+    partesSet.add(key);
+  };
 
-  if (cleanAtivo && pareceNomeParte(cleanAtivo)) {
-    partes.push(cleanAtivo.trim());
-    partesSet.add(cleanAtivo.trim().toUpperCase());
-  }
-  if (cleanPassivo && pareceNomeParte(cleanPassivo)) {
-    partes.push(cleanPassivo.trim());
-    partesSet.add(cleanPassivo.trim().toUpperCase());
-  }
+  const addAdvogado = (entry: string, dedup_key?: string) => {
+    const key = dedup_key || entry.toUpperCase();
+    if (advSet.has(key)) return;
+    advSet.add(key);
+    advogados.push(entry);
+  };
 
+  // ── 1. Partes dos polos ───────────────────────────────────────────────
+  addParte(cleanPolo(poloAtivo) || '');
+  addParte(cleanPolo(poloPassivo) || '');
+
+  // ── 2. Partes do bloco "Advogados:" no header do conteúdo ─────────────
+  // O DJEN coloca nomes de partes sob o rótulo "Advogados:" no cabeçalho
   if (texto) {
-    const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-
-    if (partes.length === 0) {
-      const labelPatterns: RegExp[] = [
-        /EXEQUENTE[:\s]+([^\n]+?)(?=\s+(?:EXECUTADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /EXECUTADO[:\s]+([^\n]+?)(?=\s+(?:E OUTROS|INTIMAÇÃO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
-        /AUTOR[:\s]+([^\n]+?)(?=\s+(?:R[ÉE]U|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /R[ÉE]U[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /REQUERENTE[:\s]+([^\n]+?)(?=\s+(?:REQUERIDO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /REQUERIDO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /RECLAMANTE[:\s]+([^\n]+?)(?=\s+(?:RECLAMADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /RECLAMADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        // Novos padrões: AGRAVANTE/AGRAVADO, IMPETRANTE/IMPETRADO, EMBARGANTE/EMBARGADO
-        /AGRAVANTE[:\s]+([^\n]+?)(?=\s+(?:AGRAVADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /AGRAVADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /IMPETRANTE[:\s]+([^\n]+?)(?=\s+(?:IMPETRADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /IMPETRADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /EMBARGANTE[:\s]+([^\n]+?)(?=\s+(?:EMBARGADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /EMBARGADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /APELANTE[:\s]+([^\n]+?)(?=\s+(?:APELADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-        /APELADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      ];
-
-      for (const pattern of labelPatterns) {
-        const match = plainText.match(pattern);
-        if (!match?.[1]) continue;
-        const candidato = match[1].trim().replace(/\s+E\s+OUTROS.*$/i, "");
-        if (!pareceNomeParte(candidato)) continue;
-        const key = candidato.toUpperCase();
-        if (partesSet.has(key)) continue;
-        partes.push(candidato);
-        partesSet.add(key);
-      }
-
-      if (partes.length === 0) {
-        const lines = plainText.split(/\n/).map((l) => l.trim()).filter(Boolean);
-        const stopKeywords = /^(A\s*C\s*Ó\s*R\s*D\s*Ã\s*O|DECISÃO|DESPACHO|SENTENÇA|CERTIDÃO|EDITAL|VISTOS|PODER|INTIMAÇÃO|Processo\s*:)/i;
-        for (const line of lines) {
-          if (stopKeywords.test(line)) break;
-          if (/^(Órgão|Data\s+de|Tipo\s+de|Meio|Processo|Fonte|Inteiro|Advogado)/i.test(line)) continue;
-          if (line.length < 5 || /^\d+$/.test(line)) continue;
-          if (/OAB/i.test(line)) continue;
-          if (pareceNomeParte(line)) {
-            const key = line.toUpperCase();
-            if (!partesSet.has(key)) {
-              partes.push(line);
-              partesSet.add(key);
-            }
-          }
-          if (partes.length >= 4) break;
+    const headerMatch = texto.match(/Advogados?\s*:\s*\n([\s\S]*?)(?=\n\s*\n|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|\nEDITAL\b|\nCERTIDÃO\b|$)/i);
+    if (headerMatch?.[1]) {
+      const linhas = headerMatch[1].split('\n').map(l => l.trim()).filter(Boolean);
+      for (const linha of linhas) {
+        if (/OAB/i.test(linha)) {
+          // É um advogado real com OAB
+          addAdvogado(linha);
+        } else {
+          addParte(linha);
         }
       }
     }
+  }
 
-    // Extrair advogados do conteúdo via regex (3 formatos)
-    const advFormat1 = plainText.matchAll(
+  // ── 3. Partes do advogados_json (itens sem OAB são partes) ────────────
+  if (advogadosJson && Array.isArray(advogadosJson)) {
+    for (const item of advogadosJson) {
+      const s = String(item || '').trim();
+      if (!s) continue;
+      if (/OAB/i.test(s)) {
+        addAdvogado(s);
+      } else {
+        addParte(s);
+      }
+    }
+  }
+
+  // ── 4. Partes de padrões rotulados no texto ───────────────────────────
+  if (texto && partes.length === 0) {
+    const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const labelPatterns: RegExp[] = [
+      /AGRAVANTE[:\s]+([^\n]+?)(?=\s+(?:AGRAVADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /AGRAVADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /RECLAMANTE[:\s]+([^\n]+?)(?=\s+(?:RECLAMADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /RECLAMADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EXEQUENTE[:\s]+([^\n]+?)(?=\s+(?:EXECUTADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EXECUTADO[:\s]+([^\n]+?)(?=\s+(?:E OUTROS|INTIMAÇÃO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+      /AUTOR[:\s]+([^\n]+?)(?=\s+(?:R[ÉE]U|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /R[ÉE]U[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /REQUERENTE[:\s]+([^\n]+?)(?=\s+(?:REQUERIDO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /REQUERIDO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /IMPETRANTE[:\s]+([^\n]+?)(?=\s+(?:IMPETRADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /IMPETRADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EMBARGANTE[:\s]+([^\n]+?)(?=\s+(?:EMBARGADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EMBARGADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /APELANTE[:\s]+([^\n]+?)(?=\s+(?:APELADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /APELADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+    ];
+    for (const pattern of labelPatterns) {
+      const match = plainText.match(pattern);
+      if (!match?.[1]) continue;
+      const candidato = match[1].trim().replace(/\s+E\s+OUTROS.*$/i, "");
+      addParte(candidato);
+    }
+  }
+
+  // ── 5. Advogados via regex OAB no texto ───────────────────────────────
+  if (texto) {
+    const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+    // Formato: NOME (OAB 12345/SP) ou NOME (OAB: 12345/SP)
+    for (const match of plainText.matchAll(
       /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
-    );
-    for (const match of advFormat1) {
+    )) {
       const nome = (match[1] || "").trim();
       const numero = (match[2] || "").trim();
       const uf = (match[3] || "").toUpperCase();
-      const key = `${numero}-${uf}`;
-      if (!numero || !uf || advSet.has(key) || !pareceNomeAdvogado(nome)) continue;
-      advSet.add(key);
-      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+      if (numero && uf && pareceNomeAdvogado(nome)) {
+        addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+      }
     }
 
-    const advFormat2 = plainText.matchAll(
-      /ADV(?:OGADO)?[:\s]+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/gi
-    );
-    for (const match of advFormat2) {
-      const nome = (match[1] || "").trim();
-      const numero = (match[2] || "").trim();
-      const uf = (match[3] || "").toUpperCase();
-      const key = `${numero}-${uf}`;
-      if (!numero || !uf || advSet.has(key) || !pareceNomeAdvogado(nome)) continue;
-      advSet.add(key);
-      advogados.push(`${nome} - OAB ${uf}-${numero}`);
-    }
-
-    const advFormat3 = plainText.matchAll(
+    // Formato: NOME - OAB UF-12345 ou NOME OAB: UF-12345
+    for (const match of plainText.matchAll(
       /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
-    );
-    for (const match of advFormat3) {
+    )) {
       const nome = (match[1] || "").trim();
       const uf = (match[2] || "").toUpperCase();
       const numero = (match[3] || "").trim();
-      const key = `${numero}-${uf}`;
-      if (!numero || !uf || advSet.has(key) || !pareceNomeAdvogado(nome)) continue;
-      advSet.add(key);
-      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+      if (numero && uf && pareceNomeAdvogado(nome)) {
+        addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+      }
     }
   }
 
   return { partes, advogados };
-};
-
-/**
- * Separa itens do advogados_json em advogados reais (com OAB) e partes (sem OAB).
- * A API muitas vezes retorna destinatários que são partes, não advogados.
- */
-const separateAdvogadosAndPartes = (items: string[] | null): { advogadosReais: string[]; partesFromJson: string[] } => {
-  if (!items || items.length === 0) return { advogadosReais: [], partesFromJson: [] };
-  const advogadosReais: string[] = [];
-  const partesFromJson: string[] = [];
-  for (const item of items) {
-    if (/OAB/i.test(item)) {
-      advogadosReais.push(item);
-    } else {
-      // Item sem OAB = provavelmente uma parte, não advogado
-      partesFromJson.push(item);
-    }
-  }
-  return { advogadosReais, partesFromJson };
 };
 
 /**
@@ -313,24 +301,10 @@ export function PublicacaoConteudoDjen({
   const tipoComunicacao = tipoComunicacaoEstruturado || contentMeta.tipoComunicacao || "Intimação";
   const meioPublicacao = expandMeio(meioEstruturado || contentMeta.meio);
 
-  // Separar advogados reais (com OAB) de partes no advogados_json
-  const { advogadosReais: advJsonReais, partesFromJson } = separateAdvogadosAndPartes(advogadosJson);
-
-  // Partes: do regex/polos + partes vindas do advogados_json (sem OAB)
-  const { partes: partesRegex, advogados: advogadosRegex } = extractPartes(conteudo, poloAtivo, poloPassivo);
-
-  // Merge partes: regex + items do JSON que não têm OAB (são partes, não advogados)
-  const partesSet = new Set(partesRegex.map(p => p.toUpperCase()));
-  const partesFinais = [...partesRegex];
-  for (const p of partesFromJson) {
-    if (p && pareceNomeParte(p) && !partesSet.has(p.toUpperCase())) {
-      partesFinais.push(p);
-      partesSet.add(p.toUpperCase());
-    }
-  }
-
-  // Advogados: JSON reais (com OAB) > regex fallback
-  const advogados = advJsonReais.length > 0 ? advJsonReais : advogadosRegex;
+  // Extrai partes e advogados de todas as fontes disponíveis
+  const { partes: partesFinais, advogados } = extractPartesAndAdvogados(
+    conteudo, poloAtivo, poloPassivo, advogadosJson
+  );
 
   // Conteúdo limpo (sem cabeçalhos de metadados duplicados)
   const conteudoLimpo = stripMetadataFromContent(conteudo);
