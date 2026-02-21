@@ -1,0 +1,4 @@
+# Memory: features/monitoring/djen-analysis-pdf-summary-ia
+Updated: 21/02/2026
+
+A funcionalidade 'Gerar PDF Resumo' na Análise DJEN gera documentos baseados em resumos jurídicos criados por IA com persona de advogado sênior de contencioso. O resumo é texto corrido e fluido, sem markdown (###, **, ---, bullets) e sem frases introdutórias. Começa diretamente pelo conteúdo jurídico (ex: "Negado provimento aos embargos..."). Foca obrigatoriamente em: dispositivo da decisão, ementa/tese, resultado do julgamento, prazos, providências necessárias, certidões e designações de audiência. Cada publicação é resumida individualmente (uma por vez) para evitar timeout do edge function, com progresso exibido via toast.
