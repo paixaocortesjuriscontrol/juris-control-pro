@@ -15,7 +15,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaPaginado, type PjeSearchType, fetchCertidaoAdvogados } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractAdvogadosFromMeta } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
@@ -1201,7 +1201,28 @@ async function processarTermo(
   }
 
   // Inserir novas - com extração de partes/advogados do conteúdo
+  // MELHORIA: buscar certidão HTML para cada publicação nova para obter advogados reais com OAB
   if (novas.length > 0) {
+    // Buscar certidão para cada publicação nova (com delay para evitar rate limit)
+    const certidaoCache = new Map<string, Awaited<ReturnType<typeof fetchCertidaoAdvogados>>>();
+    for (let i = 0; i < novas.length; i++) {
+      if (signal.aborted) break;
+      const pub = novas[i];
+      const apiId = String(pub?.id ?? '').trim();
+      if (apiId && !certidaoCache.has(apiId)) {
+        try {
+          const certidao = await fetchCertidaoAdvogados(apiId, signal);
+          certidaoCache.set(apiId, certidao);
+        } catch {
+          // Falha silenciosa - usará fallback
+        }
+        // Delay entre certidões (500ms) para evitar rate limit
+        if (i < novas.length - 1 && !signal.aborted) {
+          await delay(500);
+        }
+      }
+    }
+
     const payload = novas.map(pub => {
       const conteudoOriginal = pub.conteudo || pub.teor || pub.texto || null;
       const conteudoTexto = buildDjenLikeConteudo({
@@ -1216,8 +1237,31 @@ async function processarTermo(
       const orgaoEstruturado = pub?.nomeOrgao ?? pub?.nome_orgao ?? pub?.orgao ?? pub?.nomeOrgaoJulgador ?? null;
       const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
       const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
-      const advogadosMeta = extractAdvogadosFromMeta(pub);
-      const advogadosJsonPayload = advogadosMeta.length > 0 ? JSON.stringify(advogadosMeta) : null;
+
+      // PRIORIDADE: advogados da certidão HTML > advogados do metadata da API > regex do conteúdo
+      const apiId = String(pub?.id ?? '').trim();
+      const certidao = apiId ? certidaoCache.get(apiId) : null;
+      
+      let advogadosFinais: string[] = [];
+      if (certidao?.advogados && certidao.advogados.length > 0) {
+        // Certidão tem advogados reais com OAB
+        advogadosFinais = certidao.advogados;
+        console.log(`[DJEN] ✅ Certidão ${apiId}: ${certidao.advogados.length} advogados extraídos`);
+      } else {
+        // Fallback: advogados do metadata da API (pode ser nomes de partes)
+        advogadosFinais = extractAdvogadosFromMeta(pub);
+      }
+      const advogadosJsonPayload = advogadosFinais.length > 0 ? JSON.stringify(advogadosFinais) : null;
+
+      // Partes: priorizar certidão se disponível
+      let poloAtivoFinal = polo_ativo;
+      let poloPassivoFinal = polo_passivo;
+      if (certidao?.partes && certidao.partes.length > 0) {
+        const ativo = certidao.partes.find(p => /POLO\s*ATIVO|AUTOR|REQUERENTE|RECLAMANTE|EXEQUENTE|AGRAVANTE|APELANTE|IMPETRANTE|EMBARGANTE/i.test(p.papel));
+        const passivo = certidao.partes.find(p => /POLO\s*PASSIVO|R[ÉE]U|REQUERIDO|RECLAMADO|EXECUTADO|AGRAVADO|APELADO|IMPETRADO|EMBARGADO/i.test(p.papel));
+        if (ativo) poloAtivoFinal = ativo.nome;
+        if (passivo) poloPassivoFinal = passivo.nome;
+      }
 
       return {
         monitoramento_id: mon.id,
@@ -1228,8 +1272,8 @@ async function processarTermo(
         data_publicacao: pub.data_publicacao ? `${pub.data_publicacao}T12:00:00.000Z` : null,
         tribunal: getSiglaTribunal(pub),
         fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
-        polo_ativo,
-        polo_passivo,
+        polo_ativo: poloAtivoFinal,
+        polo_passivo: poloPassivoFinal,
         lida: false,
         orgao: orgaoEstruturado ? String(orgaoEstruturado).trim() : null,
         tipo_comunicacao: tipoComunicacaoEstruturado ? String(tipoComunicacaoEstruturado).trim() : null,
