@@ -4008,6 +4008,7 @@ export type Database = {
       }
       publicacoes_djen: {
         Row: {
+          advogados_json: Json | null
           conteudo: string | null
           created_at: string
           data_disponibilizacao: string | null
@@ -4017,15 +4018,19 @@ export type Database = {
           id: string
           importada_de_descartada: boolean | null
           lida: boolean
+          meio: string | null
           monitoramento_id: string
+          orgao: string | null
           polo_ativo: string | null
           polo_passivo: string | null
           processo_numero: string | null
           resumo_gerado_em: string | null
           resumo_ia: string | null
+          tipo_comunicacao: string | null
           tribunal: string | null
         }
         Insert: {
+          advogados_json?: Json | null
           conteudo?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
@@ -4035,15 +4040,19 @@ export type Database = {
           id?: string
           importada_de_descartada?: boolean | null
           lida?: boolean
+          meio?: string | null
           monitoramento_id: string
+          orgao?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           processo_numero?: string | null
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
+          tipo_comunicacao?: string | null
           tribunal?: string | null
         }
         Update: {
+          advogados_json?: Json | null
           conteudo?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
@@ -4053,12 +4062,15 @@ export type Database = {
           id?: string
           importada_de_descartada?: boolean | null
           lida?: boolean
+          meio?: string | null
           monitoramento_id?: string
+          orgao?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           processo_numero?: string | null
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
+          tipo_comunicacao?: string | null
           tribunal?: string | null
         }
         Relationships: [

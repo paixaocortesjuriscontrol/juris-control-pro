@@ -1682,6 +1682,7 @@ const BuscarDJEN = () => {
                                 monitoramentoUf={null}
                                 monitoramentoTermo={null}
                                 monitoramentoDescricao={null}
+                                maxHeight="500px"
                               />
                             </div>
                           )}
@@ -1833,24 +1834,21 @@ const BuscarDJEN = () => {
           </DialogHeader>
 
           {selectedPublicacao && (
-            <ScrollArea className="max-h-[65vh] md:max-h-[60vh]">
-              <div className="pr-2 md:pr-4">
-                <PublicacaoConteudoDjen
-                  processoNumero={selectedPublicacao.processo || null}
-                  tribunal={selectedPublicacao.tribunal || null}
-                  fonte={selectedPublicacao.tribunal || null}
-                  dataDisponibilizacao={selectedPublicacao.data || null}
-                  dataPublicacao={selectedPublicacao.data || null}
-                  conteudo={selectedPublicacao.conteudo || null}
-                  poloAtivo={selectedPublicacao.partes || null}
-                  poloPassivo={null}
-                  monitoramentoOab={null}
-                  monitoramentoUf={null}
-                  monitoramentoTermo={null}
-                  monitoramentoDescricao={null}
-                />
-              </div>
-            </ScrollArea>
+              <PublicacaoConteudoDjen
+                processoNumero={selectedPublicacao.processo || null}
+                tribunal={selectedPublicacao.tribunal || null}
+                fonte={selectedPublicacao.tribunal || null}
+                dataDisponibilizacao={selectedPublicacao.data || null}
+                dataPublicacao={selectedPublicacao.data || null}
+                conteudo={selectedPublicacao.conteudo || null}
+                poloAtivo={selectedPublicacao.partes || null}
+                poloPassivo={null}
+                monitoramentoOab={null}
+                monitoramentoUf={null}
+                monitoramentoTermo={null}
+                monitoramentoDescricao={null}
+                maxHeight="60vh"
+              />
           )}
 
           <DialogFooter>
