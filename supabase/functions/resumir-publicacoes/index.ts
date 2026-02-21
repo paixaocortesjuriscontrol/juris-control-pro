@@ -35,16 +35,23 @@ serve(async (req) => {
       const MAX_PUB = 30;
       const pubsLimitadas = publicacoes.slice(0, MAX_PUB);
 
-      const systemPrompt = `Você é um assistente jurídico especializado. Resuma a publicação do Diário de Justiça de forma clara e objetiva em NO MÁXIMO 5 linhas.
-Foque em:
-1. O que foi decidido/comunicado
-2. Prazos mencionados (se houver)
-3. Ação necessária pelo advogado
-Seja direto e conciso. Não repita o número do processo nem dados de cabeçalho.`;
+      const systemPrompt = `Você é o melhor assessor jurídico do Brasil, especialista em análise de publicações do Diário de Justiça Eletrônico.
+
+Seu trabalho é resumir publicações jurídicas de forma COMPLETA e ESTRATÉGICA. O resumo DEVE conter OBRIGATORIAMENTE (quando presentes na publicação):
+
+1. **ACÓRDÃO**: Transcreva o dispositivo do acórdão na íntegra ou resuma fielmente
+2. **EMENTA**: Reproduza a ementa quando houver
+3. **DECISÃO / ISTO POSTO / DISPOSITIVO**: O que foi decidido, deferido ou indeferido
+4. **PRAZOS**: Qualquer prazo mencionado (dias, tipo, termo inicial)
+5. **CERTIDÃO DE JULGAMENTO / COMPARECIMENTO**: Transcreva se presente
+6. **INTIMAÇÃO**: O que está sendo intimado e para quem
+7. **PROVIDÊNCIA NECESSÁRIA**: O que o advogado DEVE fazer após esta publicação
+8. **RESULTADO DO JULGAMENTO**: Se houve votação, resultado (unânime/maioria), turma julgadora
+
+Seja completo mas objetivo. Não omita informações processuais relevantes. Não repita dados de cabeçalho (número do processo, órgão, data). Estruture o resumo com tópicos claros usando marcadores.`;
 
       const resumos: { id: string; resumo: string }[] = [];
 
-      // Processar em lotes de 5 para não sobrecarregar
       for (let i = 0; i < pubsLimitadas.length; i += 5) {
         const batch = pubsLimitadas.slice(i, i + 5);
         const promises = batch.map(async (pub: any) => {
@@ -53,8 +60,8 @@ Seja direto e conciso. Não repita o número do processo nem dados de cabeçalho
             return { id: pub.id, resumo: 'Publicação sem conteúdo suficiente para resumir.' };
           }
 
-          const truncated = conteudo.substring(0, 3000);
-          const userMsg = `Resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo:\n${truncated}`;
+          const truncated = conteudo.substring(0, 4000);
+          const userMsg = `Analise e resuma esta publicação jurídica como o melhor assessor jurídico:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}`;
 
           try {
             let aiResponse: any;
@@ -72,7 +79,7 @@ Seja direto e conciso. Não repita o número do processo nem dados de cabeçalho
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userMsg },
                   ],
-                  max_tokens: 500,
+                  max_tokens: 1200,
                   temperature: 0.3,
                 }),
               });
@@ -91,7 +98,7 @@ Seja direto e conciso. Não repita o número do processo nem dados de cabeçalho
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userMsg },
                   ],
-                  max_tokens: 500,
+                  max_tokens: 1200,
                   temperature: 0.3,
                 }),
               });

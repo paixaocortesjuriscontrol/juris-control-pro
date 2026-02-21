@@ -925,22 +925,6 @@ const AnaliseDjen = () => {
           y += 4;
         }
 
-        // ── Conteúdo Integral ──
-        checkPage(12);
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(0, 0, 0);
-        doc.text("Conteúdo Integral:", mL, y);
-        y += 7;
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        const rawText = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-        const contentLines: string[] = doc.splitTextToSize(rawText, maxW);
-        contentLines.forEach((line: string) => {
-          checkPage(4.5);
-          doc.text(line, mL, y);
-          y += 4;
-        });
         y += 6;
       });
 
