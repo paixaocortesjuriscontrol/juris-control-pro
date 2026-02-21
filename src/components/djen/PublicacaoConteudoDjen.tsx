@@ -47,6 +47,28 @@ const expandMeio = (m: string | null): string => {
   return m;
 };
 
+/** Limpa polo_passivo que vem contaminado com texto da intimação */
+const cleanPolo = (polo: string | null): string | null => {
+  if (!polo) return null;
+  // Corta no primeiro keyword jurídico que indica início de texto de intimação
+  const cutMatch = polo.match(/\b(INTIMAÇÃO|INTIMAÇÃO|DESPACHO|SENTENÇA|DECISÃO|ACÓRDÃO|Fica\s+V\.\s*Sa|AIRR|RR-|ROT-|ARR-|PROCESSO)\b/i);
+  if (cutMatch && cutMatch.index && cutMatch.index > 3) {
+    return polo.substring(0, cutMatch.index).trim();
+  }
+  // Se o polo é muito longo, provavelmente está contaminado
+  if (polo.length > 120) {
+    const firstPeriod = polo.indexOf('.');
+    if (firstPeriod > 5 && firstPeriod < 100) {
+      // Pode ser "S.A." — check for that
+      if (!/S\.A\.$/.test(polo.substring(0, firstPeriod + 1))) {
+        return polo.substring(0, firstPeriod + 1).trim();
+      }
+    }
+    return polo.substring(0, 100).trim();
+  }
+  return polo.trim();
+};
+
 // ============================================================================
 // REGEX FALLBACK: extração de metadados do conteúdo (publicações antigas)
 // ============================================================================
@@ -113,13 +135,17 @@ const extractPartes = (
   const advSet = new Set<string>();
   const partesSet = new Set<string>();
 
-  if (poloAtivo && pareceNomeParte(poloAtivo)) {
-    partes.push(poloAtivo.trim());
-    partesSet.add(poloAtivo.trim().toUpperCase());
+  // Limpar polos contaminados
+  const cleanAtivo = cleanPolo(poloAtivo);
+  const cleanPassivo = cleanPolo(poloPassivo);
+
+  if (cleanAtivo && pareceNomeParte(cleanAtivo)) {
+    partes.push(cleanAtivo.trim());
+    partesSet.add(cleanAtivo.trim().toUpperCase());
   }
-  if (poloPassivo && pareceNomeParte(poloPassivo)) {
-    partes.push(poloPassivo.trim());
-    partesSet.add(poloPassivo.trim().toUpperCase());
+  if (cleanPassivo && pareceNomeParte(cleanPassivo)) {
+    partes.push(cleanPassivo.trim());
+    partesSet.add(cleanPassivo.trim().toUpperCase());
   }
 
   if (texto) {
@@ -135,6 +161,15 @@ const extractPartes = (
         /REQUERIDO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
         /RECLAMANTE[:\s]+([^\n]+?)(?=\s+(?:RECLAMADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
         /RECLAMADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        // Novos padrões: AGRAVANTE/AGRAVADO, IMPETRANTE/IMPETRADO, EMBARGANTE/EMBARGADO
+        /AGRAVANTE[:\s]+([^\n]+?)(?=\s+(?:AGRAVADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /AGRAVADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /IMPETRANTE[:\s]+([^\n]+?)(?=\s+(?:IMPETRADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /IMPETRADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /EMBARGANTE[:\s]+([^\n]+?)(?=\s+(?:EMBARGADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /EMBARGADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /APELANTE[:\s]+([^\n]+?)(?=\s+(?:APELADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+        /APELADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
       ];
 
       for (const pattern of labelPatterns) {
@@ -212,6 +247,41 @@ const extractPartes = (
   return { partes, advogados };
 };
 
+/**
+ * Separa itens do advogados_json em advogados reais (com OAB) e partes (sem OAB).
+ * A API muitas vezes retorna destinatários que são partes, não advogados.
+ */
+const separateAdvogadosAndPartes = (items: string[] | null): { advogadosReais: string[]; partesFromJson: string[] } => {
+  if (!items || items.length === 0) return { advogadosReais: [], partesFromJson: [] };
+  const advogadosReais: string[] = [];
+  const partesFromJson: string[] = [];
+  for (const item of items) {
+    if (/OAB/i.test(item)) {
+      advogadosReais.push(item);
+    } else {
+      // Item sem OAB = provavelmente uma parte, não advogado
+      partesFromJson.push(item);
+    }
+  }
+  return { advogadosReais, partesFromJson };
+};
+
+/**
+ * Remove cabeçalhos de metadados repetidos do início do conteúdo
+ * (Órgão:, Data de disponibilização:, Tipo de comunicação:, Meio:, Processo:, Advogados:)
+ * para evitar duplicação com a sidebar de metadados.
+ */
+const stripMetadataFromContent = (texto: string | null): string | null => {
+  if (!texto) return texto;
+  let plain = texto;
+  // Remove linhas de cabeçalho comuns no início
+  const headerPattern = /^(\s*(Órgão\s*:|Data\s+de\s+(disponibilização|publicação)\s*:|Tipo\s+de\s+comunica[çc][ãa]o\s*:|Meio\s*:|Processo\s*:|Advogados?\s*:)[^\n]*\n?)+/im;
+  plain = plain.replace(headerPattern, '');
+  // Remove bloco "Advogados:" com nomes em sequência (sem OAB)
+  plain = plain.replace(/Advogados?\s*:\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,10}/i, '');
+  return plain.trim() || texto;
+};
+
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
@@ -243,11 +313,27 @@ export function PublicacaoConteudoDjen({
   const tipoComunicacao = tipoComunicacaoEstruturado || contentMeta.tipoComunicacao || "Intimação";
   const meioPublicacao = expandMeio(meioEstruturado || contentMeta.meio);
 
-  // Partes: sempre do regex/polos
-  const { partes, advogados: advogadosRegex } = extractPartes(conteudo, poloAtivo, poloPassivo);
+  // Separar advogados reais (com OAB) de partes no advogados_json
+  const { advogadosReais: advJsonReais, partesFromJson } = separateAdvogadosAndPartes(advogadosJson);
 
-  // Advogados: usar JSON estruturado se disponível, senão fallback regex
-  const advogados = advogadosJson && advogadosJson.length > 0 ? advogadosJson : advogadosRegex;
+  // Partes: do regex/polos + partes vindas do advogados_json (sem OAB)
+  const { partes: partesRegex, advogados: advogadosRegex } = extractPartes(conteudo, poloAtivo, poloPassivo);
+
+  // Merge partes: regex + items do JSON que não têm OAB (são partes, não advogados)
+  const partesSet = new Set(partesRegex.map(p => p.toUpperCase()));
+  const partesFinais = [...partesRegex];
+  for (const p of partesFromJson) {
+    if (p && pareceNomeParte(p) && !partesSet.has(p.toUpperCase())) {
+      partesFinais.push(p);
+      partesSet.add(p.toUpperCase());
+    }
+  }
+
+  // Advogados: JSON reais (com OAB) > regex fallback
+  const advogados = advJsonReais.length > 0 ? advJsonReais : advogadosRegex;
+
+  // Conteúdo limpo (sem cabeçalhos de metadados duplicados)
+  const conteudoLimpo = stripMetadataFromContent(conteudo);
 
   const handleCopy = (withFormatting: boolean) => {
     const text = withFormatting
@@ -283,7 +369,7 @@ export function PublicacaoConteudoDjen({
             <p><strong>Tipo de comunicação:</strong> ${tipoComunicacao}</p>
             <p><strong>Meio:</strong> ${meioPublicacao}</p>
           </div>
-          ${partes.length > 0 ? `<div class="partes"><strong>Parte(s):</strong><ul>${partes.map((p) => `<li>${p}</li>`).join("")}</ul></div>` : ""}
+          ${partesFinais.length > 0 ? `<div class="partes"><strong>Parte(s):</strong><ul>${partesFinais.map((p) => `<li>${p}</li>`).join("")}</ul></div>` : ""}
           ${advogados.length > 0 ? `<div class="partes"><strong>Advogado(s):</strong><ul>${advogados.map((a) => `<li>${a}</li>`).join("")}</ul></div>` : ""}
           <div class="conteudo">${conteudo || ""}</div>
         </body>
@@ -327,7 +413,7 @@ export function PublicacaoConteudoDjen({
         <aside className="lg:w-[280px] xl:w-[320px] shrink-0 lg:overflow-y-auto lg:border-r border-border bg-muted/30 p-3 md:p-4 space-y-3 text-sm rounded-t-lg lg:rounded-l-lg lg:rounded-tr-none">
           <div>
             <span className="font-semibold text-muted-foreground">Órgão: </span>
-            <span>{orgao}</span>
+            <span className="font-medium">{orgao}</span>
           </div>
 
           <div>
@@ -359,13 +445,13 @@ export function PublicacaoConteudoDjen({
           </div>
 
           {/* Partes */}
-          {partes.length > 0 && (
+          {partesFinais.length > 0 && (
             <div className="pt-2 border-t border-border">
               <p className="font-semibold text-muted-foreground mb-1.5">Parte(s)</p>
               <ul className="space-y-1">
-                {partes.map((parte, i) => (
+                {partesFinais.map((parte, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-destructive mt-0.5">👤</span>
+                    <span className="text-destructive mt-0.5 shrink-0">👤</span>
                     <span className="break-words">{parte}</span>
                   </li>
                 ))}
@@ -380,7 +466,7 @@ export function PublicacaoConteudoDjen({
               <ul className="space-y-1">
                 {advogados.map((adv, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-primary mt-0.5">⚖️</span>
+                    <span className="text-primary mt-0.5 shrink-0">⚖️</span>
                     <span className="break-words">{adv}</span>
                   </li>
                 ))}
@@ -397,7 +483,7 @@ export function PublicacaoConteudoDjen({
               conteudoDisplayClasses
             )}
           >
-            {formatConteudoParaExibicao(conteudo, true)}
+            {formatConteudoParaExibicao(conteudoLimpo, true)}
           </div>
         </main>
       </div>
