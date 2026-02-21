@@ -808,3 +808,211 @@ export const BUSCA_PARALELA_CONFIG = {
   /** Delay entre super-lotes (ms) */
   delayBetweenSuperBatches: 500,
 };
+
+// ============================================================================
+// CERTIDÃO - Busca dados completos de advogados/partes da certidão HTML
+// ============================================================================
+
+/**
+ * Resultado da extração de dados da certidão do PJE Comunica.
+ */
+export interface CertidaoData {
+  advogados: string[];  // "NOME - OAB UF-NUMERO"
+  partes: { papel: string; nome: string }[];
+}
+
+/**
+ * Busca a certidão HTML de uma comunicação e extrai advogados e partes.
+ * 
+ * A API de listagem (/comunicacao) retorna apenas nomes de partes no campo
+ * 'destinatarios'. Os dados completos de representação jurídica (advogados
+ * com OAB) estão disponíveis apenas na certidão HTML.
+ * 
+ * URL: https://comunicaapi.pje.jus.br/api/v1/comunicacao/{id}/certidao
+ * 
+ * @param comunicacaoId - O hash/ID da comunicação retornado pela API de listagem
+ * @param signal - AbortSignal opcional para cancelamento
+ * @returns Dados extraídos da certidão ou null se falhar
+ */
+export async function fetchCertidaoAdvogados(
+  comunicacaoId: string,
+  signal?: AbortSignal
+): Promise<CertidaoData | null> {
+  if (!comunicacaoId) return null;
+
+  const url = `${PJE_COMUNICA_API}/comunicacao/${comunicacaoId}/certidao`;
+  const REQUEST_TIMEOUT_MS = 15000; // 15s timeout
+
+  try {
+    await awaitGlobalCooldown();
+
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+    const combinedSignal = signal
+      ? AbortSignal.any([timeoutController.signal, signal])
+      : timeoutController.signal;
+
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'text/html, */*' },
+      signal: combinedSignal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      if (resp.status === 429) {
+        setGlobalCooldown(jitterMs(10000));
+      }
+      console.warn(`[Certidão] HTTP ${resp.status} para ${comunicacaoId}`);
+      return null;
+    }
+
+    const html = await resp.text();
+    return parseCertidaoHtml(html);
+  } catch (e: any) {
+    if (e?.name === 'AbortError') return null;
+    console.warn(`[Certidão] Erro ao buscar ${comunicacaoId}:`, e?.message?.slice(0, 100));
+    return null;
+  }
+}
+
+/**
+ * Faz parse do HTML da certidão e extrai advogados e partes.
+ * 
+ * A certidão HTML contém tabelas e divs com informações estruturadas:
+ * - Partes com seus papéis (POLO ATIVO, POLO PASSIVO, EXEQUENTE, etc.)
+ * - Advogados com OAB vinculados a cada parte
+ */
+export function parseCertidaoHtml(html: string): CertidaoData {
+  const advogados: string[] = [];
+  const partes: { papel: string; nome: string }[] = [];
+  const advSet = new Set<string>();
+  const parteSet = new Set<string>();
+
+  // Usar DOMParser para parse robusto do HTML
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const text = doc.body?.textContent || '';
+
+  // ── 1. Extrair advogados via padrões OAB no HTML inteiro ──────────────
+  // Formato: NOME - OAB UF-12345 ou NOME (OAB 12345/UF) ou OAB: UF 12345
+  const oabPatterns = [
+    // NOME - OAB DF-15553 ou NOME - OAB DF015553
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*[-–]\s*OAB[:\s]*([A-Z]{2})[:\s\-]?0?(\d{3,10})/g,
+    // NOME (OAB 12345/DF) ou NOME (OAB: 12345/DF)
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*\(OAB[:\s]*0?(\d{3,10})\s*[\/\-]?\s*([A-Z]{2})(?:\s*-\s*[A-Z])?\)/g,
+    // OAB/UF NUMERO ou OAB UF NUMERO (sem nome antes, mas com nome depois)
+    // NOME, OAB UF 12345
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?),?\s*OAB\s*[\/:\s]*([A-Z]{2})\s*[:\-\s]?0?(\d{3,10})/g,
+  ];
+
+  for (const pattern of oabPatterns) {
+    for (const match of text.matchAll(pattern)) {
+      let nome: string, uf: string, numero: string;
+
+      if (pattern.source.includes('\\(OAB')) {
+        // Formato: NOME (OAB 12345/DF)
+        nome = (match[1] || '').trim();
+        numero = (match[2] || '').replace(/^0+/, '');
+        uf = (match[3] || '').toUpperCase();
+      } else {
+        // Formato: NOME - OAB DF-12345
+        nome = (match[1] || '').trim();
+        uf = (match[2] || '').toUpperCase();
+        numero = (match[3] || '').replace(/^0+/, '');
+      }
+
+      if (!numero || numero.length < 3 || !uf || uf.length !== 2) continue;
+      // Validar que parece um nome de pessoa (pelo menos 2 palavras com >= 2 chars)
+      const tokens = nome.split(/\s+/).filter(t => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(t) && t.length >= 2);
+      if (tokens.length < 2) continue;
+      // Limpar nome (remover prefixos como "Advogado:", "Dr.", etc.)
+      nome = nome.replace(/^(?:Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
+
+      const key = `${numero}-${uf}`;
+      if (advSet.has(key)) continue;
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+  }
+
+  // ── 2. Extrair advogados de tabelas HTML (formato <td>/<th>) ──────────
+  const tds = doc.querySelectorAll('td, th');
+  let isAdvogadoSection = false;
+  for (const td of tds) {
+    const tdText = (td.textContent || '').trim();
+    if (/advogado/i.test(tdText) && tdText.length < 30) {
+      isAdvogadoSection = true;
+      continue;
+    }
+    if (isAdvogadoSection && tdText) {
+      // Extrair OAB patterns do conteúdo da célula
+      for (const pattern of oabPatterns) {
+        pattern.lastIndex = 0;
+        for (const match of tdText.matchAll(pattern)) {
+          let nome: string, uf: string, numero: string;
+          if (pattern.source.includes('\\(OAB')) {
+            nome = (match[1] || '').trim();
+            numero = (match[2] || '').replace(/^0+/, '');
+            uf = (match[3] || '').toUpperCase();
+          } else {
+            nome = (match[1] || '').trim();
+            uf = (match[2] || '').toUpperCase();
+            numero = (match[3] || '').replace(/^0+/, '');
+          }
+          if (!numero || numero.length < 3 || !uf) continue;
+          const key = `${numero}-${uf}`;
+          if (!advSet.has(key)) {
+            advSet.add(key);
+            nome = nome.replace(/^(?:Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
+            const tokens = nome.split(/\s+/).filter(t => t.length >= 2);
+            if (tokens.length >= 2) {
+              advogados.push(`${nome} - OAB ${uf}-${numero}`);
+            }
+          }
+        }
+      }
+      isAdvogadoSection = false;
+    }
+  }
+
+  // ── 3. Extrair partes com seus papéis ─────────────────────────────────
+  const rolePatterns = [
+    /POLO\s+ATIVO[:\s]+([^\n\r]{3,200})/gi,
+    /POLO\s+PASSIVO[:\s]+([^\n\r]{3,200})/gi,
+    /EXEQUENTE[:\s]+([^\n\r]{3,200})/gi,
+    /EXECUTADO[:\s]+([^\n\r]{3,200})/gi,
+    /RECLAMANTE[:\s]+([^\n\r]{3,200})/gi,
+    /RECLAMADO[:\s]+([^\n\r]{3,200})/gi,
+    /AUTOR[A]?[:\s]+([^\n\r]{3,200})/gi,
+    /R[ÉE]U[:\s]+([^\n\r]{3,200})/gi,
+    /REQUERENTE[:\s]+([^\n\r]{3,200})/gi,
+    /REQUERIDO[:\s]+([^\n\r]{3,200})/gi,
+    /AGRAVANTE[:\s]+([^\n\r]{3,200})/gi,
+    /AGRAVADO[:\s]+([^\n\r]{3,200})/gi,
+    /IMPETRANTE[:\s]+([^\n\r]{3,200})/gi,
+    /IMPETRADO[:\s]+([^\n\r]{3,200})/gi,
+    /EMBARGANTE[:\s]+([^\n\r]{3,200})/gi,
+    /EMBARGADO[:\s]+([^\n\r]{3,200})/gi,
+    /APELANTE[:\s]+([^\n\r]{3,200})/gi,
+    /APELADO[:\s]+([^\n\r]{3,200})/gi,
+  ];
+
+  for (const pattern of rolePatterns) {
+    for (const match of text.matchAll(pattern)) {
+      const papel = match[0].split(/[:\s]/)[0].trim();
+      let nome = (match[1] || '').trim()
+        .replace(/\s+E\s+OUTROS.*$/i, '')
+        .replace(/\s+E\s+OUTRO.*$/i, '')
+        .slice(0, 200);
+      // Não adicionar se parece com texto processual
+      if (/\b(INTIMAÇÃO|DESPACHO|SENTENÇA|DECISÃO|ACÓRDÃO|PODER JUDICIÁRIO)\b/i.test(nome)) continue;
+      const key = nome.toUpperCase();
+      if (!key || parteSet.has(key)) continue;
+      parteSet.add(key);
+      partes.push({ papel, nome });
+    }
+  }
+
+  return { advogados, partes };
+}
