@@ -841,7 +841,7 @@ export async function fetchCertidaoAdvogados(
   if (!comunicacaoId) return null;
 
   const url = `${PJE_COMUNICA_API}/comunicacao/${comunicacaoId}/certidao`;
-  const REQUEST_TIMEOUT_MS = 15000; // 15s timeout
+  const REQUEST_TIMEOUT_MS = 15000;
 
   try {
     await awaitGlobalCooldown();
@@ -855,12 +855,13 @@ export async function fetchCertidaoAdvogados(
     console.log(`[Certidão] 🌐 Fetching: ${url}`);
     const resp = await fetch(url, {
       method: 'GET',
-      headers: { Accept: 'text/html, */*' },
+      headers: { Accept: '*/*' },
       signal: combinedSignal,
     });
     clearTimeout(timeoutId);
 
-    console.log(`[Certidão] HTTP ${resp.status} | Content-Type: ${resp.headers.get('content-type')} | ID: ${comunicacaoId}`);
+    const contentType = resp.headers.get('content-type') || '';
+    console.log(`[Certidão] HTTP ${resp.status} | Content-Type: ${contentType} | ID: ${comunicacaoId}`);
 
     if (!resp.ok) {
       if (resp.status === 429) {
@@ -871,6 +872,33 @@ export async function fetchCertidaoAdvogados(
       return null;
     }
 
+    // A certidão retorna PDF (application/pdf) — extrair texto com pdfjs-dist
+    if (contentType.includes('pdf')) {
+      try {
+        const arrayBuffer = await resp.arrayBuffer();
+        console.log(`[Certidão] 📄 PDF recebido: ${arrayBuffer.byteLength} bytes para ${comunicacaoId}`);
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages: string[] = [];
+        const maxPages = Math.min(pdf.numPages, 10);
+        for (let i = 1; i <= maxPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          pages.push(content.items.map((item: any) => item.str || '').join(' '));
+        }
+        const fullText = pages.join('\n');
+        console.log(`[Certidão] 📄 PDF texto extraído: ${fullText.length} chars, ${maxPages} páginas`);
+        const result = parseCertidaoHtml(fullText);
+        console.log(`[Certidão] Parse result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
+        return result;
+      } catch (pdfErr: any) {
+        console.warn(`[Certidão] ❌ Erro ao processar PDF ${comunicacaoId}: ${pdfErr?.message?.slice(0, 200)}`);
+        return null;
+      }
+    }
+
+    // Fallback: tentar como HTML
     const html = await resp.text();
     console.log(`[Certidão] ✅ HTML recebido: ${html.length} chars para ${comunicacaoId}`);
     const result = parseCertidaoHtml(html);
@@ -887,22 +915,22 @@ export async function fetchCertidaoAdvogados(
 }
 
 /**
- * Faz parse do HTML da certidão e extrai advogados e partes.
- * 
- * A certidão HTML contém tabelas e divs com informações estruturadas:
- * - Partes com seus papéis (POLO ATIVO, POLO PASSIVO, EXEQUENTE, etc.)
- * - Advogados com OAB vinculados a cada parte
+ * Faz parse do texto (HTML ou texto extraído de PDF) e extrai advogados e partes.
+ * Busca padrões OAB no texto e papéis processuais.
  */
-export function parseCertidaoHtml(html: string): CertidaoData {
+export function parseCertidaoHtml(text: string): CertidaoData {
   const advogados: string[] = [];
   const partes: { papel: string; nome: string }[] = [];
   const advSet = new Set<string>();
   const parteSet = new Set<string>();
 
-  // Usar DOMParser para parse robusto do HTML
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const text = doc.body?.textContent || '';
+  // Se parece HTML, extrair texto puro via DOMParser
+  let plainText = text;
+  if (text.includes('<') && text.includes('>')) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/html');
+    plainText = doc.body?.textContent || text;
+  }
 
   // ── 1. Extrair advogados via padrões OAB no HTML inteiro ──────────────
   // Formato: NOME - OAB UF-12345 ou NOME (OAB 12345/UF) ou OAB: UF 12345
@@ -917,7 +945,7 @@ export function parseCertidaoHtml(html: string): CertidaoData {
   ];
 
   for (const pattern of oabPatterns) {
-    for (const match of text.matchAll(pattern)) {
+    for (const match of plainText.matchAll(pattern)) {
       let nome: string, uf: string, numero: string;
 
       if (pattern.source.includes('\\(OAB')) {
@@ -947,42 +975,45 @@ export function parseCertidaoHtml(html: string): CertidaoData {
   }
 
   // ── 2. Extrair advogados de tabelas HTML (formato <td>/<th>) ──────────
-  const tds = doc.querySelectorAll('td, th');
-  let isAdvogadoSection = false;
-  for (const td of tds) {
-    const tdText = (td.textContent || '').trim();
-    if (/advogado/i.test(tdText) && tdText.length < 30) {
-      isAdvogadoSection = true;
-      continue;
-    }
-    if (isAdvogadoSection && tdText) {
-      // Extrair OAB patterns do conteúdo da célula
-      for (const pattern of oabPatterns) {
-        pattern.lastIndex = 0;
-        for (const match of tdText.matchAll(pattern)) {
-          let nome: string, uf: string, numero: string;
-          if (pattern.source.includes('\\(OAB')) {
-            nome = (match[1] || '').trim();
-            numero = (match[2] || '').replace(/^0+/, '');
-            uf = (match[3] || '').toUpperCase();
-          } else {
-            nome = (match[1] || '').trim();
-            uf = (match[2] || '').toUpperCase();
-            numero = (match[3] || '').replace(/^0+/, '');
-          }
-          if (!numero || numero.length < 3 || !uf) continue;
-          const key = `${numero}-${uf}`;
-          if (!advSet.has(key)) {
-            advSet.add(key);
-            nome = nome.replace(/^(?:Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
-            const tokens = nome.split(/\s+/).filter(t => t.length >= 2);
-            if (tokens.length >= 2) {
-              advogados.push(`${nome} - OAB ${uf}-${numero}`);
+  if (text.includes('<') && text.includes('>')) {
+    const parser2 = new DOMParser();
+    const doc = parser2.parseFromString(text, 'text/html');
+    const tds = doc.querySelectorAll('td, th');
+    let isAdvogadoSection = false;
+    for (const td of tds) {
+      const tdText = (td.textContent || '').trim();
+      if (/advogado/i.test(tdText) && tdText.length < 30) {
+        isAdvogadoSection = true;
+        continue;
+      }
+      if (isAdvogadoSection && tdText) {
+        for (const pattern of oabPatterns) {
+          pattern.lastIndex = 0;
+          for (const match of tdText.matchAll(pattern)) {
+            let nome: string, uf: string, numero: string;
+            if (pattern.source.includes('\\(OAB')) {
+              nome = (match[1] || '').trim();
+              numero = (match[2] || '').replace(/^0+/, '');
+              uf = (match[3] || '').toUpperCase();
+            } else {
+              nome = (match[1] || '').trim();
+              uf = (match[2] || '').toUpperCase();
+              numero = (match[3] || '').replace(/^0+/, '');
+            }
+            if (!numero || numero.length < 3 || !uf) continue;
+            const key = `${numero}-${uf}`;
+            if (!advSet.has(key)) {
+              advSet.add(key);
+              nome = nome.replace(/^(?:Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
+              const tokens = nome.split(/\s+/).filter(t => t.length >= 2);
+              if (tokens.length >= 2) {
+                advogados.push(`${nome} - OAB ${uf}-${numero}`);
+              }
             }
           }
         }
+        isAdvogadoSection = false;
       }
-      isAdvogadoSection = false;
     }
   }
 
@@ -1009,7 +1040,7 @@ export function parseCertidaoHtml(html: string): CertidaoData {
   ];
 
   for (const pattern of rolePatterns) {
-    for (const match of text.matchAll(pattern)) {
+    for (const match of plainText.matchAll(pattern)) {
       const papel = match[0].split(/[:\s]/)[0].trim();
       let nome = (match[1] || '').trim()
         .replace(/\s+E\s+OUTROS.*$/i, '')
