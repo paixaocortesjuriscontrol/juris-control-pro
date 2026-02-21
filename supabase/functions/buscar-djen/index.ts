@@ -437,17 +437,30 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
     
     return {
       id: item.id,
+      hash: item.hash,
+      codigo: item.codigo,
+      codigoComunicacao: item.codigoComunicacao,
       dataDisponibilizacao: item.dataDisponibilizacao,
       dataPublicacao: item.dataPublicacao,
       tipoComunicacao: item.tipoComunicacao,
       siglaTribunal: item.siglaTribunal,
       numeroProcesso: item.numeroProcesso,
+      meio: item.meio || item.meioComunicacao,
 
-      // Keep compatibility aliases used by the frontend
+      // Campos de órgão
       nomeOrgao: item.nomeOrgao,
       orgao: item.nomeOrgao,
+
+      // Campos de partes e advogados (CRÍTICOS - antes eram descartados)
+      destinatarios: item.destinatarios,
       destinatarioNome: item.destinatarioNome,
       destinatario: item.destinatarioNome,
+      advogados: item.advogados,
+      representantes: item.representantes,
+      procuradores: item.procuradores,
+      poloAtivo: item.poloAtivo,
+      poloPassivo: item.poloPassivo,
+      partes: item.partes,
 
       // Truncate content aggressively to avoid memory issues
       texto: typeof item.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined,

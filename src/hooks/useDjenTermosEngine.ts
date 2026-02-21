@@ -15,7 +15,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaPaginado, type PjeSearchType, fetchCertidaoAdvogados } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractAdvogadosFromMeta } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
@@ -1200,46 +1200,16 @@ async function processarTermo(
     });
   }
 
-  // Inserir novas - com extração de partes/advogados do conteúdo
-  // MELHORIA: buscar certidão HTML para cada publicação nova para obter advogados reais com OAB
+  // Inserir novas - usando dados estruturados da API (destinatarios, advogados, poloAtivo/Passivo)
   if (novas.length > 0) {
-    // Buscar certidão para cada publicação nova (com delay para evitar rate limit)
-    const certidaoCache = new Map<string, Awaited<ReturnType<typeof fetchCertidaoAdvogados>>>();
-    
-    // DEBUG: Loggar item raw para identificar campo de ID correto
+    // DEBUG: Loggar item raw para verificar campos disponíveis
     if (novas.length > 0) {
       const sample = novas[0];
       console.log('[DJEN] 🔍 DEBUG raw pub keys:', Object.keys(sample || {}));
-      console.log('[DJEN] 🔍 DEBUG pub.id:', sample?.id, '| pub.hash:', sample?.hash, '| pub.codigo:', sample?.codigo, '| pub.codigoComunicacao:', sample?.codigoComunicacao);
-      console.log('[DJEN] 🔍 DEBUG pub.destinatarios:', JSON.stringify(sample?.destinatarios)?.slice(0, 300));
-      console.log('[DJEN] 🔍 DEBUG pub.advogados:', JSON.stringify(sample?.advogados)?.slice(0, 300));
-    }
-    
-    for (let i = 0; i < novas.length; i++) {
-      if (signal.aborted) break;
-      const pub = novas[i];
-      // O endpoint de certidão requer o HASH alfanumérico, não o ID numérico
-      const apiHash = String(pub?.hash ?? '').trim();
-      if (apiHash && !certidaoCache.has(apiHash)) {
-        console.log(`[DJEN] 🔎 Buscando certidão para hash: ${apiHash} (pub ${i + 1}/${novas.length})`);
-        try {
-          const certidao = await fetchCertidaoAdvogados(apiHash, signal);
-          certidaoCache.set(apiHash, certidao);
-          if (certidao) {
-            console.log(`[DJEN] ✅ Certidão OK: ${certidao.advogados?.length || 0} advogados, ${certidao.partes?.length || 0} partes`);
-          } else {
-            console.warn(`[DJEN] ⚠️ Certidão retornou null para hash: ${apiHash}`);
-          }
-        } catch (certErr: any) {
-          console.error(`[DJEN] ❌ Erro certidão hash ${apiHash}:`, certErr?.message?.slice(0, 150));
-        }
-        // Delay entre certidões (500ms) para evitar rate limit
-        if (i < novas.length - 1 && !signal.aborted) {
-          await delay(500);
-        }
-      } else if (!apiHash) {
-        console.warn(`[DJEN] ⚠️ Publicação ${i} sem hash válido, não é possível buscar certidão`);
-      }
+      console.log('[DJEN] 🔍 DEBUG pub.destinatarios:', JSON.stringify(sample?.destinatarios)?.slice(0, 500));
+      console.log('[DJEN] 🔍 DEBUG pub.advogados:', JSON.stringify(sample?.advogados)?.slice(0, 500));
+      console.log('[DJEN] 🔍 DEBUG pub.poloAtivo:', JSON.stringify(sample?.poloAtivo)?.slice(0, 300));
+      console.log('[DJEN] 🔍 DEBUG pub.poloPassivo:', JSON.stringify(sample?.poloPassivo)?.slice(0, 300));
     }
 
     const payload = novas.map(pub => {
@@ -1257,30 +1227,9 @@ async function processarTermo(
       const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
       const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
 
-      // PRIORIDADE: advogados da certidão HTML > advogados do metadata da API > regex do conteúdo
-      const apiHash = String(pub?.hash ?? '').trim();
-      const certidao = apiHash ? certidaoCache.get(apiHash) : null;
-      
-      let advogadosFinais: string[] = [];
-      if (certidao?.advogados && certidao.advogados.length > 0) {
-        // Certidão tem advogados reais com OAB
-        advogadosFinais = certidao.advogados;
-        console.log(`[DJEN] ✅ Certidão ${apiHash}: ${certidao.advogados.length} advogados extraídos`);
-      } else {
-        // Fallback: advogados do metadata da API (pode ser nomes de partes)
-        advogadosFinais = extractAdvogadosFromMeta(pub);
-      }
+      // Advogados: extrair diretamente dos dados da API
+      const advogadosFinais = extractAdvogadosFromMeta(pub);
       const advogadosJsonPayload = advogadosFinais.length > 0 ? JSON.stringify(advogadosFinais) : null;
-
-      // Partes: priorizar certidão se disponível
-      let poloAtivoFinal = polo_ativo;
-      let poloPassivoFinal = polo_passivo;
-      if (certidao?.partes && certidao.partes.length > 0) {
-        const ativo = certidao.partes.find(p => /POLO\s*ATIVO|AUTOR|REQUERENTE|RECLAMANTE|EXEQUENTE|AGRAVANTE|APELANTE|IMPETRANTE|EMBARGANTE/i.test(p.papel));
-        const passivo = certidao.partes.find(p => /POLO\s*PASSIVO|R[ÉE]U|REQUERIDO|RECLAMADO|EXECUTADO|AGRAVADO|APELADO|IMPETRADO|EMBARGADO/i.test(p.papel));
-        if (ativo) poloAtivoFinal = ativo.nome;
-        if (passivo) poloPassivoFinal = passivo.nome;
-      }
 
       return {
         monitoramento_id: mon.id,
@@ -1291,8 +1240,8 @@ async function processarTermo(
         data_publicacao: pub.data_publicacao ? `${pub.data_publicacao}T12:00:00.000Z` : null,
         tribunal: getSiglaTribunal(pub),
         fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
-        polo_ativo: poloAtivoFinal,
-        polo_passivo: poloPassivoFinal,
+        polo_ativo: polo_ativo,
+        polo_passivo: polo_passivo,
         lida: false,
         orgao: orgaoEstruturado ? String(orgaoEstruturado).trim() : null,
         tipo_comunicacao: tipoComunicacaoEstruturado ? String(tipoComunicacaoEstruturado).trim() : null,
