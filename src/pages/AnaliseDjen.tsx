@@ -1764,10 +1764,10 @@ const AnaliseDjen = () => {
                                       monitoramentoTermo={pub.monitoramento_termo}
                                       monitoramentoDescricao={pub.monitoramento_descricao}
                                       maxHeight="500px"
-                                      orgaoEstruturado={(pub as any).orgao}
-                                      tipoComunicacaoEstruturado={(pub as any).tipo_comunicacao}
-                                      meioEstruturado={(pub as any).meio}
-                                      advogadosJson={(pub as any).advogados_json}
+                                       orgaoEstruturado={pub.orgao}
+                                       tipoComunicacaoEstruturado={pub.tipo_comunicacao}
+                                       meioEstruturado={pub.meio}
+                                       advogadosJson={pub.advogados_json}
                                     />
                                   </div>
                                 )}
@@ -1841,10 +1841,10 @@ const AnaliseDjen = () => {
                 monitoramentoTermo={selectedPublicacao.monitoramento_termo}
                 monitoramentoDescricao={selectedPublicacao.monitoramento_descricao}
                 maxHeight="60vh"
-                orgaoEstruturado={(selectedPublicacao as any).orgao}
-                tipoComunicacaoEstruturado={(selectedPublicacao as any).tipo_comunicacao}
-                meioEstruturado={(selectedPublicacao as any).meio}
-                advogadosJson={(selectedPublicacao as any).advogados_json}
+                orgaoEstruturado={selectedPublicacao.orgao}
+                tipoComunicacaoEstruturado={selectedPublicacao.tipo_comunicacao}
+                meioEstruturado={selectedPublicacao.meio}
+                advogadosJson={selectedPublicacao.advogados_json}
               />
             )}
           </DialogContent>
