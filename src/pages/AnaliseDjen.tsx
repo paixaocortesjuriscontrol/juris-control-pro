@@ -745,12 +745,41 @@ const AnaliseDjen = () => {
   };
 
   // ===== PDF "Gerar PDF Resumo" - formato DOC do advogado (estilo Comunica PJE) =====
-  const handleGerarPdfResumo = () => {
+  const [gerandoResumo, setGerandoResumo] = useState(false);
+
+  const handleGerarPdfResumo = async () => {
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
     }
+
+    setGerandoResumo(true);
+    const toastId = toast.loading(`Gerando resumo IA de ${allPublicacoes.length} publicação(ões)...`);
+
     try {
+      // 1. Chamar IA para resumir cada publicação individualmente
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
+        body: {
+          resumoIndividual: true,
+          publicacoes: allPublicacoes.map(p => ({
+            id: p.id,
+            conteudo: p.conteudo,
+            processo: p.processo_numero,
+            dataDisponibilizacao: p.data_disponibilizacao,
+          })),
+        },
+      });
+
+      if (aiError) throw aiError;
+
+      const resumosMap = new Map<string, string>();
+      if (aiData?.resumos) {
+        for (const r of aiData.resumos) {
+          resumosMap.set(r.id, r.resumo);
+        }
+      }
+
+      // 2. Gerar PDF com resumos da IA
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const mL = 15;
@@ -875,10 +904,32 @@ const AnaliseDjen = () => {
           y += 2;
         }
 
+        // ── Resumo IA ──
+        const resumoIA = resumosMap.get(pub.id);
+        if (resumoIA) {
+          checkPage(12);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 138);
+          doc.text("Resumo (IA):", mL, y);
+          y += 7;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const resumoLines: string[] = doc.splitTextToSize(resumoIA, maxW);
+          resumoLines.forEach((line: string) => {
+            checkPage(5);
+            doc.text(line, mL, y);
+            y += 5;
+          });
+          y += 4;
+        }
+
         // ── Conteúdo Integral ──
         checkPage(12);
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
         doc.text("Conteúdo Integral:", mL, y);
         y += 7;
         doc.setFontSize(9);
@@ -899,10 +950,14 @@ const AnaliseDjen = () => {
         doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
         doc.text(`Juris Control – Página ${i}/${total}`, pageW / 2, 292, { align: "center" });
       }
+
       doc.save(`resumo_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
-      toast.success("PDF Resumo gerado com sucesso!");
-    } catch (err: any) {
-      toast.error(`Erro ao gerar PDF: ${err.message}`);
+      toast.success("PDF Resumo gerado com sucesso!", { id: toastId });
+    } catch (error) {
+      console.error("Erro ao gerar PDF Resumo:", error);
+      toast.error("Erro ao gerar PDF Resumo", { id: toastId });
+    } finally {
+      setGerandoResumo(false);
     }
   };
 
@@ -1278,12 +1333,16 @@ const AnaliseDjen = () => {
             variant="outline"
             size="sm"
             onClick={handleGerarPdfResumo}
-            disabled={allPublicacoes.length === 0}
+            disabled={allPublicacoes.length === 0 || gerandoResumo}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
-            <FileText className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            <span className="hidden sm:inline">Gerar PDF Resumo</span>
-            <span className="sm:hidden">Resumo</span>
+            {gerandoResumo ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoResumo ? "Gerando Resumo..." : "Gerar PDF Resumo"}</span>
+            <span className="sm:hidden">{gerandoResumo ? "..." : "Resumo"}</span>
           </Button>
 
           <Button
