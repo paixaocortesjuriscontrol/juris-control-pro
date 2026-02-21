@@ -157,7 +157,7 @@ export function PublicacaoConteudoDjen({
 
       // Extrair partes do texto apenas se não vieram preenchidas
       if (partes.length === 0) {
-        // LABEL: NOME até próximo label ou número de processo
+        // Estratégia 1: LABEL: NOME (com rótulo explícito)
         const labelPatterns: RegExp[] = [
           /EXEQUENTE[:\s]+([^\n]+?)(?=\s+(?:EXECUTADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
           /EXECUTADO[:\s]+([^\n]+?)(?=\s+(?:E OUTROS|INTIMAÇÃO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
@@ -181,6 +181,31 @@ export function PublicacaoConteudoDjen({
 
           partes.push(candidato);
           partesSet.add(key);
+        }
+
+        // Estratégia 2: Nomes sem rótulo no início do conteúdo (antes de ACÓRDÃO/DECISÃO/etc.)
+        if (partes.length === 0) {
+          const lines = plainText.split(/\n/).map(l => l.trim()).filter(Boolean);
+          const stopKeywords = /^(A\s*C\s*Ó\s*R\s*D\s*Ã\s*O|DECISÃO|DESPACHO|SENTENÇA|CERTIDÃO|EDITAL|VISTOS|PODER|INTIMAÇÃO|Processo\s*:)/i;
+          for (const line of lines) {
+            if (stopKeywords.test(line)) break;
+            // Pular linhas que são metadados
+            if (/^(Órgão|Data\s+de|Tipo\s+de|Meio|Processo|Fonte|Inteiro|Advogado)/i.test(line)) continue;
+            // Pular linhas curtas demais ou números
+            if (line.length < 5 || /^\d+$/.test(line)) continue;
+            // Pular linhas com OAB (são advogados, não partes)
+            if (/OAB/i.test(line)) continue;
+            // Se parece nome de parte (ALL CAPS, empresa, etc.)
+            if (pareceNomeParte(line)) {
+              const key = line.toUpperCase();
+              if (!partesSet.has(key)) {
+                partes.push(line);
+                partesSet.add(key);
+              }
+            }
+            // Parar após encontrar 4 partes sem rótulo
+            if (partes.length >= 4) break;
+          }
         }
       }
 
