@@ -872,49 +872,21 @@ export async function fetchCertidaoAdvogados(
       return null;
     }
 
-    // Ler o corpo da resposta como texto SEMPRE
-    // Mesmo PDF retorna texto legível quando lido como text() no browser
-    const rawText = await resp.text();
-    console.log(`[Certidão] 📄 Corpo recebido: ${rawText.length} chars | Content-Type: ${contentType} | ID: ${comunicacaoId}`);
-    console.log(`[Certidão] 📄 Primeiros 800 chars:`, rawText.slice(0, 800));
+    // Ler corpo como texto — a API retorna texto/HTML legível mesmo com Content-Type: application/pdf
+    const html = await resp.text();
+    console.log(`[Certidão] ✅ Recebido: ${html.length} chars para ${comunicacaoId}`);
     
-    // Se é PDF binário, tentar extrair com pdfjs-dist
-    if (contentType.includes('pdf') || rawText.startsWith('%PDF')) {
-      try {
-        // Re-fetch para obter ArrayBuffer (resp.text() já consumiu o body)
-        const pdfResp = await fetch(url, {
-          method: 'GET',
-          headers: { Accept: '*/*' },
-        });
-        const arrayBuffer = await pdfResp.arrayBuffer();
-        console.log(`[Certidão] 📄 PDF re-fetched: ${arrayBuffer.byteLength} bytes para ${comunicacaoId}`);
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pages: string[] = [];
-        const maxPages = Math.min(pdf.numPages, 10);
-        for (let i = 1; i <= maxPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          pages.push(content.items.map((item: any) => item.str || '').join(' '));
-        }
-        const fullText = pages.join('\n');
-        console.log(`[Certidão] 📄 PDF texto extraído: ${fullText.length} chars, primeiros 800:`, fullText.slice(0, 800));
-        const result = parseCertidaoHtml(fullText);
-        console.log(`[Certidão] Parse PDF result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
-        if (result.advogados.length > 0 || result.partes.length > 0) {
-          return result;
-        }
-        // Se PDF não encontrou nada, tentar com rawText também
-        console.log(`[Certidão] PDF parse vazio, tentando rawText como fallback`);
-      } catch (pdfErr: any) {
-        console.warn(`[Certidão] ❌ Erro PDF ${comunicacaoId}: ${pdfErr?.message?.slice(0, 200)}`);
-      }
+    // Log temporário de diagnóstico — mostra trecho para validar regex
+    const advMatch = html.match(/[Aa]dvogado[^:]*:[^\n]{0,200}/g);
+    console.log(`[Certidão] 🔍 Trechos "Advogado" encontrados:`, advMatch?.slice(0, 5) || 'NENHUM');
+    
+    if (!html || html.length < 50) {
+      console.warn(`[Certidão] Corpo vazio/curto para ${comunicacaoId}`);
+      return null;
     }
 
-    // Fallback: parsear o texto bruto (HTML ou texto de PDF lido como string)
-    const result = parseCertidaoHtml(rawText);
-    console.log(`[Certidão] Parse text result: ${result.advogados.length} advogados, ${result.partes.length} partes`);
+    const result = parseCertidaoHtml(html);
+    console.log(`[Certidão] Parse: ${result.advogados.length} advogados, ${result.partes.length} partes`);
     return result;
   } catch (e: any) {
     if (e?.name === 'AbortError') {
@@ -944,45 +916,53 @@ export function parseCertidaoHtml(text: string): CertidaoData {
     plainText = doc.body?.textContent || text;
   }
 
-  // ── 1. Extrair advogados via padrões OAB no HTML inteiro ──────────────
-  // Formato: NOME - OAB UF-12345 ou NOME (OAB 12345/UF) ou OAB: UF 12345
-  const oabPatterns = [
-    // NOME - OAB DF-15553 ou NOME - OAB DF015553
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*[-–]\s*OAB[:\s]*([A-Z]{2})[:\s\-]?0?(\d{3,10})/g,
-    // NOME (OAB 12345/DF) ou NOME (OAB: 12345/DF)
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*\(OAB[:\s]*0?(\d{3,10})\s*[\/\-]?\s*([A-Z]{2})(?:\s*-\s*[A-Z])?\)/g,
-    // OAB/UF NUMERO ou OAB UF NUMERO (sem nome antes, mas com nome depois)
+  // ── 1. Extrair advogados via padrões OAB ──────────────────────────────
+  // Formatos reais da certidão DJEN:
+  //   Advogado(a):NOME - OAB UF - 14468N
+  //   Advogado(a): NOME - OAB UF-14468
+  //   NOME - OAB UF - 14468
+  //   NOME (OAB 12345/DF)
+  //   NOME, OAB UF 12345
+  const oabPatterns: Array<{ regex: RegExp; groups: 'name_uf_num' | 'name_num_uf' }> = [
+    // Advogado(a): NOME - OAB UF - 14468N  (formato principal da certidão)
+    { regex: /Advogado\(a\)[:\s]*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*[-–]\s*OAB\s*([A-Z]{2})\s*[-–\s]*0?(\d{3,10})[A-Z]?(?:\s|$|[,;.])/g, groups: 'name_uf_num' },
+    // Advogado(a): NOME - 14468N (sem "OAB")
+    { regex: /Advogado\(a\)[:\s]*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*[-–]\s*0?(\d{3,10})[A-Z]?(?:\s|$|[,;.])/g, groups: 'name_uf_num' },
+    // NOME - OAB UF-12345 ou NOME - OAB UF 12345 (com letra N opcional no final)
+    { regex: /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*[-–]\s*OAB[:\s]*([A-Z]{2})\s*[-–:\s]?0?(\d{3,10})[A-Z]?(?:\s|$|[,;.])/g, groups: 'name_uf_num' },
+    // NOME (OAB 12345/DF)
+    { regex: /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)\s*\(OAB[:\s]*0?(\d{3,10})[A-Z]?\s*[\/\-]?\s*([A-Z]{2})(?:\s*-\s*[A-Z])?\)/g, groups: 'name_num_uf' },
     // NOME, OAB UF 12345
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?),?\s*OAB\s*[\/:\s]*([A-Z]{2})\s*[:\-\s]?0?(\d{3,10})/g,
+    { regex: /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?),?\s*OAB\s*[\/:\s]*([A-Z]{2})\s*[:\-\s]?0?(\d{3,10})[A-Z]?(?:\s|$|[,;.])/g, groups: 'name_uf_num' },
   ];
 
-  for (const pattern of oabPatterns) {
-    for (const match of plainText.matchAll(pattern)) {
+  for (const { regex, groups } of oabPatterns) {
+    for (const match of plainText.matchAll(regex)) {
       let nome: string, uf: string, numero: string;
 
-      if (pattern.source.includes('\\(OAB')) {
-        // Formato: NOME (OAB 12345/DF)
+      if (groups === 'name_num_uf') {
         nome = (match[1] || '').trim();
         numero = (match[2] || '').replace(/^0+/, '');
         uf = (match[3] || '').toUpperCase();
       } else {
-        // Formato: NOME - OAB DF-12345
         nome = (match[1] || '').trim();
         uf = (match[2] || '').toUpperCase();
-        numero = (match[3] || '').replace(/^0+/, '');
+        numero = (match[3] || match[2] || '').replace(/^0+/, '');
+        // Se pattern sem UF (Advogado(a): NOME - 14468N), uf fica vazio
+        if (!/^[A-Z]{2}$/.test(uf)) { uf = ''; }
       }
 
-      if (!numero || numero.length < 3 || !uf || uf.length !== 2) continue;
+      if (!numero || numero.length < 3) continue;
       // Validar que parece um nome de pessoa (pelo menos 2 palavras com >= 2 chars)
       const tokens = nome.split(/\s+/).filter(t => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(t) && t.length >= 2);
       if (tokens.length < 2) continue;
-      // Limpar nome (remover prefixos como "Advogado:", "Dr.", etc.)
-      nome = nome.replace(/^(?:Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
+      // Limpar nome (remover prefixos)
+      nome = nome.replace(/^(?:Advogados?\(a\)|Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
 
-      const key = `${numero}-${uf}`;
+      const key = uf ? `${numero}-${uf}` : numero;
       if (advSet.has(key)) continue;
       advSet.add(key);
-      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+      advogados.push(uf ? `${nome} - OAB ${uf}-${numero}` : `${nome} - ${numero}`);
     }
   }
 
@@ -999,11 +979,11 @@ export function parseCertidaoHtml(text: string): CertidaoData {
         continue;
       }
       if (isAdvogadoSection && tdText) {
-        for (const pattern of oabPatterns) {
-          pattern.lastIndex = 0;
-          for (const match of tdText.matchAll(pattern)) {
+        for (const { regex, groups } of oabPatterns) {
+          regex.lastIndex = 0;
+          for (const match of tdText.matchAll(regex)) {
             let nome: string, uf: string, numero: string;
-            if (pattern.source.includes('\\(OAB')) {
+            if (groups === 'name_num_uf') {
               nome = (match[1] || '').trim();
               numero = (match[2] || '').replace(/^0+/, '');
               uf = (match[3] || '').toUpperCase();
@@ -1012,14 +992,14 @@ export function parseCertidaoHtml(text: string): CertidaoData {
               uf = (match[2] || '').toUpperCase();
               numero = (match[3] || '').replace(/^0+/, '');
             }
-            if (!numero || numero.length < 3 || !uf) continue;
-            const key = `${numero}-${uf}`;
+            if (!numero || numero.length < 3) continue;
+            const key = uf ? `${numero}-${uf}` : numero;
             if (!advSet.has(key)) {
               advSet.add(key);
-              nome = nome.replace(/^(?:Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
+              nome = nome.replace(/^(?:Advogados?\(a\)|Advogados?|ADV\.?|Dr\.?|Dra\.?)[:\s]*/i, '').trim();
               const tokens = nome.split(/\s+/).filter(t => t.length >= 2);
               if (tokens.length >= 2) {
-                advogados.push(`${nome} - OAB ${uf}-${numero}`);
+                advogados.push(uf ? `${nome} - OAB ${uf}-${numero}` : `${nome} - ${numero}`);
               }
             }
           }
