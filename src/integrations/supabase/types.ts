@@ -5034,6 +5034,7 @@ export type Database = {
           p_search_query?: string
         }
         Returns: {
+          advogados_json: Json
           conteudo: string
           coordenacao_id: string
           coordenacao_nome: string
@@ -5043,16 +5044,20 @@ export type Database = {
           fonte: string
           id: string
           lida: boolean
+          meio: string
           monitoramento_descricao: string
           monitoramento_id: string
           monitoramento_oab: string
           monitoramento_termo: string
           monitoramento_tipo: string
           monitoramento_uf: string
+          orgao: string
+          partes_json: Json
           polo_ativo: string
           polo_passivo: string
           processo_id: string
           processo_numero: string
+          tipo_comunicacao: string
           tipo_origem: string
           tribunal: string
         }[]
