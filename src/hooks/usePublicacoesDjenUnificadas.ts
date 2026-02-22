@@ -298,6 +298,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           polo_ativo: r.polo_ativo,
           polo_passivo: r.polo_passivo,
           tribunal: r.tribunal,
+          orgao: r.orgao || null,
+          tipo_comunicacao: r.tipo_comunicacao || null,
+          meio: r.meio || null,
+          advogados_json: parseJsonArraySafe(r.advogados_json),
+          partes_json: parseJsonArraySafe(r.partes_json),
         }));
 
         // 4) aplicar filtro de tipo e monitoramento (termo) quando selecionado
