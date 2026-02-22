@@ -604,7 +604,7 @@ function extrairPartesAdvogadosDoConteudo(texto: string | null): {
   }
 
   // Extrair advogados - múltiplos formatos
-  // Formato: "NOME - OAB UF-12345" ou "NOME (OAB 12345/UF)"
+  // Formato 1: "NOME - OAB UF-12345" ou "NOME (OAB 12345/UF)"
   const advPatterns = [
     // NOME - OAB DF-12345 ou NOME - OAB DF015553
     /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-\s*OAB[:\s]*([A-Z]{2})[:\s-]?0?(\d{3,10})/gi,
@@ -643,6 +643,32 @@ function extrairPartesAdvogadosDoConteudo(texto: string | null): {
       
       advSet.add(key);
       advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+  }
+
+  // Formato 2: "ADVOGADO: NOME" ou "ADV.: NOME" ou "ADV: NOME" (sem OAB)
+  // Muito comum em publicações do TST e TRTs
+  const advNomePatterns = [
+    /(?:ADVOGADO|ADV\.?)\s*:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)(?=\s*(?:Embarg|Reclamant|Reclamad|Requerent|Requerid|Autor|Réu|Agravant|Agravad|Apelant|Apelad|Execu|ADVOGADO|ADV[.:]|OAB|\d{7,}|$))/gi,
+  ];
+
+  for (const pattern of advNomePatterns) {
+    const matches = plainText.matchAll(pattern);
+    for (const match of matches) {
+      const nome = (match[1] || '').trim().replace(/\s+$/, '');
+      if (!nome || nome.length < 5) continue;
+
+      // Ignorar nomes que parecem partes/empresas
+      if (/\b(BANCO|S\.A\.|S\/A|LTDA|EIRELI|SINDICATO|MUNICIPIO|ESTADO|UNIÃO|INSTITUTO|FUNDAÇÃO|EMPRESA|COMPANHIA)\b/i.test(nome)) continue;
+
+      // Validar que tem pelo menos 2 tokens de nome
+      const tokens = nome.split(' ').filter(t => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(t) && t.length >= 2);
+      if (tokens.length < 2) continue;
+
+      const key = nome.toUpperCase();
+      if (advSet.has(key)) continue;
+      advSet.add(key);
+      advogados.push(nome);
     }
   }
 
