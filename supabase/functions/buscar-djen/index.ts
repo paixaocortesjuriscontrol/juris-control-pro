@@ -453,6 +453,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
 
       // Campos de partes e advogados (CRÍTICOS - antes eram descartados)
       destinatarios: item.destinatarios,
+      destinatarioadvogados: item.destinatarioadvogados,
       destinatarioNome: item.destinatarioNome,
       destinatario: item.destinatarioNome,
       advogados: item.advogados,

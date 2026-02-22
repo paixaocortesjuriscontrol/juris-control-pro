@@ -1,29 +1,30 @@
-# Memory: infrastructure/monitoring/djen-destinatarios-advogados-v3
+# Memory: infrastructure/monitoring/djen-destinatarios-advogados-v4
 Updated: 22/02/2026
 
 ## Separação de Destinatários e Advogados
 
-O sistema diferencia entre **destinatários** (partes notificadas da API) e **advogados** (profissionais extraídos do texto).
+O sistema diferencia entre **destinatários** (partes notificadas da API) e **advogados** (profissionais extraídos da API + texto).
 
-### Problema resolvido (v3):
-A API PJE Comunica NÃO retorna advogados estruturados no endpoint de listagem. O portal comunica.pje.jus.br mostra advogados no "lado esquerdo" porque provavelmente usa um endpoint de detalhe (`/certidao/{hash}`), que não temos acesso.
+### Problema resolvido (v4):
+A API PJE Comunica retorna advogados estruturados no campo **`destinatarioadvogados`** da resposta de listagem (`/comunicacao`). Cada item contém `{ advogado: { nome, numero_oab, uf_oab } }`. Esse campo estava sendo ignorado pelo sistema.
 
-### Solução: extração do texto
-Advogados são extraídos do TEXTO da publicação via regex em dois formatos:
-1. **Com OAB**: `NOME - OAB UF-12345` → capturado com número OAB
-2. **Sem OAB**: `ADVOGADO: NOME` ou `ADV.: NOME` → capturado pelo padrão "ADVOGADO:" seguido de nome
+### Solução: extração da API + fallback regex
+Advogados são capturados de 3 fontes, com deduplicação:
+1. **API `destinatarioadvogados[]`**: fonte primária com dados estruturados (nome, OAB, UF)
+2. **Regex do texto**: `NOME - OAB UF-12345` (com OAB)
+3. **Regex do texto**: `ADVOGADO: NOME` ou `ADV.: NOME` (sem OAB)
 
 ### Campos no banco (`publicacoes_djen`):
 - `partes_json`: Destinatários da API PJE Comunica. São partes do processo (ex: "BANCO SANTANDER S.A.").
-- `advogados_json`: Advogados extraídos do TEXTO da publicação (formato "NOME - OAB UF-NUMERO" ou apenas "NOME").
+- `advogados_json`: Advogados extraídos da API (`destinatarioadvogados`) + regex do texto.
 
 ### Fluxo:
 1. `extractDestinatariosFromMeta(pub)` → destinatários da API → `partes_json`
-2. `extrairPartesAdvogadosDoConteudo(conteudo)` → advogados do texto (OAB patterns + "ADVOGADO:" pattern) → `advogados_json`
-3. `extractAdvogadosFromApiMeta(pub)` → advogados da API (geralmente vazio, mas mantido como fallback)
+2. `extractAdvogadosFromApiMeta(pub)` → advogados da API (inclui `destinatarioadvogados[]`) → base de `advogados_json`
+3. `extrairPartesAdvogadosDoConteudo(conteudo)` → advogados do texto (regex) → merge com API
 4. Merge: API + texto, sem duplicatas
 
-### Backfill:
-- Backfill SQL executado para extrair "ADVOGADO: NOME" de publicações existentes
-- Resultado: 385 publicações com advogados (de 2658 total)
-- Publicações que não mencionam advogados no texto NÃO terão advogados no sidebar (limitação da API)
+### Arquivos alterados (v4):
+- `src/utils/djenLikeConteudo.ts`: `extractAdvogadosFromApiMeta` agora processa `pub.destinatarioadvogados[]`
+- `supabase/functions/monitorar-djen/utils.ts`: `extrairAdvogadosDeRawJson` agora processa `obj.destinatarioadvogados[]`
+- `supabase/functions/buscar-djen/index.ts`: passa `destinatarioadvogados` nos dados mapeados

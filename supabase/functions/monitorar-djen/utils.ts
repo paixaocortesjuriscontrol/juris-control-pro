@@ -418,6 +418,18 @@ export function extrairAdvogadosDeRawJson(raw: any): string[] {
     else if (oabNum) advs.push(`${nomeTrim} - OAB ${oabNum}`);
     else advs.push(nomeTrim);
   };
+  // destinatarioadvogados[] — campo estruturado da API com advogado nested
+  if (Array.isArray(obj.destinatarioadvogados)) {
+    for (const da of obj.destinatarioadvogados) {
+      const adv = da?.advogado || da;
+      if (adv) {
+        const nome = adv.nome || adv.nomeAdvogado || '';
+        const oab = adv.numero_oab || adv.numeroOab || adv.oab || '';
+        const uf = adv.uf_oab || adv.ufOab || adv.uf || '';
+        if (nome) add(nome, String(oab), String(uf));
+      }
+    }
+  }
   if (Array.isArray(obj.destinatarios)) {
     for (const d of obj.destinatarios) {
       const nome = d?.nome || d?.nomeAdvogado || d?.destinatarioNome || '';
