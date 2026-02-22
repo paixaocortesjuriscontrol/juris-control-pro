@@ -146,24 +146,116 @@ export function extractDestinatariosFromMeta(pub: any): string[] {
   // Formato 1: pub.destinatarios[] (mais comum no PJE Comunica)
   if (Array.isArray(pub?.destinatarios)) {
     for (const d of pub.destinatarios) {
-      const nome = d?.nome || d?.nomeAdvogado || d?.destinatarioNome || '';
+      const nome = d?.nome || d?.nomeDestinatario || d?.destinatarioNome || '';
       if (nome) add(nome);
     }
   }
 
-  // Formato 2: pub.advogados[] - na API, este campo geralmente traz partes, não advogados reais
-  if (Array.isArray(pub?.advogados)) {
-    for (const a of pub.advogados) {
-      const nome = a?.nome || a?.nomeAdvogado || '';
-      if (nome) add(nome);
-    }
-  }
-
-  // Formato 3: campos simples
+  // Formato 2: campos simples
   if (pub?.destinatarioNome) add(pub.destinatarioNome);
-  if (pub?.nomeAdvogado) add(pub.nomeAdvogado);
+  if (pub?.nomeDestinatario) add(pub.nomeDestinatario);
+
+  // Formato 3: polos (partes do processo)
+  if (pub?.poloAtivo && typeof pub.poloAtivo === 'string' && pub.poloAtivo.length < 150) add(pub.poloAtivo);
+  if (pub?.poloPassivo && typeof pub.poloPassivo === 'string' && pub.poloPassivo.length < 150) add(pub.poloPassivo);
 
   return nomes;
+}
+
+/**
+ * Extrai ADVOGADOS REAIS dos metadados estruturados da API PJE Comunica.
+ * Busca em TODOS os locais possíveis da API:
+ * 1. pub.destinatarios[].advogados[] (advogados nested dentro de cada destinatário)
+ * 2. pub.advogados[] (campo raiz)
+ * 3. pub.representantes[] (campo raiz)
+ * 4. pub.procuradores[] (campo raiz)
+ * 
+ * Retorna strings no formato "NOME - OAB UF-NUMERO" quando possível,
+ * ou apenas o nome quando não há dados de OAB.
+ */
+export function extractAdvogadosFromApiMeta(pub: any): string[] {
+  const advogados: string[] = [];
+  const seen = new Set<string>();
+
+  const addAdvogado = (nome: string, oab?: string, uf?: string) => {
+    const nomeTrim = (nome || '').trim();
+    if (!nomeTrim || nomeTrim.length < 3) return;
+    
+    // Ignorar nomes que parecem empresas/partes (não advogados)
+    if (/\b(BANCO|S\.A\.|S\/A|LTDA|EIRELI|SINDICATO|MUNICIPIO|ESTADO|UNIÃO|INSTITUTO|FUNDAÇÃO)\b/i.test(nomeTrim)) return;
+    
+    const oabNum = (oab || '').replace(/\D/g, '');
+    const ufClean = (uf || '').toUpperCase().trim();
+    
+    let entry: string;
+    let key: string;
+    
+    if (oabNum && ufClean) {
+      entry = `${nomeTrim} - OAB ${ufClean}-${oabNum}`;
+      key = `${oabNum}-${ufClean}`;
+    } else if (oabNum) {
+      entry = `${nomeTrim} - OAB ${oabNum}`;
+      key = oabNum;
+    } else {
+      entry = nomeTrim;
+      key = nomeTrim.toLowerCase();
+    }
+    
+    if (seen.has(key)) return;
+    seen.add(key);
+    advogados.push(entry);
+  };
+
+  const processAdvogadoItem = (item: any) => {
+    if (!item) return;
+    if (typeof item === 'string') {
+      addAdvogado(item);
+      return;
+    }
+    const nome = item.nome || item.nomeAdvogado || item.nomeRepresentante || item.nomeProcurador || '';
+    const oab = item.numeroOab || item.oab || item.numero_oab || item.inscricaoOab || '';
+    const uf = item.ufOab || item.uf || item.uf_oab || item.siglaUf || '';
+    if (nome) addAdvogado(nome, String(oab), String(uf));
+  };
+
+  // 1. Advogados NESTED dentro de cada destinatário
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) {
+      // d.advogados[]
+      if (Array.isArray(d?.advogados)) {
+        for (const adv of d.advogados) processAdvogadoItem(adv);
+      }
+      // d.representantes[]
+      if (Array.isArray(d?.representantes)) {
+        for (const rep of d.representantes) processAdvogadoItem(rep);
+      }
+      // d.procuradores[]
+      if (Array.isArray(d?.procuradores)) {
+        for (const proc of d.procuradores) processAdvogadoItem(proc);
+      }
+      // d.nomeAdvogado (campo simples no destinatário)
+      if (d?.nomeAdvogado && typeof d.nomeAdvogado === 'string') {
+        addAdvogado(d.nomeAdvogado, d.numeroOab || '', d.ufOab || '');
+      }
+    }
+  }
+
+  // 2. pub.advogados[] (campo raiz)
+  if (Array.isArray(pub?.advogados)) {
+    for (const adv of pub.advogados) processAdvogadoItem(adv);
+  }
+
+  // 3. pub.representantes[] (campo raiz)
+  if (Array.isArray(pub?.representantes)) {
+    for (const rep of pub.representantes) processAdvogadoItem(rep);
+  }
+
+  // 4. pub.procuradores[] (campo raiz)
+  if (Array.isArray(pub?.procuradores)) {
+    for (const proc of pub.procuradores) processAdvogadoItem(proc);
+  }
+
+  return advogados;
 }
 
 /**

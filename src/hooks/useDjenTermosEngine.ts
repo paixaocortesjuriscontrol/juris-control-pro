@@ -1206,10 +1206,19 @@ async function processarTermo(
     if (novas.length > 0) {
       const sample = novas[0];
       console.log('[DJEN] 🔍 DEBUG raw pub keys:', Object.keys(sample || {}));
-      console.log('[DJEN] 🔍 DEBUG pub.destinatarios:', JSON.stringify(sample?.destinatarios)?.slice(0, 500));
-      console.log('[DJEN] 🔍 DEBUG pub.advogados:', JSON.stringify(sample?.advogados)?.slice(0, 500));
+      console.log('[DJEN] 🔍 DEBUG pub.destinatarios FULL:', JSON.stringify(sample?.destinatarios)?.slice(0, 2000));
+      console.log('[DJEN] 🔍 DEBUG pub.advogados:', JSON.stringify(sample?.advogados)?.slice(0, 1000));
+      console.log('[DJEN] 🔍 DEBUG pub.representantes:', JSON.stringify(sample?.representantes)?.slice(0, 500));
+      console.log('[DJEN] 🔍 DEBUG pub.procuradores:', JSON.stringify(sample?.procuradores)?.slice(0, 500));
       console.log('[DJEN] 🔍 DEBUG pub.poloAtivo:', JSON.stringify(sample?.poloAtivo)?.slice(0, 300));
       console.log('[DJEN] 🔍 DEBUG pub.poloPassivo:', JSON.stringify(sample?.poloPassivo)?.slice(0, 300));
+      // Log nested advogados within first destinatario
+      if (Array.isArray(sample?.destinatarios) && sample.destinatarios[0]) {
+        const d0 = sample.destinatarios[0];
+        console.log('[DJEN] 🔍 DEBUG destinatario[0] keys:', Object.keys(d0));
+        console.log('[DJEN] 🔍 DEBUG destinatario[0].advogados:', JSON.stringify(d0?.advogados)?.slice(0, 500));
+        console.log('[DJEN] 🔍 DEBUG destinatario[0].representantes:', JSON.stringify(d0?.representantes)?.slice(0, 500));
+      }
     }
 
     const payload = novas.map(pub => {
@@ -1231,9 +1240,21 @@ async function processarTermo(
       const destinatarios = extractDestinatariosFromMeta(pub);
       const partesJsonPayload = destinatarios.length > 0 ? JSON.stringify(destinatarios) : null;
 
-      // Advogados REAIS: extrair do texto da publicação (com OAB)
-      const { advogados: advogadosReais } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
-      const advogadosJsonPayload = advogadosReais.length > 0 ? JSON.stringify(advogadosReais) : null;
+      // Advogados: PRIMEIRO da API (nested em destinatarios, advogados, representantes)
+      // DEPOIS complementar com regex do texto (OAB patterns)
+      const { extractAdvogadosFromApiMeta } = require('@/utils/djenLikeConteudo');
+      const advogadosApi = extractAdvogadosFromApiMeta(pub);
+      const { advogados: advogadosTexto } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
+      
+      // Merge: API primeiro, depois texto (sem duplicatas)
+      const advogadosMerged = [...advogadosApi];
+      const advKeys = new Set(advogadosApi.map(a => a.toUpperCase()));
+      for (const at of advogadosTexto) {
+        if (!advKeys.has(at.toUpperCase())) {
+          advogadosMerged.push(at);
+        }
+      }
+      const advogadosJsonPayload = advogadosMerged.length > 0 ? JSON.stringify(advogadosMerged) : null;
 
       return {
         monitoramento_id: mon.id,
