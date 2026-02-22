@@ -8,6 +8,9 @@ import {
   extractProcessoNumero,
   calcularPrimeiroDiaUtil,
   formatLocalDate,
+  extrairDadosLadoEsquerdo,
+  conteudoAteLadoEsquerdo,
+  extrairLadoEsquerdoDeRawJson,
 } from "./utils.ts";
 
 import {
@@ -146,6 +149,16 @@ export async function processPublicationFromIndex(
     return;
   }
 
+  // Prioridade: lado esquerdo da API (raw_json); fallback: extrair só do trecho "lado esquerdo" do conteúdo
+  const ladoRaw = pub.raw_json ? extrairLadoEsquerdoDeRawJson(pub.raw_json) : null;
+  const conteudoLeftOnly = conteudoAteLadoEsquerdo(conteudo);
+  const ladoConteudo = extrairDadosLadoEsquerdo(conteudoLeftOnly);
+  const orgao = (ladoRaw?.orgao) ?? ladoConteudo.orgao ?? null;
+  const tipoComunicacao = (ladoRaw?.tipo_comunicacao) ?? ladoConteudo.tipo_comunicacao ?? null;
+  const meio = (ladoRaw?.meio) ?? ladoConteudo.meio ?? null;
+  const partesFinais = (ladoRaw?.partes?.length ? ladoRaw.partes : null) ?? ladoConteudo.partes;
+  const advogadosFinais = (ladoRaw?.advogados?.length ? ladoRaw.advogados : null) ?? ladoConteudo.advogados;
+
   const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
     monitoramento_id: monitoramento.id,
     hash_conteudo: hashConteudo,
@@ -154,8 +167,11 @@ export async function processPublicationFromIndex(
     data_disponibilizacao: dataDisponibilizacao,
     processo_numero: processoNumero,
     tribunal: tribunal || null,
-    polo_ativo: null,
-    polo_passivo: null,
+    orgao: orgao || null,
+    tipo_comunicacao: tipoComunicacao || null,
+    meio: meio || null,
+    partes_json: partesFinais.length > 0 ? partesFinais : null,
+    advogados_json: advogadosFinais.length > 0 ? advogadosFinais : null,
   }).select('id').single();
 
   if (insertError) {
@@ -190,7 +206,7 @@ export async function buscarNoIndiceDiario(
   while (!done) {
     let query = supabase
       .from('djen_diario_publicacoes')
-      .select('id, conteudo, data_disponibilizacao, data_publicacao, processo_numero, tribunal')
+      .select('id, conteudo, data_disponibilizacao, data_publicacao, processo_numero, tribunal, raw_json')
       .eq('diario_ymd', diarioYmd)
       .textSearch('conteudo_tsv', termoBusca, { type: 'phrase', config: 'portuguese' })
       .range(from, from + pageSize - 1);
@@ -227,7 +243,7 @@ export async function buscarNoIndiceOab(
   while (!done) {
     let query = supabase
       .from('djen_diario_publicacoes')
-      .select('id, conteudo, data_disponibilizacao, data_publicacao, processo_numero, tribunal')
+      .select('id, conteudo, data_disponibilizacao, data_publicacao, processo_numero, tribunal, raw_json')
       .eq('diario_ymd', diarioYmd)
       .ilike('conteudo', `%${oabDigits}%`)
       .range(from, from + pageSize - 1);
