@@ -1,27 +1,25 @@
-# Memory: infrastructure/monitoring/djen-certidao-advogados-v1
-Updated: 21/02/2026
+# Memory: infrastructure/monitoring/djen-destinatarios-advogados-v2
+Updated: 22/02/2026
 
-## Busca de Advogados via Certidão PDF
+## Separação de Destinatários e Advogados
 
-O sistema agora busca a certidão (`/comunicacao/{hash}/certidao`) para cada publicação nova capturada, extraindo advogados reais com OAB.
+O sistema agora diferencia corretamente entre **destinatários** (partes notificadas pela API) e **advogados** (profissionais com OAB extraídos do texto).
+
+### Campos no banco (`publicacoes_djen`):
+- `partes_json`: Destinatários da API PJE Comunica (`pub.destinatarios`, `pub.destinatarioNome`). São as partes do processo (ex: "BANCO SANTANDER S.A."), NÃO advogados.
+- `advogados_json`: Advogados reais extraídos do texto da publicação via regex (formato "NOME - OAB UF-NUMERO").
 
 ### Fluxo:
-1. Engine captura publicações via API de listagem (`/comunicacao`)
-2. Para cada publicação NOVA (não duplicada), busca certidão via `fetchCertidaoAdvogados(hash)` — usa o campo `hash` alfanumérico, NÃO o `id` numérico (que retorna 422 "Hash inválido")
-3. O endpoint retorna **PDF** (Content-Type: application/pdf), NÃO HTML
-4. Usa `pdfjs-dist` para extrair texto do PDF, depois aplica regex para OAB
-5. Prioridade: certidão > metadata API > regex do conteúdo
-6. Salva em `advogados_json` com formato `["NOME - OAB UF-NUMERO"]`
+1. Engine captura publicações via API (`buscarPjeComunicaPaginado`)
+2. `extractDestinatariosFromMeta(pub)` extrai nomes de destinatários da API → salva em `partes_json`
+3. `extrairPartesAdvogadosDoConteudo(conteudo)` extrai advogados com OAB do texto → salva em `advogados_json`
+4. `buildDjenLikeConteudo` injeta "Destinatário(s):" (não mais "Advogados:") no conteúdo formatado
 
-### Arquivos:
-- `src/utils/pjeComunicaClient.ts`: `fetchCertidaoAdvogados()` e `parseCertidaoHtml()`
-- `src/hooks/useDjenTermosEngine.ts`: integração no fluxo de salvamento
-- `src/components/djen/PublicacaoConteudoDjen.tsx`: exibição no sidebar esquerdo
+### Display (PublicacaoConteudoDjen.tsx):
+- Sidebar esquerda mostra "Destinatário(s)" (de `partes_json`) e "Advogado(s)" (de `advogados_json`)
+- Replica exatamente o layout do portal comunica.pje.jus.br
 
-### Rate Limiting:
-- 500ms de delay entre certidões
-- Timeout de 15s por certidão
-- Fallback silencioso se falhar (usa extractAdvogadosFromMeta)
-
-### Nota:
-Publicações JÁ salvas antes desta mudança continuam com `advogados_json` contendo nomes de partes. Apenas novas capturas terão advogados reais.
+### Arquivos alterados:
+- `src/utils/djenLikeConteudo.ts`: `extractAdvogadosFromMeta` → `extractDestinatariosFromMeta`
+- `src/hooks/useDjenTermosEngine.ts`: salva destinatários em `partes_json`, advogados em `advogados_json`
+- `src/components/djen/PublicacaoConteudoDjen.tsx`: display + limpeza de logs de debug
