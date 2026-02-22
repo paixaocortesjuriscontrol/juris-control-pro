@@ -240,17 +240,30 @@ export function extractAdvogadosFromApiMeta(pub: any): string[] {
     }
   }
 
-  // 2. pub.advogados[] (campo raiz)
+  // 2. pub.destinatarioadvogados[] (campo estruturado da API com advogado nested)
+  if (Array.isArray(pub?.destinatarioadvogados)) {
+    for (const da of pub.destinatarioadvogados) {
+      const adv = da?.advogado || da;
+      if (adv) {
+        const nome = adv.nome || adv.nomeAdvogado || '';
+        const oab = adv.numero_oab || adv.numeroOab || adv.oab || '';
+        const uf = adv.uf_oab || adv.ufOab || adv.uf || '';
+        if (nome) addAdvogado(nome, String(oab), String(uf));
+      }
+    }
+  }
+
+  // 3. pub.advogados[] (campo raiz)
   if (Array.isArray(pub?.advogados)) {
     for (const adv of pub.advogados) processAdvogadoItem(adv);
   }
 
-  // 3. pub.representantes[] (campo raiz)
+  // 4. pub.representantes[] (campo raiz)
   if (Array.isArray(pub?.representantes)) {
     for (const rep of pub.representantes) processAdvogadoItem(rep);
   }
 
-  // 4. pub.procuradores[] (campo raiz)
+  // 5. pub.procuradores[] (campo raiz)
   if (Array.isArray(pub?.procuradores)) {
     for (const proc of pub.procuradores) processAdvogadoItem(proc);
   }
