@@ -4021,6 +4021,7 @@ export type Database = {
           meio: string | null
           monitoramento_id: string
           orgao: string | null
+          partes_json: Json | null
           polo_ativo: string | null
           polo_passivo: string | null
           processo_numero: string | null
@@ -4043,6 +4044,7 @@ export type Database = {
           meio?: string | null
           monitoramento_id: string
           orgao?: string | null
+          partes_json?: Json | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           processo_numero?: string | null
@@ -4065,6 +4067,7 @@ export type Database = {
           meio?: string | null
           monitoramento_id?: string
           orgao?: string | null
+          partes_json?: Json | null
           polo_ativo?: string | null
           polo_passivo?: string | null
           processo_numero?: string | null
