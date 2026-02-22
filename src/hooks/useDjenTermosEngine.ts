@@ -16,7 +16,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
-import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractDestinatariosFromMeta } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractDestinatariosFromMeta, extractAdvogadosFromApiMeta } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -1242,7 +1242,6 @@ async function processarTermo(
 
       // Advogados: PRIMEIRO da API (nested em destinatarios, advogados, representantes)
       // DEPOIS complementar com regex do texto (OAB patterns)
-      const { extractAdvogadosFromApiMeta } = require('@/utils/djenLikeConteudo');
       const advogadosApi = extractAdvogadosFromApiMeta(pub);
       const { advogados: advogadosTexto } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
       
