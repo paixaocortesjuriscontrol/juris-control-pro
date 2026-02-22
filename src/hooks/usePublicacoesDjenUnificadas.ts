@@ -10,6 +10,26 @@ import { addDays, parse } from "date-fns";
 // Helper para formatar data em ISO com timezone UTC
 const formatToUTC = (date: Date) => date.toISOString();
 
+/** Parse seguro de advogados_json/partes_json: evita throw e retorna array ou null. */
+function parseJsonArraySafe(value: unknown): string[] | null {
+  if (value == null) return null;
+  let arr: string[];
+  if (Array.isArray(value)) {
+    arr = value.map((x) => String(x ?? "").trim()).filter(Boolean);
+  } else if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return null;
+      arr = parsed.map((x: unknown) => String(x ?? "").trim()).filter(Boolean);
+    } catch {
+      return null;
+    }
+  } else {
+    return null;
+  }
+  return arr.length ? arr : null;
+}
+
 // Helper para converter data local (YYYY-MM-DD) para range UTC considerando BRT (UTC-3)
 // Se usuário seleciona 30/01, deve buscar:
 // - Início: 30/01 00:00 BRT = 30/01 03:00 UTC
@@ -59,6 +79,7 @@ export interface PublicacaoUnificada {
   tipo_comunicacao?: string | null;
   meio?: string | null;
   advogados_json?: string[] | null;
+  partes_json?: string[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
 }
@@ -411,6 +432,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             tipo_comunicacao,
             meio,
             advogados_json,
+            partes_json,
             polo_ativo,
             polo_passivo,
           monitoramento:monitoramentos_djen!inner(
@@ -507,7 +529,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             orgao: pub.orgao || null,
             tipo_comunicacao: pub.tipo_comunicacao || null,
             meio: pub.meio || null,
-            advogados_json: typeof pub.advogados_json === 'string' ? JSON.parse(pub.advogados_json) : pub.advogados_json || null,
+            advogados_json: parseJsonArraySafe(pub.advogados_json),
+            partes_json: parseJsonArraySafe(pub.partes_json),
           });
         });
       }

@@ -7,28 +7,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT_INDIVIDUAL = `Você é um advogado sênior especialista em contencioso, com vasta experiência na análise de publicações do Diário de Justiça Eletrônico para grandes escritórios.
+const SYSTEM_PROMPT_INDIVIDUAL = `Você é um advogado sênior que prepara o "Conteúdo Integral" de publicações do DJE para a Dra. Renata. Ela não lê o texto na íntegra; você deve TRANSCREVER os trechos mais importantes da publicação, como um advogado faria ao destacar o que importa.
 
-Sua tarefa é produzir um resumo executivo da publicação para uso interno do escritório. Escreva como um advogado escreveria para outro advogado: direto, técnico, sem rodeios.
-
-O resumo deve capturar OBRIGATORIAMENTE (quando presentes):
-
-1. O dispositivo do acórdão ou decisão (deferido/indeferido, provido/desprovido, conhecido/não conhecido)
-2. A ementa ou tese jurídica central
-3. O resultado do julgamento (unanimidade/maioria, turma, relator se mencionado)
-4. Prazos mencionados (dias, tipo, termo inicial, data limite)
-5. Providências necessárias (o que o advogado deve fazer após esta publicação)
-6. Certidões de julgamento ou comparecimento
-7. Designações de audiência (data, horário, formato)
-
-REGRAS ABSOLUTAS:
-- Texto corrido em parágrafos curtos e fluidos, como uma nota interna de um escritório.
-- PROIBIDO usar markdown: nada de ###, **, ---, *, listas numeradas, bullets ou qualquer marcador.
-- PROIBIDO iniciar com "Aqui está...", "Segue o resumo...", "A publicação trata de..." ou qualquer frase introdutória.
-- Comece diretamente pelo conteúdo jurídico mais relevante (ex: "Negado provimento aos embargos de declaração..." ou "Designada audiência de conciliação para...").
-- Não repita dados de cabeçalho (número do processo, órgão, data) que já aparecem nos metadados.
-- Seja completo e preciso. Não omita informações processuais relevantes.
-- Use linguagem jurídica profissional e concisa.`;
+REGRAS OBRIGATÓRIAS:
+1. Comece pelo TIPO do ato, em maiúsculas, como no original: A C Ó R D Ã O, DESPACHO, INTIMAÇÃO, CERTIDÃO, TERMO DE AUDIÊNCIA, etc.
+2. Em seguida, CITE trechos literais da publicação: transcreva as frases ou parágrafos que contêm o núcleo da decisão, a fundamentação relevante e o dispositivo. Não parafraseie — use as palavras do texto quando forem decisivas.
+3. Inclua sempre que existir:
+   - O trecho que explica o entendimento do órgão (ex.: "Nesse contexto, não se constata omissão...")
+   - O dispositivo na íntegra (ex.: "Ante o exposto, NEGO PROVIMENTO aos embargos de declaração.")
+   - O fechamento formal se houver (ex.: "ISTO POSTO / ACORDAM os Ministros da Terceira Turma...")
+4. Uma linha em branco entre blocos de citação. Texto puro, sem markdown (sem ###, **, listas).
+5. Não invente texto. Só transcrever ou resumir com base no conteúdo fornecido. Não repita processo, órgão ou data (já constam nos metadados).
+6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -72,6 +62,7 @@ serve(async (req) => {
       try {
         let aiResponse: any;
 
+        const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
         if (LOVABLE_API_KEY) {
           const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
             method: 'POST',
@@ -86,7 +77,7 @@ serve(async (req) => {
                 { role: 'user', content: userMsg },
               ],
               max_tokens: 1200,
-              temperature: 0.3,
+              temperature: 0.2,
             }),
           });
           if (!resp.ok) throw new Error(`AI error: ${resp.status}`);
@@ -99,13 +90,13 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'gpt-4o-mini',
+              model: summaryModel,
               messages: [
                 { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
                 { role: 'user', content: userMsg },
               ],
               max_tokens: 1200,
-              temperature: 0.3,
+              temperature: 0.2,
             }),
           });
           if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);

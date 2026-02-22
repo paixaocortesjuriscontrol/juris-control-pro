@@ -1,10 +1,11 @@
-import { ExternalLink, Printer, Copy, FileText } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, Printer, Copy, FileText, User, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto } from "@/utils/formatConteudo";
 
 interface PublicacaoConteudoDjenProps {
   processoNumero: string | null;
@@ -25,7 +26,10 @@ interface PublicacaoConteudoDjenProps {
   orgaoEstruturado?: string | null;
   tipoComunicacaoEstruturado?: string | null;
   meioEstruturado?: string | null;
+  partesJson?: string[] | null;
   advogadosJson?: string[] | null;
+  /** Quando true (controlado pelo pai), exibe publicação sem scroll e não mostra o botão Expandir Geral */
+  expandirGeralExterno?: boolean;
 }
 
 // ============================================================================
@@ -138,6 +142,13 @@ const extractPartesAndAdvogados = (
   poloPassivo: string | null,
   advogadosJson: string[] | null,
 ): { partes: string[]; advogados: string[] } => {
+  // #region agent log
+  const _textLen = texto?.length ?? 0;
+  const _snippet = texto ? texto.slice(0, 350).replace(/\s+/g, ' ') : '';
+  const _hasBlock = /\bAdvogado\s*\(?s?\)?\s*[\s:\n]/i.test(texto || '');
+  console.log('[DJEN-ADV] extractPartesAndAdvogados entry', { textLen: _textLen, hasAdvogadoBlock: _hasBlock, snippet: _snippet.slice(0, 150) });
+  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:extractPartesAndAdvogados:entry',message:'extractPartesAndAdvogados entry',data:{textLen:_textLen,snippet:_snippet,hasAdvogadoBlock:_hasBlock},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
   const partes: string[] = [];
   const advogados: string[] = [];
   const advSet = new Set<string>();
@@ -163,10 +174,9 @@ const extractPartesAndAdvogados = (
   addParte(cleanPolo(poloAtivo) || '');
   addParte(cleanPolo(poloPassivo) || '');
 
-  // ── 2. Partes do bloco "Advogados:" no header do conteúdo ─────────────
-  // O DJEN coloca nomes de partes sob o rótulo "Advogados:" no cabeçalho
+  // ── 2. Partes do bloco "Advogado(s):" ou "Advogado(s)" (sem dois pontos) no header ──
   if (texto) {
-    const headerMatch = texto.match(/Advogados?\s*:\s*\n([\s\S]*?)(?=\n\s*\n|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|\nEDITAL\b|\nCERTIDÃO\b|$)/i);
+    const headerMatch = texto.match(/Advogados?\s*(?:\(\s*s\s*\))?\s*(?:\s*:\s*)?\s*\n([\s\S]*?)(?=\n\s*\n|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|\nEDITAL\b|\nCERTIDÃO\b|$)/i);
     if (headerMatch?.[1]) {
       const linhas = headerMatch[1].split('\n').map(l => l.trim()).filter(Boolean);
       for (const linha of linhas) {
@@ -189,6 +199,22 @@ const extractPartesAndAdvogados = (
         addAdvogado(s);
       } else {
         addParte(s);
+      }
+    }
+  }
+
+  // ── 3b. Advogados no formato do DJEN: "ADVOGADO: NOME" ou "ADVOGADO: NOME - OAB UF-12345" (em qualquer linha do conteúdo)
+  if (texto) {
+    const lines = texto.split(/\r?\n/);
+    for (const line of lines) {
+      const m = line.match(/^\s*ADVOGADO\s*:\s*(.+)$/im);
+      if (!m?.[1]) continue;
+      const valor = m[1].trim();
+      if (!valor || valor.length < 3) continue;
+      if (/OAB\s*[\/\-\s]*\d/i.test(valor)) {
+        addAdvogado(valor, valor.replace(/\s+/g, " ").toUpperCase());
+      } else {
+        addAdvogado(valor, valor.replace(/\s+/g, " ").toUpperCase());
       }
     }
   }
@@ -226,6 +252,22 @@ const extractPartesAndAdvogados = (
   if (texto) {
     const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
+    // Primeiro: varrer TODO o texto por "DR./DRA. NOME - OAB UF-NUM" (formato exato do DJEN)
+    const globalOabFirst = texto.matchAll(/\s*((?:DR\.?|DRA\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*[-–—]\s*OAB\s*\/?\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/gi);
+    for (const match of globalOabFirst) {
+      const nome = (match[1] || "").trim();
+      const uf = (match[2] || "").toUpperCase();
+      const num = (match[3] || "").trim();
+      if (nome.length >= 4 && uf && num) addAdvogado(`${nome} - OAB ${uf}-${num}`, `${uf}-${num}`);
+    }
+
+    const acceptNome = (nome: string) => {
+      const n = nome.trim();
+      if (!n || n.length < 4) return false;
+      if (/^(DJEN|OAB|PARTES?|ADVOGADOS?)$/i.test(n)) return false;
+      return true;
+    };
+
     // Formato: NOME (OAB 12345/SP) ou NOME (OAB: 12345/SP)
     for (const match of plainText.matchAll(
       /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
@@ -233,26 +275,155 @@ const extractPartesAndAdvogados = (
       const nome = (match[1] || "").trim();
       const numero = (match[2] || "").trim();
       const uf = (match[3] || "").toUpperCase();
-      if (numero && uf && pareceNomeAdvogado(nome)) {
+      if (numero && uf && (pareceNomeAdvogado(nome) || acceptNome(nome))) {
         addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
       }
     }
 
-    // Formato: NOME - OAB UF-12345 ou NOME OAB: UF-12345
+    // Formato: NOME - OAB UF-12345 ou NOME OAB: UF-12345 (ex.: EVANDRO FERREIRA SALVI - OAB SP-246470)
     for (const match of plainText.matchAll(
       /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
     )) {
       const nome = (match[1] || "").trim();
       const uf = (match[2] || "").toUpperCase();
       const numero = (match[3] || "").trim();
-      if (numero && uf && pareceNomeAdvogado(nome)) {
+      if (numero && uf && (pareceNomeAdvogado(nome) || acceptNome(nome))) {
         addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+      }
+    }
+
+    // Formato do corpo do texto: "Dr(a). NOME - OAB/UF n.° 12345" (ex.: termo de audiência)
+    for (const match of texto.matchAll(
+      /Dr\.?\s*\(?a?\)?\s*\.?\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*[-–]\s*OAB\s*\/?\s*([A-Z]{2})\s*n\.?\s*°?\s*\.?\s*(\d{1,10})/gi
+    )) {
+      const nome = (match[1] || "").trim();
+      const uf = (match[2] || "").toUpperCase();
+      const numero = (match[3] || "").trim();
+      if (nome.length >= 4 && numero && uf) {
+        addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+      }
+    }
+
+    // Formato multi-linha do DJEN: "Advogado(s)" ou "Advogado(s):" + quebra + lista
+    const advBlock = texto.match(/Advogados?\s*(?:\(\s*s\s*\))?\s*(?:\s*:\s*)?\s*\n([\s\S]*?)(?=\n\s*\n|\nParte\s*\(\s*s\s*\)|\nPARTES?\s*:|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|$)/i);
+    if (advBlock?.[1]) {
+      for (const line of advBlock[1].split(/\n/)) {
+        const t = line.trim();
+        const m1 = t.match(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇ][^OAB\n]{3,}?)\s+N[ºª°]?\s*OAB\s*:\s*(\d+)\s+UF\s*:\s*([A-Z]{2})/i);
+        const m2 = t.match(/([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-záéíóúâêôãõç\s]+?)\s*-?\s*OAB\s*([A-Z]{2})[-\s]*(\d{1,10})/i);
+        if (m1) {
+          const nome = (m1[1] || "").trim();
+          const numero = (m1[2] || "").trim();
+          const uf = (m1[3] || "").toUpperCase();
+          if (nome && numero && uf) addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+        } else if (m2) {
+          const nome = (m2[1] || "").trim();
+          const uf = (m2[2] || "").toUpperCase();
+          const numero = (m2[3] || "").trim();
+          if (nome && numero && uf) addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+        }
+      }
+    }
+
+    // Bloco "Advogado(s)" ou "Advogado(s):" em uma só linha
+    const advSectionOneLine = plainText.match(/\bAdvogados?\s*(?:\(\s*s\s*\))?\s*(?:\s*:\s*)?\s*([^\n]+?)(?=\s+Parte\s*\(|\s+Conteúdo\s+Integral|$)/i);
+    if (advSectionOneLine?.[1] && advogados.length === 0) {
+      const block = advSectionOneLine[1].trim();
+      const parts = block.split(/(?=\s*(?:DR\.|DRA\.)\s+)/gi).map((p) => p.trim()).filter(Boolean);
+      for (const p of parts) {
+        const m = p.match(/^((?:DR\.?|DRA\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*[-–—]\s*OAB\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/i);
+        if (m) {
+          const nome = (m[1] || "").trim();
+          const uf = (m[2] || "").toUpperCase();
+          const num = (m[3] || "").trim();
+          if (nome.length >= 4 && uf && num) addAdvogado(`${nome} - OAB ${uf}-${num}`, `${uf}-${num}`);
+        }
+      }
+    }
+
+    // Reforço: mesmo padrão no texto colapsado (uma linha) e traço largo (—)
+    if (advogados.length === 0) {
+      const globalOab = texto.matchAll(/\s*((?:DR\.?|DRA\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*[-–—]\s*OAB\s*\/?\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/gi);
+      for (const match of globalOab) {
+        const nome = (match[1] || "").trim();
+        const uf = (match[2] || "").toUpperCase();
+        const num = (match[3] || "").trim();
+        if (nome.length >= 4 && uf && num) addAdvogado(`${nome} - OAB ${uf}-${num}`, `${uf}-${num}`);
+      }
+    }
+
+    // Fallback extra: regex permissivo (hífen, en-dash, em-dash; qualquer caractere no nome) para edge cases
+    if (advogados.length === 0) {
+      const permissive = texto.matchAll(/(?:DR\.?|DRA\.?)\s*([^-\n]+?)\s*[-–—]\s*OAB\s+([A-Z]{2})[-–—]?\s*(\d[\d.]*)/gi);
+      for (const match of permissive) {
+        const nome = (match[1] || "").trim();
+        const uf = (match[2] || "").toUpperCase();
+        const num = (match[3] || "").trim();
+        if (nome.length >= 4 && uf && num && !/^(PARTE|ADVOGADO|CONTEÚDO|INTIMAÇÃO)$/i.test(nome)) {
+          addAdvogado(`${nome} - OAB ${uf}-${num}`, `${uf}-${num}`);
+        }
       }
     }
   }
 
+  // #region agent log
+  console.log('[DJEN-ADV] extractPartesAndAdvogados exit', { partesLen: partes.length, advogadosLen: advogados.length, firstAdvogados: advogados.slice(0, 3) });
+  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:extractPartesAndAdvogados:exit',message:'extractPartesAndAdvogados exit',data:{partesLen:partes.length,advogadosLen:advogados.length,firstAdvogados:advogados.slice(0,3)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
   return { partes, advogados };
 };
+
+/**
+ * Mesma lógica da tela: retorna Partes e Advogados para exibição (tela ou PDF).
+ * Usa partes_json e advogados_json do Supabase; fallback para extração do conteúdo quando necessário.
+ */
+export function getPartesEAdvogadosParaExibicao(
+  partesJson: string[] | null | undefined,
+  advogadosJson: string[] | null | undefined,
+  conteudo: string | null,
+  poloAtivo: string | null,
+  poloPassivo: string | null
+): { partes: string[]; advogados: string[] } {
+  const partesDoBanco = Array.isArray(partesJson) ? partesJson.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  const advogadosDoBanco = Array.isArray(advogadosJson) ? advogadosJson.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  const itemPareceParte = (s: string) =>
+    /\b(BANCO|S\.A\.|S\/A|LTDA|RECUPERAÇÃO|CONTAX|INSTITUIÇÃO)\b/i.test(s) ||
+    (!/\bOAB\b|\bDR\.|\bDRA\./i.test(s) && s.split(/\s+/).filter(Boolean).length >= 2);
+  const conteudoParaExtracao = conteudo ? conteudoHtmlParaTexto(conteudo) : null;
+  // #region agent log
+  const _conteudoLen = conteudo?.length ?? 0;
+  const _paraExtracaoLen = conteudoParaExtracao?.length ?? 0;
+  const _paraExtracaoSnippet = conteudoParaExtracao ? conteudoParaExtracao.slice(0, 280).replace(/\s+/g, ' ') : '';
+  const _hasAdvInSnippet = /\bAdvogado|DR\.|DRA\.|OAB\s/i.test(_paraExtracaoSnippet);
+  console.log('[DJEN-ADV] getPartesEAdvogados start', { partesDoBancoLen: partesDoBanco.length, advogadosDoBancoLen: advogadosDoBanco.length, conteudoLen: _conteudoLen, conteudoParaExtracaoLen: _paraExtracaoLen, hasAdvInSnippet: _hasAdvInSnippet, snippet: _paraExtracaoSnippet.slice(0, 120) });
+  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:getPartesEAdvogados:start',message:'getPartesEAdvogados start',data:{partesDoBancoLen:partesDoBanco.length,advogadosDoBancoLen:advogadosDoBanco.length,conteudoLen:_conteudoLen,conteudoParaExtracaoLen:_paraExtracaoLen,paraExtracaoSnippet:_paraExtracaoSnippet,hasAdvInSnippet:_hasAdvInSnippet},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  let partes: string[];
+  let advogados: string[];
+  if (partesDoBanco.length > 0) {
+    partes = partesDoBanco;
+    advogados = advogadosDoBanco.length > 0 ? advogadosDoBanco : [];
+  } else if (advogadosDoBanco.length > 0) {
+    const comoPartes = advogadosDoBanco.filter(itemPareceParte);
+    const soAdvogados = advogadosDoBanco.filter((s) => /\bOAB\b|\bDR\.|\bDRA\./i.test(s));
+    partes = comoPartes.length > 0 ? comoPartes : [];
+    advogados = comoPartes.length > 0 ? soAdvogados : advogadosDoBanco;
+  } else {
+    const extraido = extractPartesAndAdvogados(conteudoParaExtracao, poloAtivo, poloPassivo, advogadosJson);
+    partes = extraido.partes;
+    advogados = extraido.advogados;
+  }
+  // Fallback: se o banco não tem advogados, extrair do conteúdo (ex.: bloco "Advogado(s)" no DJEN)
+  if (advogados.length === 0 && conteudoParaExtracao) {
+    const extraido = extractPartesAndAdvogados(conteudoParaExtracao, poloAtivo, poloPassivo, advogadosJson);
+    advogados = extraido.advogados;
+  }
+  // #region agent log
+  console.log('[DJEN-ADV] getPartesEAdvogados exit', { partesLen: partes.length, advogadosLen: advogados.length, ranFallback: advogadosDoBanco.length === 0 && !!conteudoParaExtracao });
+  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:getPartesEAdvogados:exit',message:'getPartesEAdvogados exit',data:{partesLen:partes.length,advogadosLen:advogados.length,ranFallback:advogadosDoBanco.length===0&&!!conteudoParaExtracao},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
+  return { partes, advogados };
+}
 
 /**
  * Remove cabeçalhos de metadados repetidos do início do conteúdo
@@ -292,7 +463,9 @@ export function PublicacaoConteudoDjen({
   orgaoEstruturado,
   tipoComunicacaoEstruturado,
   meioEstruturado,
+  partesJson,
   advogadosJson,
+  expandirGeralExterno,
 }: PublicacaoConteudoDjenProps) {
   // Usar dados estruturados com fallback para regex
   const contentMeta = extractMetadataFromContent(conteudo);
@@ -301,13 +474,16 @@ export function PublicacaoConteudoDjen({
   const tipoComunicacao = tipoComunicacaoEstruturado || contentMeta.tipoComunicacao || "Intimação";
   const meioPublicacao = expandMeio(meioEstruturado || contentMeta.meio);
 
-  // Extrai partes e advogados de todas as fontes disponíveis
-  const { partes: partesFinais, advogados } = extractPartesAndAdvogados(
-    conteudo, poloAtivo, poloPassivo, advogadosJson
+  const { partes: partesFinais, advogados } = getPartesEAdvogadosParaExibicao(
+    partesJson, advogadosJson, conteudo, poloAtivo, poloPassivo
   );
 
   // Conteúdo limpo (sem cabeçalhos de metadados duplicados)
   const conteudoLimpo = stripMetadataFromContent(conteudo);
+
+  const [expandirGeralLocal, setExpandirGeralLocal] = useState(false);
+  const expandirGeral = expandirGeralExterno ?? expandirGeralLocal;
+  const controleLocal = expandirGeralExterno === undefined;
 
   const handleCopy = (withFormatting: boolean) => {
     const text = withFormatting
@@ -355,13 +531,34 @@ export function PublicacaoConteudoDjen({
   };
 
   return (
-    <div className={cn("space-y-3", className)}>
-      {/* Header com número do processo e ações */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-3 border-b border-primary/20">
-        <h3 className="text-base md:text-lg font-semibold text-primary">
+    <div className={cn("space-y-0", className)}>
+      {/* Cabeçalho no estilo DJEN: número do processo à esquerda (azul), botões à direita */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border">
+        <h2 className="text-base md:text-lg font-semibold text-primary shrink-0">
           Processo {formatProcessoNumero(processoNumero)}
-        </h3>
-        <div className="flex items-center gap-2">
+        </h2>
+        <div className="flex items-center gap-1.5">
+          {controleLocal && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpandirGeralLocal((e) => !e)}
+              className="text-xs h-8"
+              title={expandirGeral ? "Recolher publicação" : "Mostrar publicação completa sem scroll"}
+            >
+              {expandirGeral ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 mr-1.5" />
+                  Recolher
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 mr-1.5" />
+                  Expandir Geral
+                </>
+              )}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handlePrint} className="text-xs h-8">
             <Printer className="w-3.5 h-3.5 mr-1.5" />
             Imprimir
@@ -372,41 +569,44 @@ export function PublicacaoConteudoDjen({
           </Button>
           <Button variant="outline" size="sm" onClick={() => handleCopy(false)} className="text-xs h-8">
             <FileText className="w-3.5 h-3.5 mr-1.5" />
-            <span className="hidden sm:inline">Copiar sem formatação</span>
-            <span className="sm:hidden">Texto</span>
+            Copiar sem formatação
           </Button>
         </div>
       </div>
 
-      {/* Layout split: sidebar fixa + conteúdo com scroll */}
+      {/* Layout igual ao DJEN: coluna esquerda = metadados; coluna direita = inteiro teor */}
       <div
-        className="flex flex-col lg:flex-row overflow-hidden"
-        style={maxHeight ? { maxHeight } : undefined}
+        className={cn(
+          "flex flex-col lg:flex-row gap-0",
+          !expandirGeral && "overflow-hidden"
+        )}
+        style={!expandirGeral && maxHeight ? { maxHeight } : undefined}
       >
-        {/* Coluna esquerda - Metadados (sticky) */}
-        <aside className="lg:w-[280px] xl:w-[320px] shrink-0 lg:overflow-y-auto lg:border-r border-border bg-muted/30 p-3 md:p-4 space-y-3 text-sm rounded-t-lg lg:rounded-l-lg lg:rounded-tr-none">
+        {/* Coluna esquerda – Órgão, Data de disponibilização, Tipo de comunicação, Meio, Inteiro teor, Parte(s), Advogado(s) */}
+        <aside
+          className={cn(
+            "lg:w-[300px] xl:w-[340px] shrink-0 lg:border-r border-border bg-muted/20 p-4 space-y-3 text-sm",
+            !expandirGeral && "lg:overflow-y-auto"
+          )}
+        >
           <div>
-            <span className="font-semibold text-muted-foreground">Órgão: </span>
-            <span className="font-medium">{orgao}</span>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Órgão</p>
+            <p className="font-medium break-words">{orgao}</p>
           </div>
-
           <div>
-            <span className="font-semibold text-muted-foreground">Data de disponibilização: </span>
-            <span>{formatDate(dataDisponibilizacao)}</span>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Data de disponibilização</p>
+            <p>{formatDate(dataDisponibilizacao)}</p>
           </div>
-
           <div>
-            <span className="font-semibold text-muted-foreground">Tipo de comunicação: </span>
-            <span>{tipoComunicacao}</span>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Tipo de comunicação</p>
+            <p>{tipoComunicacao}</p>
           </div>
-
           <div>
-            <span className="font-semibold text-muted-foreground">Meio: </span>
-            <span>{meioPublicacao}</span>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Meio</p>
+            <p>{meioPublicacao}</p>
           </div>
-
           <div>
-            <span className="font-semibold text-muted-foreground">Inteiro teor: </span>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Inteiro teor</p>
             <a
               href={`https://comunicaapi.pje.jus.br/v1/comunicacoes/${processoNumero || ""}`}
               target="_blank"
@@ -418,42 +618,57 @@ export function PublicacaoConteudoDjen({
             </a>
           </div>
 
-          {/* Partes */}
-          {partesFinais.length > 0 && (
-            <div className="pt-2 border-t border-border">
-              <p className="font-semibold text-muted-foreground mb-1.5">Parte(s)</p>
-              <ul className="space-y-1">
+          {/* Parte(s) – sempre visível na coluna esquerda (estilo DJEN) */}
+          <div>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Parte(s)</p>
+            {partesFinais.length > 0 ? (
+              <ul className="space-y-1.5">
                 {partesFinais.map((parte, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-destructive mt-0.5 shrink-0">👤</span>
+                    <User className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                     <span className="break-words">{parte}</span>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <User className="w-4 h-4 shrink-0" />
+                —
+              </p>
+            )}
+          </div>
 
-          {/* Advogados */}
-          {advogados.length > 0 && (
-            <div className="pt-2 border-t border-border">
-              <p className="font-semibold text-muted-foreground mb-1.5">Advogado(s)</p>
-              <ul className="space-y-1">
+          {/* Advogado(s) – sempre visível na coluna esquerda (estilo DJEN) */}
+          <div>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Advogado(s)</p>
+            {advogados.length > 0 ? (
+              <ul className="space-y-1.5">
                 {advogados.map((adv, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-primary mt-0.5 shrink-0">⚖️</span>
+                    <User className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                     <span className="break-words">{adv}</span>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <User className="w-4 h-4 shrink-0" />
+                —
+              </p>
+            )}
+          </div>
         </aside>
 
-        {/* Coluna direita - Conteúdo (scroll independente) */}
-        <main className="flex-1 lg:overflow-y-auto p-3 md:p-4">
+        {/* Coluna direita – Inteiro teor (texto completo) */}
+        <main
+          className={cn(
+            "flex-1 min-w-0 p-4",
+            !expandirGeral && "lg:overflow-y-auto"
+          )}
+        >
           <div
             className={cn(
-              "p-3 md:p-4 bg-muted/10 rounded-lg border text-sm",
+              "p-4 bg-background rounded-md border text-sm leading-relaxed",
               conteudoDisplayClasses
             )}
           >

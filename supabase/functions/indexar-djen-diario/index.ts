@@ -295,7 +295,7 @@ serve(async (req) => {
 
         const batch = items.map((pub: any) => {
           const pubObj = pub.comunicacao || pub;
-          const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
+          const conteudo = pubObj.conteudo || pubObj.texto || pubObj.teor || pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
           const dataDisponibilizacao =
             pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
             pub.dataDJe || pubObj.dataDJe ||

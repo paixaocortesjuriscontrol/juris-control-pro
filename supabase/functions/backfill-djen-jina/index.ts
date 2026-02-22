@@ -119,6 +119,64 @@ function normalizeConteudo(item: any): string {
   return (item?.conteudo || item?.texto || item?.teor || item?.conteudoHtml || item?.descricao || "").toString();
 }
 
+/** Extrai advogados do item (API) e do texto (formato DJEN: "DR. NOME - OAB UF-NUM"). */
+function extrairAdvogados(item: any, conteudo: string): string[] {
+  const advs: string[] = [];
+  const seen = new Set<string>();
+
+  const add = (entry: string) => {
+    const s = String(entry || "").trim();
+    if (!s || s.length < 6 || !/OAB/i.test(s)) return;
+    const key = s.toUpperCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    advs.push(s);
+  };
+
+  if (Array.isArray(item?.advogados)) {
+    for (const a of item.advogados) {
+      const nome = a?.nome || a?.nomeAdvogado || "";
+      const oab = a?.numeroOab || a?.oab || "";
+      const uf = a?.siglaUf || a?.uf || "";
+      if (nome) add(oab && uf ? `${nome} - OAB ${String(uf).toUpperCase()}-${String(oab).replace(/\D/g, "")}` : nome);
+    }
+  }
+  if (Array.isArray(item?.destinatarios)) {
+    for (const d of item.destinatarios) {
+      const nome = d?.nome || d?.nomeAdvogado || d?.destinatarioNome || "";
+      const oab = d?.oab || d?.numeroOab || "";
+      const uf = d?.uf || d?.siglaUf || "";
+      if (nome) add(oab && uf ? `${nome} - OAB ${String(uf).toUpperCase()}-${String(oab).replace(/\D/g, "")}` : nome);
+    }
+  }
+
+  if (advs.length > 0) return advs;
+
+  const text = String(conteudo || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  const re = /\s*((?:DR\.?|DRA\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*[-–—]\s*OAB\s*\/?\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const nome = (m[1] || "").trim();
+    const uf = (m[2] || "").toUpperCase();
+    const num = (m[3] || "").trim();
+    if (nome.length >= 4 && uf && num) add(`${nome} - OAB ${uf}-${num}`);
+  }
+  return advs;
+}
+
+/** Extrai partes do texto (bloco "Parte(s)" ou primeiras linhas após cabeçalho). */
+function extrairPartes(conteudo: string): string[] {
+  const partes: string[] = [];
+  const text = String(conteudo || "").replace(/<[^>]*>/g, " ");
+  const block = text.match(/\bParte\s*\(\s*s\s*\)\s*(?:\s*:\s*)?\s*\n?([\s\S]*?)(?=\bAdvogado|\bConteúdo|$)/i)?.[1] || "";
+  const lines = block.split(/\n/).map((l) => l.trim()).filter((l) => l.length > 2 && l.length < 300);
+  for (const l of lines) {
+    if (/^[\s\-–—]*$/.test(l) || /\bOAB\s*[A-Z]{2}\s*[-–]?\s*\d/.test(l)) continue;
+    partes.push(l.slice(0, 300));
+  }
+  return partes.slice(0, 20);
+}
+
 function normalizeData(item: any, fallback: string): string {
   return (
     item?.data ||
@@ -244,6 +302,9 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
       continue;
     }
 
+    const advogados = extrairAdvogados(p.item, p.conteudo);
+    const partes = extrairPartes(p.conteudo);
+
     const { error: insErr } = await supabase.from("publicacoes_djen").insert({
       monitoramento_id: mon.id,
       hash_conteudo: p.hashConteudo,
@@ -251,6 +312,8 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
       data_publicacao: p.dataPub,
       processo_numero: processo,
       fonte,
+      advogados_json: advogados.length > 0 ? advogados : null,
+      partes_json: partes.length > 0 ? partes : null,
     });
 
     if (insErr) {

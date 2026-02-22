@@ -18,6 +18,8 @@ import {
   ChevronsRight,
   ChevronsUpDown,
   Gavel,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -170,6 +172,7 @@ const BuscarDJEN = () => {
   const [importing, setImporting] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
+  const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<Publicacao | null>(null);
   const [importCoordenacaoId, setImportCoordenacaoId] = useState<string>("");
@@ -950,6 +953,15 @@ const BuscarDJEN = () => {
     }
   };
 
+  const toggleExpandirGeral = () => {
+    if (!expandirGeralAtivo) {
+      setExpandirGeralAtivo(true);
+      setExpandedPublicacoes(new Set(paginatedPublicacoes.map(p => p.id)));
+    } else {
+      setExpandirGeralAtivo(false);
+    }
+  };
+
   const formatDateShort = (dateStr: string | undefined) => {
     if (!dateStr) return "-";
     try {
@@ -1557,6 +1569,25 @@ const BuscarDJEN = () => {
                     <ChevronsUpDown className="w-3 h-3 mr-1" />
                     {expandedPublicacoes.size === paginatedPublicacoes.length ? "Recolher" : "Expandir"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleExpandirGeral}
+                    className="h-7 text-xs"
+                    title={expandirGeralAtivo ? "Recolher e voltar ao scroll" : "Expandir todas e mostrar conteúdo completo sem scroll"}
+                  >
+                    {expandirGeralAtivo ? (
+                      <>
+                        <Minimize2 className="w-3 h-3 mr-1" />
+                        Recolher Geral
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3 h-3 mr-1" />
+                        Expandir Geral
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
 
@@ -1682,7 +1713,8 @@ const BuscarDJEN = () => {
                                 monitoramentoUf={null}
                                 monitoramentoTermo={null}
                                 monitoramentoDescricao={null}
-                                maxHeight="500px"
+                                maxHeight={expandirGeralAtivo ? undefined : "500px"}
+                                expandirGeralExterno={expandirGeralAtivo}
                               />
                             </div>
                           )}
@@ -1848,6 +1880,7 @@ const BuscarDJEN = () => {
                 monitoramentoTermo={null}
                 monitoramentoDescricao={null}
                 maxHeight="60vh"
+                expandirGeralExterno={expandirGeralAtivo}
               />
           )}
 

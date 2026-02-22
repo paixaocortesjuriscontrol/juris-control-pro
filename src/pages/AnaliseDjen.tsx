@@ -24,6 +24,8 @@ import {
   Save,
   Trash2,
   Copy,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -67,7 +69,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
-import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
+import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { jsPDF } from "jspdf";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
@@ -134,6 +136,7 @@ const AnaliseDjen = () => {
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
+  const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
@@ -556,61 +559,48 @@ const AnaliseDjen = () => {
     setExpandedPublicacoes(newExpanded);
   };
 
-  // Helper functions shared between PDF generators
-  const pdfExtractAdvogados = (conteudo: string | null): string[] => {
-    if (!conteudo) return [];
-    const plainText = conteudo.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-    const advogados: string[] = [];
-    const advSet = new Set<string>();
-
-    const pareceNome = (v: string) => {
-      const t = v.trim();
-      if (!t || t.length > 90) return false;
-      if (!/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(t)) return false;
-      const tokens = t.split(" ").filter(w => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(w) && w.length >= 2);
-      return tokens.length >= 2;
+  // ===== PDF: dados do lado esquerdo SOMENTE do banco (gravados na captura) =====
+  const pdfListFromPolo = (pub: typeof allPublicacoes[0]): string[] => {
+    const out: string[] = [];
+    const add = (raw: string) => {
+      const s = raw.trim();
+      if (!s || s.length > 200) return;
+      if (out.some(x => x.toUpperCase() === s.toUpperCase())) return;
+      out.push(s);
     };
-
-    for (const match of plainText.matchAll(
-      /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/g
-    )) {
-      const nome = (match[1] || "").trim();
-      const numero = (match[2] || "").trim();
-      const uf = (match[3] || "").toUpperCase();
-      const key = `${numero}-${uf}`;
-      if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
-      advSet.add(key);
-      advogados.push(`${nome} - OAB ${uf}-${numero}`);
-    }
-
-    for (const match of plainText.matchAll(
-      /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
-    )) {
-      const nome = (match[1] || "").trim();
-      const uf = (match[2] || "").toUpperCase();
-      const numero = (match[3] || "").trim();
-      const key = `${numero}-${uf}`;
-      if (!numero || !uf || advSet.has(key) || !pareceNome(nome)) continue;
-      advSet.add(key);
-      advogados.push(`${nome} - OAB ${uf}-${numero}`);
-    }
-
-    return advogados;
+    if (pub.polo_ativo) pub.polo_ativo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(add);
+    if (pub.polo_passivo) pub.polo_passivo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(add);
+    return out;
   };
 
-  const pdfExtractPartes = (pub: typeof allPublicacoes[0]): string[] => {
-    const partes: string[] = [];
-    if (pub.polo_ativo) {
-      pub.polo_ativo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
-        if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
-      });
-    }
-    if (pub.polo_passivo) {
-      pub.polo_passivo.split(/[;,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
-        if (!partes.some(x => x.toUpperCase() === p.toUpperCase())) partes.push(p);
-      });
-    }
-    return partes;
+  /** Desenha o cabeçalho profissional do PDF: faixa azul, logo da balança e "Sistema Juris Control". */
+  const drawPdfHeader = (doc: jsPDF, pageW: number, subtitle: string) => {
+    const headerH = 28;
+    doc.setFillColor(30, 58, 95);
+    doc.rect(0, 0, pageW, headerH, "F");
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.4);
+    const cx = 14;
+    const cy = 14;
+    const s = 0.9;
+    doc.line(cx, cy + 4 * s, cx, cy - 8 * s);
+    doc.line(cx - 6 * s, cy - 8 * s, cx + 6 * s, cy - 8 * s);
+    doc.line(cx - 6 * s, cy - 8 * s, cx - 7 * s, cy - 4 * s);
+    doc.line(cx - 7 * s, cy - 4 * s, cx - 2, cy - 4 * s);
+    doc.line(cx - 2, cy - 4 * s, cx - 6 * s, cy - 8 * s);
+    doc.line(cx + 6 * s, cy - 8 * s, cx + 7 * s, cy - 4 * s);
+    doc.line(cx + 7 * s, cy - 4 * s, cx + 2, cy - 4 * s);
+    doc.line(cx + 2, cy - 4 * s, cx + 6 * s, cy - 8 * s);
+    doc.line(cx - 3 * s, cy + 4 * s, cx + 3 * s, cy + 4 * s);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Sistema Juris Control", 26, 11);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(subtitle, 26, 17);
+    doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, 26, 23);
+    doc.setTextColor(0, 0, 0);
   };
 
   // ===== PDF "Gerar PDF" - layout duas colunas (metadados esquerda, conteúdo direita) =====
@@ -625,22 +615,10 @@ const AnaliseDjen = () => {
       const mL = 15;
       const mR = 15;
       const maxW = pageW - mL - mR;
-      let y = 15;
+      let y = 34;
       const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 15; } };
 
-      // Header
-      doc.setFillColor(30, 58, 95);
-      doc.rect(0, 0, pageW, 28, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text("JURIS CONTROL", mL, 12);
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.text("Sistema de Gestão Jurídica", mL, 18);
-      doc.text(`Relatório emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, mL, 24);
-      doc.setTextColor(0, 0, 0);
-      y = 34;
+      drawPdfHeader(doc, pageW, "Gestão Jurídica e Publicações DJEN");
 
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
@@ -690,10 +668,11 @@ const AnaliseDjen = () => {
         if (pub.tribunal) printMeta("Órgão", pub.tribunal);
         if (pub.data_disponibilizacao) printMeta("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
         printMeta("Tipo de comunicação", "Intimação");
-        printMeta("Meio", "Diário de Justiça Eletrônico Nacional");
         if (pub.fonte) printMeta("Fonte", pub.fonte);
 
-        const partes = pdfExtractPartes(pub);
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
         if (partes.length > 0) {
           yLeft += 2;
           doc.setFont("helvetica", "bold");
@@ -705,7 +684,6 @@ const AnaliseDjen = () => {
           });
         }
 
-        const advogados = pdfExtractAdvogados(pub.conteudo);
         if (advogados.length > 0) {
           yLeft += 2;
           doc.setFont("helvetica", "bold");
@@ -758,7 +736,7 @@ const AnaliseDjen = () => {
     const toastId = toast.loading(`Resumindo 1/${totalPubs}...`);
 
     try {
-      // 1. Chamar IA para resumir cada publicação individualmente (uma a uma)
+      // 1. Chamar IA para resumir cada publicação (Dra. Renata não quer ler o texto na íntegra)
       const resumosMap = new Map<string, string>();
       let erros = 0;
 
@@ -793,16 +771,16 @@ const AnaliseDjen = () => {
         console.warn(`${erros} publicação(ões) não puderam ser resumidas`);
       }
 
-      // 2. Gerar PDF com resumos da IA
+      // 2. Gerar PDF: mesmo layout da Busca DJEN Termos, com Parte(s) e Advogado(s) limpos e Resumo por IA
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const mL = 15;
       const mR = 15;
       const maxW = pageW - mL - mR;
-      let y = 20;
+      drawPdfHeader(doc, pageW, "Resumo de Publicações DJEN");
+      let y = 34;
       const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
 
-      // Data header
       const dataDisp = allPublicacoes[0]?.data_disponibilizacao;
       if (dataDisp) {
         doc.setFontSize(10);
@@ -822,7 +800,6 @@ const AnaliseDjen = () => {
           y += 10;
         }
 
-        // ── COMUNICAÇÃO PJE #NUMERO ──
         checkPage(60);
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
@@ -830,114 +807,106 @@ const AnaliseDjen = () => {
         doc.text(`COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
         y += 8;
 
-        // Processo
+        doc.setFontSize(10);
+        const labelW = 52;
+        const tableX = mL;
+        const tableW = pageW - mR - mL;
+        const rowH = 6;
+
+        const addRow = (label: string, value: string) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(label, tableX, y);
+          doc.setFont("helvetica", "normal");
+          const valLines = doc.splitTextToSize(value, tableW - labelW - 4);
+          valLines.forEach((l: string, i: number) => {
+            doc.text(l, tableX + labelW, y + i * 5);
+          });
+          y += Math.max(rowH, valLines.length * 5);
+        };
+
+        addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
+        addRow("Órgão", (pub.orgao || pub.tribunal) || "—");
+        addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
+        addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
+
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Parte(s):", mL, y);
+        y += 6;
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
-        doc.text(`Processo: ${formatProcessoNumero(pub.processo_numero)}`, mL, y);
-        y += 6;
-
-        // Órgão
-        if (pub.tribunal) {
-          doc.setFont("helvetica", "bold");
-          doc.text("Órgão: ", mL, y);
-          const lw = doc.getTextWidth("Órgão: ");
-          doc.setFont("helvetica", "normal");
-          doc.text(pub.tribunal, mL + lw, y);
-          y += 6;
-        }
-
-        // Data de disponibilização
-        if (pub.data_disponibilizacao) {
-          doc.setFont("helvetica", "bold");
-          doc.text("Data de disponibilização: ", mL, y);
-          const lw = doc.getTextWidth("Data de disponibilização: ");
-          doc.setFont("helvetica", "normal");
-          doc.text(formatDateOnlyFull(pub.data_disponibilizacao), mL + lw, y);
-          y += 6;
-        }
-
-        // Tipo de Comunicação
-        doc.setFont("helvetica", "bold");
-        doc.text("Tipo de Comunicação: ", mL, y);
-        const tw = doc.getTextWidth("Tipo de Comunicação: ");
-        doc.setFont("helvetica", "normal");
-        doc.text("Intimação", mL + tw, y);
-        y += 6;
-
-        // Meio
-        doc.setFont("helvetica", "bold");
-        doc.text("Meio: ", mL, y);
-        const mw = doc.getTextWidth("Meio: ");
-        doc.setFont("helvetica", "normal");
-        doc.text("D", mL + mw, y);
-        y += 6;
-
-        // Inteiro teor
-        doc.setFont("helvetica", "bold");
-        doc.text("Inteiro teor: ", mL, y);
-        const itw = doc.getTextWidth("Inteiro teor: ");
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(30, 58, 95);
-        doc.text("Clique aqui", mL + itw, y);
-        doc.setTextColor(0, 0, 0);
-        y += 8;
-
-        // ── Parte(s) ──
-        const partes = pdfExtractPartes(pub);
         if (partes.length > 0) {
           checkPage(10 + partes.length * 5);
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.text("Parte(s):", mL, y);
-          y += 6;
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
+          const bulletW = doc.getTextWidth("• ");
           partes.forEach(p => {
             checkPage(5);
-            const lines = doc.splitTextToSize(`•  ${p}`, maxW - 5);
-            lines.forEach((l: string) => { doc.text(l, mL + 3, y); y += 5; });
+            const linhas = doc.splitTextToSize(p, maxW - 5 - bulletW);
+            linhas.forEach((l: string, i: number) => {
+              if (i === 0) doc.text("• ", mL, y);
+              doc.text(l, mL + bulletW, y);
+              y += 5;
+            });
           });
-          y += 2;
+        } else {
+          doc.text("—", mL, y);
+          y += 5;
         }
+        y += 2;
 
-        // ── Advogado(s) ──
-        const advogados = pdfExtractAdvogados(pub.conteudo);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Advogado(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
         if (advogados.length > 0) {
           checkPage(10 + advogados.length * 5);
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.text("Advogado(s):", mL, y);
-          y += 6;
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
+          const bulletW = doc.getTextWidth("• ");
           advogados.forEach(a => {
             checkPage(5);
-            const lines = doc.splitTextToSize(`•  ${a}`, maxW - 5);
-            lines.forEach((l: string) => { doc.text(l, mL + 3, y); y += 5; });
+            const linhas = doc.splitTextToSize(a, maxW - 5 - bulletW);
+            linhas.forEach((l: string, i: number) => {
+              if (i === 0) doc.text("• ", mL, y);
+              doc.text(l, mL + bulletW, y);
+              y += 5;
+            });
           });
-          y += 2;
+        } else {
+          doc.text("—", mL, y);
+          y += 5;
         }
+        y += 2;
 
-        // ── Resumo IA (texto corrido, sem título/prefixo) ──
+        // Conteúdo Integral (resumo por IA – padrão do Doc)
         const resumoIA = resumosMap.get(pub.id);
         if (resumoIA) {
           y += 4;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text("Conteúdo Integral:", mL, y);
+          y += 6;
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(0, 0, 0);
-          const resumoLines: string[] = doc.splitTextToSize(resumoIA, maxW);
-          resumoLines.forEach((line: string) => {
-            checkPage(5);
-            doc.text(line, mL, y);
-            y += 5;
+          const paragrafos = resumoIA.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+          paragrafos.forEach((bloco) => {
+            doc.splitTextToSize(bloco, maxW).forEach((line: string) => {
+              checkPage(5);
+              doc.text(line, mL, y);
+              y += 5;
+            });
+            y += 2;
           });
-          y += 4;
+          y += 2;
         }
 
         y += 6;
       });
 
-      // Footer
       const total = doc.getNumberOfPages();
       for (let i = 1; i <= total; i++) {
         doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
@@ -959,6 +928,15 @@ const AnaliseDjen = () => {
       setExpandedPublicacoes(new Set());
     } else {
       setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
+    }
+  };
+
+  const toggleExpandirGeral = () => {
+    if (!expandirGeralAtivo) {
+      setExpandirGeralAtivo(true);
+      setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
+    } else {
+      setExpandirGeralAtivo(false);
     }
   };
 
@@ -1356,6 +1334,29 @@ const AnaliseDjen = () => {
                 ? "−"
                 : "+"}
             </span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleExpandirGeral}
+            disabled={allPublicacoes.length === 0}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+            title={expandirGeralAtivo ? "Recolher e voltar ao scroll" : "Expandir todas e mostrar conteúdo completo sem scroll"}
+          >
+            {expandirGeralAtivo ? (
+              <>
+                <Minimize2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                <span className="hidden sm:inline">Recolher Geral</span>
+                <span className="sm:hidden">−G</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                <span className="hidden sm:inline">Expandir Geral</span>
+                <span className="sm:hidden">+G</span>
+              </>
+            )}
           </Button>
         </div>
 
@@ -1763,11 +1764,13 @@ const AnaliseDjen = () => {
                                       monitoramentoUf={pub.monitoramento_uf}
                                       monitoramentoTermo={pub.monitoramento_termo}
                                       monitoramentoDescricao={pub.monitoramento_descricao}
-                                      maxHeight="500px"
-                                       orgaoEstruturado={pub.orgao}
-                                       tipoComunicacaoEstruturado={pub.tipo_comunicacao}
-                                       meioEstruturado={pub.meio}
-                                       advogadosJson={pub.advogados_json}
+                                      maxHeight={expandirGeralAtivo ? undefined : "500px"}
+                                      orgaoEstruturado={pub.orgao}
+                                      tipoComunicacaoEstruturado={pub.tipo_comunicacao}
+                                      meioEstruturado={pub.meio}
+                                      partesJson={pub.partes_json}
+                                      advogadosJson={pub.advogados_json}
+                                      expandirGeralExterno={expandirGeralAtivo}
                                     />
                                   </div>
                                 )}
@@ -1844,7 +1847,9 @@ const AnaliseDjen = () => {
                 orgaoEstruturado={selectedPublicacao.orgao}
                 tipoComunicacaoEstruturado={selectedPublicacao.tipo_comunicacao}
                 meioEstruturado={selectedPublicacao.meio}
+                partesJson={selectedPublicacao.partes_json}
                 advogadosJson={selectedPublicacao.advogados_json}
+                expandirGeralExterno={expandirGeralAtivo}
               />
             )}
           </DialogContent>

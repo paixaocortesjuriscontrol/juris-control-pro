@@ -71,6 +71,15 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined, 
 };
 
 /**
+ * Converte conteúdo (possivelmente HTML) em texto puro com quebras de linha,
+ * sem remover metadados. Use para extração de partes/advogados para que os regex
+ * rodem sobre o mesmo texto que o usuário vê na exibição.
+ */
+export function conteudoHtmlParaTexto(conteudo: string | null | undefined): string {
+  return formatConteudoParaExibicao(conteudo ?? "", false);
+}
+
+/**
  * Remove cabeçalho de metadados que foi injetado no corpo do conteúdo da publicação.
  * Identifica e remove linhas como "Órgão: ...", "Data de disponibilização: ...",
  * "Tipo de comunicação: ...", "Meio: ...", "Processo: ...", "Advogados:" e lista de nomes que seguem.

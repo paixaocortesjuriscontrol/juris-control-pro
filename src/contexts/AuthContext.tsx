@@ -73,8 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session
+    // THEN check for existing session (com timeout para não travar em tela branca)
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      clearTimeout(timeoutId);
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       setLoading(false);
@@ -87,9 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase.auth.signOut();
         }
       }
+    }).catch(() => {
+      clearTimeout(timeoutId);
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
