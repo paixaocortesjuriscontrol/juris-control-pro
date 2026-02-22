@@ -126,55 +126,52 @@ function extractPartesFromConteudo(conteudo: string): string[] {
 }
 
 /**
- * Extrai advogados reais dos metadados estruturados retornados pela API PJE Comunica.
- * NÃO usa dados do monitoramento — apenas o que o tribunal publicou no objeto `pub`.
+ * Extrai DESTINATÁRIOS (partes notificadas) dos metadados estruturados da API PJE Comunica.
+ * No portal DJEN, estes aparecem como "Destinatário(a)" no lado esquerdo.
+ * NÃO são advogados — são as partes do processo que recebem a comunicação.
  */
-export function extractAdvogadosFromMeta(pub: any): string[] {
-  const advs: string[] = [];
+export function extractDestinatariosFromMeta(pub: any): string[] {
+  const nomes: string[] = [];
   const seen = new Set<string>();
 
-  const add = (nome: string, oab?: string, uf?: string) => {
+  const add = (nome: string) => {
     const nomeTrim = (nome || '').trim();
     if (!nomeTrim || nomeTrim.length < 3) return;
     const key = nomeTrim.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    const oabNum = (oab || '').replace(/\D/g, '');
-    const ufNorm = (uf || '').trim().toUpperCase();
-    if (oabNum && ufNorm) {
-      advs.push(`${nomeTrim} - OAB ${ufNorm}-${oabNum}`);
-    } else if (oabNum) {
-      advs.push(`${nomeTrim} - OAB ${oabNum}`);
-    } else {
-      advs.push(nomeTrim);
-    }
+    nomes.push(nomeTrim);
   };
 
   // Formato 1: pub.destinatarios[] (mais comum no PJE Comunica)
   if (Array.isArray(pub?.destinatarios)) {
     for (const d of pub.destinatarios) {
       const nome = d?.nome || d?.nomeAdvogado || d?.destinatarioNome || '';
-      const oab = d?.oab || d?.numeroOab || d?.numeroInscricao || '';
-      const uf = d?.uf || d?.siglaUf || d?.ufOab || '';
-      if (nome) add(nome, oab, uf);
+      if (nome) add(nome);
     }
   }
 
-  // Formato 2: pub.advogados[]
+  // Formato 2: pub.advogados[] - na API, este campo geralmente traz partes, não advogados reais
   if (Array.isArray(pub?.advogados)) {
     for (const a of pub.advogados) {
       const nome = a?.nome || a?.nomeAdvogado || '';
-      const oab = a?.numeroOab || a?.oab || '';
-      const uf = a?.siglaUf || a?.uf || '';
-      if (nome) add(nome, oab, uf);
+      if (nome) add(nome);
     }
   }
 
-  // Formato 3: campos simples de destinatário/advogado
-  if (pub?.destinatarioNome) add(pub.destinatarioNome, pub?.destinatarioOab, pub?.destinatarioUf);
-  if (pub?.nomeAdvogado) add(pub.nomeAdvogado, pub?.oabAdvogado, pub?.ufAdvogado);
+  // Formato 3: campos simples
+  if (pub?.destinatarioNome) add(pub.destinatarioNome);
+  if (pub?.nomeAdvogado) add(pub.nomeAdvogado);
 
-  return advs;
+  return nomes;
+}
+
+/**
+ * @deprecated Use extractDestinatariosFromMeta instead. 
+ * Mantido para compatibilidade - agora retorna destinatários (partes), não advogados.
+ */
+export function extractAdvogadosFromMeta(pub: any): string[] {
+  return extractDestinatariosFromMeta(pub);
 }
 
 export function buildDjenLikeConteudo(params: {
@@ -242,13 +239,13 @@ export function buildDjenLikeConteudo(params: {
     sections.push(['Parte(s)', ...partes].join('\n'));
   }
 
-  // Injetar advogados dos metadados da API quando o texto original não os contém.
-  // Extrai apenas de `pub` (dados do tribunal) — nunca do objeto `monitoramento`.
-  const jaTemAdvogados = /\b(?:Advogados?:|ADV\.|OAB[\s/])/i.test(original);
-  if (!jaTemAdvogados) {
-    const advsMeta = extractAdvogadosFromMeta(pub);
-    if (advsMeta.length > 0) {
-      sections.push('Advogados:\n' + advsMeta.join('\n'));
+  // Injetar destinatários dos metadados da API como "Destinatário(s)" (NÃO como "Advogados")
+  // Esses são as partes notificadas, exatamente como aparece no portal DJEN
+  const jaTemDestinatario = /\b(?:Destinat[áa]rio|Advogados?:|ADV\.|OAB[\s/])/i.test(original);
+  if (!jaTemDestinatario) {
+    const destsMeta = extractDestinatariosFromMeta(pub);
+    if (destsMeta.length > 0) {
+      sections.push('Destinatário(s):\n' + destsMeta.join('\n'));
     }
   }
 

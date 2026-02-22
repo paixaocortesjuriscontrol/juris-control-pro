@@ -16,7 +16,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
-import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractAdvogadosFromMeta } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractDestinatariosFromMeta } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -1227,9 +1227,13 @@ async function processarTermo(
       const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
       const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
 
-      // Advogados: extrair diretamente dos dados da API
-      const advogadosFinais = extractAdvogadosFromMeta(pub);
-      const advogadosJsonPayload = advogadosFinais.length > 0 ? JSON.stringify(advogadosFinais) : null;
+      // Destinatários da API (partes notificadas) → partes_json
+      const destinatarios = extractDestinatariosFromMeta(pub);
+      const partesJsonPayload = destinatarios.length > 0 ? JSON.stringify(destinatarios) : null;
+
+      // Advogados REAIS: extrair do texto da publicação (com OAB)
+      const { advogados: advogadosReais } = extrairPartesAdvogadosDoConteudo(conteudoTexto);
+      const advogadosJsonPayload = advogadosReais.length > 0 ? JSON.stringify(advogadosReais) : null;
 
       return {
         monitoramento_id: mon.id,
@@ -1246,6 +1250,7 @@ async function processarTermo(
         orgao: orgaoEstruturado ? String(orgaoEstruturado).trim() : null,
         tipo_comunicacao: tipoComunicacaoEstruturado ? String(tipoComunicacaoEstruturado).trim() : null,
         meio: meioEstruturado ? String(meioEstruturado).trim() : null,
+        partes_json: partesJsonPayload,
         advogados_json: advogadosJsonPayload,
       };
     });

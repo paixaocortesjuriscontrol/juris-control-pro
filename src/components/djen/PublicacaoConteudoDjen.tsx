@@ -142,13 +142,6 @@ const extractPartesAndAdvogados = (
   poloPassivo: string | null,
   advogadosJson: string[] | null,
 ): { partes: string[]; advogados: string[] } => {
-  // #region agent log
-  const _textLen = texto?.length ?? 0;
-  const _snippet = texto ? texto.slice(0, 350).replace(/\s+/g, ' ') : '';
-  const _hasBlock = /\bAdvogado\s*\(?s?\)?\s*[\s:\n]/i.test(texto || '');
-  console.log('[DJEN-ADV] extractPartesAndAdvogados entry', { textLen: _textLen, hasAdvogadoBlock: _hasBlock, snippet: _snippet.slice(0, 150) });
-  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:extractPartesAndAdvogados:entry',message:'extractPartesAndAdvogados entry',data:{textLen:_textLen,snippet:_snippet,hasAdvogadoBlock:_hasBlock},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
   const partes: string[] = [];
   const advogados: string[] = [];
   const advSet = new Set<string>();
@@ -366,10 +359,6 @@ const extractPartesAndAdvogados = (
     }
   }
 
-  // #region agent log
-  console.log('[DJEN-ADV] extractPartesAndAdvogados exit', { partesLen: partes.length, advogadosLen: advogados.length, firstAdvogados: advogados.slice(0, 3) });
-  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:extractPartesAndAdvogados:exit',message:'extractPartesAndAdvogados exit',data:{partesLen:partes.length,advogadosLen:advogados.length,firstAdvogados:advogados.slice(0,3)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
   return { partes, advogados };
 };
 
@@ -390,14 +379,6 @@ export function getPartesEAdvogadosParaExibicao(
     /\b(BANCO|S\.A\.|S\/A|LTDA|RECUPERAÇÃO|CONTAX|INSTITUIÇÃO)\b/i.test(s) ||
     (!/\bOAB\b|\bDR\.|\bDRA\./i.test(s) && s.split(/\s+/).filter(Boolean).length >= 2);
   const conteudoParaExtracao = conteudo ? conteudoHtmlParaTexto(conteudo) : null;
-  // #region agent log
-  const _conteudoLen = conteudo?.length ?? 0;
-  const _paraExtracaoLen = conteudoParaExtracao?.length ?? 0;
-  const _paraExtracaoSnippet = conteudoParaExtracao ? conteudoParaExtracao.slice(0, 280).replace(/\s+/g, ' ') : '';
-  const _hasAdvInSnippet = /\bAdvogado|DR\.|DRA\.|OAB\s/i.test(_paraExtracaoSnippet);
-  console.log('[DJEN-ADV] getPartesEAdvogados start', { partesDoBancoLen: partesDoBanco.length, advogadosDoBancoLen: advogadosDoBanco.length, conteudoLen: _conteudoLen, conteudoParaExtracaoLen: _paraExtracaoLen, hasAdvInSnippet: _hasAdvInSnippet, snippet: _paraExtracaoSnippet.slice(0, 120) });
-  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:getPartesEAdvogados:start',message:'getPartesEAdvogados start',data:{partesDoBancoLen:partesDoBanco.length,advogadosDoBancoLen:advogadosDoBanco.length,conteudoLen:_conteudoLen,conteudoParaExtracaoLen:_paraExtracaoLen,paraExtracaoSnippet:_paraExtracaoSnippet,hasAdvInSnippet:_hasAdvInSnippet},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
   let partes: string[];
   let advogados: string[];
   if (partesDoBanco.length > 0) {
@@ -418,10 +399,6 @@ export function getPartesEAdvogadosParaExibicao(
     const extraido = extractPartesAndAdvogados(conteudoParaExtracao, poloAtivo, poloPassivo, advogadosJson);
     advogados = extraido.advogados;
   }
-  // #region agent log
-  console.log('[DJEN-ADV] getPartesEAdvogados exit', { partesLen: partes.length, advogadosLen: advogados.length, ranFallback: advogadosDoBanco.length === 0 && !!conteudoParaExtracao });
-  fetch('http://127.0.0.1:7517/ingest/060d1f23-c79e-45e6-a748-d007dd61ce77',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4bdfc9'},body:JSON.stringify({sessionId:'4bdfc9',location:'PublicacaoConteudoDjen.tsx:getPartesEAdvogados:exit',message:'getPartesEAdvogados exit',data:{partesLen:partes.length,advogadosLen:advogados.length,ranFallback:advogadosDoBanco.length===0&&!!conteudoParaExtracao},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
   return { partes, advogados };
 }
 
@@ -434,10 +411,10 @@ const stripMetadataFromContent = (texto: string | null): string | null => {
   if (!texto) return texto;
   let plain = texto;
   // Remove linhas de cabeçalho comuns no início
-  const headerPattern = /^(\s*(Órgão\s*:|Data\s+de\s+(disponibilização|publicação)\s*:|Tipo\s+de\s+comunica[çc][ãa]o\s*:|Meio\s*:|Processo\s*:|Advogados?\s*:)[^\n]*\n?)+/im;
+  const headerPattern = /^(\s*(Órgão\s*:|Data\s+de\s+(disponibilização|publicação)\s*:|Tipo\s+de\s+comunica[çc][ãa]o\s*:|Meio\s*:|Processo\s*:|Advogados?\s*:|Destinat[áa]rio\s*\(?\s*s?\s*\)?\s*:)[^\n]*\n?)+/im;
   plain = plain.replace(headerPattern, '');
-  // Remove bloco "Advogados:" com nomes em sequência (sem OAB)
-  plain = plain.replace(/Advogados?\s*:\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,10}/i, '');
+  // Remove bloco "Advogados:" ou "Destinatário(s):" com nomes em sequência (sem OAB)
+  plain = plain.replace(/(?:Advogados?|Destinat[áa]rio\s*\(?\s*s?\s*\)?)\s*:\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,10}/i, '');
   return plain.trim() || texto;
 };
 
@@ -618,9 +595,9 @@ export function PublicacaoConteudoDjen({
             </a>
           </div>
 
-          {/* Parte(s) – sempre visível na coluna esquerda (estilo DJEN) */}
+          {/* Destinatário(s) – exatamente como no portal DJEN */}
           <div>
-            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Parte(s)</p>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Destinatário(s)</p>
             {partesFinais.length > 0 ? (
               <ul className="space-y-1.5">
                 {partesFinais.map((parte, i) => (
