@@ -4982,16 +4982,28 @@ export type Database = {
           total_unicas: number
         }[]
       }
-      count_djen_publicacoes_unificadas: {
-        Args: {
-          p_apenas_nao_lidas?: boolean
-          p_coordenacao_id: string
-          p_fim?: string
-          p_inicio?: string
-          p_search_query?: string
-        }
-        Returns: number
-      }
+      count_djen_publicacoes_unificadas:
+        | {
+            Args: {
+              p_apenas_nao_lidas?: boolean
+              p_coordenacao_id: string
+              p_fim?: string
+              p_inicio?: string
+              p_search_query?: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_apenas_nao_lidas?: boolean
+              p_coordenacao_id: string
+              p_fim?: string
+              p_inicio?: string
+              p_monitoramento_id?: string
+              p_search_query?: string
+            }
+            Returns: number
+          }
       count_tarefas_urgentes_coordenacao: {
         Args: { p_coordenacao_id: string }
         Returns: number
@@ -5038,45 +5050,86 @@ export type Database = {
         }[]
       }
       get_dashboard_stats: { Args: never; Returns: Json }
-      get_djen_publicacoes_unificadas: {
-        Args: {
-          p_apenas_nao_lidas?: boolean
-          p_coordenacao_id: string
-          p_fim?: string
-          p_inicio?: string
-          p_limit?: number
-          p_offset?: number
-          p_search_query?: string
-        }
-        Returns: {
-          advogados_json: Json
-          conteudo: string
-          coordenacao_id: string
-          coordenacao_nome: string
-          created_at: string
-          data_disponibilizacao: string
-          data_publicacao: string
-          fonte: string
-          id: string
-          lida: boolean
-          meio: string
-          monitoramento_descricao: string
-          monitoramento_id: string
-          monitoramento_oab: string
-          monitoramento_termo: string
-          monitoramento_tipo: string
-          monitoramento_uf: string
-          orgao: string
-          partes_json: Json
-          polo_ativo: string
-          polo_passivo: string
-          processo_id: string
-          processo_numero: string
-          tipo_comunicacao: string
-          tipo_origem: string
-          tribunal: string
-        }[]
-      }
+      get_djen_publicacoes_unificadas:
+        | {
+            Args: {
+              p_apenas_nao_lidas?: boolean
+              p_coordenacao_id: string
+              p_fim?: string
+              p_inicio?: string
+              p_limit?: number
+              p_offset?: number
+              p_search_query?: string
+            }
+            Returns: {
+              advogados_json: Json
+              conteudo: string
+              coordenacao_id: string
+              coordenacao_nome: string
+              created_at: string
+              data_disponibilizacao: string
+              data_publicacao: string
+              fonte: string
+              id: string
+              lida: boolean
+              meio: string
+              monitoramento_descricao: string
+              monitoramento_id: string
+              monitoramento_oab: string
+              monitoramento_termo: string
+              monitoramento_tipo: string
+              monitoramento_uf: string
+              orgao: string
+              partes_json: Json
+              polo_ativo: string
+              polo_passivo: string
+              processo_id: string
+              processo_numero: string
+              tipo_comunicacao: string
+              tipo_origem: string
+              tribunal: string
+            }[]
+          }
+        | {
+            Args: {
+              p_apenas_nao_lidas?: boolean
+              p_coordenacao_id: string
+              p_fim?: string
+              p_inicio?: string
+              p_limit?: number
+              p_monitoramento_id?: string
+              p_offset?: number
+              p_search_query?: string
+            }
+            Returns: {
+              advogados_json: Json
+              conteudo: string
+              coordenacao_id: string
+              coordenacao_nome: string
+              created_at: string
+              data_disponibilizacao: string
+              data_publicacao: string
+              fonte: string
+              id: string
+              lida: boolean
+              meio: string
+              monitoramento_descricao: string
+              monitoramento_id: string
+              monitoramento_oab: string
+              monitoramento_termo: string
+              monitoramento_tipo: string
+              monitoramento_uf: string
+              orgao: string
+              partes_json: Json
+              polo_ativo: string
+              polo_passivo: string
+              processo_id: string
+              processo_numero: string
+              tipo_comunicacao: string
+              tipo_origem: string
+              tribunal: string
+            }[]
+          }
       get_equipe_tarefas_stats: {
         Args: { p_coordenacao_ids: string[] }
         Returns: {
