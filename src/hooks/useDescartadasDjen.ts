@@ -13,6 +13,11 @@ export interface PublicacaoDescartada {
   fonte: string | null;
   motivo_descarte: string;
   created_at: string;
+  orgao: string | null;
+  tipo_comunicacao: string | null;
+  meio: string | null;
+  partes_json: any[] | null;
+  advogados_json: any[] | null;
   monitoramento?: {
     id: string;
     tipo: string;
@@ -56,6 +61,11 @@ export function useDescartadasDjen(filtros: FiltrosDescartadas = {}) {
           fonte,
           motivo_descarte,
           created_at,
+          orgao,
+          tipo_comunicacao,
+          meio,
+          partes_json,
+          advogados_json,
           monitoramento:monitoramentos_djen(
             id,
             tipo,
@@ -132,6 +142,11 @@ export function useDescartadasDjen(filtros: FiltrosDescartadas = {}) {
           fonte: descartada.fonte,
           lida: false,
           importada_de_descartada: true,
+          orgao: descartada.orgao,
+          tipo_comunicacao: descartada.tipo_comunicacao,
+          meio: descartada.meio,
+          partes_json: descartada.partes_json,
+          advogados_json: descartada.advogados_json,
         });
 
       if (insertError) throw insertError;

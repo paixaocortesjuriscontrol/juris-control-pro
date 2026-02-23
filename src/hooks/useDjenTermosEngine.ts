@@ -1412,17 +1412,36 @@ async function processarTermo(
       const dataDisp = (pub.dataDisponibilizacao || pub.dataDJe || diaYmd).slice(0, 10);
       const dataPub = calcularDataPublicacaoYmd(dataDisp);
       const hash = gerarHash(conteudo + (pub.motivo_descarte || ''), dataDisp);
+
+      // Extrair metadados estruturados para descartadas também
+      const orgaoEstruturado = pub?.nomeOrgao ?? pub?.nome_orgao ?? pub?.orgao ?? pub?.nomeOrgaoJulgador ?? null;
+      const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
+      const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
+      const destinatarios = extractDestinatariosFromMeta(pub);
+      const advogadosApi = extractAdvogadosFromApiMeta(pub);
+      const { advogados: advogadosTexto } = extrairPartesAdvogadosDoConteudo(conteudo);
+      const advogadosMerged = [...advogadosApi];
+      const advKeys = new Set(advogadosApi.map(a => a.toUpperCase()));
+      for (const at of advogadosTexto) {
+        if (!advKeys.has(at.toUpperCase())) advogadosMerged.push(at);
+      }
+
       return {
         monitoramento_id: mon.id,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.processo || null,
-        conteudo: conteudo.slice(0, 10000), // Limitar tamanho
+        conteudo: conteudo.slice(0, 10000),
         data_publicacao: `${dataPub}T12:00:00.000Z`,
         data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
         tribunal: getSiglaTribunal(pub),
         fonte: pub.tribunal || pub.orgao || pub.siglaTribunal || 'DJEN',
         motivo_descarte: pub.motivo_descarte || 'validacao_falhou',
         lida: false,
+        orgao: orgaoEstruturado ? String(orgaoEstruturado).trim() : null,
+        tipo_comunicacao: tipoComunicacaoEstruturado ? String(tipoComunicacaoEstruturado).trim() : null,
+        meio: meioEstruturado ? String(meioEstruturado).trim() : null,
+        partes_json: destinatarios.length > 0 ? JSON.stringify(destinatarios) : null,
+        advogados_json: advogadosMerged.length > 0 ? JSON.stringify(advogadosMerged) : null,
       };
     });
 

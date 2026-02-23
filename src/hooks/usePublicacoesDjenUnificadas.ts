@@ -345,6 +345,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               motivo_descarte,
               lida,
               created_at,
+              orgao,
+              tipo_comunicacao,
+              meio,
+              partes_json,
+              advogados_json,
               monitoramento:monitoramentos_djen!inner(
                 id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
                 coordenacao:coordenacoes(id, nome)
@@ -382,10 +387,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               polo_ativo: null,
               polo_passivo: null,
               tribunal: pub.tribunal,
-              orgao: null,
-              tipo_comunicacao: null,
-              meio: null,
-              advogados_json: null,
+              orgao: pub.orgao || null,
+              tipo_comunicacao: pub.tipo_comunicacao || null,
+              meio: pub.meio || null,
+              advogados_json: pub.advogados_json ? (typeof pub.advogados_json === 'string' ? JSON.parse(pub.advogados_json) : pub.advogados_json) : null,
+              partes_json: pub.partes_json ? (typeof pub.partes_json === 'string' ? JSON.parse(pub.partes_json) : pub.partes_json) : null,
               motivo_descarte: pub.motivo_descarte,
             });
           });
@@ -644,6 +650,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             motivo_descarte,
             lida,
             created_at,
+            orgao,
+            tipo_comunicacao,
+            meio,
+            partes_json,
+            advogados_json,
             monitoramento:monitoramentos_djen!inner(
               id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
               coordenacao:coordenacoes(id, nome)
@@ -702,10 +713,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             polo_ativo: null,
             polo_passivo: null,
             tribunal: pub.tribunal,
-            orgao: null,
-            tipo_comunicacao: null,
-            meio: null,
-            advogados_json: null,
+            orgao: pub.orgao || null,
+            tipo_comunicacao: pub.tipo_comunicacao || null,
+            meio: pub.meio || null,
+            advogados_json: pub.advogados_json ? (typeof pub.advogados_json === 'string' ? JSON.parse(pub.advogados_json) : pub.advogados_json) : null,
+            partes_json: pub.partes_json ? (typeof pub.partes_json === 'string' ? JSON.parse(pub.partes_json) : pub.partes_json) : null,
             motivo_descarte: pub.motivo_descarte,
           });
         });
