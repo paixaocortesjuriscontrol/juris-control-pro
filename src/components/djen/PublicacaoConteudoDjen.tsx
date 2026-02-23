@@ -595,9 +595,9 @@ export function PublicacaoConteudoDjen({
             </a>
           </div>
 
-          {/* Destinatário(s) – exatamente como no portal DJEN */}
+          {/* Parte(s) – exatamente como no portal DJEN */}
           <div>
-            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Destinatário(s)</p>
+            <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Parte(s)</p>
             {partesFinais.length > 0 ? (
               <ul className="space-y-1.5">
                 {partesFinais.map((parte, i) => (

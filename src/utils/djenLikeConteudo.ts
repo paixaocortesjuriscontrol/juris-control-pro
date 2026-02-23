@@ -475,7 +475,7 @@ export function buildDjenLikeConteudo(params: {
   if (!jaTemDestinatario) {
     const destsMeta = extractDestinatariosFromMeta(pub);
     if (destsMeta.length > 0) {
-      sections.push('Destinatário(s):\n' + destsMeta.join('\n'));
+      sections.push('Parte(s):\n' + destsMeta.join('\n'));
     }
   }
 
