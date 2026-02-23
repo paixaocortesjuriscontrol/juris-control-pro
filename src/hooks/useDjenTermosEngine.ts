@@ -89,6 +89,7 @@ interface Monitoramento {
   tribunais?: string[];
   descricao?: string | null;
   condicao_concomitante?: string | null;
+  coordenacao_id?: string | null;
 }
 
 // ============================================================================
@@ -798,8 +799,8 @@ async function processarTermo(
   runtimeConfig: RuntimeConfig,
   onRateLimit?: (waitMs: number) => void,
   onTribunalProgress?: (tribunalIdx: number, totalTribunais: number) => void
-): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number }> {
-  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
+): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number; pubsNovasResumo: Array<{ processo_numero: string | null; conteudo: string | null }> }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0, pubsNovasResumo: [] };
 
   const tipo = mon.tipo === 'parte' ? 'parte' : ((mon.tipo as string) === 'nome' ? 'palavra-chave' : mon.tipo);
   const isRateLimitError = (msg?: string) =>
@@ -1060,7 +1061,7 @@ async function processarTermo(
   }
 
   if (signal.aborted || resultados.length === 0) {
-    return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0 };
+    return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0, pubsNovasResumo: [] };
   }
 
   if (isAdvogadoComOab) {
@@ -1354,6 +1355,10 @@ async function processarTermo(
     duplicadas: duplicadasInternas + duplicadasBanco,
     descartadas: pubsDescartadas.length,
     descartadasTribunal,
+    pubsNovasResumo: novas.map(p => ({
+      processo_numero: p.numeroProcesso || p.processo || null,
+      conteudo: (p.conteudo || p.teor || p.texto || '').replace(/<[^>]*>/g, ' ').substring(0, 200).trim(),
+    })),
   };
 }
 
@@ -1399,7 +1404,7 @@ async function runEngine(
   });
   let query = supabase
     .from('monitoramentos_djen')
-    .select('*')
+    .select('*, coordenacoes(id, nome)')
     .eq('ativo', true);
   if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
   if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
@@ -1458,6 +1463,15 @@ async function runEngine(
   let descartadas = checkpoint?.descartadas ?? 0;
   let descartadasTribunal = 0;
   const startTime = checkpoint?.tempoInicio ?? tempoInicio;
+
+  // Acumular publicações novas por coordenação para envio de resumo (evita re-query com RLS)
+  const resumoPorCoordenacao = new Map<string, {
+    coordenacao_id: string;
+    coordenacao_nome: string;
+    total_encontrados: number;
+    total_verificados: number;
+    exemplos: Array<{ processo_numero: string; descricao: string }>;
+  }>();
 
   const runtimeConfig = getRuntimeConfig(turbo);
   singletonState.turboDisabled = false;
@@ -1662,6 +1676,31 @@ async function runEngine(
         duplicadas += result.duplicadas;
         descartadas += result.descartadas;
         descartadasTribunal += result.descartadasTribunal;
+
+        // Acumular publicações novas por coordenação para resumo
+        if (result.pubsNovasResumo.length > 0 && mon.coordenacao_id) {
+          const coordId = mon.coordenacao_id;
+          if (!resumoPorCoordenacao.has(coordId)) {
+            // Buscar nome da coordenação do join
+            const coordNome = (mon as any).coordenacoes?.nome || 'Sem nome';
+            resumoPorCoordenacao.set(coordId, {
+              coordenacao_id: coordId,
+              coordenacao_nome: coordNome,
+              total_encontrados: 0,
+              total_verificados: 0,
+              exemplos: [],
+            });
+          }
+          const entry = resumoPorCoordenacao.get(coordId)!;
+          entry.total_encontrados += result.pubsNovasResumo.length;
+          entry.total_verificados += result.pubsNovasResumo.length;
+          for (const pub of result.pubsNovasResumo) {
+            entry.exemplos.push({
+              processo_numero: pub.processo_numero || 'N/A',
+              descricao: pub.conteudo || 'Publicação DJEN',
+            });
+          }
+        }
         
         // Após processar o termo, atualizar para o peso completo
         globalCurrentAtual = progressoBase + pesoTermoAtual;
@@ -1832,8 +1871,8 @@ async function runEngine(
       }, { force: true });
 
       // Enviar resumo automático por coordenação ao concluir
-      // Sempre envia ao concluir (mesmo que novas=0, pode haver publicações do período)
-      await enviarResumoDjenPorCoordenacao(dataInicioYmd, dataFimYmd);
+      // Usa dados acumulados durante a execução (evita re-query com RLS bloqueante)
+      await enviarResumoDjenPorCoordenacao(resumoPorCoordenacao);
     }
 
     // Finalizar execução
@@ -1894,124 +1933,28 @@ async function runEngine(
 // ============================================================================
 
 /**
- * Ao finalizar a execução DJEN Termos, busca as publicações salvas no período
- * e envia o resumo por coordenação via edge function enviar-resumo-monitoramento.
+ * Ao finalizar a execução DJEN Termos, envia o resumo por coordenação via edge function.
+ * Usa dados acumulados durante a execução (não re-consulta o banco, evitando problemas de RLS).
  */
 async function enviarResumoDjenPorCoordenacao(
-  dataInicioYmd: string,
-  dataFimYmd: string,
+  resumoPorCoordenacao: Map<string, {
+    coordenacao_id: string;
+    coordenacao_nome: string;
+    total_encontrados: number;
+    total_verificados: number;
+    exemplos: Array<{ processo_numero: string; descricao: string }>;
+  }>
 ): Promise<void> {
   try {
-    // Filtra por data_disponibilizacao (data do diário) — não por created_at (data do insert)
-    // Isso garante que publicações encontradas em re-execuções também sejam incluídas
-
-    // Query 1: buscar publicações do período com monitoramento_id
-    const { data: publicacoes, error: errPub } = await supabase
-      .from('publicacoes_djen')
-      .select('id, processo_numero, conteudo, monitoramento_id')
-      .gte('data_disponibilizacao', dataInicioYmd)
-      .lte('data_disponibilizacao', dataFimYmd);
-
-    if (errPub) {
-      console.warn('[DJEN] Erro ao buscar publicações para resumo:', errPub.message);
-      return;
-    }
-
-    if (!publicacoes || publicacoes.length === 0) {
-      console.log('[DJEN] Nenhuma publicação nova encontrada para enviar resumo.');
-      return;
-    }
-
-    // Extrair IDs únicos de monitoramento
-    const monitoramentoIds = [...new Set(
-      publicacoes.map(p => (p as any).monitoramento_id).filter(Boolean)
-    )] as string[];
-
-    if (monitoramentoIds.length === 0) {
-      console.log('[DJEN] Publicações sem monitoramento_id — resumo não enviado.');
-      return;
-    }
-
-    // Query 2: buscar monitoramentos com coordenação vinculada
-    const { data: monitoramentos, error: errMon } = await supabase
-      .from('monitoramentos_djen')
-      .select('id, coordenacao_id, coordenacoes(id, nome)')
-      .in('id', monitoramentoIds);
-
-    if (errMon) {
-      console.warn('[DJEN] Erro ao buscar monitoramentos para resumo:', errMon.message);
-      return;
-    }
-
-    // Montar mapa monitoramento_id → { coordenacao_id, coordenacao_nome }
-    const monMap = new Map<string, { coordenacao_id: string; coordenacao_nome: string }>();
-    for (const m of monitoramentos || []) {
-      if (m.coordenacao_id) {
-        monMap.set(m.id, {
-          coordenacao_id: m.coordenacao_id,
-          coordenacao_nome: (m as any).coordenacoes?.nome || 'Sem nome',
-        });
-      }
-    }
-
-    // Agrupar publicações por coordenação (cruzamento em memória)
-    const porCoordenacao = new Map<string, {
-      coordenacao_id: string;
-      coordenacao_nome: string;
-      total_encontrados: number;
-      total_verificados: number;
-      exemplos: Array<{ processo_numero: string; descricao: string }>;
-    }>();
-
-    for (const pub of publicacoes) {
-      const monId = (pub as any).monitoramento_id;
-      const coord = monMap.get(monId);
-      if (!coord) continue;
-
-      const { coordenacao_id, coordenacao_nome } = coord;
-
-      if (!porCoordenacao.has(coordenacao_id)) {
-        porCoordenacao.set(coordenacao_id, {
-          coordenacao_id,
-          coordenacao_nome,
-          total_encontrados: 0,
-          total_verificados: 0,
-          exemplos: [],
-        });
-      }
-
-      const entry = porCoordenacao.get(coordenacao_id)!;
-      entry.total_encontrados++;
-      entry.total_verificados++;
-
-      // Extrair número do processo
-      let numeroProcesso = pub.processo_numero;
-      if (!numeroProcesso && pub.conteudo) {
-        const match = pub.conteudo.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
-        numeroProcesso = match ? match[0] : null;
-      }
-
-      // Trecho relevante como descrição
-      const descricao = pub.conteudo
-        ? pub.conteudo.replace(/<[^>]*>/g, ' ').substring(0, 200).trim()
-        : 'Publicação DJEN';
-
-      entry.exemplos.push({
-        processo_numero: numeroProcesso || 'N/A',
-        descricao: descricao + (descricao.length >= 200 ? '...' : ''),
-      });
-    }
-
-    const resumos = Array.from(porCoordenacao.values()).filter(r => r.total_encontrados > 0);
+    const resumos = Array.from(resumoPorCoordenacao.values()).filter(r => r.total_encontrados > 0);
     if (resumos.length === 0) {
-      console.log('[DJEN] Nenhuma publicação vinculada a coordenação — resumo não enviado.');
+      console.log('[DJEN] Nenhuma publicação nova vinculada a coordenação — resumo não enviado.');
       return;
     }
 
-    console.log(`[DJEN] Enviando resumo automático: ${resumos.length} coordenação(ões), ${publicacoes.length} publicação(ões)`);
+    console.log(`[DJEN] Enviando resumo automático: ${resumos.length} coordenação(ões), ${resumos.reduce((s, r) => s + r.total_encontrados, 0)} publicação(ões)`);
     console.log('[DJEN] Resumos por coordenação:', resumos.map(r => `${r.coordenacao_nome}: ${r.total_encontrados} publicações`).join(', '));
 
-    // Usar fetch direto para garantir envio mesmo se o token do usuário tiver expirado
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -2025,7 +1968,7 @@ async function enviarResumoDjenPorCoordenacao(
         },
         body: JSON.stringify({
           tipo_monitoramento: 'djen',
-          ignorar_horario: true, // execução automática — ignora janela de horário
+          ignorar_horario: true,
           resumos_por_coordenacao: resumos,
         }),
       });
