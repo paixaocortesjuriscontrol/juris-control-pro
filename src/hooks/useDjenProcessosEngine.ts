@@ -13,8 +13,69 @@
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 import { toast } from "sonner";
-import { extractDestinatariosFromMeta, extractAdvogadosFromApiMeta } from "@/utils/djenLikeConteudo";
-import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+import { extractDestinatariosFromMeta, extractAdvogadosFromApiMeta, buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+
+// ============================================================================
+// EXTRAÇÃO DE ADVOGADOS VIA REGEX (fallback quando API não retorna metadados)
+// Mesma lógica do DJEN Termos para garantir paridade
+// ============================================================================
+function extrairAdvogadosDoTexto(texto: string | null): string[] {
+  if (!texto) return [];
+  const plainText = texto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const advogados: string[] = [];
+  const advSet = new Set<string>();
+
+  // Formato 1: "NOME - OAB UF-12345" ou "NOME (OAB 12345/UF)"
+  const advPatterns = [
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-\s*OAB[:\s]*([A-Z]{2})[:\s-]?0?(\d{3,10})/gi,
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*\(OAB[:\s]*0?(\d{3,10})\s*\/?\s*([A-Z]{2})(?:-[A-Z])?\)/gi,
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-\s*([A-Z]{2})0?(\d{3,10})/gi,
+  ];
+
+  for (const pattern of advPatterns) {
+    const matches = plainText.matchAll(pattern);
+    for (const match of matches) {
+      let nome: string, numero: string, uf: string;
+      if (pattern.source.includes('\\(OAB')) {
+        nome = (match[1] || '').trim();
+        numero = (match[2] || '').replace(/^0+/, '');
+        uf = (match[3] || '').toUpperCase();
+      } else {
+        nome = (match[1] || '').trim();
+        uf = (match[2] || '').toUpperCase();
+        numero = (match[3] || '').replace(/^0+/, '');
+      }
+      if (!numero || !uf || numero.length < 3) continue;
+      const key = `${numero}-${uf}`;
+      if (advSet.has(key)) continue;
+      const tokens = nome.split(' ').filter(t => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(t) && t.length >= 2);
+      if (tokens.length < 2) continue;
+      advSet.add(key);
+      advogados.push(`${nome} - OAB ${uf}-${numero}`);
+    }
+  }
+
+  // Formato 2: "ADVOGADO: NOME" ou "ADV.: NOME" (sem OAB)
+  const advNomePatterns = [
+    /(?:ADVOGADO|ADV\.?)\s*:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.]+?)(?=\s*(?:Embarg|Reclamant|Reclamad|Requerent|Requerid|Autor|Réu|Agravant|Agravad|Apelant|Apelad|Execu|ADVOGADO|ADV[.:]|OAB|\d{7,}|$))/gi,
+  ];
+  for (const pattern of advNomePatterns) {
+    const matches = plainText.matchAll(pattern);
+    for (const match of matches) {
+      const nome = (match[1] || '').trim().replace(/\s+$/, '');
+      if (!nome || nome.length < 5) continue;
+      if (/\b(BANCO|S\.A\.|S\/A|LTDA|EIRELI|SINDICATO|MUNICIPIO|ESTADO|UNIÃO|INSTITUTO|FUNDAÇÃO|EMPRESA|COMPANHIA)\b/i.test(nome)) continue;
+      const tokens = nome.split(' ').filter(t => /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(t) && t.length >= 2);
+      if (tokens.length < 2) continue;
+      const key = nome.toUpperCase();
+      if (advSet.has(key)) continue;
+      advSet.add(key);
+      advogados.push(nome);
+    }
+  }
+
+  return advogados;
+}
 
 // ============================================================================
 // TIPOS
@@ -477,15 +538,13 @@ async function runEngine(
           // Extrair metadados estruturados da API (igual ao Termos engine)
           const orgaoEstruturado = pub?.nomeOrgao ?? pub?.nome_orgao ?? pub?.orgao ?? pub?.nomeOrgaoJulgador ?? null;
           const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
-          const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
+          // meio: preferir "meiocompleto" (texto legível) antes do campo "meio" (que pode ser só "D")
+          const meioEstruturado = pub?.meiocompleto ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo
+            ?? (pub?.meio && String(pub.meio).length > 3 ? pub.meio : null);
 
           // Destinatários da API → partes_json
           const destinatarios = extractDestinatariosFromMeta(pub);
           const partesJsonPayload = destinatarios.length > 0 ? JSON.stringify(destinatarios) : null;
-
-          // Advogados da API → advogados_json
-          const advogadosApi = extractAdvogadosFromApiMeta(pub);
-          const advogadosJsonPayload = advogadosApi.length > 0 ? JSON.stringify(advogadosApi) : null;
 
           // Formatar conteúdo no padrão DJEN (com header estruturado)
           const diaYmd = String(dataDisponibilizacao).slice(0, 10);
@@ -494,6 +553,21 @@ async function runEngine(
             diaYmd,
             conteudoOriginal: conteudo,
           });
+
+          // Advogados: PRIMEIRO da API (nested em destinatarios, advogados, representantes)
+          // DEPOIS complementar com regex do texto (OAB patterns) - igual ao Termos engine
+          const advogadosApi = extractAdvogadosFromApiMeta(pub);
+          const advogadosTexto = extrairAdvogadosDoTexto(conteudoFormatado);
+          
+          // Merge: API primeiro, depois texto (sem duplicatas)
+          const advogadosMerged = [...advogadosApi];
+          const advKeys = new Set(advogadosApi.map(a => a.toUpperCase()));
+          for (const at of advogadosTexto) {
+            if (!advKeys.has(at.toUpperCase())) {
+              advogadosMerged.push(at);
+            }
+          }
+          const advogadosJsonPayload = advogadosMerged.length > 0 ? JSON.stringify(advogadosMerged) : null;
 
           const { error: insertError } = await supabase
             .from('publicacoes_djen_processos')
