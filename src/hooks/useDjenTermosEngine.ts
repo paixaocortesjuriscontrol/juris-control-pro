@@ -1116,13 +1116,7 @@ async function processarTermo(
       return false;
     }
 
-    // 2. Condição concomitante (AND)
-    if (!condicaoConcomitanteAtendida(conteudo, mon.condicao_concomitante)) {
-      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
-      return false;
-    }
-
-    // 3. Verificar termo/OAB - SEMPRE VALIDAR
+    // 2. Verificar termo/OAB - SEMPRE VALIDAR (antes da condição concomitante)
     // CRÍTICO: A API PJE Comunica NÃO filtra corretamente por OAB/advogado - retorna publicações
     // de advogados diferentes. DEVEMOS validar SEMPRE que o termo/OAB aparece no conteúdo.
     const termoTemCondicaoAnd = mon.termo_busca && mon.termo_busca.includes('+');
@@ -1191,6 +1185,12 @@ async function processarTermo(
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }
+    }
+
+    // 3. Condição concomitante (AND) — verificar DEPOIS do termo para evitar descarte prematuro
+    if (!condicaoConcomitanteAtendida(conteudo, mon.condicao_concomitante)) {
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+      return false;
     }
 
     return true;
