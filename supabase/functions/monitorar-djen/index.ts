@@ -364,7 +364,8 @@ async function processPublicationFromIndex(
   monitoramento: Monitoramento,
   stats: { novas: number; descartadas: number; duplicatas: number },
   tribunal: string | null,
-  dataAtual: string
+  dataAtual: string,
+  allMonitoramentos?: Monitoramento[]
 ) {
   const conteudo = String(pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
   const hashConteudo = generateHash(conteudo + (pub.data_disponibilizacao || pub.data_publicacao || pub.data || ''));
@@ -427,25 +428,63 @@ async function processPublicationFromIndex(
   };
 
   if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante)) {
-    await supabase.from('publicacoes_djen_descartadas').insert({
-      monitoramento_id: monitoramento.id,
-      hash_conteudo: hashConteudo,
-      conteudo,
-      data_publicacao: dataPublicacao,
-      data_disponibilizacao: dataDisponibilizacao,
-      processo_numero: processoNumero,
-      tribunal: tribunal || null,
-      motivo_descarte: 'condicao_concomitante',
-      ...metadataDescartada,
-    });
+    // RESGATE INLINE: tentar salvar sob outro monitoramento sem condição concomitante
+    let rescuedId: string | null = null;
+    if (allMonitoramentos && allMonitoramentos.length > 0) {
+      const conteudoNorm = normalizar(conteudo);
+      for (const cand of allMonitoramentos) {
+        if (cand.id === monitoramento.id) continue;
+        if (cand.condicao_concomitante?.trim()) continue;
+        
+        const termoPuro = extrairPalavraChavePura(cand.termo_busca);
+        const termosOrPuros = (cand.termos_or || []).map((t: string) => extrairPalavraChavePura(t.trim())).filter(Boolean);
+        const todosNomes = [termoPuro, ...termosOrPuros].filter(Boolean);
+        
+        const nomeMatch = todosNomes.some(nome => {
+          const nomeNorm = normalizar(nome);
+          return nomeNorm ? conteudoNorm.includes(nomeNorm) : false;
+        });
+        
+        let oabMatch = false;
+        if (!nomeMatch && cand.oab) {
+          const oabDigits = String(cand.oab).replace(/\D/g, '');
+          if (oabDigits.length >= 3 && conteudo.includes(oabDigits)) oabMatch = true;
+        }
+        
+        if (!nomeMatch && !oabMatch) continue;
+        
+        const excluido = shouldExclude(conteudo, cand.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
+        if (excluido) continue;
+        
+        rescuedId = cand.id;
+        console.log(`Resgate inline: processo=${processoNumero}, de=${monitoramento.termo_busca} → para=${cand.termo_busca}`);
+        break;
+      }
+    }
+    
+    if (!rescuedId) {
+      await supabase.from('publicacoes_djen_descartadas').insert({
+        monitoramento_id: monitoramento.id,
+        hash_conteudo: hashConteudo,
+        conteudo,
+        data_publicacao: dataPublicacao,
+        data_disponibilizacao: dataDisponibilizacao,
+        processo_numero: processoNumero,
+        tribunal: tribunal || null,
+        motivo_descarte: 'condicao_concomitante',
+        ...metadataDescartada,
+      });
 
-    await supabase.from('publicacoes_djen_global_hash').insert({
-      hash_global: globalHash,
-      primeiro_monitoramento_id: monitoramento.id,
-    });
+      await supabase.from('publicacoes_djen_global_hash').insert({
+        hash_global: globalHash,
+        primeiro_monitoramento_id: monitoramento.id,
+      });
 
-    stats.descartadas++;
-    return;
+      stats.descartadas++;
+      return;
+    }
+    
+    monitoramento = { ...monitoramento, id: rescuedId };
   }
 
   const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
@@ -515,7 +554,8 @@ async function processPublicationFromIndex(
 async function processMonitoramentoIndexed(
   supabase: any,
   monitoramento: Monitoramento,
-  diarioYmd: string
+  diarioYmd: string,
+  allMonitoramentos?: Monitoramento[]
 ): Promise<{ novas: number; descartadas: number; duplicatas: number }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const dataAtual = formatLocalDate(new Date());
@@ -561,7 +601,7 @@ async function processMonitoramentoIndexed(
     }
 
     for (const pub of candidatos.values()) {
-      await processPublicationFromIndex(supabase, pub, monitoramento, stats, tribunal || pub.tribunal, dataAtual);
+      await processPublicationFromIndex(supabase, pub, monitoramento, stats, tribunal || pub.tribunal, dataAtual, allMonitoramentos);
     }
   }
 
@@ -606,7 +646,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     for (const mon of (monitoramentos || [])) {
       try {
-        const result = await processMonitoramentoIndexed(supabase, mon, diarioYmd);
+        const result = await processMonitoramentoIndexed(supabase, mon, diarioYmd, monitoramentos);
         totalNovas += result.novas;
         totalDescartadas += result.descartadas;
         totalDuplicatas += result.duplicatas;

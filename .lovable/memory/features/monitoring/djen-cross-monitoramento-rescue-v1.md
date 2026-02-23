@@ -1,25 +1,26 @@
 # Memory: features/monitoring/djen-cross-monitoramento-rescue-v1
 Updated: 23/02/2026
 
-## Resgate Cross-Monitoramento
+## Resgate Cross-Monitoramento (v2 - Inline)
 
-Quando dois monitoramentos buscam o mesmo advogado (ex: "OSMAR MENDES" com condição concomitante e "OSMAR MENDES PAIXAO CORTES" sem condição), a API pode retornar resultados diferentes devido a rate limiting ou timing. Publicações encontradas por um monitoramento e descartadas por `condicao_concomitante` podem ser válidas para outro monitoramento sem condição.
+Quando dois monitoramentos buscam o mesmo advogado (ex: "OSMAR MENDES" com condição concomitante e "OSMAR MENDES PAIXAO CORTES" sem condição), a API pode retornar resultados diferentes. Publicações encontradas por um monitoramento e descartadas por `condicao_concomitante` podem ser válidas para outro monitoramento sem condição.
 
-### Lógica:
-1. Após processar todos os termos de um dia, buscar descartadas com `motivo_descarte = 'condicao_concomitante'`
-2. Para cada descartada, verificar se algum monitoramento candidato (tipo advogado, SEM condição concomitante) contém o advogado no texto, metadados ou OAB
-3. Aplicar exclusões do candidato antes de resgatar
-4. Inserir como publicação válida via upsert (ignoreDuplicates) com flag `importada_de_descartada: true`
+### Lógica INLINE (v2):
+O resgate agora acontece **dentro** de `processarTermo` / `processPublicationFromIndex`, no momento exato em que a condição concomitante falha:
 
-### Campos obrigatórios no payload de resgate:
-- `data_publicacao`: calculada via `calcularDataPublicacaoYmd(dataDisp)` — sua ausência causava falhas silenciosas
-- `importada_de_descartada: true`: flag para auditoria
-- Error handling explícito no upsert com logging detalhado
+1. Quando `condicaoConcomitanteAtendida()` retorna false, percorrer `allTermos` / `allMonitoramentos`
+2. Procurar candidato: sem `condicao_concomitante`, cujo nome/OAB aparece no conteúdo
+3. Verificar exclusões do candidato
+4. Se encontrou candidato, substituir `monitoramento_id` e continuar o fluxo normal de inserção
+5. Se não encontrou, descartar normalmente
 
-### Matching expandido:
-- Nome do advogado no conteúdo (frase exata)
-- Nome nos advogados_json (metadados estruturados)
-- OAB do candidato no conteúdo ou advogados_json
+### Vantagens sobre v1 (pós-processamento):
+- Sem queries extras ao banco (descartadas não precisam ser re-lidas)
+- Sem problemas de formato de data/timezone
+- Imediato: a publicação é salva no momento correto
+- Simples: ~30 linhas em vez de ~150
 
-### Arquivo alterado:
-- `src/hooks/useDjenTermosEngine.ts` — bloco de resgate adicionado após o loop de termos do dia
+### Arquivos alterados:
+- `src/hooks/useDjenTermosEngine.ts` — resgate inline no filtro de validação
+- `supabase/functions/monitorar-djen/processing.ts` — resgate inline em `processPublicationFromIndex`
+- `supabase/functions/monitorar-djen/index.ts` — mesma lógica na cópia local
