@@ -221,6 +221,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
       const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
+      let rpcFailed = false;
       if (canUseRpc) {
         console.debug('[DJEN] usando RPC deduplicada', {
           coordenacaoId: filtros.coordenacaoId,
@@ -245,9 +246,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
 
         if (countError) {
-          console.warn('Erro ao contar publicações unificadas (RPC):', countError);
+          console.warn('Erro ao contar publicações unificadas (RPC), usando fallback direto:', countError);
+          rpcFailed = true;
         }
 
+        if (!rpcFailed) {
         const expectedTotal = typeof countData === 'number' ? countData : 0;
 
         // 2) buscar páginas até completar o total (ou esgotar)
@@ -414,7 +417,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         const deduped = dedupePublicacoesDjen(merged);
         return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      }
+        } // end if (!rpcFailed)
+      } // end if (canUseRpc)
+
+      // FALLBACK: queries diretas (usado quando RPC falha ou não há coordenação selecionada)
 
       // Buscar publicações de TERMOS (monitoramentos_djen)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
