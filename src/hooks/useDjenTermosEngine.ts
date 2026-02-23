@@ -842,7 +842,12 @@ async function processarTermo(
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else if (mon.tipo === 'advogado' && !mon.oab) {
     // Advogado SEM OAB: buscar pelo nome principal + cada nome alternativo (termos_or)
-    // usando nomeAdvogado para busca cross-UF mais precisa
+    // CRÍTICO: Usar tipo 'palavra-chave' com texto ao invés de nomeAdvogado!
+    // O parâmetro nomeAdvogado retorna APENAS publicações onde o advogado é DESTINATÁRIO direto.
+    // No TST, o advogado geralmente NÃO é destinatário (a parte é), mas aparece no CORPO do texto.
+    // Busca por texto captura todas as menções no corpo da publicação.
+    baseParams.tipo = 'palavra-chave';
+    
     const termoPuro = extrairPalavraChavePura(mon.termo_busca);
     const nomesParaBuscar = new Set<string>();
     if (termoPuro) nomesParaBuscar.add(termoPuro);
@@ -855,10 +860,9 @@ async function processarTermo(
       }
     }
     
-    // Usar nomeAdvogado para buscas cross-UF (conforme djen-advogado-uf-todas-search-v1)
-    // Cada nome será buscado individualmente via loop de variantes
+    // Cada nome será buscado como palavra-chave (texto) individualmente
     variantesParaBuscar = Array.from(nomesParaBuscar);
-    // Flag para indicar que as variantes são nomes de advogado (usar nomeAdvogado ao invés de palavraChave)
+    // Flag para progresso UI
     baseParams._advogadoSemOabNomes = true;
   } else {
     // palavra-chave: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
@@ -935,10 +939,10 @@ async function processarTermo(
                 tipo: baseParams.tipo,
                 oab: baseParams.oab,
                 uf: uf,
-                // Para advogado sem OAB: usar nomeAdvogado (cross-UF) ao invés de palavraChave
-                nomeAdvogado: isAdvSemOabNomes ? (variante || undefined) : baseParams.nomeAdvogado,
+                // Para advogado sem OAB: tipo já é 'palavra-chave', variante vai como palavraChave
+                nomeAdvogado: isAdvSemOabNomes ? undefined : baseParams.nomeAdvogado,
                 nomeParte: baseParams.nomeParte,
-                palavraChave: isAdvSemOabNomes ? undefined : (variante || undefined),
+                palavraChave: variante || undefined,
                 numeroProcesso: baseParams.numeroProcesso,
                 siglaTribunal: isAdvogadoComOab
                   ? (advogadoForcarTribunalNaBusca ? trib : undefined)
