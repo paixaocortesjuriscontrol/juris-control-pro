@@ -125,7 +125,10 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coorden
   const [descricao, setDescricao] = useState(monitoramento?.descricao || '');
   const [exclusoes, setExclusoes] = useState<string[]>(monitoramento?.exclusoes || []);
   const [novaExclusao, setNovaExclusao] = useState('');
-  const [condicaoConcomitante, setCondicaoConcomitante] = useState(monitoramento?.condicao_concomitante || '');
+  const [condicoesConcomitantes, setCondicoesConcomitantes] = useState<string[]>(
+    monitoramento?.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
+  );
+  const [novaCondicao, setNovaCondicao] = useState('');
   const [termosOr, setTermosOr] = useState<string[]>(monitoramento?.termos_or || []);
   const [novoTermoOr, setNovoTermoOr] = useState('');
   const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(monitoramento?.tribunais || []);
@@ -138,7 +141,10 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coorden
       setCoordenacaoId(monitoramento.coordenacao_id || '');
       setDescricao(monitoramento.descricao || '');
       setExclusoes(monitoramento.exclusoes || []);
-      setCondicaoConcomitante(monitoramento.condicao_concomitante || '');
+      setCondicoesConcomitantes(
+        monitoramento.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
+      );
+      setNovaCondicao('');
       setTermosOr(monitoramento.termos_or || []);
       
       // Expandir IDs sintéticos ao carregar
@@ -176,7 +182,8 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coorden
       setCoordenacaoId('');
       setDescricao('');
       setExclusoes([]);
-      setCondicaoConcomitante('');
+      setCondicoesConcomitantes([]);
+      setNovaCondicao('');
       setTermosOr([]);
       setTribunaisSelecionados([]);
       setSelectedUfs([]);
@@ -220,6 +227,18 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coorden
 
   const handleRemoveTermoOr = (termo: string) => {
     setTermosOr(termosOr.filter(t => t !== termo));
+  };
+
+  const handleAddCondicao = () => {
+    const val = novaCondicao.trim().toUpperCase();
+    if (val && !condicoesConcomitantes.includes(val)) {
+      setCondicoesConcomitantes([...condicoesConcomitantes, val]);
+      setNovaCondicao('');
+    }
+  };
+
+  const handleRemoveCondicao = (termo: string) => {
+    setCondicoesConcomitantes(condicoesConcomitantes.filter(c => c !== termo));
   };
 
   const handleToggleTribunal = (tribunalId: string) => {
@@ -298,7 +317,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coorden
       coordenacao_id: coordenacaoId || undefined,
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
-      condicao_concomitante: condicaoConcomitante || undefined,
+      condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
       termos_or: termosOr.length > 0 ? termosOr : undefined,
       // IMPORTANT: ao limpar seleção, precisamos atualizar o campo no DB (undefined não atualiza)
       tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : null,
@@ -532,24 +551,52 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coorden
               {/* Condição concomitante */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="condicao">Condição Concomitante (AND)</Label>
+                  <Label>Condição Concomitante (AND)</Label>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
                         <Info className="h-4 w-4 text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p>Termo adicional que DEVE aparecer junto com o termo de busca. Ex: OAB 15553 + BRADESCO (ambos devem estar na publicação)</p>
+                        <p>Cada condição é um critério OR entre si. A publicação deve conter o termo principal E pelo menos uma das condições. Para AND dentro de uma condição, use vírgula (ex: "BRADESCO, SERVIÇO DE APOIO").</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <Input
-                  id="condicao"
-                  value={condicaoConcomitante}
-                  onChange={(e) => setCondicaoConcomitante(e.target.value)}
-                  placeholder="Ex: BRADESCO, SERVIÇO DE APOIO"
-                />
+
+                <div className="flex gap-2">
+                  <Input
+                    value={novaCondicao}
+                    onChange={(e) => setNovaCondicao(e.target.value)}
+                    placeholder="Ex: GOL ou BRADESCO, SERVIÇO DE APOIO"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCondicao();
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={handleAddCondicao}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {condicoesConcomitantes.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {condicoesConcomitantes.map((termo) => (
+                      <Badge key={termo} variant="secondary" className="gap-1">
+                        {termo}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCondicao(termo)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Critérios de exclusão */}
