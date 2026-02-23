@@ -558,6 +558,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             fonte,
             lida,
             created_at,
+            orgao,
+            tipo_comunicacao,
+            meio,
+            advogados_json,
+            partes_json,
             processo:processos!inner(
               id, numero, polo_ativo, polo_passivo, tribunal,
               coordenacao_id, coordenacao:coordenacoes(id, nome)
@@ -619,10 +624,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             polo_ativo: pub.processo?.polo_ativo,
             polo_passivo: pub.processo?.polo_passivo,
             tribunal: pub.processo?.tribunal,
-            orgao: null,
-            tipo_comunicacao: null,
-            meio: null,
-            advogados_json: null,
+            orgao: pub.orgao || null,
+            tipo_comunicacao: pub.tipo_comunicacao || null,
+            meio: pub.meio || null,
+            advogados_json: parseJsonArraySafe(pub.advogados_json),
+            partes_json: parseJsonArraySafe(pub.partes_json),
           });
         });
       }
