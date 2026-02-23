@@ -150,7 +150,7 @@ export async function processPublicationFromIndex(
     return;
   }
 
-  const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
+  const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
 
   if (motivoExclusao) {
     await supabase.from('publicacoes_djen_descartadas').insert({

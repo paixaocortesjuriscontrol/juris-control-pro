@@ -220,12 +220,17 @@ function condicaoConcomitanteAtendida(conteudo: string, condicao?: string | null
   return conteudoNorm.includes(condicaoNorm);
 }
 
-function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
+function shouldExclude(conteudo: string, exclusoes: string[], partesJson?: any, advogadosJson?: any): string | null {
   if (!exclusoes || exclusoes.length === 0) return null;
-  const conteudoNorm = normalizarParaBusca(conteudo);
+  const textoCompleto = [
+    conteudo,
+    partesJson ? (typeof partesJson === 'string' ? partesJson : JSON.stringify(partesJson)) : '',
+    advogadosJson ? (typeof advogadosJson === 'string' ? advogadosJson : JSON.stringify(advogadosJson)) : '',
+  ].filter(Boolean).join('\n');
+  const textoNorm = normalizarParaBusca(textoCompleto);
   for (const exc of exclusoes) {
     const excNorm = normalizarParaBusca(exc);
-    if (excNorm && conteudoNorm.includes(excNorm)) return exc;
+    if (excNorm && textoNorm.includes(excNorm)) return exc;
   }
   return null;
 }
@@ -443,7 +448,7 @@ async function processPublicationFromIndex(
     return;
   }
 
-  const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
+  const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
 
   if (motivoExclusao) {
     await supabase.from('publicacoes_djen_descartadas').insert({
