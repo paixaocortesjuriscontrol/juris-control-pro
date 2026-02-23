@@ -841,12 +841,11 @@ async function processarTermo(
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else if (mon.tipo === 'advogado' && !mon.oab) {
-    // Advogado SEM OAB: buscar pelo nome principal + cada nome alternativo (termos_or)
-    // CRÍTICO: Usar tipo 'palavra-chave' com texto ao invés de nomeAdvogado!
-    // O parâmetro nomeAdvogado retorna APENAS publicações onde o advogado é DESTINATÁRIO direto.
-    // No TST, o advogado geralmente NÃO é destinatário (a parte é), mas aparece no CORPO do texto.
-    // Busca por texto captura todas as menções no corpo da publicação.
-    baseParams.tipo = 'palavra-chave';
+    // Advogado SEM OAB: BUSCA DUPLA para cada nome
+    // 1. nomeAdvogado → pega publicações onde é DESTINATÁRIO direto
+    // 2. palavraChave (texto) → pega menções no CORPO da publicação (ex: TST)
+    // Prefixo ADV: = busca por nomeAdvogado, TXT: = busca por palavraChave
+    baseParams.tipo = 'advogado'; // tipo base, será ajustado no loop
     
     const termoPuro = extrairPalavraChavePura(mon.termo_busca);
     const nomesParaBuscar = new Set<string>();
@@ -860,9 +859,14 @@ async function processarTermo(
       }
     }
     
-    // Cada nome será buscado como palavra-chave (texto) individualmente
-    variantesParaBuscar = Array.from(nomesParaBuscar);
-    // Flag para progresso UI
+    // BUSCA DUPLA: cada nome gera 2 variantes (ADV: + TXT:)
+    const nomes = Array.from(nomesParaBuscar);
+    variantesParaBuscar = [];
+    for (const nome of nomes) {
+      variantesParaBuscar.push(`ADV:${nome}`);  // busca como nomeAdvogado
+      variantesParaBuscar.push(`TXT:${nome}`);  // busca como palavraChave/texto
+    }
+    // Flag para busca dupla advogado sem OAB
     baseParams._advogadoSemOabNomes = true;
   } else {
     // palavra-chave: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
@@ -929,20 +933,41 @@ async function processarTermo(
                 mensagem: `🧩 Fase 1/2: coleta OAB ${baseParams.oab}${uf ? `/${uf}` : ''}...`,
               });
             } else if (baseParams._advogadoSemOabNomes && variante) {
+              const nomeExibir = variante.replace(/^(ADV:|TXT:)/, '');
+              const modoExibir = variante.startsWith('ADV:') ? 'destinatário' : 'texto';
               updateProgress({
-                mensagem: `🔍 Buscando: ${variante}...`,
+                mensagem: `🔍 Buscando ${nomeExibir} (${modoExibir})...`,
               });
             }
             const isAdvSemOabNomes = !!baseParams._advogadoSemOabNomes;
+            
+            // Para advogado sem OAB: decodificar prefixo da variante
+            let searchNomeAdvogado = isAdvSemOabNomes ? undefined : baseParams.nomeAdvogado;
+            let searchPalavraChave = variante || undefined;
+            let searchTipo = baseParams.tipo;
+            
+            if (isAdvSemOabNomes && variante) {
+              if (variante.startsWith('ADV:')) {
+                // Busca como nomeAdvogado (destinatário direto)
+                searchNomeAdvogado = variante.slice(4);
+                searchPalavraChave = undefined;
+                searchTipo = 'advogado';
+              } else if (variante.startsWith('TXT:')) {
+                // Busca como palavraChave (corpo do texto)
+                searchNomeAdvogado = undefined;
+                searchPalavraChave = variante.slice(4);
+                searchTipo = 'palavra-chave';
+              }
+            }
+            
             const resp = await buscarPjeComunicaPaginado(
               {
-                tipo: baseParams.tipo,
+                tipo: searchTipo,
                 oab: baseParams.oab,
                 uf: uf,
-                // Para advogado sem OAB: tipo já é 'palavra-chave', variante vai como palavraChave
-                nomeAdvogado: isAdvSemOabNomes ? undefined : baseParams.nomeAdvogado,
+                nomeAdvogado: searchNomeAdvogado,
                 nomeParte: baseParams.nomeParte,
-                palavraChave: variante || undefined,
+                palavraChave: searchPalavraChave,
                 numeroProcesso: baseParams.numeroProcesso,
                 siglaTribunal: isAdvogadoComOab
                   ? (advogadoForcarTribunalNaBusca ? trib : undefined)
