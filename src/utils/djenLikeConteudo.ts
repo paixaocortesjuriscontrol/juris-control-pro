@@ -279,6 +279,131 @@ export function extractAdvogadosFromMeta(pub: any): string[] {
   return extractDestinatariosFromMeta(pub);
 }
 
+/**
+ * Verifica se um ADVOGADO (por OAB e/ou nome) está presente nos metadados
+ * estruturados da API (`destinatarioadvogados`, `advogados`, etc.).
+ * 
+ * Retorna true se encontrar o advogado nos metadados, independentemente
+ * de ele aparecer ou não no corpo do texto da publicação.
+ */
+export function advogadoPresenteNosMetadados(
+  pub: any,
+  oab?: string,
+  nomeAdvogado?: string
+): boolean {
+  const oabDigits = (oab || '').replace(/\D/g, '').trim();
+  const nomeNorm = (nomeAdvogado || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+
+  if (!oabDigits && !nomeNorm) return false;
+
+  const checkAdvogado = (item: any): boolean => {
+    if (!item) return false;
+    const adv = item?.advogado || item;
+    const advOab = String(adv?.numero_oab || adv?.numeroOab || adv?.oab || '').replace(/\D/g, '');
+    const advNome = String(adv?.nome || adv?.nomeAdvogado || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .trim();
+
+    if (oabDigits && advOab === oabDigits) return true;
+    if (nomeNorm && advNome && advNome.includes(nomeNorm)) return true;
+    return false;
+  };
+
+  // 1. pub.destinatarioadvogados[]
+  if (Array.isArray(pub?.destinatarioadvogados)) {
+    for (const da of pub.destinatarioadvogados) {
+      if (checkAdvogado(da)) return true;
+    }
+  }
+
+  // 2. pub.advogados[]
+  if (Array.isArray(pub?.advogados)) {
+    for (const a of pub.advogados) {
+      if (checkAdvogado(a)) return true;
+    }
+  }
+
+  // 3. nested em destinatarios[].advogados[]
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) {
+      if (Array.isArray(d?.advogados)) {
+        for (const a of d.advogados) {
+          if (checkAdvogado(a)) return true;
+        }
+      }
+      if (Array.isArray(d?.representantes)) {
+        for (const r of d.representantes) {
+          if (checkAdvogado(r)) return true;
+        }
+      }
+    }
+  }
+
+  // 4. pub.representantes[] / pub.procuradores[]
+  for (const field of ['representantes', 'procuradores'] as const) {
+    if (Array.isArray(pub?.[field])) {
+      for (const item of pub[field]) {
+        if (checkAdvogado(item)) return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Verifica se uma PARTE (polo ativo/passivo) está presente nos metadados
+ * estruturados da API (`destinatarios[]`, `poloAtivo`, `poloPassivo`).
+ * 
+ * Retorna true se o nome da parte for encontrado nos metadados.
+ */
+export function partePresenteNosMetadados(
+  pub: any,
+  nomeParte: string
+): boolean {
+  const parteNorm = (nomeParte || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
+    .trim();
+
+  if (!parteNorm) return false;
+
+  const checkNome = (nome: string): boolean => {
+    const nomeNorm = (nome || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .toUpperCase()
+      .trim();
+    return !!nomeNorm && nomeNorm.includes(parteNorm);
+  };
+
+  // 1. pub.destinatarios[].nome
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) {
+      const nome = d?.nome || d?.nomeDestinatario || '';
+      if (nome && checkNome(nome)) return true;
+    }
+  }
+
+  // 2. campos simples
+  if (pub?.poloAtivo && checkNome(pub.poloAtivo)) return true;
+  if (pub?.poloPassivo && checkNome(pub.poloPassivo)) return true;
+  if (pub?.destinatarioNome && checkNome(pub.destinatarioNome)) return true;
+
+  return false;
+}
+
 export function buildDjenLikeConteudo(params: {
   pub: any;
   diaYmd: string;
