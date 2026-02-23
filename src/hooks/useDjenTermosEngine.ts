@@ -1929,26 +1929,35 @@ async function runEngine(
           updateProgress({ mensagem: `🔄 Resgate cross-monitoramento para ${diaFmt}...` });
           
           // Buscar descartadas por condicao_concomitante do dia atual
-          const { data: descartadasConcomitante } = await supabase
+          // Usar filtro por data sem horário para cobrir qualquer formato armazenado
+          const { data: descartadasConcomitante, error: errDesc } = await supabase
             .from('publicacoes_djen_descartadas')
-            .select('id, conteudo, hash_conteudo, processo_numero, monitoramento_id, data_disponibilizacao, tribunal, fonte, orgao, tipo_comunicacao, meio, partes_json, advogados_json')
+            .select('id, conteudo, hash_conteudo, processo_numero, monitoramento_id, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, partes_json, advogados_json')
             .eq('motivo_descarte', 'condicao_concomitante')
             .gte('data_disponibilizacao', `${diaYmd}T00:00:00`)
-            .lte('data_disponibilizacao', `${diaYmd}T23:59:59`) as { data: any[] | null };
+            .lte('data_disponibilizacao', `${diaYmd}T23:59:59`) as { data: any[] | null; error: any };
+
+          if (errDesc) {
+            console.warn('[DJEN] Erro ao buscar descartadas para resgate:', errDesc.message);
+          }
+
+          console.log(`[DJEN] 🔄 Resgate: ${descartadasConcomitante?.length ?? 0} descartadas por condicao_concomitante em ${diaYmd}`);
 
           if (descartadasConcomitante && descartadasConcomitante.length > 0) {
-            // Monitoramentos candidatos: mesmo tipo advogado, SEM condicao_concomitante
+            // Monitoramentos candidatos: tipo advogado, SEM condicao_concomitante
             const candidatos = termos.filter(t => 
               (t.tipo === 'advogado') && 
               !t.condicao_concomitante?.trim()
             );
+
+            console.log(`[DJEN] 🔄 Candidatos para resgate: ${candidatos.length} termos sem condição concomitante`, 
+              candidatos.map(c => ({ id: c.id, termo: c.termo_busca })));
 
             if (candidatos.length > 0) {
               let resgatadas = 0;
               const payloadResgate: any[] = [];
 
               for (const desc of descartadasConcomitante) {
-                // Já existe para algum candidato? Pular
                 const conteudoDesc = desc.conteudo || '';
                 const conteudoNorm = normalizar(conteudoDesc);
 
@@ -1981,7 +1990,26 @@ async function runEngine(
                     } catch {}
                   }
 
-                  if (!nomeEncontrado && !nomeNosMetadados) continue;
+                  // Verificar OAB do candidato nos metadados
+                  let oabEncontrada = false;
+                  if (!nomeEncontrado && !nomeNosMetadados && cand.oab) {
+                    const oabDigits = String(cand.oab).replace(/\D/g, '');
+                    if (oabDigits.length >= 3) {
+                      // Verificar no conteúdo
+                      if (conteudoDesc.includes(oabDigits)) oabEncontrada = true;
+                      // Verificar nos advogados_json
+                      if (!oabEncontrada && desc.advogados_json) {
+                        const advStr = typeof desc.advogados_json === 'string' ? desc.advogados_json : JSON.stringify(desc.advogados_json);
+                        if (advStr.includes(oabDigits)) oabEncontrada = true;
+                      }
+                    }
+                  }
+
+                  if (!nomeEncontrado && !nomeNosMetadados && !oabEncontrada) {
+                    continue;
+                  }
+
+                  console.log(`[DJEN] 🔄 Match resgate: processo=${desc.processo_numero}, candidato=${cand.termo_busca} (nome=${nomeEncontrado}, meta=${nomeNosMetadados}, oab=${oabEncontrada})`);
 
                   // Verificar exclusões do candidato
                   if (cand.exclusoes && cand.exclusoes.length > 0) {
@@ -1991,12 +2019,16 @@ async function runEngine(
                       desc.advogados_json ? (typeof desc.advogados_json === 'string' ? desc.advogados_json : JSON.stringify(desc.advogados_json)) : '',
                     ].join('\n').toUpperCase();
                     const excluido = cand.exclusoes.some((ex: string) => textoExclusao.includes(ex.toUpperCase()));
-                    if (excluido) continue;
+                    if (excluido) {
+                      console.log(`[DJEN] 🔄 Excluída pelo candidato: processo=${desc.processo_numero}`);
+                      continue;
+                    }
                   }
 
-                  // Gerar hash para o candidato
+                  // Gerar hash e calcular datas
                   const dataDisp = desc.data_disponibilizacao ? desc.data_disponibilizacao.slice(0, 10) : diaYmd;
                   const hash = gerarHash(conteudoDesc, dataDisp);
+                  const dataPub = calcularDataPublicacaoYmd(dataDisp);
 
                   payloadResgate.push({
                     monitoramento_id: cand.id,
@@ -2004,9 +2036,11 @@ async function runEngine(
                     processo_numero: desc.processo_numero,
                     conteudo: conteudoDesc,
                     data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+                    data_publicacao: `${dataPub}T12:00:00.000Z`,
                     tribunal: desc.tribunal,
                     fonte: desc.fonte || 'DJEN',
                     lida: false,
+                    importada_de_descartada: true,
                     orgao: desc.orgao,
                     tipo_comunicacao: desc.tipo_comunicacao,
                     meio: desc.meio,
@@ -2019,20 +2053,27 @@ async function runEngine(
               }
 
               if (payloadResgate.length > 0) {
-                await supabase
+                const { error: errUpsert } = await supabase
                   .from('publicacoes_djen')
                   .upsert(payloadResgate, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
-                novas += resgatadas;
-                console.log(`[DJEN] ✅ Resgate cross-monitoramento: ${resgatadas} publicações resgatadas`);
-                updateProgress({
-                  novas,
-                  mensagem: `✅ Resgate: ${resgatadas} publicações recuperadas de descartadas`,
-                });
+                
+                if (errUpsert) {
+                  console.error(`[DJEN] ❌ Erro no upsert de resgate: ${errUpsert.message}`, errUpsert);
+                } else {
+                  novas += resgatadas;
+                  console.log(`[DJEN] ✅ Resgate cross-monitoramento: ${resgatadas} publicações resgatadas com sucesso`);
+                  updateProgress({
+                    novas,
+                    mensagem: `✅ Resgate: ${resgatadas} publicações recuperadas de descartadas`,
+                  });
+                }
+              } else {
+                console.log('[DJEN] 🔄 Resgate: nenhuma publicação elegível para resgate');
               }
             }
           }
         } catch (e: any) {
-          console.warn('[DJEN] Erro no resgate cross-monitoramento:', e?.message || e);
+          console.error('[DJEN] ❌ Erro no resgate cross-monitoramento:', e?.message || e, e);
         }
       }
 

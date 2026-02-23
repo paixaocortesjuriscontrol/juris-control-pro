@@ -7,9 +7,19 @@ Quando dois monitoramentos buscam o mesmo advogado (ex: "OSMAR MENDES" com condi
 
 ### Lógica:
 1. Após processar todos os termos de um dia, buscar descartadas com `motivo_descarte = 'condicao_concomitante'`
-2. Para cada descartada, verificar se algum monitoramento candidato (tipo advogado, SEM condição concomitante) contém o advogado no texto ou metadados
+2. Para cada descartada, verificar se algum monitoramento candidato (tipo advogado, SEM condição concomitante) contém o advogado no texto, metadados ou OAB
 3. Aplicar exclusões do candidato antes de resgatar
-4. Inserir como publicação válida via upsert (ignoreDuplicates)
+4. Inserir como publicação válida via upsert (ignoreDuplicates) com flag `importada_de_descartada: true`
+
+### Campos obrigatórios no payload de resgate:
+- `data_publicacao`: calculada via `calcularDataPublicacaoYmd(dataDisp)` — sua ausência causava falhas silenciosas
+- `importada_de_descartada: true`: flag para auditoria
+- Error handling explícito no upsert com logging detalhado
+
+### Matching expandido:
+- Nome do advogado no conteúdo (frase exata)
+- Nome nos advogados_json (metadados estruturados)
+- OAB do candidato no conteúdo ou advogados_json
 
 ### Arquivo alterado:
 - `src/hooks/useDjenTermosEngine.ts` — bloco de resgate adicionado após o loop de termos do dia
