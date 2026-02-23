@@ -1,5 +1,5 @@
 # Memory: features/monitoring/djen-content-validation-logic
-Updated: 12/02/2026
+Updated: 23/02/2026
 
 A validação de conteúdo do DJEN usa **FRASE EXATA 100%** para garantir precisão.
 
@@ -14,7 +14,8 @@ A validação de conteúdo do DJEN usa **FRASE EXATA 100%** para garantir precis
 Termos com "+" (ex: "DR. OSMAR + SERVICO DE APOIO") exigem que CADA segmento apareça 100% no texto.
 
 ## Lógica OR (termos_or):
-Para advogados, se houver termos_or, pelo menos UM deles deve casar 100%.
+- Para advogados, se houver termos_or, pelo menos UM deles deve casar 100%.
+- **CRÍTICO**: O `useDjenTermosEngine.ts` DEVE verificar `termos_or` na etapa de validação. Sem isso, publicações encontradas via busca por nomes alternativos (ex: "RENATA MOUTA") são descartadas porque o termo principal ("OSMAR MENDES") não aparece no texto.
 
 ## Validação de Conteúdo:
 - A validação ocorre APENAS no campo de texto da publicação (conteudo/teor/texto)
@@ -22,8 +23,8 @@ Para advogados, se houver termos_or, pelo menos UM deles deve casar 100%.
 - O termo de busca NUNCA deve ser injetado na lista de advogados extraídos
 
 ## Arquivos Sincronizados:
-- `src/hooks/useDjenTermosEngine.ts`
-- `src/hooks/useBuscaDjenDireta.ts`
+- `src/hooks/useDjenTermosEngine.ts` — usa validação inline com suporte a termos_or
+- `src/hooks/useBuscaDjenDireta.ts` — usa `conteudoContemTermoOuOr` com suporte a termos_or
 - `src/hooks/useSincronizarDjenBrowser.ts`
 - `src/utils/djenTermoMatch.ts`
 - `supabase/functions/monitorar-djen/validation.ts`

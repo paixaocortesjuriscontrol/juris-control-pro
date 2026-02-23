@@ -87,6 +87,7 @@ interface Monitoramento {
   ativo: boolean;
   exclusoes?: string[];
   tribunais?: string[];
+  termos_or?: string[];
   descricao?: string | null;
   condicao_concomitante?: string | null;
   coordenacao_id?: string | null;
@@ -1181,7 +1182,38 @@ async function processarTermo(
         return false;
       })();
 
-      if (!validouNoConteudo && !validouNosMetadados) {
+      // TERMOS_OR: se o termo principal não foi encontrado, verificar se algum
+      // dos termos alternativos (termos_or) está presente no conteúdo ou metadados.
+      // Isso é essencial quando termos_or contêm nomes de advogados diferentes
+      // (ex: "RENATA MOUTA", "FERNANDO HUGO") que geram buscas separadas na API.
+      const validouViaTermosOr = (() => {
+        if (validouNoConteudo || validouNosMetadados) return false; // já validou
+        const termosOrList = mon.termos_or;
+        if (!termosOrList || termosOrList.length === 0) return false;
+
+        for (const termoOr of termosOrList) {
+          const termoPuro = extrairPalavraChavePura(termoOr.trim());
+          if (!termoPuro) continue;
+
+          // Validar no conteúdo
+          if (conteudo && conteudoContemTermo(conteudo, termoPuro, mon.tipo, undefined)) {
+            return true;
+          }
+
+          // Para advogado: também verificar nos metadados estruturados
+          if (tipo === 'advogado') {
+            if (advogadoPresenteNosMetadados(pub, undefined, termoPuro)) return true;
+            if (metaAdvogado) {
+              const termoNorm = normalizar(termoPuro);
+              const metaNorm = normalizar(metaAdvogado);
+              if (termoNorm && metaNorm.includes(termoNorm)) return true;
+            }
+          }
+        }
+        return false;
+      })();
+
+      if (!validouNoConteudo && !validouNosMetadados && !validouViaTermosOr) {
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }
