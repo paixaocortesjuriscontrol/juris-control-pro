@@ -1112,6 +1112,19 @@ async function processarTermo(
     }
   }
 
+  // DEBUG: Rastrear processos específicos retornados pela API
+  const PROCESSOS_DEBUG = ['1000113', '0020322', '0001344', '0011068', '0001407', '0011484', '1001445', '1001399', '0000527', '0001543', '0020252', '0100386', '1000142'];
+  const processosEncontradosApi = resultados.filter(pub => {
+    const num = String(pub.numeroProcesso || pub.processo || pub.conteudo || '').replace(/\D/g, '');
+    return PROCESSOS_DEBUG.some(d => num.includes(d));
+  });
+  if (processosEncontradosApi.length > 0) {
+    console.log(`[DJEN] 🎯 DIAGNÓSTICO: ${processosEncontradosApi.length} processos-alvo encontrados na API para termo="${mon.termo_busca}":`, 
+      processosEncontradosApi.map(p => p.numeroProcesso || p.processo || 'sem-numero').join(', '));
+  } else {
+    console.log(`[DJEN] 🎯 DIAGNÓSTICO: NENHUM processo-alvo encontrado na API para termo="${mon.termo_busca}" (${resultados.length} resultados totais)`);
+  }
+
   if (signal.aborted || resultados.length === 0) {
     return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0, pubsNovasResumo: [] };
   }
@@ -1134,6 +1147,11 @@ async function processarTermo(
     if (isAdvogadoComOab && tribunais.length > 0) {
       const sigla = getSiglaTribunal(pub);
       if (!sigla || !tribunais.includes(sigla)) {
+        // DEBUG: log para processos-alvo
+        const numDebug = String(pub.numeroProcesso || pub.processo || '').replace(/\D/g, '');
+        if (PROCESSOS_DEBUG.some(d => numDebug.includes(d))) {
+          console.log(`[DJEN] 🎯 DESCARTE tribunal: processo=${pub.numeroProcesso || pub.processo}, sigla=${sigla}, permitidos=${tribunais.join(',')}`);
+        }
         descartadasTribunal += 1;
         pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
         return false;
@@ -1273,6 +1291,11 @@ async function processarTermo(
       })();
 
       if (!validouNoConteudo && !validouNosMetadados && !validouViaTermosOr) {
+        // DEBUG: log para processos-alvo
+        const numDebug = String(pub.numeroProcesso || pub.processo || '').replace(/\D/g, '');
+        if (PROCESSOS_DEBUG.some(d => numDebug.includes(d))) {
+          console.log(`[DJEN] 🎯 DESCARTE termo_nao_encontrado: processo=${pub.numeroProcesso || pub.processo}, termo="${mon.termo_busca}", conteudo_preview=${(conteudo || '').slice(0, 200)}`);
+        }
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }
@@ -1326,6 +1349,11 @@ async function processarTermo(
       }
       
       if (!resgatado) {
+        // DEBUG: log para processos-alvo
+        const numDebug = String(pub.numeroProcesso || pub.processo || '').replace(/\D/g, '');
+        if (PROCESSOS_DEBUG.some(d => numDebug.includes(d))) {
+          console.log(`[DJEN] 🎯 DESCARTE condicao_concomitante (sem resgate): processo=${pub.numeroProcesso || pub.processo}, termo="${mon.termo_busca}", allTermos=${(allTermos || []).length}`);
+        }
         pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
         return false;
       }
