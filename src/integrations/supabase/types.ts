@@ -4088,6 +4088,7 @@ export type Database = {
       }
       publicacoes_djen_descartadas: {
         Row: {
+          advogados_json: Json | null
           conteudo: string | null
           created_at: string
           data_disponibilizacao: string | null
@@ -4096,12 +4097,17 @@ export type Database = {
           hash_conteudo: string
           id: string
           lida: boolean
+          meio: string | null
           monitoramento_id: string
           motivo_descarte: string
+          orgao: string | null
+          partes_json: Json | null
           processo_numero: string | null
+          tipo_comunicacao: string | null
           tribunal: string | null
         }
         Insert: {
+          advogados_json?: Json | null
           conteudo?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
@@ -4110,12 +4116,17 @@ export type Database = {
           hash_conteudo: string
           id?: string
           lida?: boolean
+          meio?: string | null
           monitoramento_id: string
           motivo_descarte: string
+          orgao?: string | null
+          partes_json?: Json | null
           processo_numero?: string | null
+          tipo_comunicacao?: string | null
           tribunal?: string | null
         }
         Update: {
+          advogados_json?: Json | null
           conteudo?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
@@ -4124,9 +4135,13 @@ export type Database = {
           hash_conteudo?: string
           id?: string
           lida?: boolean
+          meio?: string | null
           monitoramento_id?: string
           motivo_descarte?: string
+          orgao?: string | null
+          partes_json?: Json | null
           processo_numero?: string | null
+          tipo_comunicacao?: string | null
           tribunal?: string | null
         }
         Relationships: [

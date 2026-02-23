@@ -107,12 +107,50 @@ export async function processPublicationFromIndex(
     return;
   }
 
+  const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
+
+  // Extrair metadados estruturados ANTES dos checks de descarte
+  const ladoRaw = pub.raw_json ? extrairLadoEsquerdoDeRawJson(pub.raw_json) : null;
+  const conteudoLeftOnly = conteudoAteLadoEsquerdo(conteudo);
+  const ladoConteudo = extrairDadosLadoEsquerdo(conteudoLeftOnly);
+  const orgao = (ladoRaw?.orgao) ?? ladoConteudo.orgao ?? null;
+  const tipoComunicacao = (ladoRaw?.tipo_comunicacao) ?? ladoConteudo.tipo_comunicacao ?? null;
+  const meio = (ladoRaw?.meio) ?? ladoConteudo.meio ?? null;
+  const partesFinais = (ladoRaw?.partes?.length ? ladoRaw.partes : null) ?? ladoConteudo.partes;
+  const advogadosFinais = (ladoRaw?.advogados?.length ? ladoRaw.advogados : null) ?? ladoConteudo.advogados;
+
+  const metadataDescartada = {
+    orgao: orgao || null,
+    tipo_comunicacao: tipoComunicacao || null,
+    meio: meio || null,
+    partes_json: partesFinais.length > 0 ? partesFinais : null,
+    advogados_json: advogadosFinais.length > 0 ? advogadosFinais : null,
+  };
+
   if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante)) {
+    await supabase.from('publicacoes_djen_descartadas').insert({
+      monitoramento_id: monitoramento.id,
+      hash_conteudo: hashConteudo,
+      conteudo,
+      data_publicacao: dataPublicacao,
+      data_disponibilizacao: dataDisponibilizacao,
+      processo_numero: processoNumero,
+      tribunal: tribunal || null,
+      motivo_descarte: 'condicao_concomitante',
+      ...metadataDescartada,
+    });
+
+    await supabase.from('publicacoes_djen_global_hash').insert({
+      hash_global: globalHash,
+      primeiro_monitoramento_id: monitoramento.id,
+    });
+
+    stats.descartadas++;
+    tribunalStat.descartadas++;
     return;
   }
 
   const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || []);
-  const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
 
   if (motivoExclusao) {
     await supabase.from('publicacoes_djen_descartadas').insert({
@@ -124,6 +162,7 @@ export async function processPublicationFromIndex(
       processo_numero: processoNumero,
       tribunal: tribunal || null,
       motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
+      ...metadataDescartada,
     });
 
     await supabase.from('publicacoes_djen_global_hash').insert({
@@ -149,16 +188,6 @@ export async function processPublicationFromIndex(
     return;
   }
 
-  // Prioridade: lado esquerdo da API (raw_json); fallback: extrair só do trecho "lado esquerdo" do conteúdo
-  const ladoRaw = pub.raw_json ? extrairLadoEsquerdoDeRawJson(pub.raw_json) : null;
-  const conteudoLeftOnly = conteudoAteLadoEsquerdo(conteudo);
-  const ladoConteudo = extrairDadosLadoEsquerdo(conteudoLeftOnly);
-  const orgao = (ladoRaw?.orgao) ?? ladoConteudo.orgao ?? null;
-  const tipoComunicacao = (ladoRaw?.tipo_comunicacao) ?? ladoConteudo.tipo_comunicacao ?? null;
-  const meio = (ladoRaw?.meio) ?? ladoConteudo.meio ?? null;
-  const partesFinais = (ladoRaw?.partes?.length ? ladoRaw.partes : null) ?? ladoConteudo.partes;
-  const advogadosFinais = (ladoRaw?.advogados?.length ? ladoRaw.advogados : null) ?? ladoConteudo.advogados;
-
   const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
     monitoramento_id: monitoramento.id,
     hash_conteudo: hashConteudo,
@@ -167,11 +196,7 @@ export async function processPublicationFromIndex(
     data_disponibilizacao: dataDisponibilizacao,
     processo_numero: processoNumero,
     tribunal: tribunal || null,
-    orgao: orgao || null,
-    tipo_comunicacao: tipoComunicacao || null,
-    meio: meio || null,
-    partes_json: partesFinais.length > 0 ? partesFinais : null,
-    advogados_json: advogadosFinais.length > 0 ? advogadosFinais : null,
+    ...metadataDescartada,
   }).select('id').single();
 
   if (insertError) {
