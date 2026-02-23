@@ -1062,9 +1062,13 @@ export function useBuscaDjenDireta() {
     const pubsFiltradas = publicacoes.filter(pub => {
       if (!pub.conteudo) return true;
       
-      // Verificar exclusões
-      const conteudoUpper = pub.conteudo.toUpperCase();
-      const termoExclusao = mon.exclusoes?.find((t) => conteudoUpper.includes(String(t).toUpperCase()));
+      // Verificar exclusões — checar texto E metadados estruturados
+      const textoParaExclusao = [
+        pub.conteudo,
+        typeof (pub as any).partes_json === 'string' ? (pub as any).partes_json : JSON.stringify((pub as any).partes_json ?? ''),
+        typeof (pub as any).advogados_json === 'string' ? (pub as any).advogados_json : JSON.stringify((pub as any).advogados_json ?? ''),
+      ].filter(Boolean).join('\n').toUpperCase();
+      const termoExclusao = mon.exclusoes?.find((t) => textoParaExclusao.includes(String(t).toUpperCase()));
       if (termoExclusao) {
         descartadasParaPersistir.push({ pub, motivo: `Termo de exclusão: ${termoExclusao}` });
         return false;

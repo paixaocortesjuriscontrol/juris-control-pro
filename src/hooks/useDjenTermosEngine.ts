@@ -1159,12 +1159,20 @@ async function processarTermo(
       }
     }
 
-    // 1. Verificar exclusões (termos bloqueados)
-    if (mon.exclusoes?.some(exc => 
-      conteudo.toUpperCase().includes(String(exc).toUpperCase())
-    )) {
-      pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_excluido' });
-      return false;
+    // 1. Verificar exclusões (termos bloqueados) — checar texto E metadados estruturados
+    if (mon.exclusoes && mon.exclusoes.length > 0) {
+      const textoParaExclusao = [
+        conteudo,
+        metaAdvogado,
+        typeof pub.partes_json === 'string' ? pub.partes_json : JSON.stringify(pub.partes_json ?? ''),
+        typeof pub.advogados_json === 'string' ? pub.advogados_json : JSON.stringify(pub.advogados_json ?? ''),
+      ].filter(Boolean).join('\n').toUpperCase();
+      
+      const excEncontrada = mon.exclusoes.find(exc => textoParaExclusao.includes(String(exc).toUpperCase()));
+      if (excEncontrada) {
+        pubsDescartadas.push({ ...pub, motivo_descarte: `termo_excluido: ${excEncontrada}` });
+        return false;
+      }
     }
 
     // 2. Verificar termo/OAB - SEMPRE VALIDAR (antes da condição concomitante)

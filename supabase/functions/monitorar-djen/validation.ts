@@ -247,12 +247,18 @@ export function condicaoConcomitanteAtendida(conteudo: string, condicao?: string
   return contemFraseExata(conteudoNorm, condicaoNorm);
 }
 
-export function shouldExclude(conteudo: string, exclusoes: string[]): string | null {
+export function shouldExclude(conteudo: string, exclusoes: string[], partesJson?: any, advogadosJson?: any): string | null {
   if (!exclusoes || exclusoes.length === 0) return null;
 
-  const conteudoUpper = conteudo.toUpperCase();
+  // Checar texto + metadados estruturados para exclusão robusta
+  const textoCompleto = [
+    conteudo,
+    partesJson ? (typeof partesJson === 'string' ? partesJson : JSON.stringify(partesJson)) : '',
+    advogadosJson ? (typeof advogadosJson === 'string' ? advogadosJson : JSON.stringify(advogadosJson)) : '',
+  ].filter(Boolean).join('\n').toUpperCase();
+
   for (const termo of exclusoes) {
-    if (conteudoUpper.includes(termo.toUpperCase())) {
+    if (textoCompleto.includes(termo.toUpperCase())) {
       return termo;
     }
   }
