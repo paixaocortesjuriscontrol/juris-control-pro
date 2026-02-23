@@ -221,20 +221,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
       const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
-      let rpcFailed = false;
       if (canUseRpc) {
-        console.debug('[DJEN] usando RPC deduplicada', {
-          coordenacaoId: filtros.coordenacaoId,
-          apenasNaoLidas: !!filtros.apenasNaoLidas,
-          apenasHoje: !!filtros.apenasHoje,
-          dataInicioFiltro,
-          dataFimFiltro,
-          termoBusca: filtros.termoBusca ?? null,
-        });
+        try {
+        console.debug('[DJEN] tentando RPC deduplicada');
 
         const PAGE = 200;
 
-        // 1) contar (deduplicado no servidor) para saber quantas páginas buscar
         const { data: countData, error: countError } = await (supabase as any)
           .rpc('count_djen_publicacoes_unificadas', {
             p_coordenacao_id: filtros.coordenacaoId,
@@ -246,14 +238,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
 
         if (countError) {
-          console.warn('Erro ao contar publicações unificadas (RPC), usando fallback direto:', countError);
-          rpcFailed = true;
+          throw new Error(`RPC count error: ${countError.message || JSON.stringify(countError)}`);
         }
 
-        if (!rpcFailed) {
         const expectedTotal = typeof countData === 'number' ? countData : 0;
 
-        // 2) buscar páginas até completar o total (ou esgotar)
         const rawRows: any[] = [];
         for (let offset = 0; offset < expectedTotal; offset += PAGE) {
           const { data: pageRows, error: pageError } = await (supabase as any)
@@ -269,18 +258,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             });
 
           if (pageError) {
-            console.warn('Erro ao buscar publicações unificadas (RPC):', pageError);
-            break;
+            throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
           }
 
           const chunk = (pageRows || []) as any[];
           rawRows.push(...chunk);
-
-          // se veio menos que a página, não há mais dados
           if (chunk.length < PAGE) break;
         }
 
-        // 3) mapear para o tipo do app
+        // mapear para o tipo do app
         const mapped: PublicacaoUnificada[] = rawRows.map((r) => ({
           id: r.id,
           tipo_origem: r.tipo_origem,
@@ -310,7 +296,6 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           partes_json: parseJsonArraySafe(r.partes_json),
         }));
 
-        // 4) aplicar filtro de tipo e monitoramento (termo) quando selecionado
         let filteredByType = filtros.tipoOrigem === 'termo'
           ? mapped.filter((p) => p.tipo_origem === 'termo')
           : filtros.tipoOrigem === 'parte'
@@ -322,7 +307,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }
 
-        // 5) Resolver processo_id para publicações de termo (mesma lógica antiga)
+        // Resolver processo_id para publicações de termo
         const termoSemId = filteredByType.filter(
           (p) => p.tipo_origem === 'termo' && !p.processo_id && !!p.processo_numero
         );
@@ -345,7 +330,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
         }
 
-        // 6) incluir descartadas, se solicitado (mantém comportamento atual)
+        // incluir descartadas, se solicitado
         if (filtros.incluirDescartadas) {
           let queryDescartadas = (supabase
             .from('publicacoes_djen_descartadas') as any)
@@ -406,19 +391,22 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
         }
 
-        // 7) filtrar falsos positivos de TERMO (ex.: "F & F" não pode virar só "DISTRIBUIDORA")
+        // filtrar falsos positivos de TERMO
         const merged = [...filteredByType, ...resultados].filter((p) => {
           if (p.tipo_origem !== 'termo') return true;
           const tipo = (p.monitoramento_tipo || '').toLowerCase();
-          // Só aplicar estrito para palavra-chave (advogado/parte/processo têm validações próprias via API)
           if (tipo === 'advogado' || tipo === 'processo' || tipo === 'parte') return true;
           return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
         });
 
         const deduped = dedupePublicacoesDjen(merged);
         return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        } // end if (!rpcFailed)
-      } // end if (canUseRpc)
+
+        } catch (rpcError) {
+          console.warn('[DJEN] RPC falhou, usando fallback com queries diretas:', rpcError);
+          // Cai no código abaixo (queries diretas)
+        }
+      }
 
       // FALLBACK: queries diretas (usado quando RPC falha ou não há coordenação selecionada)
 
