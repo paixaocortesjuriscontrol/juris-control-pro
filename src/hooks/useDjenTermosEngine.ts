@@ -1039,22 +1039,37 @@ async function processarTermo(
   // ele é mencionado no corpo (ex: advogado de uma parte), fazemos uma
   // busca adicional por `texto` com o nome do advogado e mesclamos.
   // ==================================================================
-  if (isAdvogadoComOab && !signal.aborted) {
-    const ufValue = String(mon.uf || '').trim().toUpperCase();
-    const ufValida = ufValue && ufValue !== 'TODAS' && ufValue !== 'UNDEFINED';
-    
-    if (!ufValida && baseParams.nomeAdvogado) {
-      const nomeAdv = baseParams.nomeAdvogado;
-      console.log(`[DJEN] Busca complementar por texto="${nomeAdv}" (UF=TODAS)`);
+  // ==================================================================
+  // BUSCA COMPLEMENTAR POR TEXTO
+  // Para advogados (com ou sem OAB), a busca por nomeAdvogado/OAB só retorna
+  // publicações onde o advogado é destinatário formal. Publicações onde o
+  // advogado é mencionado apenas no corpo (ex: pautas de julgamento do TST)
+  // não são retornadas. Esta busca por "texto" captura essas publicações.
+  // ==================================================================
+  const isAdvogadoTipo = tipo === 'advogado' || (mon.tipo as string) === 'nome';
+  if (isAdvogadoTipo && !signal.aborted) {
+    // Determinar nomes para buscar por texto
+    const nomesParaTexto = new Set<string>();
+    const termoPrincipal = extrairPalavraChavePura(mon.termo_busca);
+    if (termoPrincipal) nomesParaTexto.add(termoPrincipal);
+    if (mon.termos_or?.length) {
+      for (const t of mon.termos_or) {
+        const n = extrairPalavraChavePura(t.trim());
+        if (n) nomesParaTexto.add(n);
+      }
+    }
+
+    const tribsTexto = tribunais.length > 0 && tribunais.length <= 5
+      ? tribunais
+      : [undefined as string | undefined];
+
+    for (const nomeAdv of nomesParaTexto) {
+      if (signal.aborted) break;
+      console.log(`[DJEN] Busca complementar por texto="${nomeAdv}"`);
       
       updateProgress({
-        mensagem: `🔎 Busca complementar por nome "${nomeAdv}" no texto...`,
+        mensagem: `🔎 Busca complementar por texto "${nomeAdv}"...`,
       });
-
-      // Buscar por texto nos tribunais configurados
-      const tribsTexto = tribunais.length > 0 && tribunais.length <= 5
-        ? tribunais
-        : [undefined as string | undefined];
 
       for (const trib of tribsTexto) {
         if (signal.aborted) break;
@@ -1089,16 +1104,24 @@ async function processarTermo(
             singletonState.sharedAdvogadoCache.set(textoCacheKey, respItems);
           }
 
-          for (const item of respItems || []) {
+          const newFromText = (respItems || []).filter(item => {
             const id = String(item?.id ?? '');
             const key = id || JSON.stringify(item).slice(0, 400);
-            if (!seen.has(key)) {
-              seen.add(key);
-              const enriched = trib
-                ? { ...item, siglaTribunal: item?.siglaTribunal ?? trib }
-                : item;
-              resultados.push(enriched);
-            }
+            return !seen.has(key);
+          });
+
+          if (newFromText.length > 0) {
+            console.log(`[DJEN] Busca por texto "${nomeAdv}" ${trib ?? 'TODOS'}: +${newFromText.length} novos resultados`);
+          }
+
+          for (const item of newFromText) {
+            const id = String(item?.id ?? '');
+            const key = id || JSON.stringify(item).slice(0, 400);
+            seen.add(key);
+            const enriched = trib
+              ? { ...item, siglaTribunal: item?.siglaTribunal ?? trib }
+              : item;
+            resultados.push(enriched);
           }
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
