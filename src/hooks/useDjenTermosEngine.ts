@@ -841,17 +841,13 @@ async function processarTermo(
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else if (mon.tipo === 'advogado' && !mon.oab) {
-    // Advogado SEM OAB: BUSCA DUPLA para cada nome
-    // 1. nomeAdvogado → pega publicações onde é DESTINATÁRIO direto
-    // 2. palavraChave (texto) → pega menções no CORPO da publicação (ex: TST)
-    // Prefixo ADV: = busca por nomeAdvogado, TXT: = busca por palavraChave
-    baseParams.tipo = 'advogado'; // tipo base, será ajustado no loop
+    // Advogado SEM OAB: busca por nomeAdvogado (cross-UF, 1 chamada por nome)
+    baseParams.tipo = 'advogado';
     
     const termoPuro = extrairPalavraChavePura(mon.termo_busca);
     const nomesParaBuscar = new Set<string>();
     if (termoPuro) nomesParaBuscar.add(termoPuro);
     
-    // Adicionar cada nome de termos_or como variante de busca separada
     if (mon.termos_or?.length) {
       for (const termoOr of mon.termos_or) {
         const nomeOr = extrairPalavraChavePura(termoOr.trim());
@@ -859,14 +855,7 @@ async function processarTermo(
       }
     }
     
-    // BUSCA DUPLA: cada nome gera 2 variantes (ADV: + TXT:)
-    const nomes = Array.from(nomesParaBuscar);
-    variantesParaBuscar = [];
-    for (const nome of nomes) {
-      variantesParaBuscar.push(`ADV:${nome}`);  // busca como nomeAdvogado
-      variantesParaBuscar.push(`TXT:${nome}`);  // busca como palavraChave/texto
-    }
-    // Flag para busca dupla advogado sem OAB
+    variantesParaBuscar = Array.from(nomesParaBuscar);
     baseParams._advogadoSemOabNomes = true;
   } else {
     // palavra-chave: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
@@ -933,41 +922,21 @@ async function processarTermo(
                 mensagem: `🧩 Fase 1/2: coleta OAB ${baseParams.oab}${uf ? `/${uf}` : ''}...`,
               });
             } else if (baseParams._advogadoSemOabNomes && variante) {
-              const nomeExibir = variante.replace(/^(ADV:|TXT:)/, '');
-              const modoExibir = variante.startsWith('ADV:') ? 'destinatário' : 'texto';
               updateProgress({
-                mensagem: `🔍 Buscando ${nomeExibir} (${modoExibir})...`,
+                mensagem: `🔍 Buscando: ${variante}...`,
               });
             }
             const isAdvSemOabNomes = !!baseParams._advogadoSemOabNomes;
             
-            // Para advogado sem OAB: decodificar prefixo da variante
-            let searchNomeAdvogado = isAdvSemOabNomes ? undefined : baseParams.nomeAdvogado;
-            let searchPalavraChave = variante || undefined;
-            let searchTipo = baseParams.tipo;
-            
-            if (isAdvSemOabNomes && variante) {
-              if (variante.startsWith('ADV:')) {
-                // Busca como nomeAdvogado (destinatário direto)
-                searchNomeAdvogado = variante.slice(4);
-                searchPalavraChave = undefined;
-                searchTipo = 'advogado';
-              } else if (variante.startsWith('TXT:')) {
-                // Busca como palavraChave (corpo do texto)
-                searchNomeAdvogado = undefined;
-                searchPalavraChave = variante.slice(4);
-                searchTipo = 'palavra-chave';
-              }
-            }
-            
             const resp = await buscarPjeComunicaPaginado(
               {
-                tipo: searchTipo,
+                tipo: baseParams.tipo,
                 oab: baseParams.oab,
                 uf: uf,
-                nomeAdvogado: searchNomeAdvogado,
+                // Para advogado sem OAB: usar nomeAdvogado (cross-UF)
+                nomeAdvogado: isAdvSemOabNomes ? (variante || undefined) : baseParams.nomeAdvogado,
                 nomeParte: baseParams.nomeParte,
-                palavraChave: searchPalavraChave,
+                palavraChave: isAdvSemOabNomes ? undefined : (variante || undefined),
                 numeroProcesso: baseParams.numeroProcesso,
                 siglaTribunal: isAdvogadoComOab
                   ? (advogadoForcarTribunalNaBusca ? trib : undefined)
