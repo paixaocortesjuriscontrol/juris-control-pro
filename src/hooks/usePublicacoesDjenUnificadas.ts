@@ -241,6 +241,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_fim: dataFimFiltro ?? null,
             p_apenas_nao_lidas: !!filtros.apenasNaoLidas,
             p_search_query: filtros.termoBusca ?? null,
+            p_monitoramento_id: filtros.monitoramentoId ?? null,
           });
 
         if (countError) {
@@ -261,6 +262,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               p_search_query: filtros.termoBusca ?? null,
               p_limit: PAGE,
               p_offset: offset,
+              p_monitoramento_id: filtros.monitoramentoId ?? null,
             });
 
           if (pageError) {
