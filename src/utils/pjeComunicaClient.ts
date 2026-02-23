@@ -266,9 +266,16 @@ export async function buscarPjeComunicaNoBrowser(
       // UF específica: busca por OAB/UF (mais precisa)
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
+    } else if (oab && nomeAdvogado) {
+      // UF "TODAS" ou sem UF: enviar AMBOS nomeAdvogado E numeroOab
+      // A API pode ignorar numeroOab sem ufOab, mas em muitos tribunais funciona.
+      // nomeAdvogado garante cobertura cross-UF.
+      const nomeNorm = normalizeAccents(nomeAdvogado);
+      qp.set("nomeAdvogado", nomeNorm);
+      qp.set("numeroOab", oab);
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado} + numeroOab: ${oab}`);
     } else if (nomeAdvogado) {
-      // UF "TODAS" ou sem UF: busca pelo nome do advogado
-      // Conforme URL oficial: comunica.pje.jus.br/consulta?nomeAdvogado=...
+      // Sem OAB: busca só pelo nome
       const nomeNorm = normalizeAccents(nomeAdvogado);
       qp.set("nomeAdvogado", nomeNorm);
       console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado}`);
