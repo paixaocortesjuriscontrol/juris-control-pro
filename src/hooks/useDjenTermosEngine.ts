@@ -1918,6 +1918,124 @@ async function runEngine(
       // Dia concluído! Resetar índice de termo para próximo dia
       termoIdx = 0;
 
+      // ================================================================
+      // RESGATE CROSS-MONITORAMENTO
+      // Publicações descartadas por condicao_concomitante em um monitoramento
+      // podem ser válidas para outro monitoramento do mesmo advogado que não
+      // tem condição concomitante (ou tem condição diferente que é atendida).
+      // ================================================================
+      if (!signal.aborted) {
+        try {
+          updateProgress({ mensagem: `🔄 Resgate cross-monitoramento para ${diaFmt}...` });
+          
+          // Buscar descartadas por condicao_concomitante do dia atual
+          const { data: descartadasConcomitante } = await supabase
+            .from('publicacoes_djen_descartadas')
+            .select('id, conteudo, hash_conteudo, processo_numero, monitoramento_id, data_disponibilizacao, tribunal, fonte, orgao, tipo_comunicacao, meio, partes_json, advogados_json')
+            .eq('motivo_descarte', 'condicao_concomitante')
+            .gte('data_disponibilizacao', `${diaYmd}T00:00:00`)
+            .lte('data_disponibilizacao', `${diaYmd}T23:59:59`) as { data: any[] | null };
+
+          if (descartadasConcomitante && descartadasConcomitante.length > 0) {
+            // Monitoramentos candidatos: mesmo tipo advogado, SEM condicao_concomitante
+            const candidatos = termos.filter(t => 
+              (t.tipo === 'advogado') && 
+              !t.condicao_concomitante?.trim()
+            );
+
+            if (candidatos.length > 0) {
+              let resgatadas = 0;
+              const payloadResgate: any[] = [];
+
+              for (const desc of descartadasConcomitante) {
+                // Já existe para algum candidato? Pular
+                const conteudoDesc = desc.conteudo || '';
+                const conteudoNorm = normalizar(conteudoDesc);
+
+                for (const cand of candidatos) {
+                  // Verificar se o advogado do candidato está presente no conteúdo ou metadados
+                  const termoPuro = extrairPalavraChavePura(cand.termo_busca);
+                  const termosOrPuros = (cand.termos_or || []).map((t: string) => extrairPalavraChavePura(t.trim())).filter(Boolean);
+                  const todosNomes = [termoPuro, ...termosOrPuros].filter(Boolean);
+
+                  // Verificar se algum nome do candidato está no conteúdo
+                  const nomeEncontrado = todosNomes.some(nome => {
+                    const nomeNorm = normalizar(nome);
+                    return nomeNorm && contemFraseExata(conteudoNorm, nomeNorm);
+                  });
+
+                  // Também verificar nos advogados_json (metadados estruturados)
+                  let nomeNosMetadados = false;
+                  if (!nomeEncontrado && desc.advogados_json) {
+                    try {
+                      const advs = typeof desc.advogados_json === 'string' 
+                        ? JSON.parse(desc.advogados_json) 
+                        : desc.advogados_json;
+                      if (Array.isArray(advs)) {
+                        const advsText = normalizar(advs.join(' '));
+                        nomeNosMetadados = todosNomes.some(nome => {
+                          const nomeNorm = normalizar(nome);
+                          return nomeNorm && advsText.includes(nomeNorm);
+                        });
+                      }
+                    } catch {}
+                  }
+
+                  if (!nomeEncontrado && !nomeNosMetadados) continue;
+
+                  // Verificar exclusões do candidato
+                  if (cand.exclusoes && cand.exclusoes.length > 0) {
+                    const textoExclusao = [
+                      conteudoDesc,
+                      desc.partes_json ? (typeof desc.partes_json === 'string' ? desc.partes_json : JSON.stringify(desc.partes_json)) : '',
+                      desc.advogados_json ? (typeof desc.advogados_json === 'string' ? desc.advogados_json : JSON.stringify(desc.advogados_json)) : '',
+                    ].join('\n').toUpperCase();
+                    const excluido = cand.exclusoes.some((ex: string) => textoExclusao.includes(ex.toUpperCase()));
+                    if (excluido) continue;
+                  }
+
+                  // Gerar hash para o candidato
+                  const dataDisp = desc.data_disponibilizacao ? desc.data_disponibilizacao.slice(0, 10) : diaYmd;
+                  const hash = gerarHash(conteudoDesc, dataDisp);
+
+                  payloadResgate.push({
+                    monitoramento_id: cand.id,
+                    hash_conteudo: hash,
+                    processo_numero: desc.processo_numero,
+                    conteudo: conteudoDesc,
+                    data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+                    tribunal: desc.tribunal,
+                    fonte: desc.fonte || 'DJEN',
+                    lida: false,
+                    orgao: desc.orgao,
+                    tipo_comunicacao: desc.tipo_comunicacao,
+                    meio: desc.meio,
+                    partes_json: desc.partes_json,
+                    advogados_json: desc.advogados_json,
+                  });
+                  resgatadas++;
+                  break; // Só precisa de um candidato
+                }
+              }
+
+              if (payloadResgate.length > 0) {
+                await supabase
+                  .from('publicacoes_djen')
+                  .upsert(payloadResgate, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
+                novas += resgatadas;
+                console.log(`[DJEN] ✅ Resgate cross-monitoramento: ${resgatadas} publicações resgatadas`);
+                updateProgress({
+                  novas,
+                  mensagem: `✅ Resgate: ${resgatadas} publicações recuperadas de descartadas`,
+                });
+              }
+            }
+          }
+        } catch (e: any) {
+          console.warn('[DJEN] Erro no resgate cross-monitoramento:', e?.message || e);
+        }
+      }
+
       if (!signal.aborted && diaIdx < totalDias - 1) {
         const proximoDia = listaDatas[diaIdx + 1];
         const proximoFmt = `${proximoDia.slice(8, 10)}/${proximoDia.slice(5, 7)}`;
