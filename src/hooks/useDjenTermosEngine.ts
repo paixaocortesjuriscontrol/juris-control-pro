@@ -16,7 +16,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
-import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractDestinatariosFromMeta, extractAdvogadosFromApiMeta } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo, collectMetaAdvogadoText, extractDestinatariosFromMeta, extractAdvogadosFromApiMeta, advogadoPresenteNosMetadados, partePresenteNosMetadados } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -1142,13 +1142,20 @@ async function processarTermo(
         }
       }
     } else if (tipo === 'parte') {
-      // Para tipo 'parte', a API já filtrou por nomeParte — o termo aparece nos metadados
-      // estruturados (partes/polos) e NÃO necessariamente no corpo do texto.
-      // Confiar no filtro da API e pular validação de conteúdo.
-      // Apenas verificar se tem conteúdo válido.
-      if (!conteudo && !metaAdvogado) {
-        pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
-        return false;
+      // Para tipo 'parte': validar via metadados estruturados da API (destinatarios[])
+      // E também via texto (fallback). A API já filtra por nomeParte, mas confirmamos
+      // usando os campos estruturados para maior confiabilidade.
+      const termoParaValidar = extrairPalavraChavePura(mon.termo_busca);
+      const validouNoConteudo = conteudo ? conteudoContemTermo(conteudo, termoParaValidar, mon.tipo) : false;
+      const validouNosMetadados = partePresenteNosMetadados(pub, termoParaValidar);
+
+      if (!validouNoConteudo && !validouNosMetadados) {
+        // A API filtrou por nomeParte, então se chegou aqui provavelmente é válido.
+        // Só descartar se realmente não tem conteúdo.
+        if (!conteudo && !metaAdvogado) {
+          pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
+          return false;
+        }
       }
     } else {
       // Validar termo simples (sem AND)
@@ -1158,25 +1165,28 @@ async function processarTermo(
 
       const validouNoConteudo = conteudo ? conteudoContemTermo(conteudo, termoParaValidar, mon.tipo, mon.oab) : false;
 
-      // Fallback: para advogado com OAB, aceitar match via metadados (destinatarioNome)
-      // quando o corpo não contém a seção de advogados.
-      const validouNoMetadata = (() => {
+      // Para advogado com OAB: validar via metadados estruturados da API
+      // (destinatarioadvogados[], advogados[], etc.) — mais confiável que texto,
+      // pois existem publicações onde o advogado é destinatário mas não aparece no corpo.
+      const validouNosMetadados = (() => {
         if (!isAdvogadoComOab) return false;
-        if (!metaAdvogado?.trim()) return false;
-
+        
+        // Validação primária: campos estruturados da API (OAB + nome)
         const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+        if (advogadoPresenteNosMetadados(pub, mon.oab, termoPuro)) return true;
+
+        // Fallback: busca textual nos metadados genéricos (destinatarioNome, etc.)
+        if (!metaAdvogado?.trim()) return false;
         const termoNorm = normalizar(termoPuro);
         const metaNorm = normalizar(metaAdvogado);
-
         if (termoNorm && metaNorm.includes(termoNorm)) return true;
-
         const oabDigits = String(mon.oab || '').replace(/\D/g, '').trim();
         if (oabDigits && metaNorm.includes(oabDigits)) return true;
 
         return false;
       })();
 
-      if (!validouNoConteudo && !validouNoMetadata) {
+      if (!validouNoConteudo && !validouNosMetadados) {
         pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
         return false;
       }
