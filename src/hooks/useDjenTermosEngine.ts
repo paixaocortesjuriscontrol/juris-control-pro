@@ -1063,19 +1063,32 @@ async function processarTermo(
       ? tribunais
       : [undefined as string | undefined];
 
-    for (const nomeAdv of nomesParaTexto) {
+    // Também buscar pelo número da OAB como texto (captura processos onde
+    // o advogado é listado no corpo mas não é destinatário formal)
+    if (mon.oab) {
+      const oabDigits = String(mon.oab).replace(/\D/g, '');
+      if (oabDigits.length >= 3) {
+        nomesParaTexto.add(oabDigits);
+      }
+    }
+
+    const totalBuscasTexto = nomesParaTexto.size * tribsTexto.length;
+    let buscaTextoIdx = 0;
+
+    for (const termoTexto of nomesParaTexto) {
       if (signal.aborted) break;
-      console.log(`[DJEN] Busca complementar por texto="${nomeAdv}"`);
+      console.log(`[DJEN] ✅ Busca complementar por texto="${termoTexto}"`);
       
       updateProgress({
-        mensagem: `🔎 Busca complementar por texto "${nomeAdv}"...`,
+        mensagem: `🔎 Busca complementar por texto "${termoTexto}" (${buscaTextoIdx+1}/${totalBuscasTexto})...`,
       });
 
       for (const trib of tribsTexto) {
         if (signal.aborted) break;
+        buscaTextoIdx++;
         
         try {
-          const textoCacheKey = `texto|${baseParams.dataInicio}|${nomeAdv}|${trib ?? 'ALL'}`;
+          const textoCacheKey = `texto|${baseParams.dataInicio}|${termoTexto}|${trib ?? 'ALL'}`;
           
           let respItems: any[] | null = null;
           if (singletonState.sharedAdvogadoCache.has(textoCacheKey)) {
@@ -1084,7 +1097,7 @@ async function processarTermo(
             const resp = await buscarPjeComunicaPaginado(
               {
                 tipo: 'palavra-chave' as PjeSearchType,
-                palavraChave: nomeAdv,
+                palavraChave: termoTexto,
                 siglaTribunal: trib,
                 dataInicio: baseParams.dataInicio,
                 dataFim: baseParams.dataFim,
@@ -1111,7 +1124,7 @@ async function processarTermo(
           });
 
           if (newFromText.length > 0) {
-            console.log(`[DJEN] Busca por texto "${nomeAdv}" ${trib ?? 'TODOS'}: +${newFromText.length} novos resultados`);
+            console.log(`[DJEN] ✅ Busca por texto "${termoTexto}" ${trib ?? 'TODOS'}: +${newFromText.length} novos resultados`);
           }
 
           for (const item of newFromText) {
@@ -1133,6 +1146,8 @@ async function processarTermo(
         }
       }
     }
+
+    console.log(`[DJEN] ✅ Busca complementar concluída. Total resultados após merge: ${resultados.length}`);
   }
 
   // DEBUG: Rastrear processos específicos retornados pela API
