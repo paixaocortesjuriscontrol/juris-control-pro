@@ -1,93 +1,41 @@
 
 
-## Corrigir extracao e exibicao dos dados DJEN: armazenar dados estruturados da API
+## Transformar Condição Concomitante em lista com botão "+"
 
-### Causa raiz do problema
+### O que muda para o usuário
+Ao invés de digitar tudo em um campo de texto livre, você poderá adicionar cada condição concomitante individualmente com um botão "+", igual aos critérios de exclusão. Cada item adicionado funciona como **OU** entre si.
 
-A API do PJE Comunica retorna dados estruturados ricos:
-- `nomeOrgao` (ex: "3a Turma")
-- `tipoComunicacao` (ex: "Intimacao")  
-- `meio` (ex: "D")
-- `destinatarios[]` com nome, OAB, UF de cada advogado
+**Exemplo prático:** Para o Advogado OSMAR que tem GOL ou CITIBANK ou SANTANDER:
+- Adicionar "GOL" (clica +)
+- Adicionar "CITIBANK" (clica +)  
+- Adicionar "SANTANDER" (clica +)
 
-Porem, o sistema hoje mistura TUDO dentro do campo texto `conteudo` (via `buildDjenLikeConteudo`), e depois tenta re-extrair esses dados via regex na hora de exibir. Isso e inerentemente fragil e causa as falhas que voce ve (orgao generico, advogados nao detectados, etc.).
+A publicação será aceita se contiver OSMAR **E** (GOL **OU** CITIBANK **OU** SANTANDER).
 
-**Exemplo real do banco:**
-```
-Orgao: 3a Turma
-Data de disponibilizacao: 2026-02-19
-Tipo de comunicacao: Intimacao
-Meio: D
-Processo: 00002626720185050611
+Se precisar de AND entre termos dentro de um mesmo item, use vírgula: "BRADESCO, SERVIÇO DE APOIO" significa que ambos devem aparecer juntos.
 
-Advogados:
-BANCO SANTANDER (BRASIL) S.A.     <-- isso e PARTE, nao advogado!
-SINDICATO DOS TRABALHADORES...    <-- isso tambem e PARTE
+### O que NÃO muda
+- A lógica de validação existente permanece idêntica (separador `|` para OR, `,` para AND interno)
+- Publicações já salvas continuam funcionando
+- O campo no banco `condicao_concomitante` continua sendo texto simples (os itens são unidos por ` | ` ao salvar)
 
-A C O R D A O ...
-```
+### Detalhes técnicos
 
-O sistema injeta "BANCO SANTANDER" como advogado porque a API retornou no campo `destinatarios`, mas na verdade e uma parte. E o regex nao consegue distinguir.
+**Arquivo: `src/components/djen/MonitoramentoDialog.tsx`**
 
-### Solucao: armazenar campos estruturados separadamente
+1. Adicionar novo estado `condicoesConcomitantes` (array de strings) e `novaCondicao` (string), similar ao pattern de `exclusoes`/`novaExclusao`
 
-#### 1. Adicionar colunas na tabela `publicacoes_djen`
+2. No `useEffect` de inicialização, converter o campo string existente `condicao_concomitante` em array separando por `|`:
+   ```
+   monitoramento.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
+   ```
 
-Novas colunas:
-- `orgao` (text) - nome do orgao julgador (ex: "5a Turma", "2a Vara do Trabalho")
-- `tipo_comunicacao` (text) - tipo (ex: "Intimacao", "Citacao")
-- `meio` (text) - meio de publicacao (ex: "D", "Diario de Justica Eletronico Nacional")
-- `advogados_json` (jsonb) - array de objetos `{nome, oab, uf}` extraidos da API
+3. Adicionar funções `handleAddCondicao` e `handleRemoveCondicao` seguindo o pattern de exclusões
 
-Essas colunas sao preenchidas NO MOMENTO DA CAPTURA, quando os dados estruturados da API ainda estao disponiveis, em vez de tentar re-extrair depois.
+4. Substituir o Input simples por Input + botão "+" + lista de badges com X (mesmo layout das exclusões)
 
-#### 2. Preencher os novos campos no momento do salvamento
+5. Ao salvar, unir o array em string com ` | `: `condicoesConcomitantes.join(' | ') || undefined`
 
-No `useDjenTermosEngine.ts`, alterar o payload de insercao para incluir:
+6. Atualizar o tooltip para explicar: "Cada condição é um critério OR. A publicação deve conter o termo principal E pelo menos uma das condições. Para AND dentro de uma condição, use vírgula."
 
-```text
-orgao:             pub.nomeOrgao || pub.orgao || null
-tipo_comunicacao:  pub.tipoComunicacao || null
-meio:              pub.meio || pub.meioComunicacao || null
-advogados_json:    extractAdvogadosFromMeta(pub)  // ja existe essa funcao!
-```
-
-A funcao `extractAdvogadosFromMeta` em `djenLikeConteudo.ts` ja extrai advogados dos metadados estruturados da API corretamente. Hoje ela e usada apenas para injetar no texto; agora sera usada para salvar em coluna propria.
-
-#### 3. Atualizar `PublicacaoConteudoDjen.tsx` para usar dados estruturados
-
-O componente recebera as novas props opcionais:
-- `orgaoEstruturado` - usado diretamente, sem regex
-- `tipoComunicacaoEstruturado` - usado diretamente
-- `meioEstruturado` - usado diretamente, com expansao de abreviacoes (D -> Diario de Justica Eletronico Nacional)
-- `advogadosJson` - array de advogados ja formatados
-
-Logica: se o campo estruturado existir, usa ele. Senao, faz fallback para regex (publicacoes antigas que nao tem os novos campos).
-
-#### 4. Atualizar layout para formato split igual Comunica PJE
-
-Reestruturar o layout do componente:
-- Coluna esquerda fixa/sticky com metadados (orgao, data, tipo, meio, partes, advogados)
-- Coluna direita com scroll independente para o conteudo da publicacao
-- Divisoria visual clara entre as duas colunas
-- Altura controlada via prop `maxHeight`
-
-#### 5. Atualizar `AnaliseDjen.tsx`
-
-- Passar os novos campos estruturados como props para `PublicacaoConteudoDjen`
-- Atualizar geracao de PDF para usar os campos estruturados
-- Remover `ScrollArea` duplicado do Dialog
-
-### Detalhes tecnicos
-
-**Arquivos a modificar:**
-1. **Nova migracao SQL** - adicionar colunas `orgao`, `tipo_comunicacao`, `meio`, `advogados_json` em `publicacoes_djen`
-2. **`src/hooks/useDjenTermosEngine.ts`** (~linha 1215) - preencher novos campos no payload de insercao
-3. **`src/components/djen/PublicacaoConteudoDjen.tsx`** - aceitar novas props, usar dados estruturados com fallback regex, layout sticky split
-4. **`src/pages/AnaliseDjen.tsx`** - passar novos campos como props, corrigir PDFs
-5. **`src/integrations/supabase/types.ts`** - atualizar tipos com novas colunas
-
-**Impacto:**
-- Publicacoes ja existentes no banco continuarao usando regex (fallback)
-- Novas publicacoes capturadas terao os campos estruturados preenchidos automaticamente
-- Nenhuma perda de dados ou quebra de funcionalidade existente
+**Nenhuma alteração nos hooks de validação** - a string salva no banco continua no mesmo formato `TERMO1 | TERMO2 | TERMO3` que já é processada corretamente por `condicaoConcomitanteAtendida` em todos os engines.
