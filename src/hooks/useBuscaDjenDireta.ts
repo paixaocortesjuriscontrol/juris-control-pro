@@ -1046,16 +1046,16 @@ export function useBuscaDjenDireta() {
         return false;
       }
       
-      // Condição concomitante (AND)
-      if (!condicaoConcomitanteAtendida(pub.conteudo, mon.condicao_concomitante)) {
-        descartadasParaPersistir.push({ pub, motivo: 'Condição concomitante não encontrada' });
-        return false;
-      }
-
-      // Validar termo completo presente
+      // Validar termo completo presente (ANTES da condição concomitante)
       if (!conteudoContemTermoOuOr(pub.conteudo, mon.termo_busca, mon.termos_or, mon.tipo, mon.oab)) {
         publicacoesIgnoradas++;
         descartadasParaPersistir.push({ pub, motivo: 'Termo/OR não encontrado integralmente' });
+        return false;
+      }
+
+      // Condição concomitante (AND) — verificar DEPOIS do termo
+      if (!condicaoConcomitanteAtendida(pub.conteudo, mon.condicao_concomitante)) {
+        descartadasParaPersistir.push({ pub, motivo: 'Condição concomitante não encontrada' });
         return false;
       }
       
