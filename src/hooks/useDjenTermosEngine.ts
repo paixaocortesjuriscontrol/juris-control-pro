@@ -840,6 +840,26 @@ async function processarTermo(
     variantesParaBuscar = [];
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
+  } else if (mon.tipo === 'advogado' && !mon.oab) {
+    // Advogado SEM OAB: buscar pelo nome principal + cada nome alternativo (termos_or)
+    // usando nomeAdvogado para busca cross-UF mais precisa
+    const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+    const nomesParaBuscar = new Set<string>();
+    if (termoPuro) nomesParaBuscar.add(termoPuro);
+    
+    // Adicionar cada nome de termos_or como variante de busca separada
+    if (mon.termos_or?.length) {
+      for (const termoOr of mon.termos_or) {
+        const nomeOr = extrairPalavraChavePura(termoOr.trim());
+        if (nomeOr) nomesParaBuscar.add(nomeOr);
+      }
+    }
+    
+    // Usar nomeAdvogado para buscas cross-UF (conforme djen-advogado-uf-todas-search-v1)
+    // Cada nome será buscado individualmente via loop de variantes
+    variantesParaBuscar = Array.from(nomesParaBuscar);
+    // Flag para indicar que as variantes são nomes de advogado (usar nomeAdvogado ao invés de palavraChave)
+    baseParams._advogadoSemOabNomes = true;
   } else {
     // palavra-chave: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
     const termoPuro = extrairPalavraChavePura(mon.termo_busca);
@@ -904,15 +924,21 @@ async function processarTermo(
               updateProgress({
                 mensagem: `🧩 Fase 1/2: coleta OAB ${baseParams.oab}${uf ? `/${uf}` : ''}...`,
               });
+            } else if (baseParams._advogadoSemOabNomes && variante) {
+              updateProgress({
+                mensagem: `🔍 Buscando: ${variante}...`,
+              });
             }
+            const isAdvSemOabNomes = !!baseParams._advogadoSemOabNomes;
             const resp = await buscarPjeComunicaPaginado(
               {
                 tipo: baseParams.tipo,
                 oab: baseParams.oab,
                 uf: uf,
-                nomeAdvogado: baseParams.nomeAdvogado,
-               nomeParte: baseParams.nomeParte,
-                palavraChave: variante || undefined,
+                // Para advogado sem OAB: usar nomeAdvogado (cross-UF) ao invés de palavraChave
+                nomeAdvogado: isAdvSemOabNomes ? (variante || undefined) : baseParams.nomeAdvogado,
+                nomeParte: baseParams.nomeParte,
+                palavraChave: isAdvSemOabNomes ? undefined : (variante || undefined),
                 numeroProcesso: baseParams.numeroProcesso,
                 siglaTribunal: isAdvogadoComOab
                   ? (advogadoForcarTribunalNaBusca ? trib : undefined)
