@@ -463,7 +463,7 @@ function termoAtendidoPorPalavras(conteudoNorm: string, termo: string): boolean 
   return contemFraseExata(conteudoNorm, termoNorm);
 }
 
-function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
+function condicaoConcomitanteAtendida(conteudo: string, condicao?: string, pub?: any): boolean {
   if (!condicao) return true;
   const gruposOr = String(condicao)
     .split('|')
@@ -471,7 +471,33 @@ function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): bool
     .filter(Boolean);
   if (gruposOr.length === 0) return true;
 
-  const conteudoNorm = normalizar(conteudo);
+  // Concatenar texto da publicação + metadados estruturados (partes, destinatários, polos)
+  let textoCompleto = conteudo || '';
+  if (pub) {
+    const metaParts: string[] = [];
+    // Destinatários
+    if (Array.isArray(pub.destinatarios)) {
+      for (const d of pub.destinatarios) {
+        if (d?.nome) metaParts.push(d.nome);
+        if (d?.nomeDestinatario) metaParts.push(d.nomeDestinatario);
+      }
+    }
+    if (pub.destinatarioNome) metaParts.push(pub.destinatarioNome);
+    if (pub.poloAtivo) metaParts.push(pub.poloAtivo);
+    if (pub.poloPassivo) metaParts.push(pub.poloPassivo);
+    // Advogados nested
+    if (Array.isArray(pub.destinatarioadvogados)) {
+      for (const da of pub.destinatarioadvogados) {
+        const adv = da?.advogado || da;
+        if (adv?.nome) metaParts.push(adv.nome);
+      }
+    }
+    if (metaParts.length > 0) {
+      textoCompleto = textoCompleto + '\n' + metaParts.join('\n');
+    }
+  }
+
+  const conteudoNorm = normalizar(textoCompleto);
   return gruposOr.some(grupo => {
     const termosAnd = grupo
       .split(',')
@@ -1244,7 +1270,7 @@ async function processarTermo(
     }
 
     // 3. Condição concomitante (AND) — verificar DEPOIS do termo para evitar descarte prematuro
-    if (!condicaoConcomitanteAtendida(conteudo, mon.condicao_concomitante)) {
+    if (!condicaoConcomitanteAtendida(conteudo, mon.condicao_concomitante, pub)) {
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
       return false;
     }
