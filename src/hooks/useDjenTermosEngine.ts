@@ -825,7 +825,8 @@ async function processarTermo(
   signal: AbortSignal,
   runtimeConfig: RuntimeConfig,
   onRateLimit?: (waitMs: number) => void,
-  onTribunalProgress?: (tribunalIdx: number, totalTribunais: number) => void
+  onTribunalProgress?: (tribunalIdx: number, totalTribunais: number) => void,
+  allTermos?: Monitoramento[]
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; descartadasTribunal: number; pubsNovasResumo: Array<{ processo_numero: string | null; conteudo: string | null }> }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, descartadasTribunal: 0, pubsNovasResumo: [] };
 
@@ -1279,8 +1280,56 @@ async function processarTermo(
 
     // 3. Condição concomitante (AND) — verificar DEPOIS do termo para evitar descarte prematuro
     if (!condicaoConcomitanteAtendida(conteudo, mon.condicao_concomitante, pub)) {
-      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
-      return false;
+      // RESGATE INLINE: se outro monitoramento (sem condição concomitante) aceitaria 
+      // esta publicação, salvar sob ele em vez de descartar.
+      // Isso resolve o problema de a API não retornar a mesma publicação para o outro termo.
+      let resgatado = false;
+      if (allTermos && allTermos.length > 0) {
+        for (const cand of allTermos) {
+          if (cand.id === mon.id) continue;
+          if (cand.condicao_concomitante?.trim()) continue; // pular candidatos COM condição
+          
+          // Verificar se o advogado/termo do candidato está presente no conteúdo ou metadados
+          const termoPuroCand = extrairPalavraChavePura(cand.termo_busca);
+          const termosOrCand = (cand.termos_or || []).map((t: string) => extrairPalavraChavePura(t.trim())).filter(Boolean);
+          const todosNomes = [termoPuroCand, ...termosOrCand].filter(Boolean);
+          
+          const conteudoNormCheck = normalizar(conteudo);
+          const nomeMatch = todosNomes.some(nome => {
+            const nomeNorm = normalizar(nome);
+            return nomeNorm && contemFraseExata(conteudoNormCheck, nomeNorm);
+          });
+          
+          // Verificar OAB do candidato
+          let oabMatch = false;
+          if (!nomeMatch && cand.oab) {
+            const oabDigits = String(cand.oab).replace(/\D/g, '');
+            if (oabDigits.length >= 3 && conteudo.includes(oabDigits)) {
+              oabMatch = true;
+            }
+          }
+          
+          if (!nomeMatch && !oabMatch) continue;
+          
+          // Verificar exclusões do candidato
+          if (cand.exclusoes && cand.exclusoes.length > 0) {
+            const excFound = cand.exclusoes.some((ex: string) => conteudo.toUpperCase().includes(ex.toUpperCase()));
+            if (excFound) continue;
+          }
+          
+          // Resgatado! Marcar para salvar sob o candidato
+          pub._rescuedToMonitoramentoId = cand.id;
+          resgatado = true;
+          console.log(`[DJEN] 🔄 Resgate inline: processo=${pub.numeroProcesso || pub.processo || '?'}, de=${mon.termo_busca} → para=${cand.termo_busca}`);
+          break;
+        }
+      }
+      
+      if (!resgatado) {
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+        return false;
+      }
+      // Se resgatado, continua no filtro (será salvo com monitoramento_id diferente)
     }
 
     return true;
@@ -1383,7 +1432,7 @@ async function processarTermo(
       const advogadosJsonPayload = advogadosMerged.length > 0 ? JSON.stringify(advogadosMerged) : null;
 
       return {
-        monitoramento_id: mon.id,
+        monitoramento_id: pub._rescuedToMonitoramentoId || mon.id,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudoTexto,
@@ -1778,7 +1827,8 @@ async function runEngine(
                 .eq('id', singletonState.executionId)
                 .then(() => {}, () => {});
             }
-          }
+          },
+          termos // Passar todos os termos para resgate inline
         );
         
         novas += result.novas;
@@ -1918,164 +1968,8 @@ async function runEngine(
       // Dia concluído! Resetar índice de termo para próximo dia
       termoIdx = 0;
 
-      // ================================================================
-      // RESGATE CROSS-MONITORAMENTO
-      // Publicações descartadas por condicao_concomitante em um monitoramento
-      // podem ser válidas para outro monitoramento do mesmo advogado que não
-      // tem condição concomitante (ou tem condição diferente que é atendida).
-      // ================================================================
-      if (!signal.aborted) {
-        try {
-          updateProgress({ mensagem: `🔄 Resgate cross-monitoramento para ${diaFmt}...` });
-          
-          // Buscar descartadas por condicao_concomitante do dia atual
-          // Usar filtro por data sem horário para cobrir qualquer formato armazenado
-          const { data: descartadasConcomitante, error: errDesc } = await supabase
-            .from('publicacoes_djen_descartadas')
-            .select('id, conteudo, hash_conteudo, processo_numero, monitoramento_id, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, partes_json, advogados_json')
-            .eq('motivo_descarte', 'condicao_concomitante')
-            .gte('data_disponibilizacao', `${diaYmd}T00:00:00`)
-            .lte('data_disponibilizacao', `${diaYmd}T23:59:59`) as { data: any[] | null; error: any };
-
-          if (errDesc) {
-            console.warn('[DJEN] Erro ao buscar descartadas para resgate:', errDesc.message);
-          }
-
-          console.log(`[DJEN] 🔄 Resgate: ${descartadasConcomitante?.length ?? 0} descartadas por condicao_concomitante em ${diaYmd}`);
-
-          if (descartadasConcomitante && descartadasConcomitante.length > 0) {
-            // Monitoramentos candidatos: tipo advogado, SEM condicao_concomitante
-            const candidatos = termos.filter(t => 
-              (t.tipo === 'advogado') && 
-              !t.condicao_concomitante?.trim()
-            );
-
-            console.log(`[DJEN] 🔄 Candidatos para resgate: ${candidatos.length} termos sem condição concomitante`, 
-              candidatos.map(c => ({ id: c.id, termo: c.termo_busca })));
-
-            if (candidatos.length > 0) {
-              let resgatadas = 0;
-              const payloadResgate: any[] = [];
-
-              for (const desc of descartadasConcomitante) {
-                const conteudoDesc = desc.conteudo || '';
-                const conteudoNorm = normalizar(conteudoDesc);
-
-                for (const cand of candidatos) {
-                  // Verificar se o advogado do candidato está presente no conteúdo ou metadados
-                  const termoPuro = extrairPalavraChavePura(cand.termo_busca);
-                  const termosOrPuros = (cand.termos_or || []).map((t: string) => extrairPalavraChavePura(t.trim())).filter(Boolean);
-                  const todosNomes = [termoPuro, ...termosOrPuros].filter(Boolean);
-
-                  // Verificar se algum nome do candidato está no conteúdo
-                  const nomeEncontrado = todosNomes.some(nome => {
-                    const nomeNorm = normalizar(nome);
-                    return nomeNorm && contemFraseExata(conteudoNorm, nomeNorm);
-                  });
-
-                  // Também verificar nos advogados_json (metadados estruturados)
-                  let nomeNosMetadados = false;
-                  if (!nomeEncontrado && desc.advogados_json) {
-                    try {
-                      const advs = typeof desc.advogados_json === 'string' 
-                        ? JSON.parse(desc.advogados_json) 
-                        : desc.advogados_json;
-                      if (Array.isArray(advs)) {
-                        const advsText = normalizar(advs.join(' '));
-                        nomeNosMetadados = todosNomes.some(nome => {
-                          const nomeNorm = normalizar(nome);
-                          return nomeNorm && advsText.includes(nomeNorm);
-                        });
-                      }
-                    } catch {}
-                  }
-
-                  // Verificar OAB do candidato nos metadados
-                  let oabEncontrada = false;
-                  if (!nomeEncontrado && !nomeNosMetadados && cand.oab) {
-                    const oabDigits = String(cand.oab).replace(/\D/g, '');
-                    if (oabDigits.length >= 3) {
-                      // Verificar no conteúdo
-                      if (conteudoDesc.includes(oabDigits)) oabEncontrada = true;
-                      // Verificar nos advogados_json
-                      if (!oabEncontrada && desc.advogados_json) {
-                        const advStr = typeof desc.advogados_json === 'string' ? desc.advogados_json : JSON.stringify(desc.advogados_json);
-                        if (advStr.includes(oabDigits)) oabEncontrada = true;
-                      }
-                    }
-                  }
-
-                  if (!nomeEncontrado && !nomeNosMetadados && !oabEncontrada) {
-                    continue;
-                  }
-
-                  console.log(`[DJEN] 🔄 Match resgate: processo=${desc.processo_numero}, candidato=${cand.termo_busca} (nome=${nomeEncontrado}, meta=${nomeNosMetadados}, oab=${oabEncontrada})`);
-
-                  // Verificar exclusões do candidato
-                  if (cand.exclusoes && cand.exclusoes.length > 0) {
-                    const textoExclusao = [
-                      conteudoDesc,
-                      desc.partes_json ? (typeof desc.partes_json === 'string' ? desc.partes_json : JSON.stringify(desc.partes_json)) : '',
-                      desc.advogados_json ? (typeof desc.advogados_json === 'string' ? desc.advogados_json : JSON.stringify(desc.advogados_json)) : '',
-                    ].join('\n').toUpperCase();
-                    const excluido = cand.exclusoes.some((ex: string) => textoExclusao.includes(ex.toUpperCase()));
-                    if (excluido) {
-                      console.log(`[DJEN] 🔄 Excluída pelo candidato: processo=${desc.processo_numero}`);
-                      continue;
-                    }
-                  }
-
-                  // Gerar hash e calcular datas
-                  const dataDisp = desc.data_disponibilizacao ? desc.data_disponibilizacao.slice(0, 10) : diaYmd;
-                  const hash = gerarHash(conteudoDesc, dataDisp);
-                  const dataPub = calcularDataPublicacaoYmd(dataDisp);
-
-                  payloadResgate.push({
-                    monitoramento_id: cand.id,
-                    hash_conteudo: hash,
-                    processo_numero: desc.processo_numero,
-                    conteudo: conteudoDesc,
-                    data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
-                    data_publicacao: `${dataPub}T12:00:00.000Z`,
-                    tribunal: desc.tribunal,
-                    fonte: desc.fonte || 'DJEN',
-                    lida: false,
-                    importada_de_descartada: true,
-                    orgao: desc.orgao,
-                    tipo_comunicacao: desc.tipo_comunicacao,
-                    meio: desc.meio,
-                    partes_json: desc.partes_json,
-                    advogados_json: desc.advogados_json,
-                  });
-                  resgatadas++;
-                  break; // Só precisa de um candidato
-                }
-              }
-
-              if (payloadResgate.length > 0) {
-                const { error: errUpsert } = await supabase
-                  .from('publicacoes_djen')
-                  .upsert(payloadResgate, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
-                
-                if (errUpsert) {
-                  console.error(`[DJEN] ❌ Erro no upsert de resgate: ${errUpsert.message}`, errUpsert);
-                } else {
-                  novas += resgatadas;
-                  console.log(`[DJEN] ✅ Resgate cross-monitoramento: ${resgatadas} publicações resgatadas com sucesso`);
-                  updateProgress({
-                    novas,
-                    mensagem: `✅ Resgate: ${resgatadas} publicações recuperadas de descartadas`,
-                  });
-                }
-              } else {
-                console.log('[DJEN] 🔄 Resgate: nenhuma publicação elegível para resgate');
-              }
-            }
-          }
-        } catch (e: any) {
-          console.error('[DJEN] ❌ Erro no resgate cross-monitoramento:', e?.message || e, e);
-        }
-      }
+      // Resgate cross-monitoramento agora é feito INLINE em processarTermo
+      // (não precisa mais de bloco pós-processamento)
 
       if (!signal.aborted && diaIdx < totalDias - 1) {
         const proximoDia = listaDatas[diaIdx + 1];
