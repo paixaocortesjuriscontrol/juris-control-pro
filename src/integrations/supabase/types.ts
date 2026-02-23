@@ -4180,6 +4180,7 @@ export type Database = {
       }
       publicacoes_djen_processos: {
         Row: {
+          advogados_json: Json | null
           conteudo: string | null
           created_at: string
           data_disponibilizacao: string | null
@@ -4189,10 +4190,15 @@ export type Database = {
           hash_conteudo: string
           id: string
           lida: boolean
+          meio: string | null
+          orgao: string | null
+          partes_json: Json | null
           processo_id: string
           processo_numero: string
+          tipo_comunicacao: string | null
         }
         Insert: {
+          advogados_json?: Json | null
           conteudo?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
@@ -4202,10 +4208,15 @@ export type Database = {
           hash_conteudo: string
           id?: string
           lida?: boolean
+          meio?: string | null
+          orgao?: string | null
+          partes_json?: Json | null
           processo_id: string
           processo_numero: string
+          tipo_comunicacao?: string | null
         }
         Update: {
+          advogados_json?: Json | null
           conteudo?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
@@ -4215,8 +4226,12 @@ export type Database = {
           hash_conteudo?: string
           id?: string
           lida?: boolean
+          meio?: string | null
+          orgao?: string | null
+          partes_json?: Json | null
           processo_id?: string
           processo_numero?: string
+          tipo_comunicacao?: string | null
         }
         Relationships: [
           {

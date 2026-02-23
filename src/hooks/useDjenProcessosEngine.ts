@@ -13,6 +13,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 import { toast } from "sonner";
+import { extractDestinatariosFromMeta, extractAdvogadosFromApiMeta } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -449,8 +451,8 @@ async function runEngine(
           if (!conteudo) continue;
 
           const hoje = getBrazilISODate();
-          const dataDisponibilizacao = pub.dataDisponibilizacao || hoje;
-          const dataPublicacao = pub.dataPublicacao || dataDisponibilizacao;
+          const dataDisponibilizacao = pub.dataDisponibilizacao || pub.data_disponibilizacao || hoje;
+          const dataPublicacao = pub.dataPublicacao || pub.data_publicacao || dataDisponibilizacao;
           
           const conteudoNorm = normalizeConteudo(conteudo);
           const hashConteudo = generateHash(`${processo.numero}|${dataPublicacao}|${conteudoNorm.slice(0, 2000)}`);
@@ -472,6 +474,27 @@ async function runEngine(
             continue;
           }
 
+          // Extrair metadados estruturados da API (igual ao Termos engine)
+          const orgaoEstruturado = pub?.nomeOrgao ?? pub?.nome_orgao ?? pub?.orgao ?? pub?.nomeOrgaoJulgador ?? null;
+          const tipoComunicacaoEstruturado = pub?.tipoComunicacao ?? pub?.tipo_comunicacao ?? pub?.tipo ?? null;
+          const meioEstruturado = pub?.meio ?? pub?.meioComunicacao ?? pub?.meio_comunicacao ?? pub?.veiculo ?? null;
+
+          // Destinatários da API → partes_json
+          const destinatarios = extractDestinatariosFromMeta(pub);
+          const partesJsonPayload = destinatarios.length > 0 ? JSON.stringify(destinatarios) : null;
+
+          // Advogados da API → advogados_json
+          const advogadosApi = extractAdvogadosFromApiMeta(pub);
+          const advogadosJsonPayload = advogadosApi.length > 0 ? JSON.stringify(advogadosApi) : null;
+
+          // Formatar conteúdo no padrão DJEN (com header estruturado)
+          const diaYmd = String(dataDisponibilizacao).slice(0, 10);
+          const conteudoFormatado = buildDjenLikeConteudo({
+            pub,
+            diaYmd,
+            conteudoOriginal: conteudo,
+          });
+
           const { error: insertError } = await supabase
             .from('publicacoes_djen_processos')
             .insert({
@@ -480,8 +503,13 @@ async function runEngine(
               hash_conteudo: hashConteudo,
               data_publicacao: dataPublicacao,
               data_disponibilizacao: dataDisponibilizacao,
-              conteudo: conteudo.slice(0, 50000),
+              conteudo: conteudoFormatado.slice(0, 50000),
               fonte: 'singleton_engine_v2_parallel',
+              orgao: orgaoEstruturado ? String(orgaoEstruturado).trim() : null,
+              tipo_comunicacao: tipoComunicacaoEstruturado ? String(tipoComunicacaoEstruturado).trim() : null,
+              meio: meioEstruturado ? String(meioEstruturado).trim() : null,
+              advogados_json: advogadosJsonPayload,
+              partes_json: partesJsonPayload,
             });
 
           if (!insertError) {
