@@ -974,7 +974,7 @@ async function processarTermo(
               },
               {
                 signal,
-                maxPages: 10,
+                maxPages: 20,
                 delayMs: dynamicPageDelay,
                 maxRetries: runtimeConfig.max_retries,
                 retryBaseDelay: runtimeConfig.retry_base_delay,
@@ -1077,7 +1077,7 @@ async function processarTermo(
               },
               {
                 signal,
-                maxPages: 5,
+                maxPages: 20,
                 delayMs: dynamicPageDelay,
                 maxRetries: runtimeConfig.max_retries,
                 retryBaseDelay: runtimeConfig.retry_base_delay,
