@@ -142,6 +142,7 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
   const configuracaoDistribuicoes = configuracoes.find(c => c.tipo === 'distribuicoes');
   const configuracaoDjen = configuracoes.find(c => c.tipo === 'djen');
   const configuracaoTermos = configuracoes.find(c => c.tipo === 'termos');
+  const configuracaoTermosPro = configuracoes.find(c => c.tipo === 'termos_pro');
 
   return {
     configuracoes,
@@ -150,6 +151,7 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
     configuracaoDistribuicoes,
     configuracaoDjen,
     configuracaoTermos,
+    configuracaoTermosPro,
     isLoading,
     atualizarConfiguracao,
     executarMonitoramento,
