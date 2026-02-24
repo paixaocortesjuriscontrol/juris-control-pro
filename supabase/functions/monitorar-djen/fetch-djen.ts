@@ -24,7 +24,7 @@ export async function fetchDJENResultsWithStats(
 ): Promise<{ itemsCount: number; pages: number }> {
   let page = 0;
   let itemsCount = 0;
-  const maxPages = params.texto ? 3 : 10;
+  const maxPages = params.texto ? 5 : 20;
 
   const now = new Date();
   const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));

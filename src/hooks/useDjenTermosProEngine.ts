@@ -480,7 +480,12 @@ async function processarTermoPro(
     baseParams.nomeParte = mon.termo_busca;
   } else if (tipo === 'advogado') {
     baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
-    baseParams.nomeAdvogado = mon.termo_busca;
+    // Normalizar acentos do nomeAdvogado — a API PJE Comunica aceita sem acentos
+    // e o parâmetro nomeAdvogado é de BUSCA (não match exato no campo destinatarioadvogados)
+    baseParams.nomeAdvogado = mon.termo_busca
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
     baseParams.uf = mon.uf;
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
@@ -515,15 +520,20 @@ async function processarTermoPro(
   // Retry sem ufOab para tribunais superiores/federais quando busca por OAB retornou vazio
   if (isAdvogadoComOab && resultados.length === 0 && !signal.aborted) {
     const tribunaisRetry = tribunais.length > 0 ? tribunais : [];
+    // Normalizar acentos do nome para busca — a API aceita melhor sem acentos
+    const nomeNormalizado = mon.termo_busca
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
       try {
-        console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${mon.termo_busca}`);
+        console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
         const resp = await buscarPjeComunicaPaginado(
           { 
             tipo: 'advogado' as PjeSearchType,
-            nomeAdvogado: mon.termo_busca,
+            nomeAdvogado: nomeNormalizado,
             siglaTribunal: trib,
             dataInicio: diaYmd, dataFim: diaYmd, 
             pageSize: 50, page: 0 
@@ -556,7 +566,7 @@ async function processarTermoPro(
         try {
           const resp = await buscarPjeComunicaPaginado(
             { tipo: 'palavra-chave', palavraChave: termo, siglaTribunal: trib, dataInicio: diaYmd, dataFim: diaYmd, pageSize: 50, page: 0 },
-            { signal, maxPages: 5, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
+            { signal, maxPages: 20, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
           );
           addResults(resp.items, trib);
         } catch (e: any) {
