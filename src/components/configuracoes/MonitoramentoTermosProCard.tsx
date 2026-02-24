@@ -12,9 +12,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Zap, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle, RotateCcw } from "lucide-react";
+import { Zap, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle, RotateCcw, Bomb } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
-import { useBuscaDjenDireta, ProgressoExecucao } from "@/hooks/useBuscaDjenDireta";
+import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -29,27 +29,6 @@ interface Props {
   coordenacaoId: string;
 }
 
-interface TribunalStat {
-  tribunal: string | null;
-  paginas: number;
-  resultados: number;
-  novas: number;
-  descartadas: number;
-  duplicatas: number;
-}
-
-interface ExecutionResult {
-  processados: number;
-  novas: number;
-  descartadas: number;
-  duplicatas: number;
-  totalPaginas: number;
-  totalResultados: number;
-  tribunaisStats: TribunalStat[];
-  duracaoSegundos: number;
-  executadoEm?: string;
-}
-
 export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const { 
@@ -58,14 +37,20 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     atualizarConfiguracao 
   } = useConfiguracoesMonitoramento(coordenacaoId);
 
-  // Hook de busca direta DJEN (reutiliza o mesmo motor, mas com tipo termos_pro)
+  // Hook do engine Pro (singleton correto)
   const {
-    progresso: progressoDireta,
-    isExecutando: executandoDireta,
-    executarMonitoramento: executarDireta,
-    cancelar: cancelarDireta,
-  } = useBuscaDjenDireta();
+    progress,
+    isRunning,
+    canResume,
+    checkpoint,
+    executar,
+    retomar,
+    cancelar,
+    limpar,
+    forceKill,
+  } = useDjenTermosPro();
 
+  // Filtros por coordenação e termo
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
 
@@ -94,131 +79,13 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     if (!filtroCoordenacaoId) setFiltroMonitoramentoId('');
   }, [filtroCoordenacaoId]);
 
-  const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
-  const [cancelando, setCancelando] = useState(false);
   const [limpando, setLimpando] = useState(false);
-  const [ocultarErroAnterior, setOcultarErroAnterior] = useState(false);
   const [dialogRetomada, setDialogRetomada] = useState(false);
   
   // Estados para período de consulta
   const [dataInicio, setDataInicio] = useState<Date>(new Date());
   const [dataFim, setDataFim] = useState<Date>(new Date());
-
-  // Fetch last execution report
-  const { data: ultimoHistorico } = useQuery({
-    queryKey: ['historico-monitoramento-termos-pro'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('historico_monitoramento')
-        .select('*')
-        .eq('tipo', 'termos_pro')
-        .gt('processos_verificados', 0)
-        .order('executado_em', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    refetchInterval: 60000,
-  });
-
-  // FONTE ÚNICA: execucoes_agendadas para progresso em tempo real (fallback legado)
-  const { data: execucaoAtiva } = useQuery({
-    queryKey: ['execucao-ativa-termos-pro'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('execucoes_agendadas')
-        .select('*')
-        .eq('tipo', 'termos_pro')
-        .eq('status', 'executando')
-        .is('finalizado_em', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (data) {
-        const iniciadoEm = new Date(data.iniciado_em).getTime();
-        const agora = Date.now();
-        const tempoDecorridoMs = agora - iniciadoEm;
-        
-        if (tempoDecorridoMs > 30 * 60 * 1000) {
-          await supabase
-            .from('execucoes_agendadas')
-            .update({ 
-              status: 'timeout', 
-              finalizado_em: new Date().toISOString(),
-              ultimo_erro: 'Execução expirou após 30 minutos (timeout automático)'
-            })
-            .eq('id', data.id);
-          return null;
-        }
-      }
-      
-      return data;
-    },
-    refetchInterval: 2000,
-  });
-
-  // Buscar última execução com erro/falha para exibir alerta
-  const { data: ultimaExecucaoErro } = useQuery({
-    queryKey: ['ultima-execucao-erro-termos-pro'],
-    queryFn: async () => {
-      const { data: ultimaConcluida } = await supabase
-        .from('execucoes_agendadas')
-        .select('id, finalizado_em')
-        .eq('tipo', 'termos_pro')
-        .eq('status', 'concluido')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const { data, error } = await supabase
-        .from('execucoes_agendadas')
-        .select('*')
-        .eq('tipo', 'termos_pro')
-        .in('status', ['falhou', 'timeout', 'cancelado'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (!data) return null;
-      
-      if (ultimaConcluida?.finalizado_em && data.finalizado_em) {
-        const concluidaEm = new Date(ultimaConcluida.finalizado_em).getTime();
-        const erroEm = new Date(data.finalizado_em).getTime();
-        if (concluidaEm > erroEm) return null;
-      }
-      
-      const finalizadoEm = data.finalizado_em ? new Date(data.finalizado_em).getTime() : 0;
-      if (Date.now() - finalizadoEm > 30 * 60 * 1000) {
-        return null;
-      }
-      
-      const erroTecnico = data.ultimo_erro?.toLowerCase().includes('signal') ||
-                          data.ultimo_erro?.toLowerCase().includes('aborted');
-      if (erroTecnico) return null;
-      
-      return data;
-    },
-    refetchInterval: 30000,
-  });
-
-  // Verificar se existe checkpoint válido para retomada
-  const checkpoint = progressoDireta.checkpoint;
-  const hoje = new Date().toISOString().split('T')[0];
-  
-  const checkpointLocal = checkpoint && checkpoint.data === hoje && checkpoint.indice > 0;
-  const ultimaExecucaoCheckpoint = ultimaExecucaoErro?.detalhes as any;
-  const checkpointDaExecucao = ultimaExecucaoCheckpoint?.processados > 0 
-    && (ultimaExecucaoErro?.status === 'timeout' || ultimaExecucaoErro?.status === 'cancelado');
-  
-  const hasCheckpointValido = checkpointLocal || checkpointDaExecucao;
 
   // CONTADORES REAIS DO BANCO (publicações persistidas hoje)
   const { data: statsHoje } = useQuery({
@@ -228,88 +95,31 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
       const inicioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 0, 0, 0).toISOString();
       const fimDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59).toISOString();
 
-      const { count: novas, error: e1 } = await supabase
+      const { count: novas } = await supabase
         .from('publicacoes_djen')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
-      const { count: descartadas, error: e2 } = await supabase
+      const { count: descartadas } = await supabase
         .from('publicacoes_djen_descartadas')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', inicioDia)
         .lte('created_at', fimDia);
 
-      const { count: monitoramentos, error: e3 } = await supabase
+      const { count: monitoramentosCount } = await supabase
         .from('monitoramentos_djen')
         .select('*', { count: 'exact', head: true })
         .eq('ativo', true);
 
-      if (e1 || e2 || e3) console.warn('Erro ao buscar stats Termos Pro:', e1, e2, e3);
-      
       return {
         novas: novas ?? 0,
         descartadas: descartadas ?? 0,
-        monitoramentos: monitoramentos ?? 0,
+        monitoramentos: monitoramentosCount ?? 0,
       };
     },
     refetchInterval: 10000,
   });
-
-  // Fetch configured tribunals
-  const { data: monitoramentosTribunais } = useQuery({
-    queryKey: ['termos-pro-tribunais-configurados'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('monitoramentos_djen')
-        .select('tribunais')
-        .eq('ativo', true);
-
-      if (error) throw error;
-      return (data || []) as Array<{ tribunais: string[] | null }>;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Real-time subscription para execucoes_agendadas
-  useEffect(() => {
-    const channel = supabase
-      .channel('execucao-termos-pro-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'execucoes_agendadas', filter: 'tipo=eq.termos_pro' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['execucao-ativa-termos-pro'] });
-          queryClient.invalidateQueries({ queryKey: ['ultima-execucao-erro-termos-pro'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
-  // Resetar ocultarErroAnterior quando mudar a última execução com erro
-  useEffect(() => {
-    setOcultarErroAnterior(false);
-  }, [ultimaExecucaoErro?.id]);
-
-  // FONTE DE PROGRESSO
-  const execProcessados = executandoDireta 
-    ? progressoDireta.monitoramentoAtual 
-    : (execucaoAtiva?.registros_processados ?? 0);
-  const execTotal = executandoDireta 
-    ? progressoDireta.totalMonitoramentos 
-    : (execucaoAtiva?.total_lotes ?? 0);
-  const execNovas = executandoDireta 
-    ? progressoDireta.publicacoesNovas 
-    : (execucaoAtiva?.registros_encontrados ?? 0);
-  const execPercent = execTotal > 0 
-    ? Math.round((execProcessados / execTotal) * 100) 
-    : 0;
-  
-  const isExecuting = executandoDireta || !!execucaoAtiva;
 
   // Obter IDs filtrados para execução
   const getMonitoramentoIdsFiltrados = (): string[] | undefined => {
@@ -320,27 +130,36 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     return undefined;
   };
 
-  const handleExecutarManual = async (retomar = false) => {
-    if (executandoDireta || isExecuting) {
-      toast.warning('Já existe uma execução Termos Pro em andamento. Aguarde ou cancele.');
+  const formatYmd = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const handleExecutarManual = () => {
+    if (isRunning) {
+      toast.warning('Já existe uma execução Termos Pro em andamento.');
       return;
     }
     
-    if (hasCheckpointValido && !retomar) {
+    if (canResume) {
       setDialogRetomada(true);
       return;
     }
     
-    setOcultarErroAnterior(true);
     const ids = getMonitoramentoIdsFiltrados();
-    await executarDireta(ids, retomar);
+    executar(formatYmd(dataInicio), formatYmd(dataFim), filtroCoordenacaoId || undefined, ids);
   };
 
-  const handleConfirmarRetomada = async (retomar: boolean) => {
+  const handleConfirmarRetomada = (resumir: boolean) => {
     setDialogRetomada(false);
-    setOcultarErroAnterior(true);
-    const ids = getMonitoramentoIdsFiltrados();
-    await executarDireta(ids, retomar);
+    if (resumir) {
+      retomar(filtroCoordenacaoId || undefined, getMonitoramentoIdsFiltrados());
+    } else {
+      const ids = getMonitoramentoIdsFiltrados();
+      executar(formatYmd(dataInicio), formatYmd(dataFim), filtroCoordenacaoId || undefined, ids);
+    }
   };
 
   const handleFrequenciaChange = (frequencia: string) => {
@@ -355,42 +174,37 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     }
   };
 
-  const handleCancelarExecucao = async () => {
-    cancelarDireta();
+  const handleCancelarExecucao = () => {
+    cancelar();
     toast.success('Execução cancelada');
-    queryClient.invalidateQueries({ queryKey: ['execucao-ativa-termos-pro'] });
+  };
+
+  const handleForceKill = () => {
+    forceKill(true);
   };
 
   const handleLimparApenas = async () => {
-    if (!confirm('Isso vai limpar TODAS as publicações Termos Pro capturadas hoje. Deseja continuar?')) {
-      return;
-    }
+    if (!confirm('Isso vai limpar TODAS as publicações capturadas hoje. Deseja continuar?')) return;
 
     setLimpando(true);
     try {
-      if (isExecuting) {
-        try {
-          await handleCancelarExecucao();
-        } catch {
-          // best-effort
-        }
+      if (isRunning) {
+        cancelar();
         await new Promise((r) => setTimeout(r, 500));
       }
 
       const { data, error } = await withTimeout(
         supabase.functions.invoke('limpar-djen-hoje'),
         180_000,
-        'A limpeza demorou mais que 180s. Verifique o log da função e tente novamente.'
+        'A limpeza demorou mais que 180s.'
       );
       if (error) throw error;
 
-      toast.success((data as any)?.message ?? 'Limpeza concluída! Agora você pode executar novamente.');
+      toast.success((data as any)?.message ?? 'Limpeza concluída!');
       
       queryClient.invalidateQueries({ queryKey: ['termos-pro-stats-hoje'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
-      queryClient.invalidateQueries({ queryKey: ['historico-monitoramento-termos-pro'] });
-      queryClient.invalidateQueries({ queryKey: ['configuracoes-monitoramento'] });
     } catch (error) {
       console.error('Erro ao limpar:', error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -399,80 +213,12 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     }
   };
 
-  // Parse last execution from historico_monitoramento
-  const lastRunFromHistorico: ExecutionResult | null = ultimoHistorico ? (() => {
-    const detalhes = ultimoHistorico.detalhes as Record<string, any> | null;
-    return {
-      processados: ultimoHistorico.processos_verificados,
-      novas: ultimoHistorico.novos_andamentos,
-      descartadas: detalhes?.descartadas || 0,
-      duplicatas: detalhes?.duplicatas || 0,
-      totalPaginas: detalhes?.total_paginas || 0,
-      totalResultados: detalhes?.total_resultados || 0,
-      tribunaisStats: (detalhes?.tribunais_stats || []) as TribunalStat[],
-      duracaoSegundos: detalhes?.duracao_s || 0,
-      executadoEm: ultimoHistorico.executado_em,
-    };
-  })() : null;
-
-  const metadata = configuracaoTermosPro?.metadata as Record<string, any> | null;
-
-  const statsToShow = ultimoResultado || lastRunFromHistorico;
-
-  const termosPorTribunal = useMemo(() => {
-    const map = new Map<string, number>();
-    const keyOf = (tribunal: string | null) => tribunal ?? "__ALL__";
-
-    for (const row of monitoramentosTribunais ?? []) {
-      const tribunais = row.tribunais && row.tribunais.length > 0 ? row.tribunais : [null];
-      for (const t of tribunais) {
-        const key = keyOf(t);
-        map.set(key, (map.get(key) ?? 0) + 1);
-      }
-    }
-
-    return map;
-  }, [monitoramentosTribunais]);
-
-  const linhasTribunais = useMemo(() => {
-    const keyOf = (tribunal: string | null) => tribunal ?? "__ALL__";
-
-    const execMap = new Map<string, TribunalStat>();
-    for (const ts of statsToShow?.tribunaisStats ?? []) {
-      execMap.set(keyOf(ts.tribunal ?? null), ts);
-    }
-
-    const allKeys = new Set<string>([
-      ...termosPorTribunal.keys(),
-      ...execMap.keys(),
-    ]);
-
-    const rows = Array.from(allKeys).map((key) => {
-      const tribunal = key === "__ALL__" ? null : key;
-      const termos = termosPorTribunal.get(key) ?? 0;
-      const exec = execMap.get(key);
-
-      return {
-        tribunal,
-        termos,
-        paginas: exec?.paginas ?? 0,
-        resultados: exec?.resultados ?? 0,
-        novas: exec?.novas ?? 0,
-        descartadas: exec?.descartadas ?? 0,
-        duplicatas: exec?.duplicatas ?? 0,
-      };
-    });
-
-    rows.sort((a, b) => {
-      if (b.resultados !== a.resultados) return b.resultados - a.resultados;
-      if (b.termos !== a.termos) return b.termos - a.termos;
-      const ta = a.tribunal ?? "TODOS";
-      const tb = b.tribunal ?? "TODOS";
-      return ta.localeCompare(tb);
-    });
-
-    return rows;
-  }, [statsToShow, termosPorTribunal]);
+  // Tempo formatado
+  const formatTempo = (s: number) => {
+    const min = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${min}:${String(sec).padStart(2, '0')}`;
+  };
 
   if (isLoading) {
     return (
@@ -499,34 +245,27 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
             Execução Anterior Incompleta
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
-            <p>
-              Foi encontrado um checkpoint do monitoramento de hoje:
-            </p>
-            <div className="p-3 bg-muted rounded-lg text-sm">
-              <div className="flex justify-between">
-                <span>Progresso:</span>
-                <span className="font-medium">
-                  {checkpoint?.indice || 0}/{progressoDireta.totalMonitoramentos} monitoramentos
-                </span>
+            <p>Foi encontrado um checkpoint do monitoramento:</p>
+            {checkpoint && (
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <div className="flex justify-between">
+                  <span>Período:</span>
+                  <span className="font-medium">{checkpoint.dataInicioYmd} → {checkpoint.dataFimYmd}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Novas encontradas:</span>
+                  <span className="font-medium">{checkpoint.novas}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-emerald-600">
-                <span>Novas encontradas:</span>
-                <span className="font-medium">{checkpoint?.novasAcumuladas || 0}</span>
-              </div>
-            </div>
+            )}
             <p className="text-sm">
               Deseja <strong>continuar de onde parou</strong> ou <strong>iniciar do zero</strong>?
             </p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel onClick={() => setDialogRetomada(false)}>
-            Cancelar
-          </AlertDialogCancel>
-          <Button
-            variant="outline"
-            onClick={() => handleConfirmarRetomada(false)}
-          >
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <Button variant="outline" onClick={() => handleConfirmarRetomada(false)}>
             <Play className="h-4 w-4 mr-2" />
             Iniciar do Zero
           </Button>
@@ -562,9 +301,9 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
               value={filtroCoordenacaoId}
               onChange={(e) => setFiltroCoordenacaoId(e.target.value)}
-              disabled={isExecuting}
+              disabled={isRunning}
             >
-              <option value="">Todos</option>
+              <option value="">Todas</option>
               {coordenacoes.map((c) => (
                 <option key={c.id} value={c.id}>{c.nome}</option>
               ))}
@@ -577,7 +316,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
                 className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
                 value={filtroMonitoramentoId}
                 onChange={(e) => setFiltroMonitoramentoId(e.target.value)}
-                disabled={isExecuting}
+                disabled={isRunning}
               >
                 <option value="">Todos</option>
                 {monitoramentos.map((m) => (
@@ -589,7 +328,8 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
             </div>
           )}
         </div>
-        {isExecuting && (filtroCoordenacaoId || filtroMonitoramentoId) && (
+
+        {isRunning && (filtroCoordenacaoId || filtroMonitoramentoId) && (
           <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
             Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? 'Todas'}
             {filtroMonitoramentoId && (
@@ -630,9 +370,6 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               <SelectItem value="desativado">Desativado</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            Execução automática com validação por metadados estruturados
-          </p>
         </div>
 
         {/* Horário agendado */}
@@ -649,36 +386,12 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           </div>
         )}
 
-        {/* Alerta de erro na última execução */}
-        {ultimaExecucaoErro && !isExecuting && !ocultarErroAnterior && (
-          <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <XCircle className="h-4 w-4" />
-              <span className="font-medium">
-                {ultimaExecucaoErro.status === 'timeout' 
-                  ? 'Execução expirou (timeout)' 
-                  : ultimaExecucaoErro.status === 'cancelado'
-                  ? 'Execução cancelada'
-                  : 'Falha na última execução'}
-              </span>
-            </div>
-            {ultimaExecucaoErro.ultimo_erro && (
-              <p className="text-xs text-muted-foreground mt-1 truncate">
-                {ultimaExecucaoErro.ultimo_erro}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Você pode tentar executar novamente.
-            </p>
-          </div>
-        )}
-
-        {/* CONTADORES REAIS DO BANCO (sempre visíveis) */}
+        {/* CONTADORES REAIS DO BANCO */}
         <div className="p-3 bg-muted/30 rounded-lg border">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Publicações Hoje</span>
-            <Badge variant={isExecuting ? "secondary" : "outline"} className="text-xs">
-              {isExecuting ? "Atualizando..." : "Atualizado"}
+            <Badge variant={isRunning ? "secondary" : "outline"} className="text-xs">
+              {isRunning ? "Atualizando..." : "Atualizado"}
             </Badge>
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
@@ -701,126 +414,77 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           </div>
         </div>
 
-        {/* Progresso ao vivo */}
-        {isExecuting && executandoDireta ? (
+        {/* Progresso ao vivo do Engine Pro */}
+        {isRunning && (
           <div className="space-y-3">
             <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">
-                  Processando: {progressoDireta.monitoramentoAtual}/{progressoDireta.totalMonitoramentos}
+                  {progress.diaAtualYmd && (
+                    <span className="text-muted-foreground mr-1">[{progress.diaAtualYmd}]</span>
+                  )}
+                  Processando: {progress.globalCurrent}/{progress.globalTotal}
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  {progressoDireta.totalMonitoramentos > 0 
-                    ? Math.round((progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100)
-                    : 0}%
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {formatTempo(progress.tempoDecorrido)}
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {progress.percentage}%
+                  </Badge>
+                </div>
               </div>
-              <Progress 
-                value={progressoDireta.totalMonitoramentos > 0 
-                  ? (progressoDireta.monitoramentoAtual / progressoDireta.totalMonitoramentos) * 100
-                  : 0} 
-                className="h-2"
-              />
-              {progressoDireta.termoAtual && (
+              <Progress value={progress.percentage} className="h-2" />
+              
+              {progress.totalDias > 1 && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Dia {progress.diaAtualIndice}/{progress.totalDias} • 
+                  Termo {progress.termoAtualNoDia}/{progress.totalTermos}
+                </div>
+              )}
+              
+              {progress.termoAtual && (
                 <div className="mt-2 text-xs text-muted-foreground truncate">
-                  Buscando: {progressoDireta.termoAtual}
+                  Buscando: {progress.termoAtual}
                 </div>
               )}
               <div className="flex gap-4 mt-2 text-xs">
-                <span className="text-primary">✓ {progressoDireta.publicacoesNovas} novas</span>
-                <span className="text-muted-foreground">↔ {progressoDireta.publicacoesDuplicadas} duplicadas</span>
+                <span className="text-primary">✓ {progress.novas} novas</span>
+                <span className="text-muted-foreground">↔ {progress.duplicadas} duplicadas</span>
+                <span className="text-destructive">✕ {progress.descartadas} descartadas</span>
               </div>
             </div>
             <Button
               variant="destructive"
               size="sm"
               onClick={handleCancelarExecucao}
-              disabled={cancelando}
               className="w-full"
             >
               <StopCircle className="h-4 w-4 mr-2" />
-              {cancelando ? 'Cancelando...' : 'Cancelar Execução'}
-            </Button>
-          </div>
-        ) : isExecuting && (
-          <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                <span className="font-medium">
-                  {execTotal > 0 
-                    ? `Processando: ${execProcessados.toLocaleString('pt-BR')}/${execTotal.toLocaleString('pt-BR')}`
-                    : 'Iniciando monitoramento...'}
-                </span>
-              </div>
-              {execTotal > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {execPercent}%
-                </Badge>
-              )}
-            </div>
-            <Progress value={execPercent} className="h-2" />
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>+{execNovas} novas encontradas</span>
-            </div>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleCancelarExecucao}
-              disabled={cancelando}
-              className="w-full"
-            >
-              <StopCircle className="h-4 w-4 mr-2" />
-              {cancelando ? 'Cancelando...' : 'Cancelar Execução'}
+              Cancelar Execução
             </Button>
           </div>
         )}
 
-        {/* Relatório por tribunal */}
-        {linhasTribunais.length > 0 && (
-          <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between p-2">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span>Relatório de Execução por Tribunal</span>
-                </div>
-                <ChevronDown className={cn("h-4 w-4 transition-transform", statsOpen && "rotate-180")} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-2 border rounded-lg">
-                <ScrollArea className="h-[200px]">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 sticky top-0">
-                      <tr>
-                        <th className="text-left p-2">Tribunal</th>
-                        <th className="text-right p-2">Termos</th>
-                        <th className="text-right p-2">Pág.</th>
-                        <th className="text-right p-2">Result.</th>
-                        <th className="text-right p-2">Novas</th>
-                        <th className="text-right p-2">Desc.</th>
-                        <th className="text-right p-2">Dup.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {linhasTribunais.map((row, i) => (
-                        <tr key={row.tribunal ?? 'todos'} className={i % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
-                          <td className="p-2 font-medium">{row.tribunal || 'TODOS'}</td>
-                          <td className="p-2 text-right">{row.termos}</td>
-                          <td className="p-2 text-right">{row.paginas}</td>
-                          <td className="p-2 text-right">{row.resultados}</td>
-                          <td className="p-2 text-right text-primary">{row.novas}</td>
-                          <td className="p-2 text-right text-destructive">{row.descartadas}</td>
-                          <td className="p-2 text-right text-muted-foreground">{row.duplicatas}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </ScrollArea>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+        {/* Status concluído/erro/cancelado */}
+        {!isRunning && progress.status === 'concluido' && progress.novas > 0 && (
+          <div className="p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/30 text-sm">
+            <span className="font-medium text-emerald-700">✓ Concluído!</span>
+            <span className="text-muted-foreground ml-2">
+              {progress.novas} novas, {progress.duplicadas} duplicadas, {progress.descartadas} descartadas
+              em {formatTempo(progress.tempoDecorrido)}
+            </span>
+          </div>
+        )}
+
+        {!isRunning && progress.status === 'erro' && (
+          <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/30">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" />
+              <span className="font-medium">Erro na execução</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">{progress.mensagem}</p>
+          </div>
         )}
 
         {/* Período de consulta */}
@@ -831,26 +495,13 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               <Label className="text-xs text-muted-foreground mb-1 block">Data Início</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dataInicio && "text-muted-foreground"
-                    )}
-                  >
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dataInicio && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dataInicio ? format(dataInicio, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dataInicio}
-                    onSelect={(date) => date && setDataInicio(date)}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                    locale={ptBR}
-                  />
+                  <Calendar mode="single" selected={dataInicio} onSelect={(date) => date && setDataInicio(date)} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
                 </PopoverContent>
               </Popover>
             </div>
@@ -858,26 +509,13 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               <Label className="text-xs text-muted-foreground mb-1 block">Data Fim</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dataFim && "text-muted-foreground"
-                    )}
-                  >
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dataFim && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dataFim ? format(dataFim, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dataFim}
-                    onSelect={(date) => date && setDataFim(date)}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                    locale={ptBR}
-                  />
+                  <Calendar mode="single" selected={dataFim} onSelect={(date) => date && setDataFim(date)} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
                 </PopoverContent>
               </Popover>
             </div>
@@ -887,11 +525,11 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         {/* Botões de execução */}
         <div className="flex flex-col sm:flex-row gap-2">
           <Button 
-            onClick={() => handleExecutarManual(false)} 
-            disabled={executandoDireta || limpando || isExecuting}
+            onClick={handleExecutarManual} 
+            disabled={isRunning || limpando}
             className="flex-1"
           >
-            {executandoDireta || isExecuting ? (
+            {isRunning ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Executando...
@@ -907,7 +545,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           <Button 
             variant="outline"
             onClick={handleLimparApenas} 
-            disabled={limpando || executandoDireta}
+            disabled={limpando || isRunning}
             className="sm:w-auto"
           >
             {limpando ? (
@@ -922,6 +560,19 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               </>
             )}
           </Button>
+
+          {(isRunning || progress.status !== 'idle') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleForceKill}
+              className="text-destructive hover:text-destructive sm:w-auto"
+              title="Reset total - para execução e limpa checkpoint"
+            >
+              <Bomb className="h-4 w-4 mr-1" />
+              Reset Total
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
