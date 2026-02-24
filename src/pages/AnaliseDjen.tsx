@@ -137,6 +137,7 @@ const AnaliseDjen = () => {
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
+  const [gerandoDocResumo, setGerandoDocResumo] = useState(false);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
@@ -573,6 +574,40 @@ const AnaliseDjen = () => {
     return out;
   };
 
+  /** Desenha um ícone de pessoa (bonequinho) no PDF */
+  const drawPersonIcon = (doc: jsPDF, x: number, y: number, color: 'green' | 'red' | 'black') => {
+    const colors: Record<string, [number, number, number]> = {
+      green: [22, 163, 74],   // green-600
+      red: [239, 68, 68],     // red-500
+      black: [100, 116, 139], // slate-500
+    };
+    const [r, g, b] = colors[color];
+    doc.setDrawColor(r, g, b);
+    doc.setLineWidth(0.3);
+    // Head (circle)
+    doc.circle(x + 1.5, y - 2.8, 1, 'S');
+    // Body (line)
+    doc.line(x + 1.5, y - 1.8, x + 1.5, y + 0.2);
+    // Arms
+    doc.line(x + 0.2, y - 1, x + 2.8, y - 1);
+    // Legs
+    doc.line(x + 1.5, y + 0.2, x + 0.5, y + 1.5);
+    doc.line(x + 1.5, y + 0.2, x + 2.5, y + 1.5);
+    doc.setDrawColor(0, 0, 0);
+  };
+
+  /** Retorna a cor do ícone baseado no prefixo de polo */
+  const getParteIconColor = (parte: string): 'green' | 'red' | 'black' => {
+    if (/^\[Reclamante\]/i.test(parte)) return 'green';
+    if (/^\[Reclamado\]/i.test(parte)) return 'red';
+    return 'black';
+  };
+
+  /** Remove prefixo de polo para exibição */
+  const cleanParteName = (parte: string): string => {
+    return parte.replace(/^\[(Reclamante|Reclamado)\]\s*/i, '');
+  };
+
   /** Desenha o cabeçalho profissional do PDF: faixa azul, logo da balança e "Sistema Juris Control". */
   const drawPdfHeader = (doc: jsPDF, pageW: number, subtitle: string) => {
     const headerH = 28;
@@ -679,8 +714,11 @@ const AnaliseDjen = () => {
           doc.text("Parte(s)", mL, yLeft); yLeft += 4;
           doc.setFont("helvetica", "normal");
           partes.forEach(p => {
-            const ls = doc.splitTextToSize(p, colLeftW);
-            ls.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; });
+            const iconColor = getParteIconColor(p);
+            const nome = cleanParteName(p);
+            drawPersonIcon(doc, mL + 1, yLeft, iconColor);
+            const ls = doc.splitTextToSize(nome, colLeftW - 6);
+            ls.forEach((l: string) => { doc.text(l, mL + 6, yLeft); yLeft += 3.5; });
           });
         }
 
@@ -690,8 +728,9 @@ const AnaliseDjen = () => {
           doc.text("Advogado(s)", mL, yLeft); yLeft += 4;
           doc.setFont("helvetica", "normal");
           advogados.forEach(a => {
-            const ls = doc.splitTextToSize(a, colLeftW);
-            ls.forEach((l: string) => { doc.text(l, mL + 2, yLeft); yLeft += 3.5; });
+            drawPersonIcon(doc, mL + 1, yLeft, 'black');
+            const ls = doc.splitTextToSize(a, colLeftW - 6);
+            ls.forEach((l: string) => { doc.text(l, mL + 6, yLeft); yLeft += 3.5; });
           });
         }
 
@@ -841,13 +880,14 @@ const AnaliseDjen = () => {
         doc.setFont("helvetica", "normal");
         if (partes.length > 0) {
           checkPage(10 + partes.length * 5);
-          const bulletW = doc.getTextWidth("• ");
           partes.forEach(p => {
             checkPage(5);
-            const linhas = doc.splitTextToSize(p, maxW - 5 - bulletW);
-            linhas.forEach((l: string, i: number) => {
-              if (i === 0) doc.text("• ", mL, y);
-              doc.text(l, mL + bulletW, y);
+            const iconColor = getParteIconColor(p);
+            const nome = cleanParteName(p);
+            drawPersonIcon(doc, mL, y, iconColor);
+            const linhas = doc.splitTextToSize(nome, maxW - 8);
+            linhas.forEach((l: string) => {
+              doc.text(l, mL + 6, y);
               y += 5;
             });
           });
@@ -865,13 +905,12 @@ const AnaliseDjen = () => {
         doc.setFont("helvetica", "normal");
         if (advogados.length > 0) {
           checkPage(10 + advogados.length * 5);
-          const bulletW = doc.getTextWidth("• ");
           advogados.forEach(a => {
             checkPage(5);
-            const linhas = doc.splitTextToSize(a, maxW - 5 - bulletW);
-            linhas.forEach((l: string, i: number) => {
-              if (i === 0) doc.text("• ", mL, y);
-              doc.text(l, mL + bulletW, y);
+            drawPersonIcon(doc, mL, y, 'black');
+            const linhas = doc.splitTextToSize(a, maxW - 8);
+            linhas.forEach((l: string) => {
+              doc.text(l, mL + 6, y);
               y += 5;
             });
           });
@@ -923,20 +962,180 @@ const AnaliseDjen = () => {
     }
   };
 
+  // allExpanded computed below after allPublicacoes is defined
+
   const toggleExpandAll = () => {
-    if (expandedPublicacoes.size === allPublicacoes.length && allPublicacoes.length > 0) {
+    const isAllExpanded = allPublicacoes.length > 0 && expandedPublicacoes.size >= allPublicacoes.length;
+    if (isAllExpanded) {
       setExpandedPublicacoes(new Set());
+      setExpandirGeralAtivo(false);
     } else {
       setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
     }
   };
 
   const toggleExpandirGeral = () => {
-    if (!expandirGeralAtivo) {
+    if (expandirGeralAtivo) {
+      setExpandirGeralAtivo(false);
+      setExpandedPublicacoes(new Set());
+    } else {
       setExpandirGeralAtivo(true);
       setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
-    } else {
-      setExpandirGeralAtivo(false);
+    }
+  };
+
+  // ===== "Gerar Doc" - DOCX-like text file (plain text sem IA) =====
+  const handleGerarDoc = () => {
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    try {
+      const lines: string[] = [];
+      lines.push("PUBLICAÇÕES DJEN");
+      lines.push(`Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`);
+      lines.push(`Total: ${allPublicacoes.length} publicação(ões)`);
+      lines.push("=".repeat(80));
+      lines.push("");
+
+      allPublicacoes.forEach((pub, idx) => {
+        lines.push(`${idx + 1}. PROCESSO ${formatProcessoNumero(pub.processo_numero)}`);
+        lines.push("-".repeat(60));
+        if (pub.tribunal) lines.push(`Órgão: ${pub.tribunal}`);
+        if (pub.data_disponibilizacao) lines.push(`Data de disponibilização: ${formatDateOnlyFull(pub.data_disponibilizacao)}`);
+        lines.push(`Tipo de Comunicação: ${pub.tipo_comunicacao || "Intimação"}`);
+
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        if (partes.length > 0) {
+          lines.push("");
+          lines.push("PARTE(S):");
+          partes.forEach(p => lines.push(`  • ${cleanParteName(p)}`));
+        }
+        if (advogados.length > 0) {
+          lines.push("");
+          lines.push("ADVOGADO(S):");
+          advogados.forEach(a => lines.push(`  • ${a}`));
+        }
+
+        lines.push("");
+        lines.push("CONTEÚDO INTEGRAL:");
+        const rawContent = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        lines.push(rawContent);
+        lines.push("");
+        lines.push("=".repeat(80));
+        lines.push("");
+      });
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `publicacoes_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Documento gerado com sucesso!");
+    } catch (err: any) {
+      toast.error(`Erro ao gerar documento: ${err.message}`);
+    }
+  };
+
+  // ===== "Gerar Doc Resumo" - Texto com resumo IA =====
+
+  const handleGerarDocResumo = async () => {
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+
+    setGerandoDocResumo(true);
+    const totalPubs = allPublicacoes.length;
+    const toastId = toast.loading(`Resumindo 1/${totalPubs}...`);
+
+    try {
+      const resumosMap = new Map<string, string>();
+      let erros = 0;
+
+      for (let i = 0; i < totalPubs; i++) {
+        const pub = allPublicacoes[i];
+        toast.loading(`Resumindo ${i + 1}/${totalPubs}...`, { id: toastId });
+        try {
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
+            body: {
+              resumoIndividual: true,
+              publicacao: {
+                id: pub.id,
+                conteudo: pub.conteudo,
+                processo: pub.processo_numero,
+                dataDisponibilizacao: pub.data_disponibilizacao,
+              },
+            },
+          });
+          if (aiError) throw aiError;
+          if (aiData?.resumo) resumosMap.set(pub.id, aiData.resumo);
+        } catch (e) {
+          console.error(`Erro ao resumir publicação ${pub.id}:`, e);
+          erros++;
+        }
+      }
+
+      const lines: string[] = [];
+      lines.push("RESUMO DE PUBLICAÇÕES DJEN");
+      lines.push(`Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`);
+      lines.push(`Total: ${totalPubs} publicação(ões)`);
+      if (erros > 0) lines.push(`(${erros} não resumida(s))`);
+      lines.push("=".repeat(80));
+      lines.push("");
+
+      allPublicacoes.forEach((pub, idx) => {
+        lines.push(`${idx + 1}. COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`);
+        lines.push("-".repeat(60));
+        if (pub.tribunal) lines.push(`Órgão: ${pub.tribunal}`);
+        if (pub.data_disponibilizacao) lines.push(`Data de disponibilização: ${formatDateOnlyFull(pub.data_disponibilizacao)}`);
+        lines.push(`Tipo de Comunicação: ${pub.tipo_comunicacao || "Intimação"}`);
+
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        if (partes.length > 0) {
+          lines.push("");
+          lines.push("PARTE(S):");
+          partes.forEach(p => lines.push(`  • ${cleanParteName(p)}`));
+        }
+        if (advogados.length > 0) {
+          lines.push("");
+          lines.push("ADVOGADO(S):");
+          advogados.forEach(a => lines.push(`  • ${a}`));
+        }
+
+        const resumo = resumosMap.get(pub.id);
+        if (resumo) {
+          lines.push("");
+          lines.push("RESUMO:");
+          lines.push(resumo);
+        }
+
+        lines.push("");
+        lines.push("=".repeat(80));
+        lines.push("");
+      });
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resumo_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Documento Resumo gerado com sucesso!", { id: toastId });
+    } catch (error) {
+      console.error("Erro ao gerar Doc Resumo:", error);
+      toast.error("Erro ao gerar Doc Resumo", { id: toastId });
+    } finally {
+      setGerandoDocResumo(false);
     }
   };
 
@@ -1319,30 +1518,58 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleGerarDoc}
+            disabled={allPublicacoes.length === 0}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+          >
+            <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Gerar Doc</span>
+            <span className="sm:hidden">Doc</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarDocResumo}
+            disabled={allPublicacoes.length === 0 || gerandoDocResumo}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+          >
+            {gerandoDocResumo ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoDocResumo ? "Gerando..." : "Gerar Doc Resumo"}</span>
+            <span className="sm:hidden">{gerandoDocResumo ? "..." : "Doc IA"}</span>
+          </Button>
+
+          <Button
+            variant={expandedPublicacoes.size > 0 ? "default" : "outline"}
+            size="sm"
             onClick={toggleExpandAll}
             disabled={allPublicacoes.length === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             <ChevronsUpDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             <span className="hidden sm:inline">
-              {expandedPublicacoes.size === allPublicacoes.length && allPublicacoes.length > 0
-                ? "Recolher"
-                : "Expandir"}
+              {expandedPublicacoes.size > 0 && expandedPublicacoes.size >= allPublicacoes.length
+                ? "Recolher Todos"
+                : "Expandir Todos"}
             </span>
             <span className="sm:hidden">
-              {expandedPublicacoes.size === allPublicacoes.length && allPublicacoes.length > 0
+              {expandedPublicacoes.size > 0 && expandedPublicacoes.size >= allPublicacoes.length
                 ? "−"
                 : "+"}
             </span>
           </Button>
 
           <Button
-            variant="outline"
+            variant={expandirGeralAtivo ? "default" : "outline"}
             size="sm"
             onClick={toggleExpandirGeral}
             disabled={allPublicacoes.length === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
-            title={expandirGeralAtivo ? "Recolher e voltar ao scroll" : "Expandir todas e mostrar conteúdo completo sem scroll"}
+            title={expandirGeralAtivo ? "Recolher tudo e restaurar scroll" : "Expandir todas sem scroll (conteúdo completo)"}
           >
             {expandirGeralAtivo ? (
               <>
