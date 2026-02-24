@@ -264,27 +264,24 @@ export async function buscarPjeComunicaNoBrowser(
 
     if (ufValida && oab) {
       // UF específica: busca por OAB/UF + nomeAdvogado para cobertura máxima
-      // A API pode falhar ao retornar publicações apenas com numeroOab/ufOab,
-      // mas nomeAdvogado junto garante que destinatários sejam encontrados.
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
       if (nomeAdvogado) {
-        qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado));
+        // IMPORTANTE: NÃO normalizar acentos do nomeAdvogado!
+        // A API PJE Comunica faz match exato no campo destinatarioadvogados.
+        // Se o nome está cadastrado como "PAIXÃO CÔRTES", enviar "PAIXAO CORTES" não encontra.
+        qp.set("nomeAdvogado", nomeAdvogado.trim());
         console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${nomeAdvogado}`);
       }
     } else if (oab && nomeAdvogado) {
       // UF "TODAS" ou sem UF: enviar AMBOS nomeAdvogado E numeroOab
-      // A API pode ignorar numeroOab sem ufOab, mas em muitos tribunais funciona.
-      // nomeAdvogado garante cobertura cross-UF.
-      const nomeNorm = normalizeAccents(nomeAdvogado);
-      qp.set("nomeAdvogado", nomeNorm);
+      qp.set("nomeAdvogado", nomeAdvogado.trim());
       qp.set("numeroOab", oab);
       console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado} + numeroOab: ${oab}`);
     } else if (nomeAdvogado) {
-      // Sem OAB: busca só pelo nome
-      const nomeNorm = normalizeAccents(nomeAdvogado);
-      qp.set("nomeAdvogado", nomeNorm);
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado}`);
+      // Sem OAB: busca só pelo nome — enviar COM acentos originais
+      qp.set("nomeAdvogado", nomeAdvogado.trim());
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado (original): ${nomeAdvogado}`);
     } else if (oab) {
       // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa
       qp.set("numeroOab", oab);
@@ -425,7 +422,7 @@ export async function buscarPjeComunicaNoBrowser(
       // 2a) Tentar adicionar `nomeAdvogado` junto com OAB (portal oficial usa isso)
       if (nome && (oab || ufValida)) {
         const qp2 = new URLSearchParams(qp);
-        qp2.set('nomeAdvogado', normalizeAccents(nome));
+        qp2.set('nomeAdvogado', nome.trim());
         const second = await doRequest(qp2);
         if (second.items.length > 0) return second;
       }
