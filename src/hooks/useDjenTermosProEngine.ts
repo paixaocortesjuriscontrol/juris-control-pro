@@ -505,7 +505,7 @@ async function processarTermoPro(
     
     try {
       const resp = await buscarPjeComunicaPaginado(
-        { ...baseParams, siglaTribunal: trib, page: 0 },
+        { ...baseParams, siglaTribunal: trib, page: 1 },
         { signal, maxPages: 20, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
       );
       addResults(resp.items, trib);
@@ -543,7 +543,7 @@ async function processarTermoPro(
             nomeAdvogado: nomeNormalizado,
             siglaTribunal: trib,
             dataInicio: diaYmd, dataFim: diaYmd, 
-            pageSize: 50, page: 0 
+            pageSize: 50, page: 1 
           },
           { signal, maxPages: 20, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
         );
@@ -572,7 +572,7 @@ async function processarTermoPro(
         if (signal.aborted) break;
         try {
           const resp = await buscarPjeComunicaPaginado(
-            { tipo: 'palavra-chave', palavraChave: termo, siglaTribunal: trib, dataInicio: diaYmd, dataFim: diaYmd, pageSize: 50, page: 0 },
+            { tipo: 'palavra-chave', palavraChave: termo, siglaTribunal: trib, dataInicio: diaYmd, dataFim: diaYmd, pageSize: 50, page: 1 },
             { signal, maxPages: 20, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
           );
           addResults(resp.items, trib);
