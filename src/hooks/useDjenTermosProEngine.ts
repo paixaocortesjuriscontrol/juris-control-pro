@@ -558,6 +558,13 @@ async function processarTermoPro(
         { ...baseParams, siglaTribunal: trib, page: 1 },
         { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
       );
+      console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+      // Debug: verificar se processo 0000605 está nos resultados
+      const proc605 = resp.items.filter((i: any) => {
+        const num = i?.numeroProcesso || i?.numero_processo || '';
+        return num.includes('0000605') || num.includes('605-84');
+      });
+      if (proc605.length > 0) console.log(`[DJEN Pro DEBUG] ✅ Processo 0000605 ENCONTRADO na busca primária! (${proc605.length} ocorrências)`);
       addResults(resp.items, trib);
     } catch (e: any) {
       if (e?.name === 'AbortError') break;
@@ -730,11 +737,17 @@ async function processarTermoPro(
   let descartadas = 0;
   const pubsDescartadas: any[] = [];
   
+  console.log(`[DJEN Pro] Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo})`);
+  
   const pubsValidas = resultados.filter(pub => {
+    const numProc = pub?.numeroProcesso || pub?.numero_processo || '';
+    const isDebugProc = numProc.includes('0000605') || numProc.includes('605-84');
+    
     // 1. Filtro de tribunal
     if (tribunais.length > 0) {
       const sigla = getSiglaTribunal(pub);
       if (!sigla || !tribunais.includes(sigla)) {
+        if (isDebugProc) console.log(`[DJEN Pro DEBUG] Processo ${numProc} descartado: tribunal ${sigla} não permitido (${tribunais.join(',')})`);
         descartadas++;
         pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
         return false;
@@ -744,6 +757,7 @@ async function processarTermoPro(
     // 2. Verificar exclusões
     const excEncontrada = temExclusao(pub, mon.exclusoes);
     if (excEncontrada) {
+      if (isDebugProc) console.log(`[DJEN Pro DEBUG] Processo ${numProc} descartado: exclusão "${excEncontrada}"`);
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${excEncontrada}` });
       return false;
@@ -751,6 +765,11 @@ async function processarTermoPro(
     
     // 3. Validar termo (usando metadados estruturados)
     if (!validarTermo(pub, mon)) {
+      if (isDebugProc) {
+        console.log(`[DJEN Pro DEBUG] Processo ${numProc} descartado: termo não encontrado`);
+        console.log(`[DJEN Pro DEBUG] destinatarios:`, JSON.stringify(pub?.destinatarios?.slice?.(0, 5)));
+        console.log(`[DJEN Pro DEBUG] textoCompleto (100 chars):`, buildTextoCompleto(pub).slice(0, 100));
+      }
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
@@ -758,11 +777,13 @@ async function processarTermoPro(
     
     // 4. Condição concomitante
     if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
+      if (isDebugProc) console.log(`[DJEN Pro DEBUG] Processo ${numProc} descartado: condição concomitante`);
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
       return false;
     }
     
+    if (isDebugProc) console.log(`[DJEN Pro DEBUG] ✅ Processo ${numProc} ACEITO!`);
     return true;
   });
   
