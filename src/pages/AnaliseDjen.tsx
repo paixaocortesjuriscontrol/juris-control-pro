@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } from "docx";
 import {
   FileText,
   Database,
@@ -985,58 +986,58 @@ const AnaliseDjen = () => {
   };
 
   // ===== "Gerar Doc" - DOCX-like text file (plain text sem IA) =====
-  const handleGerarDoc = () => {
+  const handleGerarDoc = async () => {
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
     }
     try {
-      const lines: string[] = [];
-      lines.push("PUBLICAÇÕES DJEN");
-      lines.push(`Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`);
-      lines.push(`Total: ${allPublicacoes.length} publicação(ões)`);
-      lines.push("=".repeat(80));
-      lines.push("");
+      const children: Paragraph[] = [];
+
+      children.push(new Paragraph({ text: "PUBLICAÇÕES DJEN", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }));
+      children.push(new Paragraph({ text: `Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, alignment: AlignmentType.CENTER }));
+      children.push(new Paragraph({ text: `Total: ${allPublicacoes.length} publicação(ões)`, alignment: AlignmentType.CENTER, spacing: { after: 300 } }));
 
       allPublicacoes.forEach((pub, idx) => {
-        lines.push(`${idx + 1}. PROCESSO ${formatProcessoNumero(pub.processo_numero)}`);
-        lines.push("-".repeat(60));
-        if (pub.tribunal) lines.push(`Órgão: ${pub.tribunal}`);
-        if (pub.data_disponibilizacao) lines.push(`Data de disponibilização: ${formatDateOnlyFull(pub.data_disponibilizacao)}`);
-        lines.push(`Tipo de Comunicação: ${pub.tipo_comunicacao || "Intimação"}`);
+        children.push(new Paragraph({
+          text: `${idx + 1}. PROCESSO ${formatProcessoNumero(pub.processo_numero)}`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400 },
+          border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
+        }));
+        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(pub.tribunal)] }));
+        if (pub.data_disponibilizacao) children.push(new Paragraph({ children: [new TextRun({ text: "Data: ", bold: true }), new TextRun(formatDateOnlyFull(pub.data_disponibilizacao))] }));
+        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(pub.tipo_comunicacao || "Intimação")] }));
 
-        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
-          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
-        );
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
 
         if (partes.length > 0) {
-          lines.push("");
-          lines.push("PARTE(S):");
-          partes.forEach(p => lines.push(`  • ${cleanParteName(p)}`));
+          children.push(new Paragraph({ text: "PARTE(S):", bold: true, spacing: { before: 200 } } as any));
+          partes.forEach(p => {
+            const color = getParteIconColor(p);
+            const colorHex = color === "green" ? "22C55E" : color === "red" ? "EF4444" : "000000";
+            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(cleanParteName(p))] }));
+          });
         }
         if (advogados.length > 0) {
-          lines.push("");
-          lines.push("ADVOGADO(S):");
-          advogados.forEach(a => lines.push(`  • ${a}`));
+          children.push(new Paragraph({ text: "ADVOGADO(S):", bold: true, spacing: { before: 200 } } as any));
+          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(a)] })));
         }
 
-        lines.push("");
-        lines.push("CONTEÚDO INTEGRAL:");
+        children.push(new Paragraph({ text: "CONTEÚDO INTEGRAL:", bold: true, spacing: { before: 200 } } as any));
         const rawContent = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-        lines.push(rawContent);
-        lines.push("");
-        lines.push("=".repeat(80));
-        lines.push("");
+        children.push(new Paragraph({ text: rawContent, spacing: { after: 300 } }));
       });
 
-      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const doc = new Document({ sections: [{ children }] });
+      const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `publicacoes_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.txt`;
+      a.download = `publicacoes_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Documento gerado com sucesso!");
+      toast.success("Documento Word gerado com sucesso!");
     } catch (err: any) {
       toast.error(`Erro ao gerar documento: ${err.message}`);
     }
@@ -1081,56 +1082,54 @@ const AnaliseDjen = () => {
         }
       }
 
-      const lines: string[] = [];
-      lines.push("RESUMO DE PUBLICAÇÕES DJEN");
-      lines.push(`Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`);
-      lines.push(`Total: ${totalPubs} publicação(ões)`);
-      if (erros > 0) lines.push(`(${erros} não resumida(s))`);
-      lines.push("=".repeat(80));
-      lines.push("");
+      const children: Paragraph[] = [];
+
+      children.push(new Paragraph({ text: "RESUMO DE PUBLICAÇÕES DJEN", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }));
+      children.push(new Paragraph({ text: `Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, alignment: AlignmentType.CENTER }));
+      children.push(new Paragraph({ text: `Total: ${totalPubs} publicação(ões)${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, alignment: AlignmentType.CENTER, spacing: { after: 300 } }));
 
       allPublicacoes.forEach((pub, idx) => {
-        lines.push(`${idx + 1}. COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`);
-        lines.push("-".repeat(60));
-        if (pub.tribunal) lines.push(`Órgão: ${pub.tribunal}`);
-        if (pub.data_disponibilizacao) lines.push(`Data de disponibilização: ${formatDateOnlyFull(pub.data_disponibilizacao)}`);
-        lines.push(`Tipo de Comunicação: ${pub.tipo_comunicacao || "Intimação"}`);
+        children.push(new Paragraph({
+          text: `${idx + 1}. COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400 },
+          border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
+        }));
+        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(pub.tribunal)] }));
+        if (pub.data_disponibilizacao) children.push(new Paragraph({ children: [new TextRun({ text: "Data: ", bold: true }), new TextRun(formatDateOnlyFull(pub.data_disponibilizacao))] }));
+        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(pub.tipo_comunicacao || "Intimação")] }));
 
-        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
-          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
-        );
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
 
         if (partes.length > 0) {
-          lines.push("");
-          lines.push("PARTE(S):");
-          partes.forEach(p => lines.push(`  • ${cleanParteName(p)}`));
+          children.push(new Paragraph({ text: "PARTE(S):", bold: true, spacing: { before: 200 } } as any));
+          partes.forEach(p => {
+            const color = getParteIconColor(p);
+            const colorHex = color === "green" ? "22C55E" : color === "red" ? "EF4444" : "000000";
+            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(cleanParteName(p))] }));
+          });
         }
         if (advogados.length > 0) {
-          lines.push("");
-          lines.push("ADVOGADO(S):");
-          advogados.forEach(a => lines.push(`  • ${a}`));
+          children.push(new Paragraph({ text: "ADVOGADO(S):", bold: true, spacing: { before: 200 } } as any));
+          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(a)] })));
         }
 
         const resumo = resumosMap.get(pub.id);
         if (resumo) {
-          lines.push("");
-          lines.push("RESUMO:");
-          lines.push(resumo);
+          children.push(new Paragraph({ text: "RESUMO:", bold: true, spacing: { before: 200 } } as any));
+          children.push(new Paragraph({ text: resumo, spacing: { after: 300 } }));
         }
-
-        lines.push("");
-        lines.push("=".repeat(80));
-        lines.push("");
       });
 
-      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const doc = new Document({ sections: [{ children }] });
+      const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `resumo_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.txt`;
+      a.download = `resumo_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Documento Resumo gerado com sucesso!", { id: toastId });
+      toast.success("Documento Resumo Word gerado com sucesso!", { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Doc Resumo:", error);
       toast.error("Erro ao gerar Doc Resumo", { id: toastId });
