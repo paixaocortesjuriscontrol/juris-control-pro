@@ -4,8 +4,19 @@ import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
  * Normaliza o texto removendo tags HTML, caracteres especiais, espaços extras
  * e convertendo para minúsculo para facilitar comparação.
  */
+/**
+ * Remove a seção "Destinatário(s):" e tudo após ela.
+ * A API do PJE Comunica retorna uma comunicação separada por destinatário,
+ * gerando conteúdos quase idênticos que diferem apenas no nome do destinatário.
+ * Sem essa remoção, a dedup falha e o mesmo processo aparece N vezes.
+ */
+const stripDestinatarios = (text: string): string => {
+  const idx = text.search(/Destinat[aá]rio\(s\)\s*:/i);
+  return idx > 0 ? text.slice(0, idx) : text;
+};
+
 const normalizeText = (text: string): string =>
-  text
+  stripDestinatarios(text)
     .replace(/<[^>]*>/g, " ")        // remove tags HTML
     .replace(/[^\w\s]/g, " ")        // remove pontuação
     .replace(/\s+/g, " ")            // colapsa espaços
