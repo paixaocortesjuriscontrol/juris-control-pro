@@ -567,6 +567,41 @@ async function processarTermoPro(
     if (tribLoop.length > 1) await delay(1200);
   }
   
+  // Busca complementar para tipo "parte": buscar também por palavraChave (texto)
+  // A API PJE Comunica pode não retornar resultados com nomeParte para alguns tribunais
+  // (ex: TST), então fazemos busca por texto como fallback
+  if (tipo === 'parte' && !signal.aborted) {
+    const termoTexto = mon.termo_busca
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    
+    if (termoTexto) {
+      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
+      for (const trib of tribLoop) {
+        if (signal.aborted) break;
+        try {
+          const resp = await buscarPjeComunicaPaginado(
+            { 
+              tipo: 'palavra-chave' as PjeSearchType,
+              palavraChave: termoTexto,
+              siglaTribunal: trib,
+              dataInicio: diaYmd, dataFim: diaYmd, 
+              pageSize: 50, page: 1 
+            },
+            { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
+          );
+          addResults(resp.items, trib);
+          console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          console.warn(`[DJEN Pro] Erro busca complementar parte "${termoTexto}":`, e?.message);
+        }
+        if (tribLoop.length > 1) await delay(1200);
+      }
+    }
+  }
+  
   // Retry sem ufOab quando busca por OAB não retornou resultados do tribunal desejado.
   // IMPORTANTE: A API PJE Comunica frequentemente ignora siglaTribunal em buscas por OAB,
   // retornando resultados de outros tribunais. Precisamos verificar se temos resultados
