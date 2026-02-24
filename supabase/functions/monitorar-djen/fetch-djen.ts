@@ -24,7 +24,7 @@ export async function fetchDJENResultsWithStats(
 ): Promise<{ itemsCount: number; pages: number }> {
   // API PJE Comunica usa paginação 1-based (pagina=1 é a primeira página)
   let page = 1;
-  const maxPages = params.texto ? 5 : 20;
+  const maxPages = 999;
 
   const now = new Date();
   const todayBrasilia = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));

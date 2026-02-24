@@ -962,7 +962,7 @@ export function useBuscaDjenDireta() {
               },
               {
                 signal: reqController.signal,
-                maxPages: 20,
+                maxPages: 999,
                 delayMs: 3000,  // 3s entre páginas (restaurado do 29/01)
               }
             );

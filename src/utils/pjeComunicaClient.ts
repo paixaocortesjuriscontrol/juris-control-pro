@@ -552,7 +552,7 @@ export async function buscarPjeComunicaPaginado(
     onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
-  const maxPages = Math.max(options?.maxPages ?? 10, 1);
+  const maxPages = options?.maxPages ?? 999;
   // Delay entre páginas: 1500ms (restaurado do 26/01 - balanceado velocidade/estabilidade)
   const delayMs = Math.max(options?.delayMs ?? 1500, 0);
   // Retry com backoff exponencial
