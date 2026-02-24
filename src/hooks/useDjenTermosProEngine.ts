@@ -831,9 +831,16 @@ async function processarTermoPro(
       };
     });
     
-    await supabase
+    const { error: upsertError, data: upsertData } = await supabase
       .from('publicacoes_djen')
-      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
+      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
+      .select('id, processo_numero');
+    if (upsertError) {
+      console.error(`[DJEN Pro] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);
+    } else {
+      console.log(`[DJEN Pro] ✅ Salvas ${(upsertData || []).length} publicações para "${mon.termo_busca}"`, 
+        (upsertData || []).slice(0, 5).map((r: any) => r.processo_numero));
+    }
   }
   
   // Persistir descartadas
