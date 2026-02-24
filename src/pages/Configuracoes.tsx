@@ -12,6 +12,7 @@ import { BotaoSincronizarDjen } from "@/components/djen/BotaoSincronizarDjen";
 import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDiagnosticoDialog";
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
+import { MonitoramentoTermosProCard } from "@/components/configuracoes/MonitoramentoTermosProCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
@@ -179,6 +180,7 @@ export default function Configuracoes() {
               Varredura automática de termos estratégicos nas movimentações
             </p>
           </div>
+          <MonitoramentoTermosProCard coordenacaoId="" />
           <MonitoramentoTermosCard coordenacaoId="" />
         </TabsContent>
 
