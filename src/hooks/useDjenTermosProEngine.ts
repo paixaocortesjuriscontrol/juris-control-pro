@@ -491,7 +491,7 @@ async function processarTermoPro(
   
   // Determinar loops de tribunal
   const isAdvogadoComOab = tipo === 'advogado' && !!mon.oab;
-  const tribLoop = (isAdvogadoComOab && tribunais.length > 0 && tribunais.length <= 3)
+  const tribLoop = (tribunais.length > 0)
     ? tribunais
     : [undefined as string | undefined];
   
@@ -512,6 +512,33 @@ async function processarTermoPro(
     if (tribLoop.length > 1) await delay(1200);
   }
   
+  // Retry sem ufOab para tribunais superiores/federais quando busca por OAB retornou vazio
+  if (isAdvogadoComOab && resultados.length === 0 && !signal.aborted) {
+    const tribunaisRetry = tribunais.length > 0 ? tribunais : [];
+    
+    for (const trib of tribunaisRetry) {
+      if (signal.aborted) break;
+      try {
+        console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${mon.termo_busca}`);
+        const resp = await buscarPjeComunicaPaginado(
+          { 
+            tipo: 'advogado' as PjeSearchType,
+            nomeAdvogado: mon.termo_busca,
+            siglaTribunal: trib,
+            dataInicio: diaYmd, dataFim: diaYmd, 
+            pageSize: 50, page: 0 
+          },
+          { signal, maxPages: 20, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
+        );
+        addResults(resp.items, trib);
+      } catch (e: any) {
+        if (e?.name === 'AbortError') break;
+        console.warn(`[DJEN Pro] Retry sem ufOab ${trib}:`, e?.message);
+      }
+      await delay(1200);
+    }
+  }
+  
   // Busca complementar por texto para advogados (captura menções no corpo)
   if ((tipo === 'advogado') && !signal.aborted) {
     const nomesTexto = new Set<string>();
@@ -523,17 +550,21 @@ async function processarTermoPro(
     
     for (const termo of nomesTexto) {
       if (signal.aborted) break;
-      try {
-        const resp = await buscarPjeComunicaPaginado(
-          { tipo: 'palavra-chave', palavraChave: termo, dataInicio: diaYmd, dataFim: diaYmd, pageSize: 50, page: 0 },
-          { signal, maxPages: 20, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-        );
-        addResults(resp.items);
-      } catch (e: any) {
-        if (e?.name === 'AbortError') break;
-        console.warn(`[DJEN Pro] Erro busca texto "${termo}":`, e?.message);
+      const textTribLoop = tribunais.length > 0 ? tribunais : [undefined as string | undefined];
+      for (const trib of textTribLoop) {
+        if (signal.aborted) break;
+        try {
+          const resp = await buscarPjeComunicaPaginado(
+            { tipo: 'palavra-chave', palavraChave: termo, siglaTribunal: trib, dataInicio: diaYmd, dataFim: diaYmd, pageSize: 50, page: 0 },
+            { signal, maxPages: 5, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
+          );
+          addResults(resp.items, trib);
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          console.warn(`[DJEN Pro] Erro busca texto "${termo}" trib=${trib}:`, e?.message);
+        }
+        await delay(600);
       }
-      await delay(600);
     }
   }
   
@@ -549,7 +580,7 @@ async function processarTermoPro(
   
   const pubsValidas = resultados.filter(pub => {
     // 1. Filtro de tribunal
-    if (isAdvogadoComOab && tribunais.length > 0) {
+    if (tribunais.length > 0) {
       const sigla = getSiglaTribunal(pub);
       if (!sigla || !tribunais.includes(sigla)) {
         descartadas++;
