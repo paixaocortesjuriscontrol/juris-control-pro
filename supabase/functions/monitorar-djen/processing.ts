@@ -4,7 +4,6 @@
 
 import {
   generateHash,
-  generateGlobalHash,
   extractProcessoNumero,
   calcularPrimeiroDiaUtil,
   formatLocalDate,
@@ -94,19 +93,7 @@ export async function processPublicationFromIndex(
     return;
   }
 
-  const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
-
-  const { data: existingGlobal } = await supabase
-    .from('publicacoes_djen_global_hash')
-    .select('id')
-    .eq('hash_global', globalHash)
-    .maybeSingle();
-
-  if (existingGlobal) {
-    stats.duplicatas++;
-    tribunalStat.duplicatas++;
-    return;
-  }
+  // Deduplicação por hash_conteudo + monitoramento_id (permite mesma pub em termos diferentes)
 
   const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
 
@@ -177,11 +164,6 @@ export async function processPublicationFromIndex(
         ...metadataDescartada,
       });
 
-      await supabase.from('publicacoes_djen_global_hash').insert({
-        hash_global: globalHash,
-        primeiro_monitoramento_id: monitoramento.id,
-      });
-
       stats.descartadas++;
       tribunalStat.descartadas++;
       return;
@@ -205,11 +187,6 @@ export async function processPublicationFromIndex(
       tribunal: tribunal || null,
       motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
       ...metadataDescartada,
-    });
-
-    await supabase.from('publicacoes_djen_global_hash').insert({
-      hash_global: globalHash,
-      primeiro_monitoramento_id: monitoramento.id,
     });
 
     stats.descartadas++;
@@ -245,12 +222,6 @@ export async function processPublicationFromIndex(
     console.error(`Insert error:`, insertError);
     return;
   }
-
-  await supabase.from('publicacoes_djen_global_hash').insert({
-    hash_global: globalHash,
-    primeiro_monitoramento_id: monitoramento.id,
-    publicacao_id: publicacao.id,
-  });
 
   stats.novas++;
   tribunalStat.novas++;
