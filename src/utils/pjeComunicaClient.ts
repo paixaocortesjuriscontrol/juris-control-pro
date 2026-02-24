@@ -267,21 +267,20 @@ export async function buscarPjeComunicaNoBrowser(
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
       if (nomeAdvogado) {
-        // IMPORTANTE: NÃO normalizar acentos do nomeAdvogado!
-        // A API PJE Comunica faz match exato no campo destinatarioadvogados.
-        // Se o nome está cadastrado como "PAIXÃO CÔRTES", enviar "PAIXAO CORTES" não encontra.
-        qp.set("nomeAdvogado", nomeAdvogado.trim());
-        console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${nomeAdvogado}`);
+        // Normalizar acentos do nomeAdvogado — o parâmetro de busca da API aceita sem acentos
+        // e a busca funciona melhor assim (confirmado em testes manuais)
+        qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
+        console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${normalizeAccents(nomeAdvogado)}`);
       }
     } else if (oab && nomeAdvogado) {
       // UF "TODAS" ou sem UF: enviar AMBOS nomeAdvogado E numeroOab
-      qp.set("nomeAdvogado", nomeAdvogado.trim());
+      qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
       qp.set("numeroOab", oab);
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${nomeAdvogado} + numeroOab: ${oab}`);
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${normalizeAccents(nomeAdvogado)} + numeroOab: ${oab}`);
     } else if (nomeAdvogado) {
-      // Sem OAB: busca só pelo nome — enviar COM acentos originais
-      qp.set("nomeAdvogado", nomeAdvogado.trim());
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado (original): ${nomeAdvogado}`);
+      // Sem OAB: busca só pelo nome — normalizar acentos para melhor cobertura
+      qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${normalizeAccents(nomeAdvogado)}`);
     } else if (oab) {
       // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa
       qp.set("numeroOab", oab);
