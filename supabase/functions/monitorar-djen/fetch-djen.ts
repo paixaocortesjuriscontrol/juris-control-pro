@@ -22,8 +22,8 @@ export async function fetchDJENResultsWithStats(
   options: { scheduled?: boolean } = {},
   onItems?: (items: any[]) => Promise<void> | void
 ): Promise<{ itemsCount: number; pages: number }> {
-  let page = 0;
-  let itemsCount = 0;
+  // API PJE Comunica usa paginação 1-based (pagina=1 é a primeira página)
+  let page = 1;
   const maxPages = params.texto ? 5 : 20;
 
   const now = new Date();

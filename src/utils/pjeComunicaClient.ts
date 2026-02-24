@@ -234,7 +234,8 @@ export async function buscarPjeComunicaNoBrowser(
     throw new Error("Parâmetro de busca inválido (precisa de termo, tribunal ou data)");
   }
 
-  const page = Math.max(params.page ?? 0, 0);
+  // API PJE Comunica usa paginação 1-based (pagina=1 é a primeira)
+  const page = Math.max(params.page ?? 1, 1);
   // Sempre permitir pageSize até 50 - a API suporta e precisamos cobrir todos os resultados
   const maxPageSize = 50;
   const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), maxPageSize);
@@ -385,9 +386,10 @@ export async function buscarPjeComunicaNoBrowser(
             ? (page + 1) * pageSize + 1
             : page * pageSize + items.length;
 
+      // hasMore: API é 1-based, então page*pageSize já é o offset do fim da página atual
       const hasMore =
         typeof totalExpected === "number" && totalExpected >= 0
-          ? (page + 1) * pageSize < totalExpected
+          ? page * pageSize < totalExpected
           : items.length === pageSize;
 
       return {
@@ -557,7 +559,8 @@ export async function buscarPjeComunicaPaginado(
   const maxRetries = options?.maxRetries ?? 5;
   const retryBaseDelay = options?.retryBaseDelay ?? 10000;  // 10s base para retry
 
-  const startPage = Math.max(params.page ?? 0, 0);
+  // API PJE Comunica usa paginação 1-based
+  const startPage = Math.max(params.page ?? 1, 1);
   // PageSize 50: menos páginas = menos delays = ~2-3x mais rápido (restaurado do 26/01)
   const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 50);
 
