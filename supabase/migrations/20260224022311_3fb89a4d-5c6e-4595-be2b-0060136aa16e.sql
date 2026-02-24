@@ -1,0 +1,1 @@
+ALTER TABLE public.publicacoes_djen_processos ADD COLUMN IF NOT EXISTS tribunal text;
