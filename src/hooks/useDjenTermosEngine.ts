@@ -1059,9 +1059,6 @@ async function processarTermo(
       }
     }
 
-    // Para busca por OAB (dígitos), NÃO filtrar por tribunal - o advogado pode ter
-    // publicações em tribunais diferentes (ex: processo TRT4 com advogado monitorado no TST).
-    // Para busca por nome, manter filtro de tribunal para evitar ruído.
     const tribsTexto = tribunais.length > 0 && tribunais.length <= 5
       ? tribunais
       : [undefined as string | undefined];
@@ -1078,29 +1075,15 @@ async function processarTermo(
     const totalBuscasTexto = nomesParaTexto.size * tribsTexto.length;
     let buscaTextoIdx = 0;
 
-    // Detectar quais termos são apenas dígitos de OAB
-    const oabDigitsSet = new Set<string>();
-    if (mon.oab) {
-      const oabDigits = String(mon.oab).replace(/\D/g, '');
-      if (oabDigits.length >= 3) oabDigitsSet.add(oabDigits);
-    }
-
     for (const termoTexto of nomesParaTexto) {
       if (signal.aborted) break;
-      
-      // Para OAB dígitos, buscar SEM filtro de tribunal (cross-tribunal)
-      const isOabDigits = oabDigitsSet.has(termoTexto);
-      const tribsParaEsteTexto = isOabDigits
-        ? [undefined as string | undefined]
-        : tribsTexto;
-
-      console.log(`[DJEN] ✅ Busca complementar por texto="${termoTexto}"${isOabDigits ? ' (sem filtro tribunal - OAB)' : ''}`);
+      console.log(`[DJEN] ✅ Busca complementar por texto="${termoTexto}"`);
       
       updateProgress({
         mensagem: `🔎 Busca complementar por texto "${termoTexto}" (${buscaTextoIdx+1}/${totalBuscasTexto})...`,
       });
 
-      for (const trib of tribsParaEsteTexto) {
+      for (const trib of tribsTexto) {
         if (signal.aborted) break;
         buscaTextoIdx++;
         
@@ -1196,13 +1179,21 @@ async function processarTermo(
   const pubsDescartadas: any[] = [];
   let descartadasTribunal = 0;
   const pubsValidas = resultados.filter(pub => {
-    // Para advogado com OAB, NÃO descartar por tribunal.
-    // O advogado pode ter publicações em tribunais diferentes do configurado
-    // (ex: processo TRT4 com advogado monitorado no TST).
-    // A OAB já é filtro suficiente para garantir relevância.
-    // O filtro de tribunal é aplicado apenas na busca primária (nomeAdvogado),
-    // mas publicações encontradas via busca complementar (texto/OAB) de outros
-    // tribunais devem ser mantidas.
+    // CRÍTICO: Sempre aplicar filtro de tribunal para advogado com OAB quando há tribunais configurados.
+    // A API do PJE Comunica NÃO filtra consistentemente por siglaTribunal quando busca por numeroOab,
+    // retornando publicações de TODOS os tribunais. O filtro pós-busca é obrigatório.
+    if (isAdvogadoComOab && tribunais.length > 0) {
+      const sigla = getSiglaTribunal(pub);
+      if (!sigla || !tribunais.includes(sigla)) {
+        const numDebug = String(pub.numeroProcesso || pub.processo || '').replace(/\D/g, '');
+        if (PROCESSOS_DEBUG.some(d => numDebug.includes(d))) {
+          console.log(`[DJEN] 🎯 DESCARTE tribunal: processo=${pub.numeroProcesso || pub.processo}, sigla=${sigla}, permitidos=${tribunais.join(',')}`);
+        }
+        descartadasTribunal += 1;
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
+        return false;
+      }
+    }
     // Para validação, considerar SOMENTE o texto real da publicação.
     // NÃO usar destinatarioNome/metadata, pois isso gera falso positivo (termo “aparece” fora do texto).
     // EXCEÇÃO CONTROLADA: para tipo 'advogado' com OAB, alguns tribunais retornam o corpo da publicação
