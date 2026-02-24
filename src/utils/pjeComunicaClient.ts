@@ -263,9 +263,15 @@ export async function buscarPjeComunicaNoBrowser(
     const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
 
     if (ufValida && oab) {
-      // UF específica: busca por OAB/UF (mais precisa)
+      // UF específica: busca por OAB/UF + nomeAdvogado para cobertura máxima
+      // A API pode falhar ao retornar publicações apenas com numeroOab/ufOab,
+      // mas nomeAdvogado junto garante que destinatários sejam encontrados.
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
+      if (nomeAdvogado) {
+        qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado));
+        console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${nomeAdvogado}`);
+      }
     } else if (oab && nomeAdvogado) {
       // UF "TODAS" ou sem UF: enviar AMBOS nomeAdvogado E numeroOab
       // A API pode ignorar numeroOab sem ufOab, mas em muitos tribunais funciona.
