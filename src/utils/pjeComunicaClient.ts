@@ -273,10 +273,12 @@ export async function buscarPjeComunicaNoBrowser(
         console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${normalizeAccents(nomeAdvogado)}`);
       }
     } else if (oab && nomeAdvogado) {
-      // UF "TODAS" ou sem UF: enviar AMBOS nomeAdvogado E numeroOab
+      // UF "TODAS" ou sem UF: enviar APENAS nomeAdvogado (sem numeroOab).
+      // CRÍTICO: Adicionar numeroOab junto com nomeAdvogado ALTERA os resultados da API,
+      // fazendo publicações desaparecerem. A URL que funciona no portal oficial usa
+      // APENAS nomeAdvogado (ex: ?nomeAdvogado=OSMAR+MENDES+PAIXAO+CORTES&siglaTribunal=TST)
       qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
-      qp.set("numeroOab", oab);
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${normalizeAccents(nomeAdvogado)} + numeroOab: ${oab}`);
+      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando APENAS por nomeAdvogado: ${normalizeAccents(nomeAdvogado)} (sem numeroOab para não restringir resultados)`);
     } else if (nomeAdvogado) {
       // Sem OAB: busca só pelo nome — normalizar acentos para melhor cobertura
       qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
