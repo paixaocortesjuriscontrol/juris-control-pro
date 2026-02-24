@@ -389,14 +389,20 @@ function getSiglaTribunal(item: any): string | null {
   return m?.[1] ?? raw.trim().toUpperCase();
 }
 
-function gerarHash(conteudo: string, data: string): string {
-  const key = `${data}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 500);
-  let hash = 0;
+function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
+  // Include processo_numero to prevent collisions between different processes
+  const proc = (processoNumero || '').replace(/[^0-9]/g, '');
+  const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
+  // Use two independent 32-bit hashes to form a 64-bit hash (reduces collision probability)
+  let h1 = 0, h2 = 0x9e3779b9;
   for (let i = 0; i < key.length; i++) {
-    hash = ((hash << 5) - hash) + key.charCodeAt(i);
-    hash = hash & hash;
+    const c = key.charCodeAt(i);
+    h1 = ((h1 << 5) - h1) + c;
+    h1 = h1 & h1;
+    h2 = ((h2 << 7) ^ h2) + c;
+    h2 = h2 & h2;
   }
-  return Math.abs(hash).toString(16);
+  return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
 }
 
 function calcularProximoDiaUtil(dataBase: Date): Date {
@@ -774,7 +780,8 @@ async function processarTermoPro(
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
-    const hash = gerarHash(conteudo, dataDisp);
+    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+    const hash = gerarHash(conteudo, dataDisp, procNum);
     if (!hashMap.has(hash)) {
       hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
     }
@@ -853,7 +860,8 @@ async function processarTermoPro(
         conteudoOriginal,
       });
       const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
-      const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp);
+      const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+      const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
       
       const advogados = extrairAdvogadosEstruturados(pub);
       const partes = extrairPartesEstruturadas(pub);
