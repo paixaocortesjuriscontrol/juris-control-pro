@@ -517,8 +517,15 @@ async function processarTermoPro(
     if (tribLoop.length > 1) await delay(1200);
   }
   
-  // Retry sem ufOab para tribunais superiores/federais quando busca por OAB retornou vazio
-  if (isAdvogadoComOab && resultados.length === 0 && !signal.aborted) {
+  // Retry sem ufOab quando busca por OAB não retornou resultados do tribunal desejado.
+  // IMPORTANTE: A API PJE Comunica frequentemente ignora siglaTribunal em buscas por OAB,
+  // retornando resultados de outros tribunais. Precisamos verificar se temos resultados
+  // que REALMENTE correspondem aos tribunais configurados, não apenas se temos resultados.
+  const temResultadosDoTribunal = tribunais.length === 0 || resultados.some(pub => {
+    const sigla = getSiglaTribunal(pub);
+    return sigla && tribunais.includes(sigla);
+  });
+  if (isAdvogadoComOab && !temResultadosDoTribunal && !signal.aborted) {
     const tribunaisRetry = tribunais.length > 0 ? tribunais : [];
     // Normalizar acentos do nome para busca — a API aceita melhor sem acentos
     const nomeNormalizado = mon.termo_busca
