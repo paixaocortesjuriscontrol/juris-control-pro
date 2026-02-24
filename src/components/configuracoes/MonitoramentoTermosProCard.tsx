@@ -1,210 +1,200 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Zap, PlayCircle, XCircle, StopCircle, RotateCcw, Clock, Loader2, Trash2 } from "lucide-react";
-import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
+import { Zap, Clock, PlayCircle, XCircle } from "lucide-react";
+import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
+import { useExecutarMonitoramento } from "@/hooks/useExecutarMonitoramento";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toZonedTime } from "date-fns-tz";
+import { LiveExecutionPanel } from "./LiveExecutionPanel";
+import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { BotaoRetomarLote } from "./BotaoRetomarLote";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
 
 interface Props {
   coordenacaoId: string;
 }
 
-function formatTempo(segundos: number): string {
-  if (segundos < 60) return `${segundos}s`;
-  const min = Math.floor(segundos / 60);
-  const sec = segundos % 60;
-  if (min < 60) return `${min}m${sec > 0 ? ` ${sec}s` : ''}`;
-  const hrs = Math.floor(min / 60);
-  const remMin = min % 60;
-  return `${hrs}h${remMin > 0 ? ` ${remMin}m` : ''}`;
-}
-
 export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   const navigate = useNavigate();
-  const {
-    progress,
-    isRunning,
-    canResume,
-    executar,
-    retomar,
-    cancelar,
-    forceKill,
-  } = useDjenTermosPro();
+  const { 
+    configuracaoTermosPro, 
+    isLoading, 
+    atualizarConfiguracao, 
+  } = useConfiguracoesMonitoramento(coordenacaoId);
 
-  const isExecutando = progress.status === 'executando';
-  const isConcluido = progress.status === 'concluido';
-  const isErro = progress.status === 'erro';
+  const { executando, cancelando, executar, cancelar } = useExecutarMonitoramento({
+    tipo: 'termos_pro',
+    configId: configuracaoTermosPro?.id,
+  });
+
+  const metadata = configuracaoTermosPro?.metadata as Record<string, any> | null;
+  const nextOffset = metadata?.next_offset as number | undefined;
+  const totalProcessos = metadata?.total as number | undefined;
+
+  const isRunning = useMemo(() => {
+    const md = metadata ?? {};
+    return (
+      (md.status === 'em_andamento' && md.cancelado !== true && md.paused_globally !== true) ||
+      executando
+    );
+  }, [metadata, executando]);
+
+  const handleFrequenciaChange = (frequencia: string) => {
+    if (configuracaoTermosPro) {
+      atualizarConfiguracao.mutate({ id: configuracaoTermosPro.id, frequencia, tipo: 'termos_pro' });
+    }
+  };
+
+  const handleAtivoChange = (ativo: boolean) => {
+    if (configuracaoTermosPro) {
+      atualizarConfiguracao.mutate({ id: configuracaoTermosPro.id, ativo, tipo: 'termos_pro' });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-4">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Zap className="h-6 w-6 text-primary animate-spin" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Carregando...</CardTitle>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
-    <Card className={cn(
-      "transition-all duration-200",
-      isExecutando && "border-primary/50 shadow-md",
-      isConcluido && "border-green-500/30",
-      isErro && "border-destructive/50",
-    )}>
+    <Card>
       <CardHeader className="flex flex-row items-center gap-4">
-        <div className={cn(
-          "p-2 rounded-lg",
-          isExecutando ? "bg-primary/20" : "bg-amber-500/10"
-        )}>
-          <Zap className={cn(
-            "h-6 w-6",
-            isExecutando ? "text-primary animate-pulse" : "text-amber-600"
-          )} />
+        <div className="p-2 rounded-lg bg-primary/10">
+          <Zap className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <CardTitle className="text-lg">DJEN Termos Pro</CardTitle>
-            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+            <Badge variant="outline" className="text-xs">
               Novo
             </Badge>
           </div>
           <CardDescription>
-            Motor de busca com validação por metadados estruturados da API
+            Motor de alta precisão com validação por metadados estruturados da API PJE Comunica
           </CardDescription>
         </div>
       </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Status e Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="ativo-termos-pro">Varredura Ativa</Label>
+            <p className="text-sm text-muted-foreground">
+              {configuracaoTermosPro?.ativo ? "Executando automaticamente" : "Pausada"}
+            </p>
+          </div>
+          <Switch
+            id="ativo-termos-pro"
+            checked={configuracaoTermosPro?.ativo ?? true}
+            onCheckedChange={handleAtivoChange}
+            disabled={atualizarConfiguracao.isPending}
+          />
+        </div>
 
-      <CardContent className="space-y-4">
-        {/* Painel de execução */}
-        {isExecutando && (
-          <div className="rounded-lg p-3 space-y-3 border bg-primary/5 border-primary/20">
-            {/* Barra de progresso */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Progresso global</span>
-                <span className="font-medium">{progress.percentage}%</span>
-              </div>
-              <Progress value={progress.percentage} className="h-2" />
+        {/* Frequência */}
+        <div className="space-y-2">
+          <Label htmlFor="frequencia-termos-pro">Frequência de Execução</Label>
+          <Select 
+            value={configuracaoTermosPro?.frequencia || 'diario'} 
+            onValueChange={handleFrequenciaChange}
+            disabled={atualizarConfiguracao.isPending}
+          >
+            <SelectTrigger id="frequencia-termos-pro">
+              <SelectValue placeholder="Selecione a frequência" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="diario">Diário (9h BRT)</SelectItem>
+              <SelectItem value="2x_dia">2x ao dia (9h e 18h BRT)</SelectItem>
+              <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Horário agendado */}
+        <HorarioAgendadoInfo 
+          horariosExecucao={configuracaoTermosPro?.horarios_execucao}
+          frequencia={configuracaoTermosPro?.frequencia}
+        />
+
+        {/* Última execução */}
+        {configuracaoTermosPro?.ultima_execucao && (
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span>
+                Última execução: {format(toZonedTime(new Date(configuracaoTermosPro.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </span>
             </div>
-
-            {/* Grid de métricas */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Dia:</span>
-                <span className="font-mono">{progress.diaAtualYmd} ({progress.diaAtualIndice}/{progress.totalDias})</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Termo:</span>
-                <span className="font-mono">{progress.termoAtualNoDia}/{progress.totalTermos}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Novas:</span>
-                <span className="font-mono text-green-600">{progress.novas}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Descartadas:</span>
-                <span className="font-mono text-orange-600">{progress.descartadas}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Duplicadas:</span>
-                <span className="font-mono text-muted-foreground">{progress.duplicadas}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Tempo:</span>
-                <span className="font-mono">{formatTempo(progress.tempoDecorrido)}</span>
-              </div>
-            </div>
-
-            {/* Termo atual */}
-            {progress.termoAtual && (
-              <div className="flex items-center gap-2 text-xs text-primary">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span className="truncate">{progress.mensagem || progress.termoAtual}</span>
-              </div>
+            {configuracaoTermosPro.metadata?.next_offset !== undefined && configuracaoTermosPro.metadata.next_offset > 0 && (
+              <span className="text-xs">
+                Progresso: próximo lote a partir do processo #{configuracaoTermosPro.metadata.next_offset + 1}
+              </span>
+            )}
+            {configuracaoTermosPro.metadata?.last_complete_run && (
+              <span className="text-xs text-primary">
+                Última execução completa: {format(toZonedTime(new Date(configuracaoTermosPro.metadata.last_complete_run), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </span>
             )}
           </div>
         )}
 
-        {/* Resultado concluído */}
-        {isConcluido && progress.novas > 0 && (
-          <div className="rounded-lg p-3 border bg-green-500/5 border-green-500/20">
-            <div className="text-sm text-green-700">
-              ✅ {progress.novas} novas publicações encontradas • {progress.duplicadas} duplicadas • {progress.descartadas} descartadas
-            </div>
-          </div>
-        )}
+        {/* Painel de Execução em Tempo Real */}
+        <LiveExecutionPanel
+          tipo="termos_pro"
+          titulo="Verificando termos estratégicos (Pro)..."
+          onCancel={cancelar}
+          showCancel
+        />
 
-        {/* Erro */}
-        {isErro && (
-          <div className="rounded-lg p-3 border bg-destructive/5 border-destructive/20">
-            <div className="text-sm text-destructive">{progress.mensagem}</div>
-          </div>
-        )}
-
-        {/* Checkpoint disponível */}
-        {canResume && !isExecutando && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            <span>Checkpoint disponível para retomada</span>
-          </div>
-        )}
-
-        {/* Botões de ação */}
+        {/* Botão de execução */}
         <div className="flex gap-2 flex-wrap">
           <Button
             type="button"
             variant="outline"
-            size="sm"
             onClick={() => navigate('/monitoramento360')}
           >
             Ver alertas
           </Button>
-
-          {canResume && !isExecutando && (
+          <BotaoRetomarLote
+            nextOffset={nextOffset}
+            total={totalProcessos}
+            onRetomar={() => executar(true)}
+            disabled={executando || cancelando || isRunning}
+          />
+          {isRunning ? (
             <Button
-              size="sm"
-              variant="outline"
-              onClick={() => retomar(coordenacaoId || undefined)}
-              disabled={isRunning}
+              onClick={cancelar}
+              variant="destructive"
+              className="flex-1"
+              disabled={cancelando}
             >
-              <RotateCcw className="h-4 w-4 mr-1" />
-              Retomar
+              <XCircle className="h-4 w-4 mr-2" />
+              {cancelando ? 'Cancelando...' : 'Cancelar'}
             </Button>
-          )}
-
-          {isExecutando ? (
-            <>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={cancelar}
-                className="flex-1"
-              >
-                <XCircle className="h-4 w-4 mr-1" />
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => forceKill(false)}
-                title="Forçar parada"
-              >
-                <StopCircle className="h-4 w-4" />
-              </Button>
-            </>
           ) : (
             <Button
-              size="sm"
-              onClick={() => executar(undefined, undefined, coordenacaoId || undefined)}
-              disabled={isRunning}
+              onClick={() => executar(false)}
+              disabled={executando || isRunning}
               className="flex-1"
             >
-              <PlayCircle className="h-4 w-4 mr-1" />
-              Executar Pro
-            </Button>
-          )}
-
-          {!isExecutando && (isConcluido || isErro) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => forceKill(true)}
-              title="Limpar estado"
-            >
-              <Trash2 className="h-4 w-4" />
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Executar Completo
             </Button>
           )}
         </div>
