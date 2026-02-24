@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -59,6 +59,10 @@ export default function Configuracoes() {
           <TabsTrigger value="monitoracao-360" className="flex items-center gap-2">
             <Radar className="h-4 w-4" />
             <span className="hidden sm:inline">Monitoração 360</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen-termos-pro" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN Termos Pro</span>
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -182,6 +186,17 @@ export default function Configuracoes() {
           </div>
           <MonitoramentoTermosProCard coordenacaoId="" />
           <MonitoramentoTermosCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba DJEN Termos Pro */}
+        <TabsContent value="djen-termos-pro" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">DJEN Termos Pro</h2>
+            <p className="text-sm text-muted-foreground">
+              Motor de busca com validação por metadados estruturados da API PJE Comunica
+            </p>
+          </div>
+          <MonitoramentoTermosProCard coordenacaoId="" />
         </TabsContent>
 
         {/* Aba Relatórios de Monitoramento */}
