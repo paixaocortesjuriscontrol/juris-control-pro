@@ -575,26 +575,45 @@ const AnaliseDjen = () => {
     return out;
   };
 
-  /** Desenha um ícone de pessoa (bonequinho) no PDF */
+  /** Desenha um ícone de pessoa (estilo Lucide User) no PDF — cabeça + busto/ombros */
   const drawPersonIcon = (doc: jsPDF, x: number, y: number, color: 'green' | 'red' | 'black') => {
     const colors: Record<string, [number, number, number]> = {
-      green: [22, 163, 74],   // green-600
-      red: [239, 68, 68],     // red-500
-      black: [100, 116, 139], // slate-500
+      green: [22, 163, 74],   // green-600 (mesmo da tela)
+      red: [239, 68, 68],     // red-500 (mesmo da tela)
+      black: [100, 116, 139], // slate-500 (mesmo da tela)
     };
     const [r, g, b] = colors[color];
     doc.setDrawColor(r, g, b);
-    doc.setLineWidth(0.3);
-    // Head (circle)
-    doc.circle(x + 1.5, y - 2.8, 1, 'S');
-    // Body (line)
-    doc.line(x + 1.5, y - 1.8, x + 1.5, y + 0.2);
-    // Arms
-    doc.line(x + 0.2, y - 1, x + 2.8, y - 1);
-    // Legs
-    doc.line(x + 1.5, y + 0.2, x + 0.5, y + 1.5);
-    doc.line(x + 1.5, y + 0.2, x + 2.5, y + 1.5);
+    doc.setFillColor(r, g, b);
+    doc.setLineWidth(0.25);
+    
+    // Centro do ícone
+    const cx = x + 1.5;
+    const cy = y - 1.2;
+    
+    // Cabeça (círculo preenchido — igual ao Lucide User)
+    doc.circle(cx, cy - 1.6, 0.9, 'S');
+    
+    // Busto/ombros (arco — path simulando o torso do Lucide User)
+    // Lucide User: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    // Simulamos com linhas curvas: um arco de ombros
+    const shoulderY = cy + 0.1;
+    const bodyBottom = cy + 1.8;
+    const halfW = 1.6;
+    
+    // Lado esquerdo do busto (curva)
+    doc.line(cx - halfW, bodyBottom, cx - halfW, shoulderY + 0.8);
+    // Arco esquerdo do ombro
+    doc.line(cx - halfW, shoulderY + 0.8, cx - halfW + 0.4, shoulderY + 0.2);
+    doc.line(cx - halfW + 0.4, shoulderY + 0.2, cx - 0.3, shoulderY);
+    // Arco direito do ombro  
+    doc.line(cx + 0.3, shoulderY, cx + halfW - 0.4, shoulderY + 0.2);
+    doc.line(cx + halfW - 0.4, shoulderY + 0.2, cx + halfW, shoulderY + 0.8);
+    // Lado direito do busto
+    doc.line(cx + halfW, shoulderY + 0.8, cx + halfW, bodyBottom);
+    
     doc.setDrawColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
   };
 
   /** Retorna a cor do ícone baseado no prefixo de polo */
