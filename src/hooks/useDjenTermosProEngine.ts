@@ -429,11 +429,14 @@ function extrairAdvogadosEstruturados(pub: any): string[] {
   return result;
 }
 
-function extrairPartesEstruturadas(pub: any): Array<{ nome: string; polo: string }> {
+function extrairPartesEstruturadas(pub: any): string[] {
   if (!Array.isArray(pub?.destinatarios)) return [];
   return pub.destinatarios
     .filter((d: any) => d?.nome)
-    .map((d: any) => ({ nome: d.nome, polo: d.polo || '?' }));
+    .map((d: any) => {
+      const polo = d.polo === 'A' ? 'Reclamante' : d.polo === 'P' ? 'Reclamado' : d.polo || '';
+      return polo ? `[${polo}] ${d.nome}` : d.nome;
+    });
 }
 
 // ============================================================================
