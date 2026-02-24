@@ -609,12 +609,18 @@ export function PublicacaoConteudoDjen({
             <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-1.5">Parte(s)</p>
             {partesFinais.length > 0 ? (
               <ul className="space-y-1.5">
-                {partesFinais.map((parte, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <User className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                    <span className="break-words">{parte}</span>
-                  </li>
-                ))}
+                {partesFinais.map((parte, i) => {
+                  const isReclamante = /^\[Reclamante\]\s*/i.test(parte);
+                  const isReclamado = /^\[Reclamado\]\s*/i.test(parte);
+                  const nomeExibido = parte.replace(/^\[(Reclamante|Reclamado)\]\s*/i, '');
+                  const iconColor = isReclamante ? 'text-green-600' : isReclamado ? 'text-red-500' : 'text-muted-foreground';
+                  return (
+                    <li key={i} className="flex items-start gap-2 text-sm" title={isReclamante ? 'Polo Ativo (Reclamante)' : isReclamado ? 'Polo Passivo (Reclamado)' : 'Parte'}>
+                      <User className={cn("w-4 h-4 shrink-0 mt-0.5", iconColor)} />
+                      <span className="break-words">{nomeExibido}</span>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground flex items-center gap-2">
