@@ -309,12 +309,21 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
       if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
     }
     
-    // 4. Verificar termos_or (outros advogados)
+    // 4. Verificar termos_or (outros advogados) — parsear formato "OAB/NOME"
     if (mon.termos_or?.length) {
       for (const termoOr of mon.termos_or) {
-        const orNorm = normalizar(termoOr.trim());
-        if (orNorm && contemFrase(textoNorm, orNorm)) return true;
-        if (validarAdvogadoMetadados(pub, undefined, termoOr.trim())) return true;
+        const parsed = parsearTermoOr(termoOr);
+        if (!parsed) continue;
+        
+        // Validar por metadados (OAB e/ou nome)
+        if (validarAdvogadoMetadados(pub, parsed.oabDigits, parsed.nome)) return true;
+        
+        // Fallback: nome no texto
+        const nomeNorm = normalizar(parsed.nome);
+        if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+        
+        // Fallback: OAB no texto
+        if (parsed.oabDigits && parsed.oabDigits.length >= 3 && textoNorm.includes(parsed.oabDigits)) return true;
       }
     }
     
@@ -342,10 +351,12 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   const termoNorm = normalizar(mon.termo_busca);
   if (termoNorm && contemFrase(textoNorm, termoNorm)) return true;
   
-  // termos_or
+  // termos_or (parsear para extrair nome puro)
   if (mon.termos_or?.length) {
     for (const t of mon.termos_or) {
-      const tNorm = normalizar(t.trim());
+      const parsed = parsearTermoOr(t);
+      if (!parsed) continue;
+      const tNorm = normalizar(parsed.nome);
       if (tNorm && contemFrase(textoNorm, tNorm)) return true;
     }
   }
@@ -437,6 +448,42 @@ function extrairPartesEstruturadas(pub: any): string[] {
       const polo = d.polo === 'A' ? 'Reclamante' : d.polo === 'P' ? 'Reclamado' : d.polo || '';
       return polo ? `[${polo}] ${d.nome}` : d.nome;
     });
+}
+
+// ============================================================================
+// PARSER DE TERMOS_OR (formato "OAB/NOME" ou nome puro)
+// ============================================================================
+
+interface ParsedTermoOr {
+  nome: string;
+  oabDigits?: string;
+}
+
+function parsearTermoOr(raw: string): ParsedTermoOr | null {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+  
+  // Formato "OAB/NOME" (ex: "16733/LEANDRO ARTIAGA E VIEIRA")
+  const oabNomeMatch = trimmed.match(/^(\d{3,6})\s*\/\s*(.+)$/);
+  if (oabNomeMatch) {
+    return { oabDigits: oabNomeMatch[1], nome: oabNomeMatch[2].trim() };
+  }
+  
+  // Formato "NOME/OAB" (ex: "LEANDRO ARTIAGA E VIEIRA/16733")
+  const nomeOabMatch = trimmed.match(/^(.+?)\s*\/\s*(\d{3,6})$/);
+  if (nomeOabMatch) {
+    return { oabDigits: nomeOabMatch[2], nome: nomeOabMatch[1].trim() };
+  }
+  
+  // Prefixos de tribunal: "TRT10 - Adv. NOME" → NOME
+  let clean = trimmed;
+  clean = clean.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  clean = clean.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  clean = clean.replace(/^Adv\.?\s*/i, '');
+  clean = clean.trim();
+  
+  if (!clean) return null;
+  return { nome: clean };
 }
 
 // ============================================================================
@@ -559,31 +606,81 @@ async function processarTermoPro(
     }
   }
   
-  // Busca complementar por texto para advogados (captura menções no corpo)
-  if ((tipo === 'advogado') && !signal.aborted) {
-    const nomesTexto = new Set<string>();
-    if (mon.termo_busca) nomesTexto.add(mon.termo_busca);
-    if (mon.oab) nomesTexto.add(String(mon.oab).replace(/\D/g, ''));
-    if (mon.termos_or?.length) {
-      for (const t of mon.termos_or) if (t.trim()) nomesTexto.add(t.trim());
+  // Busca complementar para advogados: buscar cada termos_or como nomeAdvogado separado
+  // Os termos_or podem ter formato "OAB/NOME" (ex: "16733/LEANDRO ARTIAGA E VIEIRA")
+  // que precisa ser parseado para fazer buscas por nomeAdvogado (não texto)
+  if ((tipo === 'advogado') && !signal.aborted && mon.termos_or?.length) {
+    const parsedOr: ParsedTermoOr[] = [];
+    for (const t of mon.termos_or) {
+      const parsed = parsearTermoOr(t);
+      if (parsed) parsedOr.push(parsed);
     }
     
-    for (const termo of nomesTexto) {
+    // Deduplicar por nome normalizado
+    const nomesJaBuscados = new Set<string>();
+    // O termo principal já foi buscado
+    nomesJaBuscados.add(normalizar(mon.termo_busca));
+    
+    const textTribLoop = tribunais.length > 0 ? tribunais : [undefined as string | undefined];
+    
+    for (const parsed of parsedOr) {
       if (signal.aborted) break;
-      const textTribLoop = tribunais.length > 0 ? tribunais : [undefined as string | undefined];
+      const nomeNorm = normalizar(parsed.nome);
+      if (nomesJaBuscados.has(nomeNorm)) continue;
+      nomesJaBuscados.add(nomeNorm);
+      
+      // Normalizar acentos do nome para API
+      const nomeParaApi = parsed.nome
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+      
+      console.log(`[DJEN Pro] Busca termos_or: nomeAdvogado="${nomeParaApi}"${parsed.oabDigits ? ` OAB=${parsed.oabDigits}` : ''}`);
+      
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
         try {
+          // Busca por nomeAdvogado (correto para advogados, não palavraChave)
           const resp = await buscarPjeComunicaPaginado(
-            { tipo: 'palavra-chave', palavraChave: termo, siglaTribunal: trib, dataInicio: diaYmd, dataFim: diaYmd, pageSize: 50, page: 1 },
+            { 
+              tipo: 'advogado' as PjeSearchType,
+              nomeAdvogado: nomeParaApi,
+              siglaTribunal: trib,
+              dataInicio: diaYmd, dataFim: diaYmd,
+              pageSize: 50, page: 1,
+            },
             { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
           );
           addResults(resp.items, trib);
+          console.log(`[DJEN Pro] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
-          console.warn(`[DJEN Pro] Erro busca texto "${termo}" trib=${trib}:`, e?.message);
+          console.warn(`[DJEN Pro] Erro busca termos_or "${parsed.nome}" trib=${trib}:`, e?.message);
         }
         await delay(600);
+      }
+      
+      // Se tem OAB, buscar também por OAB (captura resultados que nome não encontra)
+      if (parsed.oabDigits && !signal.aborted) {
+        for (const trib of textTribLoop) {
+          if (signal.aborted) break;
+          try {
+            const resp = await buscarPjeComunicaPaginado(
+              {
+                tipo: 'advogado' as PjeSearchType,
+                oab: parsed.oabDigits,
+                siglaTribunal: trib,
+                dataInicio: diaYmd, dataFim: diaYmd,
+                pageSize: 50, page: 1,
+              },
+              { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
+            );
+            addResults(resp.items, trib);
+          } catch (e: any) {
+            if (e?.name === 'AbortError') break;
+          }
+          await delay(600);
+        }
       }
     }
   }
