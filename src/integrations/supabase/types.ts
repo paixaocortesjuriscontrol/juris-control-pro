@@ -4211,6 +4211,7 @@ export type Database = {
           processo_id: string
           processo_numero: string
           tipo_comunicacao: string | null
+          tribunal: string | null
         }
         Insert: {
           advogados_json?: Json | null
@@ -4229,6 +4230,7 @@ export type Database = {
           processo_id: string
           processo_numero: string
           tipo_comunicacao?: string | null
+          tribunal?: string | null
         }
         Update: {
           advogados_json?: Json | null
@@ -4247,6 +4249,7 @@ export type Database = {
           processo_id?: string
           processo_numero?: string
           tipo_comunicacao?: string | null
+          tribunal?: string | null
         }
         Relationships: [
           {
