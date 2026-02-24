@@ -373,8 +373,15 @@ export function getPartesEAdvogadosParaExibicao(
   poloAtivo: string | null,
   poloPassivo: string | null
 ): { partes: string[]; advogados: string[] } {
-  const partesDoBanco = Array.isArray(partesJson) ? partesJson.map((x) => String(x || "").trim()).filter(Boolean) : [];
-  const advogadosDoBanco = Array.isArray(advogadosJson) ? advogadosJson.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  // Normalizar partes: podem vir como strings OU objetos {nome, polo} de dados antigos
+  const partesDoBanco = Array.isArray(partesJson) ? partesJson.map((x: any) => {
+    if (typeof x === 'object' && x !== null && x.nome) {
+      const polo = x.polo === 'A' ? 'Reclamante' : x.polo === 'P' ? 'Reclamado' : x.polo || '';
+      return polo ? `[${polo}] ${x.nome}` : x.nome;
+    }
+    return String(x || "").trim();
+  }).filter(Boolean) : [];
+  const advogadosDoBanco = Array.isArray(advogadosJson) ? advogadosJson.map((x: any) => String(x || "").trim()).filter(Boolean) : [];
   const itemPareceParte = (s: string) =>
     /\b(BANCO|S\.A\.|S\/A|LTDA|RECUPERAÇÃO|CONTAX|INSTITUIÇÃO)\b/i.test(s) ||
     (!/\bOAB\b|\bDR\.|\bDRA\./i.test(s) && s.split(/\s+/).filter(Boolean).length >= 2);
@@ -415,6 +422,8 @@ const stripMetadataFromContent = (texto: string | null): string | null => {
   plain = plain.replace(headerPattern, '');
   // Remove bloco "Advogados:" ou "Destinatário(s):" com nomes em sequência (sem OAB)
   plain = plain.replace(/(?:Advogados?|Destinat[áa]rio\s*\(?\s*s?\s*\)?)\s*:\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,10}/i, '');
+  // Remove bloco "Parte(s):" com nomes em sequência (injetado por buildDjenLikeConteudo)
+  plain = plain.replace(/Parte\s*\(?\s*s?\s*\)?\s*:?\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,30}/i, '');
   return plain.trim() || texto;
 };
 
