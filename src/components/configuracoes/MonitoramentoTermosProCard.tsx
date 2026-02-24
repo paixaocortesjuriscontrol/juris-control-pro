@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Zap, Play, Clock, RefreshCw, ChevronDown, FileText, StopCircle, Trash2, CalendarIcon, XCircle, RotateCcw } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
 import { useBuscaDjenDireta, ProgressoExecucao } from "@/hooks/useBuscaDjenDireta";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
@@ -64,6 +65,34 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     executarMonitoramento: executarDireta,
     cancelar: cancelarDireta,
   } = useBuscaDjenDireta();
+
+  const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
+  const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
+
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
+
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ['monitoramentos-djen-coord-termos-pro', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [];
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('id, termo_busca, descricao, tipo, oab, uf')
+        .eq('coordenacao_id', coordenacaoFiltroEfetivo)
+        .eq('ativo', true);
+      if (error) throw error;
+      const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
+      const getLabel = (m: typeof list[0]) =>
+        m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
+      return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+  });
+
+  useEffect(() => {
+    if (!filtroCoordenacaoId) setFiltroMonitoramentoId('');
+  }, [filtroCoordenacaoId]);
 
   const [ultimoResultado, setUltimoResultado] = useState<ExecutionResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -282,6 +311,15 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   
   const isExecuting = executandoDireta || !!execucaoAtiva;
 
+  // Obter IDs filtrados para execução
+  const getMonitoramentoIdsFiltrados = (): string[] | undefined => {
+    if (filtroMonitoramentoId) return [filtroMonitoramentoId];
+    if (filtroCoordenacaoId && monitoramentos.length > 0) {
+      return monitoramentos.map(m => m.id);
+    }
+    return undefined;
+  };
+
   const handleExecutarManual = async (retomar = false) => {
     if (executandoDireta || isExecuting) {
       toast.warning('Já existe uma execução Termos Pro em andamento. Aguarde ou cancele.');
@@ -294,13 +332,15 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     }
     
     setOcultarErroAnterior(true);
-    await executarDireta(undefined, retomar);
+    const ids = getMonitoramentoIdsFiltrados();
+    await executarDireta(ids, retomar);
   };
 
   const handleConfirmarRetomada = async (retomar: boolean) => {
     setDialogRetomada(false);
     setOcultarErroAnterior(true);
-    await executarDireta(undefined, retomar);
+    const ids = getMonitoramentoIdsFiltrados();
+    await executarDireta(ids, retomar);
   };
 
   const handleFrequenciaChange = (frequencia: string) => {
@@ -514,6 +554,50 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Filtros: Coordenação e Termos */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Coordenação</label>
+            <select
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+              value={filtroCoordenacaoId}
+              onChange={(e) => setFiltroCoordenacaoId(e.target.value)}
+              disabled={isExecuting}
+            >
+              <option value="">Todos</option>
+              {coordenacoes.map((c) => (
+                <option key={c.id} value={c.id}>{c.nome}</option>
+              ))}
+            </select>
+          </div>
+          {coordenacaoFiltroEfetivo && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Termo</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroMonitoramentoId}
+                onChange={(e) => setFiltroMonitoramentoId(e.target.value)}
+                disabled={isExecuting}
+              >
+                <option value="">Todos</option>
+                {monitoramentos.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        {isExecuting && (filtroCoordenacaoId || filtroMonitoramentoId) && (
+          <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
+            Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? 'Todas'}
+            {filtroMonitoramentoId && (
+              <> • {monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.descricao || monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.termo_busca || 'Termo'}</>
+            )}
+          </div>
+        )}
+
         {/* Toggle Ativo/Inativo */}
         <div className="flex items-center justify-between">
           <div>
