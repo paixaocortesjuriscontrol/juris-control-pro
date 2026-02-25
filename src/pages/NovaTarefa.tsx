@@ -529,7 +529,7 @@ export default function NovaTarefa() {
       if (isEditMode && editarId) {
         // Modo edição - atualizar tarefa existente
         const { error } = await supabase.from("tarefas").update({
-          processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
+          processo_id: values.tipo_vinculo === "processo" && values.processo_id ? values.processo_id : null,
           responsavel_id: values.responsavel_id,
           titulo: values.titulo,
           descricao: values.descricao || null,
@@ -556,7 +556,7 @@ export default function NovaTarefa() {
       } else {
         // Modo criação - inserir nova tarefa
         const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
-          processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
+          processo_id: values.tipo_vinculo === "processo" && values.processo_id ? values.processo_id : null,
           responsavel_id: values.responsavel_id,
           titulo: values.titulo,
           descricao: values.descricao || null,
@@ -648,7 +648,7 @@ export default function NovaTarefa() {
             descricao: values.descricao,
             data_vencimento: values.data_vencimento,
             prioridade: values.prioridade,
-            processo_id: values.processo_id,
+            processo_id: values.processo_id || undefined,
             responsavel_id: values.responsavel_id,
           },
         }).then(({ data, error: notifyError }) => {
