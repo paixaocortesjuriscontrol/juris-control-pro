@@ -1004,6 +1004,13 @@ const AnaliseDjen = () => {
     }
   };
 
+  /** Remove caracteres de controle ilegais em XML (causa erro no Word) */
+  const sanitizeForXml = (text: string | null | undefined): string => {
+    if (!text) return "";
+    // Remove caracteres de controle XML ilegais (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F exceto tab/newline/cr)
+    return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  };
+
   // ===== "Gerar Doc" - DOCX-like text file (plain text sem IA) =====
   const handleGerarDoc = async () => {
     if (allPublicacoes.length === 0) {
@@ -1024,9 +1031,9 @@ const AnaliseDjen = () => {
           spacing: { before: 400 },
           border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
         }));
-        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(pub.tribunal)] }));
+        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(sanitizeForXml(pub.tribunal))] }));
         if (pub.data_disponibilizacao) children.push(new Paragraph({ children: [new TextRun({ text: "Data: ", bold: true }), new TextRun(formatDateOnlyFull(pub.data_disponibilizacao))] }));
-        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(pub.tipo_comunicacao || "Intimação")] }));
+        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(sanitizeForXml(pub.tipo_comunicacao) || "Intimação")] }));
 
         const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
 
@@ -1035,16 +1042,16 @@ const AnaliseDjen = () => {
           partes.forEach(p => {
             const color = getParteIconColor(p);
             const colorHex = color === "green" ? "22C55E" : color === "red" ? "EF4444" : "000000";
-            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(cleanParteName(p))] }));
+            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(sanitizeForXml(cleanParteName(p)))] }));
           });
         }
         if (advogados.length > 0) {
           children.push(new Paragraph({ text: "ADVOGADO(S):", bold: true, spacing: { before: 200 } } as any));
-          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(a)] })));
+          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(sanitizeForXml(a))] })));
         }
 
         children.push(new Paragraph({ text: "CONTEÚDO INTEGRAL:", bold: true, spacing: { before: 200 } } as any));
-        const rawContent = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const rawContent = sanitizeForXml((pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
         children.push(new Paragraph({ text: rawContent, spacing: { after: 300 } }));
       });
 
@@ -1114,9 +1121,9 @@ const AnaliseDjen = () => {
           spacing: { before: 400 },
           border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
         }));
-        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(pub.tribunal)] }));
+        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(sanitizeForXml(pub.tribunal))] }));
         if (pub.data_disponibilizacao) children.push(new Paragraph({ children: [new TextRun({ text: "Data: ", bold: true }), new TextRun(formatDateOnlyFull(pub.data_disponibilizacao))] }));
-        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(pub.tipo_comunicacao || "Intimação")] }));
+        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(sanitizeForXml(pub.tipo_comunicacao) || "Intimação")] }));
 
         const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
 
@@ -1125,18 +1132,18 @@ const AnaliseDjen = () => {
           partes.forEach(p => {
             const color = getParteIconColor(p);
             const colorHex = color === "green" ? "22C55E" : color === "red" ? "EF4444" : "000000";
-            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(cleanParteName(p))] }));
+            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(sanitizeForXml(cleanParteName(p)))] }));
           });
         }
         if (advogados.length > 0) {
           children.push(new Paragraph({ text: "ADVOGADO(S):", bold: true, spacing: { before: 200 } } as any));
-          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(a)] })));
+          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(sanitizeForXml(a))] })));
         }
 
         const resumo = resumosMap.get(pub.id);
         if (resumo) {
           children.push(new Paragraph({ text: "RESUMO:", bold: true, spacing: { before: 200 } } as any));
-          children.push(new Paragraph({ text: resumo, spacing: { after: 300 } }));
+          children.push(new Paragraph({ text: sanitizeForXml(resumo), spacing: { after: 300 } }));
         }
       });
 
