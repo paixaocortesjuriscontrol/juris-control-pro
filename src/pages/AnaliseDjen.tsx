@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ShadingType, Tab, TabStopType, TabStopPosition } from "docx";
 import {
   FileText,
   Database,
@@ -1011,18 +1011,47 @@ const AnaliseDjen = () => {
     return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
   };
 
-  // ===== "Gerar Doc" - DOCX-like text file (plain text sem IA) =====
+  /** Cria cabeçalho profissional do DOCX (mesmo estilo do PDF: faixa azul-escuro) */
+  const buildDocHeader = (subtitle: string, total: number): Paragraph[] => {
+    const darkBlue = "1E3A5F";
+    return [
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 0 },
+        shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
+        children: [
+          new TextRun({ text: "⚖  ", font: "Segoe UI Emoji", size: 28, color: "FFFFFF" }),
+          new TextRun({ text: "Sistema Juris Control", bold: true, size: 28, color: "FFFFFF", font: "Helvetica" }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 0 },
+        shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
+        children: [
+          new TextRun({ text: `      ${subtitle}`, size: 18, color: "FFFFFF", font: "Helvetica" }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 200 },
+        shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
+        children: [
+          new TextRun({ text: `      Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}  •  Total: ${total}`, size: 16, color: "CCCCCC", font: "Helvetica" }),
+        ],
+      }),
+      new Paragraph({ text: "", spacing: { after: 200 } }),
+    ];
+  };
+
+  // ===== "Gerar Doc" - DOCX (plain text sem IA) =====
   const handleGerarDoc = async () => {
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
     }
     try {
-      const children: Paragraph[] = [];
-
-      children.push(new Paragraph({ text: "PUBLICAÇÕES DJEN", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }));
-      children.push(new Paragraph({ text: `Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, alignment: AlignmentType.CENTER }));
-      children.push(new Paragraph({ text: `Total: ${allPublicacoes.length} publicação(ões)`, alignment: AlignmentType.CENTER, spacing: { after: 300 } }));
+      const children: Paragraph[] = [...buildDocHeader("Relatório de Publicações DJEN", allPublicacoes.length)];
 
       allPublicacoes.forEach((pub, idx) => {
         children.push(new Paragraph({
@@ -1108,11 +1137,7 @@ const AnaliseDjen = () => {
         }
       }
 
-      const children: Paragraph[] = [];
-
-      children.push(new Paragraph({ text: "RESUMO DE PUBLICAÇÕES DJEN", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }));
-      children.push(new Paragraph({ text: `Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, alignment: AlignmentType.CENTER }));
-      children.push(new Paragraph({ text: `Total: ${totalPubs} publicação(ões)${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, alignment: AlignmentType.CENTER, spacing: { after: 300 } }));
+      const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações DJEN${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
 
       allPublicacoes.forEach((pub, idx) => {
         children.push(new Paragraph({
