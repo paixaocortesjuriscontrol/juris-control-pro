@@ -61,28 +61,40 @@ serve(async (req) => {
       let resumo = 'Não foi possível gerar resumo.';
       try {
         let aiResponse: any;
+        let usedFallback = false;
 
         const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+        const aiMessages = [
+          { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
+          { role: 'user', content: userMsg },
+        ];
+
+        // Tentar Lovable Gateway primeiro
         if (LOVABLE_API_KEY) {
-          const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'google/gemini-3-flash-preview',
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
-                { role: 'user', content: userMsg },
-              ],
-              max_tokens: 1200,
-              temperature: 0.2,
-            }),
-          });
-          if (!resp.ok) throw new Error(`AI error: ${resp.status}`);
-          aiResponse = await resp.json();
-        } else {
+          try {
+            const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-3-flash-preview',
+                messages: aiMessages,
+                max_tokens: 1200,
+                temperature: 0.2,
+              }),
+            });
+            if (!resp.ok) throw new Error(`Lovable AI error: ${resp.status}`);
+            aiResponse = await resp.json();
+          } catch (lovableErr) {
+            console.warn(`Lovable AI falhou, tentando fallback OpenAI:`, lovableErr);
+            usedFallback = true;
+          }
+        }
+
+        // Fallback para OpenAI se Lovable falhou ou não está configurada
+        if (!aiResponse && openAIApiKey) {
           const resp = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -91,10 +103,7 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               model: summaryModel,
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
-                { role: 'user', content: userMsg },
-              ],
+              messages: aiMessages,
               max_tokens: 1200,
               temperature: 0.2,
             }),
@@ -102,6 +111,8 @@ serve(async (req) => {
           if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
           aiResponse = await resp.json();
         }
+
+        if (!aiResponse) throw new Error('Nenhum provedor de IA disponível');
 
         resumo = aiResponse.choices?.[0]?.message?.content?.trim() || resumo;
       } catch (e) {
