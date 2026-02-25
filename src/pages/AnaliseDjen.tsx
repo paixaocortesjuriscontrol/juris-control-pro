@@ -618,14 +618,14 @@ const AnaliseDjen = () => {
 
   /** Retorna a cor do ícone baseado no prefixo de polo */
   const getParteIconColor = (parte: string): 'green' | 'red' | 'black' => {
-    if (/^\[Reclamante\]/i.test(parte)) return 'green';
-    if (/^\[Reclamado\]/i.test(parte)) return 'red';
+    if (/^\[(Reclamante|Autor|Requerente|Exequente|Impetrante|Agravante)\]/i.test(parte)) return 'green';
+    if (/^\[(Reclamado|Réu|Requerido|Executado|Impetrado|Agravado)\]/i.test(parte)) return 'red';
     return 'black';
   };
 
   /** Remove prefixo de polo para exibição */
   const cleanParteName = (parte: string): string => {
-    return parte.replace(/^\[(Reclamante|Reclamado)\]\s*/i, '');
+    return parte.replace(/^\[(Reclamante|Reclamado|Autor|Réu|Requerente|Requerido|Exequente|Executado|Impetrante|Impetrado|Agravante|Agravado)\]\s*/i, '');
   };
 
   /** Desenha o cabeçalho profissional do PDF: faixa azul, logo da balança e "Sistema Juris Control". */

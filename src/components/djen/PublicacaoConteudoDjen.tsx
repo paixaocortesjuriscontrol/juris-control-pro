@@ -164,8 +164,22 @@ const extractPartesAndAdvogados = (
   };
 
   // ── 1. Partes dos polos ───────────────────────────────────────────────
-  addParte(cleanPolo(poloAtivo) || '');
-  addParte(cleanPolo(poloPassivo) || '');
+  const cleanedAtivo = cleanPolo(poloAtivo) || '';
+  const cleanedPassivo = cleanPolo(poloPassivo) || '';
+  if (cleanedAtivo && pareceNomeParte(cleanedAtivo)) {
+    const key = cleanedAtivo.toUpperCase();
+    if (!partesSet.has(key)) {
+      partes.push(`[Reclamante] ${cleanedAtivo}`);
+      partesSet.add(key);
+    }
+  }
+  if (cleanedPassivo && pareceNomeParte(cleanedPassivo)) {
+    const key = cleanedPassivo.toUpperCase();
+    if (!partesSet.has(key)) {
+      partes.push(`[Reclamado] ${cleanedPassivo}`);
+      partesSet.add(key);
+    }
+  }
 
   // ── 2. Partes do bloco "Advogado(s):" ou "Advogado(s)" (sem dois pontos) no header ──
   if (texto) {
