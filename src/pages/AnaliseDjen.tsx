@@ -592,7 +592,7 @@ const AnaliseDjen = () => {
     const cy = y - 1.2;
     
     // Cabeça (círculo preenchido — igual ao Lucide User)
-    doc.circle(cx, cy - 1.6, 0.9, 'S');
+    doc.circle(cx, cy - 1.6, 0.9, 'FD');
     
     // Busto/ombros (arco — path simulando o torso do Lucide User)
     // Lucide User: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
