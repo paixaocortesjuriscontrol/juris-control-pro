@@ -690,7 +690,8 @@ export default function NovaTarefa() {
       queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
       queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       
-      navigate("/central-delegacao");
+      // Aguardar 2s para a usuária ver o toast de confirmação antes de navegar
+      setTimeout(() => navigate("/central-delegacao"), 2000);
     } catch (error: any) {
       // Registrar auditoria de falha
       await registrarAuditoriaTarefa({
