@@ -1011,37 +1011,152 @@ const AnaliseDjen = () => {
     return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
   };
 
+  const docFont = "Calibri";
+  const docFontSize = 22; // 11pt
+  const darkBlue = "1E3A5F";
+  const mediumBlue = "2B5A8C";
+  const lightGray = "F2F2F2";
+  const borderGray = "CCCCCC";
+
   /** Cria cabeçalho profissional do DOCX (mesmo estilo do PDF: faixa azul-escuro) */
   const buildDocHeader = (subtitle: string, total: number): Paragraph[] => {
-    const darkBlue = "1E3A5F";
     return [
       new Paragraph({
         alignment: AlignmentType.LEFT,
-        spacing: { after: 0 },
+        spacing: { after: 0, line: 300 },
         shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
         children: [
-          new TextRun({ text: "⚖  ", font: "Segoe UI Emoji", size: 28, color: "FFFFFF" }),
-          new TextRun({ text: "Sistema Juris Control", bold: true, size: 28, color: "FFFFFF", font: "Helvetica" }),
+          new TextRun({ text: "  ⚖  ", font: "Segoe UI Emoji", size: 32, color: "FFFFFF" }),
+          new TextRun({ text: "Sistema Juris Control", bold: true, size: 32, color: "FFFFFF", font: docFont }),
         ],
       }),
       new Paragraph({
         alignment: AlignmentType.LEFT,
-        spacing: { after: 0 },
+        spacing: { after: 0, line: 276 },
         shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
         children: [
-          new TextRun({ text: `      ${subtitle}`, size: 18, color: "FFFFFF", font: "Helvetica" }),
+          new TextRun({ text: `      ${subtitle}`, size: 20, color: "FFFFFF", font: docFont }),
         ],
       }),
       new Paragraph({
         alignment: AlignmentType.LEFT,
-        spacing: { after: 200 },
+        spacing: { after: 80, line: 276 },
         shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
         children: [
-          new TextRun({ text: `      Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}  •  Total: ${total}`, size: 16, color: "CCCCCC", font: "Helvetica" }),
+          new TextRun({ text: `      Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}  •  Total: ${total}`, size: 18, color: "B0C4DE", font: docFont, italics: true }),
         ],
       }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
+      new Paragraph({ text: "", spacing: { after: 300 } }),
     ];
+  };
+
+  /** Cria bloco de metadados estilizado para cada publicação */
+  const buildPubMetadata = (pub: any, idx: number): Paragraph[] => {
+    const paragraphs: Paragraph[] = [];
+
+    paragraphs.push(new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { before: 360, after: 120 },
+      shading: { type: ShadingType.SOLID, color: mediumBlue, fill: mediumBlue },
+      children: [
+        new TextRun({ text: `  ${idx + 1}. `, bold: true, size: 24, color: "FFFFFF", font: docFont }),
+        new TextRun({ text: `PROCESSO ${formatProcessoNumero(pub.processo_numero)}`, bold: true, size: 24, color: "FFFFFF", font: docFont }),
+      ],
+    }));
+
+    const metaItems: TextRun[] = [];
+    if (pub.tribunal) {
+      metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(pub.tribunal) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    if (pub.data_disponibilizacao) {
+      metaItems.push(new TextRun({ text: "Data: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: formatDateOnlyFull(pub.data_disponibilizacao) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    metaItems.push(new TextRun({ text: "Tipo: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+    metaItems.push(new TextRun({ text: sanitizeForXml(pub.tipo_comunicacao) || "Intimação", size: docFontSize, font: docFont, color: "555555" }));
+
+    if (metaItems.length > 0) {
+      paragraphs.push(new Paragraph({
+        spacing: { after: 80 },
+        shading: { type: ShadingType.SOLID, color: lightGray, fill: lightGray },
+        children: [new TextRun({ text: "  ", size: docFontSize }), ...metaItems],
+      }));
+    }
+
+    return paragraphs;
+  };
+
+  /** Cria seção de partes e advogados */
+  const buildPartesAdvogados = (pub: any): Paragraph[] => {
+    const paragraphs: Paragraph[] = [];
+    const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
+
+    if (partes.length > 0) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 60 },
+        children: [new TextRun({ text: "PARTES", bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+      partes.forEach(p => {
+        const color = getParteIconColor(p);
+        const colorHex = color === "green" ? "16A34A" : color === "red" ? "DC2626" : "334155";
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: "●  ", color: colorHex, bold: true, size: docFontSize, font: docFont }),
+            new TextRun({ text: sanitizeForXml(cleanParteName(p)), size: docFontSize, font: docFont }),
+          ],
+        }));
+      });
+    }
+
+    if (advogados.length > 0) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 60 },
+        children: [new TextRun({ text: "ADVOGADOS", bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+      advogados.forEach(a => {
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: "●  ", color: "334155", bold: true, size: docFontSize, font: docFont }),
+            new TextRun({ text: sanitizeForXml(a), size: docFontSize, font: docFont }),
+          ],
+        }));
+      });
+    }
+
+    return paragraphs;
+  };
+
+  /** Formata conteúdo em parágrafos separados por quebras de linha */
+  const buildConteudoParagraphs = (rawHtml: string, label: string): Paragraph[] => {
+    const paragraphs: Paragraph[] = [];
+
+    paragraphs.push(new Paragraph({
+      spacing: { before: 160, after: 80 },
+      children: [new TextRun({ text: label, bold: true, size: 20, font: docFont, color: mediumBlue })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+    }));
+
+    const cleanText = sanitizeForXml(formatConteudoParaExibicao(rawHtml, true));
+    const lines = cleanText.split(/\n+/).filter(l => l.trim());
+
+    lines.forEach(line => {
+      paragraphs.push(new Paragraph({
+        spacing: { after: 80, line: 276 },
+        indent: { left: 180 },
+        children: [new TextRun({ text: line.trim(), size: docFontSize, font: docFont, color: "333333" })],
+      }));
+    });
+
+    paragraphs.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+
+    return paragraphs;
   };
 
   // ===== "Gerar Doc" - DOCX (plain text sem IA) =====
@@ -1054,37 +1169,28 @@ const AnaliseDjen = () => {
       const children: Paragraph[] = [...buildDocHeader("Relatório de Publicações DJEN", allPublicacoes.length)];
 
       allPublicacoes.forEach((pub, idx) => {
-        children.push(new Paragraph({
-          text: `${idx + 1}. PROCESSO ${formatProcessoNumero(pub.processo_numero)}`,
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 400 },
-          border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
-        }));
-        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(sanitizeForXml(pub.tribunal))] }));
-        if (pub.data_disponibilizacao) children.push(new Paragraph({ children: [new TextRun({ text: "Data: ", bold: true }), new TextRun(formatDateOnlyFull(pub.data_disponibilizacao))] }));
-        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(sanitizeForXml(pub.tipo_comunicacao) || "Intimação")] }));
-
-        const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
-
-        if (partes.length > 0) {
-          children.push(new Paragraph({ text: "PARTE(S):", bold: true, spacing: { before: 200 } } as any));
-          partes.forEach(p => {
-            const color = getParteIconColor(p);
-            const colorHex = color === "green" ? "22C55E" : color === "red" ? "EF4444" : "000000";
-            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(sanitizeForXml(cleanParteName(p)))] }));
-          });
-        }
-        if (advogados.length > 0) {
-          children.push(new Paragraph({ text: "ADVOGADO(S):", bold: true, spacing: { before: 200 } } as any));
-          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(sanitizeForXml(a))] })));
-        }
-
-        children.push(new Paragraph({ text: "CONTEÚDO INTEGRAL:", bold: true, spacing: { before: 200 } } as any));
-        const rawContent = sanitizeForXml((pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
-        children.push(new Paragraph({ text: rawContent, spacing: { after: 300 } }));
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        children.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "CONTEÚDO INTEGRAL"));
       });
 
-      const doc = new Document({ sections: [{ children }] });
+      const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: docFont, size: docFontSize },
+            },
+          },
+        },
+        sections: [{
+          properties: {
+            page: {
+              margin: { top: 720, bottom: 720, left: 1080, right: 1080 },
+            },
+          },
+          children,
+        }],
+      });
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1099,7 +1205,6 @@ const AnaliseDjen = () => {
   };
 
   // ===== "Gerar Doc Resumo" - Texto com resumo IA =====
-
   const handleGerarDocResumo = async () => {
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
@@ -1140,39 +1245,47 @@ const AnaliseDjen = () => {
       const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações DJEN${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
 
       allPublicacoes.forEach((pub, idx) => {
-        children.push(new Paragraph({
-          text: `${idx + 1}. COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`,
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 400 },
-          border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
-        }));
-        if (pub.tribunal) children.push(new Paragraph({ children: [new TextRun({ text: "Órgão: ", bold: true }), new TextRun(sanitizeForXml(pub.tribunal))] }));
-        if (pub.data_disponibilizacao) children.push(new Paragraph({ children: [new TextRun({ text: "Data: ", bold: true }), new TextRun(formatDateOnlyFull(pub.data_disponibilizacao))] }));
-        children.push(new Paragraph({ children: [new TextRun({ text: "Tipo: ", bold: true }), new TextRun(sanitizeForXml(pub.tipo_comunicacao) || "Intimação")] }));
-
-        const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
-
-        if (partes.length > 0) {
-          children.push(new Paragraph({ text: "PARTE(S):", bold: true, spacing: { before: 200 } } as any));
-          partes.forEach(p => {
-            const color = getParteIconColor(p);
-            const colorHex = color === "green" ? "22C55E" : color === "red" ? "EF4444" : "000000";
-            children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: colorHex, bold: true }), new TextRun(sanitizeForXml(cleanParteName(p)))] }));
-          });
-        }
-        if (advogados.length > 0) {
-          children.push(new Paragraph({ text: "ADVOGADO(S):", bold: true, spacing: { before: 200 } } as any));
-          advogados.forEach(a => children.push(new Paragraph({ children: [new TextRun({ text: "● ", color: "000000", bold: true }), new TextRun(sanitizeForXml(a))] })));
-        }
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
 
         const resumo = resumosMap.get(pub.id);
         if (resumo) {
-          children.push(new Paragraph({ text: "RESUMO:", bold: true, spacing: { before: 200 } } as any));
-          children.push(new Paragraph({ text: sanitizeForXml(resumo), spacing: { after: 300 } }));
+          children.push(new Paragraph({
+            spacing: { before: 160, after: 80 },
+            children: [new TextRun({ text: "RESUMO", bold: true, size: 20, font: docFont, color: mediumBlue })],
+            border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+          }));
+
+          const resumoLines = sanitizeForXml(resumo).split(/\n+/).filter(l => l.trim());
+          resumoLines.forEach(line => {
+            children.push(new Paragraph({
+              spacing: { after: 80, line: 276 },
+              indent: { left: 180 },
+              children: [new TextRun({ text: line.trim(), size: docFontSize, font: docFont, color: "333333" })],
+            }));
+          });
+
+          children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
         }
       });
 
-      const doc = new Document({ sections: [{ children }] });
+      const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: docFont, size: docFontSize },
+            },
+          },
+        },
+        sections: [{
+          properties: {
+            page: {
+              margin: { top: 720, bottom: 720, left: 1080, right: 1080 },
+            },
+          },
+          children,
+        }],
+      });
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
