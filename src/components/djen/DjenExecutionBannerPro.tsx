@@ -6,8 +6,6 @@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Zap, Clock, CheckCircle2 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 
 function formatDuration(seconds: number): string {
@@ -47,11 +45,6 @@ export function DjenExecutionBannerPro() {
                   {formatDuration(progress.tempoDecorrido)}
                 </span>
               )}
-              <Link to="/configuracoes">
-                <Button variant="outline" size="sm" className="h-7 text-xs">
-                  Ver detalhes
-                </Button>
-              </Link>
             </div>
           </div>
 
