@@ -44,7 +44,7 @@ const menuItemsPublicos = [
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
-  { icon: Users, label: "Coordenações", path: "/coordenacoes" },
+  { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
