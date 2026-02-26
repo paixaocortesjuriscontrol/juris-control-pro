@@ -35,13 +35,13 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 // Itens visíveis para todos os usuários autenticados
 const menuItemsPublicos = [
-  { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle" },
+  { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Bell, label: "Notificações", path: "/notificacoes" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
-  { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen" },
-  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen" },
-  { icon: Scale, label: "Processos Internos", path: "/processos" },
+  { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
+  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true },
+  { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes" },
@@ -99,7 +99,8 @@ export function Sidebar() {
             className={({ isActive }) =>
               cn(
                 "nav-item",
-                isActive && "nav-item-active"
+                isActive && "nav-item-active",
+                item.highlight && "text-amber-400"
               )
             }
           >
