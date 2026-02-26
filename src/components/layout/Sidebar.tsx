@@ -42,7 +42,7 @@ const menuItemsPublicos = [
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
-  { icon: Bell, label: "Notificações", path: "/notificacoes" },
+  { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
@@ -102,7 +102,8 @@ export function Sidebar() {
               cn(
                 "nav-item",
                 isActive && "nav-item-active",
-                item.highlight && "text-amber-400"
+                item.highlight && "text-amber-400",
+                item.color
               )
             }
           >
