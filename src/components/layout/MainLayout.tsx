@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
+import { startDjenTermosProScheduler, stopDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
 
 export interface MainLayoutProps {
   children: ReactNode;
@@ -15,13 +16,18 @@ export interface MainLayoutProps {
 export function MainLayout({ children, title, subtitle, headerActions, className }: MainLayoutProps) {
   const isMobile = useIsMobile();
 
-  // Inicializa o scheduler de DJEN Termos
+  // Inicializa os schedulers de DJEN Termos e Termos Pro
   useEffect(() => {
-    const preferencia = localStorage.getItem('djen-termos-scheduler-enabled') === 'true';
-    if (preferencia) {
+    if (localStorage.getItem('djen-termos-scheduler-enabled') === 'true') {
       startDjenTermosScheduler();
     }
-    return () => stopDjenTermosScheduler();
+    if (localStorage.getItem('djen-termos-pro-scheduler-enabled') === 'true') {
+      startDjenTermosProScheduler();
+    }
+    return () => {
+      stopDjenTermosScheduler();
+      stopDjenTermosProScheduler();
+    };
   }, []);
 
   return (
