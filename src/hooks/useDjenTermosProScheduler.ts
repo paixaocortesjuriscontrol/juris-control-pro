@@ -45,22 +45,21 @@ class DjenTermosProScheduler {
   }
 
   private getTodayYmd(): string {
-    const now = this.getBrtNow();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    const parts = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-');
+    return parts.join('-');
   }
 
-  private getBrtNow(): Date {
-    const utcNow = new Date();
-    return new Date(utcNow.getTime() - 3 * 60 * 60 * 1000);
+  private getBrtHourMinute(): { hour: number; minute: number } {
+    const str = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour12: false });
+    // str format: "MM/DD/YYYY, HH:MM:SS"
+    const timePart = str.split(', ')[1];
+    const [h, m] = timePart.split(':').map(Number);
+    return { hour: h === 24 ? 0 : h, minute: m };
   }
 
   private shouldRunToday(): boolean {
-    const now = this.getBrtNow();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
+    const { hour, minute } = this.getBrtHourMinute();
+    console.log(`[Pro Scheduler] BRT time check: ${hour}:${String(minute).padStart(2,'0')} | target: ${this.TARGET_HOUR}:${String(this.TARGET_MINUTE).padStart(2,'0')}`);
     return hour > this.TARGET_HOUR ||
       (hour === this.TARGET_HOUR && minute >= this.TARGET_MINUTE);
   }
