@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DATAJUD_TIMEOUT_MS = 12_000; // 12s per request to stay within edge function limits
+const DATAJUD_TIMEOUT_MS = 8_000; // 8s per request - keep total well under 60s wall-clock
 
 class CancelledError extends Error {
   constructor(message = 'cancelled') {
@@ -265,7 +265,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
   progress: { current: number; total: number; percentage: number };
 }> {
   // Reduced batch to fit within Edge Function ~60s wall-clock limit
-  const PROCESSES_PER_RUN = 40;
+  // 20 processes / 5 parallel = 4 rounds × 8s timeout = 32s max (safe margin)
+  const PROCESSES_PER_RUN = 20;
   
   // Get count of active processes for pagination
   const { count: totalCount } = await supabase
@@ -327,8 +328,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
 
   const cancel = createCancelChecker(supabase, 'redistribuicoes', execucaoId);
 
-  // Process in parallel batches (8 concurrent to avoid overwhelming DataJud + stay in time)
-  const PARALLEL_BATCH_SIZE = 8;
+  // Process in parallel batches (5 concurrent - keeps rounds low for safety)
+  const PARALLEL_BATCH_SIZE = 5;
 
   try {
     for (let i = 0; i < (processos?.length || 0); i += PARALLEL_BATCH_SIZE) {
