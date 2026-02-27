@@ -166,7 +166,7 @@ function SchedulerProCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Executa Termos Pro automaticamente todos os dias às <span className="font-semibold text-foreground">20:35 BRT</span>
+          Executa Termos Pro automaticamente todos os dias às <span className="font-semibold text-foreground">20:45 BRT</span>
         </p>
 
         <div className="flex items-center justify-between rounded-md border px-3 py-2">

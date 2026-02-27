@@ -2,7 +2,7 @@
  * DJEN Termos Pro Scheduler
  * 
  * Mesmo padrão do scheduler de Termos:
- * - Dispara automaticamente após o horário alvo (20:35 BRT)
+ * - Dispara automaticamente após o horário alvo (20:45 BRT)
  * - Se o browser abrir depois, executa assim que possível
  * - Usa data do dia como início e fim
  */
@@ -30,7 +30,7 @@ class DjenTermosProScheduler {
 
   private readonly INTERVAL_MS = 30000;
   private readonly TARGET_HOUR = 20;
-  private readonly TARGET_MINUTE = 35;
+  private readonly TARGET_MINUTE = 45;
   private readonly TOAST_COOLDOWN_MS = 60000;
   private readonly STORAGE_KEY = 'djen-termos-pro-scheduler-enabled';
 
@@ -169,11 +169,11 @@ class DjenTermosProScheduler {
     if (this.isRunning) {
       const todayYmd = this.getTodayYmd();
       if (this.lastRunDate === todayYmd) {
-        proximoHorario = 'Amanhã às 20:35';
+        proximoHorario = 'Amanhã às 20:45';
       } else if (this.shouldRunToday()) {
         proximoHorario = 'Em breve (aguardando)';
       } else {
-        proximoHorario = 'Hoje às 20:35';
+        proximoHorario = 'Hoje às 20:45';
       }
     }
 
