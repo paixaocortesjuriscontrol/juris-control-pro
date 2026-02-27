@@ -35,6 +35,7 @@ import {
   Loader2, Zap, PlayCircle, StopCircle,
   CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull, Info
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
@@ -72,18 +73,36 @@ function SchedulerProBadge() {
 }
 
 function SchedulerProToggle() {
-  const { ativo, start, stop } = useDjenTermosProScheduler();
+  const { ativo, horario, start, stop, setTime } = useDjenTermosProScheduler();
   return (
-    <div className="flex items-center justify-between rounded-md border px-3 py-2">
-      <Label htmlFor="djen-pro-scheduler-toggle" className="text-sm font-medium">Ativar agendamento</Label>
-      <Switch
-        id="djen-pro-scheduler-toggle"
-        checked={ativo}
-        onCheckedChange={(checked) => {
-          if (checked) { start(); toast.success('Agendamento Pro ativado'); }
-          else { stop(); toast.info('Agendamento Pro desativado'); }
-        }}
-      />
+    <div className="space-y-3">
+      <div className="flex items-center justify-between rounded-md border px-3 py-2">
+        <Label htmlFor="djen-pro-scheduler-toggle" className="text-sm font-medium">Ativar agendamento</Label>
+        <Switch
+          id="djen-pro-scheduler-toggle"
+          checked={ativo}
+          onCheckedChange={(checked) => {
+            if (checked) { start(); toast.success('Agendamento Pro ativado'); }
+            else { stop(); toast.info('Agendamento Pro desativado'); }
+          }}
+        />
+      </div>
+      <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+        <Label className="text-sm font-medium whitespace-nowrap">Horário (BRT)</Label>
+        <Input
+          type="time"
+          value={horario}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val) {
+              const [h, m] = val.split(':').map(Number);
+              setTime(h, m);
+              toast.success(`Horário alterado para ${val}`);
+            }
+          }}
+          className="w-28 h-8"
+        />
+      </div>
     </div>
   );
 }

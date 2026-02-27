@@ -16,6 +16,7 @@ export interface DjenTermosProSchedulerStatus {
   ativo: boolean;
   proximoHorario: string | null;
   ultimaExecucao: string | null;
+  horario: string;
 }
 
 let schedulerInstance: DjenTermosProScheduler | null = null;
@@ -29,13 +30,26 @@ class DjenTermosProScheduler {
   private lastToastTime = 0;
 
   private readonly INTERVAL_MS = 30000;
-  private readonly TARGET_HOUR = 20;
-  private readonly TARGET_MINUTE = 45;
+  private targetHour = 20;
+  private targetMinute = 45;
   private readonly TOAST_COOLDOWN_MS = 60000;
   private readonly STORAGE_KEY = 'djen-termos-pro-scheduler-enabled';
+  private readonly TIME_KEY = 'djen-termos-pro-scheduler-time';
 
   constructor() {
     this.loadLastRunDate();
+    this.loadTargetTime();
+  }
+
+  private loadTargetTime() {
+    const stored = localStorage.getItem(this.TIME_KEY);
+    if (stored) {
+      const [h, m] = stored.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        this.targetHour = h;
+        this.targetMinute = m;
+      }
+    }
   }
 
   private loadLastRunDate() {
@@ -59,9 +73,9 @@ class DjenTermosProScheduler {
 
   private shouldRunToday(): boolean {
     const { hour, minute } = this.getBrtHourMinute();
-    console.log(`[Pro Scheduler] BRT time check: ${hour}:${String(minute).padStart(2,'0')} | target: ${this.TARGET_HOUR}:${String(this.TARGET_MINUTE).padStart(2,'0')}`);
-    return hour > this.TARGET_HOUR ||
-      (hour === this.TARGET_HOUR && minute >= this.TARGET_MINUTE);
+    console.log(`[Pro Scheduler] BRT time check: ${hour}:${String(minute).padStart(2,'0')} | target: ${this.targetHour}:${String(this.targetMinute).padStart(2,'0')}`);
+    return hour > this.targetHour ||
+      (hour === this.targetHour && minute >= this.targetMinute);
   }
 
   private async checkAndRun() {
@@ -165,15 +179,16 @@ class DjenTermosProScheduler {
 
   getStatus(): DjenTermosProSchedulerStatus {
     let proximoHorario: string | null = null;
+    const timeStr = `${String(this.targetHour).padStart(2,'0')}:${String(this.targetMinute).padStart(2,'0')}`;
 
     if (this.isRunning) {
       const todayYmd = this.getTodayYmd();
       if (this.lastRunDate === todayYmd) {
-        proximoHorario = 'Amanhã às 20:45';
+        proximoHorario = `Amanhã às ${timeStr}`;
       } else if (this.shouldRunToday()) {
         proximoHorario = 'Em breve (aguardando)';
       } else {
-        proximoHorario = 'Hoje às 20:45';
+        proximoHorario = `Hoje às ${timeStr}`;
       }
     }
 
@@ -181,7 +196,15 @@ class DjenTermosProScheduler {
       ativo: this.isRunning,
       proximoHorario,
       ultimaExecucao: this.lastRunDate,
+      horario: timeStr,
     };
+  }
+
+  setTime(hour: number, minute: number) {
+    this.targetHour = hour;
+    this.targetMinute = minute;
+    localStorage.setItem(this.TIME_KEY, `${hour}:${minute}`);
+    this.notifySubscribers();
   }
 
   isActive(): boolean {
@@ -210,6 +233,7 @@ export function useDjenTermosProScheduler() {
     ...status,
     start: () => getScheduler().start(),
     stop: () => getScheduler().stop(),
+    setTime: (h: number, m: number) => getScheduler().setTime(h, m),
   };
 }
 
