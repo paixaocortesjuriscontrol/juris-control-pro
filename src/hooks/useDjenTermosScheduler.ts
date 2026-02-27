@@ -1,14 +1,15 @@
 /**
  * DJEN Termos Scheduler
  * 
- * Agendador simples que:
- * - Dispara DJEN Termos automaticamente às 05:30 BRT todos os dias
- * - Verifica se há execução em andamento antes de disparar
+ * Agendador que:
+ * - Dispara DJEN Termos automaticamente todos os dias
+ * - Se o browser abrir após o horário alvo (05:30 BRT), executa assim que possível
+ * - Usa data do dia como início e fim da busca
  * - Salva estado no localStorage para persistência
  * - Usa singleton para garantir apenas uma instância
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { executarDjenTermos, isDjenTermosRunning } from './useDjenTermosEngine';
@@ -33,7 +34,6 @@ class DjenTermosScheduler {
   private readonly INTERVAL_MS = 30000; // 30 segundos
   private readonly TARGET_HOUR = 5; // 05:00 (BRT)
   private readonly TARGET_MINUTE = 30; // 30 minutos
-  private readonly TIME_MARGIN = 2; // ±2 minutos de margem
   private readonly TOAST_COOLDOWN_MS = 60000; // 1 minuto entre toasts
 
   constructor() {
@@ -61,27 +61,31 @@ class DjenTermosScheduler {
     return brtNow;
   }
 
-  private isTimeToRun(): boolean {
+  /**
+   * Verifica se deve executar:
+   * - Já passou das 05:30 BRT hoje E ainda não executou hoje
+   * - Isso permite que se o browser abrir às 08:00, execute imediatamente
+   */
+  private shouldRunToday(): boolean {
     const now = this.getBrtNow();
     const hour = now.getHours();
     const minute = now.getMinutes();
 
-    // 05:30 ±2 minutos = 05:28 a 05:32
-    const isInWindow = hour === this.TARGET_HOUR && 
-      minute >= (this.TARGET_MINUTE - this.TIME_MARGIN) &&
-      minute <= (this.TARGET_MINUTE + this.TIME_MARGIN);
+    // Passou das 05:30 BRT?
+    const passedTarget = hour > this.TARGET_HOUR || 
+      (hour === this.TARGET_HOUR && minute >= this.TARGET_MINUTE);
 
-    return isInWindow;
+    return passedTarget;
   }
 
   private async checkAndRun() {
-    // Evita múltiplos checks dentro do mesmo minuto
+    // Evita múltiplos checks dentro do mesmo período
     const now = Date.now();
     if (now - this.lastCheckTime < 10000) return;
     this.lastCheckTime = now;
 
-    // Se não é a hora, skip
-    if (!this.isTimeToRun()) return;
+    // Se não passou do horário alvo, skip
+    if (!this.shouldRunToday()) return;
 
     // Se já executou hoje, skip
     const todayYmd = this.getTodayYmd();
@@ -117,10 +121,12 @@ class DjenTermosScheduler {
       return;
     }
 
-    // Tudo ok, dispara execução
+    // Tudo ok, dispara execução com data de HOJE como início e fim
     try {
       this.showToast('Iniciando DJEN Termos agendado...', 'info');
-      await executarDjenTermos();
+      
+      // Usa a data de hoje como início e fim
+      await executarDjenTermos(todayYmd, todayYmd);
       
       // Marca como executado hoje
       this.lastRunDate = todayYmd;
@@ -169,6 +175,9 @@ class DjenTermosScheduler {
     // Salva que está ativo
     localStorage.setItem('djen-termos-scheduler-enabled', 'true');
 
+    // Faz check imediato (caso já tenha passado do horário)
+    setTimeout(() => this.checkAndRun(), 2000);
+
     // Inicia intervalo
     this.intervalId = setInterval(() => {
       this.checkAndRun();
@@ -198,17 +207,17 @@ class DjenTermosScheduler {
     let proximoHorario: string | null = null;
 
     if (this.isRunning) {
-      const now = this.getBrtNow();
-      let proxima = new Date(now);
-
-      // Se já passou o horário de hoje, próximo é amanhã
-      if (now.getHours() > this.TARGET_HOUR ||
-          (now.getHours() === this.TARGET_HOUR && now.getMinutes() > this.TARGET_MINUTE)) {
-        proxima.setDate(proxima.getDate() + 1);
+      const todayYmd = this.getTodayYmd();
+      
+      if (this.lastRunDate === todayYmd) {
+        // Já executou hoje, próximo é amanhã às 05:30
+        proximoHorario = 'Amanhã às 05:30';
+      } else if (this.shouldRunToday()) {
+        // Passou do horário e não executou - vai executar em breve
+        proximoHorario = 'Em breve (aguardando)';
+      } else {
+        proximoHorario = 'Hoje às 05:30';
       }
-
-      proxima.setHours(this.TARGET_HOUR, this.TARGET_MINUTE, 0, 0);
-      proximoHorario = proxima.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     }
 
     return {
@@ -242,7 +251,6 @@ export function useDjenTermosScheduler() {
   });
 
   useEffect(() => {
-    const scheduler = getScheduler();
     const unsub = subscribeDjenTermosScheduler(setStatus);
     return unsub;
   }, []);
