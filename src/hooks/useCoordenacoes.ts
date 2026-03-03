@@ -79,14 +79,16 @@ export function useCoordenacoesFull() {
             .select(`
               id,
               cargo,
-              usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome, email)
+              usuario_id,
+              usuario:profiles_basic!membros_coordenacao_usuario_id_fkey(id, nome)
             `)
             .eq("coordenacao_id", coord.id);
 
           // Buscar contagem de processos por membro usando count
           const membrosWithProcessCount = await Promise.all(
-            (membros || []).map(async (m) => {
-              if (!m.usuario?.id) {
+            (membros || []).map(async (m: any) => {
+              const userId = m.usuario?.id || m.usuario_id;
+              if (!userId) {
                 return { ...m, processCount: 0 };
               }
               
@@ -94,7 +96,7 @@ export function useCoordenacoesFull() {
                 .from("processos")
                 .select("id", { count: "exact", head: true })
                 .eq("coordenacao_id", coord.id)
-                .eq("advogado_responsavel_id", m.usuario.id);
+                .eq("advogado_responsavel_id", userId);
 
               return {
                 ...m,
