@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   format,
@@ -87,6 +88,7 @@ export default function PainelControle() {
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
+  const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
@@ -126,46 +128,71 @@ export default function PainelControle() {
     enabled: coordenacoesUsuario.length > 0,
   });
 
+  // Todas as coordenações (para filtro admin)
+  const { data: todasCoordenacoes = [] } = useQuery({
+    queryKey: ["painel-controle-todas-coordenacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
+
+  // Membros da coordenação filtrada (admin)
+  const { data: membrosCoordFiltrada = [], isLoading: membrosFilterLoading } = useQuery({
+    queryKey: ["painel-controle-membros-coord-filtrada", adminCoordFilter],
+    queryFn: async () => {
+      if (adminCoordFilter === "todas") return [];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id")
+        .eq("coordenacao_id", adminCoordFilter);
+      if (error) throw error;
+      return [...new Set((data || []).map((r) => r.usuario_id))];
+    },
+    enabled: isAdmin && adminCoordFilter !== "todas",
+  });
+
   // Intervalo do mês exibido no calendário
   const dataInicio = useMemo(() => {
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1, 0, 0, 0);
   }, [mesAtual]);
   const dataFim = useMemo(() => {
-    // Último dia do mês, final do dia
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0, 23, 59, 59);
   }, [mesAtual]);
 
   // Filtros conforme aba selecionada (apenas para o calendário)
-  // Obs: excluímos tarefas 'cumprido' do calendário para que o visual bata com os totalizadores
   const filters = useMemo(() => {
     const dateRange = { dataInicio, dataFim };
-    // "todas" = sem filtro de status (mostra pendente + atrasado, excluindo cumprido via status !== cumprido no hook)
-    // Não passamos status aqui — o hook filtra por padrão apenas quando status está definido.
-    // Para alinhar com totalizadores, precisamos excluir cumprido no calendário também.
-    // Fazemos isso via status: "pendente" não (pois inclui apenas pendente), mas o hook aceita
-    // qualquer string além de "pendente"/"concluido". Solução: filtrar no lado cliente após busca.
-    // Na prática, passamos sem filtro de status e filtramos os cumprido no itensPorDia.
 
     if (tabMode === "pessoal") {
       return {
         responsavelIds: user?.id ? [user.id] : undefined,
         fetchAll: false,
-        pessoal: true, // inclui tarefas criadas pelo usuário mesmo que delegadas a outros
+        pessoal: true,
         ...dateRange,
       };
     }
 
-    // Admin sempre vê tudo no escritório
+    // Admin no escritório
     if (isAdmin) {
+      if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) {
+        return { responsavelIds: membrosCoordFiltrada, fetchAll: false, ...dateRange };
+      }
+      if (adminCoordFilter !== "todas" && membrosFilterLoading) {
+        return { responsavelIds: [], fetchAll: false, ...dateRange };
+      }
       return { fetchAll: true, ...dateRange };
     }
 
-    // Aguardar carregamento antes de decidir
     if (coordLoading || membrosLoading) {
       return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false, pessoal: false, ...dateRange };
     }
 
-    // Coordenador/usuário: filtra pelos membros das suas coordenações
     if (membrosDasCoordenacoes.length > 0) {
       return {
         responsavelIds: membrosDasCoordenacoes,
@@ -179,64 +206,58 @@ export default function PainelControle() {
       fetchAll: false,
       ...dateRange,
     };
-  }, [tabMode, user?.id, isAdmin, coordLoading, membrosLoading, membrosDasCoordenacoes, dataInicio, dataFim]);
+  }, [tabMode, user?.id, isAdmin, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, dataInicio, dataFim]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
   const isLoading = agendaQuery.isLoading;
 
-  // Auto-fetch all pages so admin in "Escritório" mode sees all tasks across the full month
+  // Auto-fetch all pages
   useEffect(() => {
     if (agendaQuery.hasNextPage && !agendaQuery.isFetchingNextPage) {
       agendaQuery.fetchNextPage();
     }
   }, [agendaQuery.hasNextPage, agendaQuery.isFetchingNextPage, agendaQuery.fetchNextPage]);
 
-
-  // Busca direta ao banco para totalizadores (atrasadas/hoje/futuras) — sem limit de paginação
+  // Busca direta ao banco para totalizadores
   const hoje_str = format(nowBrt, "yyyy-MM-dd");
 
-  // Aguardar todos os dados necessários antes de disparar a query de totalizadores
   const resumoStatsReady = useMemo(() => {
     if (tabMode === "pessoal") return true;
     if (isAdmin) return true;
-    // Modo escritório: aguardar coordenações E membros carregarem completamente
     if (coordLoading || membrosLoading) return false;
-    // Coordenações carregadas mas sem membros: aguardar se houver coordenações (significa que membros ainda chegam)
     if (coordenacoesUsuario.length > 0 && membrosDasCoordenacoes.length === 0) return false;
     return true;
   }, [tabMode, isAdmin, coordLoading, membrosLoading, coordenacoesUsuario.length, membrosDasCoordenacoes.length]);
 
-  // IDs de membros a usar na query de totalizadores (estabilizados para o queryKey)
   const membrosIdsParaResumo = useMemo(() => {
     if (tabMode === "pessoal") return user?.id ? [user.id] : [];
-    if (isAdmin) return []; // fetchAll=true, não usa IDs
+    if (isAdmin) {
+      if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) return membrosCoordFiltrada;
+      return [];
+    }
     if (membrosDasCoordenacoes.length > 0) return membrosDasCoordenacoes;
     return user?.id ? [user.id] : [];
-  }, [tabMode, isAdmin, membrosDasCoordenacoes, user?.id]);
+  }, [tabMode, isAdmin, adminCoordFilter, membrosCoordFiltrada, membrosDasCoordenacoes, user?.id]);
 
   const { data: resumoStats } = useQuery({
-    // queryKey inclui membrosIdsParaResumo explicitamente para invalidar cache quando mudarem
-    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin],
+    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
 
-      // O enum de status em tarefas é: 'pendente' | 'atrasado' | 'cumprido'
       let q = supabase
         .from("tarefas")
         .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
         .neq("status", "cumprido");
 
-      if (tabMode === "escritorio" && isAdmin) {
-        // Admin escritório: sem filtro de responsável — vê tudo
+      if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
+        // Admin escritório sem filtro: vê tudo
       } else if (membrosIdsParaResumo.length > 0) {
         if (tabMode === "pessoal") {
-          // Modo pessoal: tarefas onde o usuário é responsável OU criador
           const ids = membrosIdsParaResumo.join(",");
           q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
         } else {
-          // Modo escritório: tarefas onde QUALQUER membro é responsável
           q = q.in("responsavel_id", membrosIdsParaResumo);
         }
       } else {
@@ -244,20 +265,17 @@ export default function PainelControle() {
       }
 
       const { data: tarefas, error } = await q;
-
       if (error) {
         console.error("[resumoStats] erro na query:", error);
         return { tarefas: empty, audiencias: empty, compromissos: empty };
       }
 
       const hoje_d = new Date(hoje_str + "T00:00:00");
-
       const calcStats = (items: any[]) => {
         const atrasadas = items.filter(t => {
           const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
           if (!dateStr) return false;
-          const d = new Date(dateStr + "T00:00:00");
-          return d < hoje_d;
+          return new Date(dateStr + "T00:00:00") < hoje_d;
         }).length;
         const hoje_count = items.filter(t => {
           const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
@@ -266,25 +284,15 @@ export default function PainelControle() {
         const futuras = items.filter(t => {
           const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
           if (!dateStr) return false;
-          const d = new Date(dateStr + "T00:00:00");
-          return d > hoje_d;
+          return new Date(dateStr + "T00:00:00") > hoje_d;
         }).length;
         return { atrasadas, hoje: hoje_count, futuras, total: items.length };
       };
 
       const all = tarefas || [];
-      const audienciaItems = all.filter(t => {
-        const u = (t.tipo_tarefa ?? "").toUpperCase().trim();
-        return u === "AUDIÊNCIA" || u === "AUDIENCIA";
-      });
-      const compromissoItems = all.filter(t => {
-        const u = (t.tipo_tarefa ?? "").toUpperCase().trim();
-        return u === "EVENTO";
-      });
-      const tarefaItems = all.filter(t => {
-        const u = (t.tipo_tarefa ?? "").toUpperCase().trim();
-        return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO";
-      });
+      const audienciaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "AUDIÊNCIA" || u === "AUDIENCIA"; });
+      const compromissoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
+      const tarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO"; });
 
       return {
         tarefas: calcStats(tarefaItems),
@@ -292,22 +300,28 @@ export default function PainelControle() {
         compromissos: calcStats(compromissoItems),
       };
     },
-    // No modo escritório (não-admin), aguardar membros carregarem para usar os IDs corretos
     enabled: !!user?.id && resumoStatsReady,
     staleTime: 30000,
   });
 
-
   // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
   const { data: processosIds = [] } = useQuery({
-    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin],
+    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
     queryFn: async () => {
       if (!user?.id) return [];
 
-      // Escritório: admin vê tudo, demais filtram pela coordenação
+      // Escritório: admin vê tudo ou filtra por coordenação selecionada
       if (tabMode === "escritorio") {
-        // Admin: sem filtro (retorna [] como sinal de "sem filtro")
-        if (isAdmin) return [];
+        if (isAdmin) {
+          if (adminCoordFilter !== "todas") {
+            const { data } = await supabase
+              .from("processos")
+              .select("id")
+              .eq("coordenacao_id", adminCoordFilter);
+            return (data || []).map((p) => p.id);
+          }
+          return []; // sem filtro
+        }
 
         // Coordenador/usuário: filtra pelas coordenações vinculadas
         if (coordenacoesUsuario.length > 0) {
@@ -339,15 +353,15 @@ export default function PainelControle() {
 
   // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
   const { data: intimacoesPendentes = 0 } = useQuery({
-    queryKey: ["painel-controle-intimacoes", tabMode, user?.id, coordenacoesUsuario, isAdmin],
+    queryKey: ["painel-controle-intimacoes", tabMode, user?.id, coordenacoesUsuario, isAdmin, adminCoordFilter, processosIds],
     queryFn: async () => {
       let q = supabase
         .from("intimacoes_detectadas")
         .select("id", { count: "exact", head: true })
         .eq("status", "pendente");
 
-      // Admin em modo escritório: vê tudo
-      if (tabMode === "escritorio" && isAdmin) {
+      // Admin em modo escritório sem filtro: vê tudo
+      if (tabMode === "escritorio" && isAdmin && adminCoordFilter === "todas") {
         const { count } = await q;
         return count ?? 0;
       }
@@ -368,15 +382,31 @@ export default function PainelControle() {
 
   // Publicações DJEN não lidas — filtradas por coordenação (ou todas para admin sem coordenação)
   const { data: andamentosNaoLidos = 0 } = useQuery({
-    queryKey: ["painel-controle-andamentos", tabMode, user?.id, coordenacoesUsuario, isAdmin],
+    queryKey: ["painel-controle-andamentos", tabMode, user?.id, coordenacoesUsuario, isAdmin, adminCoordFilter],
     queryFn: async () => {
       let q = supabase
         .from("publicacoes_djen")
         .select("id", { count: "exact", head: true })
         .eq("lida", false);
 
-      // Admin em modo escritório: vê tudo
-      if (tabMode === "escritorio" && isAdmin) {
+      // Admin em modo escritório sem filtro: vê tudo
+      if (tabMode === "escritorio" && isAdmin && adminCoordFilter === "todas") {
+        const { count } = await q;
+        return count ?? 0;
+      }
+
+      // Admin com filtro de coordenação
+      if (tabMode === "escritorio" && isAdmin && adminCoordFilter !== "todas") {
+        const { data: monitoramentos } = await supabase
+          .from("monitoramentos_djen")
+          .select("id")
+          .eq("coordenacao_id", adminCoordFilter);
+        const monIds = (monitoramentos || []).map((m) => m.id);
+        if (monIds.length > 0) {
+          q = q.in("monitoramento_id", monIds);
+        } else {
+          return 0;
+        }
         const { count } = await q;
         return count ?? 0;
       }
@@ -578,6 +608,20 @@ export default function PainelControle() {
               Escritório
             </Button>
           </div>
+          {/* Filtro de coordenação para admin no modo escritório */}
+          {isAdmin && tabMode === "escritorio" && (
+            <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
+              <SelectTrigger className="h-7 w-40 md:w-52 text-xs">
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {todasCoordenacoes.map((coord) => (
+                  <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="ml-auto">
             <Button
               size="sm"
