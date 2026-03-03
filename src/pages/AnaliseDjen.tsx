@@ -1869,7 +1869,7 @@ const AnaliseDjen = () => {
                                       <span className="truncate">
                                         {pub.monitoramento_tipo === 'advogado' 
                                           ? `OAB ${pub.monitoramento_oab || ''} ${pub.monitoramento_uf || ''}`
-                                          : pub.monitoramento_descricao || pub.monitoramento_termo || "Termo"
+                                          : pub.monitoramento_descricao || "Monitoramento por palavra-chave"
                                         }
                                       </span>
                                     </Badge>
@@ -1894,11 +1894,15 @@ const AnaliseDjen = () => {
                                     </Badge>
                                   )}
                                   
-                                  {/* Descrição do termo que encontrou a publicação */}
-                                  {(pub.monitoramento_descricao || pub.monitoramento_termo) && (
+                                  {/* Termo que efetivamente bateu no conteúdo */}
+                                  {(pub.monitoramento_termo_match || pub.monitoramento_descricao || pub.monitoramento_termo) && (
                                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       <Search className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
-                                      <span>{pub.monitoramento_descricao || pub.monitoramento_termo}</span>
+                                      <span>
+                                        {pub.monitoramento_termo_match
+                                          ? `Encontrado por: ${pub.monitoramento_termo_match}`
+                                          : pub.monitoramento_descricao || pub.monitoramento_termo}
+                                      </span>
                                     </Badge>
                                   )}
                                 </div>
@@ -2201,7 +2205,7 @@ const AnaliseDjen = () => {
                     <FileSearch className="w-3 h-3 mr-1" />
                     {selectedPublicacao.monitoramento_tipo === 'advogado'
                       ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
-                      : selectedPublicacao.monitoramento_descricao || selectedPublicacao.monitoramento_termo
+                      : selectedPublicacao.monitoramento_descricao || "Monitoramento por palavra-chave"
                     }
                   </Badge>
                 ) : (
@@ -2214,6 +2218,12 @@ const AnaliseDjen = () => {
                   <Badge variant="outline" className="text-xs">
                     <Building2 className="w-3 h-3 mr-1" />
                     {selectedPublicacao.coordenacao_nome}
+                  </Badge>
+                )}
+                {selectedPublicacao?.monitoramento_termo_match && (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                    <Search className="w-3 h-3 mr-1" />
+                    Encontrado por: {selectedPublicacao.monitoramento_termo_match}
                   </Badge>
                 )}
                 {selectedPublicacao && !selectedPublicacao.lida && (
