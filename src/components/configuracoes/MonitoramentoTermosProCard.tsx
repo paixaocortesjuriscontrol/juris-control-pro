@@ -222,12 +222,21 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
 
   // Status config
   const effectiveStatus = progress.status;
-  const effectiveIsRunning = isRunning || effectiveStatus === 'executando';
+  const isTerminalStatus =
+    effectiveStatus === 'concluido' ||
+    effectiveStatus === 'cancelado' ||
+    effectiveStatus === 'erro';
+
+  // Se status já é terminal, ele prevalece sobre qualquer flag "isRunning" atrasada
+  const effectiveIsRunning = !isTerminalStatus && (isRunning || effectiveStatus === 'executando');
+
   const displayedPercentage = useMemo(() => {
+    if (effectiveStatus === 'concluido') return 100;
+
     const raw = Number.isFinite(progress.percentage) ? Math.round(progress.percentage) : 0;
     const clamped = Math.min(100, Math.max(0, raw));
     return effectiveIsRunning ? Math.min(99, clamped) : clamped;
-  }, [progress.percentage, effectiveIsRunning]);
+  }, [progress.percentage, effectiveIsRunning, effectiveStatus]);
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
