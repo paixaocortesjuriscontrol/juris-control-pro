@@ -479,6 +479,10 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   // Percentual (fonte única): DJEN Termos deve usar detalhes.progress da execução ativa.
   // (registros_processados não representa “termos processados” e causava oscilação)
   const computedPercentage = (() => {
+    // Regra terminal: se o status já é concluído, o percentual deve ser 100%
+    // (evita ficar preso em 99% por metadata antiga)
+    if (effectiveStatus === 'concluido') return 100;
+
     const fromMetadata = (): number | null => {
       if (typeof md.percentage === 'number' && Number.isFinite(md.percentage)) {
         return toSafePct(md.percentage);
