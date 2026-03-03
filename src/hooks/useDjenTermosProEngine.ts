@@ -1001,6 +1001,15 @@ async function executarLoop(
     
     const datas = gerarListaDatas(dataInicioYmd, dataFimYmd);
     const totalOps = datas.length * monitoramentos.length;
+
+    if (totalOps <= 0) {
+      updateProgress({
+        status: 'erro',
+        percentage: 0,
+        mensagem: 'Período inválido para execução. Verifique as datas selecionadas.',
+      });
+      return;
+    }
     
     // Checkpoint para retomada
     const cp = retomar ? loadCheckpoint() : null;
@@ -1041,15 +1050,17 @@ async function executarLoop(
       for (let termoIdx = termoStart; termoIdx < monitoramentos.length; termoIdx++) {
         if (signal.aborted) break;
         const mon = monitoramentos[termoIdx];
-        const globalCurrent = diaIdx * monitoramentos.length + termoIdx + 1;
+        const completedBefore = diaIdx * monitoramentos.length + termoIdx;
+        const globalCurrent = completedBefore + 1;
+        const percentageBefore = Math.min(99, Math.max(0, Math.round((completedBefore / totalOps) * 100)));
         
         updateProgress({
           diaAtualYmd: diaYmd,
           diaAtualIndice: diaIdx + 1,
           termoAtualNoDia: termoIdx + 1,
           termoAtual: mon.descricao || mon.termo_busca,
-          globalCurrent,
-          percentage: Math.round((globalCurrent / totalOps) * 100),
+          globalCurrent: completedBefore,
+          percentage: percentageBefore,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
         });
         
@@ -1057,8 +1068,11 @@ async function executarLoop(
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
         acumDescartadas += resultado.descartadas;
+        const percentageAfter = Math.min(99, Math.max(0, Math.round((globalCurrent / totalOps) * 100)));
         
         updateProgress({
+          globalCurrent,
+          percentage: percentageAfter,
           novas: acumNovas,
           duplicadas: acumDuplicadas,
           descartadas: acumDescartadas,

@@ -223,6 +223,11 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   // Status config
   const effectiveStatus = progress.status;
   const effectiveIsRunning = isRunning || effectiveStatus === 'executando';
+  const displayedPercentage = useMemo(() => {
+    const raw = Number.isFinite(progress.percentage) ? Math.round(progress.percentage) : 0;
+    const clamped = Math.min(100, Math.max(0, raw));
+    return effectiveIsRunning ? Math.min(99, clamped) : clamped;
+  }, [progress.percentage, effectiveIsRunning]);
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
@@ -429,9 +434,9 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
                     <span className="ml-1 break-words">{progress.termoAtual}</span>
                   )}
                 </span>
-                <span className="font-mono font-medium">{Math.round(progress.percentage)}%</span>
+                <span className="font-mono font-medium">{displayedPercentage}%</span>
               </div>
-              <Progress value={Math.round(progress.percentage)} className="h-2" />
+              <Progress value={displayedPercentage} className="h-2" />
               {!!progress.mensagem && (
                 <p className="text-xs text-muted-foreground">{progress.mensagem}</p>
               )}
