@@ -953,7 +953,7 @@ async function processarTermoPro(
         monitoramento_id: mon.id,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.numero_processo || null,
-        conteudo: conteudoFormatado.slice(0, 10000),
+        conteudo: conteudoFormatado.slice(0, 100000),
         data_publicacao: `${calcularDataPublicacao(dataDisp)}T12:00:00.000Z`,
         data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
         tribunal: getSiglaTribunal(pub),
