@@ -30,6 +30,7 @@ import {
   Plus,
 } from "lucide-react";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
+import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -89,6 +90,7 @@ export default function PainelControle() {
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
+  const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
@@ -507,11 +509,65 @@ export default function PainelControle() {
   // Concluídas aparecem no final de cada dia, pendentes primeiro
   const itensPorDia = useMemo(() => {
     const map = new Map<string, ItemAgendaUnificado[]>();
-    itensAgenda.forEach((item) => {
-      const key = item.data_inicio.slice(0, 10);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
+
+    // Apply filters
+    let filtered = itensAgenda.filter((item) => {
+      // Classificação filter
+      if (painelFiltros.classificacoes.length > 0) {
+        const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
+        const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA";
+        const isEvento = item.origem === "evento" || tipoUpper === "EVENTO";
+        const isTarefa = !isAudiencia && !isEvento;
+
+        const match =
+          (painelFiltros.classificacoes.includes("audiencia") && isAudiencia) ||
+          (painelFiltros.classificacoes.includes("evento") && isEvento) ||
+          (painelFiltros.classificacoes.includes("tarefa") && isTarefa);
+        if (!match) return false;
+      }
+
+      // Situação filter
+      if (painelFiltros.situacoes.length > 0) {
+        if (!painelFiltros.situacoes.includes(item.status)) return false;
+      }
+
+      // Envolvimento filter
+      if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
+        const userId = user?.id;
+        if (!userId) return false;
+        const isResp = item.responsavel_id === userId || item.criado_por === userId;
+        const isEnvolvido = item.participantes?.some((p) => p.usuario_id === userId);
+        if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
+          if (!isResp && !isEnvolvido) return false;
+        } else if (painelFiltros.souResponsavel) {
+          if (!isResp) return false;
+        } else if (painelFiltros.estouEnvolvido) {
+          if (!isEnvolvido) return false;
+        }
+      }
+
+      return true;
     });
+
+    filtered.forEach((item) => {
+      // Choose date key based on prazo filter
+      let dateKey: string;
+      if (item.origem === "tarefa") {
+        if (painelFiltros.dataFatal && !painelFiltros.dataPrevista && item.data_fatal) {
+          dateKey = item.data_fatal.slice(0, 10);
+        } else if (painelFiltros.dataPrevista && item.data_vencimento) {
+          dateKey = item.data_vencimento.slice(0, 10);
+        } else {
+          dateKey = item.data_inicio.slice(0, 10);
+        }
+      } else {
+        dateKey = item.data_inicio.slice(0, 10);
+      }
+
+      if (!map.has(dateKey)) map.set(dateKey, []);
+      map.get(dateKey)!.push(item);
+    });
+
     // Ordenar: pendentes/atrasados primeiro, concluídos por último
     map.forEach((itens, key) => {
       map.set(key, [
@@ -520,7 +576,7 @@ export default function PainelControle() {
       ]);
     });
     return map;
-  }, [itensAgenda]);
+  }, [itensAgenda, painelFiltros, user?.id]);
 
   const handleDayClick = (_dia: Date) => {
     // Apenas para visualização
@@ -666,7 +722,8 @@ export default function PainelControle() {
               </SelectContent>
             </Select>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
             <Button
               size="sm"
               className="h-7 px-3 text-xs gap-1"
