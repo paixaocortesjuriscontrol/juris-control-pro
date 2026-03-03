@@ -933,9 +933,11 @@ async function processarTermoPro(
     }
   }
   
-  // Persistir descartadas
+  // Persistir descartadas (dedup por hash para contar corretamente)
+  let descartadasEfetivas = 0;
   if (pubsDescartadas.length > 0) {
-    const payloadDesc = pubsDescartadas.slice(0, 200).map(pub => {
+    const descHashMap = new Map<string, any>();
+    for (const pub of pubsDescartadas) {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || '';
       const conteudoFormatado = buildDjenLikeConteudo({
         pub, diaYmd,
@@ -946,10 +948,12 @@ async function processarTermoPro(
       const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
       const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
       
+      if (descHashMap.has(hash)) continue;
+      
       const advogados = extrairAdvogadosEstruturados(pub);
       const partes = extrairPartesEstruturadas(pub);
       
-      return {
+      descHashMap.set(hash, {
         monitoramento_id: mon.id,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.numero_processo || null,
@@ -964,8 +968,11 @@ async function processarTermoPro(
         meio: pub.meio || null,
         advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
         partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
-      };
-    });
+      });
+    }
+    
+    const payloadDesc = Array.from(descHashMap.values()).slice(0, 200);
+    descartadasEfetivas = payloadDesc.length;
     
     await supabase
       .from('publicacoes_djen_descartadas')
@@ -974,8 +981,8 @@ async function processarTermoPro(
   
   return {
     novas: novas.length,
-    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length),
-    descartadas,
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + (descartadas - descartadasEfetivas),
+    descartadas: descartadasEfetivas,
   };
 }
 
