@@ -372,9 +372,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             const ids = filters.responsavelIds.join(",");
             queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
           } else {
-            // Modo escritório: tarefas onde QUALQUER membro é responsável
-            // (independente de quem criou — inclui tarefas de admins delegadas a membros)
-            queryTarefas = queryTarefas.in("responsavel_id", filters.responsavelIds);
+            // Modo escritório: tarefas onde QUALQUER membro é responsável OU criador
+            // (inclui tarefas com responsavel_id null criadas por membros)
+            const ids = filters.responsavelIds.join(",");
+            queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
           }
         } else {
           // Usuário comum vendo apenas suas próprias tarefas
@@ -419,7 +420,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               const ids = filters.responsavelIds.join(",");
               queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
             } else {
-              queryTarefasFallback = queryTarefasFallback.in("responsavel_id", filters.responsavelIds);
+              const ids = filters.responsavelIds.join(",");
+              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
             }
           } else {
             queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
