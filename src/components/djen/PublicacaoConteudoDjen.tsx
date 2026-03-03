@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto, highlightTermInContent } from "@/utils/formatConteudo";
 
 interface PublicacaoConteudoDjenProps {
   processoNumero: string | null;
@@ -20,6 +20,9 @@ interface PublicacaoConteudoDjenProps {
   monitoramentoUf: string | null;
   monitoramentoTermo: string | null;
   monitoramentoDescricao: string | null;
+  monitoramentoTipo?: string | null;
+  /** Termos OR associados ao monitoramento, para highlight adicional */
+  monitoramentoTermosOr?: string[] | null;
   className?: string;
   maxHeight?: string;
   // Campos estruturados da API (prioritários sobre regex)
@@ -458,6 +461,8 @@ export function PublicacaoConteudoDjen({
   monitoramentoUf,
   monitoramentoTermo,
   monitoramentoDescricao,
+  monitoramentoTipo,
+  monitoramentoTermosOr,
   className,
   maxHeight,
   orgaoEstruturado,
@@ -678,7 +683,9 @@ export function PublicacaoConteudoDjen({
               conteudoDisplayClasses
             )}
           >
-            {formatConteudoParaExibicao(conteudoLimpo, true)}
+            {monitoramentoTipo === 'palavra-chave' && monitoramentoTermo
+              ? highlightTermInContent(formatConteudoParaExibicao(conteudoLimpo, true), monitoramentoTermo)
+              : formatConteudoParaExibicao(conteudoLimpo, true)}
           </div>
         </main>
       </div>

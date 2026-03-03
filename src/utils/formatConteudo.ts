@@ -1,3 +1,5 @@
+import React from "react";
+
 /**
  * Utilitário para normalizar conteúdo HTML de intimações/publicações jurídicas.
  * Converte tags HTML em quebras de linha e remove formatação desnecessária,
@@ -181,3 +183,65 @@ export const formatDateOnlyFull = (dateString: string | null | undefined): strin
     return dateString;
   }
 };
+
+/**
+ * Normaliza uma string removendo acentos para comparação case-insensitive.
+ */
+const normalizeForHighlight = (s: string): string =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/**
+ * Divide um texto em partes, destacando (em negrito) as ocorrências do termo de busca.
+ * Retorna um array de React elements para ser renderizado diretamente.
+ * A busca é case-insensitive e ignora acentos.
+ */
+export function highlightTermInContent(
+  text: string,
+  term: string | null | undefined
+): React.ReactNode {
+  if (!term || !text) return text;
+
+  const termClean = term.trim();
+  if (!termClean) return text;
+
+  const termNorm = normalizeForHighlight(termClean);
+  const textNorm = normalizeForHighlight(text);
+
+  // Find all occurrences in the normalized version
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let searchFrom = 0;
+
+  while (searchFrom < textNorm.length) {
+    const idx = textNorm.indexOf(termNorm, searchFrom);
+    if (idx === -1) break;
+
+    // Add text before match
+    if (idx > lastIndex) {
+      parts.push(text.slice(lastIndex, idx));
+    }
+
+    // Add highlighted match (using original text casing)
+    const matchEnd = idx + termClean.length;
+    parts.push(
+      React.createElement(
+        "mark",
+        {
+          key: `hl-${idx}`,
+          className: "font-bold bg-yellow-200 dark:bg-yellow-800/60 text-foreground rounded-sm px-0.5",
+        },
+        text.slice(idx, matchEnd)
+      )
+    );
+
+    lastIndex = matchEnd;
+    searchFrom = matchEnd;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}

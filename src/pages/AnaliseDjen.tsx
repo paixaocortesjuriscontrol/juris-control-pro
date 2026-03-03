@@ -2156,6 +2156,7 @@ const AnaliseDjen = () => {
                                       monitoramentoUf={pub.monitoramento_uf}
                                       monitoramentoTermo={pub.monitoramento_termo}
                                       monitoramentoDescricao={pub.monitoramento_descricao}
+                                      monitoramentoTipo={pub.monitoramento_tipo}
                                       maxHeight={expandirGeralAtivo ? undefined : "500px"}
                                       orgaoEstruturado={pub.orgao}
                                       tipoComunicacaoEstruturado={pub.tipo_comunicacao}
@@ -2235,6 +2236,7 @@ const AnaliseDjen = () => {
                 monitoramentoUf={selectedPublicacao.monitoramento_uf}
                 monitoramentoTermo={selectedPublicacao.monitoramento_termo}
                 monitoramentoDescricao={selectedPublicacao.monitoramento_descricao}
+                monitoramentoTipo={selectedPublicacao.monitoramento_tipo}
                 maxHeight="60vh"
                 orgaoEstruturado={selectedPublicacao.orgao}
                 tipoComunicacaoEstruturado={selectedPublicacao.tipo_comunicacao}
