@@ -72,6 +72,7 @@ export interface AgendaUnificadaFilters {
   dataFim?: Date;
   responsavelIds?: string[];
   coordenacaoId?: string;
+  coordenacaoIds?: string[];
   clienteId?: string;
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
@@ -364,8 +365,17 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       if (incluirTarefas) {
         let queryTarefas = buildTarefasQuery(true);
 
+        const coordScopeIds = filters.coordenacaoIds?.length
+          ? filters.coordenacaoIds
+          : filters.coordenacaoId
+            ? [filters.coordenacaoId]
+            : [];
+
         if (filters.fetchAll) {
           // Admin vendo todas - sem filtro
+        } else if (coordScopeIds.length > 0) {
+          // Coordenador: vê todas as tarefas da(s) coordenação(ões), independente de criador/responsável
+          queryTarefas = queryTarefas.in("processo.coordenacao_id", coordScopeIds);
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
           if (filters.pessoal) {
             // Modo pessoal: tarefas onde o usuário é responsável OU criador
@@ -413,8 +423,26 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
           let queryTarefasFallback = buildTarefasQuery(false);
+          let shouldRunFallbackQuery = true;
+
           if (filters.fetchAll) {
             // sem filtro
+          } else if (coordScopeIds.length > 0) {
+            // Fallback sem join: filtrar por processos da(s) coordenação(ões)
+            const { data: processosCoord } = await supabase
+              .from("processos")
+              .select("id")
+              .in("coordenacao_id", coordScopeIds);
+
+            const processoIds = (processosCoord || []).map((p: { id: string }) => p.id);
+
+            if (processoIds.length === 0) {
+              shouldRunFallbackQuery = false;
+              tarefas = [];
+              tarefasError = null;
+            } else {
+              queryTarefasFallback = queryTarefasFallback.in("processo_id", processoIds);
+            }
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
             if (filters.pessoal) {
               const ids = filters.responsavelIds.join(",");
@@ -426,27 +454,30 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           } else {
             queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
           }
-          if (filters.status && filters.status !== "todas") {
-            if (filters.status === "pendente") {
-              queryTarefasFallback = queryTarefasFallback.eq("status", "pendente");
-            } else if (filters.status === "concluido") {
-              queryTarefasFallback = queryTarefasFallback.eq("status", "cumprido");
+
+          if (shouldRunFallbackQuery) {
+            if (filters.status && filters.status !== "todas") {
+              if (filters.status === "pendente") {
+                queryTarefasFallback = queryTarefasFallback.eq("status", "pendente");
+              } else if (filters.status === "concluido") {
+                queryTarefasFallback = queryTarefasFallback.eq("status", "cumprido");
+              }
             }
+            if (filters.dataInicio) {
+              const di = filters.dataInicio;
+              const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
+              queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", diStr);
+            }
+            if (filters.dataFim) {
+              const df = filters.dataFim;
+              const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
+              queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", dfStr);
+            }
+            queryTarefasFallback = queryTarefasFallback.range(from, to);
+            const fallbackRes = await queryTarefasFallback;
+            tarefas = fallbackRes.data;
+            tarefasError = fallbackRes.error;
           }
-          if (filters.dataInicio) {
-            const di = filters.dataInicio;
-            const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
-            queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", diStr);
-          }
-          if (filters.dataFim) {
-            const df = filters.dataFim;
-            const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
-            queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", dfStr);
-          }
-          queryTarefasFallback = queryTarefasFallback.range(from, to);
-          const fallbackRes = await queryTarefasFallback;
-          tarefas = fallbackRes.data;
-          tarefasError = fallbackRes.error;
         }
 
         if (!tarefasError && tarefas) {
@@ -459,10 +490,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 (t: any) => t.processo && (t.processo as { cliente_id?: string }).cliente_id === filters.clienteId
               );
             }
-            if (filters.coordenacaoId) {
+            if (coordScopeIds.length > 0) {
               tarefasFiltradas = tarefasFiltradas.filter((t: any) => {
                 const procCoord = t.processo && (t.processo as { coordenacao_id?: string | null }).coordenacao_id;
-                if (procCoord) return procCoord === filters.coordenacaoId;
+                if (procCoord) return coordScopeIds.includes(procCoord);
                 if (filters.strictCoordenacaoIsolation) return false;
                 if (filters.responsavelIds && filters.responsavelIds.length > 0) {
                   return filters.responsavelIds.includes(t.responsavel_id);
