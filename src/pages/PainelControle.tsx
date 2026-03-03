@@ -205,10 +205,22 @@ export default function PainelControle() {
     // Admin no escritório
     if (isAdmin) {
       if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) {
-        return { responsavelIds: membrosCoordFiltrada, fetchAll: false, ...dateRange };
+        return {
+          responsavelIds: membrosCoordFiltrada,
+          coordenacaoId: adminCoordFilter,
+          strictCoordenacaoIsolation: true,
+          fetchAll: false,
+          ...dateRange,
+        };
       }
       if (adminCoordFilter !== "todas" && membrosFilterLoading) {
-        return { responsavelIds: [], fetchAll: false, ...dateRange };
+        return {
+          responsavelIds: [],
+          coordenacaoId: adminCoordFilter,
+          strictCoordenacaoIsolation: true,
+          fetchAll: false,
+          ...dateRange,
+        };
       }
       return { fetchAll: true, ...dateRange };
     }
@@ -270,12 +282,20 @@ export default function PainelControle() {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
 
+      const baseSelect = "data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por";
+
       let q = supabase
         .from("tarefas")
-        .select("data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por")
+        .select(baseSelect)
         .neq("status", "cumprido");
 
-      if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
+      if (tabMode === "escritorio" && isAdmin && adminCoordFilter !== "todas") {
+        q = supabase
+          .from("tarefas")
+          .select(`${baseSelect}, processo:processos!inner(coordenacao_id)`)
+          .eq("processo.coordenacao_id", adminCoordFilter)
+          .neq("status", "cumprido");
+      } else if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
         // Admin escritório sem filtro: vê tudo
       } else if (membrosIdsParaResumo.length > 0) {
         if (tabMode === "pessoal") {

@@ -76,6 +76,7 @@ export interface AgendaUnificadaFilters {
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
   pessoal?: boolean; // Se true, inclui tarefas criadas pelo usuário mesmo que delegadas a outros
+  strictCoordenacaoIsolation?: boolean; // Se true, exclui itens sem processo da visão por coordenação
 }
 
 const PAGE_SIZE = 1000; // Supabase default limit
@@ -142,7 +143,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       const to = from + halfPage - 1;
 
       // Constants for queries
-      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto)" as const;
+      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto,coordenacao_id)" as const;
       const EVENTOS_SELECT_BASE = "*" as const;
       const TAREFAS_SELECT_WITH_JOINS =
         "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)" as const;
@@ -306,6 +307,18 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             });
           }
 
+          if (filters.coordenacaoId) {
+            eventosFiltered = eventosFiltered.filter((evento: any) => {
+              const procCoord = evento.processo && (evento.processo as { coordenacao_id?: string | null }).coordenacao_id;
+              if (procCoord) return procCoord === filters.coordenacaoId;
+              if (filters.strictCoordenacaoIsolation) return false;
+              if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+                return filters.responsavelIds.includes(evento.criado_por);
+              }
+              return false;
+            });
+          }
+
           for (const evento of eventosFiltered) {
             // Dedup: skip if already seen
             if (seenIds.has(evento.id)) continue;
@@ -448,6 +461,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               tarefasFiltradas = tarefasFiltradas.filter((t: any) => {
                 const procCoord = t.processo && (t.processo as { coordenacao_id?: string | null }).coordenacao_id;
                 if (procCoord) return procCoord === filters.coordenacaoId;
+                if (filters.strictCoordenacaoIsolation) return false;
                 if (filters.responsavelIds && filters.responsavelIds.length > 0) {
                   return filters.responsavelIds.includes(t.responsavel_id);
                 }
