@@ -608,6 +608,49 @@ async function processarTermoPro(
       }
     }
   }
+
+  // Busca complementar para tipo "palavra-chave": executar também cada termo_or
+  // Isso garante que monitoramentos com grupos OR realmente disparem buscas individuais.
+  if (tipo === 'palavra-chave' && !signal.aborted && mon.termos_or?.length) {
+    const termoPrincipalNorm = normalizar(mon.termo_busca);
+    const termosExtras = Array.from(new Set(
+      mon.termos_or
+        .map((t) => parsearTermoOr(t)?.nome || String(t || '').trim())
+        .map((t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
+        .filter(Boolean)
+    )).filter((t) => normalizar(t) !== termoPrincipalNorm);
+
+    for (const termoExtra of termosExtras) {
+      if (signal.aborted) break;
+      console.log(`[DJEN Pro] Busca termos_or palavra-chave: "${termoExtra}"`);
+
+      for (const trib of tribLoop) {
+        if (signal.aborted) break;
+        try {
+          const resp = await buscarPjeComunicaPaginado(
+            {
+              tipo: 'palavra-chave' as PjeSearchType,
+              palavraChave: termoExtra,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
+            },
+            { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
+          );
+          addResults(resp.items, trib);
+          console.log(`[DJEN Pro] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          console.warn(`[DJEN Pro] Erro termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}:`, e?.message);
+        }
+        if (tribLoop.length > 1) await delay(800);
+      }
+
+      await delay(500);
+    }
+  }
   
   // Retry sem ufOab quando busca por OAB não retornou resultados do tribunal desejado.
   // IMPORTANTE: A API PJE Comunica frequentemente ignora siglaTribunal em buscas por OAB,
