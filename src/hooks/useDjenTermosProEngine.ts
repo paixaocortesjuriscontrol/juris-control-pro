@@ -202,6 +202,21 @@ function contemFraseComAnd(textoNorm: string, termoRaw: string): boolean {
 }
 
 /**
+ * Encurta um termo longo para busca na API.
+ * A API PJE Comunica não lida bem com frases muito longas como palavraChave.
+ * Retorna as primeiras 2 palavras significativas (>= 2 chars) para busca ampla,
+ * e a validação local depois confirma a frase exata completa.
+ */
+function encurtarParaApi(termo: string): string {
+  if (!termo?.trim()) return termo;
+  const limpo = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const palavras = limpo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\.,]+$/.test(p));
+  if (palavras.length <= 2) return limpo;
+  // Usar as 2 primeiras palavras significativas para busca ampla
+  return palavras.slice(0, 2).join(' ');
+}
+
+/**
  * Valida advogado usando metadados estruturados da API.
  * Campos: destinatarioadvogados[].advogado.{nome, numero_oab, uf_oab}
  */
@@ -562,15 +577,16 @@ async function processarTermoPro(
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else {
-    // palavra-chave: se tem "+", usar apenas a primeira parte significativa para busca na API
-    // (a validação AND é feita depois). Se não tem "+", enviar o termo completo.
+    // palavra-chave: encurtar para a API (frases longas não retornam resultados).
+    // A validação local depois confirma a frase COMPLETA.
     if (mon.termo_busca.includes('+')) {
       const partes = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean)
         .filter(p => !/^OAB\s/i.test(p));
-      // Usar a maior parte como palavra-chave principal (mais restritiva)
-      baseParams.palavraChave = partes.sort((a, b) => b.length - a.length)[0] || mon.termo_busca;
+      // Usar a maior parte, encurtada para API
+      const maiorParte = partes.sort((a, b) => b.length - a.length)[0] || mon.termo_busca;
+      baseParams.palavraChave = encurtarParaApi(maiorParte);
     } else {
-      baseParams.palavraChave = mon.termo_busca;
+      baseParams.palavraChave = encurtarParaApi(mon.termo_busca);
     }
   }
   
@@ -654,7 +670,7 @@ async function processarTermoPro(
           const resp = await buscarPjeComunicaPaginado(
             {
               tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: termoExtra,
+              palavraChave: encurtarParaApi(termoExtra),
               siglaTribunal: trib,
               dataInicio: diaYmd,
               dataFim: diaYmd,
