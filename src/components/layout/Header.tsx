@@ -35,7 +35,12 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const getRoleLabel = () => {
     if (role === "admin") return "Administrador";
     if (role === "coordenador") return "Coordenador";
-    return "Usuário";
+    if (role === "advogado") return "Advogado(a)";
+    if (role === "estagiario") return "Estagiário(a)";
+    if (role === "assistente") return "Assistente";
+    if (role === "secretaria") return "Secretária";
+    if (role === "cliente") return "Cliente";
+    return "Sem perfil";
   };
 
   const handleSignOut = async () => {
