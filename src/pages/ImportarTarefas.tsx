@@ -552,7 +552,6 @@ export default function ImportarTarefas() {
 
         if (!identificador) tarefa.erros.push("Sem identificador");
         if (!titulo) tarefa.erros.push("Sem título");
-        if (!tarefa.dataFatal && !tarefa.dataPrevista) tarefa.erros.push("Sem data fatal/prevista");
 
         tarefa.status = "valido";
         return tarefa;
@@ -637,13 +636,29 @@ export default function ImportarTarefas() {
 
         const existing = existingMap.get(t.identificador);
         if (existing) {
-          // Update existing task with tipo_tarefa and título if tipo found
+          // Update existing task: tipo, título, and ALL dates from spreadsheet
+          const updatePayload: any = {};
           if (t.tipo) {
-            const updatePayload: any = { tipo_tarefa: t.tipo };
-            // Update título only if it doesn't already contain the tipo
+            updatePayload.tipo_tarefa = t.tipo;
             if (!existing.titulo?.toUpperCase().includes(`[${t.tipo.toUpperCase()}]`)) {
               updatePayload.titulo = tituloCompleto;
             }
+          }
+          // Always update dates from spreadsheet
+          const dataVencimentoUpdate = parseDate(t.dataPrevista) || parseDate(t.dataFatal);
+          if (dataVencimentoUpdate) updatePayload.data_vencimento = dataVencimentoUpdate;
+          const dataPrevistaUpdate = parseDate(t.dataPrevista);
+          if (dataPrevistaUpdate) updatePayload.data_prevista = dataPrevistaUpdate;
+          const dataFatalUpdate = parseDate(t.dataFatal);
+          if (dataFatalUpdate) updatePayload.data_fatal = dataFatalUpdate;
+          const dataBaseUpdate = parseDate(t.dataBase);
+          if (dataBaseUpdate) updatePayload.data_base = dataBaseUpdate;
+          const dataCriacaoUpdate = parseDate(t.dataCriacao);
+          if (dataCriacaoUpdate) updatePayload.data_criacao_projuris = dataCriacaoUpdate;
+          const dataConclusaoUpdate = parseDate(t.dataConclusao);
+          if (dataConclusaoUpdate) updatePayload.data_cumprimento = dataConclusaoUpdate;
+
+          if (Object.keys(updatePayload).length > 0) {
             const { error: updateError } = await supabase
               .from("tarefas")
               .update(updatePayload)
@@ -654,14 +669,14 @@ export default function ImportarTarefas() {
                 updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: updateError.message };
                 errorCount++;
               } else {
-                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso", erroImport: "Atualizado (tipo)" };
+                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso", erroImport: "Atualizado (datas/tipo)" };
                 successCount++;
               }
             }
           } else {
             const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
             if (idx >= 0) {
-              updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema (sem tipo para atualizar)" };
+              updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe, sem dados para atualizar" };
               errorCount++;
             }
           }
@@ -705,8 +720,10 @@ export default function ImportarTarefas() {
             titulo: tituloCompleto,
             descricao: t.descricao,
             data_vencimento: dataVencimento,
+            data_prevista: parseDate(t.dataPrevista),
             data_base: parseDate(t.dataBase),
             data_fatal: parseDate(t.dataFatal),
+            data_criacao_projuris: parseDate(t.dataCriacao),
             data_cumprimento: status === "cumprido" ? parseDate(t.dataConclusao) : null,
             status,
             prioridade: mapSituacaoToPrioridade(t.situacao, t.dataFatal),
