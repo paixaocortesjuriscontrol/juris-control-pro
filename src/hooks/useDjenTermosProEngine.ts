@@ -184,6 +184,24 @@ function contemFrase(textoNorm: string, fraseNorm: string): boolean {
 }
 
 /**
+ * Validação com suporte a "+" (AND logic).
+ * Cada segmento separado por "+" deve aparecer como frase exata no texto.
+ * Ex: "BRADESCO + SEGUROS" → texto deve conter "BRADESCO" E "SEGUROS".
+ */
+function contemFraseComAnd(textoNorm: string, termoRaw: string): boolean {
+  if (!termoRaw) return true;
+  if (!termoRaw.includes('+')) {
+    return contemFrase(textoNorm, normalizar(termoRaw));
+  }
+  const partes = termoRaw.split('+').map(p => p.trim()).filter(Boolean);
+  return partes.every(p => {
+    if (/^OAB\s/i.test(p)) return true; // skip OAB parts
+    const pNorm = normalizar(p);
+    return !pNorm || contemFrase(textoNorm, pNorm);
+  });
+}
+
+/**
  * Valida advogado usando metadados estruturados da API.
  * Campos: destinatarioadvogados[].advogado.{nome, numero_oab, uf_oab}
  */
@@ -347,17 +365,15 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
     return pubNum.includes(numDigits);
   }
   
-  // palavra-chave
-  const termoNorm = normalizar(mon.termo_busca);
-  if (termoNorm && contemFrase(textoNorm, termoNorm)) return true;
+  // palavra-chave (suporte a "+" como AND)
+  if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
   
   // termos_or (parsear para extrair nome puro)
   if (mon.termos_or?.length) {
     for (const t of mon.termos_or) {
       const parsed = parsearTermoOr(t);
       if (!parsed) continue;
-      const tNorm = normalizar(parsed.nome);
-      if (tNorm && contemFrase(textoNorm, tNorm)) return true;
+      if (contemFraseComAnd(textoNorm, parsed.nome)) return true;
     }
   }
   
@@ -546,8 +562,16 @@ async function processarTermoPro(
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else {
-    // palavra-chave
-    baseParams.palavraChave = mon.termo_busca;
+    // palavra-chave: se tem "+", usar apenas a primeira parte significativa para busca na API
+    // (a validação AND é feita depois). Se não tem "+", enviar o termo completo.
+    if (mon.termo_busca.includes('+')) {
+      const partes = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean)
+        .filter(p => !/^OAB\s/i.test(p));
+      // Usar a maior parte como palavra-chave principal (mais restritiva)
+      baseParams.palavraChave = partes.sort((a, b) => b.length - a.length)[0] || mon.termo_busca;
+    } else {
+      baseParams.palavraChave = mon.termo_busca;
+    }
   }
   
   // Determinar loops de tribunal
