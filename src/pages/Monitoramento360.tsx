@@ -1,19 +1,26 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Radar, 
+  AlertTriangle, 
+  Settings, 
   Play, 
   Loader2,
   Bell,
+  Filter,
+  Search,
   Building2
 } from "lucide-react";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
+import TermosConfig from "@/components/monitoramento360/TermosConfig";
 import AlertasList from "@/components/monitoramento360/AlertasList";
+import CarteirasConfig from "@/components/monitoramento360/CarteirasConfig";
 
 export default function Monitoramento360() {
   const {
@@ -26,6 +33,7 @@ export default function Monitoramento360() {
   } = useMonitoramento360();
 
   const { data: coordenacoes } = useCoordenacoes();
+  const [activeTab, setActiveTab] = useState("alertas");
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
 
   // Filtrar alertas por coordenação selecionada
@@ -134,8 +142,40 @@ export default function Monitoramento360() {
           </Card>
         </div>
 
-        {/* Alertas */}
-        <AlertasList coordenacaoId={coordenacaoId !== "todas" ? coordenacaoId : undefined} />
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="alertas" className="gap-2">
+              <Bell className="h-4 w-4" />
+              Alertas
+              {alertasPendentes > 0 && (
+                <Badge variant="destructive" className="ml-1">
+                  {alertasPendentes}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="termos" className="gap-2">
+              <Search className="h-4 w-4" />
+              Termos
+            </TabsTrigger>
+            <TabsTrigger value="carteiras" className="gap-2">
+              <Filter className="h-4 w-4" />
+              Carteiras
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="alertas" className="mt-6">
+            <AlertasList coordenacaoId={coordenacaoId !== "todas" ? coordenacaoId : undefined} />
+          </TabsContent>
+
+          <TabsContent value="termos" className="mt-6">
+            <TermosConfig />
+          </TabsContent>
+
+          <TabsContent value="carteiras" className="mt-6">
+            <CarteirasConfig />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
