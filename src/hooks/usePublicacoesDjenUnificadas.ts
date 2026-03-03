@@ -49,6 +49,90 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   }
 };
 
+function normalizarTermo(valor: string | null | undefined): string {
+  return String(valor || "").trim();
+}
+
+function parseTermosOr(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((v) => normalizarTermo(String(v))).filter(Boolean);
+}
+
+function identificarTermoCorrespondente(
+  conteudo: string | null,
+  termoPrincipal: string | null,
+  termosOr: string[]
+): string | null {
+  if (!conteudo) return null;
+
+  const candidatos = [...termosOr, termoPrincipal]
+    .map((t) => normalizarTermo(t))
+    .filter(Boolean);
+
+  for (const candidato of candidatos) {
+    if (conteudoContemFraseExata(conteudo, candidato)) {
+      return candidato;
+    }
+  }
+
+  return null;
+}
+
+async function enriquecerPublicacoesComMonitoramento(
+  publicacoes: PublicacaoUnificada[]
+): Promise<PublicacaoUnificada[]> {
+  const monitoramentoIds = [...new Set(
+    publicacoes
+      .filter((p) => (p.tipo_origem === 'termo' || p.tipo_origem === 'descartada') && !!p.monitoramento_id)
+      .map((p) => p.monitoramento_id as string)
+  )];
+
+  if (monitoramentoIds.length === 0) return publicacoes;
+
+  const { data: monitoramentos, error } = await supabase
+    .from('monitoramentos_djen')
+    .select('id, termo_busca, descricao, termos_or')
+    .in('id', monitoramentoIds);
+
+  if (error || !monitoramentos) {
+    console.warn('[DJEN] Falha ao enriquecer monitoramentos para exibição:', error);
+    return publicacoes;
+  }
+
+  const monitoramentoMap = new Map<string, {
+    termo_busca: string | null;
+    descricao: string | null;
+    termos_or: string[];
+  }>();
+
+  monitoramentos.forEach((m: any) => {
+    monitoramentoMap.set(m.id, {
+      termo_busca: normalizarTermo(m.termo_busca) || null,
+      descricao: normalizarTermo(m.descricao) || null,
+      termos_or: parseTermosOr(m.termos_or),
+    });
+  });
+
+  return publicacoes.map((pub) => {
+    if (!pub.monitoramento_id || (pub.tipo_origem !== 'termo' && pub.tipo_origem !== 'descartada')) {
+      return pub;
+    }
+
+    const monitoramento = monitoramentoMap.get(pub.monitoramento_id);
+    const termoPrincipal = pub.monitoramento_termo || monitoramento?.termo_busca || null;
+    const descricao = pub.monitoramento_descricao || monitoramento?.descricao || null;
+    const termosOr = monitoramento?.termos_or || [];
+    const termoMatch = identificarTermoCorrespondente(pub.conteudo, termoPrincipal, termosOr);
+
+    return {
+      ...pub,
+      monitoramento_termo: termoPrincipal,
+      monitoramento_descricao: descricao,
+      monitoramento_termo_match: termoMatch,
+    };
+  });
+}
+
 export interface PublicacaoUnificada {
   id: string;
   tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
@@ -64,6 +148,7 @@ export interface PublicacaoUnificada {
   monitoramento_id: string | null;
   monitoramento_termo: string | null;
   monitoramento_descricao: string | null;
+  monitoramento_termo_match?: string | null;
   monitoramento_tipo: string | null;
   monitoramento_oab: string | null;
   monitoramento_uf: string | null;
@@ -399,8 +484,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
         const merged = [...filteredByType, ...resultados];
+        const enriquecidos = await enriquecerPublicacoesComMonitoramento(merged);
 
-        const deduped = dedupePublicacoesDjen(merged);
+        const deduped = dedupePublicacoesDjen(enriquecidos);
         return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         } catch (rpcError) {
@@ -719,7 +805,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
-      const resultadosFiltrados = resultados;
+      const resultadosFiltrados = await enriquecerPublicacoesComMonitoramento(resultados);
 
       let deduped = dedupePublicacoesDjen(resultadosFiltrados);
 
