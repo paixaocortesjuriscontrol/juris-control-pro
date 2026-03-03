@@ -563,7 +563,7 @@ export function CriarTarefaPublicacaoDialog({
                     <FileSearch className="w-3 h-3 mr-1" />
                     {publicacao.monitoramento_tipo === 'advogado'
                       ? `OAB ${publicacao.monitoramento_oab} ${publicacao.monitoramento_uf}`
-                      : publicacao.monitoramento_descricao || "Monitoramento por palavra-chave"
+                      : publicacao.monitoramento_termo
                     }
                   </Badge>
                 ) : (

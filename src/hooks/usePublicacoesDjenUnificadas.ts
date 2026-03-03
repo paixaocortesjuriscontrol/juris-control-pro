@@ -126,9 +126,8 @@ async function enriquecerPublicacoesComMonitoramento(
 
     return {
       ...pub,
-      monitoramento_termo: termoPrincipal,
+      monitoramento_termo: termoMatch || termoPrincipal,
       monitoramento_descricao: descricao,
-      monitoramento_termo_match: termoMatch,
     };
   });
 }
@@ -148,7 +147,7 @@ export interface PublicacaoUnificada {
   monitoramento_id: string | null;
   monitoramento_termo: string | null;
   monitoramento_descricao: string | null;
-  monitoramento_termo_match?: string | null;
+  
   monitoramento_tipo: string | null;
   monitoramento_oab: string | null;
   monitoramento_uf: string | null;
