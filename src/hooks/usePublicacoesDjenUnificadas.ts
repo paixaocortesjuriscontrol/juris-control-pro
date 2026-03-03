@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
-import { conteudoContemTodasPalavrasDoTermo, conteudoContemFraseExata } from "@/utils/djenTermoMatch";
+import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { addDays, parse } from "date-fns";
 
 // Helper para formatar data em ISO com timezone UTC
@@ -397,13 +397,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
         }
 
-        // filtrar falsos positivos de TERMO
-        const merged = [...filteredByType, ...resultados].filter((p) => {
-          if (p.tipo_origem !== 'termo') return true;
-          const tipo = (p.monitoramento_tipo || '').toLowerCase();
-          if (tipo === 'advogado' || tipo === 'processo' || tipo === 'parte') return true;
-          return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
-        });
+        // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
+        const merged = [...filteredByType, ...resultados];
 
         const deduped = dedupePublicacoesDjen(merged);
         return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -723,13 +718,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         });
       }
 
-      // Filtrar falsos positivos de TERMO (sem precisar "recomeçar" execução)
-      const resultadosFiltrados = resultados.filter((p) => {
-        if (p.tipo_origem !== 'termo') return true;
-        const tipo = (p.monitoramento_tipo || '').toLowerCase();
-        if (tipo === 'advogado' || tipo === 'processo' || tipo === 'parte') return true;
-        return conteudoContemTodasPalavrasDoTermo(p.conteudo || '', p.monitoramento_termo || '');
-      });
+      // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
+      const resultadosFiltrados = resultados;
 
       let deduped = dedupePublicacoesDjen(resultadosFiltrados);
 
