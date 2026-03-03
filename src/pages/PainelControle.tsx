@@ -304,7 +304,9 @@ export default function PainelControle() {
           const ids = membrosIdsParaResumo.join(",");
           q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
         } else {
-          q = q.in("responsavel_id", membrosIdsParaResumo);
+          // Escritório: tarefas onde qualquer membro é responsável OU criador
+          const ids = membrosIdsParaResumo.join(",");
+          q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
         }
       } else {
         q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
