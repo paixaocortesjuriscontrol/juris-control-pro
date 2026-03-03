@@ -669,7 +669,8 @@ export default function ImportarTarefas() {
         }
         
         const status = mapSituacaoToStatus(t.situacao);
-        const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
+        // Data prevista deve alimentar data_vencimento; data_fatal fica apenas em data_fatal
+        const dataVencimento = parseDate(t.dataPrevista) || parseDate(t.dataFatal);
         
         const processoId = await findOrCreateProcessoId(
           t.numeroProcesso,
