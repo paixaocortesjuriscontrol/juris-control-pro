@@ -608,10 +608,13 @@ export default function ImportarTarefas() {
     const allIds = toImport.map(t => t.identificador);
     const { data: existingTarefas } = await supabase
       .from("tarefas")
-      .select("identificador_projuris")
+      .select("id, identificador_projuris, tipo_tarefa, titulo")
       .in("identificador_projuris", allIds);
     
-    const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
+    const existingMap = new Map<string, { id: string; tipo_tarefa: string | null; titulo: string }>(); 
+    (existingTarefas || []).forEach((t: any) => {
+      if (t.identificador_projuris) existingMap.set(t.identificador_projuris, { id: t.id, tipo_tarefa: t.tipo_tarefa, titulo: t.titulo });
+    });
 
     createdUsersCache.current.clear();
     createdProcessosCache.current.clear();
@@ -628,7 +631,42 @@ export default function ImportarTarefas() {
       
       const insertPayloads: Array<{ payload: any; processoId: string | null; responsavelId: string | null }> = [];
       for (const t of batch) {
-        if (existingSet.has(t.identificador)) continue;
+        // Build título with tipo prefix
+        const tipoPrefix = t.tipo ? `[${t.tipo.toUpperCase()}] ` : "";
+        const tituloCompleto = `${tipoPrefix}${t.titulo || "Tarefa sem título"}`;
+
+        const existing = existingMap.get(t.identificador);
+        if (existing) {
+          // Update existing task with tipo_tarefa and título if tipo found
+          if (t.tipo) {
+            const updatePayload: any = { tipo_tarefa: t.tipo };
+            // Update título only if it doesn't already contain the tipo
+            if (!existing.titulo?.toUpperCase().includes(`[${t.tipo.toUpperCase()}]`)) {
+              updatePayload.titulo = tituloCompleto;
+            }
+            const { error: updateError } = await supabase
+              .from("tarefas")
+              .update(updatePayload)
+              .eq("id", existing.id);
+            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+            if (idx >= 0) {
+              if (updateError) {
+                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: updateError.message };
+                errorCount++;
+              } else {
+                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso", erroImport: "Atualizado (tipo)" };
+                successCount++;
+              }
+            }
+          } else {
+            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+            if (idx >= 0) {
+              updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema (sem tipo para atualizar)" };
+              errorCount++;
+            }
+          }
+          continue;
+        }
         
         const status = mapSituacaoToStatus(t.situacao);
         const dataVencimento = parseDate(t.dataFatal) || parseDate(t.dataPrevista);
@@ -663,7 +701,7 @@ export default function ImportarTarefas() {
           payload: {
             identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             tipo_tarefa: t.tipo,
-            titulo: t.titulo || "Tarefa sem título",
+            titulo: tituloCompleto,
             descricao: t.descricao,
             data_vencimento: dataVencimento,
             data_base: parseDate(t.dataBase),
@@ -744,15 +782,7 @@ export default function ImportarTarefas() {
         }
       }
 
-      for (const t of batch) {
-        if (existingSet.has(t.identificador)) {
-          const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
-          if (idx >= 0) {
-            updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema" };
-            errorCount++;
-          }
-        }
-      }
+      // Existing tasks already handled in the loop above
 
       setImportProgress(((i + batch.length) / toImport.length) * 100);
       setTarefas([...updatedTarefas]);
