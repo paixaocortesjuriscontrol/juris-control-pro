@@ -1869,7 +1869,7 @@ const AnaliseDjen = () => {
                                       <span className="truncate">
                                         {pub.monitoramento_tipo === 'advogado' 
                                           ? `OAB ${pub.monitoramento_oab || ''} ${pub.monitoramento_uf || ''}`
-                                          : pub.monitoramento_termo || "Termo"
+                                          : pub.monitoramento_descricao || pub.monitoramento_termo || "Termo"
                                         }
                                       </span>
                                     </Badge>
@@ -2201,7 +2201,7 @@ const AnaliseDjen = () => {
                     <FileSearch className="w-3 h-3 mr-1" />
                     {selectedPublicacao.monitoramento_tipo === 'advogado'
                       ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
-                      : selectedPublicacao.monitoramento_termo
+                      : selectedPublicacao.monitoramento_descricao || selectedPublicacao.monitoramento_termo
                     }
                   </Badge>
                 ) : (
