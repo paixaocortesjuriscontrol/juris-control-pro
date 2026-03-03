@@ -1552,7 +1552,7 @@ async function processarTermo(
         monitoramento_id: mon.id,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.processo || null,
-        conteudo: conteudo.slice(0, 10000),
+        conteudo: conteudo.slice(0, 100000),
         data_publicacao: `${dataPub}T12:00:00.000Z`,
         data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
         tribunal: getSiglaTribunal(pub),
