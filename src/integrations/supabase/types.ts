@@ -4474,8 +4474,10 @@ export type Database = {
           criado_por: string | null
           criado_por_nome: string | null
           data_base: string | null
+          data_criacao_projuris: string | null
           data_cumprimento: string | null
           data_fatal: string | null
+          data_prevista: string | null
           data_vencimento: string | null
           descricao: string | null
           descricao_ultimo_andamento: string | null
@@ -4519,8 +4521,10 @@ export type Database = {
           criado_por?: string | null
           criado_por_nome?: string | null
           data_base?: string | null
+          data_criacao_projuris?: string | null
           data_cumprimento?: string | null
           data_fatal?: string | null
+          data_prevista?: string | null
           data_vencimento?: string | null
           descricao?: string | null
           descricao_ultimo_andamento?: string | null
@@ -4564,8 +4568,10 @@ export type Database = {
           criado_por?: string | null
           criado_por_nome?: string | null
           data_base?: string | null
+          data_criacao_projuris?: string | null
           data_cumprimento?: string | null
           data_fatal?: string | null
+          data_prevista?: string | null
           data_vencimento?: string | null
           descricao?: string | null
           descricao_ultimo_andamento?: string | null
