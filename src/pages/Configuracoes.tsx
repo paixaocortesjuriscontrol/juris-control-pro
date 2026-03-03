@@ -184,7 +184,6 @@ export default function Configuracoes() {
               Varredura automática de termos estratégicos nas movimentações
             </p>
           </div>
-          <MonitoramentoTermosProCard coordenacaoId="" />
           <MonitoramentoTermosCard coordenacaoId="" />
         </TabsContent>
 
