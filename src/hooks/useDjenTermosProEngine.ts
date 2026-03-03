@@ -932,10 +932,18 @@ async function executarLoop(
     if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
     if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
     
+    console.log('[DJEN Pro] Filtros aplicados:', { coordenacaoId, monitoramentoIds, ativo: true });
+    
     const { data: termos, error } = await query;
     if (error) throw error;
+    
+    console.log('[DJEN Pro] Monitoramentos encontrados:', termos?.length ?? 0, termos?.map(t => ({ id: t.id, termo: t.termo_busca, ativo: t.ativo })));
+    
     if (!termos?.length) {
-      updateProgress({ status: 'concluido', mensagem: 'Nenhum monitoramento ativo encontrado', percentage: 100 });
+      const msg = coordenacaoId || monitoramentoIds?.length
+        ? 'Nenhum monitoramento ativo encontrado com os filtros selecionados. Verifique se o monitoramento está marcado como "Ativo".'
+        : 'Nenhum monitoramento ativo encontrado';
+      updateProgress({ status: 'erro', mensagem: msg, percentage: 0 });
       return;
     }
     
