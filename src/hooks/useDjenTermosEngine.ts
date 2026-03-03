@@ -885,9 +885,20 @@ async function processarTermo(
     variantesParaBuscar = Array.from(nomesParaBuscar);
     baseParams._advogadoSemOabNomes = true;
   } else {
-    // palavra-chave: usar SOMENTE a palavra-chave + tribunal (mon.tribunais)
-    const termoPuro = extrairPalavraChavePura(mon.termo_busca);
-    variantesParaBuscar = gerarVariantes(termoPuro);
+    // palavra-chave: buscar termo principal + termos_or (OR real) + tribunal (mon.tribunais)
+    const termosBase = [
+      extrairPalavraChavePura(mon.termo_busca),
+      ...((mon.termos_or || []).map((t) => extrairPalavraChavePura(String(t).trim()))),
+    ].filter(Boolean) as string[];
+
+    const variantesSet = new Set<string>();
+    for (const termo of termosBase) {
+      for (const variante of gerarVariantes(termo)) {
+        if (variante) variantesSet.add(variante);
+      }
+    }
+
+    variantesParaBuscar = Array.from(variantesSet);
   }
 
   // Expandir tribunais configurados

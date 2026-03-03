@@ -212,7 +212,18 @@ export function conteudoContemTermoOuOr(
   }
   
   if (monitoramento.tipo !== 'advogado') {
-    return conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab);
+    // palavra-chave/processo: aceitar termo principal OU qualquer termo OR
+    if (conteudoContemTermo(conteudo, termoPuro, monitoramento.tipo, monitoramento.oab)) {
+      return true;
+    }
+
+    const termosOrPuros = (monitoramento.termos_or || [])
+      .map((t) => extrairPalavraChavePura(t.trim()))
+      .filter(Boolean);
+
+    return termosOrPuros.some((t) =>
+      conteudoContemTermo(conteudo, t, monitoramento.tipo, undefined)
+    );
   }
 
   const termosOrPuros = (monitoramento.termos_or || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
