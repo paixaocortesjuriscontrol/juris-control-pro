@@ -231,6 +231,16 @@ export default function PainelControle() {
       return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false, pessoal: false, ...dateRange };
     }
 
+    if (isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
+      return {
+        responsavelIds: membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined,
+        coordenacaoIds: coordenacoesUsuario,
+        strictCoordenacaoIsolation: true,
+        fetchAll: false,
+        ...dateRange,
+      };
+    }
+
     if (membrosDasCoordenacoes.length > 0) {
       return {
         responsavelIds: membrosDasCoordenacoes,
@@ -244,7 +254,7 @@ export default function PainelControle() {
       fetchAll: false,
       ...dateRange,
     };
-  }, [tabMode, user?.id, isAdmin, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, dataInicio, dataFim]);
+  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
@@ -279,7 +289,7 @@ export default function PainelControle() {
   }, [tabMode, isAdmin, adminCoordFilter, membrosCoordFiltrada, membrosDasCoordenacoes, user?.id]);
 
   const { data: resumoStats } = useQuery({
-    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter],
+    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, isAdminOrCoordinator, adminCoordFilter, coordenacoesUsuario],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
@@ -299,6 +309,12 @@ export default function PainelControle() {
           .neq("status", "cumprido");
       } else if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
         // Admin escritório sem filtro: vê tudo
+      } else if (tabMode === "escritorio" && !isAdmin && isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
+        q = supabase
+          .from("tarefas")
+          .select(`${baseSelect}, processo:processos!inner(coordenacao_id)`)
+          .in("processo.coordenacao_id", coordenacoesUsuario)
+          .neq("status", "cumprido");
       } else if (membrosIdsParaResumo.length > 0) {
         if (tabMode === "pessoal") {
           const ids = membrosIdsParaResumo.join(",");
