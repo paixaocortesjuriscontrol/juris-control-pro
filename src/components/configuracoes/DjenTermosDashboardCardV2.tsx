@@ -522,7 +522,8 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       }
     }
 
-    // 2) Execução local (engine singleton)
+    // 2) Execução local (engine singleton) — concluído ou em execução
+    if (progress.status === 'concluido') return 100;
     if (isRunning && typeof progress.percentage === 'number') {
       return progress.percentage;
     }
