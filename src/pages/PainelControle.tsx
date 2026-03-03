@@ -706,52 +706,72 @@ export default function PainelControle() {
     <MainLayout title="Painel de Controle">
       <div className="flex flex-col -m-4 md:-m-6" style={{ height: "calc(100vh - 64px)" }}>
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0">
-          <h1 className="text-base md:text-xl font-bold text-foreground">Painel de Controle</h1>
-          <div className="flex gap-1 ml-2">
-            <Button
-              size="sm"
-              variant={tabMode === "pessoal" ? "default" : "outline"}
-              className="h-7 px-3 text-xs"
-              onClick={() => setTabMode("pessoal")}
-            >
-              Pessoal
-            </Button>
-            <Button
-              size="sm"
-              variant={tabMode === "escritorio" ? "default" : "outline"}
-              className="h-7 px-3 text-xs"
-              onClick={() => setTabMode("escritorio")}
-            >
-              Escritório
-            </Button>
+        <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-base md:text-xl font-bold text-foreground">Painel de Controle</h1>
+            <div className="flex gap-1 ml-2">
+              <Button
+                size="sm"
+                variant={tabMode === "pessoal" ? "default" : "outline"}
+                className="h-7 px-3 text-xs"
+                onClick={() => setTabMode("pessoal")}
+              >
+                Pessoal
+              </Button>
+              <Button
+                size="sm"
+                variant={tabMode === "escritorio" ? "default" : "outline"}
+                className="h-7 px-3 text-xs"
+                onClick={() => setTabMode("escritorio")}
+              >
+                Escritório
+              </Button>
+            </div>
+            {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
+            {isAdmin && tabMode === "escritorio" && (
+              <div className="hidden md:block">
+                <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
+                  <SelectTrigger className="h-7 w-52 text-xs">
+                    <SelectValue placeholder="Coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {todasCoordenacoes.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-1.5">
+              <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+              <Button
+                size="sm"
+                className="h-7 px-3 text-xs gap-1"
+                onClick={() => setNovaTarefaOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Nova Tarefa</span>
+                <span className="sm:hidden">Tarefa</span>
+              </Button>
+            </div>
           </div>
-          {/* Filtro de coordenação para admin no modo escritório */}
+          {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
           {isAdmin && tabMode === "escritorio" && (
-            <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
-              <SelectTrigger className="h-7 w-40 md:w-52 text-xs">
-                <SelectValue placeholder="Coordenação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas as coordenações</SelectItem>
-                {todasCoordenacoes.map((coord) => (
-                  <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="md:hidden">
+              <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
+                <SelectTrigger className="h-8 w-full text-xs">
+                  <SelectValue placeholder="Coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as coordenações</SelectItem>
+                  {todasCoordenacoes.map((coord) => (
+                    <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
-          <div className="ml-auto flex items-center gap-1.5">
-            <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
-            <Button
-              size="sm"
-              className="h-7 px-3 text-xs gap-1"
-              onClick={() => setNovaTarefaOpen(true)}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Nova Tarefa</span>
-              <span className="sm:hidden">Tarefa</span>
-            </Button>
-          </div>
         </div>
 
         {/* Cards de Resumo — compactos no mobile */}
