@@ -98,32 +98,50 @@ export default function PainelControle() {
   const hoje = startOfDay(nowBrt);
 
   // Buscar coordenações do usuário (para filtro "Escritório")
+  // Inclui coordenações onde é membro OU coordenador
   const { data: coordenacoesUsuario = [], isLoading: coordLoading } = useQuery({
     queryKey: ["painel-controle-coordenacoes-usuario", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      // Admin: não precisa filtrar por coordenação
-      const { data, error } = await supabase
+      // Buscar como membro
+      const { data: membros } = await supabase
         .from("membros_coordenacao")
         .select("coordenacao_id")
         .eq("usuario_id", user.id);
-      if (error) throw error;
-      return (data || []).map((r) => r.coordenacao_id);
+      // Buscar como coordenador
+      const { data: coordenador } = await supabase
+        .from("coordenacoes")
+        .select("id")
+        .eq("coordenador_id", user.id);
+      const ids = new Set([
+        ...(membros || []).map((r) => r.coordenacao_id),
+        ...(coordenador || []).map((r) => r.id),
+      ]);
+      return [...ids];
     },
     enabled: !!user?.id,
   });
 
   // Buscar IDs de todos os membros das coordenações do usuário (para modo escritório)
+  // Inclui membros + coordenadores
   const { data: membrosDasCoordenacoes = [], isLoading: membrosLoading } = useQuery({
     queryKey: ["painel-controle-membros-coordenacoes", coordenacoesUsuario],
     queryFn: async () => {
       if (!coordenacoesUsuario.length) return [];
-      const { data, error } = await supabase
+      const { data: membros } = await supabase
         .from("membros_coordenacao")
         .select("usuario_id")
         .in("coordenacao_id", coordenacoesUsuario);
-      if (error) throw error;
-      return [...new Set((data || []).map((r) => r.usuario_id))];
+      const { data: coords } = await supabase
+        .from("coordenacoes")
+        .select("coordenador_id")
+        .in("id", coordenacoesUsuario)
+        .not("coordenador_id", "is", null);
+      const ids = new Set([
+        ...(membros || []).map((r) => r.usuario_id),
+        ...(coords || []).map((r) => r.coordenador_id!),
+      ]);
+      return [...ids];
     },
     enabled: coordenacoesUsuario.length > 0,
   });
@@ -142,17 +160,23 @@ export default function PainelControle() {
     enabled: isAdmin,
   });
 
-  // Membros da coordenação filtrada (admin)
+  // Membros da coordenação filtrada (admin) — inclui coordenador
   const { data: membrosCoordFiltrada = [], isLoading: membrosFilterLoading } = useQuery({
     queryKey: ["painel-controle-membros-coord-filtrada", adminCoordFilter],
     queryFn: async () => {
       if (adminCoordFilter === "todas") return [];
-      const { data, error } = await supabase
+      const { data: membros } = await supabase
         .from("membros_coordenacao")
         .select("usuario_id")
         .eq("coordenacao_id", adminCoordFilter);
-      if (error) throw error;
-      return [...new Set((data || []).map((r) => r.usuario_id))];
+      const { data: coord } = await supabase
+        .from("coordenacoes")
+        .select("coordenador_id")
+        .eq("id", adminCoordFilter)
+        .maybeSingle();
+      const ids = new Set((membros || []).map((r) => r.usuario_id));
+      if (coord?.coordenador_id) ids.add(coord.coordenador_id);
+      return [...ids];
     },
     enabled: isAdmin && adminCoordFilter !== "todas",
   });
