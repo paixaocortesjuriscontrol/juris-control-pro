@@ -42,6 +42,10 @@ export function useDjenTermosPro() {
           toast.success(`DJEN Pro: ${p.novas} novas publicações encontradas!`);
         }
       }
+      
+      if (p.status === 'erro') {
+        toast.error(p.mensagem || 'Erro na execução DJEN Pro');
+      }
     });
     return unsubscribe;
   }, [queryClient]);
