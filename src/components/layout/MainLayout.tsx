@@ -25,6 +25,8 @@ export function MainLayout({ children, title, subtitle, headerActions, className
     // Pro scheduler: apenas instancia — ele auto-inicia do DB se ativo
     // Isso garante que a instância singleton seja criada
     void import('@/hooks/useDjenTermosProScheduler').then(m => m.getDjenTermosProSchedulerStatus());
+    // Processos scheduler: mesmo pattern — auto-inicia do DB se ativo
+    void import('@/hooks/useDjenProcessosScheduler').then(m => m.getDjenProcessosSchedulerStatus());
     return () => {
       stopDjenTermosScheduler();
       // NÃO parar o scheduler Pro no unmount, para não persistir ativo=false ao fechar/reabrir navegador
