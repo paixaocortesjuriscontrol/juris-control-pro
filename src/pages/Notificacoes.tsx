@@ -28,6 +28,7 @@ import {
   ListTodo,
   Gavel,
   FileWarning,
+  FileQuestion,
   Search,
   X,
   CalendarDays,
@@ -50,6 +51,7 @@ import { cn } from "@/lib/utils";
 import { DashboardCoordenacoes } from "@/components/notificacoes/DashboardCoordenacoes";
 import { CoordenacaoDetalhesView } from "@/components/notificacoes/CoordenacaoDetalhesView";
 import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatorioPdfDialog";
+import { AlertasNaoCadastradosNotificacoes } from "@/components/notificacoes/AlertasNaoCadastradosNotificacoes";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -186,6 +188,7 @@ export default function Notificacoes() {
       out.tarefas += c.tarefas;
       out.audiencias += c.audiencias;
       out.intimacoes += c.intimacoes;
+      out.proc_nao_cadastrados += c.proc_nao_cadastrados;
     }
 
     out.total =
@@ -197,7 +200,8 @@ export default function Notificacoes() {
       out.prazos +
       out.tarefas +
       out.audiencias +
-      out.intimacoes;
+      out.intimacoes +
+      out.proc_nao_cadastrados;
 
     return out;
   }, [coordenacaoId, countsSingle, countsByCoord, visibleCoordIds]);
@@ -730,6 +734,7 @@ export default function Notificacoes() {
       tarefas: 0,
       audiencias: 0,
       intimacoes: 0,
+      proc_nao_cadastrados: 0,
       total: 0,
     };
 
@@ -974,7 +979,7 @@ export default function Notificacoes() {
 
 
       {/* Cards de resumo por tipo */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-12 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-13 gap-3 mb-6">
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
@@ -1169,6 +1174,26 @@ export default function Notificacoes() {
               </Badge>
             </div>
             <p className="mt-2 text-xs font-medium">Andamentos</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+            activeTab === "nao-cadastrados" && "ring-2 ring-teal-500"
+          )}
+          onClick={() => setActiveTab("nao-cadastrados")}
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="p-1.5 rounded-lg bg-teal-500/10">
+                <FileQuestion className="w-4 h-4 text-teal-500" />
+              </div>
+              <Badge variant="secondary" className="bg-teal-500/10 text-teal-500 text-xs px-1.5">
+                {stats.proc_nao_cadastrados ?? 0}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs font-medium">Não Cadast.</p>
           </CardContent>
         </Card>
 
@@ -1913,6 +1938,27 @@ export default function Notificacoes() {
                     ))}
                   </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Processos Não Cadastrados */}
+        <TabsContent value="nao-cadastrados">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileQuestion className="w-5 h-5 text-teal-500" />
+                Alertas em Processos Não Cadastrados ({stats.proc_nao_cadastrados ?? 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AlertasNaoCadastradosNotificacoes 
+                coordenacaoId={coordenacaoId !== "todas" ? coordenacaoId : undefined}
+                statusFilter={statusFilter}
+                periodoInicio={periodoInicio}
+                periodoFim={periodoFim}
+                searchQuery={searchQuery}
+              />
             </CardContent>
           </Card>
         </TabsContent>

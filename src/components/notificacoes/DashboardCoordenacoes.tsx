@@ -18,6 +18,7 @@ import {
   ListTodo,
   Gavel,
   FileWarning,
+  FileQuestion,
   User,
   Newspaper,
   Scale,
@@ -508,6 +509,19 @@ export function DashboardCoordenacoes({
                           >
                             <FileWarning className="h-4 w-4 text-orange-600" />
                             <span className="text-xs font-semibold text-orange-600">{coord.intimacoes}</span>
+                          </div>
+                        )}
+                        {(coord as any).proc_nao_cadastrados > 0 && (
+                          <div 
+                            className="flex flex-col items-center p-1.5 rounded-md bg-teal-600/15 cursor-pointer hover:bg-teal-600/25 transition-colors" 
+                            title="Processos Não Cadastrados"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectCoordenacao(coord.id, "nao-cadastrados");
+                            }}
+                          >
+                            <FileQuestion className="h-4 w-4 text-teal-600" />
+                            <span className="text-xs font-semibold text-teal-600">{(coord as any).proc_nao_cadastrados}</span>
                           </div>
                         )}
                       </div>

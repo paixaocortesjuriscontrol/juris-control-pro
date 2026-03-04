@@ -13,6 +13,7 @@ import {
   ListTodo,
   Gavel,
   FileWarning,
+  FileQuestion,
   Activity,
   ArrowLeft,
   ExternalLink,
@@ -236,6 +237,40 @@ export function CoordenacaoDetalhesView({
     },
   });
 
+  // Buscar alertas de processos não cadastrados
+  const { data: naoCadastradosData = [] } = useQuery({
+    queryKey: ["nao-cadastrados-detalhes-coord", coordenacaoId, statusFilter, periodoInicio, periodoFim],
+    queryFn: async () => {
+      let query = supabase
+        .from("alertas_processos_nao_cadastrados")
+        .select(`
+          *,
+          termo:termos_monitoramento(termo, categoria),
+          coordenacao:coordenacoes(nome)
+        `)
+        .eq("coordenacao_id", coordenacaoId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (statusFilter !== "todas") {
+        const status = statusFilter === "concluido" ? "tratado" : statusFilter;
+        query = query.eq("status", status);
+      }
+      if (periodoInicio) {
+        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+      }
+      if (periodoFim) {
+        const fim = new Date(periodoFim.getTime() + 86400000);
+        query = query.lt("created_at", format(fim, "yyyy-MM-dd"));
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!coordenacaoId,
+  });
+
   // Buscar andamentos
   const { data: andamentosData = [] } = useQuery({
     queryKey: ["andamentos-detalhes-coord", coordenacaoId, periodoInicio, periodoFim],
@@ -376,6 +411,13 @@ export function CoordenacaoDetalhesView({
     });
   }, [andamentosData, coordenacaoId, matchesSearch]);
 
+  const naoCadastradosFiltrados = useMemo(() => {
+    return naoCadastradosData.filter((a: any) => {
+      if (!matchesSearch(a.processo_numero) && !matchesSearch(a.termo_encontrado)) return false;
+      return true;
+    });
+  }, [naoCadastradosData, matchesSearch]);
+
   // Navegação para processo com aba específica
   const handleNavigateProcesso = async (processoIdOrNumero: string | null | undefined, tab: string) => {
     if (!processoIdOrNumero) {
@@ -437,7 +479,7 @@ export function CoordenacaoDetalhesView({
 
   const total = publicacoesFiltradas.length + distribuicoesFiltradas.length + alertasFiltrados.length +
     redistribuicoesFiltradas.length + prazosFiltrados.length + tarefasFiltradas.length +
-    audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length;
+    audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length + naoCadastradosFiltrados.length;
 
   // ============ RENDER CARDS COM DETALHES COMPLETOS ============
 
@@ -994,6 +1036,50 @@ export function CoordenacaoDetalhesView({
     </Card>
   );
 
+  const renderNaoCadastradosCard = () => naoCadastradosFiltrados.length > 0 && (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileQuestion className="w-4 h-4 text-teal-500" />
+          Processos Não Cadastrados ({naoCadastradosFiltrados.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {naoCadastradosFiltrados.map((alerta: any) => (
+              <div
+                key={alerta.id}
+                className="p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{alerta.processo_numero}</span>
+                      <Badge variant="outline" className={getPrioridadeColor(alerta.prioridade)}>
+                        {alerta.prioridade}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {alerta.termo_encontrado}
+                      </Badge>
+                    </div>
+                    {alerta.contexto && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{alerta.contexto}</p>
+                    )}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatDistanceToNow(new Date(alerta.created_at), { addSuffix: true, locale: ptBR })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+
   // Montar array de cards na ordem: todos menos redistribuições, depois redistribuições por último
   const allCards = [
     { key: 'djen', render: renderDjenCard, hasData: publicacoesFiltradas.length > 0 },
@@ -1004,6 +1090,7 @@ export function CoordenacaoDetalhesView({
     { key: 'audiencias', render: renderAudienciasCard, hasData: audienciasFiltradas.length > 0 },
     { key: 'intimacoes', render: renderIntimacoesCard, hasData: intimacoesFiltradas.length > 0 },
     { key: 'andamentos', render: renderAndamentosCard, hasData: andamentosFiltrados.length > 0 },
+    { key: 'nao-cadastrados', render: renderNaoCadastradosCard, hasData: naoCadastradosFiltrados.length > 0 },
     { key: 'redistribuicoes', render: renderRedistribuicoesCard, hasData: redistribuicoesFiltradas.length > 0 },
   ];
 
@@ -1021,6 +1108,7 @@ export function CoordenacaoDetalhesView({
     audiencias: "Audiências",
     intimacoes: "Intimações",
     andamentos: "Andamentos",
+    'nao-cadastrados': "Processos Não Cadastrados",
     redistribuicoes: "Redistribuições",
   };
 
