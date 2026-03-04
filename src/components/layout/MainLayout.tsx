@@ -3,7 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
-import { startDjenTermosProScheduler, stopDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
+
 
 export interface MainLayoutProps {
   children: ReactNode;
@@ -27,7 +27,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
     void import('@/hooks/useDjenTermosProScheduler').then(m => m.getDjenTermosProSchedulerStatus());
     return () => {
       stopDjenTermosScheduler();
-      stopDjenTermosProScheduler();
+      // NÃO parar o scheduler Pro no unmount, para não persistir ativo=false ao fechar/reabrir navegador
     };
   }, []);
 
