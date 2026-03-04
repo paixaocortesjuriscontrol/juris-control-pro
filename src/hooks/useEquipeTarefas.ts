@@ -227,8 +227,14 @@ async function fetchTarefasForMembers(
     .in("responsavel_id", memberIds)
     .order("data_vencimento", { ascending: true, nullsFirst: false });
 
+  const today = new Date().toISOString().split("T")[0];
+
   if (filters.status && filters.status !== "all") {
-    query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+    if (filters.status === "atrasado") {
+      query = query.neq("status", "cumprido").lt("data_vencimento", today);
+    } else {
+      query = query.eq("status", filters.status as "pendente" | "cumprido" | "atrasado");
+    }
   }
 
   if (filters.prioridade && filters.prioridade !== "all") {
