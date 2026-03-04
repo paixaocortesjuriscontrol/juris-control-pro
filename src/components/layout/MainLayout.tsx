@@ -17,13 +17,14 @@ export function MainLayout({ children, title, subtitle, headerActions, className
   const isMobile = useIsMobile();
 
   // Inicializa os schedulers de DJEN Termos e Termos Pro
+  // O Pro scheduler carrega automaticamente do DB no construtor e auto-inicia se ativo
   useEffect(() => {
     if (localStorage.getItem('djen-termos-scheduler-enabled') === 'true') {
       startDjenTermosScheduler();
     }
-    if (localStorage.getItem('djen-termos-pro-scheduler-enabled') === 'true') {
-      startDjenTermosProScheduler();
-    }
+    // Pro scheduler: apenas instancia — ele auto-inicia do DB se ativo
+    // Isso garante que a instância singleton seja criada
+    void import('@/hooks/useDjenTermosProScheduler').then(m => m.getDjenTermosProSchedulerStatus());
     return () => {
       stopDjenTermosScheduler();
       stopDjenTermosProScheduler();
