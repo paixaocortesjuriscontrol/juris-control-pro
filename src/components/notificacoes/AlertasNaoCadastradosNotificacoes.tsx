@@ -46,11 +46,14 @@ export function AlertasNaoCadastradosNotificacoes({
         query = query.eq("coordenacao_id", coordenacaoId);
       }
       if (periodoInicio) {
-        query = query.gte("created_at", format(periodoInicio, "yyyy-MM-dd"));
+        const ini = format(periodoInicio, "yyyy-MM-dd") + "T03:00:00Z";
+        query = query.gte("created_at", ini);
       }
       if (periodoFim) {
-        const fim = new Date(periodoFim.getTime() + 86400000);
-        query = query.lt("created_at", format(fim, "yyyy-MM-dd"));
+        const fimDate = new Date(periodoFim);
+        fimDate.setDate(fimDate.getDate() + 1);
+        const fim = format(fimDate, "yyyy-MM-dd") + "T02:59:59.999Z";
+        query = query.lte("created_at", fim);
       }
       if (searchQuery?.trim()) {
         query = query.or(`processo_numero.ilike.%${searchQuery}%,termo_encontrado.ilike.%${searchQuery}%`);
