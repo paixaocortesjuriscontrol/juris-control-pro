@@ -30,6 +30,7 @@ class DjenTermosProScheduler {
   private lastToastTime = 0;
   private dbConfigId: string | null = null;
   private dbLoaded = false;
+  private dbLoadPromise: Promise<void>;
 
   private readonly INTERVAL_MS = 30000;
   private targetHour = 20;
@@ -38,8 +39,8 @@ class DjenTermosProScheduler {
 
   constructor() {
     this.loadLastRunDate();
-    // Load from DB asynchronously
-    this.loadFromDb();
+    // Load from DB asynchronously, keep promise for awaiting
+    this.dbLoadPromise = this.loadFromDb();
   }
 
   /** Load config from configuracoes_monitoramento */
@@ -81,11 +82,14 @@ class DjenTermosProScheduler {
 
   /** Upsert config in DB */
   private async saveToDb() {
+    // Ensure DB config is loaded first to avoid inserting duplicates
+    await this.dbLoadPromise;
+
     try {
       const horarioStr = `${String(this.targetHour).padStart(2, '0')}:${String(this.targetMinute).padStart(2, '0')}`;
 
       if (this.dbConfigId) {
-        await supabase
+        const { error } = await supabase
           .from('configuracoes_monitoramento')
           .update({
             ativo: this.isRunning,
@@ -93,8 +97,14 @@ class DjenTermosProScheduler {
             updated_at: new Date().toISOString(),
           })
           .eq('id', this.dbConfigId);
+
+        if (error) {
+          console.error('[Pro Scheduler] Erro ao atualizar config no DB:', error);
+        } else {
+          console.log('[Pro Scheduler] Config salva no DB: ativo=', this.isRunning, 'horario=', horarioStr);
+        }
       } else {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('configuracoes_monitoramento')
           .insert({
             tipo: 'djen_pro',
@@ -105,8 +115,11 @@ class DjenTermosProScheduler {
           .select('id')
           .single();
 
-        if (data) {
+        if (error) {
+          console.error('[Pro Scheduler] Erro ao inserir config no DB:', error);
+        } else if (data) {
           this.dbConfigId = data.id;
+          console.log('[Pro Scheduler] Config criada no DB: id=', data.id, 'ativo=', this.isRunning);
         }
       }
     } catch (err) {
