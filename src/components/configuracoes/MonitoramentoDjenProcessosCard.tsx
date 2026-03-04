@@ -581,12 +581,12 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
             </Badge>
           </div>
           
-          {config?.ultima_execucao && (
+          {(ultimoHistorico?.executado_em || config?.ultima_execucao) && (
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Clock className="h-4 w-4" />
                 <span>
-                  Última execução: {format(toZonedTime(new Date(config.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  Última execução: {format(toZonedTime(new Date(ultimoHistorico?.executado_em || config.ultima_execucao), 'America/Sao_Paulo'), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </span>
               </div>
               {ultimoHistorico && (
