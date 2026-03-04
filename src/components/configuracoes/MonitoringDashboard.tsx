@@ -19,7 +19,7 @@ import {
   StopCircle, TrendingUp, Hash, Timer, Zap, BarChart3, MinusCircle, Mail
 } from "lucide-react";
 import { useEnviarResumoManual } from "@/hooks/useEnviarResumoManual";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -538,6 +538,77 @@ export function MonitoringDashboard({ onNavigateToTab }: MonitoringDashboardProp
   const [confirmResumeTipo, setConfirmResumeTipo] = useState<string | null>(null);
   const [confirmReativarOpen, setConfirmReativarOpen] = useState(false);
   const [confirmTipo, setConfirmTipo] = useState<string | null>(null);
+
+  // ── Auto-retry: quando um monitoramento Edge Function entra em timeout com
+  //    progresso incompleto (checkpoint), retoma automaticamente após 15 s.
+  const autoRetryTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const autoRetryCountRef = useRef<Record<string, number>>({});
+  const MAX_AUTO_RETRIES = 5;
+
+  useEffect(() => {
+    // Tipos elegíveis para auto-retry (Edge Function based, com checkpoint)
+    const EDGE_FN_TYPES = ['redistribuicoes', 'andamentos', 'distribuicoes'];
+
+    for (const stats of monitoringStats) {
+      if (!EDGE_FN_TYPES.includes(stats.tipo)) continue;
+
+      const metadata = stats.config?.metadata as Record<string, any> | undefined;
+      const nextOffset = Number(metadata?.next_offset || 0);
+      const total = Number(metadata?.total || 0);
+      const hasCheckpoint = nextOffset > 0 && total > 0 && nextOffset < total;
+      const isTimeout = stats.status === 'timeout';
+      const retryCount = autoRetryCountRef.current[stats.tipo] || 0;
+
+      if (isTimeout && hasCheckpoint && retryCount < MAX_AUTO_RETRIES && !executing[stats.tipo]) {
+        // Agendar auto-retry se ainda não foi agendado
+        if (!autoRetryTimersRef.current[stats.tipo]) {
+          const pct = Math.round((nextOffset / total) * 100);
+          console.log(`[AutoRetry] ${stats.tipo}: timeout em ${pct}% (${nextOffset}/${total}), agendando retomada em 15s (tentativa ${retryCount + 1}/${MAX_AUTO_RETRIES})`);
+          
+          autoRetryTimersRef.current[stats.tipo] = setTimeout(async () => {
+            delete autoRetryTimersRef.current[stats.tipo];
+            autoRetryCountRef.current[stats.tipo] = (autoRetryCountRef.current[stats.tipo] || 0) + 1;
+            const attempt = autoRetryCountRef.current[stats.tipo];
+            
+            toast.info(`Retomando ${stats.nome} automaticamente (tentativa ${attempt}/${MAX_AUTO_RETRIES})...`);
+
+            try {
+              setExecuting(prev => ({ ...prev, [stats.tipo]: true }));
+              setOptimisticStartByTipo(prev => ({ ...prev, [stats.tipo]: Date.now() }));
+              
+              await executeMonitoring(stats.tipo, { retomar: true });
+              
+              setTimeout(() => {
+                setOptimisticStartByTipo(prev => {
+                  const next = { ...prev };
+                  delete next[stats.tipo];
+                  return next;
+                });
+              }, 20000);
+            } catch (err) {
+              console.error(`[AutoRetry] Erro ao retomar ${stats.tipo}:`, err);
+              toast.error(`Erro ao retomar ${stats.nome}: ${(err as Error).message}`);
+            } finally {
+              setExecuting(prev => ({ ...prev, [stats.tipo]: false }));
+            }
+          }, 15000);
+        }
+      } else if (stats.status === 'completed' || stats.status === 'idle') {
+        // Reset contador quando completou ou voltou a idle
+        if (autoRetryCountRef.current[stats.tipo]) {
+          autoRetryCountRef.current[stats.tipo] = 0;
+        }
+        if (autoRetryTimersRef.current[stats.tipo]) {
+          clearTimeout(autoRetryTimersRef.current[stats.tipo]);
+          delete autoRetryTimersRef.current[stats.tipo];
+        }
+      }
+    }
+
+    return () => {
+      // Cleanup apenas ao desmontar
+    };
+  }, [monitoringStats, executing, executeMonitoring]);
 
   const reativarConfig = async (tipo: string) => {
     const { data: config, error } = await supabase
