@@ -1,10 +1,10 @@
 /**
  * DJEN Termos Pro Scheduler
  * 
- * Mesmo padrão do scheduler de Termos:
- * - Dispara automaticamente após o horário alvo (20:45 BRT)
- * - Se o browser abrir depois, executa assim que possível
- * - Usa data do dia como início e fim
+ * Persiste horário e status ativo na tabela configuracoes_monitoramento (tipo='djen_pro').
+ * Dispara automaticamente após o horário alvo (BRT).
+ * Se o browser abrir depois, executa assim que possível.
+ * Usa data do dia como início e fim.
  */
 
 import { useEffect, useState } from 'react';
@@ -28,27 +28,89 @@ class DjenTermosProScheduler {
   private lastRunDate: string | null = null;
   private lastCheckTime = 0;
   private lastToastTime = 0;
+  private dbConfigId: string | null = null;
+  private dbLoaded = false;
 
   private readonly INTERVAL_MS = 30000;
   private targetHour = 20;
   private targetMinute = 45;
   private readonly TOAST_COOLDOWN_MS = 60000;
-  private readonly STORAGE_KEY = 'djen-termos-pro-scheduler-enabled';
-  private readonly TIME_KEY = 'djen-termos-pro-scheduler-time';
 
   constructor() {
     this.loadLastRunDate();
-    this.loadTargetTime();
+    // Load from DB asynchronously
+    this.loadFromDb();
   }
 
-  private loadTargetTime() {
-    const stored = localStorage.getItem(this.TIME_KEY);
-    if (stored) {
-      const [h, m] = stored.split(':').map(Number);
-      if (!isNaN(h) && !isNaN(m)) {
-        this.targetHour = h;
-        this.targetMinute = m;
+  /** Load config from configuracoes_monitoramento */
+  private async loadFromDb() {
+    try {
+      const { data, error } = await supabase
+        .from('configuracoes_monitoramento')
+        .select('id, ativo, horarios_execucao, metadata')
+        .eq('tipo', 'djen_pro')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[Pro Scheduler] Erro ao carregar config do DB:', error);
+        return;
       }
+
+      if (data) {
+        this.dbConfigId = data.id;
+        const horarios = data.horarios_execucao as string[] | null;
+        if (horarios && horarios.length > 0) {
+          const [h, m] = horarios[0].split(':').map(Number);
+          if (!isNaN(h) && !isNaN(m)) {
+            this.targetHour = h;
+            this.targetMinute = m;
+          }
+        }
+        // If DB says ativo=true, auto-start
+        if (data.ativo && !this.isRunning) {
+          this.startInternal();
+        }
+      }
+      this.dbLoaded = true;
+      this.notifySubscribers();
+    } catch (err) {
+      console.error('[Pro Scheduler] Erro ao carregar config do DB:', err);
+    }
+  }
+
+  /** Upsert config in DB */
+  private async saveToDb() {
+    try {
+      const horarioStr = `${String(this.targetHour).padStart(2, '0')}:${String(this.targetMinute).padStart(2, '0')}`;
+
+      if (this.dbConfigId) {
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({
+            ativo: this.isRunning,
+            horarios_execucao: [horarioStr],
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', this.dbConfigId);
+      } else {
+        const { data } = await supabase
+          .from('configuracoes_monitoramento')
+          .insert({
+            tipo: 'djen_pro',
+            ativo: this.isRunning,
+            horarios_execucao: [horarioStr],
+            frequencia: 'diario',
+          })
+          .select('id')
+          .single();
+
+        if (data) {
+          this.dbConfigId = data.id;
+        }
+      }
+    } catch (err) {
+      console.error('[Pro Scheduler] Erro ao salvar config no DB:', err);
     }
   }
 
@@ -65,7 +127,6 @@ class DjenTermosProScheduler {
 
   private getBrtHourMinute(): { hour: number; minute: number } {
     const str = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour12: false });
-    // str format: "MM/DD/YYYY, HH:MM:SS"
     const timePart = str.split(', ')[1];
     const [h, m] = timePart.split(':').map(Number);
     return { hour: h === 24 ? 0 : h, minute: m };
@@ -124,6 +185,14 @@ class DjenTermosProScheduler {
       const key = `djen-pro-scheduler-last-run-${todayYmd}`;
       localStorage.setItem(key, String(Date.now()));
 
+      // Update ultima_execucao in DB
+      if (this.dbConfigId) {
+        await supabase
+          .from('configuracoes_monitoramento')
+          .update({ ultima_execucao: new Date().toISOString() })
+          .eq('id', this.dbConfigId);
+      }
+
       this.showToast('DJEN Termos Pro iniciado com sucesso', 'success');
       this.notifySubscribers();
     } catch (err) {
@@ -149,11 +218,10 @@ class DjenTermosProScheduler {
     });
   }
 
-  start() {
+  private startInternal() {
     if (this.isRunning) return;
     this.isRunning = true;
     this.loadLastRunDate();
-    localStorage.setItem(this.STORAGE_KEY, 'true');
 
     setTimeout(() => this.checkAndRun(), 2000);
 
@@ -164,16 +232,21 @@ class DjenTermosProScheduler {
     this.notifySubscribers();
   }
 
+  start() {
+    this.startInternal();
+    this.saveToDb();
+  }
+
   stop() {
     if (!this.isRunning) return;
     this.isRunning = false;
-    localStorage.setItem(this.STORAGE_KEY, 'false');
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
 
+    this.saveToDb();
     this.notifySubscribers();
   }
 
@@ -203,7 +276,7 @@ class DjenTermosProScheduler {
   setTime(hour: number, minute: number) {
     this.targetHour = hour;
     this.targetMinute = minute;
-    localStorage.setItem(this.TIME_KEY, `${hour}:${minute}`);
+    this.saveToDb();
     this.notifySubscribers();
   }
 
