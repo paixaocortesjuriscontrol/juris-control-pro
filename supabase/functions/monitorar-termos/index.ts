@@ -847,6 +847,140 @@ Deno.serve(async (req) => {
         executado_em: new Date().toISOString(),
       });
       console.log('Histórico de monitoramento salvo');
+
+      // ========== ENVIAR RESUMO VIA WHATSAPP/EMAIL ==========
+      // Consultar alertas do dia agrupados por coordenação para montar resumo
+      try {
+        const totalAcumulado = ((configData?.metadata as any)?.alertasGerados || 0) + alertasGerados;
+        
+        if (totalAcumulado > 0 || alertasNaoCadastradosGerados > 0) {
+          // Buscar alertas cadastrados do dia por coordenação
+          const { data: alertasCadastradosHoje } = await supabase
+            .from('alertas_monitoramento')
+            .select('processo_id, termo_encontrado, contexto, prioridade, processo:processos(numero, coordenacao_id)')
+            .like('contexto', '%[DJEN]%')
+            .gte('created_at', dataFiltro)
+            .limit(2000);
+
+          // Buscar alertas não cadastrados do dia por coordenação
+          const { data: alertasNaoCadHoje } = await supabase
+            .from('alertas_processos_nao_cadastrados')
+            .select('processo_numero, termo_encontrado, contexto, prioridade, coordenacao_id')
+            .gte('created_at', dataFiltro)
+            .limit(2000);
+
+          // Buscar nomes das coordenações
+          const { data: coordenacoes } = await supabase
+            .from('coordenacoes')
+            .select('id, nome');
+          const coordMap = new Map((coordenacoes || []).map((c: any) => [c.id, c.nome]));
+
+          // Agrupar por coordenação
+          const resumoPorCoord = new Map<string, {
+            coordenacao_nome: string;
+            cadastrados: number;
+            nao_cadastrados: number;
+            audiencias: number;
+            intimacoes: number;
+            exemplos: any[];
+          }>();
+
+          for (const a of (alertasCadastradosHoje || [])) {
+            const coordId = (a as any).processo?.coordenacao_id;
+            if (!coordId) continue;
+            if (!resumoPorCoord.has(coordId)) {
+              resumoPorCoord.set(coordId, {
+                coordenacao_nome: coordMap.get(coordId) || 'Coordenação',
+                cadastrados: 0,
+                nao_cadastrados: 0,
+                audiencias: 0,
+                intimacoes: 0,
+                exemplos: [],
+              });
+            }
+            const r = resumoPorCoord.get(coordId)!;
+            r.cadastrados++;
+            if (r.exemplos.length < 20) {
+              r.exemplos.push({
+                processo_numero: (a as any).processo?.numero || '?',
+                descricao: `Termo: ${a.termo_encontrado} | ${a.prioridade}`,
+              });
+            }
+          }
+
+          for (const a of (alertasNaoCadHoje || [])) {
+            const coordId = a.coordenacao_id;
+            if (!coordId) continue;
+            if (!resumoPorCoord.has(coordId)) {
+              resumoPorCoord.set(coordId, {
+                coordenacao_nome: coordMap.get(coordId) || 'Coordenação',
+                cadastrados: 0,
+                nao_cadastrados: 0,
+                audiencias: 0,
+                intimacoes: 0,
+                exemplos: [],
+              });
+            }
+            const r = resumoPorCoord.get(coordId)!;
+            r.nao_cadastrados++;
+          }
+
+          // Montar payload de resumo com totais por tipo
+          const resumos_por_coordenacao = Array.from(resumoPorCoord.entries()).map(([coordId, r]) => {
+            const totalEncontrados = r.cadastrados + r.nao_cadastrados;
+            
+            // Adicionar resumo com totais por tipo no início dos exemplos
+            const exemplosTipados: any[] = [];
+            
+            if (r.cadastrados > 0) {
+              exemplosTipados.push({
+                processo_numero: `📊 PROCESSOS CADASTRADOS`,
+                descricao: `${r.cadastrados} alerta(s) em processos já cadastrados no sistema`,
+              });
+            }
+            if (r.nao_cadastrados > 0) {
+              exemplosTipados.push({
+                processo_numero: `📊 PROCESSOS NÃO CADASTRADOS`,
+                descricao: `${r.nao_cadastrados} alerta(s) em processos não cadastrados`,
+              });
+            }
+            
+            // Adicionar exemplos individuais (limitados)
+            exemplosTipados.push(...r.exemplos.slice(0, 15));
+
+            return {
+              coordenacao_id: coordId,
+              coordenacao_nome: r.coordenacao_nome,
+              total_verificados: totalRegistros,
+              total_encontrados: totalEncontrados,
+              exemplos: exemplosTipados,
+            };
+          });
+
+          if (resumos_por_coordenacao.length > 0) {
+            const resumoPayload = {
+              tipo_monitoramento: 'termos',
+              ignorar_horario: true,
+              resumos_por_coordenacao,
+            };
+
+            console.log(`Sending resumo for ${resumos_por_coordenacao.length} coordenações`);
+
+            fetch(`${supabaseUrl}/functions/v1/enviar-resumo-monitoramento`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify(resumoPayload),
+            }).catch(err => {
+              console.error('Error triggering resumo:', err);
+            });
+          }
+        }
+      } catch (resumoErr) {
+        console.error('Error building/sending resumo:', resumoErr);
+      }
     }
 
     const percentage = isComplete ? 100 : progressPercentage;
