@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,7 +19,7 @@ import { toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
-import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
+import { useDjenProcessosScheduler } from "@/hooks/useDjenProcessosScheduler";
 import { useRealtimeProgress } from "@/hooks/useRealtimeProgress";
 import { useDjenProcessos } from "@/hooks/useDjenProcessos";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -313,18 +313,11 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
     queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
   }, [forceKill, forceKillHibrido, queryClient]);
 
+  // Scheduler hook
+  const scheduler = useDjenProcessosScheduler();
+
   const handleFrequenciaChange = async (value: string) => {
-    if (!config?.id) return;
-    const { error } = await supabase
-      .from('configuracoes_monitoramento')
-      .update({ frequencia: value })
-      .eq('id', config.id);
-    if (error) {
-      toast.error('Erro ao atualizar frequência');
-    } else {
-      queryClient.invalidateQueries({ queryKey: ['config-djen-processos'] });
-      toast.success('Frequência atualizada');
-    }
+    // No longer used - kept for compatibility
   };
 
   const handleAtivoChange = async (checked: boolean) => {
@@ -619,31 +612,49 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
           )}
         </div>
 
-        {/* Frequência */}
-        <div className="space-y-2">
-          <Label>Frequência de Execução</Label>
-          <Select
-            value={config?.frequencia || 'diario'}
-            onValueChange={handleFrequenciaChange}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="diario">Diário (9h BRT)</SelectItem>
-              <SelectItem value="semanal">Semanal (Segunda 9h BRT)</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Execução automática às 09:00 BRT
-          </p>
-        </div>
+        {/* Agendamento Automático */}
+        <div className="space-y-3 p-3 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Agendamento Automático</Label>
+              <p className="text-xs text-muted-foreground">
+                Executa diariamente no horário configurado (BRT)
+              </p>
+            </div>
+            <Switch
+              checked={scheduler.ativo}
+              onCheckedChange={(checked) => {
+                if (checked) scheduler.start();
+                else scheduler.stop();
+              }}
+            />
+          </div>
 
-        {/* Horário agendado */}
-        <HorarioAgendadoInfo 
-          horariosExecucao={config?.horarios_execucao as string[] | null}
-          frequencia={config?.frequencia}
-        />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">Horário (BRT):</Label>
+            <Input
+              type="time"
+              value={scheduler.horario}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val) {
+                  const [h, m] = val.split(':').map(Number);
+                  if (!isNaN(h) && !isNaN(m)) {
+                    scheduler.setTime(h, m);
+                  }
+                }
+              }}
+              className="w-28 h-8 text-sm"
+            />
+          </div>
+
+          {scheduler.ativo && scheduler.proximoHorario && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              <span>Próximo: {scheduler.proximoHorario}</span>
+            </div>
+          )}
+        </div>
 
         {/* Relatório de Execuções */}
         {historicoCompleto && historicoCompleto.length > 0 && (
