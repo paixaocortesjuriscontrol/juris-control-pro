@@ -247,6 +247,78 @@ export type Database = {
           },
         ]
       }
+      alertas_processos_nao_cadastrados: {
+        Row: {
+          conteudo_publicacao: string | null
+          contexto: string | null
+          coordenacao_id: string | null
+          created_at: string
+          id: string
+          observacoes: string | null
+          prioridade: string
+          processo_numero: string
+          publicacao_id: string | null
+          status: string
+          termo_encontrado: string
+          termo_id: string
+          tratado_em: string | null
+          tratado_por: string | null
+          tribunal: string | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo_publicacao?: string | null
+          contexto?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          prioridade?: string
+          processo_numero: string
+          publicacao_id?: string | null
+          status?: string
+          termo_encontrado: string
+          termo_id: string
+          tratado_em?: string | null
+          tratado_por?: string | null
+          tribunal?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo_publicacao?: string | null
+          contexto?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          prioridade?: string
+          processo_numero?: string
+          publicacao_id?: string | null
+          status?: string
+          termo_encontrado?: string
+          termo_id?: string
+          tratado_em?: string | null
+          tratado_por?: string | null
+          tribunal?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_processos_nao_cadastrados_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_processos_nao_cadastrados_termo_id_fkey"
+            columns: ["termo_id"]
+            isOneToOne: false
+            referencedRelation: "termos_monitoramento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       areas_atuacao: {
         Row: {
           ativo: boolean
@@ -5135,6 +5207,7 @@ export type Database = {
           djen: number
           intimacoes: number
           prazos: number
+          proc_nao_cadastrados: number
           redistribuicoes: number
           tarefas: number
           total: number

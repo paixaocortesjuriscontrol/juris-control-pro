@@ -168,6 +168,10 @@ Deno.serve(async (req) => {
 
     const currentOffset = completeRun ? (configData?.metadata?.next_offset || 0) : 0;
 
+    // Verificar se a opção de incluir processos não cadastrados está ativa
+    const incluirNaoCadastrados = (configData?.metadata as any)?.incluir_nao_cadastrados === true;
+    console.log(`incluir_nao_cadastrados=${incluirNaoCadastrados}`);
+
     // Varrer SOMENTE publicações DJEN capturadas HOJE (início do dia em Brasília = 03:00 UTC)
     const hoje = new Date();
     const inicioDiaBrasilia = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate(), 3, 0, 0, 0));
@@ -306,13 +310,54 @@ Deno.serve(async (req) => {
       );
     }
 
+    const novosAlertasNaoCadastrados: any[] = [];
+    let alertasNaoCadastradosGerados = 0;
+
     for (const pub of djenTermosList) {
       const conteudoLower = (pub.conteudo || '').toLowerCase();
       const processoNumero = pub.processo_numero || '';
       
       // Usar o mapa de processo_id (busca O(1))
       const processoId = processoNumeroToId.get(processoNumero) || null;
-      if (!processoId) continue; // Sem processo vinculado, não gera alerta
+      
+      // Se não tem processo cadastrado E a opção está ativa, gerar alerta de processo não cadastrado
+      if (!processoId) {
+        if (incluirNaoCadastrados && processoNumero) {
+          for (const termo of termos) {
+            const termoLower = termo.termo.toLowerCase();
+            if (conteudoLower.includes(termoLower)) {
+              const dedupKeyNc = `nc-${processoNumero}-${termo.id}`;
+              if (djenProcessadas.has(dedupKeyNc)) continue;
+
+              const index = conteudoLower.indexOf(termoLower);
+              const start = Math.max(0, index - 50);
+              const end = Math.min(pub.conteudo.length, index + termo.termo.length + 50);
+              const contexto = '[DJEN - Processo não cadastrado] ' + (start > 0 ? '...' : '') + 
+                              pub.conteudo.slice(start, end) + 
+                              (end < pub.conteudo.length ? '...' : '');
+
+              // Obter coordenacao_id do monitoramento
+              const coordId = (pub as any).monitoramento?.coordenacao_id || null;
+
+              novosAlertasNaoCadastrados.push({
+                termo_id: termo.id,
+                processo_numero: processoNumero,
+                termo_encontrado: termo.termo,
+                contexto,
+                conteudo_publicacao: pub.conteudo?.substring(0, 1000) || null,
+                prioridade: termo.prioridade,
+                status: 'pendente',
+                coordenacao_id: coordId,
+                publicacao_id: pub.id,
+              });
+
+              djenProcessadas.add(dedupKeyNc);
+              alertasNaoCadastradosGerados++;
+            }
+          }
+        }
+        continue; // Sem processo vinculado, não gera alerta normal
+      }
 
       for (const termo of termos) {
         const termoLower = termo.termo.toLowerCase();
@@ -336,7 +381,7 @@ Deno.serve(async (req) => {
           novosAlertas.push({
             termo_id: termo.id,
             processo_id: processoId,
-            movimentacao_id: null, // Sem movimentação - veio do DJEN
+            movimentacao_id: null,
             termo_encontrado: termo.termo,
             contexto,
             prioridade: termo.prioridade,
@@ -393,7 +438,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Processed ${djenTermosList.length + djenProcessosList.length} DJEN publications in ${Date.now() - startTime}ms. Found ${alertasDjenGerados} DJEN alerts. Inserting ${novosAlertas.length} alerts, ${novasAudiencias.length} hearings, ${novasIntimacoes.length} summons...`);
+    console.log(`Processed ${djenTermosList.length + djenProcessosList.length} DJEN publications in ${Date.now() - startTime}ms. Found ${alertasDjenGerados} DJEN alerts + ${alertasNaoCadastradosGerados} não-cadastrados. Inserting ${novosAlertas.length} alerts, ${novosAlertasNaoCadastrados.length} não-cadastrados, ${novasAudiencias.length} hearings, ${novasIntimacoes.length} summons...`);
 
     // Inserir alertas em paralelo
     const insertPromises: Promise<any>[] = [];
@@ -402,6 +447,19 @@ Deno.serve(async (req) => {
       for (let i = 0; i < novosAlertas.length; i += 100) {
         const batch = novosAlertas.slice(i, i + 100);
         insertPromises.push(Promise.resolve(supabase.from('alertas_monitoramento').insert(batch)));
+      }
+    }
+
+    // Inserir alertas de processos não cadastrados (com ON CONFLICT para dedup)
+    if (novosAlertasNaoCadastrados.length > 0) {
+      for (let i = 0; i < novosAlertasNaoCadastrados.length; i += 100) {
+        const batch = novosAlertasNaoCadastrados.slice(i, i + 100);
+        insertPromises.push(
+          supabase.from('alertas_processos_nao_cadastrados').upsert(batch, {
+            onConflict: 'processo_numero,termo_id',
+            ignoreDuplicates: true,
+          })
+        );
       }
     }
 
@@ -865,6 +923,7 @@ Deno.serve(async (req) => {
         success: true,
         alertasGerados,
         alertasDjenGerados,
+        alertasNaoCadastradosGerados,
         alertasCriados: alertasGerados,
         audienciasDetectadas,
         intimacoesDetectadas,

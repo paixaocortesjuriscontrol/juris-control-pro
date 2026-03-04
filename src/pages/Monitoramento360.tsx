@@ -5,45 +5,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   Radar, 
-  AlertTriangle, 
-  Settings, 
   Play, 
   Loader2,
   Bell,
   Filter,
   Search,
-  Building2
+  Building2,
+  FileQuestion
 } from "lucide-react";
 import { useMonitoramento360 } from "@/hooks/useMonitoramento360";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
+import { useNaoCadastradosConfig } from "@/hooks/useNaoCadastradosConfig";
 import TermosConfig from "@/components/monitoramento360/TermosConfig";
 import AlertasList from "@/components/monitoramento360/AlertasList";
 import CarteirasConfig from "@/components/monitoramento360/CarteirasConfig";
+import AlertasNaoCadastradosList from "@/components/monitoramento360/AlertasNaoCadastradosList";
 
 export default function Monitoramento360() {
   const {
     termos,
     alertas,
-    loadingTermos,
-    loadingAlertas,
     termosAtivos,
     executarVarredura,
   } = useMonitoramento360();
 
   const { data: coordenacoes } = useCoordenacoes();
+  const { ativo, loading: loadingConfig, toggle } = useNaoCadastradosConfig();
   const [activeTab, setActiveTab] = useState("alertas");
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
 
-  // Filtrar alertas por coordenação selecionada
   const alertasFiltradosPorCoordenacao = alertas.filter((alerta) => {
     if (coordenacaoId === "todas") return true;
     if (!alerta.processo?.coordenacao_id) return false;
     return alerta.processo.coordenacao_id === coordenacaoId;
   });
 
-  // Calcular estatísticas baseadas nos alertas filtrados
   const alertasPendentes = alertasFiltradosPorCoordenacao.filter(a => a.status === 'pendente').length;
   const alertasUrgentes = alertasFiltradosPorCoordenacao.filter(a => a.status === 'pendente' && a.prioridade === 'urgente').length;
   const totalAlertas = alertasFiltradosPorCoordenacao.length;
@@ -90,6 +90,28 @@ export default function Monitoramento360() {
             </Button>
           </div>
         </div>
+
+        {/* Opção: Incluir Processos Não Cadastrados */}
+        <Card className="border-dashed">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileQuestion className="h-5 w-5 text-amber-500" />
+                <div>
+                  <Label className="text-sm font-medium">Incluir processos não cadastrados</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Pesquisa termos em publicações DJEN de processos que não estão importados no sistema
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={ativo}
+                onCheckedChange={toggle}
+                disabled={loadingConfig}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -144,7 +166,7 @@ export default function Monitoramento360() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
             <TabsTrigger value="alertas" className="gap-2">
               <Bell className="h-4 w-4" />
               Alertas
@@ -153,6 +175,10 @@ export default function Monitoramento360() {
                   {alertasPendentes}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="nao-cadastrados" className="gap-2">
+              <FileQuestion className="h-4 w-4" />
+              Não Cadastrados
             </TabsTrigger>
             <TabsTrigger value="termos" className="gap-2">
               <Search className="h-4 w-4" />
@@ -166,6 +192,10 @@ export default function Monitoramento360() {
 
           <TabsContent value="alertas" className="mt-6">
             <AlertasList coordenacaoId={coordenacaoId !== "todas" ? coordenacaoId : undefined} />
+          </TabsContent>
+
+          <TabsContent value="nao-cadastrados" className="mt-6">
+            <AlertasNaoCadastradosList coordenacaoId={coordenacaoId !== "todas" ? coordenacaoId : undefined} />
           </TabsContent>
 
           <TabsContent value="termos" className="mt-6">

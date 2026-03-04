@@ -388,7 +388,7 @@ export function GerarRelatorioPdfDialog({
     return coordsToInclude.map(coord => {
       const counts = countsByCoord[coord.id] || {
         djen: 0, distribuicoes: 0, alertas360: 0, redistribuicoes: 0,
-        andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, total: 0
+        andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, proc_nao_cadastrados: 0, total: 0
       };
 
       // Filtrar detalhes por coordenação
@@ -435,7 +435,7 @@ export function GerarRelatorioPdfDialog({
     
     const zero: NotificacoesCounts = {
       djen: 0, distribuicoes: 0, alertas360: 0, redistribuicoes: 0,
-      andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, total: 0
+      andamentos: 0, prazos: 0, tarefas: 0, audiencias: 0, intimacoes: 0, proc_nao_cadastrados: 0, total: 0
     };
 
     for (const coord of coordsToInclude) {
