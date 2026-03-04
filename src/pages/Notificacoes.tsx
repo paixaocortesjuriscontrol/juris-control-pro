@@ -167,6 +167,7 @@ export default function Notificacoes() {
       tarefas: 0,
       audiencias: 0,
       intimacoes: 0,
+      proc_nao_cadastrados: 0,
       total: 0,
     };
 

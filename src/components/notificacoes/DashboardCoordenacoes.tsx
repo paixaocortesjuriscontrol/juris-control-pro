@@ -256,7 +256,8 @@ export function DashboardCoordenacoes({
       const tarefas = c?.tarefas ?? 0;
       const audiencias = c?.audiencias ?? 0;
       const intimacoes = c?.intimacoes ?? 0;
-      const total = c?.total ?? (djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes);
+      const proc_nao_cadastrados = c?.proc_nao_cadastrados ?? 0;
+      const total = c?.total ?? (djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes + proc_nao_cadastrados);
 
       // Para breakdown de membros, usamos os datasets locais (tarefas/prazos)
       const tarefasCoord = tarefasFiltradas.filter(t => (t.processo as any)?.coordenacao_id === coord.id);
@@ -296,6 +297,7 @@ export function DashboardCoordenacoes({
         tarefas,
         audiencias,
         intimacoes,
+        proc_nao_cadastrados,
         total,
         emailHabilitado: config?.email_habilitado || false,
         whatsappHabilitado: config?.whatsapp_habilitado || false,

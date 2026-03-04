@@ -12,6 +12,7 @@ export interface NotificacoesCounts {
   tarefas: number;
   audiencias: number;
   intimacoes: number;
+  proc_nao_cadastrados: number;
   total: number;
 }
 
@@ -43,6 +44,7 @@ const ZERO: NotificacoesCounts = {
   tarefas: 0,
   audiencias: 0,
   intimacoes: 0,
+  proc_nao_cadastrados: 0,
   total: 0,
 };
 
@@ -63,6 +65,7 @@ interface RpcRow {
   tarefas: number;
   audiencias: number;
   intimacoes: number;
+  proc_nao_cadastrados: number;
   total: number;
 }
 
@@ -106,6 +109,7 @@ async function fetchCountsViaRPC(
       tarefas: row.tarefas ?? 0,
       audiencias: row.audiencias ?? 0,
       intimacoes: row.intimacoes ?? 0,
+      proc_nao_cadastrados: row.proc_nao_cadastrados ?? 0,
       total: row.total ?? 0,
     };
   }
