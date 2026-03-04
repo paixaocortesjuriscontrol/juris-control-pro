@@ -869,6 +869,22 @@ Deno.serve(async (req) => {
             .gte('created_at', dataFiltro)
             .limit(2000);
 
+          // Buscar audiências detectadas do dia por coordenação
+          const { data: audienciasHoje } = await supabase
+            .from('audiencias_detectadas')
+            .select('processo_numero, processo_id, tipo_audiencia, data_audiencia, processo:processos(coordenacao_id)')
+            .eq('origem', 'monitoramento_360')
+            .gte('created_at', dataFiltro)
+            .limit(2000);
+
+          // Buscar intimações detectadas do dia por coordenação
+          const { data: intimacoesHoje } = await supabase
+            .from('intimacoes_detectadas')
+            .select('processo_numero, processo_id, tipo_intimacao, processo:processos(coordenacao_id)')
+            .eq('origem', 'monitoramento_360')
+            .gte('created_at', dataFiltro)
+            .limit(2000);
+
           // Buscar nomes das coordenações
           const { data: coordenacoes } = await supabase
             .from('coordenacoes')
@@ -885,9 +901,7 @@ Deno.serve(async (req) => {
             exemplos: any[];
           }>();
 
-          for (const a of (alertasCadastradosHoje || [])) {
-            const coordId = (a as any).processo?.coordenacao_id;
-            if (!coordId) continue;
+          const getOrCreate = (coordId: string) => {
             if (!resumoPorCoord.has(coordId)) {
               resumoPorCoord.set(coordId, {
                 coordenacao_nome: coordMap.get(coordId) || 'Coordenação',
@@ -898,7 +912,13 @@ Deno.serve(async (req) => {
                 exemplos: [],
               });
             }
-            const r = resumoPorCoord.get(coordId)!;
+            return resumoPorCoord.get(coordId)!;
+          };
+
+          for (const a of (alertasCadastradosHoje || [])) {
+            const coordId = (a as any).processo?.coordenacao_id;
+            if (!coordId) continue;
+            const r = getOrCreate(coordId);
             r.cadastrados++;
             if (r.exemplos.length < 20) {
               r.exemplos.push({
@@ -911,49 +931,38 @@ Deno.serve(async (req) => {
           for (const a of (alertasNaoCadHoje || [])) {
             const coordId = a.coordenacao_id;
             if (!coordId) continue;
-            if (!resumoPorCoord.has(coordId)) {
-              resumoPorCoord.set(coordId, {
-                coordenacao_nome: coordMap.get(coordId) || 'Coordenação',
-                cadastrados: 0,
-                nao_cadastrados: 0,
-                audiencias: 0,
-                intimacoes: 0,
-                exemplos: [],
-              });
-            }
-            const r = resumoPorCoord.get(coordId)!;
-            r.nao_cadastrados++;
+            getOrCreate(coordId).nao_cadastrados++;
+          }
+
+          for (const a of (audienciasHoje || [])) {
+            const coordId = (a as any).processo?.coordenacao_id;
+            if (!coordId) continue;
+            getOrCreate(coordId).audiencias++;
+          }
+
+          for (const a of (intimacoesHoje || [])) {
+            const coordId = (a as any).processo?.coordenacao_id;
+            if (!coordId) continue;
+            getOrCreate(coordId).intimacoes++;
           }
 
           // Montar payload de resumo com totais por tipo
           const resumos_por_coordenacao = Array.from(resumoPorCoord.entries()).map(([coordId, r]) => {
-            const totalEncontrados = r.cadastrados + r.nao_cadastrados;
-            
-            // Adicionar resumo com totais por tipo no início dos exemplos
-            const exemplosTipados: any[] = [];
-            
-            if (r.cadastrados > 0) {
-              exemplosTipados.push({
-                processo_numero: `📊 PROCESSOS CADASTRADOS`,
-                descricao: `${r.cadastrados} alerta(s) em processos já cadastrados no sistema`,
-              });
-            }
-            if (r.nao_cadastrados > 0) {
-              exemplosTipados.push({
-                processo_numero: `📊 PROCESSOS NÃO CADASTRADOS`,
-                descricao: `${r.nao_cadastrados} alerta(s) em processos não cadastrados`,
-              });
-            }
-            
-            // Adicionar exemplos individuais (limitados)
-            exemplosTipados.push(...r.exemplos.slice(0, 15));
+            const totalEncontrados = r.cadastrados + r.nao_cadastrados + r.audiencias + r.intimacoes;
 
             return {
               coordenacao_id: coordId,
               coordenacao_nome: r.coordenacao_nome,
               total_verificados: totalRegistros,
               total_encontrados: totalEncontrados,
-              exemplos: exemplosTipados,
+              // Totais por tipo para exibição no resumo
+              totais_por_tipo: {
+                cadastrados: r.cadastrados,
+                nao_cadastrados: r.nao_cadastrados,
+                audiencias: r.audiencias,
+                intimacoes: r.intimacoes,
+              },
+              exemplos: r.exemplos.slice(0, 15),
             };
           });
 

@@ -225,18 +225,48 @@ serve(async (req) => {
             }
             break;
 
-          case 'termos':
-            // Alertas 360: Número do processo, termo e resumo
+          case 'termos': {
+            // Alertas 360: Resumo totalizado por tipo de alerta
+            const totais = (resumo as any).totais_por_tipo || {};
+            const cadastrados = totais.cadastrados || 0;
+            const naoCadastrados = totais.nao_cadastrados || 0;
+            const audienciasCount = totais.audiencias || 0;
+            const intimacoesCount = totais.intimacoes || 0;
+
             mensagem = `🔍 *RESUMO MONITORAÇÃO 360°*\n`;
             mensagem += `📅 ${dataHoje} | ${coordenacao_nome || 'Coordenação'}\n\n`;
-            mensagem += `📊 ${total_encontrados} alerta(s) encontrado(s)\n\n`;
-            mensagem += `📋 *Alertas Detectados:*\n`;
-            for (const ex of exemplos) {
-              const descLimpa = limparHtml(ex.descricao);
-              mensagem += `\n• *${ex.processo_numero}*\n`;
-              mensagem += `  ${descLimpa.substring(0, 150)}${descLimpa.length > 150 ? '...' : ''}\n`;
+            mensagem += `📊 *${total_encontrados} alerta(s) encontrado(s)*\n\n`;
+            mensagem += `📋 *Totais por Tipo:*\n\n`;
+
+            if (cadastrados > 0) {
+              mensagem += `✅ Processos Cadastrados: *${cadastrados}*\n`;
+            }
+            if (naoCadastrados > 0) {
+              mensagem += `🆕 Processos Não Cadastrados: *${naoCadastrados}*\n`;
+            }
+            if (audienciasCount > 0) {
+              mensagem += `📅 Audiências Detectadas: *${audienciasCount}*\n`;
+            }
+            if (intimacoesCount > 0) {
+              mensagem += `📬 Intimações Detectadas: *${intimacoesCount}*\n`;
+            }
+
+            // Se não tiver totais_por_tipo (payload legado), mostrar total geral
+            if (cadastrados === 0 && naoCadastrados === 0 && audienciasCount === 0 && intimacoesCount === 0) {
+              mensagem += `📊 Total: *${total_encontrados}*\n`;
+            }
+
+            // Mostrar exemplos de processos se houver
+            if (exemplos && exemplos.length > 0) {
+              mensagem += `\n📋 *Exemplos:*\n`;
+              for (const ex of exemplos.slice(0, 10)) {
+                const descLimpa = limparHtml(ex.descricao);
+                mensagem += `\n• *${ex.processo_numero}*\n`;
+                mensagem += `  ${descLimpa.substring(0, 120)}${descLimpa.length > 120 ? '...' : ''}\n`;
+              }
             }
             break;
+          }
 
           case 'redistribuicoes':
             // Redistribuições: Processo e detalhes da redistribuição
