@@ -320,7 +320,7 @@ export function ConfigAlertasCoordenacaoDialog({
           </Button>
           <Button 
             onClick={handleSalvar}
-            disabled={salvarConfig.isPending || (!emailHabilitado && !whatsappHabilitado)}
+            disabled={salvarConfig.isPending}
           >
             {salvarConfig.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salvar Configuração
