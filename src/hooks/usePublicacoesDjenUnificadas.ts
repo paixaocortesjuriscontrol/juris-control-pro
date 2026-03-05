@@ -274,6 +274,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   // Buscar publicações unificadas
   const { data: publicacoes = [], isLoading } = useQuery({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
+    staleTime: 60_000, // 1 minuto - evita refetches desnecessários
     queryFn: async () => {
       if (!user?.id) return [];
       
@@ -888,17 +889,45 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       console.log('[DJEN] Publicações marcadas via dedup:', data);
-      return data;
+      return { rpcResult: data, itemIds: items.map(i => i.id) };
     },
-    onSuccess: (data) => {
+    // Optimistic update: marca imediatamente na UI antes do servidor responder
+    onMutate: async (items) => {
+      // Cancelar queries em andamento para evitar sobrescrever o optimistic update
+      await queryClient.cancelQueries({ queryKey: ['publicacoes-unificadas'] });
+
+      // Snapshot do estado atual
+      const previousData = queryClient.getQueriesData<PublicacaoUnificada[]>({ queryKey: ['publicacoes-unificadas'] });
+
+      // Atualizar otimisticamente todas as queries de publicações
+      const idsToMark = new Set(items.map(i => i.id));
+      queryClient.setQueriesData<PublicacaoUnificada[]>(
+        { queryKey: ['publicacoes-unificadas'] },
+        (old) => {
+          if (!old) return old;
+          return old.map(pub => idsToMark.has(pub.id) ? { ...pub, lida: true } : pub);
+        }
+      );
+
+      return { previousData };
+    },
+    onSuccess: (result) => {
+      // Refetch em background para sincronizar com o servidor (sem bloquear a UI)
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
       
+      const data = result.rpcResult;
       const total = (data?.termos_atualizados || 0) + (data?.processos_atualizados || 0) + (data?.descartadas_atualizados || 0);
       toast.success(`${total} publicação(ões) marcada(s) como lida(s)`);
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      // Reverter ao estado anterior em caso de erro
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       toast.error(`Erro ao marcar publicações: ${error.message}`);
     },
