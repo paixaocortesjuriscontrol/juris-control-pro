@@ -305,31 +305,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
-      const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
+        const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
       if (canUseRpc) {
         try {
-        console.debug('[DJEN] tentando RPC deduplicada');
+        console.debug('[DJEN] tentando RPC deduplicada (sem count)');
 
         const PAGE = 200;
 
-        const { data: countData, error: countError } = await (supabase as any)
-          .rpc('count_djen_publicacoes_unificadas', {
-            p_coordenacao_id: filtros.coordenacaoId,
-            p_inicio: dataInicioFiltro ?? null,
-            p_fim: dataFimFiltro ?? null,
-            p_apenas_nao_lidas: !!filtros.apenasNaoLidas,
-            p_search_query: filtros.termoBusca ?? null,
-            p_monitoramento_id: filtros.monitoramentoId ?? null,
-          });
-
-        if (countError) {
-          throw new Error(`RPC count error: ${countError.message || JSON.stringify(countError)}`);
-        }
-
-        const expectedTotal = typeof countData === 'number' ? countData : 0;
-
+        // Fase 1: Buscar diretamente sem count RPC (elimina ~2.8s)
         const rawRows: any[] = [];
-        for (let offset = 0; offset < expectedTotal; offset += PAGE) {
+        for (let offset = 0; ; offset += PAGE) {
           const { data: pageRows, error: pageError } = await (supabase as any)
             .rpc('get_djen_publicacoes_unificadas', {
               p_coordenacao_id: filtros.coordenacaoId,
@@ -349,6 +334,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           const chunk = (pageRows || []) as any[];
           rawRows.push(...chunk);
           if (chunk.length < PAGE) break;
+          // Safety: don't fetch more than 2000 rows
+          if (rawRows.length >= 2000) break;
         }
 
         // mapear para o tipo do app

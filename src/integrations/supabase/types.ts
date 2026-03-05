@@ -4085,6 +4085,9 @@ export type Database = {
           created_at: string
           data_disponibilizacao: string | null
           data_publicacao: string | null
+          dedup_data_ref: string | null
+          dedup_head_norm: string | null
+          dedup_processo_digits: string | null
           fonte: string | null
           hash_conteudo: string
           id: string
@@ -4108,6 +4111,9 @@ export type Database = {
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo: string
           id?: string
@@ -4131,6 +4137,9 @@ export type Database = {
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo?: string
           id?: string
@@ -4165,6 +4174,9 @@ export type Database = {
           created_at: string
           data_disponibilizacao: string | null
           data_publicacao: string | null
+          dedup_data_ref: string | null
+          dedup_head_norm: string | null
+          dedup_processo_digits: string | null
           fonte: string | null
           hash_conteudo: string
           id: string
@@ -4184,6 +4196,9 @@ export type Database = {
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo: string
           id?: string
@@ -4203,6 +4218,9 @@ export type Database = {
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo?: string
           id?: string
@@ -4273,6 +4291,9 @@ export type Database = {
           data_disponibilizacao: string | null
           data_encontrado: string
           data_publicacao: string | null
+          dedup_data_ref: string | null
+          dedup_head_norm: string | null
+          dedup_processo_digits: string | null
           fonte: string | null
           hash_conteudo: string
           id: string
@@ -4292,6 +4313,9 @@ export type Database = {
           data_disponibilizacao?: string | null
           data_encontrado?: string
           data_publicacao?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo: string
           id?: string
@@ -4311,6 +4335,9 @@ export type Database = {
           data_disponibilizacao?: string | null
           data_encontrado?: string
           data_publicacao?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo?: string
           id?: string
