@@ -671,6 +671,28 @@ const Coordenacoes = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirm Delete Coordination Dialog */}
+      <AlertDialog open={!!deleteCoordId} onOpenChange={() => setDeleteCoordId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir coordenação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação é irreversível. A coordenação será excluída permanentemente.
+              Certifique-se de que não há processos, membros ou monitoramentos vinculados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCoordenacao}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 };
