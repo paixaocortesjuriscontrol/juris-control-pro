@@ -133,7 +133,7 @@ const AnaliseDjen = () => {
   const [selectedIds, setSelectedIds] = useState<Map<string, TipoOrigemPublicacao>>(
     new Map<string, TipoOrigemPublicacao>()
   );
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false); // kept for potential future use
   const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
@@ -362,13 +362,7 @@ const AnaliseDjen = () => {
   };
 
   const handleView = (pub: PublicacaoUnificada) => {
-    // On tablet/mobile (< 1024px), expand inline instead of opening dialog
-    if (window.innerWidth < 1024) {
-      toggleExpandPublicacao(pub.id);
-    } else {
-      setSelectedPublicacao(pub);
-      setViewDialogOpen(true);
-    }
+    toggleExpandPublicacao(pub.id);
   };
 
   const handleCriarTarefa = (pub: PublicacaoUnificada) => {
@@ -2048,7 +2042,7 @@ const AnaliseDjen = () => {
                                            e.stopPropagation();
                                            handleView(pub);
                                          }}
-                                         title="Ver detalhes em modal"
+                                          title="Expandir/recolher publicação"
                                          className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                        >
                                          <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -2105,7 +2099,7 @@ const AnaliseDjen = () => {
                                           e.stopPropagation();
                                           handleView(pub);
                                         }}
-                                        title="Ver detalhes em modal"
+                                        title="Expandir/recolher publicação"
                                         className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                       >
                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -2192,67 +2186,7 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* View Dialog - formato oficial DJEN */}
-        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw] md:w-auto p-3 md:p-6">
-            <DialogHeader className="pb-2">
-              <DialogTitle className="flex items-center gap-2 text-sm md:text-base">
-                <FileText className="w-4 h-4 md:w-5 md:h-5" />
-                Detalhes da Publicação
-              </DialogTitle>
-              <DialogDescription className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
-                {selectedPublicacao?.tipo_origem === 'termo' ? (
-                  <Badge className="bg-purple-100 text-purple-700 text-xs">
-                    <FileSearch className="w-3 h-3 mr-1" />
-                    {selectedPublicacao.monitoramento_tipo === 'advogado'
-                      ? `OAB ${selectedPublicacao.monitoramento_oab} ${selectedPublicacao.monitoramento_uf}`
-                      : selectedPublicacao.monitoramento_termo
-                    }
-                  </Badge>
-                ) : (
-                  <Badge className="bg-emerald-100 text-emerald-700 text-xs">
-                    <Gavel className="w-3 h-3 mr-1" />
-                    Processo Cadastrado
-                  </Badge>
-                )}
-                {selectedPublicacao?.coordenacao_nome && (
-                  <Badge variant="outline" className="text-xs">
-                    <Building2 className="w-3 h-3 mr-1" />
-                    {selectedPublicacao.coordenacao_nome}
-                  </Badge>
-                )}
-                {selectedPublicacao && !selectedPublicacao.lida && (
-                  <Badge className="bg-amber-500 text-xs">Nova</Badge>
-                )}
-              </DialogDescription>
-            </DialogHeader>
 
-            {selectedPublicacao && (
-              <PublicacaoConteudoDjen
-                processoNumero={selectedPublicacao.processo_numero}
-                tribunal={selectedPublicacao.tribunal}
-                fonte={selectedPublicacao.fonte}
-                dataDisponibilizacao={selectedPublicacao.data_disponibilizacao}
-                dataPublicacao={selectedPublicacao.data_publicacao}
-                conteudo={selectedPublicacao.conteudo}
-                poloAtivo={selectedPublicacao.polo_ativo}
-                poloPassivo={selectedPublicacao.polo_passivo}
-                monitoramentoOab={selectedPublicacao.monitoramento_oab}
-                monitoramentoUf={selectedPublicacao.monitoramento_uf}
-                monitoramentoTermo={selectedPublicacao.monitoramento_termo}
-                monitoramentoDescricao={selectedPublicacao.monitoramento_descricao}
-                monitoramentoTipo={selectedPublicacao.monitoramento_tipo}
-                maxHeight="60vh"
-                orgaoEstruturado={selectedPublicacao.orgao}
-                tipoComunicacaoEstruturado={selectedPublicacao.tipo_comunicacao}
-                meioEstruturado={selectedPublicacao.meio}
-                partesJson={selectedPublicacao.partes_json}
-                advogadosJson={selectedPublicacao.advogados_json}
-                expandirGeralExterno={expandirGeralAtivo}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
 
         {/* Dialog para criar tarefa a partir da publicação */}
         <CriarTarefaPublicacaoDialog
