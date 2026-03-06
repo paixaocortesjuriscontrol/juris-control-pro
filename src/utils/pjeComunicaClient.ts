@@ -230,10 +230,11 @@ export async function buscarPjeComunicaNoBrowser(
   const texto = buildTextoParam(params);
   const nomeAdvogado = String(params.nomeAdvogado || "").trim();
   
-  // Se não tem texto E também não tem tribunal/data, é inválido
+  // Se não tem texto E também não tem tribunal/data/processo, é inválido
   const hasTribunal = !!params.siglaTribunal;
   const hasData = !!(params.dataInicio || params.dataFim);
-  if (!texto && !hasTribunal && !hasData) {
+  const hasProcesso = params.tipo === "processo" && !!(params.numeroProcesso || "").trim();
+  if (!texto && !hasTribunal && !hasData && !hasProcesso) {
     throw new Error("Parâmetro de busca inválido (precisa de termo, tribunal ou data)");
   }
 
