@@ -408,6 +408,16 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
           for (const pub of resp.items) {
             publicacoesAnalisadas++;
 
+            // Validar que a publicação é realmente do processo buscado
+            // A API pode retornar publicações que apenas MENCIONAM o número no texto
+            const pubNumero = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || '';
+            const processoDigits = processo.numero.replace(/\D/g, '');
+            const pubDigits = String(pubNumero).replace(/\D/g, '');
+            if (pubDigits && processoDigits && pubDigits !== processoDigits) {
+              console.log(`[DJEN v7] Publicação ignorada: processo da pub=${pubNumero} ≠ buscado=${processo.numero}`);
+              continue;
+            }
+
             const conteudo = pub.texto || pub.teor || '';
             if (!conteudo) continue;
 
