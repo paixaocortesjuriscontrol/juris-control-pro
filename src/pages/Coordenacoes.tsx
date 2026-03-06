@@ -336,16 +336,30 @@ const Coordenacoes = () => {
                       )}
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setEditCoord(selectedCoord);
-                      setCoordDialog(true);
-                    }}
-                  >
-                    Editar
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setEditCoord(selectedCoord);
+                        setCoordDialog(true);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteCoordId(selectedCoord.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Excluir
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
             </Card>
