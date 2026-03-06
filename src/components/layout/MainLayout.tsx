@@ -36,13 +36,9 @@ export function MainLayout({ children, title, subtitle, headerActions, className
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className={`transition-all duration-300 ${isMobile ? 'ml-0' : 'md:ml-64'} ${className || ''}`}>
+      <div className={`transition-all duration-300 ${isMobile ? 'ml-0' : 'lg:ml-64'} ${className || ''}`}>
         <Header title={title} subtitle={subtitle} headerActions={headerActions} />
-        {/*
-          Mobile: deixar o body controlar o scroll (evita conflitos de gesto com scroll horizontal aninhado).
-          Desktop: mantém container interno com altura fixa.
-        */}
-        <main className="p-4 md:p-6 md:max-h-[calc(100vh-64px)] md:overflow-y-auto">
+        <main className="p-4 md:p-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
           {children}
         </main>
       </div>
