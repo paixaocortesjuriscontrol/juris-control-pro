@@ -190,7 +190,10 @@ function buildTextoParam(params: PjeComunicaSearchParams): string | null {
     // A API do PJE Comunica às vezes armazena sem acentos
     return normalizeAccents(termo);
   }
-  if (params.tipo === "processo") return (params.numeroProcesso || "").trim();
+  // Tipo 'processo': não usa texto, usa numeroProcesso separadamente
+  if (params.tipo === "processo") {
+    return null;
+  }
   // advogado
   const oab = String(params.oab || "").replace(/\D/g, "").trim();
   const uf = String(params.uf || "").trim().toUpperCase();
