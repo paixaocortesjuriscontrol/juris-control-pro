@@ -57,6 +57,7 @@ const areaLabels = {
 
 const Coordenacoes = () => {
   const { data: coordenacoes, isLoading } = useCoordenacoesFull();
+  const { isAdmin } = useUserRole();
   const [selectedCoord, setSelectedCoord] = useState<any>(null);
   const [coordDialog, setCoordDialog] = useState(false);
   const [editCoord, setEditCoord] = useState<any>(null);
@@ -68,10 +69,35 @@ const Coordenacoes = () => {
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [transferirDialog, setTransferirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
+  const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
   const [editingCargoValue, setEditingCargoValue] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleDeleteCoordenacao = async () => {
+    if (!deleteCoordId) return;
+    try {
+      const { error } = await supabase
+        .from("coordenacoes")
+        .delete()
+        .eq("id", deleteCoordId);
+      if (error) throw error;
+      toast({ title: "Coordenação excluída com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
+      if (selectedCoord?.id === deleteCoordId) setSelectedCoord(null);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir coordenação",
+        description: error.message?.includes("foreign key") 
+          ? "Esta coordenação possui processos, membros ou monitoramentos vinculados. Transfira-os antes de excluir."
+          : error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteCoordId(null);
+    }
+  };
 
   const cargoOptions = [
     "Coordenador",
