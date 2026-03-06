@@ -146,9 +146,6 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
               <Bell className="w-4 h-4 mr-2" />
               Notificações
             </DropdownMenuItem>
-              <Bell className="w-4 h-4 mr-2" />
-              Notificações
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onSelect={(e) => {
@@ -166,7 +163,5 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
         <AlterarSenhaDialog open={senhaDialogOpen} onOpenChange={setSenhaDialogOpen} />
       </div>
     </header>
-  );
-}
   );
 }
