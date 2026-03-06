@@ -1,4 +1,5 @@
-import { Search, User, LogOut, Bell, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Search, User, LogOut, Bell, Loader2, KeyRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import { useImport } from "@/contexts/ImportContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
+import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
 import { Badge } from "@/components/ui/badge";
 
 import { ReactNode } from "react";
@@ -31,6 +33,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { isImporting, importLabel } = useImport();
   const { role } = useUserRole();
   const navigate = useNavigate();
+  const [senhaDialogOpen, setSenhaDialogOpen] = useState(false);
 
   const getRoleLabel = () => {
     if (role === "admin") return "Administrador";
@@ -135,7 +138,14 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
               <User className="w-4 h-4 mr-2" />
               Meu Perfil
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setSenhaDialogOpen(true)}>
+              <KeyRound className="w-4 h-4 mr-2" />
+              Alterar Senha
+            </DropdownMenuItem>
             <DropdownMenuItem>
+              <Bell className="w-4 h-4 mr-2" />
+              Notificações
+            </DropdownMenuItem>
               <Bell className="w-4 h-4 mr-2" />
               Notificações
             </DropdownMenuItem>
@@ -152,7 +162,11 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <AlterarSenhaDialog open={senhaDialogOpen} onOpenChange={setSenhaDialogOpen} />
       </div>
     </header>
+  );
+}
   );
 }
