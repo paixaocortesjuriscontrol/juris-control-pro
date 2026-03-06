@@ -190,7 +190,10 @@ function buildTextoParam(params: PjeComunicaSearchParams): string | null {
     // A API do PJE Comunica às vezes armazena sem acentos
     return normalizeAccents(termo);
   }
-  if (params.tipo === "processo") return (params.numeroProcesso || "").trim();
+  // Tipo 'processo': não usa texto, usa numeroProcesso separadamente
+  if (params.tipo === "processo") {
+    return null;
+  }
   // advogado
   const oab = String(params.oab || "").replace(/\D/g, "").trim();
   const uf = String(params.uf || "").trim().toUpperCase();
@@ -227,10 +230,11 @@ export async function buscarPjeComunicaNoBrowser(
   const texto = buildTextoParam(params);
   const nomeAdvogado = String(params.nomeAdvogado || "").trim();
   
-  // Se não tem texto E também não tem tribunal/data, é inválido
+  // Se não tem texto E também não tem tribunal/data/processo, é inválido
   const hasTribunal = !!params.siglaTribunal;
   const hasData = !!(params.dataInicio || params.dataFim);
-  if (!texto && !hasTribunal && !hasData) {
+  const hasProcesso = params.tipo === "processo" && !!(params.numeroProcesso || "").trim();
+  if (!texto && !hasTribunal && !hasData && !hasProcesso) {
     throw new Error("Parâmetro de busca inválido (precisa de termo, tribunal ou data)");
   }
 
@@ -297,6 +301,15 @@ export async function buscarPjeComunicaNoBrowser(
     if (nomeParte) {
       qp.set("nomeParte", normalizeAccents(nomeParte));
       console.log('[PJE Comunica] ✅ Parâmetro nomeParte adicionado à query:', normalizeAccents(nomeParte));
+    }
+  }
+
+  // 2b) Busca por número de processo (parâmetro nativo da API)
+  if (params.tipo === "processo") {
+    const numProc = (params.numeroProcesso || "").trim();
+    if (numProc) {
+      qp.set("numeroProcesso", numProc);
+      console.log(`[PJE Comunica] ✅ Tipo PROCESSO: usando parâmetro nativo numeroProcesso=${numProc}`);
     }
   }
 
