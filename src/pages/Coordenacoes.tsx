@@ -31,6 +31,7 @@ import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirPr
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -57,6 +58,7 @@ const areaLabels = {
 
 const Coordenacoes = () => {
   const { data: coordenacoes, isLoading } = useCoordenacoesFull();
+  const { isAdmin } = useUserRole();
   const [selectedCoord, setSelectedCoord] = useState<any>(null);
   const [coordDialog, setCoordDialog] = useState(false);
   const [editCoord, setEditCoord] = useState<any>(null);
@@ -68,10 +70,35 @@ const Coordenacoes = () => {
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [transferirDialog, setTransferirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
+  const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
   const [editingCargoValue, setEditingCargoValue] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleDeleteCoordenacao = async () => {
+    if (!deleteCoordId) return;
+    try {
+      const { error } = await supabase
+        .from("coordenacoes")
+        .delete()
+        .eq("id", deleteCoordId);
+      if (error) throw error;
+      toast({ title: "Coordenação excluída com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
+      if (selectedCoord?.id === deleteCoordId) setSelectedCoord(null);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir coordenação",
+        description: error.message?.includes("foreign key") 
+          ? "Esta coordenação possui processos, membros ou monitoramentos vinculados. Transfira-os antes de excluir."
+          : error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteCoordId(null);
+    }
+  };
 
   const cargoOptions = [
     "Coordenador",
@@ -309,16 +336,30 @@ const Coordenacoes = () => {
                       )}
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setEditCoord(selectedCoord);
-                      setCoordDialog(true);
-                    }}
-                  >
-                    Editar
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setEditCoord(selectedCoord);
+                        setCoordDialog(true);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteCoordId(selectedCoord.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Excluir
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
             </Card>
@@ -626,6 +667,28 @@ const Coordenacoes = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveMembro} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Delete Coordination Dialog */}
+      <AlertDialog open={!!deleteCoordId} onOpenChange={() => setDeleteCoordId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir coordenação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação é irreversível. A coordenação será excluída permanentemente.
+              Certifique-se de que não há processos, membros ou monitoramentos vinculados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCoordenacao}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
