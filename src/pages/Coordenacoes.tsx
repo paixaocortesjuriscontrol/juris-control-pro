@@ -31,6 +31,7 @@ import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirPr
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
