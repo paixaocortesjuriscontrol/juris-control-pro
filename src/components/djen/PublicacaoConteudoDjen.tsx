@@ -583,7 +583,7 @@ export function PublicacaoConteudoDjen({
       <div
         className={cn(
           "flex flex-col lg:flex-row gap-0",
-          !expandirGeral && "overflow-hidden"
+          !expandirGeral && "overflow-y-auto overflow-x-hidden"
         )}
         style={!expandirGeral && maxHeight ? { maxHeight } : undefined}
       >
