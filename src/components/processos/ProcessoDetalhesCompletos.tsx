@@ -1480,6 +1480,12 @@ export function ProcessoDetalhesCompletos({
                       <p className="text-sm text-muted-foreground">Nenhuma audiência</p>
                     </div>
                   )}
+                  <CriarAudienciaProcessoDialog
+                    open={criarAudienciaOpen}
+                    onOpenChange={setCriarAudienciaOpen}
+                    processoNumero={processo.numero}
+                    processoId={processo.id}
+                  />
                 </div>
               )}
 
