@@ -1156,6 +1156,8 @@ async function executarLoop(
       clearInterval(state.timerInterval);
       state.timerInterval = null;
     }
+    // Notificar React que isRunning mudou para false
+    notifyListeners();
   }
 }
 
