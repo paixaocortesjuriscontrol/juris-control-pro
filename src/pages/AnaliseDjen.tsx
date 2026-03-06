@@ -133,7 +133,7 @@ const AnaliseDjen = () => {
   const [selectedIds, setSelectedIds] = useState<Map<string, TipoOrigemPublicacao>>(
     new Map<string, TipoOrigemPublicacao>()
   );
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false); // kept for potential future use
   const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
