@@ -47,7 +47,8 @@ import {
   Bell,
   BellOff,
   Info,
-  ListPlus
+  ListPlus,
+  Plus
 } from "lucide-react";
 import { ProcessoPedidosTab } from "./ProcessoPedidosTab";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
+import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -166,6 +168,7 @@ export function ProcessoDetalhesCompletos({
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
+  const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
@@ -1389,6 +1392,14 @@ export function ProcessoDetalhesCompletos({
                       <Gavel className="w-4 h-4" />
                       Audiências
                     </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCriarAudienciaOpen(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Nova Audiência
+                    </Button>
                   </div>
                   {loadingAudiencias ? (
                     <div className="space-y-3">
@@ -1469,6 +1480,12 @@ export function ProcessoDetalhesCompletos({
                       <p className="text-sm text-muted-foreground">Nenhuma audiência</p>
                     </div>
                   )}
+                  <CriarAudienciaProcessoDialog
+                    open={criarAudienciaOpen}
+                    onOpenChange={setCriarAudienciaOpen}
+                    processoNumero={processo.numero}
+                    processoId={processo.id}
+                  />
                 </div>
               )}
 
