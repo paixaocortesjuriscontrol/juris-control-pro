@@ -47,7 +47,8 @@ import {
   Bell,
   BellOff,
   Info,
-  ListPlus
+  ListPlus,
+  Plus
 } from "lucide-react";
 import { ProcessoPedidosTab } from "./ProcessoPedidosTab";
 import { cn } from "@/lib/utils";
@@ -167,6 +168,7 @@ export function ProcessoDetalhesCompletos({
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
+  const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
