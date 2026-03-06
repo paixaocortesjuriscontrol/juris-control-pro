@@ -362,8 +362,13 @@ const AnaliseDjen = () => {
   };
 
   const handleView = (pub: PublicacaoUnificada) => {
-    setSelectedPublicacao(pub);
-    setViewDialogOpen(true);
+    // On tablet/mobile (< 1024px), expand inline instead of opening dialog
+    if (window.innerWidth < 1024) {
+      toggleExpandPublicacao(pub.id);
+    } else {
+      setSelectedPublicacao(pub);
+      setViewDialogOpen(true);
+    }
   };
 
   const handleCriarTarefa = (pub: PublicacaoUnificada) => {
