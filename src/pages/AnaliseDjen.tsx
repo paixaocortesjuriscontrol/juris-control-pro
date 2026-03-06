@@ -2042,7 +2042,7 @@ const AnaliseDjen = () => {
                                            e.stopPropagation();
                                            handleView(pub);
                                          }}
-                                         title="Ver detalhes em modal"
+                                          title="Expandir/recolher publicação"
                                          className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                        >
                                          <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -2099,7 +2099,7 @@ const AnaliseDjen = () => {
                                           e.stopPropagation();
                                           handleView(pub);
                                         }}
-                                        title="Ver detalhes em modal"
+                                        title="Expandir/recolher publicação"
                                         className="p-1 md:p-1.5 h-auto flex-shrink-0 ml-auto"
                                       >
                                         <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
