@@ -300,6 +300,15 @@ export async function buscarPjeComunicaNoBrowser(
     }
   }
 
+  // 2b) Busca por número de processo (parâmetro nativo da API)
+  if (params.tipo === "processo") {
+    const numProc = (params.numeroProcesso || "").trim();
+    if (numProc) {
+      qp.set("numeroProcesso", numProc);
+      console.log(`[PJE Comunica] ✅ Tipo PROCESSO: usando parâmetro nativo numeroProcesso=${numProc}`);
+    }
+  }
+
   // 3) Filtro por tribunal (quando disponível)
   if (params.siglaTribunal) qp.set("siglaTribunal", params.siglaTribunal);
 
