@@ -1,0 +1,1 @@
+DELETE FROM publicacoes_djen_processos WHERE created_at >= '2026-03-06T03:00:00Z'
