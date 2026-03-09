@@ -1434,119 +1434,234 @@ export function useBuscaDjenDireta() {
 
         // ================================================================
         // LOOP INTERNO: Termos/Monitoramentos (para este dia específico)
+        // Processos usam paralelismo (5 simultâneos); outros tipos sequencial.
         // ================================================================
-        for (let i = termoIndiceInicial; i < total; i++) {
-          if (cancelarRef.current) break;
-
+        let i = termoIndiceInicial;
+        while (i < total && !cancelarRef.current) {
+          // Coletar lote de processos consecutivos para processar em paralelo
           const mon = monitoramentos[i];
+          const isProcesso = mon.tipo === 'processo';
+          const PARALLEL_BATCH = 5;
 
-          // PROGRESSO GLOBAL: calcular baseado em dias + termos
-          const progressoGlobalAtual = termosJaProcessadosEmDiasAnteriores + i + 1;
-          const percentGlobal = Math.round((progressoGlobalAtual / progressoGlobalTotal) * 100);
+          if (isProcesso) {
+            // Encontrar fim do bloco consecutivo de processos
+            let batchEnd = i;
+            while (batchEnd < total && monitoramentos[batchEnd].tipo === 'processo' && batchEnd - i < PARALLEL_BATCH) {
+              batchEnd++;
+            }
+            const batch = monitoramentos.slice(i, batchEnd);
 
-          // Atualizar progresso ANTES de processar - usando progresso global
-          setProgresso(prev => ({
-            ...prev,
-            monitoramentoAtual: progressoGlobalAtual,
-            totalMonitoramentos: progressoGlobalTotal,
-            termoAtual: mon.termo_busca,
-            mensagem: `📅 ${diaFormatado} • (${i + 1}/${total}) ${mon.termo_busca}`,
-          }));
+            // Atualizar progresso
+            const progressoGlobalAtual = termosJaProcessadosEmDiasAnteriores + i + 1;
+            setProgresso(prev => ({
+              ...prev,
+              monitoramentoAtual: progressoGlobalAtual,
+              totalMonitoramentos: progressoGlobalTotal,
+              termoAtual: `${batch.length} processos em paralelo`,
+              mensagem: `📅 ${diaFormatado} • (${i + 1}-${batchEnd}/${total}) Processos ⚡`,
+            }));
 
-          // Processar monitoramento APENAS para este dia específico
-          const result = await processarMonitoramento(mon, diaYmd, diaYmd);
-          
-          // Acumular estatísticas
-          totalNovas += result.novas;
-          totalDuplicadas += result.duplicadas;
-          totalDescartadas += result.descartadas;
+            // Processar em paralelo
+            const results = await Promise.allSettled(
+              batch.map(m => processarMonitoramento(m, diaYmd, diaYmd))
+            );
 
-          // Atualizar progresso DEPOIS de processar (com checkpoint para retomada)
-          const checkpointAtual = {
-            indice: i + 1,
-            data: runKey,
-            diaYmd,
-            diaIndice: diaIdx + 1,
-            novasAcumuladas: totalNovas,
-            duplicadasAcumuladas: totalDuplicadas,
-            descartadasAcumuladas: totalDescartadas,
-          };
-
-          lastProcessed = progressoGlobalAtual;
-          
-          setProgresso(prev => ({
-            ...prev,
-            publicacoesNovas: totalNovas,
-            publicacoesDuplicadas: totalDuplicadas,
-            publicacoesDescartadas: totalDescartadas,
-            dataOverrideYmd: dataOverrideRef.current,
-            checkpoint: checkpointAtual,
-          }));
-
-          // Persistir progresso a cada monitoramento - usando valores globais
-          const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
-          try {
-            await supabase
-              .from('configuracoes_monitoramento')
-              .update({
-                metadata: {
-                  status: 'executando',
-                  total: progressoGlobalTotal,
-                  current: progressoGlobalAtual,
-                  percentage: percentGlobal,
-                  duracao_s,
-                  novas: totalNovas,
-                  duplicadas: totalDuplicadas,
-                  descartadas: totalDescartadas,
-                  // manter o intervalo para que a retomada não perca o contexto
-                  data_inicio: resolvedDataInicio,
-                  data_fim: resolvedDataFim,
-                  data_override: dataOverrideRef.current,
-                  run_key: runKey,
-                  termoAtual: mon.termo_busca,
-                  diaAtual: diaYmd,
-                  diaIndice: diaIdx + 1,
-                  totalDias,
-                },
-              })
-              .eq('tipo', 'djen')
-              .is('coordenacao_id', null);
-          } catch {
-            // Ignorar erro de atualização
-          }
-
-          // Checar cancelamento remoto a cada 10 itens
-          if ((i + 1) % 10 === 0 || i === total - 1) {
-            if (await checkRemoteCancelRequested()) {
-              cancelarRef.current = true;
-              setProgresso(prev => ({
-                ...prev,
-                mensagem: 'Cancelamento solicitado (remoto). Finalizando...'
-              }));
-              break;
+            for (const r of results) {
+              if (r.status === 'fulfilled') {
+                totalNovas += r.value.novas;
+                totalDuplicadas += r.value.duplicadas;
+                totalDescartadas += r.value.descartadas;
+              }
             }
 
-            await registrarExecucao('executando', {
-              // manter campos-base em TODAS as atualizações para não “sumirem” do JSON
-              retomada: retomar,
-              run_key: runKey,
-              data_inicio: resolvedDataInicio,
-              data_fim: resolvedDataFim,
-              total_dias: totalDias,
-              processados: i + 1,
-              total,
-              novas: totalNovas,
-              duplicadas: totalDuplicadas,
-              descartadas: totalDescartadas,
-              diaAtual: diaYmd,
-              diaIndice: diaIdx + 1,
-              totalDias,
-              termoAtual: mon.termo_busca,
-            });
-          }
+            const progressoGlobalFinal = termosJaProcessadosEmDiasAnteriores + batchEnd;
+            const percentGlobal = Math.round((progressoGlobalFinal / progressoGlobalTotal) * 100);
+            lastProcessed = progressoGlobalFinal;
 
-          // Delay conservador entre termos (restaurado do 29/01)
-          await delay(CONFIG.delay_between_batches);
+            const checkpointAtual = {
+              indice: batchEnd,
+              data: runKey,
+              diaYmd,
+              diaIndice: diaIdx + 1,
+              novasAcumuladas: totalNovas,
+              duplicadasAcumuladas: totalDuplicadas,
+              descartadasAcumuladas: totalDescartadas,
+            };
+
+            setProgresso(prev => ({
+              ...prev,
+              monitoramentoAtual: progressoGlobalFinal,
+              publicacoesNovas: totalNovas,
+              publicacoesDuplicadas: totalDuplicadas,
+              publicacoesDescartadas: totalDescartadas,
+              dataOverrideYmd: dataOverrideRef.current,
+              checkpoint: checkpointAtual,
+            }));
+
+            // Persistir progresso
+            const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+            try {
+              await supabase
+                .from('configuracoes_monitoramento')
+                .update({
+                  metadata: {
+                    status: 'executando',
+                    total: progressoGlobalTotal,
+                    current: progressoGlobalFinal,
+                    percentage: percentGlobal,
+                    duracao_s,
+                    novas: totalNovas,
+                    duplicadas: totalDuplicadas,
+                    descartadas: totalDescartadas,
+                    data_inicio: resolvedDataInicio,
+                    data_fim: resolvedDataFim,
+                    data_override: dataOverrideRef.current,
+                    run_key: runKey,
+                    termoAtual: `Lote processos ${i + 1}-${batchEnd}`,
+                    diaAtual: diaYmd,
+                    diaIndice: diaIdx + 1,
+                    totalDias,
+                  },
+                })
+                .eq('tipo', 'djen')
+                .is('coordenacao_id', null);
+            } catch {
+              // Ignorar
+            }
+
+            // Checar cancelamento remoto
+            if (batchEnd % 10 < PARALLEL_BATCH || batchEnd === total) {
+              if (await checkRemoteCancelRequested()) {
+                cancelarRef.current = true;
+                setProgresso(prev => ({
+                  ...prev,
+                  mensagem: 'Cancelamento solicitado (remoto). Finalizando...'
+                }));
+                break;
+              }
+              await registrarExecucao('executando', {
+                retomada: retomar,
+                run_key: runKey,
+                data_inicio: resolvedDataInicio,
+                data_fim: resolvedDataFim,
+                total_dias: totalDias,
+                processados: batchEnd,
+                total,
+                novas: totalNovas,
+                duplicadas: totalDuplicadas,
+                descartadas: totalDescartadas,
+                diaAtual: diaYmd,
+                diaIndice: diaIdx + 1,
+                totalDias,
+                termoAtual: `Lote processos`,
+              });
+            }
+
+            // Delay menor entre lotes de processos (1s vs 4s)
+            await delay(1000);
+            i = batchEnd;
+          } else {
+            // Tipo não-processo: execução sequencial (original)
+            const progressoGlobalAtual = termosJaProcessadosEmDiasAnteriores + i + 1;
+            const percentGlobal = Math.round((progressoGlobalAtual / progressoGlobalTotal) * 100);
+
+            setProgresso(prev => ({
+              ...prev,
+              monitoramentoAtual: progressoGlobalAtual,
+              totalMonitoramentos: progressoGlobalTotal,
+              termoAtual: mon.termo_busca,
+              mensagem: `📅 ${diaFormatado} • (${i + 1}/${total}) ${mon.termo_busca}`,
+            }));
+
+            const result = await processarMonitoramento(mon, diaYmd, diaYmd);
+
+            totalNovas += result.novas;
+            totalDuplicadas += result.duplicadas;
+            totalDescartadas += result.descartadas;
+
+            const checkpointAtual = {
+              indice: i + 1,
+              data: runKey,
+              diaYmd,
+              diaIndice: diaIdx + 1,
+              novasAcumuladas: totalNovas,
+              duplicadasAcumuladas: totalDuplicadas,
+              descartadasAcumuladas: totalDescartadas,
+            };
+
+            lastProcessed = progressoGlobalAtual;
+
+            setProgresso(prev => ({
+              ...prev,
+              publicacoesNovas: totalNovas,
+              publicacoesDuplicadas: totalDuplicadas,
+              publicacoesDescartadas: totalDescartadas,
+              dataOverrideYmd: dataOverrideRef.current,
+              checkpoint: checkpointAtual,
+            }));
+
+            const duracao_s = Math.floor((Date.now() - tempoInicio) / 1000);
+            try {
+              await supabase
+                .from('configuracoes_monitoramento')
+                .update({
+                  metadata: {
+                    status: 'executando',
+                    total: progressoGlobalTotal,
+                    current: progressoGlobalAtual,
+                    percentage: percentGlobal,
+                    duracao_s,
+                    novas: totalNovas,
+                    duplicadas: totalDuplicadas,
+                    descartadas: totalDescartadas,
+                    data_inicio: resolvedDataInicio,
+                    data_fim: resolvedDataFim,
+                    data_override: dataOverrideRef.current,
+                    run_key: runKey,
+                    termoAtual: mon.termo_busca,
+                    diaAtual: diaYmd,
+                    diaIndice: diaIdx + 1,
+                    totalDias,
+                  },
+                })
+                .eq('tipo', 'djen')
+                .is('coordenacao_id', null);
+            } catch {
+              // Ignorar
+            }
+
+            if ((i + 1) % 10 === 0 || i === total - 1) {
+              if (await checkRemoteCancelRequested()) {
+                cancelarRef.current = true;
+                setProgresso(prev => ({
+                  ...prev,
+                  mensagem: 'Cancelamento solicitado (remoto). Finalizando...'
+                }));
+                break;
+              }
+
+              await registrarExecucao('executando', {
+                retomada: retomar,
+                run_key: runKey,
+                data_inicio: resolvedDataInicio,
+                data_fim: resolvedDataFim,
+                total_dias: totalDias,
+                processados: i + 1,
+                total,
+                novas: totalNovas,
+                duplicadas: totalDuplicadas,
+                descartadas: totalDescartadas,
+                diaAtual: diaYmd,
+                diaIndice: diaIdx + 1,
+                totalDias,
+                termoAtual: mon.termo_busca,
+              });
+            }
+
+            // Delay conservador entre termos (restaurado do 29/01)
+            await delay(CONFIG.delay_between_batches);
+            i++;
+          }
         }
 
         // Dia concluído! Mostrar mensagem de transição antes de ir para o próximo
