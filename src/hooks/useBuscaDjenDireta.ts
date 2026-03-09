@@ -891,13 +891,20 @@ export function useBuscaDjenDireta() {
     try {
       if (cancelarRef.current) return [];
 
-      const tribunaisRaw = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
-        ? monitoramento.tribunais
-        : undefined;
-      const tribunaisExpandidos = expandirTribunais(tribunaisRaw);
-      const tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
-        ? tribunaisExpandidos
-        : [undefined];
+      // OTIMIZAÇÃO: Para tipo 'processo', o numeroProcesso é globalmente único.
+      // Não precisamos iterar por tribunais — uma única chamada sem siglaTribunal basta.
+      let tribunais: (string | undefined)[];
+      if (tipoMapeado === 'processo') {
+        tribunais = [undefined]; // Busca global, sem filtro de tribunal
+      } else {
+        const tribunaisRaw = Array.isArray(monitoramento.tribunais) && monitoramento.tribunais.length > 0
+          ? monitoramento.tribunais
+          : undefined;
+        const tribunaisExpandidos = expandirTribunais(tribunaisRaw);
+        tribunais = tribunaisExpandidos && tribunaisExpandidos.length > 0
+          ? tribunaisExpandidos
+          : [undefined];
+      }
 
       const variantesParaBuscarRaw = palavrasChaveVariantes.length > 0
         ? palavrasChaveVariantes
