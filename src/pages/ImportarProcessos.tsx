@@ -4174,12 +4174,27 @@ export default function ImportarProcessos() {
         return processo;
       });
 
-      setRenataProcessos(parsed);
-      const validCount = parsed.filter(p => p.status === "valido").length;
-      const invalidCount = parsed.filter(p => p.status === "invalido").length;
+      // Deduplicate by process number, keeping last occurrence (most recent data)
+      const totalRows = parsed.length;
+      const deduplicatedMap = new Map<string, ProcessoImport>();
+      for (const p of parsed) {
+        const key = (p.numero || "").trim().toLowerCase();
+        if (key) {
+          deduplicatedMap.set(key, p);
+        } else {
+          // Keep invalid rows (empty number) as-is with a unique key
+          deduplicatedMap.set(`__empty_${p.linhaOriginal}`, p);
+        }
+      }
+      const deduplicated = Array.from(deduplicatedMap.values());
+      const duplicatesRemoved = totalRows - deduplicated.length;
+
+      setRenataProcessos(deduplicated);
+      const validCount = deduplicated.filter(p => p.status === "valido").length;
+      const invalidCount = deduplicated.filter(p => p.status === "invalido").length;
       toast({
         title: "Planilha TST carregada",
-        description: `${parsed.length} linha(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+        description: `${deduplicated.length} processo(s) únicos de ${totalRows} linha(s)${duplicatesRemoved > 0 ? ` (${duplicatesRemoved} duplicatas removidas)` : ''}: ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
         variant: invalidCount > 0 ? "destructive" : "default",
       });
     } catch (error) {
