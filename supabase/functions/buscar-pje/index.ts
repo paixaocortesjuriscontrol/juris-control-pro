@@ -359,7 +359,7 @@ serve(async (req) => {
     // Validate numeroProcesso
     if (numeroProcesso) {
       const cleaned = String(numeroProcesso).replace(/\D/g, '');
-      if (cleaned.length > 25) {
+      if (cleaned.length > 50) {
         validationErrors.push("Número do processo muito longo");
       }
     }
