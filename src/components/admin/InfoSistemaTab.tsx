@@ -560,29 +560,52 @@ export function InfoSistemaTab() {
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
 
-      const canvas = await html2canvas(printRef.current, {
-        scale: 1.5,
+      const element = printRef.current;
+      // Expand all collapsible sections before capture
+      const closedDetails = element.querySelectorAll('details:not([open])');
+      closedDetails.forEach((d) => d.setAttribute('open', ''));
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
         useCORS: true,
         logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
 
-      const imgData = canvas.toDataURL("image/jpeg", 0.85);
+      // Restore collapsed state
+      closedDetails.forEach((d) => d.removeAttribute('open'));
+
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pdfWidth - 20;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 10;
+      const margin = 10;
+      const usableWidth = pdfWidth - margin * 2;
+      const usableHeight = pdfHeight - margin * 2;
 
-      pdf.addImage(imgData, "JPEG", 10, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight - 20;
+      // Slice the canvas into page-sized chunks
+      const scaleFactor = usableWidth / canvas.width;
+      const sliceHeightPx = Math.floor(usableHeight / scaleFactor);
+      const totalPages = Math.ceil(canvas.height / sliceHeightPx);
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 10;
-        pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 10, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight - 20;
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+
+        const srcY = page * sliceHeightPx;
+        const srcH = Math.min(sliceHeightPx, canvas.height - srcY);
+
+        // Create a sub-canvas for this page slice
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = srcH;
+        const ctx = pageCanvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+        }
+
+        const pageImgData = pageCanvas.toDataURL("image/jpeg", 0.92);
+        const imgH = srcH * scaleFactor;
+        pdf.addImage(pageImgData, "JPEG", margin, margin, usableWidth, imgH);
       }
 
       pdf.save(`JurisControl_Documentacao_v${SYSTEM_VERSION}.pdf`);
