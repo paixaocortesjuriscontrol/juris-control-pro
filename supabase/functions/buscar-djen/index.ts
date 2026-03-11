@@ -861,10 +861,10 @@ serve(async (req) => {
       validationErrors.push("Palavra-chave deve ter no máximo 3000 caracteres");
     }
 
-    // Validate numeroProcesso
+    // Validate numeroProcesso - aceitar até 50 chars para suportar prefixos como "ConPag", "CumPrSe"
     if (numeroProcesso) {
       const cleaned = String(numeroProcesso).replace(/\D/g, '');
-      if (cleaned.length > 0 && cleaned.length > 25) {
+      if (cleaned.length > 50) {
         validationErrors.push("Número do processo muito longo");
       }
     }
