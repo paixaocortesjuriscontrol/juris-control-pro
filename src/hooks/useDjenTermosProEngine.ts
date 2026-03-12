@@ -166,7 +166,12 @@ function notifyListeners() {
 
 function updateProgress(partial: Partial<DjenTermosProProgress>) {
   state.progress = { ...state.progress, ...partial };
+  state.lastUpdatedAt = Date.now();
   notifyListeners();
+}
+
+export function getDjenTermosProLastUpdatedAt(): number {
+  return state.lastUpdatedAt;
 }
 
 // ============================================================================
