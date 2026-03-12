@@ -1163,7 +1163,12 @@ async function executarLoop(
       clearInterval(state.timerInterval);
       state.timerInterval = null;
     }
+    // Garantir que status nunca fique preso em 'executando' após término
+    if (state.progress.status === 'executando') {
+      state.progress = { ...state.progress, status: 'concluido' };
+    }
     // Notificar React que isRunning mudou para false
+    state.lastUpdatedAt = Date.now();
     notifyListeners();
   }
 }
