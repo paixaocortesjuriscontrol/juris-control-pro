@@ -91,6 +91,7 @@ let state: {
   abortController: AbortController | null;
   listeners: Set<(p: DjenTermosProProgress) => void>;
   timerInterval: ReturnType<typeof setInterval> | null;
+  lastUpdatedAt: number;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -98,6 +99,7 @@ let state: {
   abortController: null,
   listeners: new Set(),
   timerInterval: null,
+  lastUpdatedAt: 0,
 };
 
 const STORAGE_KEY = 'djen-termos-pro-checkpoint-v1';
@@ -164,7 +166,12 @@ function notifyListeners() {
 
 function updateProgress(partial: Partial<DjenTermosProProgress>) {
   state.progress = { ...state.progress, ...partial };
+  state.lastUpdatedAt = Date.now();
   notifyListeners();
+}
+
+export function getDjenTermosProLastUpdatedAt(): number {
+  return state.lastUpdatedAt;
 }
 
 // ============================================================================
@@ -1156,7 +1163,12 @@ async function executarLoop(
       clearInterval(state.timerInterval);
       state.timerInterval = null;
     }
+    // Garantir que status nunca fique preso em 'executando' após término
+    if (state.progress.status === 'executando') {
+      state.progress = { ...state.progress, status: 'concluido' };
+    }
     // Notificar React que isRunning mudou para false
+    state.lastUpdatedAt = Date.now();
     notifyListeners();
   }
 }
