@@ -91,6 +91,7 @@ let state: {
   abortController: AbortController | null;
   listeners: Set<(p: DjenTermosProProgress) => void>;
   timerInterval: ReturnType<typeof setInterval> | null;
+  lastUpdatedAt: number;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -98,6 +99,7 @@ let state: {
   abortController: null,
   listeners: new Set(),
   timerInterval: null,
+  lastUpdatedAt: 0,
 };
 
 const STORAGE_KEY = 'djen-termos-pro-checkpoint-v1';
