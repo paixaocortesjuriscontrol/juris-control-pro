@@ -1,12 +1,17 @@
 /**
  * Banner de progresso do DJEN Termos Pro na tela Análise DJEN.
  * Usa o estado reativo do singleton Pro Engine via useDjenTermosPro.
+ * 
+ * Inclui detecção de execução travada (stale) para mobile/tablet onde
+ * o browser pode suspender a aba em background.
  */
 
+import { useEffect, useState } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Zap, Clock, CheckCircle2 } from "lucide-react";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
+import { getDjenTermosProLastUpdatedAt } from "@/hooks/useDjenTermosProEngine";
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -14,9 +19,36 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+/** Tempo máximo sem atualização antes de considerar a execução travada (ms) */
+const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutos
+
 export function DjenExecutionBannerPro() {
   const { progress, isRunning } = useDjenTermosPro();
+  const [isStale, setIsStale] = useState(false);
 
+  // Verificar periodicamente se a execução está travada (mobile/tablet background)
+  useEffect(() => {
+    if (!isRunning && progress.status !== 'executando') {
+      setIsStale(false);
+      return;
+    }
+
+    const checkStale = () => {
+      const lastUpdate = getDjenTermosProLastUpdatedAt();
+      if (lastUpdate > 0 && Date.now() - lastUpdate > STALE_THRESHOLD_MS) {
+        setIsStale(true);
+      } else {
+        setIsStale(false);
+      }
+    };
+
+    checkStale();
+    const interval = setInterval(checkStale, 15_000);
+    return () => clearInterval(interval);
+  }, [isRunning, progress.status, progress.percentage]);
+
+  // Esconder se não está executando OU se está travado (stale)
+  if (isStale) return null;
   if (!isRunning && progress.status !== 'executando') return null;
 
   const pct = Math.max(0, Math.min(99, Math.round(progress.percentage)));
