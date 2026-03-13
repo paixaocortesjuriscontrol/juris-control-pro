@@ -4,14 +4,16 @@
  * 
  * Inclui detecção de execução travada (stale) para mobile/tablet onde
  * o browser pode suspender a aba em background.
+ * Também valida contra o backend ao montar/retornar do background.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Zap, Clock, CheckCircle2 } from "lucide-react";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { getDjenTermosProLastUpdatedAt } from "@/hooks/useDjenTermosProEngine";
+import { fetchDjenBackendResumeSnapshot } from "@/hooks/djen/djenBackendResume";
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -20,35 +22,84 @@ function formatDuration(seconds: number): string {
 }
 
 /** Tempo máximo sem atualização antes de considerar a execução travada (ms) */
-const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutos
+const STALE_THRESHOLD_MS = 45_000; // 45 segundos (antes era 2 min — muito lento para mobile)
+const STALE_CHECK_INTERVAL_MS = 5_000; // Verificar a cada 5s (antes era 15s)
 
 export function DjenExecutionBannerPro() {
   const { progress, isRunning } = useDjenTermosPro();
   const [isStale, setIsStale] = useState(false);
+  const [backendDismissed, setBackendDismissed] = useState(false);
 
   // Verificar periodicamente se a execução está travada (mobile/tablet background)
+  const checkStale = useCallback(() => {
+    if (!isRunning && progress.status !== 'executando') {
+      setIsStale(false);
+      return;
+    }
+    const lastUpdate = getDjenTermosProLastUpdatedAt();
+    if (lastUpdate > 0 && Date.now() - lastUpdate > STALE_THRESHOLD_MS) {
+      setIsStale(true);
+    } else {
+      setIsStale(false);
+    }
+  }, [isRunning, progress.status]);
+
   useEffect(() => {
     if (!isRunning && progress.status !== 'executando') {
       setIsStale(false);
       return;
     }
 
-    const checkStale = () => {
-      const lastUpdate = getDjenTermosProLastUpdatedAt();
-      if (lastUpdate > 0 && Date.now() - lastUpdate > STALE_THRESHOLD_MS) {
-        setIsStale(true);
-      } else {
-        setIsStale(false);
+    checkStale();
+    const interval = setInterval(checkStale, STALE_CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [isRunning, progress.status, progress.percentage, checkStale]);
+
+  // Ao montar ou retornar do background, validar contra o backend
+  // Se o backend diz que a execução terminou mas o singleton ainda mostra "executando",
+  // esconder o banner para não confundir o usuário.
+  useEffect(() => {
+    if (!isRunning && progress.status !== 'executando') {
+      setBackendDismissed(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const validateBackend = async () => {
+      try {
+        const snap = await fetchDjenBackendResumeSnapshot();
+        // Se não há snapshot no backend, ou status é terminal, a execução já terminou
+        if (!cancelled && (!snap || snap.status === 'concluido' || snap.status === 'cancelado' || snap.status === 'erro')) {
+          const lastUpdate = getDjenTermosProLastUpdatedAt();
+          // Só dismiss se o estado local está parado há mais de 10s
+          if (lastUpdate > 0 && Date.now() - lastUpdate > 10_000) {
+            setBackendDismissed(true);
+          }
+        }
+      } catch {
+        // Se não conseguiu verificar, não faz nada
       }
     };
 
-    checkStale();
-    const interval = setInterval(checkStale, 15_000);
-    return () => clearInterval(interval);
-  }, [isRunning, progress.status, progress.percentage]);
+    validateBackend();
 
-  // Esconder se não está executando OU se está travado (stale)
-  if (isStale) return null;
+    // Também revalidar quando o usuário retorna à aba (visibilitychange)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkStale();
+        validateBackend();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isRunning, progress.status, checkStale]);
+
+  // Esconder se não está executando, se está travado (stale), ou se backend confirmou fim
+  if (isStale || backendDismissed) return null;
   if (!isRunning && progress.status !== 'executando') return null;
 
   const pct = Math.max(0, Math.min(99, Math.round(progress.percentage)));
