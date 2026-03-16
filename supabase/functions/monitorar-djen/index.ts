@@ -367,9 +367,10 @@ async function processPublicationFromIndex(
   const hashConteudo = generateHash(conteudo + (pub.data_disponibilizacao || pub.data_publicacao || pub.data || ''));
 
   let dataDisponibilizacao = pub.data_disponibilizacao || pub.dataDisponibilizacao || null;
-  let dataPublicacao = pub.data_publicacao || pub.dataPublicacao || null;
+  let dataPublicacao: string | null = null;
 
-  if (dataDisponibilizacao && !dataPublicacao) {
+  // REGRA ABSOLUTA: data_publicacao é sempre o próximo dia útil após data_disponibilizacao
+  if (dataDisponibilizacao) {
     try {
       const dispDate = new Date(dataDisponibilizacao);
       if (!isNaN(dispDate.getTime())) {
@@ -386,8 +387,6 @@ async function processPublicationFromIndex(
     hoje.setDate(hoje.getDate() + 1);
     const proximoDiaUtil = calcularPrimeiroDiaUtil(hoje);
     dataPublicacao = formatLocalDate(proximoDiaUtil);
-  } else if (!dataDisponibilizacao && dataPublicacao) {
-    dataDisponibilizacao = dataPublicacao;
   }
 
   if (!conteudoContemTermoOuOr(conteudo, monitoramento)) {

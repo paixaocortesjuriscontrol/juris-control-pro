@@ -793,9 +793,10 @@ async function processProcessosBatch(
         null;
       
       let dataDisponibilizacao = rawDataDisponibilizacao;
-      let dataPublicacao = rawDataPublicacao;
+      let dataPublicacao: string | null = null;
       
-      if (dataDisponibilizacao && !rawDataPublicacao) {
+      // REGRA ABSOLUTA: data_publicacao é sempre o próximo dia útil após data_disponibilizacao
+      if (dataDisponibilizacao) {
         try {
           const dispDate = new Date(dataDisponibilizacao);
           if (!isNaN(dispDate.getTime())) {
@@ -813,8 +814,6 @@ async function processProcessosBatch(
         amanha.setDate(amanha.getDate() + 1);
         const proximoDiaUtil = calcularPrimeiroDiaUtil(amanha);
         dataPublicacao = formatLocalDate(proximoDiaUtil);
-      } else if (!dataDisponibilizacao && dataPublicacao) {
-        dataDisponibilizacao = dataPublicacao;
       }
       
       const conteudoNorm = normalizeConteudo(conteudo);
