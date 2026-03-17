@@ -73,6 +73,10 @@ export function CadastroAudienciaForm() {
       advogado: "",
       observacoes: "",
       status: "pendente",
+      modalidade: "",
+      equipe: "",
+      nucleo_origem: "",
+      dossie: "",
     });
     setAdvogadosSelecionados([]);
   };
