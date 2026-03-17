@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Plus, Upload } from "lucide-react";
-import { usePrazosTst, PrazoTst } from "@/hooks/usePrazosTst";
+import { usePrazosTst, ProcessoTst } from "@/hooks/usePrazosTst";
 import { TstKanbanBoard } from "@/components/tst-prazos/TstKanbanBoard";
 import { TstPrazoDetailSheet } from "@/components/tst-prazos/TstPrazoDetailSheet";
 import { TstPrazoFormDialog } from "@/components/tst-prazos/TstPrazoFormDialog";
@@ -25,8 +25,6 @@ export default function TstPrazos() {
     queryKey: ["coordenacoes-usuario-tst", user?.id],
     queryFn: async () => {
       const userId = user?.id ?? "";
-
-      // Check admin role
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
@@ -38,14 +36,12 @@ export default function TstPrazos() {
         return { coordenacoes: data ?? [], isAdmin: true };
       }
 
-      // Get user memberships
       const { data: membros } = await supabase
         .from("membros_coordenacao")
         .select("coordenacao_id")
         .eq("usuario_id", userId);
       const ids = membros?.map((m) => m.coordenacao_id) ?? [];
 
-      // Also check if user is coordinator
       const { data: coordenadas } = await supabase
         .from("coordenacoes")
         .select("id")
@@ -70,24 +66,21 @@ export default function TstPrazos() {
 
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null);
 
-  // Auto-select first coord
   if (!coordenacaoId && coordenacoes.length > 0) {
     setCoordenacaoId(coordenacoes[0].id);
   }
 
-  const { prazos, isLoading, create, remove, bulkInsert, clearAndInsert, isCreating, isImporting } = usePrazosTst(coordenacaoId);
+  const { prazos, isLoading, create, remove, bulkImport, clearAndImport, isCreating, isImporting } = usePrazosTst(coordenacaoId);
 
-  const [selected, setSelected] = useState<PrazoTst | null>(null);
+  const [selected, setSelected] = useState<ProcessoTst | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
-  // Show selector only if admin or user has multiple coordenações
   const showSelector = isAdmin || coordenacoes.length > 1;
 
   return (
     <MainLayout title="TST Prazos">
       <div className="flex flex-col h-full gap-4">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground">TST Prazos</h1>
@@ -119,10 +112,9 @@ export default function TstPrazos() {
           </div>
         </div>
 
-        {/* Kanban */}
         {isLoading ? (
-          <div className="grid grid-cols-5 gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="grid grid-cols-6 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-[400px] rounded-lg" />
             ))}
           </div>
@@ -130,15 +122,12 @@ export default function TstPrazos() {
           <TstKanbanBoard prazos={prazos} onCardClick={setSelected} />
         )}
 
-        {/* Detail Sheet */}
         <TstPrazoDetailSheet
-          prazo={selected}
+          processo={selected}
           open={!!selected}
           onClose={() => setSelected(null)}
-          onDelete={(id) => remove(id)}
         />
 
-        {/* Form Dialog */}
         <TstPrazoFormDialog
           open={showForm}
           onClose={() => setShowForm(false)}
@@ -147,14 +136,13 @@ export default function TstPrazos() {
           isSaving={isCreating}
         />
 
-        {/* Import Dialog */}
         <TstImportDialog
           open={showImport}
           onClose={() => setShowImport(false)}
           coordenacaoId={coordenacaoId}
-          coordenacoes={isAdmin ? coordenacoes : coordenacoes}
-          onImport={bulkInsert}
-          onClearAndImport={clearAndInsert}
+          coordenacoes={coordenacoes}
+          onImport={bulkImport}
+          onClearAndImport={clearAndImport}
           isImporting={isImporting}
           onCoordenacaoChange={setCoordenacaoId}
         />

@@ -1,17 +1,19 @@
-import { PrazoTst } from "@/hooks/usePrazosTst";
+import { ProcessoTst } from "@/hooks/usePrazosTst";
 import { differenceInCalendarDays } from "date-fns";
 import { ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
 interface Props {
-  prazo: PrazoTst;
+  processo: ProcessoTst;
   onClick: () => void;
 }
 
-export function TstPrazoCard({ prazo, onClick }: Props) {
+export function TstPrazoCard({ processo, onClick }: Props) {
   const navigate = useNavigate();
-  const dias = prazo.data_fatal ? differenceInCalendarDays(new Date(prazo.data_fatal + "T12:00:00"), new Date()) : null;
+  const dias = processo.data_fatal_tst
+    ? differenceInCalendarDays(new Date(processo.data_fatal_tst + "T12:00:00"), new Date())
+    : null;
 
   return (
     <div
@@ -20,27 +22,25 @@ export function TstPrazoCard({ prazo, onClick }: Props) {
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">
-          {prazo.numero_processo || "Sem nº"}
+          {processo.numero || "Sem nº"}
         </p>
         <Badge variant={dias !== null && dias <= 1 ? "destructive" : "secondary"} className="text-[10px] shrink-0">
           {dias === null ? "S/P" : dias <= 0 ? "VENCIDO" : `${dias}d`}
         </Badge>
       </div>
-      {prazo.autor && <p className="text-xs text-muted-foreground truncate">{prazo.autor}</p>}
-      {prazo.responsavel && (
-        <p className="text-xs text-muted-foreground truncate">Resp: {prazo.responsavel}</p>
+      {processo.polo_ativo && <p className="text-xs text-muted-foreground truncate">{processo.polo_ativo}</p>}
+      {processo.responsavel_tst && (
+        <p className="text-xs text-muted-foreground truncate">Resp: {processo.responsavel_tst}</p>
       )}
-      {prazo.processo_id && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/processos/${prazo.processo_id}`);
-          }}
-          className="flex items-center gap-1 text-[10px] text-primary hover:underline"
-        >
-          <ExternalLink className="w-3 h-3" /> Ver Processo
-        </button>
-      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate(`/processos/${processo.id}`);
+        }}
+        className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+      >
+        <ExternalLink className="w-3 h-3" /> Ver Processo
+      </button>
     </div>
   );
 }

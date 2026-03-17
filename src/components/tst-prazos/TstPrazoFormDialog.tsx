@@ -10,31 +10,30 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { PrazoTstInsert } from "@/hooks/usePrazosTst";
+import { ProcessoTstImport } from "@/hooks/usePrazosTst";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSave: (prazo: PrazoTstInsert) => Promise<any>;
+  onSave: (data: ProcessoTstImport) => Promise<any>;
   coordenacaoId: string | null;
   isSaving: boolean;
 }
 
 export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSaving }: Props) {
   const [form, setForm] = useState({
-    numero_processo: "",
-    dossie: "",
-    reu: "",
-    autor: "",
-    equipe: "",
-    decisao: "",
-    formulario: "",
-    providencias: "",
-    deposito_judicial: "",
-    preparo: "",
-    multa_custas: "",
-    responsavel: "",
+    numero: "",
+    dossie_tst: "",
+    polo_passivo: "",
+    polo_ativo: "",
+    equipe_tst: "",
+    decisao_tst: "",
+    formulario_tst: "",
+    providencias_tst: "",
+    deposito_judicial_tst: "",
+    preparo_tst: "",
+    multa_custas_tst: "",
+    responsavel_tst: "",
   });
   const [dataFatal, setDataFatal] = useState<Date>();
 
@@ -44,31 +43,29 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
   const handleSubmit = async () => {
     if (!dataFatal) return;
 
-    // Try to match processo
-    let processoId: string | null = null;
-    if (form.numero_processo.trim()) {
-      const digits = form.numero_processo.replace(/\D/g, "");
-      if (digits.length >= 10) {
-        const { data } = await supabase
-          .from("processos")
-          .select("id")
-          .ilike("numero", `%${digits}%`)
-          .limit(1);
-        if (data?.[0]) processoId = data[0].id;
-      }
-    }
-
     await onSave({
-      ...form,
+      numero: form.numero || "SEM-NUMERO",
       coordenacao_id: coordenacaoId,
-      processo_id: processoId,
-      data_fatal: format(dataFatal, "yyyy-MM-dd"),
+      polo_ativo: form.polo_ativo || null,
+      polo_passivo: form.polo_passivo || null,
+      dossie_tst: form.dossie_tst || null,
+      equipe_tst: form.equipe_tst || null,
+      decisao_tst: form.decisao_tst || null,
+      formulario_tst: form.formulario_tst || null,
+      providencias_tst: form.providencias_tst || null,
+      deposito_judicial_tst: form.deposito_judicial_tst || null,
+      preparo_tst: form.preparo_tst || null,
+      multa_custas_tst: form.multa_custas_tst || null,
+      responsavel_tst: form.responsavel_tst || null,
+      data_fatal_tst: format(dataFatal, "yyyy-MM-dd"),
+      area: "trabalhista",
+      status: "ativo",
     });
 
     setForm({
-      numero_processo: "", dossie: "", reu: "", autor: "", equipe: "",
-      decisao: "", formulario: "", providencias: "", deposito_judicial: "",
-      preparo: "", multa_custas: "", responsavel: "",
+      numero: "", dossie_tst: "", polo_passivo: "", polo_ativo: "", equipe_tst: "",
+      decisao_tst: "", formulario_tst: "", providencias_tst: "", deposito_judicial_tst: "",
+      preparo_tst: "", multa_custas_tst: "", responsavel_tst: "",
     });
     setDataFatal(undefined);
     onClose();
@@ -78,56 +75,56 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Prazo TST</DialogTitle>
+          <DialogTitle>Novo Processo TST</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label>Nº Processo</Label>
-            <Input value={form.numero_processo} onChange={set("numero_processo")} placeholder="0000000-00.0000.0.00.0000" />
+            <Input value={form.numero} onChange={set("numero")} placeholder="0000000-00.0000.0.00.0000" />
           </div>
           <div className="space-y-1">
             <Label>Dossiê</Label>
-            <Input value={form.dossie} onChange={set("dossie")} />
+            <Input value={form.dossie_tst} onChange={set("dossie_tst")} />
           </div>
           <div className="space-y-1">
             <Label>Réu</Label>
-            <Input value={form.reu} onChange={set("reu")} />
+            <Input value={form.polo_passivo} onChange={set("polo_passivo")} />
           </div>
           <div className="space-y-1">
             <Label>Autor</Label>
-            <Input value={form.autor} onChange={set("autor")} />
+            <Input value={form.polo_ativo} onChange={set("polo_ativo")} />
           </div>
           <div className="space-y-1">
             <Label>Equipe</Label>
-            <Input value={form.equipe} onChange={set("equipe")} />
+            <Input value={form.equipe_tst} onChange={set("equipe_tst")} />
           </div>
           <div className="space-y-1">
             <Label>Responsável</Label>
-            <Input value={form.responsavel} onChange={set("responsavel")} />
+            <Input value={form.responsavel_tst} onChange={set("responsavel_tst")} />
           </div>
           <div className="space-y-1 md:col-span-2">
             <Label>Decisão</Label>
-            <Textarea value={form.decisao} onChange={set("decisao")} rows={2} />
+            <Textarea value={form.decisao_tst} onChange={set("decisao_tst")} rows={2} />
           </div>
           <div className="space-y-1">
             <Label>Formulário</Label>
-            <Input value={form.formulario} onChange={set("formulario")} />
+            <Input value={form.formulario_tst} onChange={set("formulario_tst")} />
           </div>
           <div className="space-y-1 md:col-span-2">
             <Label>Providências</Label>
-            <Textarea value={form.providencias} onChange={set("providencias")} rows={2} />
+            <Textarea value={form.providencias_tst} onChange={set("providencias_tst")} rows={2} />
           </div>
           <div className="space-y-1">
             <Label>Depósito Judicial</Label>
-            <Input value={form.deposito_judicial} onChange={set("deposito_judicial")} />
+            <Input value={form.deposito_judicial_tst} onChange={set("deposito_judicial_tst")} />
           </div>
           <div className="space-y-1">
             <Label>Preparo</Label>
-            <Input value={form.preparo} onChange={set("preparo")} />
+            <Input value={form.preparo_tst} onChange={set("preparo_tst")} />
           </div>
           <div className="space-y-1">
             <Label>Multa/Custas</Label>
-            <Input value={form.multa_custas} onChange={set("multa_custas")} />
+            <Input value={form.multa_custas_tst} onChange={set("multa_custas_tst")} />
           </div>
           <div className="space-y-1">
             <Label>Data Fatal *</Label>
