@@ -153,6 +153,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
         observacoes: formData.observacoes || null,
         status: formData.status,
         providencias_tomadas: formData.providencias_tomadas || null,
+        modalidade: formData.modalidade || null,
+        equipe: formData.equipe || null,
+        nucleo_origem: formData.nucleo_origem || null,
+        dossie: formData.dossie || null,
       };
 
       // Se marcando como tratado, registrar quem e quando
