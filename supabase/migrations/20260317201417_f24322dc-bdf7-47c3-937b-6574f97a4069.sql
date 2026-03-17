@@ -1,0 +1,1 @@
+DELETE FROM public.prazos_tst;
