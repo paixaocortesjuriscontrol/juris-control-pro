@@ -82,7 +82,12 @@ function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
 
     for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex++) {
       const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
-      row.push(cell?.w ?? cell?.v ?? "");
+      // For date cells, return the raw Date object to avoid locale-dependent formatting
+      if (cell && (cell.t === 'd' || cell.v instanceof Date)) {
+        row.push(cell.v);
+      } else {
+        row.push(cell?.w ?? cell?.v ?? "");
+      }
     }
 
     rows.push(row);
