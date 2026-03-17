@@ -305,7 +305,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
           .from('audiencias_detectadas')
           .insert({
             processo_numero: row.processo_numero || null,
-            data_audiencia: row.data || null,
+            data_audiencia: row.data ? `${row.data}T${row.hora_brasilia || row.hora_local || '12:00'}:00-03:00` : null,
             hora: row.hora_local || null,
             hora_local: row.hora_local || null,
             hora_brasilia: row.hora_brasilia || null,
