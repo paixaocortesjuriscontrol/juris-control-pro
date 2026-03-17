@@ -32,8 +32,10 @@ function parseExcelDate(val: unknown): string | null {
   }
 
   if (typeof val === "number") {
-    const d = XLSX.SSF.parse_date_code(val);
-    if (d) return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+    const parsed = XLSX.SSF.parse_date_code(val);
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+    }
   }
 
   if (typeof val === "string") {
@@ -68,10 +70,25 @@ function findColumn(headers: string[], candidates: string[]): number {
   return -1;
 }
 
-function getWorksheetCellValue(ws: XLSX.WorkSheet, rowIndex: number, colIndex: number) {
-  if (colIndex < 0) return null;
-  const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
-  return cell?.w ?? cell?.v ?? null;
+function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
+  const ref = ws["!ref"];
+  if (!ref) return [];
+
+  const range = XLSX.utils.decode_range(ref);
+  const rows: unknown[][] = [];
+
+  for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex++) {
+    const row: unknown[] = [];
+
+    for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
+      row.push(cell?.w ?? cell?.v ?? "");
+    }
+
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 export function TstImportDialog({
@@ -95,6 +112,7 @@ export function TstImportDialog({
     if (!file) return;
 
     setParsing(true);
+    setPreview([]);
     setProgress(10);
 
     const ab = await file.arrayBuffer();
@@ -102,18 +120,17 @@ export function TstImportDialog({
 
     const wb = XLSX.read(ab, { cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
+    const rows = getSheetRows(ws);
 
     setProgress(40);
 
     if (rows.length < 2) {
-      setPreview([]);
       setParsing(false);
       setProgress(0);
       return;
     }
 
-    const headers = rows[0].map((h: any) => String(h));
+    const headers = rows[0].map((h) => String(h ?? ""));
 
     const colFatal = findColumn(headers, ["fatal"]);
     const colDossie = findColumn(headers, ["dossi", "dossie"]);
@@ -138,16 +155,13 @@ export function TstImportDialog({
       if (digits.length >= 10) processosMap.set(digits, p.id);
     });
 
-    setProgress(70);
-
     const parsed: PrazoTstInsert[] = [];
-    const totalRows = rows.length - 1;
+    const totalRows = Math.max(rows.length - 1, 1);
 
     for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const fatalCellValue = getWorksheetCellValue(ws, i, colFatal);
-      const dataFatal = parseExcelDate(fatalCellValue ?? r[colFatal]);
-      const numProc = colProcesso >= 0 ? String(r[colProcesso] || "").trim() : "";
+      const row = rows[i];
+      const dataFatal = colFatal >= 0 ? parseExcelDate(row[colFatal]) : null;
+      const numProc = colProcesso >= 0 ? String(row[colProcesso] || "").trim() : "";
 
       if (!dataFatal && !numProc) continue;
       if (!dataFatal) continue;
@@ -162,22 +176,22 @@ export function TstImportDialog({
         coordenacao_id: coordenacaoId,
         processo_id: processoId,
         numero_processo: numProc || null,
-        dossie: colDossie >= 0 ? String(r[colDossie] || "").trim() || null : null,
-        reu: colReu >= 0 ? String(r[colReu] || "").trim() || null : null,
-        autor: colAutor >= 0 ? String(r[colAutor] || "").trim() || null : null,
-        equipe: colEquipe >= 0 ? String(r[colEquipe] || "").trim() || null : null,
-        decisao: colDecisao >= 0 ? String(r[colDecisao] || "").trim() || null : null,
-        formulario: colFormulario >= 0 ? String(r[colFormulario] || "").trim() || null : null,
-        providencias: colProvidencias >= 0 ? String(r[colProvidencias] || "").trim() || null : null,
-        deposito_judicial: colDeposito >= 0 ? String(r[colDeposito] || "").trim() || null : null,
-        preparo: colPreparo >= 0 ? String(r[colPreparo] || "").trim() || null : null,
-        multa_custas: colMulta >= 0 ? String(r[colMulta] || "").trim() || null : null,
-        responsavel: colResponsavel >= 0 ? String(r[colResponsavel] || "").trim() || null : null,
+        dossie: colDossie >= 0 ? String(row[colDossie] || "").trim() || null : null,
+        reu: colReu >= 0 ? String(row[colReu] || "").trim() || null : null,
+        autor: colAutor >= 0 ? String(row[colAutor] || "").trim() || null : null,
+        equipe: colEquipe >= 0 ? String(row[colEquipe] || "").trim() || null : null,
+        decisao: colDecisao >= 0 ? String(row[colDecisao] || "").trim() || null : null,
+        formulario: colFormulario >= 0 ? String(row[colFormulario] || "").trim() || null : null,
+        providencias: colProvidencias >= 0 ? String(row[colProvidencias] || "").trim() || null : null,
+        deposito_judicial: colDeposito >= 0 ? String(row[colDeposito] || "").trim() || null : null,
+        preparo: colPreparo >= 0 ? String(row[colPreparo] || "").trim() || null : null,
+        multa_custas: colMulta >= 0 ? String(row[colMulta] || "").trim() || null : null,
+        responsavel: colResponsavel >= 0 ? String(row[colResponsavel] || "").trim() || null : null,
         data_fatal: dataFatal,
       });
 
-      if (i % 50 === 0) {
-        setProgress(70 + Math.round((i / totalRows) * 30));
+      if (i % 25 === 0 || i === rows.length - 1) {
+        setProgress(55 + Math.round((i / totalRows) * 45));
       }
     }
 
