@@ -197,28 +197,37 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
       const parsed: AudienciaRow[] = (jsonData as any[])
         .map((raw) => normalizeRowKeys(raw))
-        .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"])
+        .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"] || row["PROCESSO"])
         .map((row) => {
           const comarca = String(row["COMARCA"] || "").trim();
           const horaLocal = parseExcelTime(row["HORA"]);
           const horaBrasilia = converterParaBrasilia(horaLocal, comarca);
 
+          // Support both old format and new TST format
+          const processoNumero = String(row["NUMERO_PROCESSO"] || row["PROCESSO"] || "").trim();
+          const modalidadeRaw = String(row["__EMPTY"] || row["MODALIDADE"] || "").trim();
+          const modalidade = modalidadeRaw === "Virtual" || modalidadeRaw === "Presencial" ? modalidadeRaw : "";
+
           return {
+            modalidade,
             data: parseExcelDate(row["DATA"]) || "",
             hora_local: horaLocal,
             hora_brasilia: horaBrasilia,
-            processo_numero: String(row["NUMERO_PROCESSO"] || "").trim(),
-            vara_camara: String(row["VT_CAMARA"] || "").trim(),
+            processo_numero: processoNumero,
+            vara_camara: String(row["VT_CAMARA"] || row["ORGAO"] || "").trim(),
             comarca,
-            polo_ativo: String(row["POLO_ATIVO"] || "").trim(),
-            cliente: String(row["CLIENTE"] || "").trim(),
+            polo_ativo: String(row["POLO_ATIVO"] || row["PARTE_AUTORA"] || "").trim(),
+            cliente: String(row["CLIENTE"] || row["REUS"] || "").trim(),
             terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
             tipo_audiencia: String(row["TIPO"] || "").trim(),
             resumo_objeto: String(row["RESUMO_DO_OBJETO"] || "").trim(),
             funcao: String(row["FUNCAO"] || "").trim(),
             preposto: String(row["PREPOSTO"] || "").trim(),
             testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
-            advogado: String(row["ADVOGADO"] || "").trim(),
+            advogado: String(row["ADVOGADO"] || row["ADV_INTERNO"] || "").trim(),
+            equipe: String(row["EQUIPE"] || "").trim(),
+            nucleo_origem: String(row["ORIGEM"] || "").trim(),
+            dossie: String(row["DOSSIE"] || row["DOSSIER"] || "").trim(),
             status: "pendente" as const,
           };
         })
