@@ -1,55 +1,80 @@
 
-Diagnóstico objetivo (com evidência de produção):
 
-1) O gargalo principal não é “falta de índice simples”.  
-- Para a coordenação do Dr. Thomás: 500 registros brutos hoje em `publicacoes_djen`, mas 222 após deduplicação (bate com o relato).
-- `EXPLAIN ANALYZE` mostrou:
-  - `count_djen_publicacoes_unificadas`: ~2.79s
-  - `get_djen_publicacoes_unificadas` (200 itens): ~2.80s
-- As queries base (sem dedup por regex) rodam em ~1–11ms.  
-Conclusão: o custo está no cálculo de dedup em tempo real (`strip_destinatarios + regexp_replace + lower + left`) em conteúdo grande, repetido várias vezes.
+## Plano: TST Prazos — Kanban + Formulário + Link Processo
 
-2) O frontend amplifica a lentidão:
-- Hoje ele chama `count_djen_publicacoes_unificadas` + páginas de `get_djen_publicacoes_unificadas` em sequência.
-- Para 222 itens: 1 count + 2 páginas => ~8s só nessas RPCs.
-- Na primeira carga ainda pode disparar consulta sem coordenação definida (estado inicial), piorando o TTFB.
+### Resumo
+Criar página "TST Prazos" com:
+1. Kanban de 5 colunas (automático por dias até prazo fatal)
+2. Filtro por coordenação
+3. Formulário para cadastrar novo prazo (mesmos campos da planilha)
+4. Importação de planilha XLSX
+5. Link para detalhes do processo quando existir no Supabase
+6. Modal de detalhes ao clicar no card
 
-Plano de implementação (focado em ganho real):
+---
 
-Fase 1 — ganho imediato (rápido e baixo risco)
-- `src/hooks/usePublicacoesDjenUnificadas.ts`
-  - Remover chamada obrigatória de `count_*` para montar paginação.
-  - Buscar por páginas até `chunk < PAGE`, começando direto no `get_*`.
-  - Adicionar `enabled` no hook para só consultar quando coordenação já estiver inicializada na tela (`!loadingUserCoord && coordenacaoId !== null`).
-- `src/pages/AnaliseDjen.tsx`
-  - Passar `enabled` ao hook para evitar carga inicial ampla sem coordenação.
-Resultado esperado: queda forte do tempo percebido (elimina uma RPC pesada inteira por carregamento).
+### 1. Migração SQL — tabela `prazos_tst`
 
-Fase 2 — correção estrutural no banco (onde está o gargalo real)
-- Nova migration:
-  - Adicionar colunas pré-computadas de dedup nas tabelas DJEN:
-    - `dedup_processo_digits`
-    - `dedup_data_ref` (date)
-    - `dedup_head_norm` (text curto já normalizado e sem destinatários)
-  - Criar trigger `BEFORE INSERT/UPDATE` para preencher essas colunas (e backfill dos dados existentes).
-  - Índices compostos “publicações do dia por coordenação” usando esses campos + `created_at/lida` para termos/processos/descartadas.
-- Reescrever RPCs:
-  - `count_djen_publicacoes_unificadas`
-  - `get_djen_publicacoes_unificadas`
-  - `marcar_publicacoes_lidas_por_dedup`
-  para usar campos pré-computados (sem regex pesada em tempo de consulta).
+Campos: `id` uuid PK, `coordenacao_id` uuid FK, `numero_processo` text, `dossie` text, `reu` text, `autor` text, `equipe` text, `decisao` text, `formulario` text, `providencias` text, `deposito_judicial` text, `preparo` text, `multa_custas` text, `responsavel` text, `data_fatal` date NOT NULL, `status` text default 'pendente', `processo_id` uuid FK processos (nullable — para vincular ao processo no sistema), `created_at`, `updated_at`.
 
-Fase 3 — validação e segurança de resultado
-- Validar no banco (com contexto do usuário Dr. Thomás):
-  - `count_*` < 300ms
-  - `get_*` (200) < 400ms
-- Validar na UI:
-  - “Não Lidas” consistente ao marcar/desmarcar filtro.
-  - Marcar como lida sem timeout.
-  - Carga inicial da Análise DJEN significativamente mais rápida.
-- Teste E2E no fluxo real da coordenação do Dr. Thomás.
+RLS: SELECT/INSERT/UPDATE/DELETE para authenticated.
 
-Entregáveis previstos:
-- 1 migration SQL (colunas + trigger + backfill + índices + RPCs otimizadas)
-- ajuste do hook unificado
-- ajuste da página `AnaliseDjen` para gating de carregamento
+Trigger `update_updated_at_column`.
+
+### 2. Sidebar + Rota
+
+- Adicionar `{ icon: Clock, label: "TST Prazos", path: "/tst-prazos" }` no `menuItemsPublicos`
+- Registrar rota `/tst-prazos` no App.tsx com ProtectedRoute
+
+### 3. Página `src/pages/TstPrazos.tsx`
+
+- Filtro por coordenação no topo (padrão: coordenação do usuário)
+- Botão "Importar Planilha" e botão "Novo Prazo"
+- Renderiza `TstKanbanBoard`
+
+### 4. Componentes
+
+| Arquivo | Função |
+|---|---|
+| `src/pages/TstPrazos.tsx` | Página com filtro coordenação, botões de ação |
+| `src/components/tst-prazos/TstKanbanBoard.tsx` | Board com 5 colunas calculadas por dias até data_fatal |
+| `src/components/tst-prazos/TstPrazoCard.tsx` | Card com nº processo, autor, responsável, badge dias. **Botão/link para `/processos/:id`** quando `processo_id` estiver preenchido |
+| `src/components/tst-prazos/TstPrazoDetailSheet.tsx` | Sheet com todos os campos + link "Ver Processo" se vinculado |
+| `src/components/tst-prazos/TstPrazoFormDialog.tsx` | **Formulário de cadastro/edição** com todos os campos da planilha: processo, dossiê, réu, autor, equipe, decisão, formulário, providências, dep. judicial, preparo, multa/custas, responsável, data fatal. Select de coordenação. Busca de processo existente no Supabase para vincular `processo_id` |
+| `src/components/tst-prazos/TstImportDialog.tsx` | Upload XLSX com parsing via `xlsx` |
+| `src/hooks/usePrazosTst.ts` | Hook React Query: listar (filtro coordenação), criar, atualizar, deletar |
+
+### 5. Kanban — lógica de colunas
+
+Dias corridos até `data_fatal`:
+- **≥ 5** → "Mais de 5 dias" (verde)
+- **4** → "4 dias" (amarelo)
+- **3** → "3 dias" (laranja)
+- **2** → "2 dias" (vermelho claro)
+- **≤ 1 ou vencido** → "Prazo Fatal" (vermelho intenso)
+
+### 6. Formulário de cadastro
+
+Dialog com campos:
+- **Coordenação** (select)
+- **Número do Processo** (text, com busca para vincular `processo_id` automaticamente)
+- **Dossiê, Réu, Autor, Equipe** (text)
+- **Decisão, Formulário, Providências** (textarea)
+- **Depósito Judicial, Preparo, Multa/Custas** (text)
+- **Responsável** (text ou select de profiles)
+- **Data Fatal** (datepicker, obrigatório)
+
+Ao salvar, se o número do processo for encontrado na tabela `processos`, vincula automaticamente o `processo_id`.
+
+### 7. Link para detalhes do processo
+
+- No card e no sheet de detalhes: se `processo_id` estiver preenchido, exibir botão "Ver Processo" que navega para `/processos/:processo_id`
+- Na importação XLSX: tentar fazer match do `numero_processo` com a tabela `processos` para preencher `processo_id` automaticamente
+
+### 8. Importação XLSX
+
+- Mapeia colunas: FATAL→data_fatal, DOSSIÊ→dossie, PROCESSO→numero_processo, etc.
+- Vincula à coordenação selecionada
+- Faz match automático com processos existentes para preencher `processo_id`
+- Opção de limpar dados anteriores antes de importar
+
