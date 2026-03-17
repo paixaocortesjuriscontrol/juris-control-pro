@@ -400,14 +400,18 @@ export type Database = {
           created_at: string
           criado_por: string | null
           data_audiencia: string | null
+          dossie: string | null
+          equipe: string | null
           funcao: string | null
           hora: string | null
           hora_brasilia: string | null
           hora_local: string | null
           id: string
           local_audiencia: string | null
+          modalidade: string | null
           monitoramento_id: string | null
           movimentacao_id: string | null
+          nucleo_origem: string | null
           observacoes: string | null
           origem: string | null
           polo_ativo: string | null
@@ -437,14 +441,18 @@ export type Database = {
           created_at?: string
           criado_por?: string | null
           data_audiencia?: string | null
+          dossie?: string | null
+          equipe?: string | null
           funcao?: string | null
           hora?: string | null
           hora_brasilia?: string | null
           hora_local?: string | null
           id?: string
           local_audiencia?: string | null
+          modalidade?: string | null
           monitoramento_id?: string | null
           movimentacao_id?: string | null
+          nucleo_origem?: string | null
           observacoes?: string | null
           origem?: string | null
           polo_ativo?: string | null
@@ -474,14 +482,18 @@ export type Database = {
           created_at?: string
           criado_por?: string | null
           data_audiencia?: string | null
+          dossie?: string | null
+          equipe?: string | null
           funcao?: string | null
           hora?: string | null
           hora_brasilia?: string | null
           hora_local?: string | null
           id?: string
           local_audiencia?: string | null
+          modalidade?: string | null
           monitoramento_id?: string | null
           movimentacao_id?: string | null
+          nucleo_origem?: string | null
           observacoes?: string | null
           origem?: string | null
           polo_ativo?: string | null
