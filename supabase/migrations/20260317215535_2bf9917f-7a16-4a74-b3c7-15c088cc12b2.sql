@@ -1,0 +1,1 @@
+ALTER TABLE public.audiencias_detectadas ADD COLUMN IF NOT EXISTS coordenacao_id uuid REFERENCES public.coordenacoes(id);
