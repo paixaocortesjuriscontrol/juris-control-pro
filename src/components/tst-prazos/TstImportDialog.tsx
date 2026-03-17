@@ -137,7 +137,7 @@ export function TstImportDialog({
 
     const headers = rows[0].map((h) => String(h ?? ""));
 
-    const colFatal = findColumn(headers, ["fatal"]);
+    const colFatal = 1; // Column B — fixed layout
     const colDossie = findColumn(headers, ["dossi", "dossie"]);
     const colProcesso = findColumn(headers, ["processo"]);
     const colReu = findColumn(headers, ["réu", "reu"]);
