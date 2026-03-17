@@ -190,12 +190,17 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     setIsLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
+      
+      // Read ALL sheets and merge rows (dedup by processo_numero)
+      const allRows: AudienciaRow[] = [];
+      const seenProcessos = new Set<string>();
 
-      const parsed: AudienciaRow[] = (jsonData as any[])
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        const sheetRows: AudienciaRow[] = (jsonData as any[])
         .map((raw) => normalizeRowKeys(raw))
         .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"] || row["PROCESSO"])
         .map((row) => {
