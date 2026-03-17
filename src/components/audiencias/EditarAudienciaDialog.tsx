@@ -99,6 +99,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
         observacoes: audiencia.observacoes || "",
         status: audiencia.status || "pendente",
         providencias_tomadas: audiencia.providencias_tomadas || "",
+        modalidade: audiencia.modalidade || "",
+        equipe: audiencia.equipe || "",
+        nucleo_origem: audiencia.nucleo_origem || "",
+        dossie: audiencia.dossie || "",
       });
     }
   }, [audiencia]);
