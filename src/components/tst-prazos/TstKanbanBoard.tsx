@@ -12,8 +12,8 @@ interface Column {
 }
 
 function getDias(p: ProcessoTst): number | null {
-  if (!p.data_fatal_tst) return null;
-  return differenceInCalendarDays(new Date(p.data_fatal_tst + "T12:00:00"), new Date());
+  if (!p.data_fatal) return null;
+  return differenceInCalendarDays(new Date(p.data_fatal + "T12:00:00"), new Date());
 }
 
 const columns: Column[] = [
@@ -45,10 +45,10 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
               <div className="space-y-2">
                 {items
                   .sort((a, b) => {
-                    if (!a.data_fatal_tst && !b.data_fatal_tst) return 0;
-                    if (!a.data_fatal_tst) return 1;
-                    if (!b.data_fatal_tst) return -1;
-                    return new Date(a.data_fatal_tst).getTime() - new Date(b.data_fatal_tst).getTime();
+                    if (!a.data_fatal && !b.data_fatal) return 0;
+                    if (!a.data_fatal) return 1;
+                    if (!b.data_fatal) return -1;
+                    return new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime();
                   })
                   .map((p) => (
                     <TstPrazoCard key={p.id} processo={p} onClick={() => onCardClick(p)} />

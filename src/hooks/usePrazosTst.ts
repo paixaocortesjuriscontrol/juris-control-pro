@@ -17,7 +17,7 @@ export interface ProcessoTst {
   preparo_tst: string | null;
   multa_custas_tst: string | null;
   responsavel_tst: string | null;
-  data_fatal_tst: string | null;
+  data_fatal: string | null;
   status_tst: string | null;
   status: string;
   created_at: string;
@@ -38,7 +38,7 @@ export interface ProcessoTstImport {
   preparo_tst: string | null;
   multa_custas_tst: string | null;
   responsavel_tst: string | null;
-  data_fatal_tst: string | null;
+  data_fatal: string | null;
   area?: string;
   status?: string;
   /** If matched to existing processo, store the id here for upsert */
@@ -49,7 +49,7 @@ const TST_SELECT = `
   id, numero, coordenacao_id, polo_ativo, polo_passivo,
   dossie_tst, equipe_tst, decisao_tst, formulario_tst,
   providencias_tst, deposito_judicial_tst, preparo_tst,
-  multa_custas_tst, responsavel_tst, data_fatal_tst,
+  multa_custas_tst, responsavel_tst, data_fatal,
   status_tst, status, created_at, updated_at
 `;
 
@@ -63,7 +63,7 @@ export function usePrazosTst(coordenacaoId: string | null) {
         .from("processos")
         .select(TST_SELECT)
         .eq("coordenacao_id", coordenacaoId!)
-        .order("data_fatal_tst", { ascending: true, nullsFirst: false });
+        .order("data_fatal", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as ProcessoTst[];
     },
@@ -140,7 +140,7 @@ export function usePrazosTst(coordenacaoId: string | null) {
       const { error: clearErr } = await supabase
         .from("processos")
         .update({
-          data_fatal_tst: null,
+          data_fatal: null,
           decisao_tst: null,
           formulario_tst: null,
           providencias_tst: null,
@@ -150,7 +150,7 @@ export function usePrazosTst(coordenacaoId: string | null) {
           responsavel_tst: null,
         } as any)
         .eq("coordenacao_id", cid)
-        .not("data_fatal_tst", "is", null);
+        .not("data_fatal", "is", null);
       if (clearErr) throw clearErr;
 
       // Now import
