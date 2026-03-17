@@ -18,6 +18,7 @@ interface Props {
 }
 
 interface AudienciaRow {
+  modalidade: string;
   data: string;
   hora_local: string;
   hora_brasilia: string;
@@ -33,6 +34,9 @@ interface AudienciaRow {
   preposto: string;
   testemunhas: string;
   advogado: string;
+  equipe: string;
+  nucleo_origem: string;
+  dossie: string;
   status: 'pendente' | 'sucesso' | 'erro';
   erro?: string;
 }
