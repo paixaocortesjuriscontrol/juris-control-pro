@@ -42,7 +42,7 @@ const menuItemsPublicos = [
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true },
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Clock, label: "Prazos Fatais", path: "/tst-prazos", highlight: true },
-  { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias", highlight: true },
+  { icon: Calendar, label: "Audiências", path: "/painel-audiencias", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
