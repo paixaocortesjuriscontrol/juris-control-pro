@@ -238,8 +238,18 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
         })
         .filter((row) => row.processo_numero || row.data);
 
-      setRows(parsed);
-      toast.success(`${parsed.length} audiências encontradas na planilha`);
+        // Dedup by processo_numero across sheets
+        for (const row of sheetRows) {
+          const key = row.processo_numero || `${row.data}-${row.polo_ativo}`;
+          if (!seenProcessos.has(key)) {
+            seenProcessos.add(key);
+            allRows.push(row);
+          }
+        }
+      }
+
+      setRows(allRows);
+      toast.success(`${allRows.length} audiências encontradas na planilha (${workbook.SheetNames.length} abas)`);
     } catch (error: any) {
       toast.error(`Erro ao ler planilha: ${error.message}`);
     } finally {
