@@ -31,9 +31,13 @@ interface Props {
 }
 
 export function TstKanbanBoard({ prazos, onCardClick }: Props) {
+  // On mobile/tablet, show urgent first (reversed order)
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const orderedColumns = isMobile ? [...columns].reverse() : columns;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-6 gap-4 flex-1 min-h-0">
-      {columns.map((col) => {
+      {orderedColumns.map((col) => {
         const items = prazos.filter((p) => col.filter(p));
         return (
           <div key={col.key} className={`flex flex-col rounded-lg border ${col.bgColor} min-h-[300px]`}>
