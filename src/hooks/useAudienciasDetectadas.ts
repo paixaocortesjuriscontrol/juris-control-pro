@@ -76,7 +76,11 @@ export interface NovaAudiencia {
   advogado?: string;
   observacoes?: string;
   status?: string;
-  advogados_ids?: string[]; // Novo campo para múltiplos advogados
+  modalidade?: string;
+  equipe?: string;
+  nucleo_origem?: string;
+  dossie?: string;
+  advogados_ids?: string[];
 }
 
 interface AudienciasFiltros {
