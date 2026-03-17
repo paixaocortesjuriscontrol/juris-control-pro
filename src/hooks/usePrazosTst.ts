@@ -140,7 +140,7 @@ export function usePrazosTst(coordenacaoId: string | null) {
       const { error: clearErr } = await supabase
         .from("processos")
         .update({
-          data_fatal_tst: null,
+          data_fatal: null,
           decisao_tst: null,
           formulario_tst: null,
           providencias_tst: null,
