@@ -199,11 +199,12 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
 
       let result = allData as AudienciaDetectada[];
       
-      // Filtro de coordenação: por processo_id OU processo_numero
-      if (processosIdsFiltro && processosNumerosFiltro) {
+      // Filtro de coordenação: por coordenacao_id direto, processo_id OU processo_numero
+      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
         result = result.filter(a => 
-          (a.processo_id && processosIdsFiltro!.includes(a.processo_id)) ||
-          (a.processo_numero && processosNumerosFiltro!.includes(a.processo_numero))
+          a.coordenacao_id === filtros.coordenacaoId ||
+          (a.processo_id && processosIdsFiltro && processosIdsFiltro.includes(a.processo_id)) ||
+          (a.processo_numero && processosNumerosFiltro && processosNumerosFiltro.includes(a.processo_numero))
         );
       }
       
