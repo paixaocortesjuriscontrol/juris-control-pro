@@ -54,9 +54,9 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
     if (!file) return;
 
     const ab = await file.arrayBuffer();
-    const wb = XLSX.read(ab, { cellDates: false });
+    const wb = XLSX.read(ab, { cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
 
     if (rows.length < 2) return;
     const headers = rows[0].map((h: any) => String(h));
