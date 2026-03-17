@@ -1,0 +1,1 @@
+DELETE FROM prazos_tst;
