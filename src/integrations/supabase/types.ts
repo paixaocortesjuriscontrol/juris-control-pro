@@ -3278,87 +3278,6 @@ export type Database = {
           },
         ]
       }
-      prazos_tst: {
-        Row: {
-          autor: string | null
-          coordenacao_id: string | null
-          created_at: string
-          data_fatal: string | null
-          decisao: string | null
-          deposito_judicial: string | null
-          dossie: string | null
-          equipe: string | null
-          formulario: string | null
-          id: string
-          multa_custas: string | null
-          numero_processo: string | null
-          preparo: string | null
-          processo_id: string | null
-          providencias: string | null
-          responsavel: string | null
-          reu: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          autor?: string | null
-          coordenacao_id?: string | null
-          created_at?: string
-          data_fatal?: string | null
-          decisao?: string | null
-          deposito_judicial?: string | null
-          dossie?: string | null
-          equipe?: string | null
-          formulario?: string | null
-          id?: string
-          multa_custas?: string | null
-          numero_processo?: string | null
-          preparo?: string | null
-          processo_id?: string | null
-          providencias?: string | null
-          responsavel?: string | null
-          reu?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          autor?: string | null
-          coordenacao_id?: string | null
-          created_at?: string
-          data_fatal?: string | null
-          decisao?: string | null
-          deposito_judicial?: string | null
-          dossie?: string | null
-          equipe?: string | null
-          formulario?: string | null
-          id?: string
-          multa_custas?: string | null
-          numero_processo?: string | null
-          preparo?: string | null
-          processo_id?: string | null
-          providencias?: string | null
-          responsavel?: string | null
-          reu?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prazos_tst_coordenacao_id_fkey"
-            columns: ["coordenacao_id"]
-            isOneToOne: false
-            referencedRelation: "coordenacoes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prazos_tst_processo_id_fkey"
-            columns: ["processo_id"]
-            isOneToOne: false
-            referencedRelation: "processos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       processos: {
         Row: {
           adicao_baixa: string | null
@@ -3393,12 +3312,15 @@ export type Database = {
           data_distribuicao: string | null
           data_encerramento: string | null
           data_encerramento_cobranca: string | null
+          data_fatal_tst: string | null
           data_fato_gerador: string | null
           data_lavratura: string | null
           data_recebimento: string | null
           data_situacao: string | null
           decisao_quarteirizado: string | null
+          decisao_tst: string | null
           deposito_judicial: number | null
+          deposito_judicial_tst: string | null
           depositos_vinculados: string | null
           descricao: string | null
           dossie_tst: string | null
@@ -3409,6 +3331,7 @@ export type Database = {
           fase: string | null
           fiscal_responsavel: string | null
           forma_pagamento: string | null
+          formulario_tst: string | null
           funcao: string | null
           funcao_parte_contraria: string | null
           honra_tst: string | null
@@ -3428,6 +3351,7 @@ export type Database = {
           monitorar_djen: boolean | null
           motivo_encerramento: string | null
           mudanca_risco: boolean | null
+          multa_custas_tst: string | null
           natureza: string | null
           nit_fiscalizado: string | null
           nome_cliente_envolvido: string | null
@@ -3474,7 +3398,9 @@ export type Database = {
           periodo_laborado: string | null
           polo_ativo: string | null
           polo_passivo: string | null
+          preparo_tst: string | null
           probabilidade: string | null
+          providencias_tst: string | null
           provisionamento_possivel: number | null
           provisionamento_provavel: number | null
           provisionamento_remoto: number | null
@@ -3489,6 +3415,7 @@ export type Database = {
           responsabilidade_subsidiaria: string | null
           responsabilidade_tipo: string | null
           responsaveis_projuris: string | null
+          responsavel_tst: string | null
           resultado: string | null
           resumo_ia_tst: string | null
           risco: string | null
@@ -3561,12 +3488,15 @@ export type Database = {
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_encerramento_cobranca?: string | null
+          data_fatal_tst?: string | null
           data_fato_gerador?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
           decisao_quarteirizado?: string | null
+          decisao_tst?: string | null
           deposito_judicial?: number | null
+          deposito_judicial_tst?: string | null
           depositos_vinculados?: string | null
           descricao?: string | null
           dossie_tst?: string | null
@@ -3577,6 +3507,7 @@ export type Database = {
           fase?: string | null
           fiscal_responsavel?: string | null
           forma_pagamento?: string | null
+          formulario_tst?: string | null
           funcao?: string | null
           funcao_parte_contraria?: string | null
           honra_tst?: string | null
@@ -3596,6 +3527,7 @@ export type Database = {
           monitorar_djen?: boolean | null
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
+          multa_custas_tst?: string | null
           natureza?: string | null
           nit_fiscalizado?: string | null
           nome_cliente_envolvido?: string | null
@@ -3642,7 +3574,9 @@ export type Database = {
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          preparo_tst?: string | null
           probabilidade?: string | null
+          providencias_tst?: string | null
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
           provisionamento_remoto?: number | null
@@ -3657,6 +3591,7 @@ export type Database = {
           responsabilidade_subsidiaria?: string | null
           responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
+          responsavel_tst?: string | null
           resultado?: string | null
           resumo_ia_tst?: string | null
           risco?: string | null
@@ -3729,12 +3664,15 @@ export type Database = {
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_encerramento_cobranca?: string | null
+          data_fatal_tst?: string | null
           data_fato_gerador?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
           decisao_quarteirizado?: string | null
+          decisao_tst?: string | null
           deposito_judicial?: number | null
+          deposito_judicial_tst?: string | null
           depositos_vinculados?: string | null
           descricao?: string | null
           dossie_tst?: string | null
@@ -3745,6 +3683,7 @@ export type Database = {
           fase?: string | null
           fiscal_responsavel?: string | null
           forma_pagamento?: string | null
+          formulario_tst?: string | null
           funcao?: string | null
           funcao_parte_contraria?: string | null
           honra_tst?: string | null
@@ -3764,6 +3703,7 @@ export type Database = {
           monitorar_djen?: boolean | null
           motivo_encerramento?: string | null
           mudanca_risco?: boolean | null
+          multa_custas_tst?: string | null
           natureza?: string | null
           nit_fiscalizado?: string | null
           nome_cliente_envolvido?: string | null
@@ -3810,7 +3750,9 @@ export type Database = {
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          preparo_tst?: string | null
           probabilidade?: string | null
+          providencias_tst?: string | null
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
           provisionamento_remoto?: number | null
@@ -3825,6 +3767,7 @@ export type Database = {
           responsabilidade_subsidiaria?: string | null
           responsabilidade_tipo?: string | null
           responsaveis_projuris?: string | null
+          responsavel_tst?: string | null
           resultado?: string | null
           resumo_ia_tst?: string | null
           risco?: string | null
