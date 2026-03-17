@@ -1,34 +1,55 @@
 
+Diagnóstico objetivo (com evidência de produção):
 
-## Diagnóstico
+1) O gargalo principal não é “falta de índice simples”.  
+- Para a coordenação do Dr. Thomás: 500 registros brutos hoje em `publicacoes_djen`, mas 222 após deduplicação (bate com o relato).
+- `EXPLAIN ANALYZE` mostrou:
+  - `count_djen_publicacoes_unificadas`: ~2.79s
+  - `get_djen_publicacoes_unificadas` (200 itens): ~2.80s
+- As queries base (sem dedup por regex) rodam em ~1–11ms.  
+Conclusão: o custo está no cálculo de dedup em tempo real (`strip_destinatarios + regexp_replace + lower + left`) em conteúdo grande, repetido várias vezes.
 
-O problema está na forma como as datas são lidas da planilha. O código atual faz duas coisas que causam erro:
+2) O frontend amplifica a lentidão:
+- Hoje ele chama `count_djen_publicacoes_unificadas` + páginas de `get_djen_publicacoes_unificadas` em sequência.
+- Para 222 itens: 1 count + 2 páginas => ~8s só nessas RPCs.
+- Na primeira carga ainda pode disparar consulta sem coordenação definida (estado inicial), piorando o TTFB.
 
-1. **Prioriza `cell.w` (texto formatado) em vez de `cell.v` (valor real)**: Com `cellDates: true`, o XLSX converte a célula de data num objeto `Date` em `cell.v`. Mas a função `getSheetRows` (linha 85) faz `cell?.w ?? cell?.v`, ou seja, pega o texto formatado primeiro. Esse texto depende do locale do Excel e pode vir como "2/1/2019" (m/d/yyyy americano) em vez de "01/02/2019" (dd/mm/yyyy brasileiro), causando inversão dia/mês ou datas completamente erradas.
+Plano de implementação (focado em ganho real):
 
-2. **Busca dinâmica de colunas por nome de cabeçalho**: `findColumn(headers, ["fatal"])` pode falhar se o cabeçalho não contiver exatamente a palavra "fatal".
+Fase 1 — ganho imediato (rápido e baixo risco)
+- `src/hooks/usePublicacoesDjenUnificadas.ts`
+  - Remover chamada obrigatória de `count_*` para montar paginação.
+  - Buscar por páginas até `chunk < PAGE`, começando direto no `get_*`.
+  - Adicionar `enabled` no hook para só consultar quando coordenação já estiver inicializada na tela (`!loadingUserCoord && coordenacaoId !== null`).
+- `src/pages/AnaliseDjen.tsx`
+  - Passar `enabled` ao hook para evitar carga inicial ampla sem coordenação.
+Resultado esperado: queda forte do tempo percebido (elimina uma RPC pesada inteira por carregamento).
 
-Como o layout é fixo, a solução é simples e direta.
+Fase 2 — correção estrutural no banco (onde está o gargalo real)
+- Nova migration:
+  - Adicionar colunas pré-computadas de dedup nas tabelas DJEN:
+    - `dedup_processo_digits`
+    - `dedup_data_ref` (date)
+    - `dedup_head_norm` (text curto já normalizado e sem destinatários)
+  - Criar trigger `BEFORE INSERT/UPDATE` para preencher essas colunas (e backfill dos dados existentes).
+  - Índices compostos “publicações do dia por coordenação” usando esses campos + `created_at/lida` para termos/processos/descartadas.
+- Reescrever RPCs:
+  - `count_djen_publicacoes_unificadas`
+  - `get_djen_publicacoes_unificadas`
+  - `marcar_publicacoes_lidas_por_dedup`
+  para usar campos pré-computados (sem regex pesada em tempo de consulta).
 
-## Plano
+Fase 3 — validação e segurança de resultado
+- Validar no banco (com contexto do usuário Dr. Thomás):
+  - `count_*` < 300ms
+  - `get_*` (200) < 400ms
+- Validar na UI:
+  - “Não Lidas” consistente ao marcar/desmarcar filtro.
+  - Marcar como lida sem timeout.
+  - Carga inicial da Análise DJEN significativamente mais rápida.
+- Teste E2E no fluxo real da coordenação do Dr. Thomás.
 
-### 1. Reescrever `getSheetRows` para tratar datas corretamente
-
-Na função `getSheetRows`, para cada célula, verificar se é uma data (`cell.t === 'd'` ou `cell.v instanceof Date`). Se for, retornar o objeto `Date` diretamente em vez do texto formatado. Para outras células, manter o comportamento atual (`cell.w ?? cell.v`).
-
-### 2. Hardcodar a coluna B (índice 1) como data fatal
-
-Já que o layout é fixo, usar `const colFatal = 1` (coluna B) diretamente, em vez de depender do `findColumn`. Manter os demais `findColumn` para as outras colunas que são texto simples.
-
-### 3. Simplificar `parseExcelDate`
-
-A função já lida com `Date`, `number` e `string`. Mas com a mudança acima, ela receberá um `Date` real na maioria dos casos, evitando completamente a ambiguidade de formato de texto.
-
-### 4. Limpar dados antigos e re-importar
-
-Executar `DELETE FROM prazos_tst` para limpar os dados importados incorretamente, permitindo nova importação com a lógica corrigida.
-
-### Alterações em arquivo
-
-- **`src/components/tst-prazos/TstImportDialog.tsx`**: Modificar `getSheetRows` para retornar `Date` objects para células de data; hardcodar `colFatal = 1`; deletar dados errados via migration.
-
+Entregáveis previstos:
+- 1 migration SQL (colunas + trigger + backfill + índices + RPCs otimizadas)
+- ajuste do hook unificado
+- ajuste da página `AnaliseDjen` para gating de carregamento

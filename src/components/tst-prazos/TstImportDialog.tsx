@@ -82,7 +82,12 @@ function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
 
     for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex++) {
       const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
-      row.push(cell?.w ?? cell?.v ?? "");
+      // For date cells, return the raw Date object to avoid locale-dependent formatting
+      if (cell && (cell.t === 'd' || cell.v instanceof Date)) {
+        row.push(cell.v);
+      } else {
+        row.push(cell?.w ?? cell?.v ?? "");
+      }
     }
 
     rows.push(row);
@@ -132,7 +137,7 @@ export function TstImportDialog({
 
     const headers = rows[0].map((h) => String(h ?? ""));
 
-    const colFatal = findColumn(headers, ["fatal"]);
+    const colFatal = 1; // Column B — fixed layout
     const colDossie = findColumn(headers, ["dossi", "dossie"]);
     const colProcesso = findColumn(headers, ["processo"]);
     const colReu = findColumn(headers, ["réu", "reu"]);
