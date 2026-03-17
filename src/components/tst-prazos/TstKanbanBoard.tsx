@@ -41,9 +41,11 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
             </div>
             <ScrollArea className="flex-1 p-2">
               <div className="space-y-2">
-                {items.map((p) => (
-                  <TstPrazoCard key={p.id} prazo={p} onClick={() => onCardClick(p)} />
-                ))}
+                {items
+                  .sort((a, b) => new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime())
+                  .map((p) => (
+                    <TstPrazoCard key={p.id} prazo={p} onClick={() => onCardClick(p)} />
+                  ))}
                 {items.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-8">Nenhum processo</p>
                 )}

@@ -1,0 +1,1 @@
+DELETE FROM prazos_tst WHERE coordenacao_id = '1c02a6fc-536d-48b5-b8d3-714041473e8c';
