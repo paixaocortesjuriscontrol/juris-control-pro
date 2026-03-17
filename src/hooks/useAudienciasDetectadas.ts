@@ -101,16 +101,13 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
     queryFn: async () => {
       const coordAtiva = filtros.coordenacaoId && filtros.coordenacaoId !== 'todas';
       
-      let processosIds: string[] | null = null;
+      let processosIds: string[] = [];
       if (coordAtiva) {
         const { data: processosCoord } = await supabase
           .from('processos')
           .select('id')
           .eq('coordenacao_id', filtros.coordenacaoId as string);
         processosIds = (processosCoord || []).map(p => p.id);
-        if (processosIds.length === 0) {
-          return { pendentes: 0, tratadas: 0, ignoradas: 0, proximas: 0 };
-        }
       }
 
       // Build base query helper
@@ -163,11 +160,10 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           .select('id, numero')
           .eq('coordenacao_id', filtros.coordenacaoId);
 
-        if (!processosCoord || processosCoord.length === 0) {
-          return [] as AudienciaDetectada[];
+        if (processosCoord && processosCoord.length > 0) {
+          processosIdsFiltro = processosCoord.map(p => p.id);
+          processosNumerosFiltro = processosCoord.map(p => p.numero);
         }
-        processosIdsFiltro = processosCoord.map(p => p.id);
-        processosNumerosFiltro = processosCoord.map(p => p.numero);
       }
 
       let query = supabase
