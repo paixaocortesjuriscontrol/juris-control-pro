@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Calendar,
+  Clock,
   Newspaper,
   UserCircle,
   Radar,
