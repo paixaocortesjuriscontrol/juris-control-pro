@@ -40,6 +40,7 @@ export interface AudienciaDetectada {
   equipe: string | null;
   nucleo_origem: string | null;
   dossie: string | null;
+  coordenacao_id: string | null;
   monitoramento?: {
     termo_busca: string;
     descricao: string | null;
