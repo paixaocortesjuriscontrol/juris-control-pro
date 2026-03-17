@@ -278,6 +278,10 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           origem: 'manual',
           criado_por: user.id,
           status: dadosAudiencia.status || 'pendente',
+          modalidade: dadosAudiencia.modalidade || null,
+          equipe: dadosAudiencia.equipe || null,
+          nucleo_origem: dadosAudiencia.nucleo_origem || null,
+          dossie: dadosAudiencia.dossie || null,
         })
         .select()
         .single();
