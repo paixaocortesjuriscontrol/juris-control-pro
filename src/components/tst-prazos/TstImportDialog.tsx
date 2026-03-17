@@ -21,30 +21,42 @@ interface Props {
   onCoordenacaoChange: (id: string) => void;
 }
 
-function parseExcelDate(val: any): string | null {
+function parseExcelDate(val: unknown): string | null {
   if (!val) return null;
+
   if (val instanceof Date && !isNaN(val.getTime())) {
     const y = val.getFullYear();
     const m = String(val.getMonth() + 1).padStart(2, "0");
     const d = String(val.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
+
   if (typeof val === "number") {
     const d = XLSX.SSF.parse_date_code(val);
     if (d) return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
   }
+
   if (typeof val === "string") {
-    const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-    if (/^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0, 10);
-    const parsed = new Date(val);
+    const normalized = val.trim();
+
+    const brDate = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (brDate) {
+      return `${brDate[3]}-${brDate[2].padStart(2, "0")}-${brDate[1].padStart(2, "0")}`;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) {
+      return normalized.slice(0, 10);
+    }
+
+    const parsed = new Date(normalized);
     if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
       const y = parsed.getFullYear();
-      const mo = String(parsed.getMonth() + 1).padStart(2, "0");
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
       const d = String(parsed.getDate()).padStart(2, "0");
-      return `${y}-${mo}-${d}`;
+      return `${y}-${m}-${d}`;
     }
   }
+
   return null;
 }
 
@@ -54,6 +66,12 @@ function findColumn(headers: string[], candidates: string[]): number {
     if (idx >= 0) return idx;
   }
   return -1;
+}
+
+function getWorksheetCellValue(ws: XLSX.WorkSheet, rowIndex: number, colIndex: number) {
+  if (colIndex < 0) return null;
+  const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
+  return cell?.w ?? cell?.v ?? null;
 }
 
 export function TstImportDialog({
@@ -81,13 +99,20 @@ export function TstImportDialog({
 
     const ab = await file.arrayBuffer();
     setProgress(25);
+
     const wb = XLSX.read(ab, { cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
 
     setProgress(40);
 
-    if (rows.length < 2) { setParsing(false); return; }
+    if (rows.length < 2) {
+      setPreview([]);
+      setParsing(false);
+      setProgress(0);
+      return;
+    }
+
     const headers = rows[0].map((h: any) => String(h));
 
     const colFatal = findColumn(headers, ["fatal"]);
@@ -117,10 +142,13 @@ export function TstImportDialog({
 
     const parsed: PrazoTstInsert[] = [];
     const totalRows = rows.length - 1;
+
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
-      const dataFatal = colFatal >= 0 ? parseExcelDate(r[colFatal]) : null;
+      const fatalCellValue = getWorksheetCellValue(ws, i, colFatal);
+      const dataFatal = parseExcelDate(fatalCellValue ?? r[colFatal]);
       const numProc = colProcesso >= 0 ? String(r[colProcesso] || "").trim() : "";
+
       if (!dataFatal && !numProc) continue;
       if (!dataFatal) continue;
 
@@ -153,18 +181,20 @@ export function TstImportDialog({
       }
     }
 
-    setProgress(100);
     setPreview(parsed);
     setParsing(false);
+    setProgress(100);
   };
 
   const handleConfirm = async () => {
     if (!coordenacaoId || preview.length === 0) return;
+
     if (clearBefore) {
       await onClearAndImport({ coordenacaoId, prazos: preview });
     } else {
       await onImport(preview);
     }
+
     setPreview([]);
     setProgress(0);
     if (fileRef.current) fileRef.current.value = "";
@@ -177,6 +207,7 @@ export function TstImportDialog({
         <DialogHeader>
           <DialogTitle>Importar Planilha TST</DialogTitle>
         </DialogHeader>
+
         <div className="space-y-4">
           <div>
             <Label>Coordenação</Label>
@@ -186,7 +217,9 @@ export function TstImportDialog({
               </SelectTrigger>
               <SelectContent>
                 {coordenacoes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
