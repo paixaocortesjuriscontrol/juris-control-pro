@@ -79,6 +79,22 @@ interface Responsavel {
   nome: string;
 }
 
+function PrazoField({ label, value, isDate }: { label: string; value: string | null | undefined; isDate?: boolean }) {
+  let display = value || "—";
+  if (isDate && value) {
+    const d = new Date(`${value}T12:00:00`);
+    if (!isNaN(d.getTime())) {
+      display = d.toLocaleDateString("pt-BR");
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-sm text-foreground">{display}</p>
+    </div>
+  );
+}
+
 interface Envolvido {
   nome: string;
   tipo: "requerido" | "requerente";
