@@ -19,7 +19,15 @@ interface Props {
 
 function parseExcelDate(val: any): string | null {
   if (!val) return null;
+  // JS Date object (when cellDates: true)
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, "0");
+    const d = String(val.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   if (typeof val === "number") {
+    // Excel serial date
     const d = XLSX.SSF.parse_date_code(val);
     if (d) return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
   }
@@ -29,9 +37,14 @@ function parseExcelDate(val: any): string | null {
     if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     // Try yyyy-MM-dd
     if (/^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0, 10);
-  }
-  if (val instanceof Date) {
-    return val.toISOString().slice(0, 10);
+    // Try MM/dd/yyyy or other date-like strings
+    const parsed = new Date(val);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
+      const y = parsed.getFullYear();
+      const mo = String(parsed.getMonth() + 1).padStart(2, "0");
+      const d = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${mo}-${d}`;
+    }
   }
   return null;
 }
@@ -56,7 +69,7 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
     const ab = await file.arrayBuffer();
     const wb = XLSX.read(ab, { cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
     if (rows.length < 2) return;
     const headers = rows[0].map((h: any) => String(h));
