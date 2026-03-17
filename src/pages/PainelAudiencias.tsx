@@ -24,6 +24,7 @@ import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDi
 import { ConfigAlertasAudienciasTab } from "@/components/audiencias/ConfigAlertasAudienciasTab";
 import { RelatorioAudienciasDiretoria } from "@/components/audiencias/RelatorioAudienciasDiretoria";
 import { CriarTarefaAudienciaDialog } from "@/components/audiencias/CriarTarefaAudienciaDialog";
+import { AudienciasKanbanBoard } from "@/components/audiencias/AudienciasKanbanBoard";
 import { supabase } from "@/integrations/supabase/client";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,6 @@ export default function PainelAudiencias() {
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [expandedAudiencias, setExpandedAudiencias] = useState<Set<string>>(new Set());
   const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
 
   const { exportarExcel } = useExportarAudiencias();
@@ -124,23 +124,6 @@ export default function PainelAudiencias() {
     setObservacoes("");
   };
 
-  const toggleExpandAudiencia = (id: string) => {
-    const newExpanded = new Set(expandedAudiencias);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedAudiencias(newExpanded);
-  };
-
-  const toggleExpandAll = () => {
-    if (expandedAudiencias.size === audiencias.length && audiencias.length > 0) {
-      setExpandedAudiencias(new Set());
-    } else {
-      setExpandedAudiencias(new Set(audiencias.map(a => a.id)));
-    }
-  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Data não identificada";
@@ -362,18 +345,6 @@ export default function PainelAudiencias() {
               </Select>
             )}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleExpandAll}
-                disabled={audiencias.length === 0}
-                className="text-xs h-9"
-              >
-                <ChevronsUpDown className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">
-                  {expandedAudiencias.size === audiencias.length && audiencias.length > 0 ? "Recolher" : "Expandir"}
-                </span>
-              </Button>
               <Button variant="outline" size="icon" className="md:hidden" onClick={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
               </Button>
@@ -402,12 +373,12 @@ export default function PainelAudiencias() {
             </div>
           </div>
 
-          {/* Audiências List */}
+          {/* Audiências Kanban */}
           <div className="pb-8">
             {isLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => (
-                  <Skeleton key={i} className="h-32 w-full" />
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <Skeleton key={i} className="h-64 w-full rounded-lg" />
                 ))}
               </div>
             ) : audiencias.length === 0 ? (
@@ -421,261 +392,23 @@ export default function PainelAudiencias() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
                   Exibindo {audiencias.length} audiência{audiencias.length !== 1 ? 's' : ''}
                 </p>
-              {audiencias.map((audiencia) => {
-                const daysUntil = getDaysUntil(audiencia.data_audiencia);
-                const isExpanded = expandedAudiencias.has(audiencia.id);
-                
-                return (
-                  <Card 
-                    key={audiencia.id} 
-                    className={cn(
-                      "hover:shadow-md transition-shadow cursor-pointer",
-                      isExpanded && "ring-1 ring-primary/20"
-                    )}
-                    onClick={() => toggleExpandAudiencia(audiencia.id)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex flex-col gap-3">
-                        {/* Header row com badges e botões */}
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
-                          <div className="flex-1 space-y-2">
-                            {/* Badges */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {isExpanded ? (
-                                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                              )}
-                              {getStatusBadge(audiencia.status)}
-                              {getOrigemBadge(audiencia.origem)}
-                              {audiencia.status === 'pendente' && getUrgencyBadge(daysUntil)}
-                              {audiencia.tipo_audiencia && (
-                                <Badge variant="secondary">{audiencia.tipo_audiencia}</Badge>
-                              )}
-                            </div>
-
-                            {/* Data e processo */}
-                            <div className="flex items-center gap-4 text-sm flex-wrap ml-6">
-                              <div className="flex items-center gap-1 text-primary">
-                                <Calendar className="h-4 w-4" />
-                                <span className="font-medium">{formatDate(audiencia.data_audiencia)}</span>
-                                {audiencia.hora && (
-                                  <span className="text-muted-foreground">às {audiencia.hora}</span>
-                                )}
-                              </div>
-                              
-                              {audiencia.processo_numero && (
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <FileText className="h-4 w-4" />
-                                  <span className="font-mono text-xs">{audiencia.processo_numero}</span>
-                                </div>
-                              )}
-                              
-                              {(audiencia.vara_camara || audiencia.comarca) && (
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <MapPin className="h-4 w-4" />
-                                  <span>{[audiencia.vara_camara, audiencia.comarca].filter(Boolean).join(' - ')}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Cliente e Polo Ativo */}
-                            <div className="flex items-center gap-4 text-sm flex-wrap ml-6">
-                              {audiencia.cliente && (
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <Building className="h-4 w-4" />
-                                  <span className="truncate max-w-[250px]">{audiencia.cliente}</span>
-                                </div>
-                              )}
-                              {audiencia.polo_ativo && (
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <User className="h-4 w-4" />
-                                  <span className="truncate max-w-[200px]">{audiencia.polo_ativo}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {!isExpanded && audiencia.resumo_objeto && (
-                              <p className="text-sm text-muted-foreground line-clamp-2 ml-6">
-                                {audiencia.resumo_objeto}
-                              </p>
-                            )}
-
-                            {audiencia.advogado && (
-                              <p className="text-xs text-muted-foreground ml-6">
-                                Advogado: <span className="font-medium">{audiencia.advogado}</span>
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Desktop buttons */}
-                          <div className="hidden md:flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setCriarTarefaAudiencia(audiencia)}
-                            >
-                              <ListChecks className="h-4 w-4 mr-1" />
-                              Criar Tarefa
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingAudiencia(audiencia)}
-                            >
-                              <Pencil className="h-4 w-4 mr-1" />
-                              Editar
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedAudiencia(audiencia);
-                                setObservacoes(audiencia.observacoes || "");
-                              }}
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              Detalhes
-                            </Button>
-                            
-                            {audiencia.status === 'pendente' && (
-                              <>
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => handleMarcarTratado(audiencia.id)}
-                                  disabled={atualizarAudiencia.isPending}
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Tratado
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleIgnorar(audiencia.id)}
-                                  disabled={atualizarAudiencia.isPending}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Mobile dropdown menu */}
-                          <div className="md:hidden" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon" className="h-9 w-9">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onSelect={() => setCriarTarefaAudiencia(audiencia)}>
-                                  <ListChecks className="h-4 w-4 mr-2" />
-                                  Criar Tarefa
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onSelect={() => {
-                                    setSelectedAudiencia(audiencia);
-                                    setObservacoes(audiencia.observacoes || "");
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Ver Detalhes
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setEditingAudiencia(audiencia)}>
-                                  <Pencil className="h-4 w-4 mr-2" />
-                                  Editar
-                                </DropdownMenuItem>
-                                {audiencia.status === 'pendente' && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem 
-                                      onSelect={() => handleMarcarTratado(audiencia.id)}
-                                      disabled={atualizarAudiencia.isPending}
-                                    >
-                                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                                      Marcar como Tratado
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onSelect={() => handleIgnorar(audiencia.id)}
-                                      disabled={atualizarAudiencia.isPending}
-                                    >
-                                      <XCircle className="h-4 w-4 mr-2 text-muted-foreground" />
-                                      Ignorar
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-
-                        {/* Conteúdo expandido - Publicação DJEN */}
-                        {isExpanded && (
-                          <div className="border-t pt-3 space-y-3 ml-6">
-                            {audiencia.resumo_objeto && (
-                              <div>
-                                <strong className="text-xs text-muted-foreground">Resumo do Objeto:</strong>
-                                <p className="text-sm mt-1">{audiencia.resumo_objeto}</p>
-                              </div>
-                            )}
-                            
-                            {audiencia.contexto && (
-                              <div>
-                                <strong className="text-xs text-muted-foreground">Contexto Detectado:</strong>
-                                <p className="text-sm mt-1 p-2 bg-muted/50 rounded">{audiencia.contexto}</p>
-                              </div>
-                            )}
-
-                            {audiencia.conteudo_publicacao && (
-                              <div>
-                                <strong className="text-xs text-muted-foreground">Conteúdo da Publicação DJEN:</strong>
-                                <div className={cn("mt-1 p-3 bg-muted/50 rounded-lg text-sm", conteudoDisplayClasses)}>
-                                  {formatConteudoParaExibicao(audiencia.conteudo_publicacao)}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Informações adicionais */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                              {audiencia.preposto && (
-                                <div>
-                                  <strong className="text-xs text-muted-foreground">Preposto:</strong>
-                                  <p>{audiencia.preposto}</p>
-                                </div>
-                              )}
-                              {audiencia.testemunhas && (
-                                <div>
-                                  <strong className="text-xs text-muted-foreground">Testemunhas:</strong>
-                                  <p>{audiencia.testemunhas}</p>
-                                </div>
-                              )}
-                              {audiencia.terceirizado && (
-                                <div>
-                                  <strong className="text-xs text-muted-foreground">Terceirizado:</strong>
-                                  <p>{audiencia.terceirizado}</p>
-                                </div>
-                              )}
-                              {audiencia.funcao && (
-                                <div>
-                                  <strong className="text-xs text-muted-foreground">Função:</strong>
-                                  <p>{audiencia.funcao}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                <AudienciasKanbanBoard
+                  audiencias={audiencias}
+                  onDetalhes={(a) => {
+                    setSelectedAudiencia(a);
+                    setObservacoes(a.observacoes || "");
+                  }}
+                  onEditar={setEditingAudiencia}
+                  onCriarTarefa={setCriarTarefaAudiencia}
+                  onMarcarTratado={handleMarcarTratado}
+                  onIgnorar={handleIgnorar}
+                  isPending={atualizarAudiencia.isPending}
+                />
+              </>
             )}
           </div>
         </TabsContent>
