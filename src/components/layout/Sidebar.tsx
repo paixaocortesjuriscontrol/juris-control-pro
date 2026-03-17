@@ -41,7 +41,7 @@ const menuItemsPublicos = [
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true },
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
-  { icon: Clock, label: "TST Prazos", path: "/tst-prazos", highlight: true },
+  { icon: Clock, label: "Prazos Fatais", path: "/tst-prazos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },

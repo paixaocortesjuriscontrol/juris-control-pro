@@ -79,11 +79,11 @@ export default function TstPrazos() {
   const showSelector = isAdmin || coordenacoes.length > 1;
 
   return (
-    <MainLayout title="TST Prazos">
+    <MainLayout title="Prazos Fatais">
       <div className="flex flex-col h-full gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">TST Prazos</h1>
+            <h1 className="text-2xl font-bold text-foreground">Prazos Fatais</h1>
             <p className="text-sm text-muted-foreground">
               {coordenacoes.length === 1 && !isAdmin
                 ? coordenacoes[0].nome
