@@ -42,12 +42,12 @@ const menuItemsPublicos = [
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true },
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Clock, label: "Prazos Fatais", path: "/tst-prazos", highlight: true },
+  { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
-  { icon: Calendar, label: "Painel Audiências", path: "/painel-audiencias" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
   { icon: ClipboardList, label: "Painel da Equipe", path: "/painel-equipe" },
   { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
