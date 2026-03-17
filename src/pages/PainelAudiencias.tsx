@@ -24,6 +24,7 @@ import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDi
 import { ConfigAlertasAudienciasTab } from "@/components/audiencias/ConfigAlertasAudienciasTab";
 import { RelatorioAudienciasDiretoria } from "@/components/audiencias/RelatorioAudienciasDiretoria";
 import { CriarTarefaAudienciaDialog } from "@/components/audiencias/CriarTarefaAudienciaDialog";
+import { AudienciasKanbanBoard } from "@/components/audiencias/AudienciasKanbanBoard";
 import { supabase } from "@/integrations/supabase/client";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
