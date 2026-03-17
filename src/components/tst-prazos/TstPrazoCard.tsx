@@ -11,7 +11,7 @@ interface Props {
 
 export function TstPrazoCard({ prazo, onClick }: Props) {
   const navigate = useNavigate();
-  const dias = differenceInCalendarDays(new Date(prazo.data_fatal + "T12:00:00"), new Date());
+  const dias = prazo.data_fatal ? differenceInCalendarDays(new Date(prazo.data_fatal + "T12:00:00"), new Date()) : null;
 
   return (
     <div

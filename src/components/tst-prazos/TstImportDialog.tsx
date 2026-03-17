@@ -164,7 +164,6 @@ export function TstImportDialog({
       const numProc = colProcesso >= 0 ? String(row[colProcesso] || "").trim() : "";
 
       if (!dataFatal && !numProc) continue;
-      if (!dataFatal) continue;
 
       let processoId: string | null = null;
       const digits = numProc.replace(/\D/g, "");
