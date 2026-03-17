@@ -40,6 +40,7 @@ export interface AudienciaDetectada {
   equipe: string | null;
   nucleo_origem: string | null;
   dossie: string | null;
+  coordenacao_id: string | null;
   monitoramento?: {
     termo_busca: string;
     descricao: string | null;
@@ -116,7 +117,14 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       const buildQuery = (status?: string) => {
         let q = supabase.from('audiencias_detectadas').select('*', { count: 'exact', head: true });
         if (status) q = q.eq('status', status);
-        if (processosIds) q = q.in('processo_id', processosIds);
+        if (coordAtiva) {
+          // Filter by coordenacao_id OR processo_id
+          if (processosIds && processosIds.length > 0) {
+            q = q.or(`coordenacao_id.eq.${filtros.coordenacaoId},processo_id.in.(${processosIds.join(',')})`);
+          } else {
+            q = q.eq('coordenacao_id', filtros.coordenacaoId as string);
+          }
+        }
         return q;
       };
 
@@ -198,11 +206,12 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
 
       let result = allData as AudienciaDetectada[];
       
-      // Filtro de coordenação: por processo_id OU processo_numero
-      if (processosIdsFiltro && processosNumerosFiltro) {
+      // Filtro de coordenação: por coordenacao_id direto, processo_id OU processo_numero
+      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
         result = result.filter(a => 
-          (a.processo_id && processosIdsFiltro!.includes(a.processo_id)) ||
-          (a.processo_numero && processosNumerosFiltro!.includes(a.processo_numero))
+          a.coordenacao_id === filtros.coordenacaoId ||
+          (a.processo_id && processosIdsFiltro && processosIdsFiltro.includes(a.processo_id)) ||
+          (a.processo_numero && processosNumerosFiltro && processosNumerosFiltro.includes(a.processo_numero))
         );
       }
       

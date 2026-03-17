@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,11 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2, Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2, Download, Building } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 
 interface Props {
@@ -41,63 +42,124 @@ interface AudienciaRow {
   erro?: string;
 }
 
-// Mapeamento de estados para diferença de fuso em relação a Brasília (UTC-3)
-// Valores positivos = horário local está atrás de Brasília
-const FUSO_HORARIO_ESTADOS: Record<string, number> = {
-  // UTC-5 (2 horas atrás de Brasília)
-  "AC": -2, "ACRE": -2, "RIO BRANCO": -2,
-  
-  // UTC-4 (1 hora atrás de Brasília)
-  "AM": -1, "AMAZONAS": -1, "MANAUS": -1,
-  "RO": -1, "RONDÔNIA": -1, "RONDONIA": -1, "PORTO VELHO": -1,
-  "RR": -1, "RORAIMA": -1, "BOA VISTA": -1,
-  "MT": -1, "MATO GROSSO": -1, "CUIABÁ": -1, "CUIABA": -1,
-  "MS": -1, "MATO GROSSO DO SUL": -1, "CAMPO GRANDE": -1,
-  
-  // UTC-2 (1 hora à frente de Brasília)
-  "FN": 1, "FERNANDO DE NORONHA": 1, "NORONHA": 1,
+const MESES_ABREV: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  // Portuguese
+  fev: '02', abr: '04', mai: '05', ago: '08', set: '09', out: '10', dez: '12',
 };
 
-// Função para calcular diferença de fuso baseado na comarca
-const getDiferencaFuso = (comarca: string): number => {
-  if (!comarca) return 0;
-  const comarcaUpper = comarca.toUpperCase().trim();
-  
-  // Primeiro, verifica se a comarca está diretamente no mapeamento
-  if (FUSO_HORARIO_ESTADOS[comarcaUpper] !== undefined) {
-    return FUSO_HORARIO_ESTADOS[comarcaUpper];
+/**
+ * Parse any Excel date value into YYYY-MM-DD.
+ * Handles: serial numbers, Date objects (from cellDates), "DD/MM/YYYY", "10-Apr", etc.
+ */
+const parseExcelDate = (value: any): string | null => {
+  if (value == null || value === "") return null;
+
+  // 1) Serial number (e.g. 45757)
+  if (typeof value === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      const y = parsed.y < 2000 ? new Date().getFullYear() : parsed.y;
+      return `${y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+    return null;
   }
-  
-  // Verifica se alguma chave está contida na comarca
-  for (const [key, diff] of Object.entries(FUSO_HORARIO_ESTADOS)) {
-    if (comarcaUpper.includes(key)) {
-      return diff;
+
+  // 2) JS Date object (from cellDates: true)
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = value.getMonth() + 1;
+    const d = value.getDate();
+    const year = y < 2000 ? new Date().getFullYear() : y;
+    return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  // 3) String formats
+  if (typeof value === 'string') {
+    const s = value.trim();
+
+    // DD/MM/YYYY
+    const matchDMY = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (matchDMY) {
+      return `${matchDMY[3]}-${matchDMY[2].padStart(2, '0')}-${matchDMY[1].padStart(2, '0')}`;
+    }
+
+    // YYYY-MM-DD (already ISO)
+    const matchISO = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (matchISO) return `${matchISO[1]}-${matchISO[2]}-${matchISO[3]}`;
+
+    // "10-Apr" or "25-Mar" (day-month abbreviated, no year → use current year)
+    const matchShort = s.match(/^(\d{1,2})[-\/](\w{3,})$/i);
+    if (matchShort) {
+      const monthKey = matchShort[2].toLowerCase().slice(0, 3);
+      if (MESES_ABREV[monthKey]) {
+        const year = new Date().getFullYear();
+        return `${year}-${MESES_ABREV[monthKey]}-${matchShort[1].padStart(2, '0')}`;
+      }
+    }
+
+    // "Apr-10" or "Mar 25" (month-day)
+    const matchMonthFirst = s.match(/^(\w{3,})[-\/\s](\d{1,2})$/i);
+    if (matchMonthFirst) {
+      const monthKey = matchMonthFirst[1].toLowerCase().slice(0, 3);
+      if (MESES_ABREV[monthKey]) {
+        const year = new Date().getFullYear();
+        return `${year}-${MESES_ABREV[monthKey]}-${matchMonthFirst[2].padStart(2, '0')}`;
+      }
     }
   }
-  
-  // Por padrão, assume horário de Brasília (UTC-3)
-  return 0;
+
+  return null;
 };
 
-// Converte hora local para hora de Brasília
-const converterParaBrasilia = (horaLocal: string, comarca: string): string => {
-  if (!horaLocal) return "";
-  
-  const match = horaLocal.match(/(\d{1,2}):(\d{2})/);
-  if (!match) return horaLocal;
-  
-  const horas = parseInt(match[1], 10);
-  const minutos = parseInt(match[2], 10);
-  const diferencaFuso = getDiferencaFuso(comarca);
-  
-  // Adiciona a diferença de fuso para converter para Brasília
-  let horasBrasilia = horas - diferencaFuso;
-  
-  // Ajusta se passar de 24h ou for negativo
-  if (horasBrasilia >= 24) horasBrasilia -= 24;
-  if (horasBrasilia < 0) horasBrasilia += 24;
-  
-  return `${String(horasBrasilia).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+const parseExcelTime = (value: any): string => {
+  if (!value) return "";
+  if (typeof value === 'number') {
+    const totalMinutes = Math.round(value * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60) % 24;
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+  if (typeof value === 'string') {
+    const match = value.match(/(\d{1,2}):(\d{2})/);
+    if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
+    return value.trim();
+  }
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  }
+  return String(value);
+};
+
+const formatDisplayDate = (isoDate: string): string => {
+  if (!isoDate) return "";
+  const match = isoDate.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  return isoDate;
+};
+
+const normalizeHeader = (header: string): string => {
+  if (!header) return "";
+  return header
+    .replace(/\u00A0/g, " ")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+};
+
+const normalizeRowKeys = (row: Record<string, any>): Record<string, any> => {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(row)) {
+    const normalized = normalizeHeader(k);
+    // Keep both normalized and original for __EMPTY columns
+    out[normalized || k] = v;
+    out[k] = v;
+  }
+  return out;
 };
 
 export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
@@ -107,105 +169,27 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
-  const parseExcelDate = (value: any): string | null => {
-    if (!value) return null;
-    
-    // Se for objeto Date (cellDates: true transforma datas do Excel em Date)
-    if (value instanceof Date && !isNaN(value.getTime())) {
-      const y = value.getFullYear();
-      const m = value.getMonth() + 1;
-      const d = value.getDate();
-      // Excel sem ano assume ano base (1900/2000) - corrigir para ano atual se parecer errado
-      const year = y < 2000 ? new Date().getFullYear() : y;
-      return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    }
-    
-    // Se for número (serial date do Excel)
-    if (typeof value === 'number') {
-      const date = XLSX.SSF.parse_date_code(value);
-      if (date) {
-        const year = date.y < 2000 ? new Date().getFullYear() : date.y;
-        return `${year}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
-      }
-    }
-    
-    // Se for string no formato DD/MM/YYYY
-    if (typeof value === 'string') {
-      const matchDMY = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (matchDMY) {
-        return `${matchDMY[3]}-${matchDMY[2].padStart(2, '0')}-${matchDMY[1].padStart(2, '0')}`;
-      }
-      // Formato "10-Apr" ou "25-Mar" etc
-      const matchShort = value.match(/(\d{1,2})[-\/](\w{3,})/i);
-      if (matchShort) {
-        const months: Record<string, string> = {
-          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-        };
-        const monthKey = matchShort[2].toLowerCase().slice(0, 3);
-        if (months[monthKey]) {
-          const year = new Date().getFullYear();
-          return `${year}-${months[monthKey]}-${matchShort[1].padStart(2, '0')}`;
-        }
-      }
-    }
-    
-    return null;
-  };
+  // Buscar coordenações
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ['coordenacoes-import'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('coordenacoes')
+        .select('id, nome')
+        .order('nome');
+      return data || [];
+    },
+    enabled: open,
+  });
 
-  const parseExcelTime = (value: any): string => {
-    if (!value) return "";
-    
-    // Se for número (fração decimal de 24h no Excel)
-    if (typeof value === 'number') {
-      const totalMinutes = Math.round(value * 24 * 60);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  // Auto-selecionar se só tem uma coordenação
+  useEffect(() => {
+    if (coordenacoes.length === 1 && !coordenacaoId) {
+      setCoordenacaoId(coordenacoes[0].id);
     }
-    
-    // Se for string
-    if (typeof value === 'string') {
-      // Já está no formato HH:MM
-      const match = value.match(/(\d{1,2}):(\d{2})/);
-      if (match) {
-        return `${match[1].padStart(2, '0')}:${match[2]}`;
-      }
-      return value.trim();
-    }
-    
-    return String(value);
-  };
-
-  const formatDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return "";
-    const match = isoDate.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      return `${match[3]}/${match[2]}/${match[1]}`;
-    }
-    return isoDate;
-  };
-
-  const normalizeHeader = (header: string): string => {
-    if (!header) return "";
-    return header
-      .replace(/\u00A0/g, " ") // NBSP
-      .trim()
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // remove accents
-      .replace(/[^A-Z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-  };
-
-  const normalizeRowKeys = (row: Record<string, any>): Record<string, any> => {
-    const out: Record<string, any> = {};
-    for (const [k, v] of Object.entries(row)) {
-      out[normalizeHeader(k)] = v;
-    }
-    return out;
-  };
+  }, [coordenacoes, coordenacaoId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -214,9 +198,9 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     setIsLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
-      
-      // Read ALL sheets and merge rows (dedup by processo_numero)
+      // Read WITHOUT cellDates to get raw values - we parse dates ourselves
+      const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
+
       const allRows: AudienciaRow[] = [];
       const seenProcessos = new Set<string>();
 
@@ -225,44 +209,51 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
         const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
         const sheetRows: AudienciaRow[] = (jsonData as any[])
-        .map((raw) => normalizeRowKeys(raw))
-        .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"] || row["PROCESSO"])
-        .map((row) => {
-          const comarca = String(row["COMARCA"] || "").trim();
-          const horaLocal = parseExcelTime(row["HORA"]);
-          const horaBrasilia = converterParaBrasilia(horaLocal, comarca);
+          .map((raw) => normalizeRowKeys(raw))
+          .filter((row) => {
+            // Must have at least DATA or PROCESSO
+            const hasData = row["DATA"] && String(row["DATA"]).trim() !== "" && String(row["DATA"]).trim() !== "-";
+            const hasProcesso = (row["PROCESSO"] || row["NUMERO_PROCESSO"]) && 
+              String(row["PROCESSO"] || row["NUMERO_PROCESSO"]).trim() !== "" &&
+              String(row["PROCESSO"] || row["NUMERO_PROCESSO"]).trim() !== "-";
+            return hasData || hasProcesso;
+          })
+          .map((row) => {
+            const parsedDate = parseExcelDate(row["DATA"]);
+            const horaLocal = parseExcelTime(row["HORA"]);
+            const comarca = String(row["COMARCA"] || "").trim();
 
-          // Support both old format and new TST format
-          const processoNumero = String(row["NUMERO_PROCESSO"] || row["PROCESSO"] || "").trim();
-          const modalidadeRaw = String(row["__EMPTY"] || row["MODALIDADE"] || "").trim();
-          const modalidade = modalidadeRaw === "Virtual" || modalidadeRaw === "Presencial" ? modalidadeRaw : "";
+            // First column (no header) → modalidade: __EMPTY or EMPTY after normalization
+            const modalidadeRaw = String(row["__EMPTY"] || row["EMPTY"] || row["__EMPTY_1"] || row["MODALIDADE"] || "").trim();
+            const modalidade = (modalidadeRaw === "Virtual" || modalidadeRaw === "Presencial") ? modalidadeRaw : "";
 
-          return {
-            modalidade,
-            data: parseExcelDate(row["DATA"]) || "",
-            hora_local: horaLocal,
-            hora_brasilia: horaBrasilia,
-            processo_numero: processoNumero,
-            vara_camara: String(row["VT_CAMARA"] || row["ORGAO"] || "").trim(),
-            comarca,
-            polo_ativo: String(row["POLO_ATIVO"] || row["PARTE_AUTORA"] || "").trim(),
-            cliente: String(row["CLIENTE"] || row["REUS"] || "").trim(),
-            terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
-            tipo_audiencia: String(row["TIPO"] || "").trim(),
-            resumo_objeto: String(row["RESUMO_DO_OBJETO"] || "").trim(),
-            funcao: String(row["FUNCAO"] || "").trim(),
-            preposto: String(row["PREPOSTO"] || "").trim(),
-            testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
-            advogado: String(row["ADVOGADO"] || row["ADV_INTERNO"] || "").trim(),
-            equipe: String(row["EQUIPE"] || "").trim(),
-            nucleo_origem: String(row["ORIGEM"] || "").trim(),
-            dossie: String(row["DOSSIE"] || row["DOSSIER"] || "").trim(),
-            status: "pendente" as const,
-          };
-        })
-        .filter((row) => row.processo_numero || row.data);
+            const processoNumero = String(row["PROCESSO"] || row["NUMERO_PROCESSO"] || "").trim();
 
-        // Dedup by processo_numero across sheets
+            return {
+              modalidade,
+              data: parsedDate || "",
+              hora_local: horaLocal,
+              hora_brasilia: horaLocal, // TST is already in Brasília timezone
+              processo_numero: processoNumero,
+              vara_camara: String(row["ORGAO"] || row["VT_CAMARA"] || row["ORGAO_TURMA"] || "").trim(),
+              comarca,
+              polo_ativo: String(row["PARTE_AUTORA"] || row["POLO_ATIVO"] || "").trim(),
+              cliente: String(row["REUS"] || row["CLIENTE"] || "").trim(),
+              terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
+              tipo_audiencia: String(row["TIPO"] || "").trim(),
+              resumo_objeto: String(row["RESUMO_DO_OBJETO"] || "").trim(),
+              funcao: String(row["FUNCAO"] || "").trim(),
+              preposto: String(row["PREPOSTO"] || "").trim(),
+              testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
+              advogado: String(row["ADV_INTERNO"] || row["ADVOGADO"] || "").trim(),
+              equipe: String(row["EQUIPE"] || "").trim(),
+              nucleo_origem: String(row["ORIGEM"] || "").trim(),
+              dossie: String(row["DOSSIE"] || row["DOSSIER"] || "").trim(),
+              status: "pendente" as const,
+            };
+          })
+          .filter((row) => row.processo_numero || row.data);
+
         for (const row of sheetRows) {
           const key = row.processo_numero || `${row.data}-${row.polo_ativo}`;
           if (!seenProcessos.has(key)) {
@@ -273,7 +264,12 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
       }
 
       setRows(allRows);
-      toast.success(`${allRows.length} audiências encontradas na planilha (${workbook.SheetNames.length} abas)`);
+
+      const comData = allRows.filter(r => r.data).length;
+      const semData = allRows.length - comData;
+      toast.success(
+        `${allRows.length} audiências encontradas (${comData} com data, ${semData} sem data) — ${workbook.SheetNames.length} abas`
+      );
     } catch (error: any) {
       toast.error(`Erro ao ler planilha: ${error.message}`);
     } finally {
@@ -283,6 +279,11 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
   const handleImport = async () => {
     if (rows.length === 0) return;
+
+    if (!coordenacaoId) {
+      toast.error("Selecione uma coordenação antes de importar");
+      return;
+    }
 
     setIsImporting(true);
     setProgress(0);
@@ -299,13 +300,17 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      
+
       try {
+        const dataAudiencia = row.data
+          ? `${row.data}T${row.hora_brasilia || row.hora_local || '12:00'}:00-03:00`
+          : null;
+
         const { error } = await supabase
           .from('audiencias_detectadas')
           .insert({
             processo_numero: row.processo_numero || null,
-            data_audiencia: row.data ? `${row.data}T${row.hora_brasilia || row.hora_local || '12:00'}:00-03:00` : null,
+            data_audiencia: dataAudiencia,
             hora: row.hora_local || null,
             hora_local: row.hora_local || null,
             hora_brasilia: row.hora_brasilia || null,
@@ -324,19 +329,20 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
             equipe: row.equipe || null,
             nucleo_origem: row.nucleo_origem || null,
             dossie: row.dossie || null,
+            coordenacao_id: coordenacaoId,
             origem: 'manual',
             criado_por: user.id,
             status: 'pendente',
           });
 
         if (error) throw error;
-        
-        setRows(prev => prev.map((r, idx) => 
+
+        setRows(prev => prev.map((r, idx) =>
           idx === i ? { ...r, status: 'sucesso' } : r
         ));
         successCount++;
       } catch (error: any) {
-        setRows(prev => prev.map((r, idx) => 
+        setRows(prev => prev.map((r, idx) =>
           idx === i ? { ...r, status: 'erro', erro: error.message } : r
         ));
         errorCount++;
@@ -347,7 +353,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
     setIsImporting(false);
     queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-    
+
     if (errorCount === 0) {
       toast.success(`${successCount} audiências importadas com sucesso!`);
       onOpenChange(false);
@@ -362,26 +368,25 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
       {
         "DATA": "15/12/2025",
         "HORA": "14:00",
-        "NÚMERO PROCESSO": "0000000-00.0000.0.00.0000",
-        "VT/ CÂMARA": "1ª VT",
-        "COMARCA": "Brasília",
-        "POLO ATIVO": "Nome do Reclamante",
-        "CLIENTE": "Nome do Cliente",
-        "TERCEIRIZADO": "Empresa Terceirizada",
-        "TIPO": "Inicial Presencial",
-        "RESUMO DO OBJETO": "Descrição do objeto da audiência",
-        "FUNÇÃO": "Cargo do reclamante",
-        "PREPOSTO": "Nome do preposto - contato",
-        "TESTEMUNHAS": "Nomes das testemunhas",
-        "ADVOGADO": "Nome do advogado"
+        "PROCESSO": "0000000-00.0000.0.00.0000",
+        "ÓRGÃO": "1ª VT",
+        "PARTE AUTORA": "Nome do Reclamante",
+        "RÉUS": "Nome do Cliente",
+        "EQUIPE": "Núcleo Exemplo",
+        "ORIGEM": "Núcleo Origem",
+        "DOSSIÊ": "07.02.033.0000000/00",
+        "ADV INTERNO": "Nome do advogado"
       }
     ];
-    
+
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Pauta");
     XLSX.writeFile(wb, "modelo_pauta_audiencias.xlsx");
   };
+
+  const importedCount = rows.filter(r => r.status === 'sucesso').length;
+  const errorCount = rows.filter(r => r.status === 'erro').length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -394,13 +399,30 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden space-y-4">
+          {/* Seletor de Coordenação */}
+          <div className="flex items-center gap-3">
+            <Building className="h-4 w-4 text-muted-foreground" />
+            <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+              <SelectTrigger className="w-full max-w-sm">
+                <SelectValue placeholder="Selecione a coordenação..." />
+              </SelectTrigger>
+              <SelectContent>
+                {coordenacoes.map((coord) => (
+                  <SelectItem key={coord.id} value={coord.id}>
+                    {coord.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {rows.length === 0 ? (
             <div className="border-2 border-dashed rounded-lg p-8 text-center space-y-4">
               <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
               <div>
                 <p className="font-medium">Selecione a planilha de pauta semanal</p>
                 <p className="text-sm text-muted-foreground">
-                  Formato esperado: DATA, HORA, NÚMERO PROCESSO, VT/CÂMARA, COMARCA, etc.
+                  Formato: DATA, HORA, PROCESSO, ÓRGÃO, PARTE AUTORA, RÉUS, DOSSIÊ, ADV INTERNO
                 </p>
               </div>
               <div className="flex gap-2 justify-center">
@@ -414,7 +436,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                 />
                 <Button variant="outline" onClick={downloadTemplate}>
                   <Download className="h-4 w-4 mr-2" />
-                  Baixar Modelo
+                  Modelo
                 </Button>
               </div>
               {isLoading && (
@@ -426,16 +448,27 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
             </div>
           ) : (
             <>
-              {isImporting && (
-                <div className="space-y-2">
-                  <Progress value={progress} className="h-2" />
-                  <p className="text-sm text-center text-muted-foreground">
-                    Importando... {Math.round(progress)}%
-                  </p>
+              {/* Barra de Progresso */}
+              <div className="space-y-2 bg-muted/50 rounded-lg p-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">
+                    {isImporting
+                      ? `Importando... ${Math.round(progress)}%`
+                      : `${rows.length} audiências prontas para importar`}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {importedCount > 0 && (
+                      <span className="text-green-600">{importedCount} ✓</span>
+                    )}
+                    {errorCount > 0 && (
+                      <span className="text-red-600 ml-2">{errorCount} ✗</span>
+                    )}
+                  </span>
                 </div>
-              )}
+                <Progress value={isImporting ? progress : 0} className="h-3" />
+              </div>
 
-              <ScrollArea className="h-[400px] border rounded-md">
+              <ScrollArea className="h-[350px] border rounded-md">
                 <div className="min-w-[1800px]">
                   <Table>
                     <TableHeader>
@@ -458,16 +491,10 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                       {rows.map((row, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="sticky left-0 bg-background z-10">
-                            {row.status === 'pendente' && (
-                              <Badge variant="outline">Pendente</Badge>
-                            )}
-                            {row.status === 'sucesso' && (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            )}
+                            {row.status === 'pendente' && <Badge variant="outline">Pendente</Badge>}
+                            {row.status === 'sucesso' && <CheckCircle className="h-4 w-4 text-green-500" />}
                             {row.status === 'erro' && (
-                              <span title={row.erro}>
-                                <XCircle className="h-4 w-4 text-red-500" />
-                              </span>
+                              <span title={row.erro}><XCircle className="h-4 w-4 text-red-500" /></span>
                             )}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{row.modalidade}</TableCell>
@@ -498,17 +525,18 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                 variant="outline"
                 onClick={() => {
                   setRows([]);
+                  setProgress(0);
                   if (fileInputRef.current) fileInputRef.current.value = "";
                 }}
                 disabled={isImporting}
               >
                 Limpar
               </Button>
-              <Button onClick={handleImport} disabled={isImporting}>
+              <Button onClick={handleImport} disabled={isImporting || !coordenacaoId}>
                 {isImporting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importando...
+                    Importando {Math.round(progress)}%...
                   </>
                 ) : (
                   <>

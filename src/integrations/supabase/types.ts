@@ -397,6 +397,7 @@ export type Database = {
           comarca: string | null
           conteudo_publicacao: string | null
           contexto: string | null
+          coordenacao_id: string | null
           created_at: string
           criado_por: string | null
           data_audiencia: string | null
@@ -438,6 +439,7 @@ export type Database = {
           comarca?: string | null
           conteudo_publicacao?: string | null
           contexto?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           criado_por?: string | null
           data_audiencia?: string | null
@@ -479,6 +481,7 @@ export type Database = {
           comarca?: string | null
           conteudo_publicacao?: string | null
           contexto?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           criado_por?: string | null
           data_audiencia?: string | null
@@ -514,6 +517,13 @@ export type Database = {
           vara_camara?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "audiencias_detectadas_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "audiencias_detectadas_monitoramento_id_fkey"
             columns: ["monitoramento_id"]
