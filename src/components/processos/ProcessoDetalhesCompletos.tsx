@@ -79,6 +79,22 @@ interface Responsavel {
   nome: string;
 }
 
+function PrazoField({ label, value, isDate }: { label: string; value: string | null | undefined; isDate?: boolean }) {
+  let display = value || "—";
+  if (isDate && value) {
+    const d = new Date(`${value}T12:00:00`);
+    if (!isNaN(d.getTime())) {
+      display = d.toLocaleDateString("pt-BR");
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-sm text-foreground">{display}</p>
+    </div>
+  );
+}
+
 interface Envolvido {
   nome: string;
   tipo: "requerido" | "requerente";
@@ -709,6 +725,7 @@ export function ProcessoDetalhesCompletos({
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
     { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
     { id: "tst", label: "TST", icon: Gavel },
+    { id: "prazo", label: "Prazo", icon: Clock },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
     { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
@@ -1729,7 +1746,26 @@ export function ProcessoDetalhesCompletos({
                 <ProcessoTstTab processo={processo} />
               )}
 
-              {/* Publicações DJEN Section */}
+              {/* Prazo Section - campos da planilha TST */}
+              {activeSection === "prazo" && (
+                <div className="space-y-6">
+                  <h2 className="text-lg font-semibold text-foreground">Prazo Fatal</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <PrazoField label="Data Fatal" value={processo.data_fatal} isDate />
+                    <PrazoField label="Dossiê" value={processo.dossie_tst} />
+                    <PrazoField label="Equipe" value={processo.equipe_tst} />
+                    <PrazoField label="Decisão" value={processo.decisao_tst} />
+                    <PrazoField label="Formulário" value={processo.formulario_tst} />
+                    <PrazoField label="Providências" value={processo.providencias_tst} />
+                    <PrazoField label="Depósito Judicial" value={processo.deposito_judicial_tst} />
+                    <PrazoField label="Preparo" value={processo.preparo_tst} />
+                    <PrazoField label="Multa/Custas" value={processo.multa_custas_tst} />
+                    <PrazoField label="Responsável" value={processo.responsavel_tst} />
+                  </div>
+                </div>
+              )}
+
+
               {activeSection === "publicacoes" && (
                 <PublicacoesDjenList
                   publicacoes={publicacoesDjen}
