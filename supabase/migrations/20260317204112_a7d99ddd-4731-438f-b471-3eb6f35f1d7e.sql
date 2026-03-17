@@ -1,0 +1,1 @@
+ALTER TABLE public.processos RENAME COLUMN data_fatal_tst TO data_fatal;

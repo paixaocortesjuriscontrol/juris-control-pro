@@ -3312,7 +3312,7 @@ export type Database = {
           data_distribuicao: string | null
           data_encerramento: string | null
           data_encerramento_cobranca: string | null
-          data_fatal_tst: string | null
+          data_fatal: string | null
           data_fato_gerador: string | null
           data_lavratura: string | null
           data_recebimento: string | null
@@ -3488,7 +3488,7 @@ export type Database = {
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_encerramento_cobranca?: string | null
-          data_fatal_tst?: string | null
+          data_fatal?: string | null
           data_fato_gerador?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
@@ -3664,7 +3664,7 @@ export type Database = {
           data_distribuicao?: string | null
           data_encerramento?: string | null
           data_encerramento_cobranca?: string | null
-          data_fatal_tst?: string | null
+          data_fatal?: string | null
           data_fato_gerador?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
