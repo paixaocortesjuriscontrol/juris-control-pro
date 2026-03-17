@@ -3283,7 +3283,7 @@ export type Database = {
           autor: string | null
           coordenacao_id: string | null
           created_at: string
-          data_fatal: string
+          data_fatal: string | null
           decisao: string | null
           deposito_judicial: string | null
           dossie: string | null
@@ -3304,7 +3304,7 @@ export type Database = {
           autor?: string | null
           coordenacao_id?: string | null
           created_at?: string
-          data_fatal: string
+          data_fatal?: string | null
           decisao?: string | null
           deposito_judicial?: string | null
           dossie?: string | null
@@ -3325,7 +3325,7 @@ export type Database = {
           autor?: string | null
           coordenacao_id?: string | null
           created_at?: string
-          data_fatal?: string
+          data_fatal?: string | null
           decisao?: string | null
           deposito_judicial?: string | null
           dossie?: string | null
