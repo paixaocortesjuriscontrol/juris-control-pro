@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,14 +14,15 @@ interface Props {
   open: boolean;
   onClose: () => void;
   coordenacaoId: string | null;
+  coordenacoes: { id: string; nome: string }[];
   onImport: (prazos: PrazoTstInsert[]) => Promise<any>;
   onClearAndImport: (data: { coordenacaoId: string; prazos: PrazoTstInsert[] }) => Promise<any>;
   isImporting: boolean;
+  onCoordenacaoChange: (id: string) => void;
 }
 
 function parseExcelDate(val: any): string | null {
   if (!val) return null;
-  // JS Date object (when cellDates: true)
   if (val instanceof Date && !isNaN(val.getTime())) {
     const y = val.getFullYear();
     const m = String(val.getMonth() + 1).padStart(2, "0");
@@ -27,17 +30,13 @@ function parseExcelDate(val: any): string | null {
     return `${y}-${m}-${d}`;
   }
   if (typeof val === "number") {
-    // Excel serial date
     const d = XLSX.SSF.parse_date_code(val);
     if (d) return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
   }
   if (typeof val === "string") {
-    // Try dd/MM/yyyy
     const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-    // Try yyyy-MM-dd
     if (/^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0, 10);
-    // Try MM/dd/yyyy or other date-like strings
     const parsed = new Date(val);
     if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
       const y = parsed.getFullYear();
@@ -57,21 +56,38 @@ function findColumn(headers: string[], candidates: string[]): number {
   return -1;
 }
 
-export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClearAndImport, isImporting }: Props) {
+export function TstImportDialog({
+  open,
+  onClose,
+  coordenacaoId,
+  coordenacoes,
+  onImport,
+  onClearAndImport,
+  isImporting,
+  onCoordenacaoChange,
+}: Props) {
   const [clearBefore, setClearBefore] = useState(true);
   const [preview, setPreview] = useState<PrazoTstInsert[]>([]);
+  const [parsing, setParsing] = useState(false);
+  const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setParsing(true);
+    setProgress(10);
+
     const ab = await file.arrayBuffer();
+    setProgress(25);
     const wb = XLSX.read(ab, { cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-    if (rows.length < 2) return;
+    setProgress(40);
+
+    if (rows.length < 2) { setParsing(false); return; }
     const headers = rows[0].map((h: any) => String(h));
 
     const colFatal = findColumn(headers, ["fatal"]);
@@ -88,7 +104,8 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
     const colMulta = findColumn(headers, ["multa", "custas"]);
     const colResponsavel = findColumn(headers, ["responsável", "responsavel"]);
 
-    // Pre-fetch processos for matching
+    setProgress(55);
+
     const { data: processos } = await supabase.from("processos").select("id, numero");
     const processosMap = new Map<string, string>();
     processos?.forEach((p) => {
@@ -96,13 +113,16 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
       if (digits.length >= 10) processosMap.set(digits, p.id);
     });
 
+    setProgress(70);
+
     const parsed: PrazoTstInsert[] = [];
+    const totalRows = rows.length - 1;
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       const dataFatal = colFatal >= 0 ? parseExcelDate(r[colFatal]) : null;
       const numProc = colProcesso >= 0 ? String(r[colProcesso] || "").trim() : "";
-      if (!dataFatal && !numProc) continue; // skip empty rows
-      if (!dataFatal) continue; // data_fatal is required
+      if (!dataFatal && !numProc) continue;
+      if (!dataFatal) continue;
 
       let processoId: string | null = null;
       const digits = numProc.replace(/\D/g, "");
@@ -127,9 +147,15 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
         responsavel: colResponsavel >= 0 ? String(r[colResponsavel] || "").trim() || null : null,
         data_fatal: dataFatal,
       });
+
+      if (i % 50 === 0) {
+        setProgress(70 + Math.round((i / totalRows) * 30));
+      }
     }
 
+    setProgress(100);
     setPreview(parsed);
+    setParsing(false);
   };
 
   const handleConfirm = async () => {
@@ -140,6 +166,7 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
       await onImport(preview);
     }
     setPreview([]);
+    setProgress(0);
     if (fileRef.current) fileRef.current.value = "";
     onClose();
   };
@@ -152,23 +179,43 @@ export function TstImportDialog({ open, onClose, coordenacaoId, onImport, onClea
         </DialogHeader>
         <div className="space-y-4">
           <div>
+            <Label>Coordenação</Label>
+            <Select value={coordenacaoId ?? ""} onValueChange={onCoordenacaoChange}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Selecione a coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                {coordenacoes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label>Arquivo XLSX</Label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="mt-1 block w-full text-sm" />
           </div>
 
-          {preview.length > 0 && (
-            <>
-              <p className="text-sm text-muted-foreground">{preview.length} registros encontrados.</p>
-              <div className="flex items-center gap-2">
-                <Checkbox id="clear" checked={clearBefore} onCheckedChange={(v) => setClearBefore(!!v)} />
-                <Label htmlFor="clear" className="text-sm">Substituir todos os dados da coordenação</Label>
-              </div>
-            </>
+          {(parsing || progress > 0) && (
+            <div className="space-y-1">
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-muted-foreground">
+                {parsing ? "Processando planilha..." : `${preview.length} registros encontrados`}
+              </p>
+            </div>
+          )}
+
+          {preview.length > 0 && !parsing && (
+            <div className="flex items-center gap-2">
+              <Checkbox id="clear" checked={clearBefore} onCheckedChange={(v) => setClearBefore(!!v)} />
+              <Label htmlFor="clear" className="text-sm">Substituir todos os dados da coordenação</Label>
+            </div>
           )}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleConfirm} disabled={preview.length === 0 || isImporting}>
+            <Button onClick={handleConfirm} disabled={!coordenacaoId || preview.length === 0 || isImporting || parsing}>
               <Upload className="w-4 h-4 mr-1" />
               {isImporting ? "Importando..." : `Importar ${preview.length} registros`}
             </Button>
