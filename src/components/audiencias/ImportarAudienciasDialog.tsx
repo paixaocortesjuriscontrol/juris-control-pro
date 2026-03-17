@@ -18,6 +18,7 @@ interface Props {
 }
 
 interface AudienciaRow {
+  modalidade: string;
   data: string;
   hora_local: string;
   hora_brasilia: string;
@@ -33,6 +34,9 @@ interface AudienciaRow {
   preposto: string;
   testemunhas: string;
   advogado: string;
+  equipe: string;
+  nucleo_origem: string;
+  dossie: string;
   status: 'pendente' | 'sucesso' | 'erro';
   erro?: string;
 }
@@ -186,42 +190,66 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     setIsLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
+      
+      // Read ALL sheets and merge rows (dedup by processo_numero)
+      const allRows: AudienciaRow[] = [];
+      const seenProcessos = new Set<string>();
 
-      const parsed: AudienciaRow[] = (jsonData as any[])
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        const sheetRows: AudienciaRow[] = (jsonData as any[])
         .map((raw) => normalizeRowKeys(raw))
-        .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"])
+        .filter((row) => row["DATA"] || row["NUMERO_PROCESSO"] || row["PROCESSO"])
         .map((row) => {
           const comarca = String(row["COMARCA"] || "").trim();
           const horaLocal = parseExcelTime(row["HORA"]);
           const horaBrasilia = converterParaBrasilia(horaLocal, comarca);
 
+          // Support both old format and new TST format
+          const processoNumero = String(row["NUMERO_PROCESSO"] || row["PROCESSO"] || "").trim();
+          const modalidadeRaw = String(row["__EMPTY"] || row["MODALIDADE"] || "").trim();
+          const modalidade = modalidadeRaw === "Virtual" || modalidadeRaw === "Presencial" ? modalidadeRaw : "";
+
           return {
+            modalidade,
             data: parseExcelDate(row["DATA"]) || "",
             hora_local: horaLocal,
             hora_brasilia: horaBrasilia,
-            processo_numero: String(row["NUMERO_PROCESSO"] || "").trim(),
-            vara_camara: String(row["VT_CAMARA"] || "").trim(),
+            processo_numero: processoNumero,
+            vara_camara: String(row["VT_CAMARA"] || row["ORGAO"] || "").trim(),
             comarca,
-            polo_ativo: String(row["POLO_ATIVO"] || "").trim(),
-            cliente: String(row["CLIENTE"] || "").trim(),
+            polo_ativo: String(row["POLO_ATIVO"] || row["PARTE_AUTORA"] || "").trim(),
+            cliente: String(row["CLIENTE"] || row["REUS"] || "").trim(),
             terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
             tipo_audiencia: String(row["TIPO"] || "").trim(),
             resumo_objeto: String(row["RESUMO_DO_OBJETO"] || "").trim(),
             funcao: String(row["FUNCAO"] || "").trim(),
             preposto: String(row["PREPOSTO"] || "").trim(),
             testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
-            advogado: String(row["ADVOGADO"] || "").trim(),
+            advogado: String(row["ADVOGADO"] || row["ADV_INTERNO"] || "").trim(),
+            equipe: String(row["EQUIPE"] || "").trim(),
+            nucleo_origem: String(row["ORIGEM"] || "").trim(),
+            dossie: String(row["DOSSIE"] || row["DOSSIER"] || "").trim(),
             status: "pendente" as const,
           };
         })
         .filter((row) => row.processo_numero || row.data);
 
-      setRows(parsed);
-      toast.success(`${parsed.length} audiências encontradas na planilha`);
+        // Dedup by processo_numero across sheets
+        for (const row of sheetRows) {
+          const key = row.processo_numero || `${row.data}-${row.polo_ativo}`;
+          if (!seenProcessos.has(key)) {
+            seenProcessos.add(key);
+            allRows.push(row);
+          }
+        }
+      }
+
+      setRows(allRows);
+      toast.success(`${allRows.length} audiências encontradas na planilha (${workbook.SheetNames.length} abas)`);
     } catch (error: any) {
       toast.error(`Erro ao ler planilha: ${error.message}`);
     } finally {
@@ -254,7 +282,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
           .insert({
             processo_numero: row.processo_numero || null,
             data_audiencia: row.data || null,
-            hora: row.hora_local || null, // Campo legado, mantém hora local
+            hora: row.hora_local || null,
             hora_local: row.hora_local || null,
             hora_brasilia: row.hora_brasilia || null,
             tipo_audiencia: row.tipo_audiencia || null,
@@ -268,6 +296,10 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
             preposto: row.preposto || null,
             testemunhas: row.testemunhas || null,
             advogado: row.advogado || null,
+            modalidade: row.modalidade || null,
+            equipe: row.equipe || null,
+            nucleo_origem: row.nucleo_origem || null,
+            dossie: row.dossie || null,
             origem: 'manual',
             criado_por: user.id,
             status: 'pendente',
@@ -385,21 +417,17 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[80px] sticky left-0 bg-background z-10">Status</TableHead>
+                        <TableHead>Modalidade</TableHead>
                         <TableHead>Data</TableHead>
-                        <TableHead>Hora Local</TableHead>
-                        <TableHead>Hora DF</TableHead>
+                        <TableHead>Hora</TableHead>
                         <TableHead>Nº Processo</TableHead>
-                        <TableHead>VT/Câmara</TableHead>
-                        <TableHead>Comarca</TableHead>
-                        <TableHead>Polo Ativo</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Terceirizado</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Resumo Objeto</TableHead>
-                        <TableHead>Função</TableHead>
-                        <TableHead>Preposto</TableHead>
-                        <TableHead>Testemunhas</TableHead>
-                        <TableHead>Advogado</TableHead>
+                        <TableHead>Órgão/Turma</TableHead>
+                        <TableHead>Equipe</TableHead>
+                        <TableHead>Origem</TableHead>
+                        <TableHead>Parte Autora</TableHead>
+                        <TableHead>Réus</TableHead>
+                        <TableHead>Dossiê</TableHead>
+                        <TableHead>Adv Interno</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -418,20 +446,16 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                               </span>
                             )}
                           </TableCell>
+                          <TableCell className="whitespace-nowrap">{row.modalidade}</TableCell>
                           <TableCell className="whitespace-nowrap">{formatDisplayDate(row.data)}</TableCell>
                           <TableCell className="whitespace-nowrap">{row.hora_local}</TableCell>
-                          <TableCell className="whitespace-nowrap font-medium text-primary">{row.hora_brasilia}</TableCell>
                           <TableCell className="font-mono text-xs whitespace-nowrap">{row.processo_numero}</TableCell>
                           <TableCell className="whitespace-nowrap">{row.vara_camara}</TableCell>
-                          <TableCell className="whitespace-nowrap">{row.comarca}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.equipe}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.nucleo_origem}</TableCell>
                           <TableCell className="max-w-[150px] truncate">{row.polo_ativo}</TableCell>
                           <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{row.terceirizado}</TableCell>
-                          <TableCell className="whitespace-nowrap">{row.tipo_audiencia}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{row.resumo_objeto}</TableCell>
-                          <TableCell className="whitespace-nowrap">{row.funcao}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{row.preposto}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{row.testemunhas}</TableCell>
+                          <TableCell className="whitespace-nowrap font-mono text-xs">{row.dossie}</TableCell>
                           <TableCell className="whitespace-nowrap">{row.advogado}</TableCell>
                         </TableRow>
                       ))}

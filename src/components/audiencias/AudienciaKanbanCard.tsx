@@ -69,10 +69,17 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
         {audiencia.hora && <span>às {audiencia.hora}</span>}
       </div>
 
-      {/* Type */}
-      {audiencia.tipo_audiencia && (
-        <Badge variant="secondary" className="text-[10px]">{audiencia.tipo_audiencia}</Badge>
-      )}
+      {/* Modalidade + Type */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {audiencia.modalidade && (
+          <Badge variant={audiencia.modalidade === "Presencial" ? "destructive" : "secondary"} className="text-[10px]">
+            {audiencia.modalidade}
+          </Badge>
+        )}
+        {audiencia.tipo_audiencia && (
+          <Badge variant="secondary" className="text-[10px]">{audiencia.tipo_audiencia}</Badge>
+        )}
+      </div>
 
       {/* Cliente */}
       {audiencia.cliente && (

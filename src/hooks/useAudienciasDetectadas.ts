@@ -36,6 +36,10 @@ export interface AudienciaDetectada {
   criado_por: string | null;
   created_at: string;
   updated_at: string;
+  modalidade: string | null;
+  equipe: string | null;
+  nucleo_origem: string | null;
+  dossie: string | null;
   monitoramento?: {
     termo_busca: string;
     descricao: string | null;
@@ -72,7 +76,11 @@ export interface NovaAudiencia {
   advogado?: string;
   observacoes?: string;
   status?: string;
-  advogados_ids?: string[]; // Novo campo para múltiplos advogados
+  modalidade?: string;
+  equipe?: string;
+  nucleo_origem?: string;
+  dossie?: string;
+  advogados_ids?: string[];
 }
 
 interface AudienciasFiltros {
@@ -270,6 +278,10 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           origem: 'manual',
           criado_por: user.id,
           status: dadosAudiencia.status || 'pendente',
+          modalidade: dadosAudiencia.modalidade || null,
+          equipe: dadosAudiencia.equipe || null,
+          nucleo_origem: dadosAudiencia.nucleo_origem || null,
+          dossie: dadosAudiencia.dossie || null,
         })
         .select()
         .single();

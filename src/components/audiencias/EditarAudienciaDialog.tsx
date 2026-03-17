@@ -43,6 +43,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
     observacoes: "",
     status: "pendente",
     providencias_tomadas: "",
+    modalidade: "",
+    equipe: "",
+    nucleo_origem: "",
+    dossie: "",
   });
 
   // Buscar advogados vinculados à audiência
@@ -95,6 +99,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
         observacoes: audiencia.observacoes || "",
         status: audiencia.status || "pendente",
         providencias_tomadas: audiencia.providencias_tomadas || "",
+        modalidade: audiencia.modalidade || "",
+        equipe: audiencia.equipe || "",
+        nucleo_origem: audiencia.nucleo_origem || "",
+        dossie: audiencia.dossie || "",
       });
     }
   }, [audiencia]);
@@ -145,6 +153,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
         observacoes: formData.observacoes || null,
         status: formData.status,
         providencias_tomadas: formData.providencias_tomadas || null,
+        modalidade: formData.modalidade || null,
+        equipe: formData.equipe || null,
+        nucleo_origem: formData.nucleo_origem || null,
+        dossie: formData.dossie || null,
       };
 
       // Se marcando como tratado, registrar quem e quando
@@ -256,13 +268,28 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
             </div>
           </div>
 
-          {/* Tribunal e Local */}
-          <div className="grid gap-4 md:grid-cols-3">
+          {/* Tribunal, Local e Modalidade */}
+          <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="vara_camara">VT / Câmara</Label>
+              <Label htmlFor="modalidade">Modalidade</Label>
+              <Select 
+                value={formData.modalidade || ""} 
+                onValueChange={(value) => handleChange("modalidade", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Virtual">Virtual</SelectItem>
+                  <SelectItem value="Presencial">Presencial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vara_camara">Órgão / Turma</Label>
               <Input
                 id="vara_camara"
-                placeholder="Ex: 22ª VT"
+                placeholder="Ex: 1ª Turma"
                 value={formData.vara_camara}
                 onChange={(e) => handleChange("vara_camara", e.target.value)}
               />
@@ -283,6 +310,37 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
                 placeholder="Ex: Inicial Presencial"
                 value={formData.tipo_audiencia}
                 onChange={(e) => handleChange("tipo_audiencia", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Equipe, Origem e Dossiê */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="equipe">Equipe</Label>
+              <Input
+                id="equipe"
+                placeholder="Ex: Núcleo de Terceiros"
+                value={formData.equipe}
+                onChange={(e) => handleChange("equipe", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nucleo_origem">Núcleo de Origem</Label>
+              <Input
+                id="nucleo_origem"
+                placeholder="Ex: Núcleo Sudeste"
+                value={formData.nucleo_origem}
+                onChange={(e) => handleChange("nucleo_origem", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dossie">Dossiê</Label>
+              <Input
+                id="dossie"
+                placeholder="Ex: 07.02.033.0001889121/14"
+                value={formData.dossie}
+                onChange={(e) => handleChange("dossie", e.target.value)}
               />
             </div>
           </div>
