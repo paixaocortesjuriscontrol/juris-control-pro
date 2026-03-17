@@ -402,21 +402,17 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[80px] sticky left-0 bg-background z-10">Status</TableHead>
+                        <TableHead>Modalidade</TableHead>
                         <TableHead>Data</TableHead>
-                        <TableHead>Hora Local</TableHead>
-                        <TableHead>Hora DF</TableHead>
+                        <TableHead>Hora</TableHead>
                         <TableHead>Nº Processo</TableHead>
-                        <TableHead>VT/Câmara</TableHead>
-                        <TableHead>Comarca</TableHead>
-                        <TableHead>Polo Ativo</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Terceirizado</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Resumo Objeto</TableHead>
-                        <TableHead>Função</TableHead>
-                        <TableHead>Preposto</TableHead>
-                        <TableHead>Testemunhas</TableHead>
-                        <TableHead>Advogado</TableHead>
+                        <TableHead>Órgão/Turma</TableHead>
+                        <TableHead>Equipe</TableHead>
+                        <TableHead>Origem</TableHead>
+                        <TableHead>Parte Autora</TableHead>
+                        <TableHead>Réus</TableHead>
+                        <TableHead>Dossiê</TableHead>
+                        <TableHead>Adv Interno</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -435,20 +431,16 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
                               </span>
                             )}
                           </TableCell>
+                          <TableCell className="whitespace-nowrap">{row.modalidade}</TableCell>
                           <TableCell className="whitespace-nowrap">{formatDisplayDate(row.data)}</TableCell>
                           <TableCell className="whitespace-nowrap">{row.hora_local}</TableCell>
-                          <TableCell className="whitespace-nowrap font-medium text-primary">{row.hora_brasilia}</TableCell>
                           <TableCell className="font-mono text-xs whitespace-nowrap">{row.processo_numero}</TableCell>
                           <TableCell className="whitespace-nowrap">{row.vara_camara}</TableCell>
-                          <TableCell className="whitespace-nowrap">{row.comarca}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.equipe}</TableCell>
+                          <TableCell className="whitespace-nowrap">{row.nucleo_origem}</TableCell>
                           <TableCell className="max-w-[150px] truncate">{row.polo_ativo}</TableCell>
                           <TableCell className="max-w-[150px] truncate">{row.cliente}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{row.terceirizado}</TableCell>
-                          <TableCell className="whitespace-nowrap">{row.tipo_audiencia}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{row.resumo_objeto}</TableCell>
-                          <TableCell className="whitespace-nowrap">{row.funcao}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{row.preposto}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{row.testemunhas}</TableCell>
+                          <TableCell className="whitespace-nowrap font-mono text-xs">{row.dossie}</TableCell>
                           <TableCell className="whitespace-nowrap">{row.advogado}</TableCell>
                         </TableRow>
                       ))}
