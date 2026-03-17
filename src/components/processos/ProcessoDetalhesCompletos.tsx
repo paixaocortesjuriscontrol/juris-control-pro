@@ -792,9 +792,6 @@ export function ProcessoDetalhesCompletos({
 
           <div className="flex items-center gap-1">
             <Badge className="bg-blue-600 text-white text-xs hidden sm:inline-flex">Judicial</Badge>
-            <Button variant="outline" size="sm" onClick={onEditar}>
-              Editar
-            </Button>
           </div>
         </div>
       </div>
