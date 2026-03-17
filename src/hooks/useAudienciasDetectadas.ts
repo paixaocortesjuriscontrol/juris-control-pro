@@ -160,11 +160,10 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           .select('id, numero')
           .eq('coordenacao_id', filtros.coordenacaoId);
 
-        if (!processosCoord || processosCoord.length === 0) {
-          return [] as AudienciaDetectada[];
+        if (processosCoord && processosCoord.length > 0) {
+          processosIdsFiltro = processosCoord.map(p => p.id);
+          processosNumerosFiltro = processosCoord.map(p => p.numero);
         }
-        processosIdsFiltro = processosCoord.map(p => p.id);
-        processosNumerosFiltro = processosCoord.map(p => p.numero);
       }
 
       let query = supabase
