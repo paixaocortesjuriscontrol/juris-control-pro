@@ -3278,6 +3278,87 @@ export type Database = {
           },
         ]
       }
+      prazos_tst: {
+        Row: {
+          autor: string | null
+          coordenacao_id: string | null
+          created_at: string
+          data_fatal: string
+          decisao: string | null
+          deposito_judicial: string | null
+          dossie: string | null
+          equipe: string | null
+          formulario: string | null
+          id: string
+          multa_custas: string | null
+          numero_processo: string | null
+          preparo: string | null
+          processo_id: string | null
+          providencias: string | null
+          responsavel: string | null
+          reu: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          autor?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_fatal: string
+          decisao?: string | null
+          deposito_judicial?: string | null
+          dossie?: string | null
+          equipe?: string | null
+          formulario?: string | null
+          id?: string
+          multa_custas?: string | null
+          numero_processo?: string | null
+          preparo?: string | null
+          processo_id?: string | null
+          providencias?: string | null
+          responsavel?: string | null
+          reu?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          autor?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_fatal?: string
+          decisao?: string | null
+          deposito_judicial?: string | null
+          dossie?: string | null
+          equipe?: string | null
+          formulario?: string | null
+          id?: string
+          multa_custas?: string | null
+          numero_processo?: string | null
+          preparo?: string | null
+          processo_id?: string | null
+          providencias?: string | null
+          responsavel?: string | null
+          reu?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prazos_tst_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prazos_tst_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processos: {
         Row: {
           adicao_baixa: string | null

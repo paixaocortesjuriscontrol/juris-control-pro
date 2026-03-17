@@ -55,6 +55,7 @@ import ClienteLogin from "./pages/cliente/ClienteLogin";
 import ClienteCadastro from "./pages/cliente/ClienteCadastro";
 import ClientePortal from "./pages/cliente/ClientePortal";
 import WorkerDjenVps from "./pages/WorkerDjenVps";
+import TstPrazos from "./pages/TstPrazos";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -132,6 +133,7 @@ function App() {
               <Route path="/cofre-senhas" element={<ProtectedRoute><CofreSenhas /></ProtectedRoute>} />
               <Route path="/capturas-intimacoes" element={<ProtectedRoute><CapturasIntimacoes /></ProtectedRoute>} />
               <Route path="/relatorio-execucoes" element={<ProtectedRoute><RelatorioExecucoes /></ProtectedRoute>} />
+              <Route path="/tst-prazos" element={<ProtectedRoute><TstPrazos /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
