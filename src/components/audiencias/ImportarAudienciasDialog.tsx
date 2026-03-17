@@ -111,19 +111,43 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
   const parseExcelDate = (value: any): string | null => {
     if (!value) return null;
     
+    // Se for objeto Date (cellDates: true transforma datas do Excel em Date)
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      const y = value.getFullYear();
+      const m = value.getMonth() + 1;
+      const d = value.getDate();
+      // Excel sem ano assume ano base (1900/2000) - corrigir para ano atual se parecer errado
+      const year = y < 2000 ? new Date().getFullYear() : y;
+      return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    
     // Se for número (serial date do Excel)
     if (typeof value === 'number') {
       const date = XLSX.SSF.parse_date_code(value);
       if (date) {
-        return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+        const year = date.y < 2000 ? new Date().getFullYear() : date.y;
+        return `${year}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
       }
     }
     
     // Se for string no formato DD/MM/YYYY
     if (typeof value === 'string') {
-      const match = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (match) {
-        return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+      const matchDMY = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (matchDMY) {
+        return `${matchDMY[3]}-${matchDMY[2].padStart(2, '0')}-${matchDMY[1].padStart(2, '0')}`;
+      }
+      // Formato "10-Apr" ou "25-Mar" etc
+      const matchShort = value.match(/(\d{1,2})[-\/](\w{3,})/i);
+      if (matchShort) {
+        const months: Record<string, string> = {
+          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+        };
+        const monthKey = matchShort[2].toLowerCase().slice(0, 3);
+        if (months[monthKey]) {
+          const year = new Date().getFullYear();
+          return `${year}-${months[monthKey]}-${matchShort[1].padStart(2, '0')}`;
+        }
       }
     }
     
