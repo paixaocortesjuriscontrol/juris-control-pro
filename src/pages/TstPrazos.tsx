@@ -66,7 +66,7 @@ export default function TstPrazos() {
   const [showImport, setShowImport] = useState(false);
 
   return (
-    <MainLayout>
+    <MainLayout title="TST Prazos">
       <div className="flex flex-col h-full gap-4">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
