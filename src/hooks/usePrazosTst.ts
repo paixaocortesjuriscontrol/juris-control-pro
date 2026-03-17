@@ -49,7 +49,7 @@ const TST_SELECT = `
   id, numero, coordenacao_id, polo_ativo, polo_passivo,
   dossie_tst, equipe_tst, decisao_tst, formulario_tst,
   providencias_tst, deposito_judicial_tst, preparo_tst,
-  multa_custas_tst, responsavel_tst, data_fatal_tst,
+  multa_custas_tst, responsavel_tst, data_fatal,
   status_tst, status, created_at, updated_at
 `;
 
