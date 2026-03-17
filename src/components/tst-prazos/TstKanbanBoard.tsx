@@ -12,8 +12,8 @@ interface Column {
 }
 
 function getDias(p: ProcessoTst): number | null {
-  if (!p.data_fatal_tst) return null;
-  return differenceInCalendarDays(new Date(p.data_fatal_tst + "T12:00:00"), new Date());
+  if (!p.data_fatal) return null;
+  return differenceInCalendarDays(new Date(p.data_fatal + "T12:00:00"), new Date());
 }
 
 const columns: Column[] = [
