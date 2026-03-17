@@ -124,23 +124,6 @@ export default function PainelAudiencias() {
     setObservacoes("");
   };
 
-  const toggleExpandAudiencia = (id: string) => {
-    const newExpanded = new Set(expandedAudiencias);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedAudiencias(newExpanded);
-  };
-
-  const toggleExpandAll = () => {
-    if (expandedAudiencias.size === audiencias.length && audiencias.length > 0) {
-      setExpandedAudiencias(new Set());
-    } else {
-      setExpandedAudiencias(new Set(audiencias.map(a => a.id)));
-    }
-  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Data não identificada";
