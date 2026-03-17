@@ -37,8 +37,8 @@ export default function TstPrazos() {
       const allIds = [...new Set([...ids, ...coordIds])];
 
       // Check if admin - fetch all
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user?.id ?? "").single();
-      const isAdmin = profile?.role === "admin";
+      const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", user?.id ?? "");
+      const isAdmin = roleData?.some((r) => r.role === "admin") ?? false;
 
       if (isAdmin) {
         const { data } = await supabase.from("coordenacoes").select("id, nome").order("nome");
