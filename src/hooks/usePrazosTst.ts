@@ -63,7 +63,7 @@ export function usePrazosTst(coordenacaoId: string | null) {
         .from("processos")
         .select(TST_SELECT)
         .eq("coordenacao_id", coordenacaoId!)
-        .order("data_fatal_tst", { ascending: true, nullsFirst: false });
+        .order("data_fatal", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as ProcessoTst[];
     },
