@@ -57,7 +57,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
       preparo_tst: form.preparo_tst || null,
       multa_custas_tst: form.multa_custas_tst || null,
       responsavel_tst: form.responsavel_tst || null,
-      data_fatal_tst: format(dataFatal, "yyyy-MM-dd"),
+      data_fatal: format(dataFatal, "yyyy-MM-dd"),
       area: "trabalhista",
       status: "ativo",
     });

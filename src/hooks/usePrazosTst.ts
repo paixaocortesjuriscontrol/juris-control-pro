@@ -150,7 +150,7 @@ export function usePrazosTst(coordenacaoId: string | null) {
           responsavel_tst: null,
         } as any)
         .eq("coordenacao_id", cid)
-        .not("data_fatal_tst", "is", null);
+        .not("data_fatal", "is", null);
       if (clearErr) throw clearErr;
 
       // Now import

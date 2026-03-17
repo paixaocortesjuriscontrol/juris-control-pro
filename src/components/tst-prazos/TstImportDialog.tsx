@@ -159,7 +159,7 @@ export function TstImportDialog({
         preparo_tst: colPreparo >= 0 ? String(row[colPreparo] || "").trim() || null : null,
         multa_custas_tst: colMulta >= 0 ? String(row[colMulta] || "").trim() || null : null,
         responsavel_tst: colResponsavel >= 0 ? String(row[colResponsavel] || "").trim() || null : null,
-        data_fatal_tst: dataFatal,
+        data_fatal: dataFatal,
         area: "trabalhista",
         status: "ativo",
       });

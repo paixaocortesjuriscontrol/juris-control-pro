@@ -45,10 +45,10 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
               <div className="space-y-2">
                 {items
                   .sort((a, b) => {
-                    if (!a.data_fatal_tst && !b.data_fatal_tst) return 0;
-                    if (!a.data_fatal_tst) return 1;
-                    if (!b.data_fatal_tst) return -1;
-                    return new Date(a.data_fatal_tst).getTime() - new Date(b.data_fatal_tst).getTime();
+                    if (!a.data_fatal && !b.data_fatal) return 0;
+                    if (!a.data_fatal) return 1;
+                    if (!b.data_fatal) return -1;
+                    return new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime();
                   })
                   .map((p) => (
                     <TstPrazoCard key={p.id} processo={p} onClick={() => onCardClick(p)} />

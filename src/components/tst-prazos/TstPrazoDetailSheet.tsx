@@ -33,7 +33,7 @@ export function TstPrazoDetailSheet({ processo, open, onClose }: Props) {
   const navigate = useNavigate();
   if (!processo) return null;
 
-  const dataFatal = formatDataFatal(processo.data_fatal_tst);
+  const dataFatal = formatDataFatal(processo.data_fatal);
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
