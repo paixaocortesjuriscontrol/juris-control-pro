@@ -127,9 +127,11 @@ export default function TstPrazos() {
           open={showImport}
           onClose={() => setShowImport(false)}
           coordenacaoId={coordenacaoId}
+          coordenacoes={coordenacoes}
           onImport={bulkInsert}
           onClearAndImport={clearAndInsert}
           isImporting={isImporting}
+          onCoordenacaoChange={setCoordenacaoId}
         />
       </div>
     </MainLayout>
