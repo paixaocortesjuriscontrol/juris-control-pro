@@ -17,7 +17,7 @@ export interface ProcessoTst {
   preparo_tst: string | null;
   multa_custas_tst: string | null;
   responsavel_tst: string | null;
-  data_fatal_tst: string | null;
+  data_fatal: string | null;
   status_tst: string | null;
   status: string;
   created_at: string;
