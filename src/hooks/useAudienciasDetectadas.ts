@@ -101,16 +101,13 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
     queryFn: async () => {
       const coordAtiva = filtros.coordenacaoId && filtros.coordenacaoId !== 'todas';
       
-      let processosIds: string[] | null = null;
+      let processosIds: string[] = [];
       if (coordAtiva) {
         const { data: processosCoord } = await supabase
           .from('processos')
           .select('id')
           .eq('coordenacao_id', filtros.coordenacaoId as string);
         processosIds = (processosCoord || []).map(p => p.id);
-        if (processosIds.length === 0) {
-          return { pendentes: 0, tratadas: 0, ignoradas: 0, proximas: 0 };
-        }
       }
 
       // Build base query helper
