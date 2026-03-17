@@ -267,7 +267,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
           .insert({
             processo_numero: row.processo_numero || null,
             data_audiencia: row.data || null,
-            hora: row.hora_local || null, // Campo legado, mantém hora local
+            hora: row.hora_local || null,
             hora_local: row.hora_local || null,
             hora_brasilia: row.hora_brasilia || null,
             tipo_audiencia: row.tipo_audiencia || null,
@@ -281,6 +281,10 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
             preposto: row.preposto || null,
             testemunhas: row.testemunhas || null,
             advogado: row.advogado || null,
+            modalidade: row.modalidade || null,
+            equipe: row.equipe || null,
+            nucleo_origem: row.nucleo_origem || null,
+            dossie: row.dossie || null,
             origem: 'manual',
             criado_por: user.id,
             status: 'pendente',
