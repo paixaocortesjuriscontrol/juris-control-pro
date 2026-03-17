@@ -345,18 +345,6 @@ export default function PainelAudiencias() {
               </Select>
             )}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleExpandAll}
-                disabled={audiencias.length === 0}
-                className="text-xs h-9"
-              >
-                <ChevronsUpDown className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">
-                  {expandedAudiencias.size === audiencias.length && audiencias.length > 0 ? "Recolher" : "Expandir"}
-                </span>
-              </Button>
               <Button variant="outline" size="icon" className="md:hidden" onClick={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
               </Button>
