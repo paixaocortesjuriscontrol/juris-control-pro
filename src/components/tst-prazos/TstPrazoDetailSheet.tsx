@@ -23,9 +23,27 @@ function Field({ label, value }: { label: string; value: string | null | undefin
   );
 }
 
+function formatDataFatal(value: string | null | undefined) {
+  if (!value) {
+    return { text: "Sem prazo informado", isMissing: true };
+  }
+
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return { text: "Data inválida", isMissing: true };
+  }
+
+  return {
+    text: format(date, "dd/MM/yyyy", { locale: ptBR }),
+    isMissing: false,
+  };
+}
+
 export function TstPrazoDetailSheet({ prazo, open, onClose, onDelete }: Props) {
   const navigate = useNavigate();
   if (!prazo) return null;
+
+  const dataFatal = formatDataFatal(prazo.data_fatal);
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -48,8 +66,8 @@ export function TstPrazoDetailSheet({ prazo, open, onClose, onDelete }: Props) {
           <Field label="Responsável" value={prazo.responsavel} />
           <div>
             <p className="text-xs text-muted-foreground">Data Fatal</p>
-            <p className="text-sm font-semibold text-destructive">
-              {format(new Date(prazo.data_fatal + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}
+            <p className={`text-sm font-semibold ${dataFatal.isMissing ? "text-muted-foreground" : "text-destructive"}`}>
+              {dataFatal.text}
             </p>
           </div>
 
