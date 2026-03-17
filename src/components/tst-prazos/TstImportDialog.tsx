@@ -124,7 +124,7 @@ export function TstImportDialog({
     const ab = await file.arrayBuffer();
     setProgress(25);
 
-    const wb = XLSX.read(ab, { cellDates: true });
+    const wb = XLSX.read(ab, { type: "array", cellDates: true, cellStyles: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = getSheetRows(ws);
 
