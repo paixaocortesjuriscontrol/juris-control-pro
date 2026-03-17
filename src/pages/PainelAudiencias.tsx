@@ -40,7 +40,6 @@ export default function PainelAudiencias() {
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
   const [observacoes, setObservacoes] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [expandedAudiencias, setExpandedAudiencias] = useState<Set<string>>(new Set());
   const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
 
   const { exportarExcel } = useExportarAudiencias();
