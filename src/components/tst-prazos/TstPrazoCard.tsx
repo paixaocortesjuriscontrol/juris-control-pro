@@ -11,7 +11,7 @@ interface Props {
 
 export function TstPrazoCard({ prazo, onClick }: Props) {
   const navigate = useNavigate();
-  const dias = differenceInCalendarDays(new Date(prazo.data_fatal + "T12:00:00"), new Date());
+  const dias = prazo.data_fatal ? differenceInCalendarDays(new Date(prazo.data_fatal + "T12:00:00"), new Date()) : null;
 
   return (
     <div
@@ -22,8 +22,8 @@ export function TstPrazoCard({ prazo, onClick }: Props) {
         <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">
           {prazo.numero_processo || "Sem nº"}
         </p>
-        <Badge variant={dias <= 1 ? "destructive" : "secondary"} className="text-[10px] shrink-0">
-          {dias <= 0 ? "VENCIDO" : `${dias}d`}
+        <Badge variant={dias !== null && dias <= 1 ? "destructive" : "secondary"} className="text-[10px] shrink-0">
+          {dias === null ? "S/P" : dias <= 0 ? "VENCIDO" : `${dias}d`}
         </Badge>
       </div>
       {prazo.autor && <p className="text-xs text-muted-foreground truncate">{prazo.autor}</p>}

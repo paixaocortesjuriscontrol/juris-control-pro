@@ -18,7 +18,7 @@ export interface PrazoTst {
   preparo: string | null;
   multa_custas: string | null;
   responsavel: string | null;
-  data_fatal: string;
+  data_fatal: string | null;
   status: string;
   created_at: string;
   updated_at: string;

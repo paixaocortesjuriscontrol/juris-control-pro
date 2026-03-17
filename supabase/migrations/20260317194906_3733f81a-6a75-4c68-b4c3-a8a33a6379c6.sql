@@ -1,0 +1,1 @@
+ALTER TABLE public.prazos_tst ALTER COLUMN data_fatal DROP NOT NULL;
