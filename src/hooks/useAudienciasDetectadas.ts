@@ -117,7 +117,14 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       const buildQuery = (status?: string) => {
         let q = supabase.from('audiencias_detectadas').select('*', { count: 'exact', head: true });
         if (status) q = q.eq('status', status);
-        if (processosIds) q = q.in('processo_id', processosIds);
+        if (coordAtiva) {
+          // Filter by coordenacao_id OR processo_id
+          if (processosIds && processosIds.length > 0) {
+            q = q.or(`coordenacao_id.eq.${filtros.coordenacaoId},processo_id.in.(${processosIds.join(',')})`);
+          } else {
+            q = q.eq('coordenacao_id', filtros.coordenacaoId as string);
+          }
+        }
         return q;
       };
 
