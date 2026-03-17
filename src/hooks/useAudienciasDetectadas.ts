@@ -36,6 +36,10 @@ export interface AudienciaDetectada {
   criado_por: string | null;
   created_at: string;
   updated_at: string;
+  modalidade: string | null;
+  equipe: string | null;
+  nucleo_origem: string | null;
+  dossie: string | null;
   monitoramento?: {
     termo_busca: string;
     descricao: string | null;
