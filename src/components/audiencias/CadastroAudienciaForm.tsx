@@ -31,6 +31,10 @@ export function CadastroAudienciaForm() {
     advogado: "",
     observacoes: "",
     status: "pendente",
+    modalidade: "",
+    equipe: "",
+    nucleo_origem: "",
+    dossie: "",
   });
 
   const handleChange = (field: string, value: string) => {
