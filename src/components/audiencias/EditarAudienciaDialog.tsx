@@ -43,6 +43,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
     observacoes: "",
     status: "pendente",
     providencias_tomadas: "",
+    modalidade: "",
+    equipe: "",
+    nucleo_origem: "",
+    dossie: "",
   });
 
   // Buscar advogados vinculados à audiência
