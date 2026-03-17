@@ -38,7 +38,7 @@ export interface ProcessoTstImport {
   preparo_tst: string | null;
   multa_custas_tst: string | null;
   responsavel_tst: string | null;
-  data_fatal_tst: string | null;
+  data_fatal: string | null;
   area?: string;
   status?: string;
   /** If matched to existing processo, store the id here for upsert */
