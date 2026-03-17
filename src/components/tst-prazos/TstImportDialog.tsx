@@ -8,57 +8,41 @@ import { Progress } from "@/components/ui/progress";
 import { Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import { PrazoTstInsert } from "@/hooks/usePrazosTst";
+import { ProcessoTstImport } from "@/hooks/usePrazosTst";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   coordenacaoId: string | null;
   coordenacoes: { id: string; nome: string }[];
-  onImport: (prazos: PrazoTstInsert[]) => Promise<any>;
-  onClearAndImport: (data: { coordenacaoId: string; prazos: PrazoTstInsert[] }) => Promise<any>;
+  onImport: (items: ProcessoTstImport[]) => Promise<any>;
+  onClearAndImport: (data: { coordenacaoId: string; items: ProcessoTstImport[] }) => Promise<any>;
   isImporting: boolean;
   onCoordenacaoChange: (id: string) => void;
 }
 
 function parseExcelDate(val: unknown): string | null {
   if (!val) return null;
-
   if (val instanceof Date && !isNaN(val.getTime())) {
     const y = val.getFullYear();
     const m = String(val.getMonth() + 1).padStart(2, "0");
     const d = String(val.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
-
   if (typeof val === "number") {
     const parsed = XLSX.SSF.parse_date_code(val);
-    if (parsed) {
-      return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
-    }
+    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
   }
-
   if (typeof val === "string") {
     const normalized = val.trim();
-
     const brDate = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (brDate) {
-      return `${brDate[3]}-${brDate[2].padStart(2, "0")}-${brDate[1].padStart(2, "0")}`;
-    }
-
-    if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) {
-      return normalized.slice(0, 10);
-    }
-
+    if (brDate) return `${brDate[3]}-${brDate[2].padStart(2, "0")}-${brDate[1].padStart(2, "0")}`;
+    if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) return normalized.slice(0, 10);
     const parsed = new Date(normalized);
     if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
-      const y = parsed.getFullYear();
-      const m = String(parsed.getMonth() + 1).padStart(2, "0");
-      const d = String(parsed.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
+      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
     }
   }
-
   return null;
 }
 
@@ -73,15 +57,11 @@ function findColumn(headers: string[], candidates: string[]): number {
 function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
   const ref = ws["!ref"];
   if (!ref) return [];
-
   const range = XLSX.utils.decode_range(ref);
   const rows: unknown[][] = [];
-
   for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex++) {
     if (ws["!rows"]?.[rowIndex]?.hidden) continue;
-
     const row: unknown[] = [];
-
     for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex++) {
       const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
       if (cell && (cell.t === "d" || cell.v instanceof Date)) {
@@ -90,25 +70,17 @@ function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
         row.push(cell?.w ?? cell?.v ?? "");
       }
     }
-
     rows.push(row);
   }
-
   return rows;
 }
 
 export function TstImportDialog({
-  open,
-  onClose,
-  coordenacaoId,
-  coordenacoes,
-  onImport,
-  onClearAndImport,
-  isImporting,
-  onCoordenacaoChange,
+  open, onClose, coordenacaoId, coordenacoes,
+  onImport, onClearAndImport, isImporting, onCoordenacaoChange,
 }: Props) {
   const [clearBefore, setClearBefore] = useState(true);
-  const [preview, setPreview] = useState<PrazoTstInsert[]>([]);
+  const [preview, setPreview] = useState<ProcessoTstImport[]>([]);
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -127,18 +99,12 @@ export function TstImportDialog({
     const wb = XLSX.read(ab, { type: "array", cellDates: true, cellStyles: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = getSheetRows(ws);
-
     setProgress(40);
 
-    if (rows.length < 2) {
-      setParsing(false);
-      setProgress(0);
-      return;
-    }
+    if (rows.length < 2) { setParsing(false); setProgress(0); return; }
 
     const headers = rows[0].map((h) => String(h ?? ""));
-
-    const colFatal = 1; // Column B — fixed layout
+    const colFatal = 1;
     const colDossie = findColumn(headers, ["dossi", "dossie"]);
     const colProcesso = findColumn(headers, ["processo"]);
     const colReu = findColumn(headers, ["réu", "reu"]);
@@ -151,9 +117,9 @@ export function TstImportDialog({
     const colPreparo = findColumn(headers, ["preparo"]);
     const colMulta = findColumn(headers, ["multa", "custas"]);
     const colResponsavel = findColumn(headers, ["responsável", "responsavel"]);
-
     setProgress(55);
 
+    // Fetch existing processos for matching
     const { data: processos } = await supabase.from("processos").select("id, numero");
     const processosMap = new Map<string, string>();
     processos?.forEach((p) => {
@@ -161,7 +127,7 @@ export function TstImportDialog({
       if (digits.length >= 10) processosMap.set(digits, p.id);
     });
 
-    const parsed: PrazoTstInsert[] = [];
+    const parsed: ProcessoTstImport[] = [];
     const totalRows = Math.max(rows.length - 1, 1);
 
     for (let i = 1; i < rows.length; i++) {
@@ -171,28 +137,31 @@ export function TstImportDialog({
 
       if (!dataFatal && !numProc) continue;
 
-      let processoId: string | null = null;
+      // Match to existing processo
+      let existingId: string | null = null;
       const digits = numProc.replace(/\D/g, "");
       if (digits.length >= 10) {
-        processoId = processosMap.get(digits) ?? null;
+        existingId = processosMap.get(digits) ?? null;
       }
 
       parsed.push({
+        _existing_id: existingId,
+        numero: numProc || "SEM-NUMERO",
         coordenacao_id: coordenacaoId,
-        processo_id: processoId,
-        numero_processo: numProc || null,
-        dossie: colDossie >= 0 ? String(row[colDossie] || "").trim() || null : null,
-        reu: colReu >= 0 ? String(row[colReu] || "").trim() || null : null,
-        autor: colAutor >= 0 ? String(row[colAutor] || "").trim() || null : null,
-        equipe: colEquipe >= 0 ? String(row[colEquipe] || "").trim() || null : null,
-        decisao: colDecisao >= 0 ? String(row[colDecisao] || "").trim() || null : null,
-        formulario: colFormulario >= 0 ? String(row[colFormulario] || "").trim() || null : null,
-        providencias: colProvidencias >= 0 ? String(row[colProvidencias] || "").trim() || null : null,
-        deposito_judicial: colDeposito >= 0 ? String(row[colDeposito] || "").trim() || null : null,
-        preparo: colPreparo >= 0 ? String(row[colPreparo] || "").trim() || null : null,
-        multa_custas: colMulta >= 0 ? String(row[colMulta] || "").trim() || null : null,
-        responsavel: colResponsavel >= 0 ? String(row[colResponsavel] || "").trim() || null : null,
-        data_fatal: dataFatal,
+        polo_ativo: colAutor >= 0 ? String(row[colAutor] || "").trim() || null : null,
+        polo_passivo: colReu >= 0 ? String(row[colReu] || "").trim() || null : null,
+        dossie_tst: colDossie >= 0 ? String(row[colDossie] || "").trim() || null : null,
+        equipe_tst: colEquipe >= 0 ? String(row[colEquipe] || "").trim() || null : null,
+        decisao_tst: colDecisao >= 0 ? String(row[colDecisao] || "").trim() || null : null,
+        formulario_tst: colFormulario >= 0 ? String(row[colFormulario] || "").trim() || null : null,
+        providencias_tst: colProvidencias >= 0 ? String(row[colProvidencias] || "").trim() || null : null,
+        deposito_judicial_tst: colDeposito >= 0 ? String(row[colDeposito] || "").trim() || null : null,
+        preparo_tst: colPreparo >= 0 ? String(row[colPreparo] || "").trim() || null : null,
+        multa_custas_tst: colMulta >= 0 ? String(row[colMulta] || "").trim() || null : null,
+        responsavel_tst: colResponsavel >= 0 ? String(row[colResponsavel] || "").trim() || null : null,
+        data_fatal_tst: dataFatal,
+        area: "trabalhista",
+        status: "ativo",
       });
 
       if (i % 25 === 0 || i === rows.length - 1) {
@@ -209,7 +178,7 @@ export function TstImportDialog({
     if (!coordenacaoId || preview.length === 0) return;
 
     if (clearBefore) {
-      await onClearAndImport({ coordenacaoId, prazos: preview });
+      await onClearAndImport({ coordenacaoId, items: preview });
     } else {
       await onImport(preview);
     }
@@ -226,7 +195,6 @@ export function TstImportDialog({
         <DialogHeader>
           <DialogTitle>Importar Planilha TST</DialogTitle>
         </DialogHeader>
-
         <div className="space-y-4">
           <div>
             <Label>Coordenação</Label>
@@ -236,19 +204,15 @@ export function TstImportDialog({
               </SelectTrigger>
               <SelectContent>
                 {coordenacoes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
           <div>
             <Label>Arquivo XLSX</Label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="mt-1 block w-full text-sm" />
           </div>
-
           {(parsing || progress > 0) && (
             <div className="space-y-1">
               <Progress value={progress} className="h-2" />
@@ -257,14 +221,12 @@ export function TstImportDialog({
               </p>
             </div>
           )}
-
           {preview.length > 0 && !parsing && (
             <div className="flex items-center gap-2">
               <Checkbox id="clear" checked={clearBefore} onCheckedChange={(v) => setClearBefore(!!v)} />
-              <Label htmlFor="clear" className="text-sm">Substituir todos os dados da coordenação</Label>
+              <Label htmlFor="clear" className="text-sm">Substituir dados TST da coordenação</Label>
             </div>
           )}
-
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
             <Button onClick={handleConfirm} disabled={!coordenacaoId || preview.length === 0 || isImporting || parsing}>
