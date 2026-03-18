@@ -561,9 +561,19 @@ export function InfoSistemaTab() {
       const { jsPDF } = await import("jspdf");
 
       const element = printRef.current;
-      // Expand all collapsible sections before capture
-      const closedDetails = element.querySelectorAll('details:not([open])');
-      closedDetails.forEach((d) => d.setAttribute('open', ''));
+
+      // Expand all Radix Accordion items before capture
+      const closedTriggers = element.querySelectorAll('[data-state="closed"][role="button"], button[data-state="closed"][data-radix-collection-item]');
+      const closedContents = element.querySelectorAll('[data-state="closed"][role="region"], [data-state="closed"][data-radix-accordion-content]');
+      
+      // Also expand via clicking triggers to properly open Radix accordions
+      const allTriggers = Array.from(element.querySelectorAll('button[data-state="closed"]'));
+      for (const trigger of allTriggers) {
+        (trigger as HTMLElement).click();
+      }
+      
+      // Wait for animations to complete
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       const canvas = await html2canvas(element, {
         scale: 2,
@@ -573,8 +583,11 @@ export function InfoSistemaTab() {
         windowHeight: element.scrollHeight,
       });
 
-      // Restore collapsed state
-      closedDetails.forEach((d) => d.removeAttribute('open'));
+      // Collapse them back by clicking open triggers
+      const openTriggers = Array.from(element.querySelectorAll('button[data-state="open"]'));
+      for (const trigger of openTriggers) {
+        (trigger as HTMLElement).click();
+      }
 
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
