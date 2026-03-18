@@ -66,9 +66,34 @@ export default function TstPrazos() {
 
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null);
 
-  if (!coordenacaoId && coordenacoes.length > 0) {
-    setCoordenacaoId(coordenacoes[0].id);
-  }
+  // Auto-selecionar a coordenação do usuário logado
+  const { data: userCoordenacaoId } = useQuery({
+    queryKey: ['user-coordenacao-prazos', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data: coordenador } = await supabase
+        .from('coordenacoes')
+        .select('id')
+        .eq('coordenador_id', user.id)
+        .maybeSingle();
+      if (coordenador) return coordenador.id;
+
+      const { data: membro } = await supabase
+        .from('membros_coordenacao')
+        .select('coordenacao_id')
+        .eq('usuario_id', user.id)
+        .maybeSingle();
+      return membro?.coordenacao_id || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  useEffect(() => {
+    if (coordenacaoId === null && coordenacoes.length > 0 && userCoordenacaoId !== undefined) {
+      const match = coordenacoes.find(c => c.id === userCoordenacaoId);
+      setCoordenacaoId(match ? match.id : coordenacoes[0].id);
+    }
+  }, [coordenacoes, userCoordenacaoId, coordenacaoId]);
 
   const { prazos, isLoading, create, remove, bulkImport, clearAndImport, isCreating, isImporting } = usePrazosTst(coordenacaoId);
 
