@@ -173,6 +173,7 @@ ${pubsTexto}`;
               categoria: categoriaValida,
               tema_irr: c.tema_irr || undefined,
               observacao_ia: c.observacao_ia || undefined,
+              conclusao: c.conclusao || undefined,
             });
           });
         }
