@@ -1313,7 +1313,7 @@ const AnaliseDjen = () => {
       const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: pubsPayload } });
       if (classError) throw classError;
       if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
-      const classificacoes = classData.classificacoes as Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string }>;
+      const classificacoes = classData.classificacoes as Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string; conclusao?: string }>;
       const classMap = new Map(classificacoes.map(c => [c.id, c]));
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: typeof classificacoes[0] };
       const pubsTemasIRR: PubComClass[] = []; const pubsPauta: PubComClass[] = []; const pubsPrazos: PubComClass[] = [];
