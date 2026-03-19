@@ -58,6 +58,7 @@ serve(async (req) => {
       categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS";
       tema_irr?: string;
       observacao_ia?: string;
+      conclusao?: string;
     }> = [];
 
     for (let i = 0; i < publicacoes.length; i += batchSize) {
