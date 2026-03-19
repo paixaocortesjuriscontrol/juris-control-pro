@@ -35,12 +35,12 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
 
   return (
-    <div className="flex-1 min-h-0 overflow-x-auto pb-2">
-      <div className="grid grid-cols-1 gap-4 min-h-0 md:grid-flow-col md:auto-cols-[minmax(240px,1fr)] md:min-w-max">
+    <div className="flex-1 min-h-0 overflow-hidden pb-2">
+      <div className="grid grid-cols-1 gap-3 min-h-0 md:grid-cols-6 h-full">
         {orderedColumns.map((col) => {
           const items = audiencias.filter((a) => col.filter(a));
           return (
-            <div key={col.key} className={`flex w-full min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px]`}>
+            <div key={col.key} className={`flex min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px] overflow-hidden`}>
               <div className={`px-3 py-2 border-b ${col.bgColor}`}>
                 <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
                 <span className="text-xs text-muted-foreground">{items.length} audiência(s)</span>
