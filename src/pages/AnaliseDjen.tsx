@@ -1313,7 +1313,7 @@ const AnaliseDjen = () => {
       const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: pubsPayload } });
       if (classError) throw classError;
       if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
-      const classificacoes = classData.classificacoes as Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string; conclusao?: string }>;
+      const classificacoes = classData.classificacoes as Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string; resumo?: string }>;
       const classMap = new Map(classificacoes.map(c => [c.id, c]));
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: typeof classificacoes[0] };
       const pubsTemasIRR: PubComClass[] = []; const pubsPauta: PubComClass[] = []; const pubsPrazos: PubComClass[] = [];
@@ -1335,8 +1335,8 @@ const AnaliseDjen = () => {
           if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
           if (ci.observacao_ia) ch.push(new Paragraph({ spacing: { before: 60, after: 80 }, indent: { left: 180 }, children: [new TextRun({ text: "IA: ", bold: true, size: 18, font: docFont, color: "6B7280", italics: true }), new TextRun({ text: sanitizeForXml(ci.observacao_ia), size: 18, font: docFont, color: "6B7280", italics: true })] }));
           ch.push(...buildPartesAdvogados(pub));
-          if (useConclusao && ci.conclusao) {
-            ch.push(...buildConteudoParagraphs(ci.conclusao, "Conteúdo Integral"));
+          if (useConclusao && ci.resumo) {
+            ch.push(...buildConteudoParagraphs(ci.resumo, "Conteúdo Integral"));
           } else {
             ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
           }

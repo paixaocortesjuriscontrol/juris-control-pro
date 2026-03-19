@@ -58,7 +58,7 @@ serve(async (req) => {
       categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS";
       tema_irr?: string;
       observacao_ia?: string;
-      conclusao?: string;
+      resumo?: string;
     }> = [];
 
     for (let i = 0; i < publicacoes.length; i += batchSize) {
@@ -100,7 +100,7 @@ IMPORTANTE:
       "categoria": "TEMAS_IRR" | "PAUTA" | "PRAZOS",
       "tema_irr": "Tema XX (se aplicável, senão null)",
       "observacao_ia": "Breve observação sobre a classificação (1 frase)",
-      "conclusao": "Para PRAZOS: extraia APENAS a parte conclusiva/dispositiva da decisão (ex: 'NEGO SEGUIMENTO ao agravo...', 'Rejeito os embargos...', 'ATO ORDINATÓRIO...manifeste-se no prazo legal'). Deve ser um trecho curto e objetivo. Para TEMAS_IRR e PAUTA: null"
+      "resumo": "Para PRAZOS: faça um RESUMO ANALÍTICO da publicação como um advogado faria. Resuma o teor da decisão/despacho em linguagem jurídica objetiva, citando trechos relevantes entre aspas quando necessário. Exemplos: 'Negado seguimento ao agravo de instrumento com base no art. 932, III, do CPC e art. 118, X, do RITST.', 'Ato ordinatório intimando a parte agravada para manifestação sobre o agravo interposto, no prazo legal.', 'Rejeitados os embargos de declaração por ausência de vícios a serem sanados.'. Para TEMAS_IRR e PAUTA: null"
     }
   ]
 }
@@ -173,7 +173,7 @@ ${pubsTexto}`;
               categoria: categoriaValida,
               tema_irr: c.tema_irr || undefined,
               observacao_ia: c.observacao_ia || undefined,
-              conclusao: c.conclusao || undefined,
+              resumo: c.resumo || undefined,
             });
           });
         }
