@@ -40,7 +40,7 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
         {orderedColumns.map((col) => {
           const items = audiencias.filter((a) => col.filter(a));
           return (
-            <div key={col.key} className={`flex w-full min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px]`}>
+            <div key={col.key} className={`flex min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px] overflow-hidden`}>
               <div className={`px-3 py-2 border-b ${col.bgColor}`}>
                 <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
                 <span className="text-xs text-muted-foreground">{items.length} audiência(s)</span>
