@@ -1335,8 +1335,8 @@ const AnaliseDjen = () => {
           if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
           if (ci.observacao_ia) ch.push(new Paragraph({ spacing: { before: 60, after: 80 }, indent: { left: 180 }, children: [new TextRun({ text: "IA: ", bold: true, size: 18, font: docFont, color: "6B7280", italics: true }), new TextRun({ text: sanitizeForXml(ci.observacao_ia), size: 18, font: docFont, color: "6B7280", italics: true })] }));
           ch.push(...buildPartesAdvogados(pub));
-          if (useConclusao && ci.conclusao) {
-            ch.push(...buildConteudoParagraphs(ci.conclusao, "Conteúdo Integral"));
+          if (useConclusao && ci.resumo) {
+            ch.push(...buildConteudoParagraphs(ci.resumo, "Conteúdo Integral"));
           } else {
             ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
           }
