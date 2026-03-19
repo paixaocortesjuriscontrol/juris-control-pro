@@ -99,7 +99,8 @@ IMPORTANTE:
       "id": "id_da_publicacao",
       "categoria": "TEMAS_IRR" | "PAUTA" | "PRAZOS",
       "tema_irr": "Tema XX (se aplicável, senão null)",
-      "observacao_ia": "Breve observação sobre a classificação (1 frase)"
+      "observacao_ia": "Breve observação sobre a classificação (1 frase)",
+      "conclusao": "Para PRAZOS: extraia APENAS a parte conclusiva/dispositiva da decisão (ex: 'NEGO SEGUIMENTO ao agravo...', 'Rejeito os embargos...', 'ATO ORDINATÓRIO...manifeste-se no prazo legal'). Deve ser um trecho curto e objetivo. Para TEMAS_IRR e PAUTA: null"
     }
   ]
 }
