@@ -1325,7 +1325,7 @@ const AnaliseDjen = () => {
       });
       toast.loading(`Gerando documentos... (Temas: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
-      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string): Paragraph[] => {
+      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, useConclusao = false): Paragraph[] => {
         const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
         pubs.forEach((item, idx) => {
           const { pub, class_info: ci } = item;
@@ -1335,7 +1335,11 @@ const AnaliseDjen = () => {
           if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
           if (ci.observacao_ia) ch.push(new Paragraph({ spacing: { before: 60, after: 80 }, indent: { left: 180 }, children: [new TextRun({ text: "IA: ", bold: true, size: 18, font: docFont, color: "6B7280", italics: true }), new TextRun({ text: sanitizeForXml(ci.observacao_ia), size: 18, font: docFont, color: "6B7280", italics: true })] }));
           ch.push(...buildPartesAdvogados(pub));
-          ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
+          if (useConclusao && ci.conclusao) {
+            ch.push(...buildConteudoParagraphs(ci.conclusao, "Conteúdo Integral"));
+          } else {
+            ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
+          }
         });
         return ch;
       };
