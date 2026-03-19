@@ -36,35 +36,37 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-6 gap-4 flex-1 min-h-0">
-      {orderedColumns.map((col) => {
-        const items = prazos.filter((p) => col.filter(p));
-        return (
-          <div key={col.key} className={`flex flex-col rounded-lg border ${col.bgColor} min-h-[300px]`}>
-            <div className={`px-3 py-2 border-b ${col.bgColor}`}>
-              <h3 className={`text-sm font-semibold ${col.color}`}>{col.label}</h3>
-              <span className="text-xs text-muted-foreground">{items.length} processo(s)</span>
-            </div>
-            <ScrollArea className="flex-1 p-2">
-              <div className="space-y-2">
-                {items
-                  .sort((a, b) => {
-                    if (!a.data_fatal && !b.data_fatal) return 0;
-                    if (!a.data_fatal) return 1;
-                    if (!b.data_fatal) return -1;
-                    return new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime();
-                  })
-                  .map((p) => (
-                    <TstPrazoCard key={p.id} processo={p} onClick={() => onCardClick(p)} />
-                  ))}
-                {items.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-8">Nenhum processo</p>
-                )}
+    <div className="flex-1 min-h-0 overflow-x-auto">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 min-h-0 md:min-w-[900px]">
+        {orderedColumns.map((col) => {
+          const items = prazos.filter((p) => col.filter(p));
+          return (
+            <div key={col.key} className={`flex flex-col rounded-lg border ${col.bgColor} min-h-[300px] min-w-0`}>
+              <div className={`px-3 py-2 border-b ${col.bgColor}`}>
+                <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
+                <span className="text-xs text-muted-foreground">{items.length} processo(s)</span>
               </div>
-            </ScrollArea>
-          </div>
-        );
-      })}
+              <ScrollArea className="flex-1 p-2">
+                <div className="space-y-2">
+                  {items
+                    .sort((a, b) => {
+                      if (!a.data_fatal && !b.data_fatal) return 0;
+                      if (!a.data_fatal) return 1;
+                      if (!b.data_fatal) return -1;
+                      return new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime();
+                    })
+                    .map((p) => (
+                      <TstPrazoCard key={p.id} processo={p} onClick={() => onCardClick(p)} />
+                    ))}
+                  {items.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-8">Nenhum processo</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
