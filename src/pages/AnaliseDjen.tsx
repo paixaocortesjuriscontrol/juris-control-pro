@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ShadingType, Tab, TabStopType, TabStopPosition } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ShadingType, Tab, TabStopType, TabStopPosition, PageBreak } from "docx";
 import {
   FileText,
   Database,
@@ -140,6 +140,7 @@ const AnaliseDjen = () => {
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [gerandoDocResumo, setGerandoDocResumo] = useState(false);
+  const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
@@ -1302,6 +1303,55 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Gerar Docs TST" - Classifica publicações e gera 3 documentos Word (TEMAS_IRR, PAUTA, PRAZOS) =====
+  const handleGerarDocsTST = async () => {
+    if (allPublicacoes.length === 0) { toast.error("Nenhuma publicação para classificar"); return; }
+    setGerandoDocsTST(true);
+    const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações com IA...`);
+    try {
+      const pubsPayload = allPublicacoes.map(p => ({ id: p.id, processo_numero: p.processo_numero, conteudo: p.conteudo, orgao: p.orgao || p.tribunal, tipo_comunicacao: p.tipo_comunicacao }));
+      const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: pubsPayload } });
+      if (classError) throw classError;
+      if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
+      const classificacoes = classData.classificacoes as Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string }>;
+      const classMap = new Map(classificacoes.map(c => [c.id, c]));
+      type PubComClass = { pub: typeof allPublicacoes[0]; class_info: typeof classificacoes[0] };
+      const pubsTemasIRR: PubComClass[] = []; const pubsPauta: PubComClass[] = []; const pubsPrazos: PubComClass[] = [];
+      allPublicacoes.forEach(pub => {
+        const ci = classMap.get(pub.id) || { id: pub.id, categoria: "PRAZOS" as const };
+        if (ci.categoria === "TEMAS_IRR") pubsTemasIRR.push({ pub, class_info: ci });
+        else if (ci.categoria === "PAUTA") pubsPauta.push({ pub, class_info: ci });
+        else pubsPrazos.push({ pub, class_info: ci });
+      });
+      toast.loading(`Gerando documentos... (Temas: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      const dataStr = format(new Date(), "dd.MM.yy");
+      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string): Paragraph[] => {
+        const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
+        pubs.forEach((item, idx) => {
+          const { pub, class_info: ci } = item;
+          ch.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: idx > 0 ? 360 : 120, after: 120 }, shading: { type: ShadingType.SOLID, color: mediumBlue, fill: mediumBlue }, children: [new TextRun({ text: `  COMUNICAÇÃO PJE #${sanitizeForXml(pub.processo_numero || "N/A")}`, bold: true, size: 24, color: "FFFFFF", font: docFont })] }));
+          const ml = [["Processo", sanitizeForXml(pub.processo_numero || "N/A")], ["Órgão", sanitizeForXml(pub.orgao || pub.tribunal || "N/A")], ["Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "N/A"], ["Tipo de Comunicação", sanitizeForXml(pub.tipo_comunicacao || "Intimação")], ["Meio", "Diário de Justiça Eletrônico Nacional"]];
+          ml.forEach(([l, v]) => { ch.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${l}: `, bold: true, size: docFontSize, font: docFont, color: "333333" }), new TextRun({ text: v as string, size: docFontSize, font: docFont, color: "555555" })] })); });
+          if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
+          if (ci.observacao_ia) ch.push(new Paragraph({ spacing: { before: 60, after: 80 }, indent: { left: 180 }, children: [new TextRun({ text: "IA: ", bold: true, size: 18, font: docFont, color: "6B7280", italics: true }), new TextRun({ text: sanitizeForXml(ci.observacao_ia), size: 18, font: docFont, color: "6B7280", italics: true })] }));
+          ch.push(...buildPartesAdvogados(pub));
+          ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
+        });
+        return ch;
+      };
+      const mkDoc = (ch: Paragraph[]) => new Document({ styles: { default: { document: { run: { font: docFont, size: docFontSize } } } }, sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children: ch }] });
+      const dl = async (d: Document, fn: string) => { const b = await Packer.toBlob(d); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u); };
+      let dg = 0;
+      if (pubsTemasIRR.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsTemasIRR, `Temas IRR - ${dataStr}`)), `TEMAS_IRR_${dataStr}.docx`); dg++; }
+      if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`)), `PAUTA_${dataStr}.docx`); dg++; }
+      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos e Decisões - ${dataStr}`)), `PRAZOS_${dataStr}.docx`); dg++; }
+      toast.success(`${dg} documento(s) gerado(s)! (Temas: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+    } catch (error) {
+      console.error("Erro ao gerar Docs TST:", error);
+      toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
+    } finally { setGerandoDocsTST(false); }
+  };
+
   const handleMarcarLidas = async () => {
     if (selectedIds.size === 0) {
       toast.error("Selecione ao menos uma publicação");
@@ -1705,6 +1755,22 @@ const AnaliseDjen = () => {
             )}
             <span className="hidden sm:inline">{gerandoDocResumo ? "Gerando..." : "Gerar Doc Resumo"}</span>
             <span className="sm:hidden">{gerandoDocResumo ? "..." : "Doc IA"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarDocsTST}
+            disabled={allPublicacoes.length === 0 || gerandoDocsTST}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
+          >
+            {gerandoDocsTST ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Gavel className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoDocsTST ? "Classificando..." : "Docs TST (IA)"}</span>
+            <span className="sm:hidden">{gerandoDocsTST ? "..." : "TST"}</span>
           </Button>
 
           <Button
@@ -2185,7 +2251,6 @@ const AnaliseDjen = () => {
             ))}
           </div>
         )}
-
 
 
         {/* Dialog para criar tarefa a partir da publicação */}
