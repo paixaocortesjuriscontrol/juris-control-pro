@@ -140,6 +140,7 @@ const AnaliseDjen = () => {
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [gerandoDocResumo, setGerandoDocResumo] = useState(false);
+  const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
