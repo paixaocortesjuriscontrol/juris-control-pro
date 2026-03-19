@@ -116,3 +116,6 @@ verify_jwt = true
 
 [functions.analisar-tst-ia]
 verify_jwt = true
+
+[functions.classificar-publicacoes-tst]
+verify_jwt = false
