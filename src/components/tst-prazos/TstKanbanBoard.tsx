@@ -36,7 +36,7 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
 
   return (
-    <ScrollArea className="flex-1 min-h-0" orientation="horizontal">
+    <div className="flex-1 min-h-0 overflow-x-auto">
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4 min-h-0 md:min-w-[900px]">
         {orderedColumns.map((col) => {
           const items = prazos.filter((p) => col.filter(p));
@@ -67,6 +67,6 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
           );
         })}
       </div>
-    </ScrollArea>
+    </div>
   );
 }
