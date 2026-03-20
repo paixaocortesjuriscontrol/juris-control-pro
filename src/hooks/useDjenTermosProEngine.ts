@@ -72,10 +72,11 @@ interface Checkpoint {
 // ============================================================================
 
 const CONFIG = {
-  delay_between_terms: 1500,
-  delay_between_pages: 1500,
-  max_retries: 4,
-  retry_base_delay: 10000,
+  delay_between_terms: 800,
+  delay_between_pages: 800,
+  max_retries: 3,
+  retry_base_delay: 5000,
+  term_timeout_ms: 120000, // 2 minutes max per term
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -541,6 +542,37 @@ async function processarTermoPro(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
   
+  // Timeout por termo: aborta este termo após 120s para não travar a execução inteira
+  const termAbort = new AbortController();
+  const termTimeout = setTimeout(() => {
+    console.warn(`[DJEN Pro] ⏱ Timeout de ${CONFIG.term_timeout_ms / 1000}s atingido para "${mon.termo_busca}". Salvando resultados parciais.`);
+    termAbort.abort();
+  }, CONFIG.term_timeout_ms);
+  
+  // Combinar sinal global com sinal de timeout do termo
+  const combinedSignal = (() => {
+    const combined = new AbortController();
+    signal.addEventListener('abort', () => combined.abort(), { once: true });
+    termAbort.signal.addEventListener('abort', () => combined.abort(), { once: true });
+    if (signal.aborted || termAbort.signal.aborted) combined.abort();
+    return combined.signal;
+  })();
+  
+  try {
+    return await _processarTermoProInterno(mon, diaYmd, combinedSignal, signal);
+  } finally {
+    clearTimeout(termTimeout);
+  }
+}
+
+async function _processarTermoProInterno(
+  mon: Monitoramento,
+  diaYmd: string,
+  signal: AbortSignal,
+  globalSignal: AbortSignal,
+): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
+  
   const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
   const tribunais = expandirTribunais(mon.tribunais);
   
@@ -618,7 +650,7 @@ async function processarTermoPro(
       console.warn(`[DJEN Pro] Erro busca ${trib ?? 'TODOS'}:`, e?.message);
     }
     
-    if (tribLoop.length > 1) await delay(1200);
+    if (tribLoop.length > 1) await delay(600);
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave (texto)
@@ -651,7 +683,7 @@ async function processarTermoPro(
           if (e?.name === 'AbortError') break;
           console.warn(`[DJEN Pro] Erro busca complementar parte "${termoTexto}":`, e?.message);
         }
-        if (tribLoop.length > 1) await delay(1200);
+        if (tribLoop.length > 1) await delay(600);
       }
     }
   }
@@ -695,7 +727,7 @@ async function processarTermoPro(
         if (tribLoop.length > 1) await delay(800);
       }
 
-      await delay(500);
+      await delay(400);
     }
   }
   
@@ -734,7 +766,7 @@ async function processarTermoPro(
         if (e?.name === 'AbortError') break;
         console.warn(`[DJEN Pro] Retry sem ufOab ${trib}:`, e?.message);
       }
-      await delay(1200);
+      await delay(600);
     }
   }
   
@@ -789,7 +821,7 @@ async function processarTermoPro(
           if (e?.name === 'AbortError') break;
           console.warn(`[DJEN Pro] Erro busca termos_or "${parsed.nome}" trib=${trib}:`, e?.message);
         }
-        await delay(600);
+        await delay(400);
       }
       
       // Se tem OAB, buscar também por OAB (captura resultados que nome não encontra)
@@ -811,7 +843,7 @@ async function processarTermoPro(
           } catch (e: any) {
             if (e?.name === 'AbortError') break;
           }
-          await delay(600);
+          await delay(400);
         }
       }
     }
