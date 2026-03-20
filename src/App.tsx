@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ImportProvider } from "@/contexts/ImportContext";
+import { SidebarContextProvider } from "@/contexts/SidebarContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { AdminRoute } from "@/components/layout/AdminRoute";
 import Index from "./pages/Index";
@@ -76,6 +77,7 @@ function App() {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <SidebarContextProvider>
             <ImportProvider>
               <Routes>
                 {/* Client Portal Routes (separate from internal system) */}
@@ -137,6 +139,7 @@ function App() {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
+            </SidebarContextProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

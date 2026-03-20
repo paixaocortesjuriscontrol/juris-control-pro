@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
 
 
@@ -15,6 +16,7 @@ export interface MainLayoutProps {
 
 export function MainLayout({ children, title, subtitle, headerActions, className }: MainLayoutProps) {
   const isMobile = useIsMobile();
+  const { collapsed } = useSidebarCollapsed();
 
   // Inicializa os schedulers de DJEN Termos e Termos Pro
   // O Pro scheduler carrega automaticamente do DB no construtor e auto-inicia se ativo
@@ -36,7 +38,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className={`transition-all duration-300 ${isMobile ? 'ml-0' : 'lg:ml-64'} ${className || ''}`}>
+      <div className={`transition-all duration-300 ${isMobile ? 'ml-0' : collapsed ? 'lg:ml-20' : 'lg:ml-64'} ${className || ''}`}>
         <Header title={title} subtitle={subtitle} headerActions={headerActions} />
         <main className="p-4 md:p-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
           {children}

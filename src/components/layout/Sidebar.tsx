@@ -31,6 +31,7 @@ import {
   LayoutPanelTop,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -70,7 +71,7 @@ const menuItemsAdmin = [
 ];
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAdmin } = useUserRole();
 
