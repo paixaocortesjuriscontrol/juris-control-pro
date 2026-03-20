@@ -650,7 +650,7 @@ async function _processarTermoProInterno(
       console.warn(`[DJEN Pro] Erro busca ${trib ?? 'TODOS'}:`, e?.message);
     }
     
-    if (tribLoop.length > 1) await delay(1200);
+    if (tribLoop.length > 1) await delay(600);
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave (texto)
