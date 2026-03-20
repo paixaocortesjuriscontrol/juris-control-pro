@@ -170,8 +170,9 @@ const AnaliseDjen = () => {
     totalDescartadasHoje
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
-    dataInicio: apenasHoje ? undefined : dataInicio || undefined,
-    dataFim: apenasHoje ? undefined : dataFim || undefined,
+    // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
+    dataInicio: apenasHoje ? undefined : (dataDisponibilizacao || dataInicio || undefined),
+    dataFim: apenasHoje ? undefined : (dataDisponibilizacao || dataFim || undefined),
     termoBusca: termoBusca || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
