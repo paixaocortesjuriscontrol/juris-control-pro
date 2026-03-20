@@ -727,7 +727,7 @@ async function _processarTermoProInterno(
         if (tribLoop.length > 1) await delay(800);
       }
 
-      await delay(500);
+      await delay(400);
     }
   }
   
