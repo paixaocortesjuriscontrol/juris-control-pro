@@ -1309,14 +1309,12 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações com IA...`);
     try {
-      // Limitar conteúdo a 3000 chars e enviar em lotes de 20 para evitar timeout
+      // Enviar uma publicação por vez para evitar timeout
       const pubsPayload = allPublicacoes.map(p => ({ id: p.id, processo_numero: p.processo_numero, conteudo: (p.conteudo || "").substring(0, 3000), orgao: p.orgao || p.tribunal, tipo_comunicacao: p.tipo_comunicacao }));
-      const batchSize = 20;
       let allClassificacoes: Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string; resumo?: string }> = [];
-      for (let i = 0; i < pubsPayload.length; i += batchSize) {
-        const batch = pubsPayload.slice(i, i + batchSize);
-        toast.loading(`Classificando lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(pubsPayload.length / batchSize)} com IA...`, { id: toastId });
-        const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: batch } });
+      for (let i = 0; i < pubsPayload.length; i++) {
+        toast.loading(`Classificando publicação ${i + 1}/${pubsPayload.length} com IA...`, { id: toastId });
+        const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: [pubsPayload[i]] } });
         if (classError) throw classError;
         if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
         allClassificacoes = allClassificacoes.concat(classData.classificacoes);
