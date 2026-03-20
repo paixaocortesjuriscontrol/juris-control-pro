@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
 
 
