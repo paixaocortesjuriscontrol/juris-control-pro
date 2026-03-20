@@ -77,6 +77,7 @@ function App() {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <SidebarContextProvider>
             <ImportProvider>
               <Routes>
                 {/* Client Portal Routes (separate from internal system) */}
