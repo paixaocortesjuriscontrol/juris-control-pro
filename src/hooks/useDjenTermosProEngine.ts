@@ -683,7 +683,7 @@ async function _processarTermoProInterno(
           if (e?.name === 'AbortError') break;
           console.warn(`[DJEN Pro] Erro busca complementar parte "${termoTexto}":`, e?.message);
         }
-        if (tribLoop.length > 1) await delay(1200);
+        if (tribLoop.length > 1) await delay(600);
       }
     }
   }
