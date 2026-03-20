@@ -58,13 +58,11 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
       </div>
 
       {/* Date, time and urgency badge */}
-      <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Calendar className="w-3 h-3" />
-          <span>{formatDate(audiencia.data_audiencia)}</span>
-          {audiencia.hora && <span>às {audiencia.hora}</span>}
-        </div>
-        <Badge variant={daysUntil !== null && daysUntil <= 1 ? "destructive" : "secondary"} className="text-[10px] shrink-0">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+        <Calendar className="w-3 h-3" />
+        <span>{formatDate(audiencia.data_audiencia)}</span>
+        {audiencia.hora && <span>às {audiencia.hora}</span>}
+        <Badge variant={daysUntil !== null && daysUntil <= 1 ? "destructive" : "secondary"} className="text-[10px] px-1.5 py-0 leading-tight">
           {daysUntil === null ? "S/D" : daysUntil <= 0 ? "VENCIDO" : `${daysUntil}d`}
         </Badge>
       </div>
