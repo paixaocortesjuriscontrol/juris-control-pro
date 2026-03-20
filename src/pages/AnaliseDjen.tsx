@@ -1309,11 +1309,19 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações com IA...`);
     try {
-      const pubsPayload = allPublicacoes.map(p => ({ id: p.id, processo_numero: p.processo_numero, conteudo: p.conteudo, orgao: p.orgao || p.tribunal, tipo_comunicacao: p.tipo_comunicacao }));
-      const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: pubsPayload } });
-      if (classError) throw classError;
-      if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
-      const classificacoes = classData.classificacoes as Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string; resumo?: string }>;
+      // Limitar conteúdo a 3000 chars e enviar em lotes de 20 para evitar timeout
+      const pubsPayload = allPublicacoes.map(p => ({ id: p.id, processo_numero: p.processo_numero, conteudo: (p.conteudo || "").substring(0, 3000), orgao: p.orgao || p.tribunal, tipo_comunicacao: p.tipo_comunicacao }));
+      const batchSize = 20;
+      let allClassificacoes: Array<{ id: string; categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string; resumo?: string }> = [];
+      for (let i = 0; i < pubsPayload.length; i += batchSize) {
+        const batch = pubsPayload.slice(i, i + batchSize);
+        toast.loading(`Classificando lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(pubsPayload.length / batchSize)} com IA...`, { id: toastId });
+        const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: batch } });
+        if (classError) throw classError;
+        if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
+        allClassificacoes = allClassificacoes.concat(classData.classificacoes);
+      }
+      const classificacoes = allClassificacoes;
       const classMap = new Map(classificacoes.map(c => [c.id, c]));
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: typeof classificacoes[0] };
       const pubsTemasIRR: PubComClass[] = []; const pubsPauta: PubComClass[] = []; const pubsPrazos: PubComClass[] = [];
