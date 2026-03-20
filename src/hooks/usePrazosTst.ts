@@ -53,21 +53,29 @@ const TST_SELECT = `
   status_tst, status, created_at, updated_at
 `;
 
-export function usePrazosTst(coordenacaoId: string | null) {
+export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[]) {
   const queryClient = useQueryClient();
+  const isAll = coordenacaoId === "todas";
 
   const query = useQuery({
-    queryKey: ["processos-tst", coordenacaoId],
+    queryKey: ["processos-tst", coordenacaoId, allCoordIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("processos")
         .select(TST_SELECT)
-        .eq("coordenacao_id", coordenacaoId!)
         .order("data_fatal", { ascending: true, nullsFirst: false });
+
+      if (isAll && allCoordIds && allCoordIds.length > 0) {
+        q = q.in("coordenacao_id", allCoordIds);
+      } else if (!isAll) {
+        q = q.eq("coordenacao_id", coordenacaoId!);
+      }
+
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as ProcessoTst[];
     },
-    enabled: !!coordenacaoId,
+    enabled: isAll ? (!!allCoordIds && allCoordIds.length > 0) : !!coordenacaoId,
   });
 
   const createMutation = useMutation({

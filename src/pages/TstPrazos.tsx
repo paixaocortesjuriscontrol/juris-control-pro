@@ -131,6 +131,9 @@ export default function TstPrazos() {
                   <SelectValue placeholder="Selecione coordenação" />
                 </SelectTrigger>
                 <SelectContent>
+                  {isAdmin && (
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                  )}
                   {coordenacoes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                   ))}
