@@ -20,9 +20,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY não está configurada");
+    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!anthropicApiKey) {
+      throw new Error("ANTHROPIC_API_KEY não está configurada");
     }
 
     // 1. Buscar tabela de IRR do TST
@@ -33,7 +33,6 @@ serve(async (req) => {
       });
       if (irrResponse.ok) {
         const html = await irrResponse.text();
-        // Extrair temas e teses da tabela HTML
         const temaRegex = /Tema\s*(\d+)|<td[^>]*>\s*(\d+)\s*<\/td>/gi;
         const temas: string[] = [];
         let match;
@@ -43,7 +42,6 @@ serve(async (req) => {
             temas.push(num);
           }
         }
-        // Extrair texto limpo das teses - simplificado
         tabelaIRR = `Temas IRR do TST conhecidos: ${[...new Set(temas)].join(", ")}`;
       }
     } catch (e) {
@@ -51,7 +49,7 @@ serve(async (req) => {
       tabelaIRR = "Tabela IRR não disponível - classificar com base no conteúdo textual";
     }
 
-    // 2. Classificar publicações em lotes (até 10 por vez para evitar timeout)
+    // 2. Classificar publicações em lotes
     const batchSize = 10;
     const resultados: Array<{
       id: string;
@@ -107,19 +105,20 @@ IMPORTANTE:
 
 ${pubsTexto}`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "x-api-key": anthropicApiKey,
+          "anthropic-version": "2023-06-01",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4096,
+          system: systemPrompt,
           messages: [
-            { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          max_tokens: 2000,
           temperature: 0.1,
         }),
       });
@@ -127,27 +126,20 @@ ${pubsTexto}`;
       if (!response.ok) {
         if (response.status === 429) {
           return new Response(
-            JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
+            JSON.stringify({ error: "Limite de requisições excedido na API Claude. Tente novamente em alguns segundos." }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "Créditos insuficientes para uso da IA." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
         const errorText = await response.text();
-        console.error("Erro na API de IA:", response.status, errorText);
-        throw new Error("Erro ao consultar IA para classificação");
+        console.error("Erro na API Claude:", response.status, errorText);
+        throw new Error(`Erro ao consultar Claude para classificação: ${response.status}`);
       }
 
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
+      const content = data.content?.[0]?.text;
 
       if (!content) {
-        console.error("Resposta vazia da IA para lote", i);
-        // Classificar como PRAZOS por padrão
+        console.error("Resposta vazia do Claude para lote", i);
         batch.forEach((p: any) => {
           resultados.push({ id: p.id, categoria: "PRAZOS", observacao_ia: "Classificação padrão (sem resposta da IA)" });
         });
@@ -178,7 +170,7 @@ ${pubsTexto}`;
           });
         }
       } catch (parseErr) {
-        console.error("Erro ao parsear resposta da IA:", parseErr, jsonStr);
+        console.error("Erro ao parsear resposta do Claude:", parseErr, jsonStr);
         batch.forEach((p: any) => {
           resultados.push({ id: p.id, categoria: "PRAZOS", observacao_ia: "Erro no parsing da classificação" });
         });
