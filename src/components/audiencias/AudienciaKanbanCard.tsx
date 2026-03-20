@@ -54,19 +54,19 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
         <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">
           {audiencia.processo_numero || "Sem nº"}
         </p>
-        <div className="flex items-center gap-1 shrink-0">
-          {getStatusBadge(audiencia.status)}
-          <Badge variant={daysUntil !== null && daysUntil <= 1 ? "destructive" : "secondary"} className="text-[10px]">
-            {daysUntil === null ? "S/D" : daysUntil <= 0 ? "VENCIDO" : `${daysUntil}d`}
-          </Badge>
-        </div>
+        {getStatusBadge(audiencia.status)}
       </div>
 
-      {/* Date and time */}
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Calendar className="w-3 h-3" />
-        <span>{formatDate(audiencia.data_audiencia)}</span>
-        {audiencia.hora && <span>às {audiencia.hora}</span>}
+      {/* Date, time and urgency badge */}
+      <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <Calendar className="w-3 h-3" />
+          <span>{formatDate(audiencia.data_audiencia)}</span>
+          {audiencia.hora && <span>às {audiencia.hora}</span>}
+        </div>
+        <Badge variant={daysUntil !== null && daysUntil <= 1 ? "destructive" : "secondary"} className="text-[10px] shrink-0">
+          {daysUntil === null ? "S/D" : daysUntil <= 0 ? "VENCIDO" : `${daysUntil}d`}
+        </Badge>
       </div>
 
       {/* Modalidade + Type */}
