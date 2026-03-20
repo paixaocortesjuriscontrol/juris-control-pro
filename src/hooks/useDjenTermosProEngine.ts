@@ -843,7 +843,7 @@ async function _processarTermoProInterno(
           } catch (e: any) {
             if (e?.name === 'AbortError') break;
           }
-          await delay(600);
+          await delay(400);
         }
       }
     }
