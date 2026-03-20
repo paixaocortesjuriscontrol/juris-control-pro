@@ -1,55 +1,36 @@
 
-Diagnóstico objetivo (com evidência de produção):
 
-1) O gargalo principal não é “falta de índice simples”.  
-- Para a coordenação do Dr. Thomás: 500 registros brutos hoje em `publicacoes_djen`, mas 222 após deduplicação (bate com o relato).
-- `EXPLAIN ANALYZE` mostrou:
-  - `count_djen_publicacoes_unificadas`: ~2.79s
-  - `get_djen_publicacoes_unificadas` (200 itens): ~2.80s
-- As queries base (sem dedup por regex) rodam em ~1–11ms.  
-Conclusão: o custo está no cálculo de dedup em tempo real (`strip_destinatarios + regexp_replace + lower + left`) em conteúdo grande, repetido várias vezes.
+## Plano: Otimizar Velocidade do DJEN Termos Pro (sem perder publicações)
 
-2) O frontend amplifica a lentidão:
-- Hoje ele chama `count_djen_publicacoes_unificadas` + páginas de `get_djen_publicacoes_unificadas` em sequência.
-- Para 222 itens: 1 count + 2 páginas => ~8s só nessas RPCs.
-- Na primeira carga ainda pode disparar consulta sem coordenação definida (estado inicial), piorando o TTFB.
+### Problema
+O engine está lento devido a delays excessivos e retries com backoff muito longo quando recebe HTTP 429. **Não vamos reduzir maxPages** — todas as publicações continuarão sendo buscadas.
 
-Plano de implementação (focado em ganho real):
+### Mudanças (apenas no arquivo `src/hooks/useDjenTermosProEngine.ts`)
 
-Fase 1 — ganho imediato (rápido e baixo risco)
-- `src/hooks/usePublicacoesDjenUnificadas.ts`
-  - Remover chamada obrigatória de `count_*` para montar paginação.
-  - Buscar por páginas até `chunk < PAGE`, começando direto no `get_*`.
-  - Adicionar `enabled` no hook para só consultar quando coordenação já estiver inicializada na tela (`!loadingUserCoord && coordenacaoId !== null`).
-- `src/pages/AnaliseDjen.tsx`
-  - Passar `enabled` ao hook para evitar carga inicial ampla sem coordenação.
-Resultado esperado: queda forte do tempo percebido (elimina uma RPC pesada inteira por carregamento).
+#### 1. Reduzir delays internos
+Os delays atuais são muito conservadores para busca no browser:
 
-Fase 2 — correção estrutural no banco (onde está o gargalo real)
-- Nova migration:
-  - Adicionar colunas pré-computadas de dedup nas tabelas DJEN:
-    - `dedup_processo_digits`
-    - `dedup_data_ref` (date)
-    - `dedup_head_norm` (text curto já normalizado e sem destinatários)
-  - Criar trigger `BEFORE INSERT/UPDATE` para preencher essas colunas (e backfill dos dados existentes).
-  - Índices compostos “publicações do dia por coordenação” usando esses campos + `created_at/lida` para termos/processos/descartadas.
-- Reescrever RPCs:
-  - `count_djen_publicacoes_unificadas`
-  - `get_djen_publicacoes_unificadas`
-  - `marcar_publicacoes_lidas_por_dedup`
-  para usar campos pré-computados (sem regex pesada em tempo de consulta).
+| Parâmetro | Atual | Novo |
+|---|---|---|
+| `delay_between_terms` | 1500ms | **800ms** |
+| `delay_between_pages` | 1500ms | **800ms** |
+| `retry_base_delay` | 10000ms | **5000ms** |
+| `max_retries` | 4 | **3** |
+| Delay entre tribunais no loop | 1200ms | **600ms** |
+| Delay entre termos_or | 600ms | **400ms** |
+| Delay entre termos_or advogado | 600ms | **400ms** |
 
-Fase 3 — validação e segurança de resultado
-- Validar no banco (com contexto do usuário Dr. Thomás):
-  - `count_*` < 300ms
-  - `get_*` (200) < 400ms
-- Validar na UI:
-  - “Não Lidas” consistente ao marcar/desmarcar filtro.
-  - Marcar como lida sem timeout.
-  - Carga inicial da Análise DJEN significativamente mais rápida.
-- Teste E2E no fluxo real da coordenação do Dr. Thomás.
+#### 2. Adicionar timeout por termo (segurança)
+Se um único termo demorar mais de **120 segundos** (2 minutos), abortar a paginação desse termo e passar para o próximo. Isso evita que um termo com muitos 429 trave toda a execução. As publicações já obtidas daquele termo são salvas normalmente.
 
-Entregáveis previstos:
-- 1 migration SQL (colunas + trigger + backfill + índices + RPCs otimizadas)
-- ajuste do hook unificado
-- ajuste da página `AnaliseDjen` para gating de carregamento
+#### 3. Manter maxPages: 999
+Nenhuma redução de cobertura. Todas as páginas continuam sendo buscadas.
+
+### Impacto esperado
+- Redução de ~40% no tempo total de execução
+- O timeout por termo garante que a execução sempre termina
+- Zero perda de publicações em condições normais
+
+### Arquivos alterados
+- `src/hooks/useDjenTermosProEngine.ts` — CONFIG + delays inline + timeout por termo
+
