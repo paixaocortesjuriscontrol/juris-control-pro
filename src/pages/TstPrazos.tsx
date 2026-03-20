@@ -90,12 +90,21 @@ export default function TstPrazos() {
 
   useEffect(() => {
     if (coordenacaoId === null && coordenacoes.length > 0 && userCoordenacaoId !== undefined) {
-      const match = coordenacoes.find(c => c.id === userCoordenacaoId);
-      setCoordenacaoId(match ? match.id : coordenacoes[0].id);
+      if (isAdmin) {
+        setCoordenacaoId("todas");
+      } else {
+        const match = coordenacoes.find(c => c.id === userCoordenacaoId);
+        setCoordenacaoId(match ? match.id : coordenacoes[0].id);
+      }
     }
-  }, [coordenacoes, userCoordenacaoId, coordenacaoId]);
+  }, [coordenacoes, userCoordenacaoId, coordenacaoId, isAdmin]);
 
-  const { prazos, isLoading, create, remove, bulkImport, clearAndImport, isCreating, isImporting } = usePrazosTst(coordenacaoId);
+  const coordIdForQuery = coordenacaoId === "todas" ? null : coordenacaoId;
+  const allCoordIds = isAdmin ? coordenacoes.map(c => c.id) : [];
+  const { prazos, isLoading, create, remove, bulkImport, clearAndImport, isCreating, isImporting } = usePrazosTst(
+    coordenacaoId === "todas" ? "todas" : coordenacaoId,
+    allCoordIds
+  );
 
   const [selected, setSelected] = useState<ProcessoTst | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -122,6 +131,9 @@ export default function TstPrazos() {
                   <SelectValue placeholder="Selecione coordenação" />
                 </SelectTrigger>
                 <SelectContent>
+                  {isAdmin && (
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                  )}
                   {coordenacoes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                   ))}
