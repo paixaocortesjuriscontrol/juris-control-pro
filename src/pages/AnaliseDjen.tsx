@@ -1579,7 +1579,13 @@ const AnaliseDjen = () => {
                 <Input
                   type="date"
                   value={dataDisponibilizacao}
-                  onChange={(e) => setDataDisponibilizacao(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDataDisponibilizacao(val);
+                    if (val && val !== new Date().toISOString().slice(0, 10)) {
+                      setApenasHoje(false);
+                    }
+                  }}
                   className="h-9 md:h-10 text-sm"
                 />
               </div>
