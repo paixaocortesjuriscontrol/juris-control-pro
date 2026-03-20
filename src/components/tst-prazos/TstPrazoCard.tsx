@@ -25,9 +25,9 @@ export function TstPrazoCard({ processo, onClick }: Props) {
           {processo.numero || "Sem nº"}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
         <span>{processo.data_fatal || "Sem prazo"}</span>
-        <Badge variant={dias !== null && dias <= 1 ? "destructive" : "secondary"} className="text-[10px] shrink-0">
+        <Badge variant={dias !== null && dias <= 1 ? "destructive" : "secondary"} className="text-[10px] px-1.5 py-0 leading-tight">
           {dias === null ? "S/P" : dias <= 0 ? "VENCIDO" : `${dias}d`}
         </Badge>
       </div>
