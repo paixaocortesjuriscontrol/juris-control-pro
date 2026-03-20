@@ -766,7 +766,7 @@ async function _processarTermoProInterno(
         if (e?.name === 'AbortError') break;
         console.warn(`[DJEN Pro] Retry sem ufOab ${trib}:`, e?.message);
       }
-      await delay(1200);
+      await delay(600);
     }
   }
   
