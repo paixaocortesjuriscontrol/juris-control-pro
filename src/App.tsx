@@ -139,6 +139,7 @@ function App() {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
+            </SidebarContextProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
