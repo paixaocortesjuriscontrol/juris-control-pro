@@ -16,6 +16,7 @@ export interface MainLayoutProps {
 
 export function MainLayout({ children, title, subtitle, headerActions, className }: MainLayoutProps) {
   const isMobile = useIsMobile();
+  const { collapsed } = useSidebarCollapsed();
 
   // Inicializa os schedulers de DJEN Termos e Termos Pro
   // O Pro scheduler carrega automaticamente do DB no construtor e auto-inicia se ativo
