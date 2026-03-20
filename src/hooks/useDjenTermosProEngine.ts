@@ -542,6 +542,37 @@ async function processarTermoPro(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
   
+  // Timeout por termo: aborta este termo após 120s para não travar a execução inteira
+  const termAbort = new AbortController();
+  const termTimeout = setTimeout(() => {
+    console.warn(`[DJEN Pro] ⏱ Timeout de ${CONFIG.term_timeout_ms / 1000}s atingido para "${mon.termo_busca}". Salvando resultados parciais.`);
+    termAbort.abort();
+  }, CONFIG.term_timeout_ms);
+  
+  // Combinar sinal global com sinal de timeout do termo
+  const combinedSignal = (() => {
+    const combined = new AbortController();
+    signal.addEventListener('abort', () => combined.abort(), { once: true });
+    termAbort.signal.addEventListener('abort', () => combined.abort(), { once: true });
+    if (signal.aborted || termAbort.signal.aborted) combined.abort();
+    return combined.signal;
+  })();
+  
+  try {
+    return await _processarTermoProInterno(mon, diaYmd, combinedSignal, signal);
+  } finally {
+    clearTimeout(termTimeout);
+  }
+}
+
+async function _processarTermoProInterno(
+  mon: Monitoramento,
+  diaYmd: string,
+  signal: AbortSignal,
+  globalSignal: AbortSignal,
+): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
+  
   const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
   const tribunais = expandirTribunais(mon.tribunais);
   
