@@ -821,7 +821,7 @@ async function _processarTermoProInterno(
           if (e?.name === 'AbortError') break;
           console.warn(`[DJEN Pro] Erro busca termos_or "${parsed.nome}" trib=${trib}:`, e?.message);
         }
-        await delay(600);
+        await delay(400);
       }
       
       // Se tem OAB, buscar também por OAB (captura resultados que nome não encontra)
