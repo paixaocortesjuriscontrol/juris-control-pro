@@ -1309,7 +1309,8 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações com IA...`);
     try {
-      const pubsPayload = allPublicacoes.map(p => ({ id: p.id, processo_numero: p.processo_numero, conteudo: p.conteudo, orgao: p.orgao || p.tribunal, tipo_comunicacao: p.tipo_comunicacao }));
+      // Limitar conteúdo a 3000 chars para evitar timeout na Edge Function
+      const pubsPayload = allPublicacoes.map(p => ({ id: p.id, processo_numero: p.processo_numero, conteudo: (p.conteudo || "").substring(0, 3000), orgao: p.orgao || p.tribunal, tipo_comunicacao: p.tipo_comunicacao }));
       const { data: classData, error: classError } = await supabase.functions.invoke('classificar-publicacoes-tst', { body: { publicacoes: pubsPayload } });
       if (classError) throw classError;
       if (!classData?.classificacoes) throw new Error("Classificação não retornada pela IA");
