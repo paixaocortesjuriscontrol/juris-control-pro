@@ -54,22 +54,22 @@ export default function ClienteCadastro() {
           return;
         }
 
-        if (data.status !== "pendente") {
+        if (conviteData.status !== "pendente") {
           setError("Este convite já foi utilizado");
           return;
         }
 
-        if (new Date(data.expira_em) < new Date()) {
+        if (new Date(conviteData.expira_em) < new Date()) {
           setError("Este convite expirou. Solicite um novo convite ao escritório.");
           return;
         }
 
         // Set convite without cliente name (will be handled by the edge function)
         setConvite({
-          id: data.id,
-          email: data.email,
-          status: data.status,
-          expira_em: data.expira_em,
+          id: conviteData.id,
+          email: conviteData.email,
+          status: conviteData.status,
+          expira_em: conviteData.expira_em,
           cliente: null,
         });
       } catch (err) {
