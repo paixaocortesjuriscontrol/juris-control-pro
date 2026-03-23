@@ -835,9 +835,13 @@ serve(async (req) => {
       validationErrors.push(`Tipo de busca inválido. Use: ${validTipos.join(", ")}`);
     }
 
-    // Validate uf format (2 uppercase letters or "TODAS")
-    if (uf && typeof uf === 'string' && uf.toUpperCase() !== 'TODAS' && !/^[A-Za-z]{2}$/.test(uf)) {
-      validationErrors.push("UF deve ter exatamente 2 letras ou 'TODAS'");
+    // Validate uf format (2 uppercase letters, "TODAS", or comma-separated UFs like "DF,SP")
+    if (uf && typeof uf === 'string' && uf.toUpperCase() !== 'TODAS') {
+      const ufParts = uf.split(',').map((u: string) => u.trim());
+      const allValid = ufParts.every((u: string) => /^[A-Za-z]{2}$/.test(u));
+      if (!allValid) {
+        validationErrors.push("UF deve ter exatamente 2 letras, 'TODAS', ou UFs separadas por vírgula");
+      }
     }
 
     // Validate oab format (up to 10 digits)
