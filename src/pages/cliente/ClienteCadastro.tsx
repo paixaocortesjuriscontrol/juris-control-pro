@@ -42,35 +42,34 @@ export default function ClienteCadastro() {
 
     const fetchConvite = async () => {
       try {
-        // First, fetch the invite without the join (anonymous users can't access clientes)
+        // Use secure RPC function instead of direct table access
         const { data, error: fetchError } = await supabase
-          .from("convites_cliente")
-          .select("id, email, status, expira_em, cliente_id")
-          .eq("token", token)
-          .single();
+          .rpc("get_convite_by_token", { p_token: token });
 
-        if (fetchError || !data) {
+        const conviteData = Array.isArray(data) ? data[0] : data;
+
+        if (fetchError || !conviteData) {
           console.error("Error fetching invite:", fetchError);
           setError("Convite não encontrado ou inválido");
           return;
         }
 
-        if (data.status !== "pendente") {
+        if (conviteData.status !== "pendente") {
           setError("Este convite já foi utilizado");
           return;
         }
 
-        if (new Date(data.expira_em) < new Date()) {
+        if (new Date(conviteData.expira_em) < new Date()) {
           setError("Este convite expirou. Solicite um novo convite ao escritório.");
           return;
         }
 
         // Set convite without cliente name (will be handled by the edge function)
         setConvite({
-          id: data.id,
-          email: data.email,
-          status: data.status,
-          expira_em: data.expira_em,
+          id: conviteData.id,
+          email: conviteData.email,
+          status: conviteData.status,
+          expira_em: conviteData.expira_em,
           cliente: null,
         });
       } catch (err) {
