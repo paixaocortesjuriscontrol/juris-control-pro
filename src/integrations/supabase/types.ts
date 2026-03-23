@@ -5197,6 +5197,15 @@ export type Database = {
           vara: string
         }[]
       }
+      get_convite_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          email: string
+          expira_em: string
+          id: string
+          status: string
+        }[]
+      }
       get_coordenacao_stats: {
         Args: never
         Returns: {

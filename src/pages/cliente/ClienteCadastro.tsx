@@ -42,14 +42,13 @@ export default function ClienteCadastro() {
 
     const fetchConvite = async () => {
       try {
-        // First, fetch the invite without the join (anonymous users can't access clientes)
+        // Use secure RPC function instead of direct table access
         const { data, error: fetchError } = await supabase
-          .from("convites_cliente")
-          .select("id, email, status, expira_em, cliente_id")
-          .eq("token", token)
-          .single();
+          .rpc("get_convite_by_token", { p_token: token });
 
-        if (fetchError || !data) {
+        const conviteData = Array.isArray(data) ? data[0] : data;
+
+        if (fetchError || !conviteData) {
           console.error("Error fetching invite:", fetchError);
           setError("Convite não encontrado ou inválido");
           return;
