@@ -1,36 +1,44 @@
 
 
-## Plano: Otimizar Velocidade do DJEN Termos Pro (sem perder publicações)
+## Plano: Corrigir Vulnerabilidade de Segurança nos Convites de Cliente
 
 ### Problema
-O engine está lento devido a delays excessivos e retries com backoff muito longo quando recebe HTTP 429. **Não vamos reduzir maxPages** — todas as publicações continuarão sendo buscadas.
+A tabela `convites_cliente` tem uma política RLS `Anyone can view invitation by token` com condição `USING (true)`, que expõe **todos** os convites (emails, tokens) para qualquer pessoa, inclusive não autenticada. Isso é uma falha de segurança grave.
 
-### Mudanças (apenas no arquivo `src/hooks/useDjenTermosProEngine.ts`)
+### Contexto do fluxo atual
+- A página `ClienteCadastro.tsx` consulta `convites_cliente` diretamente via Supabase client (anon key) filtrando por token — usuário não está autenticado neste momento
+- A edge function `aceitar-convite-cliente` usa service_role, então não é afetada por RLS
+- A edge function `enviar-convite-cliente` também usa service_role
 
-#### 1. Reduzir delays internos
-Os delays atuais são muito conservadores para busca no browser:
+### Solução
 
-| Parâmetro | Atual | Novo |
-|---|---|---|
-| `delay_between_terms` | 1500ms | **800ms** |
-| `delay_between_pages` | 1500ms | **800ms** |
-| `retry_base_delay` | 10000ms | **5000ms** |
-| `max_retries` | 4 | **3** |
-| Delay entre tribunais no loop | 1200ms | **600ms** |
-| Delay entre termos_or | 600ms | **400ms** |
-| Delay entre termos_or advogado | 600ms | **400ms** |
+#### 1. Criar função `security definer` para buscar convite por token
+Uma função no banco que recebe o token e retorna apenas os campos necessários (id, email, status, expira_em). Usa `security definer` para bypassar RLS com segurança.
 
-#### 2. Adicionar timeout por termo (segurança)
-Se um único termo demorar mais de **120 segundos** (2 minutos), abortar a paginação desse termo e passar para o próximo. Isso evita que um termo com muitos 429 trave toda a execução. As publicações já obtidas daquele termo são salvas normalmente.
+```sql
+CREATE FUNCTION public.get_convite_by_token(p_token uuid)
+RETURNS TABLE(id uuid, email text, status text, expira_em timestamptz)
+SECURITY DEFINER
+```
 
-#### 3. Manter maxPages: 999
-Nenhuma redução de cobertura. Todas as páginas continuam sendo buscadas.
+#### 2. Remover a política pública
+```sql
+DROP POLICY "Anyone can view invitation by token" ON convites_cliente;
+```
 
-### Impacto esperado
-- Redução de ~40% no tempo total de execução
-- O timeout por termo garante que a execução sempre termina
-- Zero perda de publicações em condições normais
+#### 3. Atualizar `ClienteCadastro.tsx`
+Trocar a query direta na tabela por chamada à função RPC:
+```typescript
+const { data } = await supabase.rpc("get_convite_by_token", { p_token: token });
+```
+
+### Impacto
+- **Zero quebra**: as edge functions usam service_role (ignoram RLS)
+- **Admin continua funcionando**: política `Admins can view all invitations` permanece
+- **Cadastro continua funcionando**: usa a função segura ao invés de query direta
+- Tokens e emails deixam de ser expostos publicamente
 
 ### Arquivos alterados
-- `src/hooks/useDjenTermosProEngine.ts` — CONFIG + delays inline + timeout por termo
+- Migration SQL: criar função + remover política
+- `src/pages/cliente/ClienteCadastro.tsx`: trocar query por RPC
 
