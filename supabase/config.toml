@@ -119,3 +119,42 @@ verify_jwt = true
 
 [functions.classificar-publicacoes-tst]
 verify_jwt = false
+
+[functions.cancelar-indexacao-djen]
+verify_jwt = true
+
+[functions.limpar-djen-hoje]
+verify_jwt = true
+
+[functions.analisar-publicacao-ia]
+verify_jwt = true
+
+[functions.enviar-alerta-coordenacao]
+verify_jwt = false
+
+[functions.notificar-tarefa-criada]
+verify_jwt = false
+
+[functions.indexar-djen-diario]
+verify_jwt = false
+
+[functions.monitorar-djen-trigger]
+verify_jwt = false
+
+[functions.processar-tarefas-vencendo]
+verify_jwt = false
+
+[functions.aceitar-convite-cliente]
+verify_jwt = false
+
+[functions.cadastrar-perfil]
+verify_jwt = true
+
+[functions.cadastrar-perfis-lote]
+verify_jwt = true
+
+[functions.cofre-senhas]
+verify_jwt = true
+
+[functions.enviar-convite-cliente]
+verify_jwt = true
