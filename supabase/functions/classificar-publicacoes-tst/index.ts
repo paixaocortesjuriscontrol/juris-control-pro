@@ -49,7 +49,49 @@ serve(async (req) => {
       tabelaIRR = "Tabela IRR não disponível - classificar com base no conteúdo textual";
     }
 
-    // 2. Classificar publicações em lotes
+    // 2. Pré-classificação determinística por palavras-chave inequívocas
+    const PAUTA_KEYWORDS = [
+      "pauta de julgamento",
+      "aditamento à pauta",
+      "aditamento a pauta",
+      "sessão virtual",
+      "sessão ordinária",
+      "sessao virtual",
+      "sessao ordinaria",
+      "plenario virtual",
+      "plenário virtual",
+      "incluído no plenário",
+      "incluido no plenario",
+      "destaque para julgamento",
+      "sustentação oral",
+      "sustentacao oral",
+    ];
+    const IRR_KEYWORDS = [
+      "incidente de recursos repetitivos",
+      "incjulgrreembrep",
+      "tabela de irr",
+      "recurso de revista repetitivo",
+    ];
+    const TEMA_REGEX = /\btema\s+(?:vinculante\s+)?(?:n[º°]?\s*)?(\d{1,4})\b/gi;
+
+    function preClassificar(conteudo: string): { categoria: "TEMAS_IRR" | "PAUTA" | "PRAZOS"; tema_irr?: string; observacao_ia?: string } | null {
+      const lower = conteudo.toLowerCase();
+      // Check IRR first (higher priority per prompt rules)
+      const temaMatch = TEMA_REGEX.exec(conteudo);
+      if (temaMatch || IRR_KEYWORDS.some(k => lower.includes(k))) {
+        TEMA_REGEX.lastIndex = 0;
+        const m2 = TEMA_REGEX.exec(conteudo);
+        return { categoria: "TEMAS_IRR", tema_irr: m2 ? `Tema ${m2[1]}` : undefined, observacao_ia: "Classificação automática por palavras-chave IRR" };
+      }
+      TEMA_REGEX.lastIndex = 0;
+      // Check PAUTA
+      if (PAUTA_KEYWORDS.some(k => lower.includes(k))) {
+        return { categoria: "PAUTA", observacao_ia: "Classificação automática por palavras-chave de pauta" };
+      }
+      return null;
+    }
+
+    // 3. Classificar publicações em lotes (apenas as que não foram pré-classificadas)
     const batchSize = 10;
     const resultados: Array<{
       id: string;
@@ -59,8 +101,21 @@ serve(async (req) => {
       resumo?: string;
     }> = [];
 
-    for (let i = 0; i < publicacoes.length; i += batchSize) {
-      const batch = publicacoes.slice(i, i + batchSize);
+    const pubsParaIA: typeof publicacoes = [];
+    for (const p of publicacoes) {
+      const conteudoLimpo = (p.conteudo || "").replace(/<[^>]*>/g, " ");
+      const pre = preClassificar(conteudoLimpo);
+      if (pre) {
+        resultados.push({ id: p.id, ...pre });
+      } else {
+        pubsParaIA.push(p);
+      }
+    }
+
+    console.log(`Pré-classificadas: ${resultados.length}, para IA: ${pubsParaIA.length}`);
+
+    for (let i = 0; i < pubsParaIA.length; i += batchSize) {
+      const batch = pubsParaIA.slice(i, i + batchSize);
       
       const pubsTexto = batch.map((p: any, idx: number) => {
         const conteudoLimpo = (p.conteudo || "").replace(/<[^>]*>/g, " ").substring(0, 3000);
