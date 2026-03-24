@@ -232,7 +232,7 @@ ${pubsTexto}`;
       }
 
       // Pequeno delay entre lotes
-      if (i + batchSize < publicacoes.length) {
+      if (i + batchSize < pubsParaIA.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
