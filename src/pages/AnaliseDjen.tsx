@@ -1340,8 +1340,12 @@ const AnaliseDjen = () => {
           const ml = [["Processo", sanitizeForXml(pub.processo_numero || "N/A")], ["Órgão", sanitizeForXml(pub.orgao || pub.tribunal || "N/A")], ["Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "N/A"], ["Tipo de Comunicação", sanitizeForXml(pub.tipo_comunicacao || "Intimação")], ["Meio", "Diário de Justiça Eletrônico Nacional"]];
           ml.forEach(([l, v]) => { ch.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${l}: `, bold: true, size: docFontSize, font: docFont, color: "333333" }), new TextRun({ text: v as string, size: docFontSize, font: docFont, color: "555555" })] })); });
           if (pub.processo_numero) {
-            const pjeUrl = `https://comunicaapi.pje.jus.br/v1/comunicacoes/${pub.processo_numero}`;
-            ch.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: "Inteiro teor: ", bold: true, size: docFontSize, font: docFont, color: "333333" }), new ExternalHyperlink({ children: [new TextRun({ text: pjeUrl, size: docFontSize, font: docFont, color: "1155CC", underline: { type: "single" } })], link: pjeUrl })] }));
+            const procNum = pub.processo_numero.replace(/\D/g, '');
+            const dataDisp = pub.data_disponibilizacao ? pub.data_disponibilizacao.slice(0, 10) : '';
+            const pjeUrl = dataDisp
+              ? `https://comunica.pje.jus.br/consulta?siglaTribunal=TST&dataDisponibilizacaoInicio=${dataDisp}&dataDisponibilizacaoFim=${dataDisp}&numeroProcesso=${procNum}`
+              : `https://comunica.pje.jus.br/consulta?siglaTribunal=TST&numeroProcesso=${procNum}`;
+            ch.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: "Inteiro teor: ", bold: true, size: docFontSize, font: docFont, color: "333333" }), new ExternalHyperlink({ children: [new TextRun({ text: "Clique aqui", size: docFontSize, font: docFont, color: "1155CC", underline: { type: "single" } })], link: pjeUrl })] }));
           }
           if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
           if (ci.observacao_ia) ch.push(new Paragraph({ spacing: { before: 60, after: 80 }, indent: { left: 180 }, children: [new TextRun({ text: "IA: ", bold: true, size: 18, font: docFont, color: "6B7280", italics: true }), new TextRun({ text: sanitizeForXml(ci.observacao_ia), size: 18, font: docFont, color: "6B7280", italics: true })] }));
