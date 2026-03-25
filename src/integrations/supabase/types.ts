@@ -3422,6 +3422,7 @@ export type Database = {
           polo_ativo: string | null
           polo_passivo: string | null
           preparo_tst: string | null
+          prioridade_djen: boolean
           probabilidade: string | null
           providencias_tst: string | null
           provisionamento_possivel: number | null
@@ -3600,6 +3601,7 @@ export type Database = {
           polo_ativo?: string | null
           polo_passivo?: string | null
           preparo_tst?: string | null
+          prioridade_djen?: boolean
           probabilidade?: string | null
           providencias_tst?: string | null
           provisionamento_possivel?: number | null
@@ -3778,6 +3780,7 @@ export type Database = {
           polo_ativo?: string | null
           polo_passivo?: string | null
           preparo_tst?: string | null
+          prioridade_djen?: boolean
           probabilidade?: string | null
           providencias_tst?: string | null
           provisionamento_possivel?: number | null

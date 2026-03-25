@@ -309,8 +309,10 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
 
       const { data: rawProcessos, error: procError } = await supabase
         .from('processos')
-        .select('id, numero, monitorar_djen')
-        .eq('monitorar_djen', true);
+        .select('id, numero, monitorar_djen, prioridade_djen')
+        .eq('monitorar_djen', true)
+        .order('prioridade_djen', { ascending: false })
+        .order('numero', { ascending: true });
 
       if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
 
