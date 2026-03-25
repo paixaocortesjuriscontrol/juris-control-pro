@@ -1342,9 +1342,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
     try {
       await Promise.all(batchPromises);
       
-      // HEARTBEAT INTERMEDIÁRIO: sinalizar vida ao orquestrador a cada ~50 processos
-      // Evita timeout quando a API DataJud está lenta mas o worker ainda está processando
-      if (results.checked % 50 < PARALLEL_BATCH_SIZE) {
+      // HEARTBEAT INTERMEDIÁRIO: sinalizar vida a cada ~100 processos
+      if (results.checked % 100 < PARALLEL_BATCH_SIZE) {
         await supabase
           .from('configuracoes_monitoramento')
           .update({ ultima_execucao: new Date().toISOString() })
