@@ -1184,12 +1184,19 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
         let insertedCount = 0;
         const newMovementDetails: string[] = [];
 
+        // Prepare all new movements for batch insert
+        const movimentosToInsert: Array<{
+          processo_id: string;
+          descricao: string;
+          data_movimentacao: string;
+          tipo: string;
+          fonte: string;
+        }> = [];
+
         for (const mov of recentMovimentos) {
-          if (await isCancelled()) throw new CancelledError();
           const movName = mov.nome || mov.movimentoNacional?.nome || 'Movimento';
           let descricaoCompleta = movName;
           
-          // Add complement if available
           if (mov.complemento || mov.complementosTabelados) {
             const complementos: string[] = [];
             if (mov.complemento) complementos.push(mov.complemento);
@@ -1210,54 +1217,49 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
           
           const key = `${movDate.split('T')[0]}|${descricaoCompleta}`;
 
-            if (!existingSet.has(key)) {
-              const { data: insertedMov, error: insertError } = await supabase
-                .from('movimentacoes')
-                .insert({
-                  processo_id: processo.id,
-                  descricao: descricaoCompleta,
-                  data_movimentacao: movDate,
-                  tipo: movName,
-                  fonte: 'DataJud/CNJ'
-                })
-                .select('id')
-                .single();
+          if (!existingSet.has(key)) {
+            existingSet.add(key);
+            movimentosToInsert.push({
+              processo_id: processo.id,
+              descricao: descricaoCompleta,
+              data_movimentacao: movDate,
+              tipo: movName,
+              fonte: 'DataJud/CNJ'
+            });
+            newMovementDetails.push(descricaoCompleta.substring(0, 50));
+          }
+        }
 
-              if (!insertError && insertedMov) {
-                insertedCount++;
-                existingSet.add(key);
-                newMovementDetails.push(descricaoCompleta.substring(0, 50));
+        // Batch insert all new movements at once
+        if (movimentosToInsert.length > 0) {
+          const { data: insertedMovs, error: insertError } = await supabase
+            .from('movimentacoes')
+            .insert(movimentosToInsert)
+            .select('id, descricao, data_movimentacao');
 
-                // Varredura automática de termos no novo andamento
-                await scanMovementForTerms(supabase, insertedMov.id, processo.id, descricaoCompleta);
-                
-                // Detectar audiências no andamento
-                const audienciaResult = await registrarAudienciaDetectada(
-                  supabase,
-                  processo.id,
-                  processo.numero,
-                  insertedMov.id,
-                  descricaoCompleta,
-                  movDate
-                );
-                if (audienciaResult) {
-                  results.audienciasDetectadas++;
-                }
-                
-                // Detectar intimações no andamento
-                const intimacaoResult = await registrarIntimacaoDetectada(
-                  supabase,
-                  processo.id,
-                  processo.numero,
-                  insertedMov.id,
-                  descricaoCompleta,
-                  movDate
-                );
-                if (intimacaoResult) {
-                  results.intimacoesDetectadas++;
-                }
-              }
+          if (!insertError && insertedMovs) {
+            insertedCount = insertedMovs.length;
+
+            // Run detection checks only on newly inserted movements
+            for (const insertedMov of insertedMovs) {
+              if (await isCancelled()) throw new CancelledError();
+              
+              // Scan for terms, audiencias, intimacoes
+              await scanMovementForTerms(supabase, insertedMov.id, processo.id, insertedMov.descricao);
+              
+              const audienciaResult = await registrarAudienciaDetectada(
+                supabase, processo.id, processo.numero,
+                insertedMov.id, insertedMov.descricao, insertedMov.data_movimentacao
+              );
+              if (audienciaResult) results.audienciasDetectadas++;
+              
+              const intimacaoResult = await registrarIntimacaoDetectada(
+                supabase, processo.id, processo.numero,
+                insertedMov.id, insertedMov.descricao, insertedMov.data_movimentacao
+              );
+              if (intimacaoResult) results.intimacoesDetectadas++;
             }
+          }
         }
 
         if (insertedCount > 0) {
