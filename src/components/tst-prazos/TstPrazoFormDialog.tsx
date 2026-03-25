@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,11 +6,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ProcessoTstImport } from "@/hooks/usePrazosTst";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Coordenacao {
+  id: string;
+  nome: string;
+}
+
+interface Membro {
+  id: string;
+  nome: string;
+}
 
 interface Props {
   open: boolean;
@@ -20,7 +35,10 @@ interface Props {
   isSaving: boolean;
 }
 
-export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSaving }: Props) {
+export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId: externalCoordId, isSaving }: Props) {
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+
   const [form, setForm] = useState({
     numero: "",
     dossie_tst: "",
@@ -36,16 +54,90 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
     responsavel_tst: "",
   });
   const [dataFatal, setDataFatal] = useState<Date>();
+  const [selectedCoordId, setSelectedCoordId] = useState<string>("");
+  const [selectedMembroId, setSelectedMembroId] = useState<string>("");
+
+  // Fetch coordenações based on user role
+  const { data: coordenacoes = [] } = useQuery<Coordenacao[]>({
+    queryKey: ["tst-form-coordenacoes", user?.id, isAdmin],
+    queryFn: async () => {
+      if (!user?.id) return [];
+
+      if (isAdmin) {
+        const { data } = await supabase.from("coordenacoes").select("id, nome").order("nome");
+        return data ?? [];
+      }
+
+      // Non-admin: fetch coordenações where user is member or coordinator
+      const { data: membros } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      const membroIds = membros?.map((m) => m.coordenacao_id) ?? [];
+
+      const { data: coordenadas } = await supabase
+        .from("coordenacoes")
+        .select("id")
+        .eq("coordenador_id", user.id);
+      const coordIds = coordenadas?.map((c) => c.id) ?? [];
+
+      const allIds = [...new Set([...membroIds, ...coordIds])];
+      if (allIds.length === 0) return [];
+
+      const { data } = await supabase
+        .from("coordenacoes")
+        .select("id, nome")
+        .in("id", allIds)
+        .order("nome");
+      return data ?? [];
+    },
+    enabled: open && !!user?.id,
+  });
+
+  // Fetch membros for selected coordenação
+  const { data: membros = [] } = useQuery<Membro[]>({
+    queryKey: ["tst-form-membros", selectedCoordId],
+    queryFn: async () => {
+      if (!selectedCoordId) return [];
+
+      const { data } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id, usuario:profiles_basic!membros_coordenacao_usuario_id_fkey(id, nome)")
+        .eq("coordenacao_id", selectedCoordId);
+
+      return (data ?? [])
+        .map((m: any) => ({
+          id: m.usuario?.id ?? m.usuario_id,
+          nome: m.usuario?.nome ?? "Sem nome",
+        }))
+        .filter((m) => m.id);
+    },
+    enabled: open && !!selectedCoordId,
+  });
+
+  // Auto-select coordenação when dialog opens
+  useEffect(() => {
+    if (open) {
+      if (externalCoordId && externalCoordId !== "todas") {
+        setSelectedCoordId(externalCoordId);
+      } else if (coordenacoes.length === 1) {
+        setSelectedCoordId(coordenacoes[0].id);
+      } else {
+        setSelectedCoordId("");
+      }
+      setSelectedMembroId("");
+    }
+  }, [open, externalCoordId, coordenacoes]);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (!dataFatal || !coordenacaoId) return;
+    if (!dataFatal || !selectedCoordId) return;
 
     await onSave({
       numero: form.numero || "SEM-NUMERO",
-      coordenacao_id: coordenacaoId,
+      coordenacao_id: selectedCoordId,
       polo_ativo: form.polo_ativo || null,
       polo_passivo: form.polo_passivo || null,
       dossie_tst: form.dossie_tst || null,
@@ -60,6 +152,8 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
       data_fatal: format(dataFatal, "yyyy-MM-dd"),
       area: "trabalhista",
       status: "ativo",
+      criado_por_tst: user?.id || null,
+      responsavel_tst_id: selectedMembroId || null,
     });
 
     setForm({
@@ -68,6 +162,8 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
       preparo_tst: "", multa_custas_tst: "", responsavel_tst: "",
     });
     setDataFatal(undefined);
+    setSelectedCoordId("");
+    setSelectedMembroId("");
     onClose();
   };
 
@@ -78,6 +174,36 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
           <DialogTitle>Novo Processo TST</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Coordenação selector */}
+          <div className="space-y-1">
+            <Label>Coordenação *</Label>
+            <Select value={selectedCoordId} onValueChange={setSelectedCoordId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                {coordenacoes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Membro responsável selector */}
+          <div className="space-y-1">
+            <Label>Responsável (Membro) *</Label>
+            <Select value={selectedMembroId} onValueChange={setSelectedMembroId} disabled={!selectedCoordId}>
+              <SelectTrigger>
+                <SelectValue placeholder={selectedCoordId ? "Selecione o responsável" : "Selecione a coordenação primeiro"} />
+              </SelectTrigger>
+              <SelectContent>
+                {membros.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-1">
             <Label>Nº Processo</Label>
             <Input value={form.numero} onChange={set("numero")} placeholder="0000000-00.0000.0.00.0000" />
@@ -99,7 +225,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
             <Input value={form.equipe_tst} onChange={set("equipe_tst")} />
           </div>
           <div className="space-y-1">
-            <Label>Responsável</Label>
+            <Label>Responsável (Texto)</Label>
             <Input value={form.responsavel_tst} onChange={set("responsavel_tst")} />
           </div>
           <div className="space-y-1 md:col-span-2">
@@ -143,7 +269,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={!dataFatal || !coordenacaoId || isSaving}>
+          <Button onClick={handleSubmit} disabled={!dataFatal || !selectedCoordId || isSaving}>
             {isSaving ? "Salvando..." : "Salvar"}
           </Button>
         </div>
