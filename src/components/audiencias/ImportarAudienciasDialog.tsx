@@ -221,7 +221,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
           })
           .map((row) => {
             const parsedDate = parseExcelDate(row["DATA"]);
-            const horaLocal = parseExcelTime(row["HORA"]);
+            const horaLocal = parseExcelTime(row["HORA"] || row["HORARIO"] || row["HORA_LOCAL"]);
             const comarca = String(row["COMARCA"] || "").trim();
 
             // First column (no header) → modalidade: __EMPTY or EMPTY after normalization
@@ -238,15 +238,15 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
               processo_numero: processoNumero,
               vara_camara: String(row["ORGAO"] || row["VT_CAMARA"] || row["ORGAO_TURMA"] || "").trim(),
               comarca,
-              polo_ativo: String(row["PARTE_AUTORA"] || row["POLO_ATIVO"] || "").trim(),
-              cliente: String(row["REUS"] || row["CLIENTE"] || "").trim(),
-              terceirizado: String(row["TERCEIRIZADO"] || "").trim(),
+              polo_ativo: String(row["PARTE_AUTORA"] || row["POLO_ATIVO"] || row["AUTOR"] || "").trim(),
+              cliente: String(row["REUS"] || row["CLIENTE"] || row["REU"] || "").trim(),
+              terceirizado: String(row["TERCEIRIZADO"] || row["CREDENCIADO"] || "").trim(),
               tipo_audiencia: String(row["TIPO"] || "").trim(),
               resumo_objeto: String(row["RESUMO_DO_OBJETO"] || "").trim(),
               funcao: String(row["FUNCAO"] || "").trim(),
               preposto: String(row["PREPOSTO"] || "").trim(),
               testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
-              advogado: String(row["ADV_INTERNO"] || row["ADVOGADO"] || "").trim(),
+              advogado: String(row["ADV_INTERNO"] || row["ADVOGADO"] || row["ADVOGADO_INTERNO"] || "").trim(),
               equipe: String(row["EQUIPE"] || "").trim(),
               nucleo_origem: String(row["ORIGEM"] || "").trim(),
               dossie: String(row["DOSSIE"] || row["DOSSIER"] || "").trim(),
