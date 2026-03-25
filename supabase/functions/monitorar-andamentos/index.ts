@@ -1301,24 +1301,23 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
             }
           });
 
-          // Create notifications
-          for (const userId of usersToNotify) {
-            if (await isCancelled()) throw new CancelledError();
-            await supabase
-              .from('notificacoes')
-              .insert({
-                usuario_id: userId,
-                titulo: 'Novos andamentos detectados',
-                mensagem: `${insertedCount} novo(s) andamento(s) encontrado(s) no processo ${processo.numero}`,
-                tipo: 'info',
-                link: `/processos/${processo.id}`,
-                dados: {
-                  processo_id: processo.id,
-                  numero: processo.numero,
-                  novos_andamentos: insertedCount,
-                  detalhes: newMovementDetails
-                }
-              });
+          // Batch notification inserts
+          const notificationRows = usersToNotify.map(userId => ({
+            usuario_id: userId,
+            titulo: 'Novos andamentos detectados',
+            mensagem: `${insertedCount} novo(s) andamento(s) encontrado(s) no processo ${processo.numero}`,
+            tipo: 'info',
+            link: `/processos/${processo.id}`,
+            dados: {
+              processo_id: processo.id,
+              numero: processo.numero,
+              novos_andamentos: insertedCount,
+              detalhes: newMovementDetails
+            }
+          }));
+
+          if (notificationRows.length > 0) {
+            await supabase.from('notificacoes').insert(notificationRows);
           }
 
           // NOTA: Emails/WhatsApp são enviados APENAS no resumo consolidado ao final
