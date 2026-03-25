@@ -62,9 +62,11 @@ function extractTstFields(item: ProcessoTstImport) {
 }
 
 /** Perform the actual import (update existing + insert new) */
-async function performImport(items: ProcessoTstImport[]) {
+async function performImport(items: ProcessoTstImport[], onProgress?: (done: number, total: number) => void) {
   const toUpdate = items.filter((i) => i._existing_id);
   const toInsert = items.filter((i) => !i._existing_id);
+  const total = items.length;
+  let done = 0;
 
   // Update existing processos with TST fields
   for (const item of toUpdate) {
@@ -74,6 +76,8 @@ async function performImport(items: ProcessoTstImport[]) {
       .update(tst as any)
       .eq("id", item._existing_id!);
     if (error) throw error;
+    done++;
+    onProgress?.(done, total);
   }
 
   // Insert new processos one-by-one to handle duplicates gracefully
@@ -90,7 +94,6 @@ async function performImport(items: ProcessoTstImport[]) {
       const { error } = await supabase.from("processos").insert(row as any);
       if (error) {
         if (error.code === "23505" && error.message?.includes("numero")) {
-          // Duplicate numero - update the existing record instead
           const tst = extractTstFields(item);
           const { error: updateErr } = await supabase
             .from("processos")
@@ -101,6 +104,8 @@ async function performImport(items: ProcessoTstImport[]) {
           throw error;
         }
       }
+      done++;
+      onProgress?.(done, total);
     }
   }
 }
@@ -161,8 +166,8 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
   });
 
   const bulkImportMutation = useMutation({
-    mutationFn: async (items: ProcessoTstImport[]) => {
-      await performImport(items);
+    mutationFn: async ({ items, onProgress }: { items: ProcessoTstImport[]; onProgress?: (done: number, total: number) => void }) => {
+      await performImport(items, onProgress);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["processos-tst"] });
@@ -173,7 +178,7 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
   });
 
   const clearAndImportMutation = useMutation({
-    mutationFn: async ({ coordenacaoId: cid, items }: { coordenacaoId: string; items: ProcessoTstImport[] }) => {
+    mutationFn: async ({ coordenacaoId: cid, items, onProgress }: { coordenacaoId: string; items: ProcessoTstImport[]; onProgress?: (done: number, total: number) => void }) => {
       // Clear TST fields from existing processos in this coordenação
       const { error: clearErr } = await supabase
         .from("processos")
@@ -194,7 +199,7 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
       if (clearErr) throw clearErr;
 
       if (items.length > 0) {
-        await performImport(items);
+        await performImport(items, onProgress);
       }
     },
     onSuccess: () => {
