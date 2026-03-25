@@ -3326,6 +3326,7 @@ export type Database = {
           coordenacao_id: string | null
           cpf_cnpj_parte_contraria: string | null
           created_at: string
+          criado_por_tst: string | null
           custo_encerramento: number | null
           data_arquivamento: string | null
           data_citacao: string | null
@@ -3502,6 +3503,7 @@ export type Database = {
           coordenacao_id?: string | null
           cpf_cnpj_parte_contraria?: string | null
           created_at?: string
+          criado_por_tst?: string | null
           custo_encerramento?: number | null
           data_arquivamento?: string | null
           data_citacao?: string | null
@@ -3678,6 +3680,7 @@ export type Database = {
           coordenacao_id?: string | null
           cpf_cnpj_parte_contraria?: string | null
           created_at?: string
+          criado_por_tst?: string | null
           custo_encerramento?: number | null
           data_arquivamento?: string | null
           data_citacao?: string | null
