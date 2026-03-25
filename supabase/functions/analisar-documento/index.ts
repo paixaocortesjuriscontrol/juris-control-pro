@@ -50,23 +50,49 @@ function normalizeProcessoNumber(numero: string): string {
 
 async function findProcessoByNumero(supabase: any, numeroProcesso: string): Promise<{ id: string; numero: string } | null> {
   const normalizedInput = normalizeProcessoNumber(numeroProcesso);
-  
-  const { data, error } = await supabase
+  if (normalizedInput.length < 10) return null;
+
+  // Try exact match first
+  const { data: exact, error: err1 } = await supabase
     .from('processos')
     .select('id, numero')
-    .limit(100);
-  
-  if (error || !data) {
-    console.error('Erro ao buscar processos:', error);
+    .eq('numero', numeroProcesso)
+    .limit(1);
+
+  if (exact && exact.length > 0) return exact[0];
+
+  // Try formatted variations (with dots/dashes)
+  const formatted = normalizedInput.replace(
+    /^(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})$/,
+    '$1-$2.$3.$4.$5.$6'
+  );
+  if (formatted !== normalizedInput) {
+    const { data: fmt } = await supabase
+      .from('processos')
+      .select('id, numero')
+      .eq('numero', formatted)
+      .limit(1);
+    if (fmt && fmt.length > 0) return fmt[0];
+  }
+
+  // Fallback: search by partial match on digits
+  const { data: partial, error: err2 } = await supabase
+    .from('processos')
+    .select('id, numero')
+    .ilike('numero', `%${normalizedInput.slice(0, 7)}%`)
+    .limit(50);
+
+  if (err2 || !partial) {
+    console.error('Erro ao buscar processos:', err2);
     return null;
   }
-  
-  for (const processo of data) {
+
+  for (const processo of partial) {
     if (normalizeProcessoNumber(processo.numero) === normalizedInput) {
       return processo;
     }
   }
-  
+
   return null;
 }
 
