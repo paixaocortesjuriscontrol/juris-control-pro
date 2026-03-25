@@ -583,6 +583,87 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         }
       }
 
+      // ========= BUSCAR PRAZOS FATAIS TST (processos com data_fatal) =========
+      {
+        let queryPrazos = supabase
+          .from("processos")
+          .select("id, numero, polo_ativo, polo_passivo, data_fatal, coordenacao_id, criado_por_tst, responsavel_tst_id, responsavel_tst, equipe_tst, decisao_tst, status")
+          .not("data_fatal", "is", null);
+
+        if (!filters.fetchAll) {
+          // Filter: user is creator OR responsible
+          queryPrazos = queryPrazos.or(`criado_por_tst.eq.${user.id},responsavel_tst_id.eq.${user.id}`);
+        }
+
+        if (filters.dataInicio) {
+          const di = filters.dataInicio;
+          const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
+          queryPrazos = queryPrazos.gte("data_fatal", diStr);
+        }
+
+        if (filters.dataFim) {
+          const df = filters.dataFim;
+          const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
+          queryPrazos = queryPrazos.lte("data_fatal", dfStr);
+        }
+
+        if (filters.coordenacaoId) {
+          queryPrazos = queryPrazos.eq("coordenacao_id", filters.coordenacaoId);
+        }
+
+        queryPrazos = queryPrazos.order("data_fatal", { ascending: true }).range(from, to);
+
+        const { data: prazosTst, error: prazosError } = await queryPrazos;
+
+        if (!prazosError && prazosTst) {
+          // Fetch responsável names
+          const respIds = [...new Set(prazosTst.map((p: any) => p.responsavel_tst_id).filter(Boolean))] as string[];
+          const criadorIds = [...new Set(prazosTst.map((p: any) => p.criado_por_tst).filter(Boolean))] as string[];
+          const allUserIds = [...new Set([...respIds, ...criadorIds])];
+          let usersMap: Record<string, { id: string; nome: string }> = {};
+          if (allUserIds.length > 0) {
+            const { data: users } = await supabase.from("profiles").select("id,nome").in("id", allUserIds);
+            if (users) usersMap = Object.fromEntries(users.map(u => [u.id, u]));
+          }
+
+          for (const prazo of prazosTst) {
+            const prazoId = `prazo-tst-${prazo.id}`;
+            if (seenIds.has(prazoId)) continue;
+            seenIds.add(prazoId);
+
+            const dataBase = parseISO(prazo.data_fatal!);
+            const diasRestantes = differenceInDays(startOfDay(dataBase), today);
+            const isAtrasado = diasRestantes < 0;
+
+            resultItems.push({
+              id: prazoId,
+              titulo: `[PRAZO FATAL] ${prazo.numero}`,
+              descricao: prazo.decisao_tst || `Prazo fatal para processo ${prazo.numero}`,
+              tipo: "prazo",
+              origem: "evento" as const,
+              data_inicio: `${prazo.data_fatal}T00:00:00`,
+              data_fim: null,
+              dia_inteiro: true,
+              local: null,
+              recorrente: false,
+              recorrencia_tipo: null,
+              status: isAtrasado ? "atrasado" : "pendente",
+              concluido_em: null,
+              created_at: prazo.data_fatal! + "T00:00:00",
+              updated_at: prazo.data_fatal! + "T00:00:00",
+              processo_id: prazo.id,
+              processo: { id: prazo.id, numero: prazo.numero },
+              responsavel_id: prazo.responsavel_tst_id,
+              responsavel: prazo.responsavel_tst_id ? usersMap[prazo.responsavel_tst_id] || null : null,
+              criado_por: prazo.criado_por_tst,
+              criador: prazo.criado_por_tst ? usersMap[prazo.criado_por_tst] || null : null,
+              dias_restantes: diasRestantes,
+              is_atrasado: isAtrasado,
+            });
+          }
+        }
+      }
+
       // ========= ORDENAR RESULTADOS =========
       // Dedup final (por chave de negócio DJEN) antes de ordenar
       const dedupedItems: ItemAgendaUnificado[] = [];
