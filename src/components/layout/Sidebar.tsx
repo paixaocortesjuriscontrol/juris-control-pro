@@ -47,6 +47,7 @@ const menuItemsPublicos = [
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
+  { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
