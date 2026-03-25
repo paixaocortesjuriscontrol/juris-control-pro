@@ -120,6 +120,7 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
       let q = supabase
         .from("processos")
         .select(TST_SELECT)
+        .in("status", ["ativo", "pendente", "urgente"])
         .order("data_fatal", { ascending: true, nullsFirst: false });
 
       if (isAll && allCoordIds && allCoordIds.length > 0) {
