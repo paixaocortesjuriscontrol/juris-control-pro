@@ -169,7 +169,7 @@ export default function TstPrazos() {
           open={showForm}
           onClose={() => setShowForm(false)}
           onSave={create}
-          coordenacaoId={coordenacaoId}
+          coordenacaoId={coordenacaoId === "todas" ? null : coordenacaoId}
           isSaving={isCreating}
         />
 

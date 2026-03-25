@@ -41,7 +41,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
     setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (!dataFatal) return;
+    if (!dataFatal || !coordenacaoId) return;
 
     await onSave({
       numero: form.numero || "SEM-NUMERO",
@@ -143,7 +143,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={!dataFatal || isSaving}>
+          <Button onClick={handleSubmit} disabled={!dataFatal || !coordenacaoId || isSaving}>
             {isSaving ? "Salvando..." : "Salvar"}
           </Button>
         </div>
