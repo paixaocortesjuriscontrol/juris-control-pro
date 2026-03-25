@@ -139,6 +139,29 @@ function detectHeaderRow(rows: unknown[][]): number {
   return 0;
 }
 
+function detectBestDateColumn(rows: unknown[][], headerRowIdx: number, headers: string[]): { index: number; matches: number } {
+  const preferred = findColumn(headers, ["data fatal", "dt fatal", "prazo fatal", "fatal", "data limite", "vencimento", "prazo"]);
+  const dataRows = rows.slice(headerRowIdx + 1, Math.min(rows.length, headerRowIdx + 26));
+
+  if (preferred >= 0) {
+    const preferredMatches = dataRows.reduce((count, row) => count + (parseExcelDate(row[preferred]) ? 1 : 0), 0);
+    if (preferredMatches > 0) return { index: preferred, matches: preferredMatches };
+  }
+
+  let bestIndex = -1;
+  let bestMatches = 0;
+
+  headers.forEach((_, colIndex) => {
+    const matches = dataRows.reduce((count, row) => count + (parseExcelDate(row[colIndex]) ? 1 : 0), 0);
+    if (matches > bestMatches) {
+      bestMatches = matches;
+      bestIndex = colIndex;
+    }
+  });
+
+  return { index: bestIndex, matches: bestMatches };
+}
+
 export function TstImportDialog({
   open, onClose, coordenacaoId, coordenacoes,
   onImport, onClearAndImport, isImporting, onCoordenacaoChange,
@@ -208,8 +231,9 @@ export function TstImportDialog({
       const headers = rows[headerRowIdx].map((h) => String(h ?? ""));
       console.log("[TST Import] Header row index:", headerRowIdx, "Headers:", headers);
 
-      const detectedFatalColumn = findColumn(headers, ["data fatal", "dt fatal", "prazo fatal", "fatal", "data limite", "vencimento", "prazo"]);
-      const colFatal = detectedFatalColumn >= 0 ? detectedFatalColumn : 1;
+      const bestDateColumn = detectBestDateColumn(rows, headerRowIdx, headers);
+      const detectedFatalColumn = bestDateColumn.index;
+      const colFatal = detectedFatalColumn;
       const colDossie = findColumn(headers, ["dossi", "dossie"]);
       const colProcesso = findColumn(headers, ["processo"]);
       const colReu = findColumn(headers, ["réu", "reu"]);
@@ -232,12 +256,17 @@ export function TstImportDialog({
         colAutor,
         fatalHeader: headers[colFatal] ?? null,
         detectedFatalColumn,
+        detectedDateMatches: bestDateColumn.matches,
       });
-      if (detectedFatalColumn < 0) {
-        console.warn("[TST Import] Coluna de data fatal não identificada pelos cabeçalhos; usando fallback para a coluna índice 1.", {
-          fallbackHeader: headers[1] ?? null,
+      if (detectedFatalColumn < 0 || bestDateColumn.matches === 0) {
+        console.warn("[TST Import] Nenhuma coluna com datas válidas foi detectada.", {
           headers,
+          sampledRows: rows.slice(headerRowIdx, Math.min(rows.length, headerRowIdx + 6)),
         });
+        toast.error("Não foi possível identificar a coluna de data fatal na planilha. Verifique os cabeçalhos e o formato das datas.");
+        setParsing(false);
+        setProgress(0);
+        return;
       }
 
       // Fetch existing processos for matching (by numero and by digits)
@@ -287,6 +316,23 @@ export function TstImportDialog({
 
         if (!dataFatal && !numProc) {
           skippedCount++;
+          continue;
+        }
+
+        if (!dataFatal) {
+          skippedCount++;
+          if (dateDebugCount < 20) {
+            console.warn("[TST Import] Linha sem data fatal válida", {
+              excelRow: i + 1,
+              processo: numProc || null,
+              header: headers[colFatal] ?? null,
+              rawFatalValue,
+              formattedFatalValue,
+              parsedFromFormatted,
+              parsedFromRaw,
+            });
+            dateDebugCount++;
+          }
           continue;
         }
 
