@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DATAJUD_TIMEOUT_MS = 8_000; // Reduced from 12s to 8s for faster fail-fast
+const DATAJUD_TIMEOUT_MS = 6_000; // 6s timeout for faster fail-fast
 
 class CancelledError extends Error {
   constructor(message = 'cancelled') {
