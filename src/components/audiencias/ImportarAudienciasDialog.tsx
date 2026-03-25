@@ -170,6 +170,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const cancelRef = useRef(false);
 
   // Buscar coordenações
   const { data: coordenacoes = [] } = useQuery({
@@ -287,6 +288,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
     setIsImporting(true);
     setProgress(0);
+    cancelRef.current = false;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -335,6 +337,11 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     let errorCount = 0;
 
     for (let batchStart = 0; batchStart < allRecords.length; batchStart += BATCH_SIZE) {
+      if (cancelRef.current) {
+        toast.info(`Importação cancelada. ${successCount} audiências já importadas.`);
+        break;
+      }
+
       const batch = allRecords.slice(batchStart, batchStart + BATCH_SIZE);
 
       try {
@@ -344,7 +351,6 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
         if (error) throw error;
 
-        // Marcar todas do lote como sucesso
         setRows(prev => prev.map((r, idx) =>
           idx >= batchStart && idx < batchStart + batch.length
             ? { ...r, status: 'sucesso' }
@@ -352,8 +358,8 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
         ));
         successCount += batch.length;
       } catch (error: any) {
-        // Se o lote falhou, tentar individualmente para identificar quais falharam
         for (let j = 0; j < batch.length; j++) {
+          if (cancelRef.current) break;
           const globalIdx = batchStart + j;
           try {
             const { error: singleError } = await supabase
