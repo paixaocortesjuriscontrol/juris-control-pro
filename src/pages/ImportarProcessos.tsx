@@ -5617,6 +5617,206 @@ export default function ImportarProcessos() {
     setAstreaProgress(0);
   };
 
+  // Bradesco file handling
+  const handleBradescoFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setBradescoFile(selectedFile);
+      parseBradescoExcel(selectedFile);
+    }
+  }, []);
+
+  const parseBradescoExcel = async (file: File) => {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        const faseProcessual = String(row["FASE PROCESSUAL"] || "").trim();
+        let statusMapped: "ativo" | "encerrado" | "pendente" | "urgente" | "arquivado" = "ativo";
+        if (faseProcessual.toLowerCase() === "encerrado") statusMapped = "encerrado";
+        else if (faseProcessual.toLowerCase() === "suspenso") statusMapped = "pendente";
+
+        const processo: ProcessoImport = {
+          numero: String(row["PROCESSO"] || "").trim(),
+          assunto: null,
+          situacao: faseProcessual || null,
+          responsavel: null,
+          descricao: null,
+          justica: "Trabalho",
+          cidade: null,
+          estado: null,
+          instancia: null,
+          orgao: null,
+          orgaoJulgador: row["ORGAO_JULGADOR"] || null,
+          sistema: null,
+          area: "trabalhista",
+          fase: faseProcessual || null,
+          dataDistribuicao: null,
+          classeCNJ: null,
+          valorAcao: null,
+          parteAtiva: row["RECLAMANTE"] || null,
+          partePassiva: "BANCO BRADESCO S.A.",
+          cpfCnpjAtivo: null,
+          cpfCnpjPassivo: null,
+          status: "pendente",
+          erros: [],
+          linhaOriginal: index + 2,
+          identificadorProjuris: row["GCPJ"] ? String(row["GCPJ"]).trim() : null,
+        };
+
+        (processo as any).bradescoData = {
+          gcpj: row["GCPJ"] ? String(row["GCPJ"]).trim() : null,
+          tramitacao: row["TRAMITAÇÃO"] || row["TRAMITACAO"] || null,
+          andamento: row["ANDAMENTO"] || null,
+          statusMapped,
+        };
+
+        processo.erros = validateProcesso(processo);
+        const hasCriticalError = !processo.numero || processo.numero.trim() === "" || processo.numero.trim().length < 5;
+        processo.status = hasCriticalError ? "invalido" : "valido";
+
+        return processo;
+      });
+
+      setBradescoProcessos(parsed);
+
+      const validCount = parsed.filter(p => p.status === "valido").length;
+      const invalidCount = parsed.filter(p => p.status === "invalido").length;
+
+      if (parsed.length === 0) {
+        toast({ title: "Nenhum processo encontrado", description: "A planilha não contém dados.", variant: "destructive" });
+      } else {
+        toast({ title: "Planilha Bradesco carregada", description: `${parsed.length} linha(s): ${validCount} válida(s), ${invalidCount} com erro(s).`, variant: invalidCount > 0 ? "destructive" : "default" });
+      }
+    } catch (error) {
+      console.error("Erro ao ler planilha Bradesco:", error);
+      toast({ title: "Erro ao ler planilha", description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).", variant: "destructive" });
+    }
+  };
+
+  const handleBradescoImport = async () => {
+    const importableProcessos = bradescoProcessos.filter(p => p.status === "valido");
+    if (importableProcessos.length === 0) {
+      toast({ title: "Nenhum processo importável", description: "Todos os processos têm número inválido ou ausente.", variant: "destructive" });
+      return;
+    }
+
+    setBradescoImporting(true);
+    bradescoCancelledRef.current = false;
+    startImport("Importando Bradesco");
+    setBradescoProgress(0);
+
+    const updatedProcessos = [...bradescoProcessos];
+    let successCountLocal = 0;
+    let updateCountLocal = 0;
+    let errorCountLocal = 0;
+
+    for (let i = 0; i < updatedProcessos.length; i++) {
+      if (bradescoCancelledRef.current) {
+        toast({ title: "Importação cancelada", description: `Cancelada após processar ${i} de ${updatedProcessos.length} registros.` });
+        setBradescoImporting(false);
+        endImport();
+        return;
+      }
+
+      const processo = updatedProcessos[i];
+      if (processo.status === "invalido") continue;
+
+      try {
+        const bradescoData = (processo as any).bradescoData || {};
+
+        const { data: existingProcesso } = await supabase
+          .from("processos")
+          .select("id, coordenacao_id, advogado_responsavel_id")
+          .eq("numero", processo.numero.trim())
+          .maybeSingle();
+
+        const processoData: Record<string, any> = {
+          numero: processo.numero.trim(),
+          area: "trabalhista",
+          status: bradescoData.statusMapped || "ativo",
+          situacao_original: processo.situacao,
+          vara: processo.orgaoJulgador,
+          fase: processo.fase,
+          polo_ativo: processo.parteAtiva,
+          polo_passivo: "BANCO BRADESCO S.A.",
+          justica: "Trabalho",
+          coordenacao_id: selectedCoordenacao || null,
+          advogado_responsavel_id: selectedMembro || null,
+          cliente_id: selectedCliente || null,
+          monitorar_andamentos: bradescoBuscarAndamentos,
+          identificador_projuris: bradescoData.gcpj,
+          andamento_atual: bradescoData.andamento,
+          tribunal: bradescoData.tramitacao,
+        };
+
+        let isUpdate = false;
+
+        if (existingProcesso) {
+          const updateData: Record<string, any> = { ...processoData };
+          if ((existingProcesso as any).coordenacao_id && !selectedCoordenacao) delete updateData.coordenacao_id;
+          if ((existingProcesso as any).advogado_responsavel_id && !selectedMembro) delete updateData.advogado_responsavel_id;
+
+          const { error } = await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+          isUpdate = true;
+          updateCountLocal++;
+        } else {
+          const { data: insertedProcesso, error } = await supabase
+            .from("processos")
+            .insert(processoData as any)
+            .select("id")
+            .single();
+
+          if (error) {
+            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            errorCountLocal++;
+            continue;
+          }
+
+          if (bradescoBuscarAndamentos && insertedProcesso) {
+            const andamentosRes = await buscarAndamentosExternos(insertedProcesso.id, processo.numero.trim());
+            if (!andamentosRes.success) {
+              console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
+            }
+          }
+          successCountLocal++;
+        }
+
+        updatedProcessos[i] = { ...processo, status: "sucesso", erroImport: isUpdate ? "Atualizado (já existia)" : undefined };
+      } catch (err: any) {
+        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
+        errorCountLocal++;
+      }
+
+      setBradescoProgress(((i + 1) / updatedProcessos.length) * 100);
+      setBradescoProcessos([...updatedProcessos]);
+    }
+
+    setBradescoImporting(false);
+    endImport();
+
+    toast({
+      title: "Importação Bradesco concluída",
+      description: `${successCountLocal} novo(s), ${updateCountLocal} atualizado(s), ${errorCountLocal} erro(s).`,
+      variant: errorCountLocal > 0 ? "destructive" : "default",
+    });
+  };
+
+  const clearBradesco = () => {
+    setBradescoFile(null);
+    setBradescoProcessos([]);
+    setBradescoProgress(0);
+  };
+
   // Astrea counts
   const astreaValidCount = astreaProcessos.filter(p => p.status === "valido").length;
   const astreaInvalidCount = astreaProcessos.filter(p => p.status === "invalido").length;
@@ -8339,6 +8539,325 @@ export default function ImportarProcessos() {
                       </Table>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab: Bradesco */}
+          <TabsContent value="bradesco" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Importar Bradesco
+                </CardTitle>
+                <CardDescription>
+                  Importe processos da base Bradesco. Processos existentes terão campos vazios atualizados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">1. Baixe a planilha modelo</h4>
+                  <Button variant="outline" onClick={downloadBradescoTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Modelo Bradesco
+                  </Button>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">2. Faça upload da planilha</h4>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleBradescoFileChange}
+                      className="max-w-xs"
+                      disabled={bradescoImporting}
+                    />
+                    {bradescoFile && (
+                      <Button variant="outline" onClick={clearBradesco} disabled={bradescoImporting}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Coordenação Selection */}
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="coordenacao-bradesco" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Coordenação Responsável
+                  </Label>
+                  <Select 
+                    value={selectedCoordenacao} 
+                    onValueChange={(value) => {
+                      setSelectedCoordenacao(value);
+                      setSelectedMembro("");
+                    }}
+                    disabled={bradescoImporting}
+                  >
+                    <SelectTrigger id="coordenacao-bradesco" className="max-w-md">
+                      <SelectValue placeholder="Selecione a coordenação (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.nome} ({coord.area})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Member Selection */}
+                {selectedCoordenacao && membrosDisponiveis.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="membro-bradesco" className="flex items-center gap-2">
+                      Advogado Responsável (opcional)
+                    </Label>
+                    <Select 
+                      value={selectedMembro} 
+                      onValueChange={setSelectedMembro}
+                      disabled={bradescoImporting}
+                    >
+                      <SelectTrigger id="membro-bradesco" className="max-w-md">
+                        <SelectValue placeholder="Selecione o advogado responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membrosDisponiveis.map((membro) => (
+                          <SelectItem key={membro.id} value={membro.id}>
+                            {membro.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Cliente Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="cliente-bradesco" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Cliente
+                  </Label>
+                  <Select 
+                    value={selectedCliente} 
+                    onValueChange={setSelectedCliente}
+                    disabled={bradescoImporting}
+                  >
+                    <SelectTrigger id="cliente-bradesco" className="max-w-md">
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} ({cliente.tipo === "pessoa_fisica" ? "PF" : "PJ"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Opção de buscar andamentos */}
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="buscar-andamentos-bradesco" className="flex items-center gap-2 font-medium">
+                      <Clock className="h-4 w-4" />
+                      Buscar andamentos na importação
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {bradescoBuscarAndamentos 
+                        ? "Os andamentos serão buscados durante a importação e o processo ficará habilitado para monitoramento automático."
+                        : "Os andamentos NÃO serão buscados e o processo ficará desabilitado para monitoramento."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="buscar-andamentos-bradesco"
+                    checked={bradescoBuscarAndamentos}
+                    onCheckedChange={setBradescoBuscarAndamentos}
+                    disabled={bradescoImporting}
+                  />
+                </div>
+
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Colunas reconhecidas:</strong> GCPJ, RECLAMANTE, PROCESSO, ORGAO_JULGADOR, TRAMITAÇÃO, FASE PROCESSUAL, ANDAMENTO.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Bradesco File Preview */}
+            {bradescoFile && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle>Pré-visualização Bradesco</CardTitle>
+                      <CardDescription>
+                        {bradescoProcessos.length} processo(s) encontrado(s) em "{bradescoFile.name}"
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {bradescoProcessos.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                            {bradescoValidCount} importáveis
+                          </Badge>
+                          {bradescoWarningCount > 0 && (
+                            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-200">
+                              {bradescoWarningCount} com avisos
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                            {bradescoInvalidCount} rejeitados
+                          </Badge>
+                          {bradescoSuccessCount > 0 && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                              {bradescoSuccessCount} importados
+                            </Badge>
+                          )}
+                          {bradescoErrorCount > 0 && (
+                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                              {bradescoErrorCount} erros
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {bradescoImporting ? (
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => { bradescoCancelledRef.current = true; }}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={clearBradesco}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Limpar
+                          </Button>
+                        )}
+                        <Button 
+                          onClick={handleBradescoImport} 
+                          disabled={bradescoImporting || bradescoValidCount === 0}
+                        >
+                          {bradescoImporting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Importando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Importar ({bradescoValidCount})
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {bradescoImporting && (
+                    <Progress value={bradescoProgress} className="mt-4" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {bradescoProcessos.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum processo encontrado na planilha. Verifique se é uma planilha Bradesco.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-[500px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Linha</TableHead>
+                              <TableHead className="w-[60px]">Status</TableHead>
+                              <TableHead>GCPJ</TableHead>
+                              <TableHead>Processo</TableHead>
+                              <TableHead>Reclamante</TableHead>
+                              <TableHead>Órgão Julgador</TableHead>
+                              <TableHead>Fase</TableHead>
+                              <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {bradescoProcessos.map((processo, index) => (
+                              <TableRow key={index} className={
+                                processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : 
+                                processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : 
+                                (processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                              }>
+                                <TableCell className="text-muted-foreground">
+                                  {processo.linhaOriginal}
+                                </TableCell>
+                                <TableCell>
+                                  {processo.status === "valido" && processo.erros.length === 0 && (
+                                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length > 0 && (
+                                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  {processo.status === "invalido" && (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  {processo.status === "sucesso" && (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                  )}
+                                  {processo.status === "erro" && (
+                                    <XCircle className="h-4 w-4 text-orange-500" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {(processo as any).bradescoData?.gcpj || "-"}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {processo.numero || <span className="text-red-500 italic">vazio</span>}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.parteAtiva || "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[150px] truncate">
+                                  {processo.orgaoJulgador || "-"}
+                                </TableCell>
+                                <TableCell>{processo.fase || "-"}</TableCell>
+                                <TableCell className="text-sm">
+                                  {processo.status === "invalido" && processo.erros.length > 0 && (
+                                    <div className="text-red-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>• {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {(processo.status === "valido" || processo.status === "sucesso") && processo.erros.length > 0 && (
+                                    <div className="text-yellow-600 space-y-1">
+                                      {processo.erros.map((erro, i) => (
+                                        <div key={i}>⚠ {erro.campo}: {erro.mensagem}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {processo.erroImport && (
+                                    <div className="text-orange-600">• Importação: {processo.erroImport}</div>
+                                  )}
+                                  {processo.status === "valido" && processo.erros.length === 0 && "-"}
+                                  {processo.status === "sucesso" && processo.erros.length === 0 && <span className="text-blue-600">Importado com sucesso</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
