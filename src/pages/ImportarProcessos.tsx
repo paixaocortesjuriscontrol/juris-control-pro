@@ -5758,8 +5758,11 @@ export default function ImportarProcessos() {
 
         if (existingProcesso) {
           const updateData: Record<string, any> = { ...processoData };
-          if ((existingProcesso as any).coordenacao_id && !selectedCoordenacao) delete updateData.coordenacao_id;
-          if ((existingProcesso as any).advogado_responsavel_id && !selectedMembro) delete updateData.advogado_responsavel_id;
+          // Sempre atualizar cliente e responsável com os valores selecionados
+          // Só preservar coordenacao/responsável se nenhum valor foi selecionado
+          if (!selectedCoordenacao) delete updateData.coordenacao_id;
+          if (!selectedMembro) delete updateData.advogado_responsavel_id;
+          if (!selectedCliente) delete updateData.cliente_id;
 
           const { error } = await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
           if (error) {

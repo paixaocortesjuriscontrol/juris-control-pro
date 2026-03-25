@@ -340,10 +340,13 @@ const Processos = () => {
 
   const { data: processosRedistribuidos } = useProcessosComRedistribuicaoRecente();
 
-  // Reset page when filters change
+  // Reset page when filters change — use serialized filtrosAplicados to avoid
+  // spurious resets caused by object-reference changes from functional setState.
+  const filtrosAplicadosKey = JSON.stringify(filtrosAplicados);
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicados, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, clienteIds, tipoProcessoFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, clienteIds, tipoProcessoFilter]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
