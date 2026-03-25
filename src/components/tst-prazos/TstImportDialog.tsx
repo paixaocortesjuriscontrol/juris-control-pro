@@ -113,7 +113,6 @@ function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
   const range = XLSX.utils.decode_range(ref);
   const rows: unknown[][] = [];
   for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex++) {
-    // Include hidden rows too
     const row: unknown[] = [];
     for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex++) {
       const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
@@ -126,6 +125,18 @@ function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
     rows.push(row);
   }
   return rows;
+}
+
+/** Try to find the header row by looking for a row that contains "processo" */
+function detectHeaderRow(rows: unknown[][]): number {
+  const maxScan = Math.min(rows.length, 10);
+  for (let i = 0; i < maxScan; i++) {
+    const rowStr = rows[i].map((c) => String(c ?? "").toLowerCase()).join("|");
+    if (rowStr.includes("processo")) {
+      return i;
+    }
+  }
+  return 0;
 }
 
 export function TstImportDialog({
@@ -184,6 +195,7 @@ export function TstImportDialog({
       setProgress(40);
 
       console.log("[TST Import] Total rows (incl header):", rows.length);
+      console.log("[TST Import] First 5 rows raw:", rows.slice(0, 5).map((r, i) => ({ row: i, cells: r.map((c) => ({ value: c, type: typeof c })) })));
 
       if (rows.length < 2) {
         toast.error("Planilha vazia ou sem dados suficientes.");
@@ -192,10 +204,11 @@ export function TstImportDialog({
         return;
       }
 
-      const headers = rows[0].map((h) => String(h ?? ""));
-      console.log("[TST Import] Headers:", headers);
+      const headerRowIdx = detectHeaderRow(rows);
+      const headers = rows[headerRowIdx].map((h) => String(h ?? ""));
+      console.log("[TST Import] Header row index:", headerRowIdx, "Headers:", headers);
 
-      const detectedFatalColumn = findColumn(headers, ["data fatal", "dt fatal", "prazo fatal", "fatal", "data limite", "vencimento"]);
+      const detectedFatalColumn = findColumn(headers, ["data fatal", "dt fatal", "prazo fatal", "fatal", "data limite", "vencimento", "prazo"]);
       const colFatal = detectedFatalColumn >= 0 ? detectedFatalColumn : 1;
       const colDossie = findColumn(headers, ["dossi", "dossie"]);
       const colProcesso = findColumn(headers, ["processo"]);
@@ -243,9 +256,13 @@ export function TstImportDialog({
       let skippedCount = 0;
       let dateDebugCount = 0;
 
-      for (let i = 1; i < rows.length; i++) {
+      const dataStartRow = headerRowIdx + 1;
+      console.log("[TST Import] Data starts at row index:", dataStartRow, "(Excel row", dataStartRow + 1, ")");
+
+      for (let i = dataStartRow; i < rows.length; i++) {
         const row = rows[i];
-        const fatalCell = colFatal >= 0 ? ws[XLSX.utils.encode_cell({ r: i, c: colFatal })] : undefined;
+        const excelRowIdx = i; // rows array is 0-indexed matching Excel sheet rows
+        const fatalCell = colFatal >= 0 ? ws[XLSX.utils.encode_cell({ r: excelRowIdx, c: colFatal })] : undefined;
         const rawFatalValue = fatalCell?.v ?? row[colFatal];
         const formattedFatalValue = fatalCell?.w ?? null;
         const parsedFromFormatted = formattedFatalValue ? parseExcelDate(formattedFatalValue) : null;
