@@ -246,7 +246,7 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
               funcao: String(row["FUNCAO"] || "").trim(),
               preposto: String(row["PREPOSTO"] || "").trim(),
               testemunhas: String(row["TESTEMUNHAS"] || "").trim(),
-              advogado: String(row["ADV_INTERNO"] || row["ADVOGADO"] || "").trim(),
+              advogado: String(row["ADV_INTERNO"] || row["ADVOGADO"] || row["ADVOGADO_INTERNO"] || "").trim(),
               equipe: String(row["EQUIPE"] || "").trim(),
               nucleo_origem: String(row["ORIGEM"] || "").trim(),
               dossie: String(row["DOSSIE"] || row["DOSSIER"] || "").trim(),
