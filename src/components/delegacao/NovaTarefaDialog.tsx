@@ -463,7 +463,7 @@ export function NovaTarefaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-172px)] px-6">
+        <ScrollArea className="flex-1 min-h-0 px-6">
           <Form {...form}>
             <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {/* Tipo de Vínculo */}
