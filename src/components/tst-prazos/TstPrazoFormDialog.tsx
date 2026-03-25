@@ -41,7 +41,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
     setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (!dataFatal) return;
+    if (!dataFatal || !coordenacaoId) return;
 
     await onSave({
       numero: form.numero || "SEM-NUMERO",
