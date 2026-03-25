@@ -95,44 +95,28 @@ interface AudienciasFiltros {
 export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
   const queryClient = useQueryClient();
 
-  // Stats via COUNT no banco (sem limite)
+  // Stats via COUNT no banco (sem limite) - single query with filters pushed to DB
   const { data: statsData } = useQuery({
     queryKey: ['audiencias-stats', filtros.coordenacaoId],
     queryFn: async () => {
       const coordAtiva = filtros.coordenacaoId && filtros.coordenacaoId !== 'todas';
-      
-      let processosIds: string[] = [];
-      if (coordAtiva) {
-        const { data: processosCoord } = await supabase
-          .from('processos')
-          .select('id')
-          .eq('coordenacao_id', filtros.coordenacaoId as string);
-        processosIds = (processosCoord || []).map(p => p.id);
-      }
 
-      // Build base query helper
+      const hoje = new Date().toISOString().split('T')[0];
+      const em7Dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
       const buildQuery = (status?: string) => {
         let q = supabase.from('audiencias_detectadas').select('*', { count: 'exact', head: true });
         if (status) q = q.eq('status', status);
         if (coordAtiva) {
-          // Filter by coordenacao_id OR processo_id
-          if (processosIds && processosIds.length > 0) {
-            q = q.or(`coordenacao_id.eq.${filtros.coordenacaoId},processo_id.in.(${processosIds.join(',')})`);
-          } else {
-            q = q.eq('coordenacao_id', filtros.coordenacaoId as string);
-          }
+          q = q.eq('coordenacao_id', filtros.coordenacaoId as string);
         }
         return q;
       };
-
-      const hoje = new Date().toISOString().split('T')[0];
-      const em7Dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
       const [pendentesRes, tratadasRes, ignoradasRes, proximasRes] = await Promise.all([
         buildQuery('pendente'),
         buildQuery('tratado'),
         buildQuery('ignorado'),
-        // Próximas: pendente E data_audiencia entre hoje e 7 dias
         buildQuery('pendente').gte('data_audiencia', hoje).lte('data_audiencia', em7Dias),
       ]);
 
@@ -146,36 +130,27 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
     staleTime: 30000,
   });
 
-  // Buscar audiências com paginação para a lista
+  // Buscar audiências com filtros no banco (sem paginação multi-loop)
   const { data: audiencias = [], isLoading } = useQuery({
     queryKey: ['audiencias-detectadas', filtros],
     queryFn: async () => {
-      // Se filtro de coordenação está ativo, buscar processos dessa coordenação
-      let processosIdsFiltro: string[] | null = null;
-      let processosNumerosFiltro: string[] | null = null;
-      
-      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
-        const { data: processosCoord } = await supabase
-          .from('processos')
-          .select('id, numero')
-          .eq('coordenacao_id', filtros.coordenacaoId);
-
-        if (processosCoord && processosCoord.length > 0) {
-          processosIdsFiltro = processosCoord.map(p => p.id);
-          processosNumerosFiltro = processosCoord.map(p => p.numero);
-        }
-      }
-
       let query = supabase
         .from('audiencias_detectadas')
         .select(`
           *,
           monitoramento:monitoramentos_djen(termo_busca, descricao)
         `)
-        .order('data_audiencia', { ascending: true, nullsFirst: false });
+        .order('data_audiencia', { ascending: true, nullsFirst: false })
+        .limit(2000);
 
+      // Filtro de status no banco
       if (filtros.status && filtros.status !== 'todos') {
         query = query.eq('status', filtros.status);
+      }
+
+      // Filtro de coordenação no banco
+      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
+        query = query.eq('coordenacao_id', filtros.coordenacaoId);
       }
 
       if (filtros.dataInicio) {
@@ -186,45 +161,18 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         query = query.lte('data_audiencia', filtros.dataFim);
       }
 
-      // Paginar em lotes de 1000 para evitar limite
-      const PAGE_SIZE = 1000;
-      const MAX_PAGES = 10;
-      const allData: any[] = [];
-
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        const { data: pageData, error } = await query.range(from, to);
-        if (error) throw error;
-        allData.push(...(pageData || []));
-        if (!pageData || pageData.length < PAGE_SIZE) break;
-      }
-
-      let result = allData as AudienciaDetectada[];
-      
-      // Filtro de coordenação: por coordenacao_id direto, processo_id OU processo_numero
-      if (filtros.coordenacaoId && filtros.coordenacaoId !== 'todas') {
-        result = result.filter(a => 
-          a.coordenacao_id === filtros.coordenacaoId ||
-          (a.processo_id && processosIdsFiltro && processosIdsFiltro.includes(a.processo_id)) ||
-          (a.processo_numero && processosNumerosFiltro && processosNumerosFiltro.includes(a.processo_numero))
-        );
-      }
-      
-      // Filtrar por busca no client-side
+      // Filtro de busca textual no banco
       if (filtros.search) {
-        const searchLower = filtros.search.toLowerCase();
-        result = result.filter(a => 
-          a.processo_numero?.toLowerCase().includes(searchLower) ||
-          a.contexto?.toLowerCase().includes(searchLower) ||
-          a.tipo_audiencia?.toLowerCase().includes(searchLower) ||
-          a.cliente?.toLowerCase().includes(searchLower) ||
-          a.advogado?.toLowerCase().includes(searchLower) ||
-          a.comarca?.toLowerCase().includes(searchLower)
+        const s = filtros.search.trim();
+        query = query.or(
+          `processo_numero.ilike.%${s}%,cliente.ilike.%${s}%,advogado.ilike.%${s}%,comarca.ilike.%${s}%,tipo_audiencia.ilike.%${s}%,dossie.ilike.%${s}%`
         );
       }
+
+      const { data, error } = await query;
+      if (error) throw error;
       
-      return result;
+      return (data || []) as AudienciaDetectada[];
     },
   });
 
