@@ -99,6 +99,14 @@ export const TEMPLATES = {
     ],
     sheetName: "Distribuições TST",
     fileName: "MODELO_IMPORTACAO_DR_RENATA_TST.xlsx"
+  },
+  bradesco: {
+    columns: [
+      "GCPJ", "RECLAMANTE", "PROCESSO", "ORGAO_JULGADOR",
+      "TRAMITAÇÃO", "FASE PROCESSUAL", "ANDAMENTO"
+    ],
+    sheetName: "Bradesco",
+    fileName: "MODELO_IMPORTACAO_BRADESCO.xlsx"
   }
 };
 
@@ -128,4 +136,8 @@ export function downloadPedidosTemplate() {
 
 export function downloadRenataTemplate() {
   downloadTemplateExcel(TEMPLATES.renata.columns, TEMPLATES.renata.sheetName, TEMPLATES.renata.fileName);
+}
+
+export function downloadBradescoTemplate() {
+  downloadTemplateExcel(TEMPLATES.bradesco.columns, TEMPLATES.bradesco.sheetName, TEMPLATES.bradesco.fileName);
 }
