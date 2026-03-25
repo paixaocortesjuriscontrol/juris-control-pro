@@ -143,7 +143,7 @@ export function TstPrazoFormDialog({ open, onClose, onSave, coordenacaoId, isSav
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={!dataFatal || isSaving}>
+          <Button onClick={handleSubmit} disabled={!dataFatal || !coordenacaoId || isSaving}>
             {isSaving ? "Salvando..." : "Salvar"}
           </Button>
         </div>
