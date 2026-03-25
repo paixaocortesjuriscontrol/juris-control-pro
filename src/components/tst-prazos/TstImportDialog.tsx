@@ -18,8 +18,8 @@ interface Props {
   onClose: () => void;
   coordenacaoId: string | null;
   coordenacoes: { id: string; nome: string }[];
-  onImport: (items: ProcessoTstImport[]) => Promise<any>;
-  onClearAndImport: (data: { coordenacaoId: string; items: ProcessoTstImport[] }) => Promise<any>;
+  onImport: (data: { items: ProcessoTstImport[]; onProgress?: (done: number, total: number) => void }) => Promise<any>;
+  onClearAndImport: (data: { coordenacaoId: string; items: ProcessoTstImport[]; onProgress?: (done: number, total: number) => void }) => Promise<any>;
   isImporting: boolean;
   onCoordenacaoChange: (id: string) => void;
 }
@@ -172,6 +172,7 @@ export function TstImportDialog({
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [defaultResponsavelId, setDefaultResponsavelId] = useState<string>("");
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Fetch membros for selected coordenação
@@ -402,6 +403,9 @@ export function TstImportDialog({
     const effectiveCoordId = coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : null;
     if (!effectiveCoordId || preview.length === 0) return;
 
+    setImportProgress({ done: 0, total: preview.length });
+    const onProgress = (done: number, total: number) => setImportProgress({ done, total });
+
     // Inject criado_por_tst and responsavel_tst_id into all items
     const enrichedItems = preview.map((item) => ({
       ...item,
@@ -411,13 +415,14 @@ export function TstImportDialog({
     }));
 
     if (clearBefore) {
-      await onClearAndImport({ coordenacaoId: effectiveCoordId, items: enrichedItems });
+      await onClearAndImport({ coordenacaoId: effectiveCoordId, items: enrichedItems, onProgress });
     } else {
-      await onImport(enrichedItems);
+      await onImport({ items: enrichedItems, onProgress });
     }
 
     setPreview([]);
     setProgress(0);
+    setImportProgress(null);
     setDefaultResponsavelId("");
     if (fileRef.current) fileRef.current.value = "";
     onClose();
@@ -465,11 +470,19 @@ export function TstImportDialog({
             <Label>Arquivo XLSX</Label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="mt-1 block w-full text-sm" />
           </div>
-          {(parsing || progress > 0) && (
+          {(parsing || progress > 0) && !isImporting && (
             <div className="space-y-1">
               <Progress value={progress} className="h-2" />
               <p className="text-xs text-muted-foreground">
                 {parsing ? "Processando planilha..." : `${preview.length} registros encontrados`}
+              </p>
+            </div>
+          )}
+          {isImporting && importProgress && (
+            <div className="space-y-1">
+              <Progress value={Math.round((importProgress.done / Math.max(importProgress.total, 1)) * 100)} className="h-2" />
+              <p className="text-xs text-muted-foreground">
+                Importando {importProgress.done} de {importProgress.total} registros...
               </p>
             </div>
           )}
