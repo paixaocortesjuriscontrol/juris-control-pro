@@ -88,7 +88,7 @@ export function TstImportDialog({
   onImport, onClearAndImport, isImporting, onCoordenacaoChange,
 }: Props) {
   const { user } = useAuth();
-  const [clearBefore, setClearBefore] = useState(true);
+  const [clearBefore, setClearBefore] = useState(false);
   const [preview, setPreview] = useState<ProcessoTstImport[]>([]);
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState(0);
