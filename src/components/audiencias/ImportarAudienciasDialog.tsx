@@ -295,60 +295,85 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
       return;
     }
 
+    // Preparar todos os registros para inserção em lote
+    const allRecords = rows.map((row) => {
+      const dataAudiencia = row.data
+        ? `${row.data}T${row.hora_brasilia || row.hora_local || '12:00'}:00-03:00`
+        : null;
+
+      return {
+        processo_numero: row.processo_numero || null,
+        data_audiencia: dataAudiencia,
+        hora: row.hora_local || null,
+        hora_local: row.hora_local || null,
+        hora_brasilia: row.hora_brasilia || null,
+        tipo_audiencia: row.tipo_audiencia || null,
+        vara_camara: row.vara_camara || null,
+        comarca: row.comarca || null,
+        polo_ativo: row.polo_ativo || null,
+        cliente: row.cliente || null,
+        terceirizado: row.terceirizado || null,
+        resumo_objeto: row.resumo_objeto || null,
+        funcao: row.funcao || null,
+        preposto: row.preposto || null,
+        testemunhas: row.testemunhas || null,
+        advogado: row.advogado || null,
+        modalidade: row.modalidade || null,
+        equipe: row.equipe || null,
+        nucleo_origem: row.nucleo_origem || null,
+        dossie: row.dossie || null,
+        coordenacao_id: coordenacaoId,
+        origem: 'manual',
+        criado_por: user.id,
+        status: 'pendente',
+      };
+    });
+
+    // Inserir em lotes de 200 para não exceder limites
+    const BATCH_SIZE = 200;
     let successCount = 0;
     let errorCount = 0;
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+    for (let batchStart = 0; batchStart < allRecords.length; batchStart += BATCH_SIZE) {
+      const batch = allRecords.slice(batchStart, batchStart + BATCH_SIZE);
 
       try {
-        const dataAudiencia = row.data
-          ? `${row.data}T${row.hora_brasilia || row.hora_local || '12:00'}:00-03:00`
-          : null;
-
         const { error } = await supabase
           .from('audiencias_detectadas')
-          .insert({
-            processo_numero: row.processo_numero || null,
-            data_audiencia: dataAudiencia,
-            hora: row.hora_local || null,
-            hora_local: row.hora_local || null,
-            hora_brasilia: row.hora_brasilia || null,
-            tipo_audiencia: row.tipo_audiencia || null,
-            vara_camara: row.vara_camara || null,
-            comarca: row.comarca || null,
-            polo_ativo: row.polo_ativo || null,
-            cliente: row.cliente || null,
-            terceirizado: row.terceirizado || null,
-            resumo_objeto: row.resumo_objeto || null,
-            funcao: row.funcao || null,
-            preposto: row.preposto || null,
-            testemunhas: row.testemunhas || null,
-            advogado: row.advogado || null,
-            modalidade: row.modalidade || null,
-            equipe: row.equipe || null,
-            nucleo_origem: row.nucleo_origem || null,
-            dossie: row.dossie || null,
-            coordenacao_id: coordenacaoId,
-            origem: 'manual',
-            criado_por: user.id,
-            status: 'pendente',
-          });
+          .insert(batch);
 
         if (error) throw error;
 
+        // Marcar todas do lote como sucesso
         setRows(prev => prev.map((r, idx) =>
-          idx === i ? { ...r, status: 'sucesso' } : r
+          idx >= batchStart && idx < batchStart + batch.length
+            ? { ...r, status: 'sucesso' }
+            : r
         ));
-        successCount++;
+        successCount += batch.length;
       } catch (error: any) {
-        setRows(prev => prev.map((r, idx) =>
-          idx === i ? { ...r, status: 'erro', erro: error.message } : r
-        ));
-        errorCount++;
+        // Se o lote falhou, tentar individualmente para identificar quais falharam
+        for (let j = 0; j < batch.length; j++) {
+          const globalIdx = batchStart + j;
+          try {
+            const { error: singleError } = await supabase
+              .from('audiencias_detectadas')
+              .insert(batch[j]);
+            if (singleError) throw singleError;
+            setRows(prev => prev.map((r, idx) =>
+              idx === globalIdx ? { ...r, status: 'sucesso' } : r
+            ));
+            successCount++;
+          } catch (singleErr: any) {
+            setRows(prev => prev.map((r, idx) =>
+              idx === globalIdx ? { ...r, status: 'erro', erro: singleErr.message } : r
+            ));
+            errorCount++;
+          }
+        }
       }
 
-      setProgress(((i + 1) / rows.length) * 100);
+      setProgress(((batchStart + batch.length) / allRecords.length) * 100);
     }
 
     setIsImporting(false);
