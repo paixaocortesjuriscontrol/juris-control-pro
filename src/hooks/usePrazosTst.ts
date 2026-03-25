@@ -55,6 +55,56 @@ const TST_SELECT = `
   status_tst, status, created_at, updated_at
 `;
 
+/** Extract TST-only fields for update (exclude numero, area, status, _existing_id) */
+function extractTstFields(item: ProcessoTstImport) {
+  const { _existing_id, numero, area, status, ...tst } = item;
+  return tst;
+}
+
+/** Perform the actual import (update existing + insert new) */
+async function performImport(items: ProcessoTstImport[]) {
+  const toUpdate = items.filter((i) => i._existing_id);
+  const toInsert = items.filter((i) => !i._existing_id);
+
+  // Update existing processos with TST fields
+  for (const item of toUpdate) {
+    const tst = extractTstFields(item);
+    const { error } = await supabase
+      .from("processos")
+      .update(tst as any)
+      .eq("id", item._existing_id!);
+    if (error) throw error;
+  }
+
+  // Insert new processos one-by-one to handle duplicates gracefully
+  if (toInsert.length > 0) {
+    for (const item of toInsert) {
+      const { _existing_id, ...rest } = item;
+      const row = {
+        ...rest,
+        area: rest.area || "trabalhista",
+        status: (rest.status || "ativo") as any,
+      };
+
+      // Try insert; if duplicate key on numero, update instead
+      const { error } = await supabase.from("processos").insert(row as any);
+      if (error) {
+        if (error.code === "23505" && error.message?.includes("numero")) {
+          // Duplicate numero - update the existing record instead
+          const tst = extractTstFields(item);
+          const { error: updateErr } = await supabase
+            .from("processos")
+            .update(tst as any)
+            .eq("numero", item.numero);
+          if (updateErr) throw updateErr;
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+}
+
 export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[]) {
   const queryClient = useQueryClient();
   const isAll = coordenacaoId === "todas";
@@ -112,29 +162,7 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
 
   const bulkImportMutation = useMutation({
     mutationFn: async (items: ProcessoTstImport[]) => {
-      const toUpdate = items.filter((i) => i._existing_id);
-      const toInsert = items.filter((i) => !i._existing_id);
-
-      // Update existing processos with TST fields
-      for (const item of toUpdate) {
-        const { _existing_id, numero, area, status, ...tst } = item;
-        const { error } = await supabase
-          .from("processos")
-          .update(tst as any)
-          .eq("id", _existing_id!);
-        if (error) throw error;
-      }
-
-      // Insert new processos
-      if (toInsert.length > 0) {
-        const rows = toInsert.map(({ _existing_id, ...rest }) => ({
-          ...rest,
-          area: rest.area || "trabalhista",
-          status: (rest.status || "ativo") as any,
-        }));
-        const { error } = await supabase.from("processos").insert(rows as any[]);
-        if (error) throw error;
-      }
+      await performImport(items);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["processos-tst"] });
@@ -158,34 +186,15 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
           preparo_tst: null,
           multa_custas_tst: null,
           responsavel_tst: null,
+          responsavel_tst_id: null,
+          criado_por_tst: null,
         } as any)
         .eq("coordenacao_id", cid)
         .not("data_fatal", "is", null);
       if (clearErr) throw clearErr;
 
-      // Now import
       if (items.length > 0) {
-        const toUpdate = items.filter((i) => i._existing_id);
-        const toInsert = items.filter((i) => !i._existing_id);
-
-        for (const item of toUpdate) {
-          const { _existing_id, numero, area, status, ...tst } = item;
-          const { error } = await supabase
-            .from("processos")
-            .update(tst as any)
-            .eq("id", _existing_id!);
-          if (error) throw error;
-        }
-
-        if (toInsert.length > 0) {
-          const rows = toInsert.map(({ _existing_id, ...rest }) => ({
-            ...rest,
-            area: rest.area || "trabalhista",
-            status: (rest.status || "ativo") as any,
-          }));
-          const { error } = await supabase.from("processos").insert(rows as any[]);
-          if (error) throw error;
-        }
+        await performImport(items);
       }
     },
     onSuccess: () => {

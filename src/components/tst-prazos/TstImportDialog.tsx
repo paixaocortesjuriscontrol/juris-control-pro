@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +9,8 @@ import { Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { ProcessoTstImport } from "@/hooks/usePrazosTst";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 
 interface Props {
   open: boolean;
@@ -19,6 +21,11 @@ interface Props {
   onClearAndImport: (data: { coordenacaoId: string; items: ProcessoTstImport[] }) => Promise<any>;
   isImporting: boolean;
   onCoordenacaoChange: (id: string) => void;
+}
+
+interface Membro {
+  id: string;
+  nome: string;
 }
 
 function parseExcelDate(val: unknown): string | null {
@@ -79,11 +86,39 @@ export function TstImportDialog({
   open, onClose, coordenacaoId, coordenacoes,
   onImport, onClearAndImport, isImporting, onCoordenacaoChange,
 }: Props) {
+  const { user } = useAuth();
   const [clearBefore, setClearBefore] = useState(true);
   const [preview, setPreview] = useState<ProcessoTstImport[]>([]);
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [defaultResponsavelId, setDefaultResponsavelId] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Fetch membros for selected coordenação
+  const activeCoordId = coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : "";
+  const { data: membros = [] } = useQuery<Membro[]>({
+    queryKey: ["tst-import-membros", activeCoordId],
+    queryFn: async () => {
+      if (!activeCoordId) return [];
+      const { data } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id, usuario:profiles_basic!membros_coordenacao_usuario_id_fkey(id, nome)")
+        .eq("coordenacao_id", activeCoordId);
+      return (data ?? [])
+        .map((m: any) => ({
+          id: m.usuario?.id ?? m.usuario_id,
+          nome: m.usuario?.nome ?? "Sem nome",
+        }))
+        .filter((m) => m.id);
+    },
+    enabled: open && !!activeCoordId,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setDefaultResponsavelId("");
+    }
+  }, [open, activeCoordId]);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -119,15 +154,19 @@ export function TstImportDialog({
     const colResponsavel = findColumn(headers, ["responsável", "responsavel"]);
     setProgress(55);
 
-    // Fetch existing processos for matching
+    // Fetch existing processos for matching (by numero and by digits)
     const { data: processos } = await supabase.from("processos").select("id, numero");
-    const processosMap = new Map<string, string>();
+    const processosMapDigits = new Map<string, string>();
+    const processosMapNumero = new Map<string, string>();
     processos?.forEach((p) => {
+      if (p.numero) processosMapNumero.set(p.numero.trim(), p.id);
       const digits = (p.numero || "").replace(/\D/g, "");
-      if (digits.length >= 10) processosMap.set(digits, p.id);
+      if (digits.length >= 10) processosMapDigits.set(digits, p.id);
     });
 
     const parsed: ProcessoTstImport[] = [];
+    // Deduplicate by numero - keep last occurrence (latest data_fatal)
+    const seenNumeros = new Map<string, number>();
     const totalRows = Math.max(rows.length - 1, 1);
 
     for (let i = 1; i < rows.length; i++) {
@@ -137,17 +176,22 @@ export function TstImportDialog({
 
       if (!dataFatal && !numProc) continue;
 
-      // Match to existing processo
+      // Match to existing processo (try exact match first, then digits)
       let existingId: string | null = null;
-      const digits = numProc.replace(/\D/g, "");
-      if (digits.length >= 10) {
-        existingId = processosMap.get(digits) ?? null;
+      if (numProc) {
+        existingId = processosMapNumero.get(numProc) ?? null;
+      }
+      if (!existingId) {
+        const digits = numProc.replace(/\D/g, "");
+        if (digits.length >= 10) {
+          existingId = processosMapDigits.get(digits) ?? null;
+        }
       }
 
-      parsed.push({
+      const item: ProcessoTstImport = {
         _existing_id: existingId,
         numero: numProc || "SEM-NUMERO",
-        coordenacao_id: coordenacaoId,
+        coordenacao_id: coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : null,
         polo_ativo: colAutor >= 0 ? String(row[colAutor] || "").trim() || null : null,
         polo_passivo: colReu >= 0 ? String(row[colReu] || "").trim() || null : null,
         dossie_tst: colDossie >= 0 ? String(row[colDossie] || "").trim() || null : null,
@@ -162,29 +206,51 @@ export function TstImportDialog({
         data_fatal: dataFatal,
         area: "trabalhista",
         status: "ativo",
-      });
+      };
+
+      // Deduplicate: if same numero already seen, replace previous entry
+      const dedupeKey = numProc || `row-${i}`;
+      if (numProc && seenNumeros.has(dedupeKey)) {
+        const prevIdx = seenNumeros.get(dedupeKey)!;
+        parsed[prevIdx] = item; // overwrite with latest
+      } else {
+        seenNumeros.set(dedupeKey, parsed.length);
+        parsed.push(item);
+      }
 
       if (i % 25 === 0 || i === rows.length - 1) {
         setProgress(55 + Math.round((i / totalRows) * 45));
       }
     }
 
-    setPreview(parsed);
+    // Remove nulls from overwritten entries
+    const dedupedParsed = parsed.filter(Boolean);
+    setPreview(dedupedParsed);
     setParsing(false);
     setProgress(100);
   };
 
   const handleConfirm = async () => {
-    if (!coordenacaoId || preview.length === 0) return;
+    const effectiveCoordId = coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : null;
+    if (!effectiveCoordId || preview.length === 0) return;
+
+    // Inject criado_por_tst and responsavel_tst_id into all items
+    const enrichedItems = preview.map((item) => ({
+      ...item,
+      criado_por_tst: user?.id || null,
+      responsavel_tst_id: defaultResponsavelId || null,
+      coordenacao_id: effectiveCoordId,
+    }));
 
     if (clearBefore) {
-      await onClearAndImport({ coordenacaoId, items: preview });
+      await onClearAndImport({ coordenacaoId: effectiveCoordId, items: enrichedItems });
     } else {
-      await onImport(preview);
+      await onImport(enrichedItems);
     }
 
     setPreview([]);
     setProgress(0);
+    setDefaultResponsavelId("");
     if (fileRef.current) fileRef.current.value = "";
     onClose();
   };
@@ -209,6 +275,24 @@ export function TstImportDialog({
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <Label>Responsável padrão (para prazos sem responsável)</Label>
+            <Select value={defaultResponsavelId} onValueChange={setDefaultResponsavelId} disabled={!activeCoordId}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder={activeCoordId ? "Selecione o responsável" : "Selecione a coordenação primeiro"} />
+              </SelectTrigger>
+              <SelectContent>
+                {membros.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Este membro será o responsável por todos os prazos importados. Os prazos aparecerão na agenda dele e de quem está cadastrando.
+            </p>
+          </div>
+
           <div>
             <Label>Arquivo XLSX</Label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="mt-1 block w-full text-sm" />
@@ -229,7 +313,7 @@ export function TstImportDialog({
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleConfirm} disabled={!coordenacaoId || preview.length === 0 || isImporting || parsing}>
+            <Button onClick={handleConfirm} disabled={!activeCoordId || preview.length === 0 || isImporting || parsing}>
               <Upload className="w-4 h-4 mr-1" />
               {isImporting ? "Importando..." : `Importar ${preview.length} registros`}
             </Button>
