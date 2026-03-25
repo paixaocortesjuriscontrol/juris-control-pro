@@ -68,7 +68,7 @@ function getSheetRows(ws: XLSX.WorkSheet): unknown[][] {
   const range = XLSX.utils.decode_range(ref);
   const rows: unknown[][] = [];
   for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex++) {
-    if (ws["!rows"]?.[rowIndex]?.hidden) continue;
+    // Include hidden rows too
     const row: unknown[] = [];
     for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex++) {
       const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })];
