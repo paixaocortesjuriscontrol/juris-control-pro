@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DATAJUD_TIMEOUT_MS = 8_000; // Reduced from 12s to 8s for faster fail-fast
+const DATAJUD_TIMEOUT_MS = 6_000; // 6s timeout for faster fail-fast
 
 class CancelledError extends Error {
   constructor(message = 'cancelled') {
@@ -1068,8 +1068,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
   results: any;
   progress: { current: number; total: number; percentage: number };
 }> {
-  // Increased batch size for faster processing (was 50, then 100)
-  const PROCESSES_PER_RUN = 200;
+  // Increased batch size for faster processing
+  const PROCESSES_PER_RUN = 400;
   
   // Get count of active processes for pagination (only those with monitoring enabled)
   const { count: totalCount } = await supabase
@@ -1133,8 +1133,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
     cancelled: false,
   };
 
-  // Process in parallel batches (increased from 5 to 12 for faster processing)
-  const PARALLEL_BATCH_SIZE = 12;
+  // Process in parallel batches - higher parallelism for faster throughput
+  const PARALLEL_BATCH_SIZE = 25;
 
   const isCancelled = createCancelChecker(supabase, 'andamentos', execucaoId);
 
@@ -1184,12 +1184,19 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
         let insertedCount = 0;
         const newMovementDetails: string[] = [];
 
+        // Prepare all new movements for batch insert
+        const movimentosToInsert: Array<{
+          processo_id: string;
+          descricao: string;
+          data_movimentacao: string;
+          tipo: string;
+          fonte: string;
+        }> = [];
+
         for (const mov of recentMovimentos) {
-          if (await isCancelled()) throw new CancelledError();
           const movName = mov.nome || mov.movimentoNacional?.nome || 'Movimento';
           let descricaoCompleta = movName;
           
-          // Add complement if available
           if (mov.complemento || mov.complementosTabelados) {
             const complementos: string[] = [];
             if (mov.complemento) complementos.push(mov.complemento);
@@ -1210,54 +1217,49 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
           
           const key = `${movDate.split('T')[0]}|${descricaoCompleta}`;
 
-            if (!existingSet.has(key)) {
-              const { data: insertedMov, error: insertError } = await supabase
-                .from('movimentacoes')
-                .insert({
-                  processo_id: processo.id,
-                  descricao: descricaoCompleta,
-                  data_movimentacao: movDate,
-                  tipo: movName,
-                  fonte: 'DataJud/CNJ'
-                })
-                .select('id')
-                .single();
+          if (!existingSet.has(key)) {
+            existingSet.add(key);
+            movimentosToInsert.push({
+              processo_id: processo.id,
+              descricao: descricaoCompleta,
+              data_movimentacao: movDate,
+              tipo: movName,
+              fonte: 'DataJud/CNJ'
+            });
+            newMovementDetails.push(descricaoCompleta.substring(0, 50));
+          }
+        }
 
-              if (!insertError && insertedMov) {
-                insertedCount++;
-                existingSet.add(key);
-                newMovementDetails.push(descricaoCompleta.substring(0, 50));
+        // Batch insert all new movements at once
+        if (movimentosToInsert.length > 0) {
+          const { data: insertedMovs, error: insertError } = await supabase
+            .from('movimentacoes')
+            .insert(movimentosToInsert)
+            .select('id, descricao, data_movimentacao');
 
-                // Varredura automática de termos no novo andamento
-                await scanMovementForTerms(supabase, insertedMov.id, processo.id, descricaoCompleta);
-                
-                // Detectar audiências no andamento
-                const audienciaResult = await registrarAudienciaDetectada(
-                  supabase,
-                  processo.id,
-                  processo.numero,
-                  insertedMov.id,
-                  descricaoCompleta,
-                  movDate
-                );
-                if (audienciaResult) {
-                  results.audienciasDetectadas++;
-                }
-                
-                // Detectar intimações no andamento
-                const intimacaoResult = await registrarIntimacaoDetectada(
-                  supabase,
-                  processo.id,
-                  processo.numero,
-                  insertedMov.id,
-                  descricaoCompleta,
-                  movDate
-                );
-                if (intimacaoResult) {
-                  results.intimacoesDetectadas++;
-                }
-              }
+          if (!insertError && insertedMovs) {
+            insertedCount = insertedMovs.length;
+
+            // Run detection checks only on newly inserted movements
+            for (const insertedMov of insertedMovs) {
+              if (await isCancelled()) throw new CancelledError();
+              
+              // Scan for terms, audiencias, intimacoes
+              await scanMovementForTerms(supabase, insertedMov.id, processo.id, insertedMov.descricao);
+              
+              const audienciaResult = await registrarAudienciaDetectada(
+                supabase, processo.id, processo.numero,
+                insertedMov.id, insertedMov.descricao, insertedMov.data_movimentacao
+              );
+              if (audienciaResult) results.audienciasDetectadas++;
+              
+              const intimacaoResult = await registrarIntimacaoDetectada(
+                supabase, processo.id, processo.numero,
+                insertedMov.id, insertedMov.descricao, insertedMov.data_movimentacao
+              );
+              if (intimacaoResult) results.intimacoesDetectadas++;
             }
+          }
         }
 
         if (insertedCount > 0) {
@@ -1299,24 +1301,23 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
             }
           });
 
-          // Create notifications
-          for (const userId of usersToNotify) {
-            if (await isCancelled()) throw new CancelledError();
-            await supabase
-              .from('notificacoes')
-              .insert({
-                usuario_id: userId,
-                titulo: 'Novos andamentos detectados',
-                mensagem: `${insertedCount} novo(s) andamento(s) encontrado(s) no processo ${processo.numero}`,
-                tipo: 'info',
-                link: `/processos/${processo.id}`,
-                dados: {
-                  processo_id: processo.id,
-                  numero: processo.numero,
-                  novos_andamentos: insertedCount,
-                  detalhes: newMovementDetails
-                }
-              });
+          // Batch notification inserts
+          const notificationRows = usersToNotify.map(userId => ({
+            usuario_id: userId,
+            titulo: 'Novos andamentos detectados',
+            mensagem: `${insertedCount} novo(s) andamento(s) encontrado(s) no processo ${processo.numero}`,
+            tipo: 'info',
+            link: `/processos/${processo.id}`,
+            dados: {
+              processo_id: processo.id,
+              numero: processo.numero,
+              novos_andamentos: insertedCount,
+              detalhes: newMovementDetails
+            }
+          }));
+
+          if (notificationRows.length > 0) {
+            await supabase.from('notificacoes').insert(notificationRows);
           }
 
           // NOTA: Emails/WhatsApp são enviados APENAS no resumo consolidado ao final
@@ -1341,9 +1342,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
     try {
       await Promise.all(batchPromises);
       
-      // HEARTBEAT INTERMEDIÁRIO: sinalizar vida ao orquestrador a cada ~50 processos
-      // Evita timeout quando a API DataJud está lenta mas o worker ainda está processando
-      if (results.checked % 50 < PARALLEL_BATCH_SIZE) {
+      // HEARTBEAT INTERMEDIÁRIO: sinalizar vida a cada ~100 processos
+      if (results.checked % 100 < PARALLEL_BATCH_SIZE) {
         await supabase
           .from('configuracoes_monitoramento')
           .update({ ultima_execucao: new Date().toISOString() })
