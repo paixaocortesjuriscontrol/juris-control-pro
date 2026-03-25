@@ -29,26 +29,71 @@ interface Membro {
   nome: string;
 }
 
+const MESES_ABREV: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  fev: "02", abr: "04", mai: "05", ago: "08", set: "09", out: "10", dez: "12",
+};
+
+function formatIsoDate(year: number, month: number, day: number): string | null {
+  if (!year || !month || !day) return null;
+  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function parseExcelDate(val: unknown): string | null {
-  if (!val) return null;
+  if (val == null || val === "") return null;
   if (val instanceof Date && !isNaN(val.getTime())) {
-    const y = val.getFullYear();
-    const m = String(val.getMonth() + 1).padStart(2, "0");
-    const d = String(val.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    return formatIsoDate(val.getUTCFullYear(), val.getUTCMonth() + 1, val.getUTCDate());
   }
   if (typeof val === "number") {
     const parsed = XLSX.SSF.parse_date_code(val);
-    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+    if (parsed) return formatIsoDate(parsed.y, parsed.m, parsed.d);
   }
   if (typeof val === "string") {
     const normalized = val.trim();
-    const brDate = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (brDate) return `${brDate[3]}-${brDate[2].padStart(2, "0")}-${brDate[1].padStart(2, "0")}`;
+    if (!normalized) return null;
+
+    if (/^\d+(\.\d+)?$/.test(normalized)) {
+      const parsed = XLSX.SSF.parse_date_code(Number(normalized));
+      if (parsed) return formatIsoDate(parsed.y, parsed.m, parsed.d);
+    }
+
+    const brDate = normalized.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+    if (brDate) {
+      const year = brDate[3].length === 2 ? 2000 + Number(brDate[3]) : Number(brDate[3]);
+      return formatIsoDate(year, Number(brDate[2]), Number(brDate[1]));
+    }
+
+    const isoDate = normalized.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+    if (isoDate) return formatIsoDate(Number(isoDate[1]), Number(isoDate[2]), Number(isoDate[3]));
+
+    const shortDayFirst = normalized.match(/^(\d{1,2})[-\/\s](\w{3,})(?:[-\/\s](\d{2,4}))?$/i);
+    if (shortDayFirst) {
+      const monthKey = shortDayFirst[2].toLowerCase().slice(0, 3);
+      const year = shortDayFirst[3]
+        ? (shortDayFirst[3].length === 2 ? 2000 + Number(shortDayFirst[3]) : Number(shortDayFirst[3]))
+        : new Date().getFullYear();
+      if (MESES_ABREV[monthKey]) {
+        return formatIsoDate(year, Number(MESES_ABREV[monthKey]), Number(shortDayFirst[1]));
+      }
+    }
+
+    const shortMonthFirst = normalized.match(/^(\w{3,})[-\/\s](\d{1,2})(?:[-\/\s](\d{2,4}))?$/i);
+    if (shortMonthFirst) {
+      const monthKey = shortMonthFirst[1].toLowerCase().slice(0, 3);
+      const year = shortMonthFirst[3]
+        ? (shortMonthFirst[3].length === 2 ? 2000 + Number(shortMonthFirst[3]) : Number(shortMonthFirst[3]))
+        : new Date().getFullYear();
+      if (MESES_ABREV[monthKey]) {
+        return formatIsoDate(year, Number(MESES_ABREV[monthKey]), Number(shortMonthFirst[2]));
+      }
+    }
+
     if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) return normalized.slice(0, 10);
     const parsed = new Date(normalized);
     if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
-      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+      return parsed.toISOString().slice(0, 10);
     }
   }
   return null;
@@ -150,7 +195,8 @@ export function TstImportDialog({
       const headers = rows[0].map((h) => String(h ?? ""));
       console.log("[TST Import] Headers:", headers);
 
-      const colFatal = 1;
+      const detectedFatalColumn = findColumn(headers, ["data fatal", "dt fatal", "prazo fatal", "fatal", "data limite", "vencimento"]);
+      const colFatal = detectedFatalColumn >= 0 ? detectedFatalColumn : 1;
       const colDossie = findColumn(headers, ["dossi", "dossie"]);
       const colProcesso = findColumn(headers, ["processo"]);
       const colReu = findColumn(headers, ["réu", "reu"]);
@@ -165,7 +211,21 @@ export function TstImportDialog({
       const colResponsavel = findColumn(headers, ["responsável", "responsavel"]);
       setProgress(55);
 
-      console.log("[TST Import] Column indices:", { colFatal, colProcesso, colDossie, colReu, colAutor });
+      console.log("[TST Import] Column indices:", {
+        colFatal,
+        colProcesso,
+        colDossie,
+        colReu,
+        colAutor,
+        fatalHeader: headers[colFatal] ?? null,
+        detectedFatalColumn,
+      });
+      if (detectedFatalColumn < 0) {
+        console.warn("[TST Import] Coluna de data fatal não identificada pelos cabeçalhos; usando fallback para a coluna índice 1.", {
+          fallbackHeader: headers[1] ?? null,
+          headers,
+        });
+      }
 
       // Fetch existing processos for matching (by numero and by digits)
       const { data: processos } = await supabase.from("processos").select("id, numero");
@@ -181,11 +241,32 @@ export function TstImportDialog({
       const seenNumeros = new Map<string, number>();
       const totalRows = Math.max(rows.length - 1, 1);
       let skippedCount = 0;
+      let dateDebugCount = 0;
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const dataFatal = colFatal >= 0 ? parseExcelDate(row[colFatal]) : null;
+        const fatalCell = colFatal >= 0 ? ws[XLSX.utils.encode_cell({ r: i, c: colFatal })] : undefined;
+        const rawFatalValue = fatalCell?.v ?? row[colFatal];
+        const formattedFatalValue = fatalCell?.w ?? null;
+        const parsedFromFormatted = formattedFatalValue ? parseExcelDate(formattedFatalValue) : null;
+        const parsedFromRaw = parseExcelDate(rawFatalValue);
+        const dataFatal = parsedFromFormatted ?? parsedFromRaw;
         const numProc = colProcesso >= 0 ? String(row[colProcesso] || "").trim() : "";
+
+        if (dateDebugCount < 12 && (formattedFatalValue || rawFatalValue || numProc)) {
+          console.log("[TST Import] Date parse sample", {
+            excelRow: i + 1,
+            processo: numProc || null,
+            header: headers[colFatal] ?? null,
+            cellType: fatalCell?.t ?? null,
+            rawFatalValue,
+            formattedFatalValue,
+            parsedFromFormatted,
+            parsedFromRaw,
+            chosenDataFatal: dataFatal,
+          });
+          dateDebugCount++;
+        }
 
         if (!dataFatal && !numProc) {
           skippedCount++;
