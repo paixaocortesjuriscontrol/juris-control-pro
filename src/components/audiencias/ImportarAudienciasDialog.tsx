@@ -563,19 +563,17 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
               >
                 Limpar
               </Button>
-              <Button onClick={handleImport} disabled={isImporting || !coordenacaoId}>
-                {isImporting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importando {Math.round(progress)}%...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Importar {rows.length} Audiências
-                  </>
-                )}
-              </Button>
+              {isImporting ? (
+                <Button variant="destructive" onClick={() => { cancelRef.current = true; }}>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancelar Importação
+                </Button>
+              ) : (
+                <Button onClick={handleImport} disabled={!coordenacaoId}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar {rows.length} Audiências
+                </Button>
+              )}
             </>
           )}
         </DialogFooter>
