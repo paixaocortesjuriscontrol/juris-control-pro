@@ -47,6 +47,7 @@ const menuItemsPublicos = [
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
+  { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
@@ -58,7 +59,7 @@ const menuItemsPublicos = [
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar PJE", path: "/buscar-pje" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
-  { icon: Library, label: "Repositório IA", path: "/repositorio" },
+  
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
