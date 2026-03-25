@@ -32,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -463,7 +462,7 @@ export function NovaTarefaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 px-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
           <Form {...form}>
             <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {/* Tipo de Vínculo */}
@@ -859,7 +858,7 @@ export function NovaTarefaDialog({
 
             </form>
           </Form>
-        </ScrollArea>
+        </div>
 
         {/* Actions - fora do scroll para ficar sempre visível */}
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t px-6 pb-6 shrink-0">
