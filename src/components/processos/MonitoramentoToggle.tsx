@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface MonitoramentoToggleProps {
   processoId: string;
-  campo: "monitorar_andamentos" | "monitorar_djen";
+  campo: "monitorar_andamentos" | "monitorar_djen" | "prioridade_djen";
   valorInicial?: boolean;
 }
 
@@ -28,9 +28,11 @@ export function MonitoramentoToggle({ processoId, campo, valorInicial = false }:
 
       setAtivo(checked);
       toast({
-        title: checked ? "Monitoramento ativado" : "Monitoramento desativado",
+        title: checked ? (campo === "prioridade_djen" ? "Prioridade ativada" : "Monitoramento ativado") : (campo === "prioridade_djen" ? "Prioridade desativada" : "Monitoramento desativado"),
         description: campo === "monitorar_andamentos" 
           ? "Busca de andamentos atualizada com sucesso"
+          : campo === "prioridade_djen"
+          ? "Prioridade DJEN atualizada com sucesso"
           : "Busca DJEN atualizada com sucesso",
       });
     } catch (err) {

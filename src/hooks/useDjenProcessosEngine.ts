@@ -408,12 +408,14 @@ async function runEngine(
 
     const { data: rawProcessos, error: procError } = await supabase
       .from('processos')
-      .select('id, numero, coordenacao_id, monitorar_djen')
-      .eq('monitorar_djen', true);
+      .select('id, numero, coordenacao_id, monitorar_djen, prioridade_djen')
+      .eq('monitorar_djen', true)
+      .order('prioridade_djen', { ascending: false })
+      .order('numero', { ascending: true });
 
     if (procError) throw new Error(`Erro ao buscar processos: ${procError.message}`);
 
-    // Garantir: somente processos com monitorar_djen = true
+    // Garantir: somente processos com monitorar_djen = true, prioridade primeiro
     const processosMonitorados = (rawProcessos || [])
       .filter((p) => p.monitorar_djen === true)
       .map(({ id, numero, coordenacao_id }) => ({ id, numero, coordenacao_id }));

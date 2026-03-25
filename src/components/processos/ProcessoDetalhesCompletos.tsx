@@ -1014,6 +1014,10 @@ export function ProcessoDetalhesCompletos({
                                   <span className="text-xs text-foreground w-24">DJEN</span>
                                   <MonitoramentoToggle processoId={processo.id} campo="monitorar_djen" valorInicial={!!processo.monitorar_djen} />
                                 </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-foreground w-24">Prioridade</span>
+                                  <MonitoramentoToggle processoId={processo.id} campo="prioridade_djen" valorInicial={!!(processo as any).prioridade_djen} />
+                                </div>
                               </div>
                             </div>
                           </div>
