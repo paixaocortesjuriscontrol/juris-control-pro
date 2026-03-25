@@ -31,7 +31,8 @@ import {
   downloadPolyanaTemplate, 
   downloadMptTemplate, 
   downloadPedidosTemplate,
-  downloadRenataTemplate 
+  downloadRenataTemplate,
+  downloadBradescoTemplate 
 } from "@/utils/generateTemplates";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
@@ -397,6 +398,14 @@ export default function ImportarProcessos() {
   const [renataProgress, setRenataProgress] = useState(0);
   const [renataBuscarAndamentos, setRenataBuscarAndamentos] = useState(true);
   const renataCancelledRef = useRef(false);
+
+  // Bradesco import states
+  const [bradescoFile, setBradescoFile] = useState<File | null>(null);
+  const [bradescoProcessos, setBradescoProcessos] = useState<ProcessoImport[]>([]);
+  const [bradescoImporting, setBradescoImporting] = useState(false);
+  const [bradescoProgress, setBradescoProgress] = useState(0);
+  const [bradescoBuscarAndamentos, setBradescoBuscarAndamentos] = useState(true);
+  const bradescoCancelledRef = useRef(false);
 
   // Excel/Planilha import state for andamentos
   const planilhaCancelledRef = useRef(false);
@@ -5616,11 +5625,19 @@ export default function ImportarProcessos() {
   const astreaErrorCount = astreaProcessos.filter(p => p.status === "erro").length;
   const astreaTotalProblemas = astreaInvalidCount + astreaErrorCount + astreaWarningCount;
 
+  // Bradesco counts
+  const bradescoValidCount = bradescoProcessos.filter(p => p.status === "valido").length;
+  const bradescoInvalidCount = bradescoProcessos.filter(p => p.status === "invalido").length;
+  const bradescoWarningCount = bradescoProcessos.filter(p => (p.status === "valido" || p.status === "sucesso") && p.erros.length > 0).length;
+  const bradescoSuccessCount = bradescoProcessos.filter(p => p.status === "sucesso").length;
+  const bradescoErrorCount = bradescoProcessos.filter(p => p.status === "erro").length;
+  const bradescoTotalProblemas = bradescoInvalidCount + bradescoErrorCount + bradescoWarningCount;
+
   return (
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-10 max-w-6xl">
+          <TabsList className="grid w-full grid-cols-11 max-w-7xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -5656,6 +5673,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="renata" className="flex items-center gap-2">
               <FileBarChart className="h-4 w-4" />
               <span className="hidden sm:inline">Dr. Renata</span>
+            </TabsTrigger>
+            <TabsTrigger value="bradesco" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Bradesco</span>
             </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
