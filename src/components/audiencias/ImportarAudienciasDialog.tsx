@@ -207,7 +207,41 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
 
       for (const sheetName of workbook.SheetNames) {
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        
+        // Read as array of arrays to detect the real header row
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
+        
+        // Known header names to detect the header row
+        const KNOWN_HEADERS = ["DATA", "PROCESSO", "DOSSIE", "DOSSIÊ", "HORA", "HORÁRIO", "HORARIO"];
+        
+        let headerRowIdx = -1;
+        let headers: string[] = [];
+        
+        for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+          const row = rawRows[i];
+          if (!Array.isArray(row)) continue;
+          const normalized = row.map((c: any) => normalizeHeader(String(c || "")));
+          const matchCount = normalized.filter((h: string) => KNOWN_HEADERS.includes(h)).length;
+          if (matchCount >= 2) {
+            headerRowIdx = i;
+            headers = row.map((c: any) => String(c || "").trim());
+            break;
+          }
+        }
+        
+        // Fallback: use standard sheet_to_json if no header row detected
+        let jsonData: any[];
+        if (headerRowIdx >= 0) {
+          jsonData = rawRows.slice(headerRowIdx + 1)
+            .filter((row: any[]) => Array.isArray(row) && row.some((c: any) => c !== ""))
+            .map((row: any[]) => {
+              const obj: Record<string, any> = {};
+              headers.forEach((h, idx) => { obj[h] = row[idx] ?? ""; });
+              return obj;
+            });
+        } else {
+          jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        }
 
         const sheetRows: AudienciaRow[] = (jsonData as any[])
           .map((raw) => normalizeRowKeys(raw))
