@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Upload } from "lucide-react";
+import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { ProcessoTstImport } from "@/hooks/usePrazosTst";
@@ -128,106 +129,129 @@ export function TstImportDialog({
     setPreview([]);
     setProgress(10);
 
-    const ab = await file.arrayBuffer();
-    setProgress(25);
+    try {
+      const ab = await file.arrayBuffer();
+      setProgress(25);
 
-    const wb = XLSX.read(ab, { type: "array", cellDates: true, cellStyles: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = getSheetRows(ws);
-    setProgress(40);
+      const wb = XLSX.read(ab, { type: "array", cellDates: true, cellStyles: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = getSheetRows(ws);
+      setProgress(40);
 
-    if (rows.length < 2) { setParsing(false); setProgress(0); return; }
+      console.log("[TST Import] Total rows (incl header):", rows.length);
 
-    const headers = rows[0].map((h) => String(h ?? ""));
-    const colFatal = 1;
-    const colDossie = findColumn(headers, ["dossi", "dossie"]);
-    const colProcesso = findColumn(headers, ["processo"]);
-    const colReu = findColumn(headers, ["réu", "reu"]);
-    const colAutor = findColumn(headers, ["autor"]);
-    const colEquipe = findColumn(headers, ["equipe"]);
-    const colDecisao = findColumn(headers, ["decisão", "decisao"]);
-    const colFormulario = findColumn(headers, ["formulário", "formulario"]);
-    const colProvidencias = findColumn(headers, ["providências", "providencias"]);
-    const colDeposito = findColumn(headers, ["dep", "depósito", "deposito"]);
-    const colPreparo = findColumn(headers, ["preparo"]);
-    const colMulta = findColumn(headers, ["multa", "custas"]);
-    const colResponsavel = findColumn(headers, ["responsável", "responsavel"]);
-    setProgress(55);
-
-    // Fetch existing processos for matching (by numero and by digits)
-    const { data: processos } = await supabase.from("processos").select("id, numero");
-    const processosMapDigits = new Map<string, string>();
-    const processosMapNumero = new Map<string, string>();
-    processos?.forEach((p) => {
-      if (p.numero) processosMapNumero.set(p.numero.trim(), p.id);
-      const digits = (p.numero || "").replace(/\D/g, "");
-      if (digits.length >= 10) processosMapDigits.set(digits, p.id);
-    });
-
-    const parsed: ProcessoTstImport[] = [];
-    // Deduplicate by numero - keep last occurrence (latest data_fatal)
-    const seenNumeros = new Map<string, number>();
-    const totalRows = Math.max(rows.length - 1, 1);
-
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const dataFatal = colFatal >= 0 ? parseExcelDate(row[colFatal]) : null;
-      const numProc = colProcesso >= 0 ? String(row[colProcesso] || "").trim() : "";
-
-      if (!dataFatal && !numProc) continue;
-
-      // Match to existing processo (try exact match first, then digits)
-      let existingId: string | null = null;
-      if (numProc) {
-        existingId = processosMapNumero.get(numProc) ?? null;
+      if (rows.length < 2) {
+        toast.error("Planilha vazia ou sem dados suficientes.");
+        setParsing(false);
+        setProgress(0);
+        return;
       }
-      if (!existingId) {
-        const digits = numProc.replace(/\D/g, "");
-        if (digits.length >= 10) {
-          existingId = processosMapDigits.get(digits) ?? null;
+
+      const headers = rows[0].map((h) => String(h ?? ""));
+      console.log("[TST Import] Headers:", headers);
+
+      const colFatal = 1;
+      const colDossie = findColumn(headers, ["dossi", "dossie"]);
+      const colProcesso = findColumn(headers, ["processo"]);
+      const colReu = findColumn(headers, ["réu", "reu"]);
+      const colAutor = findColumn(headers, ["autor"]);
+      const colEquipe = findColumn(headers, ["equipe"]);
+      const colDecisao = findColumn(headers, ["decisão", "decisao"]);
+      const colFormulario = findColumn(headers, ["formulário", "formulario"]);
+      const colProvidencias = findColumn(headers, ["providências", "providencias"]);
+      const colDeposito = findColumn(headers, ["dep", "depósito", "deposito"]);
+      const colPreparo = findColumn(headers, ["preparo"]);
+      const colMulta = findColumn(headers, ["multa", "custas"]);
+      const colResponsavel = findColumn(headers, ["responsável", "responsavel"]);
+      setProgress(55);
+
+      console.log("[TST Import] Column indices:", { colFatal, colProcesso, colDossie, colReu, colAutor });
+
+      // Fetch existing processos for matching (by numero and by digits)
+      const { data: processos } = await supabase.from("processos").select("id, numero");
+      const processosMapDigits = new Map<string, string>();
+      const processosMapNumero = new Map<string, string>();
+      processos?.forEach((p) => {
+        if (p.numero) processosMapNumero.set(p.numero.trim(), p.id);
+        const digits = (p.numero || "").replace(/\D/g, "");
+        if (digits.length >= 10) processosMapDigits.set(digits, p.id);
+      });
+
+      const parsed: ProcessoTstImport[] = [];
+      const seenNumeros = new Map<string, number>();
+      const totalRows = Math.max(rows.length - 1, 1);
+      let skippedCount = 0;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const dataFatal = colFatal >= 0 ? parseExcelDate(row[colFatal]) : null;
+        const numProc = colProcesso >= 0 ? String(row[colProcesso] || "").trim() : "";
+
+        if (!dataFatal && !numProc) {
+          skippedCount++;
+          continue;
+        }
+
+        let existingId: string | null = null;
+        if (numProc) {
+          existingId = processosMapNumero.get(numProc) ?? null;
+        }
+        if (!existingId) {
+          const digits = numProc.replace(/\D/g, "");
+          if (digits.length >= 10) {
+            existingId = processosMapDigits.get(digits) ?? null;
+          }
+        }
+
+        const item: ProcessoTstImport = {
+          _existing_id: existingId,
+          numero: numProc || "SEM-NUMERO",
+          coordenacao_id: coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : null,
+          polo_ativo: colAutor >= 0 ? String(row[colAutor] || "").trim() || null : null,
+          polo_passivo: colReu >= 0 ? String(row[colReu] || "").trim() || null : null,
+          dossie_tst: colDossie >= 0 ? String(row[colDossie] || "").trim() || null : null,
+          equipe_tst: colEquipe >= 0 ? String(row[colEquipe] || "").trim() || null : null,
+          decisao_tst: colDecisao >= 0 ? String(row[colDecisao] || "").trim() || null : null,
+          formulario_tst: colFormulario >= 0 ? String(row[colFormulario] || "").trim() || null : null,
+          providencias_tst: colProvidencias >= 0 ? String(row[colProvidencias] || "").trim() || null : null,
+          deposito_judicial_tst: colDeposito >= 0 ? String(row[colDeposito] || "").trim() || null : null,
+          preparo_tst: colPreparo >= 0 ? String(row[colPreparo] || "").trim() || null : null,
+          multa_custas_tst: colMulta >= 0 ? String(row[colMulta] || "").trim() || null : null,
+          responsavel_tst: colResponsavel >= 0 ? String(row[colResponsavel] || "").trim() || null : null,
+          data_fatal: dataFatal,
+          area: "trabalhista",
+          status: "ativo",
+        };
+
+        const dedupeKey = numProc || `row-${i}`;
+        if (numProc && seenNumeros.has(dedupeKey)) {
+          const prevIdx = seenNumeros.get(dedupeKey)!;
+          parsed[prevIdx] = item;
+        } else {
+          seenNumeros.set(dedupeKey, parsed.length);
+          parsed.push(item);
+        }
+
+        if (i % 25 === 0 || i === rows.length - 1) {
+          setProgress(55 + Math.round((i / totalRows) * 45));
         }
       }
 
-      const item: ProcessoTstImport = {
-        _existing_id: existingId,
-        numero: numProc || "SEM-NUMERO",
-        coordenacao_id: coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : null,
-        polo_ativo: colAutor >= 0 ? String(row[colAutor] || "").trim() || null : null,
-        polo_passivo: colReu >= 0 ? String(row[colReu] || "").trim() || null : null,
-        dossie_tst: colDossie >= 0 ? String(row[colDossie] || "").trim() || null : null,
-        equipe_tst: colEquipe >= 0 ? String(row[colEquipe] || "").trim() || null : null,
-        decisao_tst: colDecisao >= 0 ? String(row[colDecisao] || "").trim() || null : null,
-        formulario_tst: colFormulario >= 0 ? String(row[colFormulario] || "").trim() || null : null,
-        providencias_tst: colProvidencias >= 0 ? String(row[colProvidencias] || "").trim() || null : null,
-        deposito_judicial_tst: colDeposito >= 0 ? String(row[colDeposito] || "").trim() || null : null,
-        preparo_tst: colPreparo >= 0 ? String(row[colPreparo] || "").trim() || null : null,
-        multa_custas_tst: colMulta >= 0 ? String(row[colMulta] || "").trim() || null : null,
-        responsavel_tst: colResponsavel >= 0 ? String(row[colResponsavel] || "").trim() || null : null,
-        data_fatal: dataFatal,
-        area: "trabalhista",
-        status: "ativo",
-      };
-
-      // Deduplicate: if same numero already seen, replace previous entry
-      const dedupeKey = numProc || `row-${i}`;
-      if (numProc && seenNumeros.has(dedupeKey)) {
-        const prevIdx = seenNumeros.get(dedupeKey)!;
-        parsed[prevIdx] = item; // overwrite with latest
-      } else {
-        seenNumeros.set(dedupeKey, parsed.length);
-        parsed.push(item);
+      const dedupedParsed = parsed.filter(Boolean);
+      console.log("[TST Import] Parsed:", dedupedParsed.length, "Skipped:", skippedCount);
+      
+      if (dedupedParsed.length === 0) {
+        toast.warning("Nenhum registro válido encontrado na planilha. Verifique se as colunas 'Processo' e datas fatais estão preenchidas.");
       }
-
-      if (i % 25 === 0 || i === rows.length - 1) {
-        setProgress(55 + Math.round((i / totalRows) * 45));
-      }
+      
+      setPreview(dedupedParsed);
+      setProgress(100);
+    } catch (err) {
+      console.error("[TST Import] Error:", err);
+      toast.error("Erro ao processar a planilha. Verifique o formato do arquivo.");
+    } finally {
+      setParsing(false);
     }
-
-    // Remove nulls from overwritten entries
-    const dedupedParsed = parsed.filter(Boolean);
-    setPreview(dedupedParsed);
-    setParsing(false);
-    setProgress(100);
   };
 
   const handleConfirm = async () => {
