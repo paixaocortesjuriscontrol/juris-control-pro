@@ -1068,8 +1068,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
   results: any;
   progress: { current: number; total: number; percentage: number };
 }> {
-  // Increased batch size for faster processing (was 50, then 100)
-  const PROCESSES_PER_RUN = 200;
+  // Increased batch size for faster processing
+  const PROCESSES_PER_RUN = 400;
   
   // Get count of active processes for pagination (only those with monitoring enabled)
   const { count: totalCount } = await supabase
@@ -1133,8 +1133,8 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
     cancelled: false,
   };
 
-  // Process in parallel batches (increased from 5 to 12 for faster processing)
-  const PARALLEL_BATCH_SIZE = 12;
+  // Process in parallel batches - higher parallelism for faster throughput
+  const PARALLEL_BATCH_SIZE = 25;
 
   const isCancelled = createCancelChecker(supabase, 'andamentos', execucaoId);
 
