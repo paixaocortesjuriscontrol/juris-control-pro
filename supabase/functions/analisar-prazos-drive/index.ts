@@ -5,144 +5,152 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Extract folder ID from various Google Drive URL formats
 function extractFolderId(url: string): string | null {
-  // Format: https://drive.google.com/drive/folders/FOLDER_ID
   const match1 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
   if (match1) return match1[1];
-  // Format: https://drive.google.com/open?id=FOLDER_ID
   const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (match2) return match2[1];
   return null;
 }
 
 async function listDriveFiles(folderId: string): Promise<any[]> {
-  const apiKey = Deno.env.get("GOOGLE_API_KEY");
+  // Scrape public Drive folder page to get file list
+  const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
   
-  // Try with API key first, then without (for truly public folders)
-  const baseUrl = `https://www.googleapis.com/drive/v3/files`;
-  const query = `'${folderId}' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' and trashed=false`;
-  const params = new URLSearchParams({
-    q: query,
-    fields: "files(id,name,mimeType,size)",
-    pageSize: "100",
+  const resp = await fetch(folderUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml",
+      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    },
   });
-  if (apiKey) params.set("key", apiKey);
 
-  const resp = await fetch(`${baseUrl}?${params}`);
   if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Erro ao listar arquivos do Drive: ${resp.status} - ${err}`);
+    throw new Error(`Erro ao acessar pasta do Drive: ${resp.status}`);
   }
-  const data = await resp.json();
-  return data.files || [];
+
+  const html = await resp.text();
+  console.log("HTML length:", html.length);
+
+  const files: any[] = [];
+
+  // Pattern 1: data-id attributes with file names in the HTML
+  // Google Drive embeds file data in various formats in the HTML
+  // Look for patterns like: [["FILE_ID","FILE_NAME",... 
+  // or data structures containing file info
+
+  // Try to find file entries in the page source
+  // Google Drive uses various JS data formats. Let's try multiple patterns:
+
+  // Pattern: ["FILE_ID","FILE_NAME","MIME_TYPE"...] or similar structures
+  const fileIdPattern = /\["([\w-]{25,})","([^"]+\.docx?)"/gi;
+  let match;
+  const seenIds = new Set<string>();
+  
+  while ((match = fileIdPattern.exec(html)) !== null) {
+    const id = match[1];
+    const name = match[2];
+    if (!seenIds.has(id) && name.toLowerCase().endsWith('.docx')) {
+      seenIds.add(id);
+      files.push({
+        id,
+        name,
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+    }
+  }
+
+  // Pattern 2: Look for aria-label with .docx and nearby data-id
+  if (files.length === 0) {
+    const ariaPattern = /data-id="([\w-]+)"[^>]*aria-label="([^"]*\.docx)"/gi;
+    while ((match = ariaPattern.exec(html)) !== null) {
+      const id = match[1];
+      const name = match[2];
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        files.push({ id, name, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      }
+    }
+  }
+
+  // Pattern 3: Another common pattern in Drive HTML
+  if (files.length === 0) {
+    // Look for patterns like: "FILE_ID" ... ".docx"
+    const altPattern = /\\x22([\w-]{20,})\\x22[^\\]*\\x22([^\\]*\.docx)\\x22/gi;
+    while ((match = altPattern.exec(html)) !== null) {
+      const id = match[1];
+      const name = match[2];
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        files.push({ id, name, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      }
+    }
+  }
+
+  // Pattern 4: Try encoded JSON arrays that Drive often uses
+  if (files.length === 0) {
+    // Match any string that looks like a file ID followed by a .docx filename
+    const broadPattern = /([\w-]{20,})[^a-zA-Z0-9]{1,50}([A-Za-z0-9_\-\s().]+\.docx)/gi;
+    while ((match = broadPattern.exec(html)) !== null) {
+      const id = match[1];
+      const name = match[2].trim();
+      if (!seenIds.has(id) && id !== folderId) {
+        seenIds.add(id);
+        files.push({ id, name, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      }
+    }
+  }
+
+  console.log(`Found ${files.length} .docx files in folder`);
+  
+  if (files.length === 0) {
+    // Log a snippet of HTML for debugging
+    console.log("HTML snippet (first 3000 chars):", html.substring(0, 3000));
+    console.log("HTML snippet (searching for docx):", html.includes('.docx') ? "Contains .docx" : "No .docx found");
+    console.log("HTML snippet (searching for DOCX):", html.includes('.DOCX') ? "Contains .DOCX" : "No .DOCX found");
+  }
+
+  return files;
 }
 
 async function downloadDriveFile(fileId: string): Promise<ArrayBuffer> {
-  const apiKey = Deno.env.get("GOOGLE_API_KEY");
-  let url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-  if (apiKey) url += `&key=${apiKey}`;
+  // Use the direct export/download URL for public files
+  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
   
-  const resp = await fetch(url);
+  const resp = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    },
+    redirect: "follow",
+  });
+  
   if (!resp.ok) {
     throw new Error(`Erro ao baixar arquivo ${fileId}: ${resp.status}`);
   }
-  return resp.arrayBuffer();
-}
-
-// Very basic .docx text extraction (unzip and parse document.xml)
-async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
-  // Use a simple approach: the docx is a zip, we need document.xml
-  // We'll use the DecompressionStream API available in Deno
   
-  // Find PK signature
-  const bytes = new Uint8Array(buffer);
-  
-  // Simple ZIP parsing to find word/document.xml
-  const entries = parseZipEntries(bytes);
-  const docEntry = entries.find(e => e.name === "word/document.xml");
-  
-  if (!docEntry) {
-    throw new Error("document.xml não encontrado no .docx");
-  }
-  
-  const xmlText = new TextDecoder().decode(docEntry.data);
-  
-  // Extract text from XML - get content between <w:t> tags
-  const textParts: string[] = [];
-  const regex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
-  let match;
-  while ((match = regex.exec(xmlText)) !== null) {
-    textParts.push(match[1]);
-  }
-  
-  // Also detect paragraph breaks
-  let result = xmlText;
-  result = result.replace(/<\/w:p>/g, "\n");
-  result = result.replace(/<w:tab\/>/g, "\t");
-  
-  const finalParts: string[] = [];
-  const pRegex = /<w:p[^>]*>([\s\S]*?)<\/w:p>/g;
-  let pMatch;
-  while ((pMatch = pRegex.exec(xmlText)) !== null) {
-    const pContent = pMatch[1];
-    const tParts: string[] = [];
-    const tRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
-    let tMatch;
-    while ((tMatch = tRegex.exec(pContent)) !== null) {
-      tParts.push(tMatch[1]);
-    }
-    if (tParts.length > 0) {
-      finalParts.push(tParts.join(""));
-    }
-  }
-  
-  return finalParts.join("\n");
-}
-
-// Minimal ZIP parser
-function parseZipEntries(data: Uint8Array): Array<{name: string; data: Uint8Array}> {
-  const entries: Array<{name: string; data: Uint8Array}> = [];
-  let offset = 0;
-  
-  while (offset < data.length - 4) {
-    // Local file header signature
-    if (data[offset] === 0x50 && data[offset+1] === 0x4B && data[offset+2] === 0x03 && data[offset+3] === 0x04) {
-      const compressionMethod = data[offset + 8] | (data[offset + 9] << 8);
-      const compressedSize = data[offset + 18] | (data[offset + 19] << 8) | (data[offset + 20] << 16) | (data[offset + 21] << 24);
-      const uncompressedSize = data[offset + 22] | (data[offset + 23] << 8) | (data[offset + 24] << 16) | (data[offset + 25] << 24);
-      const nameLen = data[offset + 26] | (data[offset + 27] << 8);
-      const extraLen = data[offset + 28] | (data[offset + 29] << 8);
-      
-      const name = new TextDecoder().decode(data.slice(offset + 30, offset + 30 + nameLen));
-      const dataStart = offset + 30 + nameLen + extraLen;
-      const fileData = data.slice(dataStart, dataStart + compressedSize);
-      
-      if (compressionMethod === 0) {
-        // Stored (no compression)
-        entries.push({ name, data: fileData });
-      } else if (compressionMethod === 8) {
-        // Deflate - use DecompressionStream
-        try {
-          const ds = new DecompressionStream("raw");
-          const writer = ds.writable.getWriter();
-          const reader = ds.readable.getReader();
-          
-          // We need to handle this synchronously-ish
-          // Instead, collect asynchronously
-          entries.push({ name, data: fileData }); // placeholder, will decompress later
-        } catch {
-          entries.push({ name, data: fileData });
-        }
+  // Check if we got a virus scan warning page (for larger files)
+  const contentType = resp.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    const html = await resp.text();
+    // Extract the confirm download link
+    const confirmMatch = html.match(/action="([^"]+)"/);
+    if (confirmMatch) {
+      let confirmUrl = confirmMatch[1].replace(/&amp;/g, "&");
+      if (!confirmUrl.startsWith("http")) {
+        confirmUrl = "https://drive.google.com" + confirmUrl;
       }
-      
-      offset = dataStart + compressedSize;
-    } else {
-      offset++;
+      const confirmResp = await fetch(confirmUrl, {
+        method: "POST",
+        headers: { "User-Agent": "Mozilla/5.0" },
+        redirect: "follow",
+      });
+      if (!confirmResp.ok) throw new Error(`Erro ao confirmar download: ${confirmResp.status}`);
+      return confirmResp.arrayBuffer();
     }
+    throw new Error("Não foi possível baixar o arquivo. Verifique se a pasta é pública.");
   }
   
-  return entries;
+  return resp.arrayBuffer();
 }
 
 async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
@@ -170,7 +178,6 @@ async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   return result;
 }
 
-// Better docx extraction using decompression
 async function extractDocxTextAsync(buffer: ArrayBuffer): Promise<string> {
   const bytes = new Uint8Array(buffer);
   let offset = 0;
@@ -320,10 +327,7 @@ serve(async (req) => {
         });
       }
 
-      // Download the file
       const buffer = await downloadDriveFile(fileId);
-      
-      // Extract text
       const text = await extractDocxTextAsync(buffer);
       
       if (!text || text.trim().length < 10) {
@@ -343,7 +347,6 @@ serve(async (req) => {
         });
       }
 
-      // Analyze with AI
       const result = await analyzeWithAI(text, fileName || fileId);
       
       return new Response(JSON.stringify({ result }), {
