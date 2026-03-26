@@ -1,30 +1,21 @@
-import { useState, useCallback } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import {
-  FolderSearch,
+  Upload,
   FileText,
   Download,
   Loader2,
   CheckCircle2,
   AlertCircle,
   Sparkles,
-  ExternalLink,
 } from "lucide-react";
-
-interface DriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  size?: string;
-}
 
 interface AnalysisResult {
   fileName: string;
@@ -39,56 +30,50 @@ interface AnalysisResult {
   error?: string;
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 export default function AnalisarPrazos() {
-  const [driveUrl, setDriveUrl] = useState("");
-  const [files, setFiles] = useState<DriveFile[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [results, setResults] = useState<AnalysisResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleListFiles = async () => {
-    if (!driveUrl.trim()) {
-      toast.error("Informe a URL da pasta do Google Drive");
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files;
+    if (!selected?.length) return;
+
+    const docxFiles = Array.from(selected).filter(f =>
+      f.name.toLowerCase().endsWith(".docx")
+    );
+
+    if (docxFiles.length === 0) {
+      toast.error("Selecione arquivos .docx");
       return;
     }
 
-    setLoading(true);
-    setFiles([]);
-    setResults([]);
-    try {
-      const { data, error } = await supabase.functions.invoke("analisar-prazos-drive", {
-        body: { action: "list", driveUrl },
-      });
-
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      if (!data.files?.length) {
-        toast.warning("Nenhum arquivo .docx encontrado na pasta");
-        return;
-      }
-
-      setFiles(data.files);
-      setResults(
-        data.files.map((f: DriveFile) => ({
-          fileName: f.name,
-          numero_processo: "",
-          dossie: "",
-          equipe: "",
-          reclamante: "",
-          reclamada: "",
-          relator: "",
-          turma: "",
-          status: "pending" as const,
-        }))
-      );
-      toast.success(`${data.files.length} arquivo(s) encontrado(s)`);
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao listar arquivos");
-    } finally {
-      setLoading(false);
-    }
+    setFiles(docxFiles);
+    setResults(
+      docxFiles.map(f => ({
+        fileName: f.name,
+        numero_processo: "",
+        dossie: "",
+        equipe: "",
+        reclamante: "",
+        reclamada: "",
+        relator: "",
+        turma: "",
+        status: "pending" as const,
+      }))
+    );
+    toast.success(`${docxFiles.length} arquivo(s) selecionado(s)`);
   };
 
   const handleAnalyzeAll = async () => {
@@ -104,8 +89,11 @@ export default function AnalisarPrazos() {
       setResults([...updatedResults]);
 
       try {
+        const buffer = await file.arrayBuffer();
+        const base64 = arrayBufferToBase64(buffer);
+
         const { data, error } = await supabase.functions.invoke("analisar-prazos-drive", {
-          body: { action: "analyze", fileId: file.id, fileName: file.name },
+          body: { action: "analyze-upload", fileName: file.name, fileBase64: base64 },
         });
 
         if (error) throw error;
@@ -134,9 +122,8 @@ export default function AnalisarPrazos() {
       setResults([...updatedResults]);
       setProgress(((i + 1) / files.length) * 100);
 
-      // Delay to avoid rate limits
       if (i < files.length - 1) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
 
@@ -145,7 +132,7 @@ export default function AnalisarPrazos() {
   };
 
   const handleDownloadXLSX = () => {
-    const doneResults = results.filter((r) => r.status === "done");
+    const doneResults = results.filter(r => r.status === "done");
     if (!doneResults.length) {
       toast.error("Nenhum resultado para exportar");
       return;
@@ -153,8 +140,8 @@ export default function AnalisarPrazos() {
 
     const wsData = [
       ["DATA DA DISTRIBUIÇÃO", "NÚMERO DO PROCESSO", "DOSSIÊ", "EQUIPE", "RECLAMANTE", "RECLAMADA", "RELATOR", "TURMA"],
-      ...doneResults.map((r) => [
-        "", // DATA DA DISTRIBUIÇÃO - not extracted
+      ...doneResults.map(r => [
+        "",
         r.numero_processo,
         r.dossie,
         r.equipe,
@@ -167,48 +154,55 @@ export default function AnalisarPrazos() {
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    // Column widths
     ws["!cols"] = [
       { wch: 22 }, { wch: 30 }, { wch: 30 }, { wch: 40 },
       { wch: 35 }, { wch: 35 }, { wch: 30 }, { wch: 15 },
     ];
-
     XLSX.utils.book_append_sheet(wb, ws, "Planilha");
     XLSX.writeFile(wb, "Planilha_Processos_TST.xlsx");
     toast.success("Planilha baixada com sucesso!");
   };
 
-  const doneCount = results.filter((r) => r.status === "done").length;
-  const errorCount = results.filter((r) => r.status === "error").length;
+  const doneCount = results.filter(r => r.status === "done").length;
+  const errorCount = results.filter(r => r.status === "error").length;
 
   return (
-    <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos do Google Drive com IA">
+    <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos com IA">
       <div className="space-y-6">
-
-        {/* URL Input */}
+        {/* Upload */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <FolderSearch className="w-5 h-5 text-primary" />
-              Pasta do Google Drive
+              <Upload className="w-5 h-5 text-primary" />
+              Upload de Documentos
             </CardTitle>
             <CardDescription>
-              Cole a URL da pasta pública do Google Drive contendo os documentos .docx dos prazos TST
+              Selecione os arquivos .docx da pasta de prazos TST para análise com IA
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3">
-              <Input
-                placeholder="https://drive.google.com/drive/folders/..."
-                value={driveUrl}
-                onChange={(e) => setDriveUrl(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={handleListFiles} disabled={loading || analyzing}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FolderSearch className="w-4 h-4 mr-2" />}
-                Listar Arquivos
-              </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".docx"
+              className="hidden"
+              onChange={handleFilesSelected}
+            />
+            <div
+              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+              <p className="text-sm font-medium">Clique para selecionar arquivos .docx</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Ou arraste os arquivos para cá • Apenas arquivos .docx
+              </p>
+              {files.length > 0 && (
+                <Badge variant="secondary" className="mt-3">
+                  {files.length} arquivo(s) selecionado(s)
+                </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -221,7 +215,7 @@ export default function AnalisarPrazos() {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <FileText className="w-5 h-5 text-primary" />
-                    Documentos Encontrados ({files.length})
+                    Documentos ({files.length})
                   </CardTitle>
                   {analyzing && (
                     <div className="mt-3 space-y-2">
@@ -238,11 +232,7 @@ export default function AnalisarPrazos() {
                     disabled={analyzing || doneCount === files.length}
                     className="gap-2"
                   >
-                    {analyzing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
+                    {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                     {analyzing ? "Analisando..." : "Analisar Todos com IA"}
                   </Button>
                   {doneCount > 0 && (
@@ -257,10 +247,7 @@ export default function AnalisarPrazos() {
             <CardContent>
               <div className="space-y-2 max-h-[500px] overflow-y-auto">
                 {results.map((r, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                  >
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       <div className="min-w-0">
@@ -270,9 +257,7 @@ export default function AnalisarPrazos() {
                             {r.numero_processo} • {r.reclamante} vs {r.reclamada}
                           </p>
                         )}
-                        {r.status === "error" && (
-                          <p className="text-xs text-destructive">{r.error}</p>
-                        )}
+                        {r.status === "error" && <p className="text-xs text-destructive">{r.error}</p>}
                       </div>
                     </div>
                     <div className="flex-shrink-0 ml-2">
@@ -321,19 +306,17 @@ export default function AnalisarPrazos() {
                     </tr>
                   </thead>
                   <tbody>
-                    {results
-                      .filter((r) => r.status === "done")
-                      .map((r, idx) => (
-                        <tr key={idx} className="border-b hover:bg-muted/50">
-                          <td className="p-2 font-mono text-xs">{r.numero_processo}</td>
-                          <td className="p-2 text-xs">{r.dossie}</td>
-                          <td className="p-2 text-xs">{r.equipe}</td>
-                          <td className="p-2 text-xs">{r.reclamante}</td>
-                          <td className="p-2 text-xs">{r.reclamada}</td>
-                          <td className="p-2 text-xs">{r.relator}</td>
-                          <td className="p-2 text-xs">{r.turma}</td>
-                        </tr>
-                      ))}
+                    {results.filter(r => r.status === "done").map((r, idx) => (
+                      <tr key={idx} className="border-b hover:bg-muted/50">
+                        <td className="p-2 font-mono text-xs">{r.numero_processo}</td>
+                        <td className="p-2 text-xs">{r.dossie}</td>
+                        <td className="p-2 text-xs">{r.equipe}</td>
+                        <td className="p-2 text-xs">{r.reclamante}</td>
+                        <td className="p-2 text-xs">{r.reclamada}</td>
+                        <td className="p-2 text-xs">{r.relator}</td>
+                        <td className="p-2 text-xs">{r.turma}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
