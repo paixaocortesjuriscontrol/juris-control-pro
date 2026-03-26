@@ -283,7 +283,7 @@ export default function AnalisarPrazos() {
                         </Badge>
                       )}
                       {r.status === "done" && (
-                        <Badge className="gap-1 bg-emerald-600">
+                        <Badge className="gap-1 bg-emerald-600 text-white">
                           <CheckCircle2 className="w-3 h-3" /> Concluído
                         </Badge>
                       )}
