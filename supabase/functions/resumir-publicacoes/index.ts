@@ -58,30 +58,45 @@ serve(async (req) => {
       const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}`;
 
       let resumo = 'Não foi possível gerar resumo.';
-      try {
-        const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
-        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: summaryModel,
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
-              { role: 'user', content: userMsg },
-            ],
-            max_tokens: 1200,
-            temperature: 0.2,
-          }),
-        });
-        if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
-        const aiResponse = await resp.json();
-        resumo = aiResponse.choices?.[0]?.message?.content?.trim() || resumo;
-      } catch (e) {
-        console.error(`Erro ao resumir pub ${pub.id}:`, e);
-        resumo = 'Erro ao gerar resumo desta publicação.';
+      const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+      const maxRetries = 3;
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: summaryModel,
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
+                { role: 'user', content: userMsg },
+              ],
+              max_tokens: 1200,
+              temperature: 0.2,
+            }),
+          });
+
+          if (resp.status === 429) {
+            const waitMs = Math.min(2000 * Math.pow(2, attempt), 10000);
+            console.warn(`Rate limited (429) for pub ${pub.id}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(r => setTimeout(r, waitMs));
+            continue;
+          }
+
+          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+          const aiResponse = await resp.json();
+          resumo = aiResponse.choices?.[0]?.message?.content?.trim() || resumo;
+          break; // success
+        } catch (e) {
+          if (attempt === maxRetries - 1) {
+            console.error(`Erro ao resumir pub ${pub.id} após ${maxRetries} tentativas:`, e);
+            resumo = 'Erro ao gerar resumo desta publicação.';
+          }
+        }
       }
 
       return new Response(

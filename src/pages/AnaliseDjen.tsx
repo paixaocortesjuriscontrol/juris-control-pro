@@ -826,6 +826,8 @@ const AnaliseDjen = () => {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
         }
+        // Small delay between calls to avoid rate limiting
+        if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
       }
 
       if (erros > 0) {
@@ -1242,6 +1244,8 @@ const AnaliseDjen = () => {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
         }
+        // Small delay between calls to avoid rate limiting
+        if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
       }
 
       const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações DJEN${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
