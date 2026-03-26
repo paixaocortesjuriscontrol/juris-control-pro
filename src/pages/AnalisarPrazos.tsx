@@ -183,7 +183,7 @@ export default function AnalisarPrazos() {
   const errorCount = results.filter((r) => r.status === "error").length;
 
   return (
-    <Layout>
+    <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos do Google Drive com IA">
       <div className="space-y-6">
         {/* Header */}
         <div>
