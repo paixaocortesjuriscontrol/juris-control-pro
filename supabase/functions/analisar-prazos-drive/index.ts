@@ -5,13 +5,54 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+function extractFolderId(url: string): string | null {
+  const match1 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (match1) return match1[1];
+  const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match2) return match2[1];
+  return null;
+}
+
+async function listDriveFiles(folderId: string, apiKey: string): Promise<any[]> {
+  const files: any[] = [];
+  let pageToken = "";
+
+  do {
+    const params = new URLSearchParams({
+      q: `'${folderId}' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'`,
+      key: apiKey,
+      fields: "nextPageToken,files(id,name,mimeType,size)",
+      pageSize: "100",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+    if (!resp.ok) {
+      const err = await resp.text();
+      console.error("Drive API error:", resp.status, err);
+      throw new Error(`Erro ao acessar Google Drive API: ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    if (data.files) files.push(...data.files);
+    pageToken = data.nextPageToken || "";
+  } while (pageToken);
+
+  console.log(`Found ${files.length} .docx files via Drive API`);
+  return files;
+}
+
+async function downloadDriveFile(fileId: string, apiKey: string): Promise<ArrayBuffer> {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}&supportsAllDrives=true`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error("Download error:", resp.status, err);
+    throw new Error(`Erro ao baixar arquivo ${fileId}: ${resp.status}`);
   }
-  return bytes;
+  return resp.arrayBuffer();
 }
 
 async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
@@ -36,7 +77,8 @@ async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   return result;
 }
 
-async function extractDocxText(bytes: Uint8Array): Promise<string> {
+async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
+  const bytes = new Uint8Array(buffer);
   let offset = 0;
   while (offset < bytes.length - 4) {
     if (bytes[offset] === 0x50 && bytes[offset+1] === 0x4B && bytes[offset+2] === 0x03 && bytes[offset+3] === 0x04) {
@@ -60,16 +102,13 @@ async function extractDocxText(bytes: Uint8Array): Promise<string> {
         const pRegex = /<w:p[^>]*>([\s\S]*?)<\/w:p>/g;
         let pMatch;
         while ((pMatch = pRegex.exec(xmlText)) !== null) {
-          const pContent = pMatch[1];
           const tParts: string[] = [];
           const tRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
           let tMatch;
-          while ((tMatch = tRegex.exec(pContent)) !== null) {
+          while ((tMatch = tRegex.exec(pMatch[1])) !== null) {
             tParts.push(tMatch[1]);
           }
-          if (tParts.length > 0) {
-            finalParts.push(tParts.join(""));
-          }
+          if (tParts.length > 0) finalParts.push(tParts.join(""));
         }
         return finalParts.join("\n");
       }
@@ -79,6 +118,15 @@ async function extractDocxText(bytes: Uint8Array): Promise<string> {
     }
   }
   throw new Error("document.xml não encontrado no arquivo .docx");
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
 }
 
 async function analyzeWithAI(text: string, fileName: string): Promise<any> {
@@ -154,34 +202,60 @@ serve(async (req) => {
   }
 
   try {
-    const { action, fileName, fileBase64 } = await req.json();
+    const { action, driveUrl, fileId, fileName, fileBase64 } = await req.json();
 
-    if (action === "analyze-upload") {
-      if (!fileBase64) {
-        return new Response(JSON.stringify({ error: "fileBase64 obrigatório" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // List files from Drive folder using API key
+    if (action === "list") {
+      const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+      if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY não configurada. Adicione nas configurações do projeto.");
+
+      const folderId = extractFolderId(driveUrl);
+      if (!folderId) {
+        return new Response(JSON.stringify({ error: "URL do Google Drive inválida" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const bytes = base64ToUint8Array(fileBase64);
-      const text = await extractDocxText(bytes);
+      const files = await listDriveFiles(folderId, GOOGLE_API_KEY);
+      return new Response(JSON.stringify({ files }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Analyze a file from Drive by ID
+    if (action === "analyze") {
+      const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+      if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY não configurada");
+      if (!fileId) throw new Error("fileId obrigatório");
+
+      const buffer = await downloadDriveFile(fileId, GOOGLE_API_KEY);
+      const text = await extractDocxText(buffer);
 
       if (!text || text.trim().length < 10) {
         return new Response(JSON.stringify({
           error: "Não foi possível extrair texto do documento",
-          result: {
-            numero_processo: "(Não localizado)",
-            dossie: "(Não localizado)",
-            equipe: "(Não localizado)",
-            reclamante: "(Não localizado)",
-            reclamada: "(Não localizado)",
-            relator: "(Não localizado)",
-            turma: "(Não localizado)",
-          }
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+          result: { numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)", reclamante: "(Não localizado)", reclamada: "(Não localizado)", relator: "(Não localizado)", turma: "(Não localizado)" }
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const result = await analyzeWithAI(text, fileName || fileId);
+      return new Response(JSON.stringify({ result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Analyze uploaded file (base64)
+    if (action === "analyze-upload") {
+      if (!fileBase64) throw new Error("fileBase64 obrigatório");
+
+      const bytes = base64ToUint8Array(fileBase64);
+      const text = await extractDocxText(bytes.buffer);
+
+      if (!text || text.trim().length < 10) {
+        return new Response(JSON.stringify({
+          error: "Não foi possível extrair texto do documento",
+          result: { numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)", reclamante: "(Não localizado)", reclamada: "(Não localizado)", relator: "(Não localizado)", turma: "(Não localizado)" }
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       const result = await analyzeWithAI(text, fileName || "documento.docx");
@@ -191,14 +265,12 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ error: "Ação inválida" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Erro:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Erro desconhecido" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
