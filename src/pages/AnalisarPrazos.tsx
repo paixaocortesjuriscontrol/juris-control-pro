@@ -185,13 +185,6 @@ export default function AnalisarPrazos() {
   return (
     <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos do Google Drive com IA">
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-serif font-bold text-foreground">Analisar Prazos</h1>
-          <p className="text-muted-foreground mt-1">
-            Análise automática de documentos do Google Drive com IA para extração de dados processuais
-          </p>
-        </div>
 
         {/* URL Input */}
         <Card>

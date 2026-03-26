@@ -57,6 +57,7 @@ import ClienteCadastro from "./pages/cliente/ClienteCadastro";
 import ClientePortal from "./pages/cliente/ClientePortal";
 import WorkerDjenVps from "./pages/WorkerDjenVps";
 import TstPrazos from "./pages/TstPrazos";
+import AnalisarPrazos from "./pages/AnalisarPrazos";
 
 const queryClient = new QueryClient({
   defaultOptions: {
