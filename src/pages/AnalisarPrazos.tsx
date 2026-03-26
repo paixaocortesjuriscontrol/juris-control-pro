@@ -348,6 +348,6 @@ export default function AnalisarPrazos() {
           </Card>
         )}
       </div>
-    </Layout>
+    </MainLayout>
   );
 }
