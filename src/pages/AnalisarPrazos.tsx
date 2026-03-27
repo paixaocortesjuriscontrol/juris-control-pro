@@ -60,6 +60,7 @@ export default function AnalisarPrazos() {
   const [progress, setProgress] = useState(0);
   const [mode, setMode] = useState<"drive" | "upload">("drive");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
 
   const handleListFiles = async () => {
     if (!driveUrl.trim()) {
@@ -111,15 +112,32 @@ export default function AnalisarPrazos() {
     toast.success(`${docxFiles.length} arquivo(s) selecionado(s)`);
   };
 
+  const handleCancelAnalysis = () => {
+    cancelledRef.current = true;
+    setAnalyzing(false);
+    toast.info("Análise cancelada");
+  };
+
   const handleAnalyzeAll = async () => {
     const isDrive = mode === "drive";
     const count = isDrive ? driveFiles.length : uploadedFiles.length;
     if (!count) return;
     setAnalyzing(true);
     setProgress(0);
+    cancelledRef.current = false;
     const updatedResults = [...results];
 
     for (let i = 0; i < count; i++) {
+      if (cancelledRef.current) {
+        for (let j = i; j < count; j++) {
+          if (updatedResults[j].status === "pending" || updatedResults[j].status === "analyzing") {
+            updatedResults[j] = { ...updatedResults[j], status: "pending" };
+          }
+        }
+        setResults([...updatedResults]);
+        break;
+      }
+
       updatedResults[i] = { ...updatedResults[i], status: "analyzing" };
       setResults([...updatedResults]);
 
@@ -162,10 +180,10 @@ export default function AnalisarPrazos() {
 
       setResults([...updatedResults]);
       setProgress(((i + 1) / count) * 100);
-      if (i < count - 1) await new Promise(r => setTimeout(r, 1000));
+      if (i < count - 1 && !cancelledRef.current) await new Promise(r => setTimeout(r, 1000));
     }
     setAnalyzing(false);
-    toast.success("Análise concluída!");
+    if (!cancelledRef.current) toast.success("Análise concluída!");
   };
 
   const handleDownloadXLSX = () => {
@@ -252,10 +270,17 @@ export default function AnalisarPrazos() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleAnalyzeAll} disabled={analyzing || doneCount === results.length} className="gap-2">
-                    {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    {analyzing ? "Analisando..." : "Analisar Todos com IA"}
-                  </Button>
+                  {analyzing ? (
+                    <Button onClick={handleCancelAnalysis} variant="destructive" className="gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Cancelar
+                    </Button>
+                  ) : (
+                    <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Analisar Todos com IA
+                    </Button>
+                  )}
                   {doneCount > 0 && (
                     <Button variant="outline" onClick={handleDownloadXLSX} className="gap-2">
                       <Download className="w-4 h-4" /> Baixar Planilha ({doneCount})
