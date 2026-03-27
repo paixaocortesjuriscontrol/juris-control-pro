@@ -85,7 +85,7 @@ export default function AnalisarPrazos() {
       setResults(
         data.files.map((f: DriveFile) => ({
           fileName: f.name, fileId: f.id,
-          numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
+          data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
           status: "pending" as const,
         }))
       );
@@ -106,7 +106,7 @@ export default function AnalisarPrazos() {
     setResults(
       docxFiles.map(f => ({
         fileName: f.name,
-        numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
+        data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
         status: "pending" as const,
       }))
     );
