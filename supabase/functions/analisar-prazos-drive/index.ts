@@ -13,35 +13,66 @@ function extractFolderId(url: string): string | null {
   return null;
 }
 
+type DriveListMode = "folder" | "shared-drive-root";
+
+async function fetchDriveFilesPage(folderId: string, apiKey: string, mode: DriveListMode, pageToken = "") {
+  const params = new URLSearchParams({
+    key: apiKey,
+    fields: "nextPageToken,files(id,name,mimeType,size)",
+    pageSize: "100",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+  });
+
+  if (mode === "shared-drive-root") {
+    params.set("corpora", "drive");
+    params.set("driveId", folderId);
+    params.set("q", "'root' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' and trashed=false");
+  } else {
+    params.set("corpora", "allDrives");
+    params.set("q", `'${folderId}' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' and trashed=false`);
+  }
+
+  if (pageToken) params.set("pageToken", pageToken);
+
+  const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error("Drive API error:", resp.status, err);
+    throw new Error(`Erro ao acessar Google Drive API: ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  return {
+    files: Array.isArray(data.files) ? data.files : [],
+    nextPageToken: data.nextPageToken || "",
+  };
+}
+
 async function listDriveFiles(folderId: string, apiKey: string): Promise<any[]> {
-  const files: any[] = [];
-  let pageToken = "";
+  const modes: DriveListMode[] = folderId.startsWith("0A")
+    ? ["shared-drive-root", "folder"]
+    : ["folder"];
 
-  do {
-    const params = new URLSearchParams({
-      q: `'${folderId}' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'`,
-      key: apiKey,
-      fields: "nextPageToken,files(id,name,mimeType,size)",
-      pageSize: "100",
-      supportsAllDrives: "true",
-      includeItemsFromAllDrives: "true",
-    });
-    if (pageToken) params.set("pageToken", pageToken);
+  for (const mode of modes) {
+    const files: any[] = [];
+    let pageToken = "";
 
-    const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.error("Drive API error:", resp.status, err);
-      throw new Error(`Erro ao acessar Google Drive API: ${resp.status}`);
+    do {
+      const page = await fetchDriveFilesPage(folderId, apiKey, mode, pageToken);
+      files.push(...page.files);
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+
+    if (files.length > 0) {
+      console.log(`Found ${files.length} .docx files via Drive API (${mode})`);
+      return files;
     }
 
-    const data = await resp.json();
-    if (data.files) files.push(...data.files);
-    pageToken = data.nextPageToken || "";
-  } while (pageToken);
+    console.log(`No .docx files found via Drive API (${mode})`);
+  }
 
-  console.log(`Found ${files.length} .docx files via Drive API`);
-  return files;
+  return [];
 }
 
 async function downloadDriveFile(fileId: string, apiKey: string): Promise<ArrayBuffer> {
