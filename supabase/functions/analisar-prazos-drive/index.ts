@@ -1,50 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GoogleAuth } from "npm:google-auth-library";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// --- JWT / Service Account Auth ---
-
-function base64url(data: Uint8Array): string {
-  let s = "";
-  for (const b of data) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const body = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s/g, "");
-  const binary = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
-  return crypto.subtle.importKey(
-    "pkcs8",
-    binary,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-}
-
-async function createJWT(email: string, key: CryptoKey): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: "RS256", typ: "JWT" };
-  const payload = {
-    iss: email,
-    scope: "https://www.googleapis.com/auth/drive.readonly",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
-  };
-  const enc = new TextEncoder();
-  const headerB64 = base64url(enc.encode(JSON.stringify(header)));
-  const payloadB64 = base64url(enc.encode(JSON.stringify(payload)));
-  const sigInput = `${headerB64}.${payloadB64}`;
-  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, enc.encode(sigInput));
-  return `${sigInput}.${base64url(new Uint8Array(sig))}`;
-}
+// --- Service Account Auth via google-auth-library ---
 
 let cachedToken: { token: string; expires: number } | null = null;
 
@@ -56,28 +18,25 @@ async function getAccessToken(): Promise<string> {
   const raw = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
   if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY não configurada");
 
-  const sa = JSON.parse(raw);
-  const key = await importPrivateKey(sa.private_key);
-  const jwt = await createJWT(sa.client_email, key);
-
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
-    }),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.text();
-    console.error("Token exchange error:", err);
-    throw new Error(`Erro ao obter token: ${resp.status}`);
+  let credentials: Record<string, unknown>;
+  try {
+    credentials = JSON.parse(raw);
+  } catch {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY não é um JSON válido. Reconfigure o secret com o conteúdo completo do arquivo JSON da conta de serviço.");
   }
 
-  const data = await resp.json();
-  cachedToken = { token: data.access_token, expires: Date.now() + (data.expires_in - 60) * 1000 };
-  return cachedToken.token;
+  const auth = new GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+  });
+
+  const client = await auth.getClient();
+  const tokenResponse = await client.getAccessToken();
+  const token = tokenResponse.token;
+  if (!token) throw new Error("Falha ao obter access token do Google");
+
+  cachedToken = { token, expires: Date.now() + 50 * 60 * 1000 };
+  return token;
 }
 
 // --- Drive helpers ---
