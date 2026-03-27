@@ -121,7 +121,9 @@ export function usePrazosTst(coordenacaoId: string | null, allCoordIds?: string[
         .from("processos")
         .select(TST_SELECT)
         .in("status", ["ativo", "pendente", "urgente"])
-        .order("data_fatal", { ascending: true, nullsFirst: false });
+        .not("data_fatal", "is", null)
+        .order("data_fatal", { ascending: true, nullsFirst: false })
+        .limit(2000);
 
       if (isAll && allCoordIds && allCoordIds.length > 0) {
         q = q.in("coordenacao_id", allCoordIds);
