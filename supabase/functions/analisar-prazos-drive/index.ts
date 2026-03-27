@@ -219,13 +219,14 @@ function base64ToUint8Array(base64: string): Uint8Array {
 
 // --- AI analysis ---
 
-async function analyzeWithAI(text: string, fileName: string): Promise<any> {
+async function analyzeWithAI(text: string, fileName: string): Promise<any[]> {
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY não configurada");
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
-Analise o documento fornecido e extraia EXATAMENTE as seguintes informações:
-1. DATA DA DISPONIBILIZAÇÃO (data de disponibilização da publicação no diário, formato DD/MM/AAAA. Procure por "Data da Disponibilização", "Disponibilização" ou datas associadas à publicação no DJe/DEJT)
+Analise o documento fornecido e extraia TODOS os processos encontrados. Um único documento pode conter MÚLTIPLOS processos.
+Para CADA processo encontrado, extraia:
+1. DATA DA DISPONIBILIZAÇÃO (data de disponibilização da publicação no diário, formato DD/MM/AAAA)
 2. NÚMERO DO PROCESSO (formato CNJ: NNNNNNN-NN.NNNN.N.NN.NNNN)
 3. DOSSIÊ (código do dossiê/pasta do escritório)
 4. EQUIPE (nome da equipe/núcleo responsável)
@@ -234,8 +235,8 @@ Analise o documento fornecido e extraia EXATAMENTE as seguintes informações:
 7. RELATOR (nome do ministro relator)
 8. TURMA (turma do TST responsável)
 
-Se alguma informação não for encontrada, retorne "(Não localizado)".
-Retorne APENAS no formato JSON.`;
+IMPORTANTE: Retorne TODOS os processos distintos encontrados no documento. Se houver apenas um, retorne um array com um elemento.
+Se alguma informação não for encontrada, retorne "(Não localizado)".`;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -249,25 +250,35 @@ Retorne APENAS no formato JSON.`;
       tools: [{
         type: "function",
         function: {
-          name: "extrair_dados_processo",
-          description: "Extrai dados estruturados de um documento de processo TST",
+          name: "extrair_dados_processos",
+          description: "Extrai dados estruturados de TODOS os processos encontrados em um documento TST",
           parameters: {
             type: "object",
             properties: {
-              data_distribuicao: { type: "string", description: "Data da disponibilização da publicação no formato DD/MM/AAAA" },
-              numero_processo: { type: "string", description: "Número do processo no formato CNJ" },
-              dossie: { type: "string", description: "Código do dossiê" },
-              equipe: { type: "string", description: "Nome da equipe/núcleo" },
-              reclamante: { type: "string", description: "Nome do reclamante" },
-              reclamada: { type: "string", description: "Nome da reclamada" },
-              relator: { type: "string", description: "Nome do ministro relator" },
-              turma: { type: "string", description: "Turma do TST" },
+              processos: {
+                type: "array",
+                description: "Lista de todos os processos encontrados no documento",
+                items: {
+                  type: "object",
+                  properties: {
+                    data_distribuicao: { type: "string", description: "Data da disponibilização da publicação no formato DD/MM/AAAA" },
+                    numero_processo: { type: "string", description: "Número do processo no formato CNJ" },
+                    dossie: { type: "string", description: "Código do dossiê" },
+                    equipe: { type: "string", description: "Nome da equipe/núcleo" },
+                    reclamante: { type: "string", description: "Nome do reclamante" },
+                    reclamada: { type: "string", description: "Nome da reclamada" },
+                    relator: { type: "string", description: "Nome do ministro relator" },
+                    turma: { type: "string", description: "Turma do TST" },
+                  },
+                  required: ["data_distribuicao", "numero_processo", "dossie", "equipe", "reclamante", "reclamada", "relator", "turma"],
+                },
+              },
             },
-            required: ["data_distribuicao", "numero_processo", "dossie", "equipe", "reclamante", "reclamada", "relator", "turma"],
+            required: ["processos"],
           },
         },
       }],
-      tool_choice: { type: "function", function: { name: "extrair_dados_processo" } },
+      tool_choice: { type: "function", function: { name: "extrair_dados_processos" } },
     }),
   });
 
@@ -279,7 +290,14 @@ Retorne APENAS no formato JSON.`;
 
   const data = await resp.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall?.function?.arguments) return JSON.parse(toolCall.function.arguments);
+  if (toolCall?.function?.arguments) {
+    const parsed = JSON.parse(toolCall.function.arguments);
+    if (Array.isArray(parsed.processos) && parsed.processos.length > 0) {
+      return parsed.processos;
+    }
+    // Fallback: if AI returned flat object instead of array
+    if (parsed.numero_processo) return [parsed];
+  }
   throw new Error("IA não retornou dados estruturados");
 }
 
@@ -318,11 +336,23 @@ serve(async (req) => {
       const buffer = await downloadDriveFile(fileId, accessToken);
       const text = await extractDocxText(buffer);
       if (!text || text.trim().length < 10) {
-        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", result: NOT_FOUND_RESULT }),
+        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", results: [NOT_FOUND_RESULT] }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      const result = await analyzeWithAI(text, fileName || fileId);
-      return new Response(JSON.stringify({ result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const results = await analyzeWithAI(text, fileName || fileId);
+      return new Response(JSON.stringify({ results }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "analyze-upload") {
+      if (!fileBase64) throw new Error("fileBase64 obrigatório");
+      const bytes = base64ToUint8Array(fileBase64);
+      const text = await extractDocxText(bytes.buffer);
+      if (!text || text.trim().length < 10) {
+        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", results: [NOT_FOUND_RESULT] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const results = await analyzeWithAI(text, fileName || "documento.docx");
+      return new Response(JSON.stringify({ results }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "analyze-upload") {
