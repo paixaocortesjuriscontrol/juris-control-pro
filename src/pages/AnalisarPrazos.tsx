@@ -163,20 +163,59 @@ export default function AnalisarPrazos() {
           data = resp.data;
         }
 
-        const result = data.result || {};
-        updatedResults[i] = {
-          ...updatedResults[i],
-          data_distribuicao: result.data_distribuicao || result.data_disponibilizacao || "(Não localizado)",
-          numero_processo: result.numero_processo || "(Não localizado)",
-          dossie: result.dossie || "(Não localizado)",
-          equipe: result.equipe || "(Não localizado)",
-          reclamante: result.reclamante || "(Não localizado)",
-          reclamada: result.reclamada || "(Não localizado)",
-          relator: result.relator || "(Não localizado)",
-          turma: result.turma || "(Não localizado)",
-          status: "done",
-          error: data.error || undefined,
-        };
+        // Handle multiple processes from a single file
+        const processos = data.results || (data.result ? [data.result] : []);
+        
+        if (processos.length <= 1) {
+          const result = processos[0] || {};
+          updatedResults[i] = {
+            ...updatedResults[i],
+            data_distribuicao: result.data_distribuicao || result.data_disponibilizacao || "(Não localizado)",
+            numero_processo: result.numero_processo || "(Não localizado)",
+            dossie: result.dossie || "(Não localizado)",
+            equipe: result.equipe || "(Não localizado)",
+            reclamante: result.reclamante || "(Não localizado)",
+            reclamada: result.reclamada || "(Não localizado)",
+            relator: result.relator || "(Não localizado)",
+            turma: result.turma || "(Não localizado)",
+            status: "done",
+            error: data.error || undefined,
+          };
+        } else {
+          // First process replaces original row
+          const first = processos[0];
+          updatedResults[i] = {
+            ...updatedResults[i],
+            data_distribuicao: first.data_distribuicao || first.data_disponibilizacao || "(Não localizado)",
+            numero_processo: first.numero_processo || "(Não localizado)",
+            dossie: first.dossie || "(Não localizado)",
+            equipe: first.equipe || "(Não localizado)",
+            reclamante: first.reclamante || "(Não localizado)",
+            reclamada: first.reclamada || "(Não localizado)",
+            relator: first.relator || "(Não localizado)",
+            turma: first.turma || "(Não localizado)",
+            status: "done",
+          };
+          // Additional processes are inserted after current row
+          const extras: AnalysisResult[] = processos.slice(1).map((p: any) => ({
+            fileName: updatedResults[i].fileName,
+            fileId: updatedResults[i].fileId,
+            data_distribuicao: p.data_distribuicao || p.data_disponibilizacao || "(Não localizado)",
+            numero_processo: p.numero_processo || "(Não localizado)",
+            dossie: p.dossie || "(Não localizado)",
+            equipe: p.equipe || "(Não localizado)",
+            reclamante: p.reclamante || "(Não localizado)",
+            reclamada: p.reclamada || "(Não localizado)",
+            relator: p.relator || "(Não localizado)",
+            turma: p.turma || "(Não localizado)",
+            status: "done" as const,
+          }));
+          updatedResults.splice(i + 1, 0, ...extras);
+          // Adjust remaining indices to account for inserted rows
+          for (let k = processed + 1; k < indices.length; k++) {
+            indices[k] += extras.length;
+          }
+        }
       } catch (err: any) {
         updatedResults[i] = { ...updatedResults[i], status: "error", error: err?.message || "Erro ao analisar" };
       }
