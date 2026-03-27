@@ -266,6 +266,7 @@ export default function AnalisarPrazos() {
   const doneCount = results.filter(r => r.status === "done").length;
   const errorCount = results.filter(r => r.status === "error").length;
   const hasFiles = mode === "drive" ? driveFiles.length > 0 : uploadedFiles.length > 0;
+  const uniqueDocCount = new Set(results.map(r => r.sourceFileIndex)).size;
 
   return (
     <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos com IA">
