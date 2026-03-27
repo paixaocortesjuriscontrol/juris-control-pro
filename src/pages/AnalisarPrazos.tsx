@@ -291,10 +291,18 @@ export default function AnalisarPrazos() {
                       Cancelar
                     </Button>
                   ) : (
-                    <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
-                      <Sparkles className="w-4 h-4" />
-                      Analisar Todos com IA
-                    </Button>
+                    <>
+                      <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        Analisar Todos com IA
+                      </Button>
+                      {errorCount > 0 && (
+                        <Button onClick={handleRetryErrors} variant="secondary" className="gap-2">
+                          <RefreshCw className="w-4 h-4" />
+                          Reprocessar Erros ({errorCount})
+                        </Button>
+                      )}
+                    </>
                   )}
                   {doneCount > 0 && (
                     <Button variant="outline" onClick={handleDownloadXLSX} className="gap-2">
