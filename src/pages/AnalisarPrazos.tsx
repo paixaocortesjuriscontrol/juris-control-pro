@@ -165,6 +165,7 @@ export default function AnalisarPrazos() {
         const result = data.result || {};
         updatedResults[i] = {
           ...updatedResults[i],
+          data_distribuicao: result.data_distribuicao || result.data_disponibilizacao || "(Não localizado)",
           numero_processo: result.numero_processo || "(Não localizado)",
           dossie: result.dossie || "(Não localizado)",
           equipe: result.equipe || "(Não localizado)",
