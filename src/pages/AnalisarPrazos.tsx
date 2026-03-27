@@ -237,6 +237,11 @@ export default function AnalisarPrazos() {
               </TabsList>
 
               <TabsContent value="drive">
+                <div className="mb-3 p-3 rounded-lg bg-muted/50 border border-border">
+                  <p className="text-sm text-muted-foreground">
+                    <strong className="text-foreground">Como encontrar a URL da pasta:</strong> Abra o Google Drive, navegue até a pasta que contém os arquivos <code className="bg-muted px-1 rounded">.docx</code>, clique com o botão direito sobre ela e selecione <strong>"Copiar link"</strong>. Cole o link no campo abaixo.
+                  </p>
+                </div>
                 <div className="flex gap-3">
                   <Input
                     placeholder="https://drive.google.com/drive/folders/..."
