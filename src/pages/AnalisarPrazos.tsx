@@ -266,6 +266,7 @@ export default function AnalisarPrazos() {
   const doneCount = results.filter(r => r.status === "done").length;
   const errorCount = results.filter(r => r.status === "error").length;
   const hasFiles = mode === "drive" ? driveFiles.length > 0 : uploadedFiles.length > 0;
+  const uniqueDocCount = new Set(results.map(r => r.sourceFileIndex)).size;
 
   return (
     <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos com IA">
@@ -327,8 +328,13 @@ export default function AnalisarPrazos() {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <FileText className="w-5 h-5 text-primary" />
-                    Documentos ({results.length})
+                    {uniqueDocCount} documento(s) / {results.length} processo(s)
                   </CardTitle>
+                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                    <span className="text-green-600">{doneCount} analisado(s)</span>
+                    {errorCount > 0 && <span className="text-destructive">{errorCount} erro(s)</span>}
+                    <span>{results.filter(r => r.status === "pending").length} pendente(s)</span>
+                  </div>
                   {analyzing && (
                     <div className="mt-3 space-y-2">
                       <Progress value={progress} className="h-2" />
