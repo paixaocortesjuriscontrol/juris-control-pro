@@ -157,7 +157,7 @@ async function downloadDriveFile(fileId: string, accessToken: string): Promise<A
 // --- DOCX extraction ---
 
 async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
-  const ds = new DecompressionStream("raw");
+  const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
   const reader = ds.readable.getReader();
   writer.write(data);
