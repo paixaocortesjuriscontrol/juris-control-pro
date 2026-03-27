@@ -44,7 +44,6 @@ async function fetchDriveEntriesPage(
     params.set("driveId", folderId);
     params.set("q", "'root' in parents and trashed=false");
   } else {
-    params.set("corpora", "allDrives");
     params.set("q", `'${folderId}' in parents and trashed=false`);
   }
 
