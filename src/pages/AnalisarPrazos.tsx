@@ -60,6 +60,7 @@ export default function AnalisarPrazos() {
   const [progress, setProgress] = useState(0);
   const [mode, setMode] = useState<"drive" | "upload">("drive");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
 
   const handleListFiles = async () => {
     if (!driveUrl.trim()) {
