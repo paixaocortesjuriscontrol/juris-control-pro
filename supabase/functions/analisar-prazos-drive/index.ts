@@ -225,13 +225,14 @@ async function analyzeWithAI(text: string, fileName: string): Promise<any> {
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
 Analise o documento fornecido e extraia EXATAMENTE as seguintes informações:
-1. NÚMERO DO PROCESSO (formato CNJ: NNNNNNN-NN.NNNN.N.NN.NNNN)
-2. DOSSIÊ (código do dossiê/pasta do escritório)
-3. EQUIPE (nome da equipe/núcleo responsável)
-4. RECLAMANTE (nome do reclamante/autor)
-5. RECLAMADA (nome da reclamada/empresa ré)
-6. RELATOR (nome do ministro relator)
-7. TURMA (turma do TST responsável)
+1. DATA DA DISTRIBUIÇÃO (data em que o processo foi distribuído, formato DD/MM/AAAA)
+2. NÚMERO DO PROCESSO (formato CNJ: NNNNNNN-NN.NNNN.N.NN.NNNN)
+3. DOSSIÊ (código do dossiê/pasta do escritório)
+4. EQUIPE (nome da equipe/núcleo responsável)
+5. RECLAMANTE (nome do reclamante/autor)
+6. RECLAMADA (nome da reclamada/empresa ré)
+7. RELATOR (nome do ministro relator)
+8. TURMA (turma do TST responsável)
 
 Se alguma informação não for encontrada, retorne "(Não localizado)".
 Retorne APENAS no formato JSON.`;
@@ -253,6 +254,7 @@ Retorne APENAS no formato JSON.`;
           parameters: {
             type: "object",
             properties: {
+              data_distribuicao: { type: "string", description: "Data da distribuição no formato DD/MM/AAAA" },
               numero_processo: { type: "string", description: "Número do processo no formato CNJ" },
               dossie: { type: "string", description: "Código do dossiê" },
               equipe: { type: "string", description: "Nome da equipe/núcleo" },
@@ -261,7 +263,7 @@ Retorne APENAS no formato JSON.`;
               relator: { type: "string", description: "Nome do ministro relator" },
               turma: { type: "string", description: "Turma do TST" },
             },
-            required: ["numero_processo", "dossie", "equipe", "reclamante", "reclamada", "relator", "turma"],
+            required: ["data_distribuicao", "numero_processo", "dossie", "equipe", "reclamante", "reclamada", "relator", "turma"],
           },
         },
       }],
@@ -284,7 +286,7 @@ Retorne APENAS no formato JSON.`;
 // --- Main handler ---
 
 const NOT_FOUND_RESULT = {
-  numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)",
+  data_distribuicao: "(Não localizado)", numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)",
   reclamante: "(Não localizado)", reclamada: "(Não localizado)", relator: "(Não localizado)", turma: "(Não localizado)",
 };
 

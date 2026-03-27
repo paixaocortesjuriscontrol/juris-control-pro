@@ -30,6 +30,7 @@ interface DriveFile {
 interface AnalysisResult {
   fileName: string;
   fileId?: string;
+  data_distribuicao: string;
   numero_processo: string;
   dossie: string;
   equipe: string;
@@ -84,7 +85,7 @@ export default function AnalisarPrazos() {
       setResults(
         data.files.map((f: DriveFile) => ({
           fileName: f.name, fileId: f.id,
-          numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
+          data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
           status: "pending" as const,
         }))
       );
@@ -105,7 +106,7 @@ export default function AnalisarPrazos() {
     setResults(
       docxFiles.map(f => ({
         fileName: f.name,
-        numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
+        data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
         status: "pending" as const,
       }))
     );
@@ -191,7 +192,7 @@ export default function AnalisarPrazos() {
     if (!doneResults.length) { toast.error("Nenhum resultado para exportar"); return; }
     const wsData = [
       ["DATA DA DISTRIBUIÇÃO", "NÚMERO DO PROCESSO", "DOSSIÊ", "EQUIPE", "RECLAMANTE", "RECLAMADA", "RELATOR", "TURMA"],
-      ...doneResults.map(r => ["", r.numero_processo, r.dossie, r.equipe, r.reclamante, r.reclamada, r.relator, r.turma]),
+      ...doneResults.map(r => [r.data_distribuicao || "", r.numero_processo, r.dossie, r.equipe, r.reclamante, r.reclamada, r.relator, r.turma]),
     ];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
