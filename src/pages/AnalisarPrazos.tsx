@@ -31,6 +31,7 @@ interface DriveFile {
 interface AnalysisResult {
   fileName: string;
   fileId?: string;
+  sourceFileIndex: number;
   data_distribuicao: string;
   numero_processo: string;
   dossie: string;
@@ -84,8 +85,9 @@ export default function AnalisarPrazos() {
       }
       setDriveFiles(data.files);
       setResults(
-        data.files.map((f: DriveFile) => ({
+        data.files.map((f: DriveFile, index: number) => ({
           fileName: f.name, fileId: f.id,
+          sourceFileIndex: index,
           data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
           status: "pending" as const,
         }))
@@ -105,8 +107,9 @@ export default function AnalisarPrazos() {
     if (docxFiles.length === 0) { toast.error("Selecione arquivos .docx"); return; }
     setUploadedFiles(docxFiles);
     setResults(
-      docxFiles.map(f => ({
+      docxFiles.map((f, index) => ({
         fileName: f.name,
+        sourceFileIndex: index,
         data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
         status: "pending" as const,
       }))
@@ -145,15 +148,18 @@ export default function AnalisarPrazos() {
 
       try {
         let data: any;
+        const sourceFileIndex = updatedResults[i]?.sourceFileIndex ?? i;
         if (isDrive) {
-          const file = driveFiles[i];
+          const file = driveFiles[sourceFileIndex];
+          if (!file) throw new Error("Arquivo original não encontrado para reprocessar");
           const resp = await supabase.functions.invoke("analisar-prazos-drive", {
             body: { action: "analyze", fileId: file.id, fileName: file.name },
           });
           if (resp.error) throw resp.error;
           data = resp.data;
         } else {
-          const file = uploadedFiles[i];
+          const file = uploadedFiles[sourceFileIndex];
+          if (!file) throw new Error("Arquivo original não encontrado para reprocessar");
           const buffer = await file.arrayBuffer();
           const base64 = arrayBufferToBase64(buffer);
           const resp = await supabase.functions.invoke("analisar-prazos-drive", {
@@ -200,6 +206,7 @@ export default function AnalisarPrazos() {
           const extras: AnalysisResult[] = processos.slice(1).map((p: any) => ({
             fileName: updatedResults[i].fileName,
             fileId: updatedResults[i].fileId,
+            sourceFileIndex: updatedResults[i].sourceFileIndex,
             data_distribuicao: p.data_distribuicao || p.data_disponibilizacao || "(Não localizado)",
             numero_processo: p.numero_processo || "(Não localizado)",
             dossie: p.dossie || "(Não localizado)",
