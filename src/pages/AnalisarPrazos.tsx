@@ -270,10 +270,17 @@ export default function AnalisarPrazos() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleAnalyzeAll} disabled={analyzing || doneCount === results.length} className="gap-2">
-                    {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    {analyzing ? "Analisando..." : "Analisar Todos com IA"}
-                  </Button>
+                  {analyzing ? (
+                    <Button onClick={handleCancelAnalysis} variant="destructive" className="gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Cancelar
+                    </Button>
+                  ) : (
+                    <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Analisar Todos com IA
+                    </Button>
+                  )}
                   {doneCount > 0 && (
                     <Button variant="outline" onClick={handleDownloadXLSX} className="gap-2">
                       <Download className="w-4 h-4" /> Baixar Planilha ({doneCount})
