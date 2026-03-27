@@ -54,7 +54,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export default function AnalisarPrazos() {
-  const [driveUrl, setDriveUrl] = useState("");
+  const [driveUrl, setDriveUrl] = useState("https://drive.google.com/drive/folders/1_P5K6tUMCnFdT_aKl0zN3zTw08nyHIeD?usp=drive_link");
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [results, setResults] = useState<AnalysisResult[]>([]);
@@ -284,9 +284,15 @@ export default function AnalisarPrazos() {
               </TabsList>
 
               <TabsContent value="drive">
-                <div className="mb-3 p-3 rounded-lg bg-muted/50 border border-border">
+                <div className="mb-3 p-3 rounded-lg bg-muted/50 border border-border space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    <strong className="text-foreground">Como encontrar a URL da pasta:</strong> Abra o Google Drive, navegue até a pasta que contém os arquivos <code className="bg-muted px-1 rounded">.docx</code>, clique com o botão direito sobre ela e selecione <strong>"Copiar link"</strong>. Cole o link no campo abaixo.
+                    <strong className="text-foreground">Pasta padrão já configurada.</strong> Caso deseje analisar arquivos de outra pasta, substitua a URL abaixo e certifique-se de compartilhar a pasta com o e-mail de serviço:
+                  </p>
+                  <code className="block text-xs bg-muted px-3 py-2 rounded select-all text-foreground font-mono">
+                    juris-control-drive@gen-lang-client-0619309784.iam.gserviceaccount.com
+                  </code>
+                  <p className="text-xs text-muted-foreground">
+                    No Google Drive, clique com o botão direito na pasta → <strong>Compartilhar</strong> → adicione o e-mail acima como <strong>Leitor</strong>.
                   </p>
                 </div>
                 <div className="flex gap-3">
