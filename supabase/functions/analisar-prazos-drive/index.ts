@@ -5,6 +5,83 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// --- JWT / Service Account Auth ---
+
+function base64url(data: Uint8Array): string {
+  let s = "";
+  for (const b of data) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function importPrivateKey(pem: string): Promise<CryptoKey> {
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "");
+  const binary = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+  return crypto.subtle.importKey(
+    "pkcs8",
+    binary,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+}
+
+async function createJWT(email: string, key: CryptoKey): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT" };
+  const payload = {
+    iss: email,
+    scope: "https://www.googleapis.com/auth/drive.readonly",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  };
+  const enc = new TextEncoder();
+  const headerB64 = base64url(enc.encode(JSON.stringify(header)));
+  const payloadB64 = base64url(enc.encode(JSON.stringify(payload)));
+  const sigInput = `${headerB64}.${payloadB64}`;
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, enc.encode(sigInput));
+  return `${sigInput}.${base64url(new Uint8Array(sig))}`;
+}
+
+let cachedToken: { token: string; expires: number } | null = null;
+
+async function getAccessToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expires) {
+    return cachedToken.token;
+  }
+
+  const raw = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
+  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY não configurada");
+
+  const sa = JSON.parse(raw);
+  const key = await importPrivateKey(sa.private_key);
+  const jwt = await createJWT(sa.client_email, key);
+
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error("Token exchange error:", err);
+    throw new Error(`Erro ao obter token: ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  cachedToken = { token: data.access_token, expires: Date.now() + (data.expires_in - 60) * 1000 };
+  return cachedToken.token;
+}
+
+// --- Drive helpers ---
+
 function extractFolderId(url: string): string | null {
   const match1 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
   if (match1) return match1[1];
@@ -13,13 +90,7 @@ function extractFolderId(url: string): string | null {
   return null;
 }
 
-type DriveFileEntry = {
-  id: string;
-  name: string;
-  mimeType: string;
-  size?: string;
-};
-
+type DriveFileEntry = { id: string; name: string; mimeType: string; size?: string };
 type DriveListMode = "folder" | "shared-drive-root";
 
 const DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -27,12 +98,11 @@ const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
 async function fetchDriveEntriesPage(
   folderId: string,
-  apiKey: string,
+  accessToken: string,
   mode: DriveListMode,
   pageToken = "",
 ): Promise<{ files: DriveFileEntry[]; nextPageToken: string }> {
   const params = new URLSearchParams({
-    key: apiKey,
     fields: "nextPageToken,files(id,name,mimeType,size)",
     pageSize: "100",
     supportsAllDrives: "true",
@@ -49,7 +119,9 @@ async function fetchDriveEntriesPage(
 
   if (pageToken) params.set("pageToken", pageToken);
 
-  const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+  const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   if (!resp.ok) {
     const err = await resp.text();
     console.error("Drive API error:", resp.status, err);
@@ -63,20 +135,18 @@ async function fetchDriveEntriesPage(
   };
 }
 
-async function listAllDriveEntries(folderId: string, apiKey: string, mode: DriveListMode): Promise<DriveFileEntry[]> {
+async function listAllDriveEntries(folderId: string, accessToken: string, mode: DriveListMode): Promise<DriveFileEntry[]> {
   const entries: DriveFileEntry[] = [];
   let pageToken = "";
-
   do {
-    const page = await fetchDriveEntriesPage(folderId, apiKey, mode, pageToken);
+    const page = await fetchDriveEntriesPage(folderId, accessToken, mode, pageToken);
     entries.push(...page.files);
     pageToken = page.nextPageToken;
   } while (pageToken);
-
   return entries;
 }
 
-async function collectDocxFiles(folderId: string, apiKey: string, mode: DriveListMode): Promise<DriveFileEntry[]> {
+async function collectDocxFiles(folderId: string, accessToken: string, mode: DriveListMode): Promise<DriveFileEntry[]> {
   const pending: Array<{ id: string; mode: DriveListMode }> = [{ id: folderId, mode }];
   const visited = new Set<string>();
   const files: DriveFileEntry[] = [];
@@ -84,52 +154,39 @@ async function collectDocxFiles(folderId: string, apiKey: string, mode: DriveLis
   while (pending.length > 0) {
     const current = pending.shift();
     if (!current) break;
-
     const visitKey = `${current.mode}:${current.id}`;
     if (visited.has(visitKey)) continue;
     visited.add(visitKey);
 
-    const entries = await listAllDriveEntries(current.id, apiKey, current.mode);
-
+    const entries = await listAllDriveEntries(current.id, accessToken, current.mode);
     for (const entry of entries) {
-      if (entry.mimeType === DOCX_MIME_TYPE) {
-        files.push(entry);
-      }
-
-      if (entry.mimeType === FOLDER_MIME_TYPE) {
-        pending.push({ id: entry.id, mode: "folder" });
-      }
+      if (entry.mimeType === DOCX_MIME_TYPE) files.push(entry);
+      if (entry.mimeType === FOLDER_MIME_TYPE) pending.push({ id: entry.id, mode: "folder" });
     }
   }
-
   return files;
 }
 
-async function listDriveFiles(folderId: string, apiKey: string): Promise<any[]> {
+async function listDriveFiles(folderId: string, accessToken: string): Promise<DriveFileEntry[]> {
   if (folderId.startsWith("0A")) {
     try {
-      const sharedDriveFiles = await collectDocxFiles(folderId, apiKey, "shared-drive-root");
+      const sharedDriveFiles = await collectDocxFiles(folderId, accessToken, "shared-drive-root");
       if (sharedDriveFiles.length > 0) {
         console.log(`Found ${sharedDriveFiles.length} .docx files via Drive API (shared-drive-root)`);
         return sharedDriveFiles;
       }
-      console.log("No .docx files found via Drive API (shared-drive-root)");
     } catch (error) {
-      console.warn(
-        "Shared drive root lookup failed, falling back to folder lookup:",
-        error instanceof Error ? error.message : String(error),
-      );
+      console.warn("Shared drive root lookup failed, falling back:", error instanceof Error ? error.message : String(error));
     }
   }
-
-  const folderFiles = await collectDocxFiles(folderId, apiKey, "folder");
+  const folderFiles = await collectDocxFiles(folderId, accessToken, "folder");
   console.log(`Found ${folderFiles.length} .docx files via Drive API (folder-recursive)`);
   return folderFiles;
 }
 
-async function downloadDriveFile(fileId: string, apiKey: string): Promise<ArrayBuffer> {
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}&supportsAllDrives=true`;
-  const resp = await fetch(url);
+async function downloadDriveFile(fileId: string, accessToken: string): Promise<ArrayBuffer> {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!resp.ok) {
     const err = await resp.text();
     console.error("Download error:", resp.status, err);
@@ -137,6 +194,8 @@ async function downloadDriveFile(fileId: string, apiKey: string): Promise<ArrayB
   }
   return resp.arrayBuffer();
 }
+
+// --- DOCX extraction ---
 
 async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream("raw");
@@ -153,10 +212,7 @@ async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
   const result = new Uint8Array(totalLen);
   let off = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, off);
-    off += chunk.length;
-  }
+  for (const chunk of chunks) { result.set(chunk, off); off += chunk.length; }
   return result;
 }
 
@@ -175,11 +231,7 @@ async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
 
       if (name === "word/document.xml") {
         let xmlBytes: Uint8Array;
-        if (compressionMethod === 0) {
-          xmlBytes = fileData;
-        } else {
-          xmlBytes = await decompressDeflate(fileData);
-        }
+        if (compressionMethod === 0) { xmlBytes = fileData; } else { xmlBytes = await decompressDeflate(fileData); }
         const xmlText = new TextDecoder().decode(xmlBytes);
         const finalParts: string[] = [];
         const pRegex = /<w:p[^>]*>([\s\S]*?)<\/w:p>/g;
@@ -188,17 +240,13 @@ async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
           const tParts: string[] = [];
           const tRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
           let tMatch;
-          while ((tMatch = tRegex.exec(pMatch[1])) !== null) {
-            tParts.push(tMatch[1]);
-          }
+          while ((tMatch = tRegex.exec(pMatch[1])) !== null) { tParts.push(tMatch[1]); }
           if (tParts.length > 0) finalParts.push(tParts.join(""));
         }
         return finalParts.join("\n");
       }
       offset = dataStart + compressedSize;
-    } else {
-      offset++;
-    }
+    } else { offset++; }
   }
   throw new Error("document.xml não encontrado no arquivo .docx");
 }
@@ -206,11 +254,11 @@ async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
 function base64ToUint8Array(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
+  for (let i = 0; i < binaryString.length; i++) { bytes[i] = binaryString.charCodeAt(i); }
   return bytes;
 }
+
+// --- AI analysis ---
 
 async function analyzeWithAI(text: string, fileName: string): Promise<any> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -231,10 +279,7 @@ Retorne APENAS no formato JSON.`;
 
   const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
@@ -273,11 +318,16 @@ Retorne APENAS no formato JSON.`;
 
   const data = await resp.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall?.function?.arguments) {
-    return JSON.parse(toolCall.function.arguments);
-  }
+  if (toolCall?.function?.arguments) return JSON.parse(toolCall.function.arguments);
   throw new Error("IA não retornou dados estruturados");
 }
+
+// --- Main handler ---
+
+const NOT_FOUND_RESULT = {
+  numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)",
+  reclamante: "(Não localizado)", reclamada: "(Não localizado)", relator: "(Não localizado)", turma: "(Não localizado)",
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -287,64 +337,43 @@ serve(async (req) => {
   try {
     const { action, driveUrl, fileId, fileName, fileBase64 } = await req.json();
 
-    // List files from Drive folder using API key
     if (action === "list") {
-      const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
-      if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY não configurada. Adicione nas configurações do projeto.");
-
+      const accessToken = await getAccessToken();
       const folderId = extractFolderId(driveUrl);
       if (!folderId) {
         return new Response(JSON.stringify({ error: "URL do Google Drive inválida" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      const files = await listDriveFiles(folderId, GOOGLE_API_KEY);
+      const files = await listDriveFiles(folderId, accessToken);
       return new Response(JSON.stringify({ files }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Analyze a file from Drive by ID
     if (action === "analyze") {
-      const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
-      if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY não configurada");
+      const accessToken = await getAccessToken();
       if (!fileId) throw new Error("fileId obrigatório");
-
-      const buffer = await downloadDriveFile(fileId, GOOGLE_API_KEY);
+      const buffer = await downloadDriveFile(fileId, accessToken);
       const text = await extractDocxText(buffer);
-
       if (!text || text.trim().length < 10) {
-        return new Response(JSON.stringify({
-          error: "Não foi possível extrair texto do documento",
-          result: { numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)", reclamante: "(Não localizado)", reclamada: "(Não localizado)", relator: "(Não localizado)", turma: "(Não localizado)" }
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", result: NOT_FOUND_RESULT }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
       const result = await analyzeWithAI(text, fileName || fileId);
-      return new Response(JSON.stringify({ result }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Analyze uploaded file (base64)
     if (action === "analyze-upload") {
       if (!fileBase64) throw new Error("fileBase64 obrigatório");
-
       const bytes = base64ToUint8Array(fileBase64);
       const text = await extractDocxText(bytes.buffer);
-
       if (!text || text.trim().length < 10) {
-        return new Response(JSON.stringify({
-          error: "Não foi possível extrair texto do documento",
-          result: { numero_processo: "(Não localizado)", dossie: "(Não localizado)", equipe: "(Não localizado)", reclamante: "(Não localizado)", reclamada: "(Não localizado)", relator: "(Não localizado)", turma: "(Não localizado)" }
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", result: NOT_FOUND_RESULT }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
       const result = await analyzeWithAI(text, fileName || "documento.docx");
-      return new Response(JSON.stringify({ result }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({ error: "Ação inválida" }), {
