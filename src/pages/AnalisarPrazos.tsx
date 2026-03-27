@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 
 interface DriveFile {
