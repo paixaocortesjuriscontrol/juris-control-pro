@@ -13,9 +13,24 @@ function extractFolderId(url: string): string | null {
   return null;
 }
 
+type DriveFileEntry = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+};
+
 type DriveListMode = "folder" | "shared-drive-root";
 
-async function fetchDriveFilesPage(folderId: string, apiKey: string, mode: DriveListMode, pageToken = "") {
+const DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
+
+async function fetchDriveEntriesPage(
+  folderId: string,
+  apiKey: string,
+  mode: DriveListMode,
+  pageToken = "",
+): Promise<{ files: DriveFileEntry[]; nextPageToken: string }> {
   const params = new URLSearchParams({
     key: apiKey,
     fields: "nextPageToken,files(id,name,mimeType,size)",
@@ -27,10 +42,10 @@ async function fetchDriveFilesPage(folderId: string, apiKey: string, mode: Drive
   if (mode === "shared-drive-root") {
     params.set("corpora", "drive");
     params.set("driveId", folderId);
-    params.set("q", "'root' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' and trashed=false");
+    params.set("q", "'root' in parents and trashed=false");
   } else {
     params.set("corpora", "allDrives");
-    params.set("q", `'${folderId}' in parents and mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' and trashed=false`);
+    params.set("q", `'${folderId}' in parents and trashed=false`);
   }
 
   if (pageToken) params.set("pageToken", pageToken);
@@ -49,30 +64,68 @@ async function fetchDriveFilesPage(folderId: string, apiKey: string, mode: Drive
   };
 }
 
-async function listDriveFiles(folderId: string, apiKey: string): Promise<any[]> {
-  const modes: DriveListMode[] = folderId.startsWith("0A")
-    ? ["shared-drive-root", "folder"]
-    : ["folder"];
+async function listAllDriveEntries(folderId: string, apiKey: string, mode: DriveListMode): Promise<DriveFileEntry[]> {
+  const entries: DriveFileEntry[] = [];
+  let pageToken = "";
 
-  for (const mode of modes) {
-    const files: any[] = [];
-    let pageToken = "";
+  do {
+    const page = await fetchDriveEntriesPage(folderId, apiKey, mode, pageToken);
+    entries.push(...page.files);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
 
-    do {
-      const page = await fetchDriveFilesPage(folderId, apiKey, mode, pageToken);
-      files.push(...page.files);
-      pageToken = page.nextPageToken;
-    } while (pageToken);
+  return entries;
+}
 
-    if (files.length > 0) {
-      console.log(`Found ${files.length} .docx files via Drive API (${mode})`);
-      return files;
+async function collectDocxFiles(folderId: string, apiKey: string, mode: DriveListMode): Promise<DriveFileEntry[]> {
+  const pending: Array<{ id: string; mode: DriveListMode }> = [{ id: folderId, mode }];
+  const visited = new Set<string>();
+  const files: DriveFileEntry[] = [];
+
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) break;
+
+    const visitKey = `${current.mode}:${current.id}`;
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+
+    const entries = await listAllDriveEntries(current.id, apiKey, current.mode);
+
+    for (const entry of entries) {
+      if (entry.mimeType === DOCX_MIME_TYPE) {
+        files.push(entry);
+      }
+
+      if (entry.mimeType === FOLDER_MIME_TYPE) {
+        pending.push({ id: entry.id, mode: "folder" });
+      }
     }
-
-    console.log(`No .docx files found via Drive API (${mode})`);
   }
 
-  return [];
+  return files;
+}
+
+async function listDriveFiles(folderId: string, apiKey: string): Promise<any[]> {
+  if (folderId.startsWith("0A")) {
+    try {
+      const sharedDriveFiles = await collectDocxFiles(folderId, apiKey, "shared-drive-root");
+      if (sharedDriveFiles.length > 0) {
+        console.log(`Found ${sharedDriveFiles.length} .docx files via Drive API (shared-drive-root)`);
+        return sharedDriveFiles;
+      }
+      console.log("No .docx files found via Drive API (shared-drive-root)");
+    } catch (error) {
+      console.warn(
+        "Shared drive root lookup failed, falling back to folder lookup:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  const folderFiles = await collectDocxFiles(folderId, apiKey, "folder");
+  console.log(`Found ${folderFiles.length} .docx files via Drive API (folder-recursive)`);
+  return folderFiles;
 }
 
 async function downloadDriveFile(fileId: string, apiKey: string): Promise<ArrayBuffer> {
