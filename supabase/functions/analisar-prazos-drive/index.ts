@@ -220,8 +220,8 @@ function base64ToUint8Array(base64: string): Uint8Array {
 // --- AI analysis ---
 
 async function analyzeWithAI(text: string, fileName: string): Promise<any> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY não configurada");
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY não configurada");
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
 Analise o documento fornecido e extraia EXATAMENTE as seguintes informações:
@@ -237,11 +237,11 @@ Analise o documento fornecido e extraia EXATAMENTE as seguintes informações:
 Se alguma informação não for encontrada, retorne "(Não localizado)".
 Retorne APENAS no formato JSON.`;
 
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Documento: ${fileName}\n\nConteúdo:\n${text.substring(0, 15000)}` },
@@ -272,9 +272,9 @@ Retorne APENAS no formato JSON.`;
   });
 
   if (!resp.ok) {
-    if (resp.status === 429) throw new Error("Rate limit - aguarde e tente novamente");
-    if (resp.status === 402) throw new Error("Créditos insuficientes");
-    throw new Error(`Erro IA: ${resp.status}`);
+    if (resp.status === 429) throw new Error("Rate limit OpenAI - aguarde e tente novamente");
+    if (resp.status === 402 || resp.status === 401) throw new Error("Chave OpenAI inválida ou sem créditos");
+    throw new Error(`Erro OpenAI: ${resp.status}`);
   }
 
   const data = await resp.json();
