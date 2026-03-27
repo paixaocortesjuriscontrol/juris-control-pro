@@ -225,7 +225,7 @@ async function analyzeWithAI(text: string, fileName: string): Promise<any> {
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
 Analise o documento fornecido e extraia EXATAMENTE as seguintes informações:
-1. DATA DA DISTRIBUIÇÃO (data em que o processo foi distribuído, formato DD/MM/AAAA)
+1. DATA DA DISPONIBILIZAÇÃO (data de disponibilização da publicação no diário, formato DD/MM/AAAA. Procure por "Data da Disponibilização", "Disponibilização" ou datas associadas à publicação no DJe/DEJT)
 2. NÚMERO DO PROCESSO (formato CNJ: NNNNNNN-NN.NNNN.N.NN.NNNN)
 3. DOSSIÊ (código do dossiê/pasta do escritório)
 4. EQUIPE (nome da equipe/núcleo responsável)
@@ -254,7 +254,7 @@ Retorne APENAS no formato JSON.`;
           parameters: {
             type: "object",
             properties: {
-              data_distribuicao: { type: "string", description: "Data da distribuição no formato DD/MM/AAAA" },
+              data_distribuicao: { type: "string", description: "Data da disponibilização da publicação no formato DD/MM/AAAA" },
               numero_processo: { type: "string", description: "Número do processo no formato CNJ" },
               dossie: { type: "string", description: "Código do dossiê" },
               equipe: { type: "string", description: "Nome da equipe/núcleo" },
