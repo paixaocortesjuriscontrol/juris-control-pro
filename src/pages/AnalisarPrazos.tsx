@@ -112,15 +112,32 @@ export default function AnalisarPrazos() {
     toast.success(`${docxFiles.length} arquivo(s) selecionado(s)`);
   };
 
+  const handleCancelAnalysis = () => {
+    cancelledRef.current = true;
+    setAnalyzing(false);
+    toast.info("Análise cancelada");
+  };
+
   const handleAnalyzeAll = async () => {
     const isDrive = mode === "drive";
     const count = isDrive ? driveFiles.length : uploadedFiles.length;
     if (!count) return;
     setAnalyzing(true);
     setProgress(0);
+    cancelledRef.current = false;
     const updatedResults = [...results];
 
     for (let i = 0; i < count; i++) {
+      if (cancelledRef.current) {
+        for (let j = i; j < count; j++) {
+          if (updatedResults[j].status === "pending" || updatedResults[j].status === "analyzing") {
+            updatedResults[j] = { ...updatedResults[j], status: "pending" };
+          }
+        }
+        setResults([...updatedResults]);
+        break;
+      }
+
       updatedResults[i] = { ...updatedResults[i], status: "analyzing" };
       setResults([...updatedResults]);
 
@@ -163,10 +180,10 @@ export default function AnalisarPrazos() {
 
       setResults([...updatedResults]);
       setProgress(((i + 1) / count) * 100);
-      if (i < count - 1) await new Promise(r => setTimeout(r, 1000));
+      if (i < count - 1 && !cancelledRef.current) await new Promise(r => setTimeout(r, 1000));
     }
     setAnalyzing(false);
-    toast.success("Análise concluída!");
+    if (!cancelledRef.current) toast.success("Análise concluída!");
   };
 
   const handleDownloadXLSX = () => {
