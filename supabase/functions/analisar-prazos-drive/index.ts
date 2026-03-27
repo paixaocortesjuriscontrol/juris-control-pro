@@ -336,11 +336,23 @@ serve(async (req) => {
       const buffer = await downloadDriveFile(fileId, accessToken);
       const text = await extractDocxText(buffer);
       if (!text || text.trim().length < 10) {
-        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", result: NOT_FOUND_RESULT }),
+        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", results: [NOT_FOUND_RESULT] }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      const result = await analyzeWithAI(text, fileName || fileId);
-      return new Response(JSON.stringify({ result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const results = await analyzeWithAI(text, fileName || fileId);
+      return new Response(JSON.stringify({ results }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "analyze-upload") {
+      if (!fileBase64) throw new Error("fileBase64 obrigatório");
+      const bytes = base64ToUint8Array(fileBase64);
+      const text = await extractDocxText(bytes.buffer);
+      if (!text || text.trim().length < 10) {
+        return new Response(JSON.stringify({ error: "Não foi possível extrair texto do documento", results: [NOT_FOUND_RESULT] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const results = await analyzeWithAI(text, fileName || "documento.docx");
+      return new Response(JSON.stringify({ results }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "analyze-upload") {
