@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 
 interface DriveFile {
@@ -119,18 +120,18 @@ export default function AnalisarPrazos() {
     toast.info("Análise cancelada");
   };
 
-  const handleAnalyzeAll = async () => {
+  const runAnalysis = async (indices: number[]) => {
     const isDrive = mode === "drive";
-    const count = isDrive ? driveFiles.length : uploadedFiles.length;
-    if (!count) return;
+    if (!indices.length) return;
     setAnalyzing(true);
     setProgress(0);
     cancelledRef.current = false;
     const updatedResults = [...results];
+    let processed = 0;
 
-    for (let i = 0; i < count; i++) {
+    for (const i of indices) {
       if (cancelledRef.current) {
-        for (let j = i; j < count; j++) {
+        for (const j of indices.slice(processed)) {
           if (updatedResults[j].status === "pending" || updatedResults[j].status === "analyzing") {
             updatedResults[j] = { ...updatedResults[j], status: "pending" };
           }
@@ -181,11 +182,24 @@ export default function AnalisarPrazos() {
       }
 
       setResults([...updatedResults]);
-      setProgress(((i + 1) / count) * 100);
-      if (i < count - 1 && !cancelledRef.current) await new Promise(r => setTimeout(r, 1000));
+      processed++;
+      setProgress((processed / indices.length) * 100);
+      if (processed < indices.length && !cancelledRef.current) await new Promise(r => setTimeout(r, 1000));
     }
     setAnalyzing(false);
     if (!cancelledRef.current) toast.success("Análise concluída!");
+  };
+
+  const handleAnalyzeAll = () => {
+    const count = mode === "drive" ? driveFiles.length : uploadedFiles.length;
+    const indices = Array.from({ length: count }, (_, i) => i);
+    runAnalysis(indices);
+  };
+
+  const handleRetryErrors = () => {
+    const errorIndices = results.map((r, i) => r.status === "error" ? i : -1).filter(i => i !== -1);
+    if (!errorIndices.length) { toast.info("Nenhum documento com erro"); return; }
+    runAnalysis(errorIndices);
   };
 
   const handleDownloadXLSX = () => {
@@ -278,10 +292,18 @@ export default function AnalisarPrazos() {
                       Cancelar
                     </Button>
                   ) : (
-                    <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
-                      <Sparkles className="w-4 h-4" />
-                      Analisar Todos com IA
-                    </Button>
+                    <>
+                      <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        Analisar Todos com IA
+                      </Button>
+                      {errorCount > 0 && (
+                        <Button onClick={handleRetryErrors} variant="secondary" className="gap-2">
+                          <RefreshCw className="w-4 h-4" />
+                          Reprocessar Erros ({errorCount})
+                        </Button>
+                      )}
+                    </>
                   )}
                   {doneCount > 0 && (
                     <Button variant="outline" onClick={handleDownloadXLSX} className="gap-2">
