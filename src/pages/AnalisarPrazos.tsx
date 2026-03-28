@@ -363,7 +363,49 @@ export default function AnalisarPrazos() {
           </CardContent>
         </Card>
 
-        {hasFiles && (
+        {hasFiles && !analyzing && results.every(r => r.status === "pending" || results.length === 0) && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="w-5 h-5 text-primary" />
+                  {sourceFiles.length} arquivo(s) encontrado(s)
+                </CardTitle>
+                <div className="flex gap-2 items-center">
+                  <Button variant="ghost" size="sm" onClick={toggleSelectAll}>
+                    {allSelected ? "Desmarcar Todos" : "Selecionar Todos"}
+                  </Button>
+                  <Button onClick={handleAnalyzeSelected} disabled={selectedFileIndices.size === 0} className="gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Analisar {selectedFileIndices.size > 0 ? `(${selectedFileIndices.size})` : ""} com IA
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                {sourceFiles.map((f, idx) => {
+                  const name = mode === "drive" ? (f as DriveFile).name : (f as File).name;
+                  return (
+                    <label
+                      key={idx}
+                      className="flex items-center gap-3 p-2.5 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <Checkbox
+                        checked={selectedFileIndices.has(idx)}
+                        onCheckedChange={() => toggleFileSelection(idx)}
+                      />
+                      <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm truncate">{name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {(results.some(r => r.status !== "pending") || analyzing) && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -392,10 +434,6 @@ export default function AnalisarPrazos() {
                     </Button>
                   ) : (
                     <>
-                      <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
-                        <Sparkles className="w-4 h-4" />
-                        Analisar Todos com IA
-                      </Button>
                       {errorCount > 0 && (
                         <Button onClick={handleRetryErrors} variant="secondary" className="gap-2">
                           <RefreshCw className="w-4 h-4" />
