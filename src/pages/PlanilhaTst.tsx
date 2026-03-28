@@ -60,6 +60,14 @@ interface Stats {
 
 const NOT_FOUND = "(Não localizado)";
 
+function normalizeText(val: unknown): string {
+  return String(val ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 function normalizeProcesso(val: string): string {
   return String(val || "").replace(/[\.\-\s\/]/g, "").trim();
 }
@@ -158,7 +166,14 @@ function getFieldFromRow(row: Record<string, any>, headers: string[], ...terms: 
 }
 
 function isEmpty(val: string): boolean {
-  return !val || val === NOT_FOUND || val.trim() === "" || val.trim() === "-";
+  const normalized = normalizeText(val);
+  return (
+    !normalized ||
+    normalized === normalizeText(NOT_FOUND) ||
+    normalized === "-" ||
+    normalized === "—" ||
+    normalized.includes("nao localizado")
+  );
 }
 
 export default function PlanilhaTst() {
@@ -410,15 +425,37 @@ export default function PlanilhaTst() {
       try {
         // Modifica apenas os valores nas células, preservando os estilos originais
         const zip = await JSZip.loadAsync(originalFileBuffer);
-        const sheetXml = await zip.file("xl/worksheets/sheet1.xml")?.async("string");
+        const parser = new DOMParser();
+        const serializer = new XMLSerializer();
+        const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
+        const workbookRelsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
+
+        let worksheetPath = "xl/worksheets/sheet1.xml";
+
+        if (workbookXml && workbookRelsXml) {
+          const workbookDoc = parser.parseFromString(workbookXml, "application/xml");
+          const relsDoc = parser.parseFromString(workbookRelsXml, "application/xml");
+          const workbookNs = workbookDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+          const relsNs = relsDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/package/2006/relationships";
+          const firstSheet = workbookDoc.getElementsByTagNameNS(workbookNs, "sheet")[0];
+          const relationId = firstSheet?.getAttribute("r:id") || firstSheet?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+          const relation = relationId
+            ? Array.from(relsDoc.getElementsByTagNameNS(relsNs, "Relationship")).find((node) => node.getAttribute("Id") === relationId)
+            : null;
+          const target = relation?.getAttribute("Target");
+
+          if (target) {
+            worksheetPath = `xl/${target.replace(/^\/+/, "").replace(/^xl\//, "")}`;
+          }
+        }
+
+        const sheetXml = await zip.file(worksheetPath)?.async("string");
 
         if (!sheetXml) {
           toast.error("Erro ao ler a planilha original");
           return;
         }
 
-        const parser = new DOMParser();
-        const serializer = new XMLSerializer();
         const sheetDoc = parser.parseFromString(sheetXml, "application/xml");
         const sheetNs = sheetDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         const sheetData = sheetDoc.getElementsByTagNameNS(sheetNs, "sheetData")[0];
@@ -584,7 +621,7 @@ export default function PlanilhaTst() {
           return;
         }
 
-        zip.file("xl/worksheets/sheet1.xml", serializer.serializeToString(sheetDoc));
+        zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
 
         // Generate and download
         const blob = await zip.generateAsync({ type: "blob" });

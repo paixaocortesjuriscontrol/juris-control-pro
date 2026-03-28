@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+const OPENAI_MODEL = "gpt-4.1";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
@@ -25,7 +27,7 @@ serve(async (req) => {
       throw new Error("OPENAI_API_KEY não configurada");
     }
 
-    const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
+    const systemPrompt = `Você é um analista jurídico sênior especializado em processos trabalhistas do TST.
 Recebeu uma lista de processos com dados parciais. Para cada processo, tente complementar os campos faltantes com base no número do processo e nos dados já disponíveis.
 
 CAMPOS A COMPLEMENTAR:
@@ -36,10 +38,13 @@ CAMPOS A COMPLEMENTAR:
 - RELATOR: nome do ministro relator no TST
 
 REGRAS:
-- Retorne APENAS os campos que você consegue inferir com razoável confiança
+- Retorne APENAS os campos que você consegue inferir com alta confiança
 - Se não conseguir determinar um campo, retorne "(Não localizado)"
 - Use o formato CNJ do número do processo para inferir tribunal e região
-- Mantenha nomes próprios com a capitalização correta`;
+- Mantenha nomes próprios com a capitalização correta
+- Nunca invente nomes de partes, equipe, relator ou dossiê
+- Preserve valores já informados pelo usuário quando parecerem válidos
+- Responda sempre via ferramenta com um item para cada processo recebido`;
 
     const processosTexto = processos.map((p: any, i: number) => {
       const parts = [`Processo ${i + 1}: ${p.numero_processo}`];
@@ -58,7 +63,8 @@ REGRAS:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: OPENAI_MODEL,
+        temperature: 0.1,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Complemente os dados dos seguintes processos:\n\n${processosTexto}` },
