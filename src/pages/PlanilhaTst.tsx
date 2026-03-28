@@ -369,10 +369,10 @@ export default function PlanilhaTst() {
 
         let complemented2 = false;
         const fields2: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
-          { key: "equipe", terms: ["equipe"] },
-          { key: "reclamante", terms: ["reclamante"] },
-          { key: "reclamada", terms: ["reclamada"] },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo"] },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor"] },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "nome"] },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
         ];
 
         for (const f of fields2) {
