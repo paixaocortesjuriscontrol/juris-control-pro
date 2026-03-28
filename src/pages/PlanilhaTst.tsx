@@ -209,11 +209,11 @@ export default function PlanilhaTst() {
 
     try {
       // Read all files + preserve original workbook for export
-      const [input1, wb] = await Promise.all([
+      const [input1, buf] = await Promise.all([
         readSheetData(files[0]),
-        readOriginalWorkbook(files[0]),
+        readOriginalFileBuffer(files[0]),
       ]);
-      setOriginalWb(wb);
+      setOriginalFileBuffer(buf);
       setInput1Meta({ headers: input1.headers, headerRowIndex: input1.headerRowIndex });
       const input2 = files[1] ? await readSheetData(files[1]) : null;
       const input3 = files[2] ? await readSheetData(files[2]) : null;
