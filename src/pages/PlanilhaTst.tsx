@@ -138,14 +138,17 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
 }
 
 function getProcessoFromRow(row: Record<string, any>, headers: string[]): string {
-  const idx = findColumnIndex(headers, "processo", "nº processo", "numero");
+  const idx = findColumnIndex(headers, "processo", "nº processo", "numero", "número", "proc", "cnj", "nº");
   if (idx >= 0) {
     const key = headers[idx];
     return String(row[key] || "");
   }
-  // Try any key with "processo"
+  // Try any key with "processo" or "proc"
   for (const key of Object.keys(row)) {
-    if (key.toLowerCase().includes("processo")) return String(row[key] || "");
+    const lower = key.toLowerCase();
+    if (lower.includes("processo") || lower.includes("proc") || lower.includes("cnj")) {
+      return String(row[key] || "");
+    }
   }
   return "";
 }
