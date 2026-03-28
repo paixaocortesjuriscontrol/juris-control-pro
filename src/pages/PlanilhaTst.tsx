@@ -69,7 +69,8 @@ function normalizeText(val: unknown): string {
 }
 
 function normalizeProcesso(val: string): string {
-  return String(val || "").replace(/[\.\-\s\/]/g, "").trim();
+  // Remove everything except digits
+  return String(val || "").replace(/\D/g, "").trim();
 }
 
 function findColumnIndex(headers: string[], ...terms: string[]): number {
