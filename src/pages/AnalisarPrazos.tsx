@@ -313,7 +313,7 @@ export default function AnalisarPrazos() {
             <CardDescription>Escolha como enviar os arquivos .docx para análise</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "drive" | "upload"); setResults([]); setDriveFiles([]); setUploadedFiles([]); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "drive" | "upload"); setResults([]); setDriveFiles([]); setUploadedFiles([]); setSelectedFileIndices(new Set()); }}>
               <TabsList className="mb-4">
                 <TabsTrigger value="drive" className="gap-2"><FolderSearch className="w-4 h-4" />Google Drive</TabsTrigger>
                 <TabsTrigger value="upload" className="gap-2"><Upload className="w-4 h-4" />Upload Manual</TabsTrigger>
