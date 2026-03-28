@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import {
   Upload,
   Download,
@@ -118,18 +119,10 @@ function readSheetData(file: File): Promise<SheetData> {
   });
 }
 
-function readOriginalWorkbook(file: File): Promise<XLSX.WorkBook> {
+function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array", cellDates: true, cellStyles: true });
-        resolve(wb);
-      } catch (err) {
-        reject(err);
-      }
-    };
+    reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
