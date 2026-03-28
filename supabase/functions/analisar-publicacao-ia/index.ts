@@ -121,7 +121,7 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Créditos insuficientes para uso da IA." }),
+          JSON.stringify({ error: "Erro de autenticação na API OpenAI. Verifique a chave." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
