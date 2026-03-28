@@ -403,86 +403,182 @@ export default function PlanilhaTst() {
     }
   };
 
-  const baixarPlanilha = () => {
+  const baixarPlanilha = async () => {
     if (results.length === 0) return;
 
-    if (originalWb && input1Meta) {
-      // Modify the original workbook in-place to preserve formatting
-      const ws = originalWb.Sheets[originalWb.SheetNames[0]];
-      const headers = input1Meta.headers;
-      const dataStartRow = input1Meta.headerRowIndex + 2; // 1-indexed, after header
+    if (originalFileBuffer && input1Meta) {
+      try {
+        // Use JSZip to modify the xlsx XML directly, preserving all styles
+        const zip = await JSZip.loadAsync(originalFileBuffer);
+        const sheetXml = await zip.file("xl/worksheets/sheet1.xml")?.async("string");
+        const sharedStringsXml = await zip.file("xl/sharedStrings.xml")?.async("string");
 
-      const findOrAddCol = (terms: string[]): number => {
-        let colIdx = findColumnIndex(headers, ...terms);
-        if (colIdx < 0) {
-          // Add new column
-          const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
-          headers.push(label.toUpperCase());
-          colIdx = headers.length - 1;
-          // Write header cell
-          const cellRef = XLSX.utils.encode_cell({ r: input1Meta.headerRowIndex, c: colIdx });
-          ws[cellRef] = { t: 's', v: label.toUpperCase() };
+        if (!sheetXml) {
+          toast.error("Erro ao ler a planilha original");
+          return;
         }
-        return colIdx;
-      };
 
-      const colDossie = findOrAddCol(["dossi", "dossie", "dossiê"]);
-      const colEquipe = findOrAddCol(["equipe"]);
-      const colReclamante = findOrAddCol(["reclamante"]);
-      const colReclamada = findOrAddCol(["reclamada"]);
-      const colRelator = findOrAddCol(["relator"]);
-
-      for (const pr of results) {
-        const excelRow = dataStartRow + pr.originalIndex;
-        const writeIfEmpty = (colIdx: number, value: string) => {
-          if (isEmpty(value)) return;
-          const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
-          const existing = ws[cellRef];
-          if (!existing || isEmpty(String(existing.v || ""))) {
-            ws[cellRef] = { t: 's', v: value };
+        // Parse shared strings
+        const sharedStrings: string[] = [];
+        if (sharedStringsXml) {
+          const siMatches = sharedStringsXml.matchAll(/<si>(.*?)<\/si>/gs);
+          for (const m of siMatches) {
+            // Extract text from <t> tags within <si>
+            const tMatches = m[1].matchAll(/<t[^>]*>(.*?)<\/t>/gs);
+            let text = "";
+            for (const t of tMatches) text += t[1];
+            sharedStrings.push(text);
           }
+        }
+
+        // Build a map of cells to write: { "B5": "value", ... }
+        const headers = input1Meta.headers;
+        const dataStartRow = input1Meta.headerRowIndex + 2; // 1-indexed
+
+        const getColIdx = (terms: string[]): number => findColumnIndex(headers, ...terms);
+        const colDossie = getColIdx(["dossi", "dossie", "dossiê"]);
+        const colEquipe = getColIdx(["equipe"]);
+        const colReclamante = getColIdx(["reclamante"]);
+        const colReclamada = getColIdx(["reclamada"]);
+        const colRelator = getColIdx(["relator"]);
+
+        // Helper to get cell value from the original XML
+        const getCellValueFromXml = (cellRef: string): string => {
+          const regex = new RegExp(`<c r="${cellRef}"[^>]*(?:t="s"[^>]*)?>\\s*<v>(.*?)<\\/v>`, "s");
+          const inlineRegex = new RegExp(`<c r="${cellRef}"[^>]*t="inlineStr"[^>]*>.*?<is>.*?<t[^>]*>(.*?)<\\/t>.*?<\\/is>`, "s");
+          const match = sheetXml!.match(regex);
+          if (match) {
+            const rawVal = match[0];
+            if (rawVal.includes('t="s"') && sharedStrings.length > 0) {
+              const idx = parseInt(match[1]);
+              return sharedStrings[idx] || "";
+            }
+            return match[1] || "";
+          }
+          const inlineMatch = sheetXml!.match(inlineRegex);
+          if (inlineMatch) return inlineMatch[1] || "";
+          return "";
         };
 
-        writeIfEmpty(colDossie, pr.dossie);
-        writeIfEmpty(colEquipe, pr.equipe);
-        writeIfEmpty(colReclamante, pr.reclamante);
-        writeIfEmpty(colReclamada, pr.reclamada);
-        writeIfEmpty(colRelator, pr.relator);
-      }
+        // Collect new shared strings and cells to add/modify
+        const newStrings: string[] = [];
+        const cellsToWrite: Map<string, number> = new Map(); // cellRef -> sharedStringIndex
 
-      // Update sheet range
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      range.e.c = Math.max(range.e.c, headers.length - 1);
-      ws['!ref'] = XLSX.utils.encode_range(range);
+        for (const pr of results) {
+          const excelRow = dataStartRow + pr.originalIndex;
+          const tryWrite = (colIdx: number, value: string) => {
+            if (colIdx < 0 || isEmpty(value)) return;
+            const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
+            const existing = getCellValueFromXml(cellRef);
+            if (isEmpty(existing)) {
+              // Check if value already exists in shared strings
+              let ssIdx = sharedStrings.indexOf(value);
+              if (ssIdx < 0) {
+                ssIdx = sharedStrings.length + newStrings.indexOf(value);
+                if (!newStrings.includes(value)) {
+                  ssIdx = sharedStrings.length + newStrings.length;
+                  newStrings.push(value);
+                }
+              }
+              cellsToWrite.set(cellRef, ssIdx);
+            }
+          };
 
-      XLSX.writeFile(originalWb, "Distribuicoes_TST_Complementada.xlsx");
-    } else {
-      // Fallback: simple export
-      const output = results.map(pr => {
-        const row = { ...pr.originalData };
-        const setField = (terms: string[], value: string) => {
-          const key = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
-          if (key) {
-            if (isEmpty(String(row[key] || ""))) row[key] = value;
+          tryWrite(colDossie, pr.dossie);
+          tryWrite(colEquipe, pr.equipe);
+          tryWrite(colReclamante, pr.reclamante);
+          tryWrite(colReclamada, pr.reclamada);
+          tryWrite(colRelator, pr.relator);
+        }
+
+        // Modify sheet XML: add or update cells
+        let modifiedSheetXml = sheetXml;
+        for (const [cellRef, ssIdx] of cellsToWrite) {
+          const existingCellRegex = new RegExp(`<c r="${cellRef}"[^/]*(?:/>|>.*?</c>)`, "s");
+          const existingMatch = modifiedSheetXml.match(existingCellRegex);
+          const newCellXml = `<c r="${cellRef}" t="s"><v>${ssIdx}</v></c>`;
+
+          if (existingMatch) {
+            modifiedSheetXml = modifiedSheetXml.replace(existingCellRegex, newCellXml);
           } else {
-            const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
-            row[label.toUpperCase()] = value;
+            // Need to insert cell into the correct row
+            const rowNum = parseInt(cellRef.replace(/[A-Z]+/, ""));
+            const rowRegex = new RegExp(`(<row r="${rowNum}"[^>]*>)(.*?)(</row>)`, "s");
+            const rowMatch = modifiedSheetXml.match(rowRegex);
+            if (rowMatch) {
+              modifiedSheetXml = modifiedSheetXml.replace(
+                rowRegex,
+                `$1$2${newCellXml}$3`
+              );
+            }
           }
-        };
-        if (!isEmpty(pr.dossie)) setField(["dossi", "dossie", "dossiê"], pr.dossie);
-        if (!isEmpty(pr.equipe)) setField(["equipe"], pr.equipe);
-        if (!isEmpty(pr.reclamante)) setField(["reclamante"], pr.reclamante);
-        if (!isEmpty(pr.reclamada)) setField(["reclamada"], pr.reclamada);
-        if (!isEmpty(pr.relator)) setField(["relator"], pr.relator);
-        return row;
-      });
-      const ws = XLSX.utils.json_to_sheet(output);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
-      XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
+        }
+
+        zip.file("xl/worksheets/sheet1.xml", modifiedSheetXml);
+
+        // Update shared strings if we added new ones
+        if (newStrings.length > 0 && sharedStringsXml) {
+          const totalCount = sharedStrings.length + newStrings.length;
+          let modifiedSS = sharedStringsXml.replace(
+            /count="\d+"/,
+            `count="${totalCount}"`
+          ).replace(
+            /uniqueCount="\d+"/,
+            `uniqueCount="${totalCount}"`
+          );
+          const insertPoint = modifiedSS.lastIndexOf("</sst>");
+          const newEntries = newStrings.map(s => {
+            const escaped = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return `<si><t>${escaped}</t></si>`;
+          }).join("");
+          modifiedSS = modifiedSS.slice(0, insertPoint) + newEntries + modifiedSS.slice(insertPoint);
+          zip.file("xl/sharedStrings.xml", modifiedSS);
+        }
+
+        // Generate and download
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Distribuicoes_TST_Complementada.xlsx";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Erro ao exportar:", err);
+        toast.error("Erro ao exportar planilha. Tentando método alternativo...");
+        // Fallback
+        exportFallback();
+      }
+    } else {
+      exportFallback();
     }
 
     toast.success("Planilha baixada com sucesso!");
+  };
+
+  const exportFallback = () => {
+    const output = results.map(pr => {
+      const row = { ...pr.originalData };
+      const setField = (terms: string[], value: string) => {
+        const key = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
+        if (key) {
+          if (isEmpty(String(row[key] || ""))) row[key] = value;
+        } else {
+          const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
+          row[label.toUpperCase()] = value;
+        }
+      };
+      if (!isEmpty(pr.dossie)) setField(["dossi", "dossie", "dossiê"], pr.dossie);
+      if (!isEmpty(pr.equipe)) setField(["equipe"], pr.equipe);
+      if (!isEmpty(pr.reclamante)) setField(["reclamante"], pr.reclamante);
+      if (!isEmpty(pr.reclamada)) setField(["reclamada"], pr.reclamada);
+      if (!isEmpty(pr.relator)) setField(["relator"], pr.relator);
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(output);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
+    XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
   };
 
   const origemBadge = (origem?: string) => {
