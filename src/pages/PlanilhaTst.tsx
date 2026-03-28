@@ -138,29 +138,43 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
 }
 
 function getProcessoFromRow(row: Record<string, any>, headers: string[]): string {
-  const idx = findColumnIndex(headers, "processo", "nº processo", "numero", "número", "proc", "cnj", "nº");
-  if (idx >= 0) {
-    const key = headers[idx];
-    return String(row[key] || "");
+  // Priority: columns that explicitly mention "processo"
+  const priorityTerms = ["processo", "proc", "cnj"];
+  const fallbackTerms = ["nº", "numero", "número"];
+  
+  for (const terms of [priorityTerms, fallbackTerms]) {
+    for (const key of Object.keys(row)) {
+      const lower = key.toLowerCase().trim();
+      if (terms.some(t => lower.includes(t))) {
+        const val = String(row[key] || "").trim();
+        // Validate it looks like a process number (has at least 7 digits)
+        if (val && val.replace(/\D/g, "").length >= 7) {
+          return val;
+        }
+      }
+    }
   }
-  // Try any key with "processo" or "proc"
+  // Last resort: find any value that looks like a CNJ number (XX digits with dots/dashes)
   for (const key of Object.keys(row)) {
-    const lower = key.toLowerCase();
-    if (lower.includes("processo") || lower.includes("proc") || lower.includes("cnj")) {
-      return String(row[key] || "");
+    const val = String(row[key] || "").trim();
+    const digits = val.replace(/\D/g, "");
+    if (digits.length >= 13 && digits.length <= 25) {
+      return val;
     }
   }
   return "";
 }
 
 function getFieldFromRow(row: Record<string, any>, headers: string[], ...terms: string[]): string {
+  // First try exact header index match
   const idx = findColumnIndex(headers, ...terms);
   if (idx >= 0) {
     const val = row[headers[idx]];
     return val ? String(val).trim() : "";
   }
+  // Then try all keys
   for (const key of Object.keys(row)) {
-    const lower = key.toLowerCase();
+    const lower = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     if (terms.some(t => lower.includes(t))) {
       const val = row[key];
       return val ? String(val).trim() : "";
@@ -176,81 +190,66 @@ function isEmpty(val: string): boolean {
     normalized === normalizeText(NOT_FOUND) ||
     normalized === "-" ||
     normalized === "—" ||
-    normalized.includes("nao localizado")
+    normalized.includes("nao localizado") ||
+    normalized.includes("nao encontrado") ||
+    normalized === "null" ||
+    normalized === "undefined"
   );
 }
 
-export default function PlanilhaTst() {
-  const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
-  const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0 });
-  const [processing, setProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("");
-  const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
-  const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
-  const cancelledRef = useRef(false);
-
-  const fileLabels = [
-    { label: "Input 1 — Distribuições TST 2025", desc: "Planilha base que será complementada", required: true },
-    { label: "Input 2 — Relatório de Prazos TST", desc: "Fonte prioritária de DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA, RELATOR" },
-    { label: "Input 3 — Processos TST", desc: "Fonte secundária (fallback do Input 2)" },
-    { label: "Input 4 — Dossiês Ativos", desc: "Complementa DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA" },
-  ];
-
-  const handleFileChange = (index: number, file: File | null) => {
-    setFiles(prev => {
-      const next = [...prev];
-      next[index] = file;
-      return next;
-    });
-  };
-
-  const buildLookup = (rows: Record<string, any>[], headers: string[]): Map<string, Record<string, any>> => {
-    const map = new Map<string, Record<string, any>>();
-    for (const row of rows) {
-      const proc = normalizeProcesso(getProcessoFromRow(row, headers));
-      if (proc) {
-        map.set(proc, row);
-        // Also store last 13 digits (CNJ process without segment) as fallback
-        if (proc.length > 13) {
-          const suffix = proc.slice(-13);
-          if (!map.has(suffix)) map.set(suffix, row);
-        }
-        // Also store last 7 digits (sequential number) for broader matching
-        if (proc.length >= 7) {
-          const shortSuffix = proc.slice(0, 7);
-          const shortKey = `seq_${shortSuffix}`;
-          if (!map.has(shortKey)) map.set(shortKey, row);
-        }
+function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<string, Record<string, any>> {
+  const map = new Map<string, Record<string, any>>();
+  for (const row of rows) {
+    const proc = normalizeProcesso(getProcessoFromRow(row, headers));
+    if (!proc || proc.length < 7) continue;
+    
+    // Store with full normalized number
+    if (!map.has(proc)) map.set(proc, row);
+    
+    // Store with last 20, 17, 15, 13, 10, 7 digit suffixes for flexible matching
+    for (const len of [20, 17, 15, 13, 10, 7]) {
+      if (proc.length > len) {
+        const suffix = proc.slice(-len);
+        if (!map.has(suffix)) map.set(suffix, row);
       }
     }
-    return map;
-  };
+  }
+  return map;
+}
 
-  const lookupProcess = (procNorm: string, lookup: Map<string, Record<string, any>>): Record<string, any> | undefined => {
-    // Exact match
-    let found = lookup.get(procNorm);
-    if (found) return found;
-    // Suffix match (last 13 digits)
-    if (procNorm.length > 13) {
-      found = lookup.get(procNorm.slice(-13));
+function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>>): Record<string, any> | undefined {
+  if (!procNorm || procNorm.length < 7) return undefined;
+  
+  // Exact match
+  let found = lookup.get(procNorm);
+  if (found) return found;
+  
+  // Try multiple suffix lengths
+  for (const len of [20, 17, 15, 13, 10, 7]) {
+    if (procNorm.length > len) {
+      found = lookup.get(procNorm.slice(-len));
       if (found) return found;
     }
-    // Sequential number match (first 7 digits)
-    if (procNorm.length >= 7) {
-      found = lookup.get(`seq_${procNorm.slice(0, 7)}`);
+    if (procNorm.length >= len) {
+      // Also try if the lookup has a longer key ending with our suffix
+      const suffix = procNorm.slice(-len);
+      found = lookup.get(suffix);
       if (found) return found;
     }
-    // Substring containment: check if any key contains or is contained in procNorm
-    for (const [key, val] of lookup) {
-      if (key.startsWith("seq_")) continue;
-      if (key.length >= 7 && procNorm.length >= 7) {
-        if (procNorm.includes(key) || key.includes(procNorm)) return val;
-      }
+  }
+  
+  // Containment: check if any lookup key contains this number or vice versa
+  for (const [key, val] of lookup) {
+    if (key.length < 7) continue;
+    if (procNorm.endsWith(key) || key.endsWith(procNorm)) return val;
+    // Check if the "core" part (removing check digits) matches
+    if (procNorm.length >= 13 && key.length >= 13) {
+      if (procNorm.slice(-13) === key.slice(-13)) return val;
     }
-    return undefined;
-  };
+  }
+  
+  return undefined;
+}
 
   const processarPlanilhas = async () => {
     if (!files[0]) {
