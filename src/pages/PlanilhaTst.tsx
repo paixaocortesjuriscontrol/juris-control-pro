@@ -251,6 +251,32 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
   return undefined;
 }
 
+export default function PlanilhaTst() {
+  const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
+  const [results, setResults] = useState<ProcessRow[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0 });
+  const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
+  const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
+  const cancelledRef = useRef(false);
+
+  const fileLabels = [
+    { label: "Input 1 — Distribuições TST 2025", desc: "Planilha base que será complementada", required: true },
+    { label: "Input 2 — Relatório de Prazos TST", desc: "Fonte prioritária de DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA, RELATOR" },
+    { label: "Input 3 — Processos TST", desc: "Fonte secundária (fallback do Input 2)" },
+    { label: "Input 4 — Dossiês Ativos", desc: "Complementa DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA" },
+  ];
+
+  const handleFileChange = (index: number, file: File | null) => {
+    setFiles(prev => {
+      const next = [...prev];
+      next[index] = file;
+      return next;
+    });
+  };
+
   const processarPlanilhas = async () => {
     if (!files[0]) {
       toast.error("Selecione pelo menos o Input 1 (Distribuições)");
