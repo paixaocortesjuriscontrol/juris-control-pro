@@ -358,6 +358,16 @@ export default function PlanilhaTst() {
         processRows.push(pr);
       }
 
+      console.log(`[PlanilhaTST] Passo 1.1: ${countPasso1}/${processRows.length} processos complementados via Input 2/3`);
+      // Log unmatched processes for debugging
+      const unmatched = processRows.filter(pr => {
+        const norm = normalizeProcesso(pr.numero_processo);
+        return !lookupProcess(norm, lookup2) && !lookupProcess(norm, lookup3);
+      });
+      if (unmatched.length > 0) {
+        console.log(`[PlanilhaTST] ${unmatched.length} processos sem match nos Inputs 2/3. Exemplos:`, unmatched.slice(0, 5).map(p => p.numero_processo));
+      }
+
       setProgress(40);
       setProgressLabel("Cruzando dados (Passo 1.2 — Dossiês Ativos)...");
 
