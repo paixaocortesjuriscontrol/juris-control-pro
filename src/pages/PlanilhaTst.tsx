@@ -43,6 +43,12 @@ interface ProcessRow {
   origem_relator?: string;
 }
 
+interface SheetData {
+  headers: string[];
+  rows: Record<string, any>[];
+  headerRowIndex: number;
+}
+
 interface Stats {
   total: number;
   passo1: number;
@@ -64,17 +70,16 @@ function findColumnIndex(headers: string[], ...terms: string[]): number {
   });
 }
 
-function readSheetData(file: File): Promise<{ headers: string[]; rows: Record<string, any>[] }> {
+function readSheetData(file: File): Promise<SheetData> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array" });
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1, rawNumbers: false }) as any[][];
 
-        // Find header row (first row with content)
         let headerIdx = 0;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
           const row = json[i];
@@ -90,10 +95,37 @@ function readSheetData(file: File): Promise<{ headers: string[]; rows: Record<st
           const row = json[i];
           if (!row || row.every(c => !c && c !== 0)) continue;
           const obj: Record<string, any> = {};
-          headers.forEach((h, idx) => { obj[h] = row[idx]; });
+          headers.forEach((h, idx) => {
+            let val = row[idx];
+            // Convert Date objects to dd/mm/yyyy string
+            if (val instanceof Date && !isNaN(val.getTime())) {
+              const d = val.getDate().toString().padStart(2, '0');
+              const m = (val.getMonth() + 1).toString().padStart(2, '0');
+              const y = val.getFullYear();
+              val = `${d}/${m}/${y}`;
+            }
+            obj[h] = val;
+          });
           rows.push(obj);
         }
-        resolve({ headers, rows });
+        resolve({ headers, rows, headerRowIndex: headerIdx });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function readOriginalWorkbook(file: File): Promise<XLSX.WorkBook> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array", cellDates: true, cellStyles: true });
+        resolve(wb);
       } catch (err) {
         reject(err);
       }
@@ -143,6 +175,8 @@ export default function PlanilhaTst() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
+  const [originalWb, setOriginalWb] = useState<XLSX.WorkBook | null>(null);
+  const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
   const cancelledRef = useRef(false);
 
   const fileLabels = [
@@ -181,8 +215,13 @@ export default function PlanilhaTst() {
     cancelledRef.current = false;
 
     try {
-      // Read all files
-      const input1 = await readSheetData(files[0]);
+      // Read all files + preserve original workbook for export
+      const [input1, wb] = await Promise.all([
+        readSheetData(files[0]),
+        readOriginalWorkbook(files[0]),
+      ]);
+      setOriginalWb(wb);
+      setInput1Meta({ headers: input1.headers, headerRowIndex: input1.headerRowIndex });
       const input2 = files[1] ? await readSheetData(files[1]) : null;
       const input3 = files[2] ? await readSheetData(files[2]) : null;
       const input4 = files[3] ? await readSheetData(files[3]) : null;
@@ -374,34 +413,82 @@ export default function PlanilhaTst() {
   const baixarPlanilha = () => {
     if (results.length === 0) return;
 
-    // Rebuild Input 1 with complemented data
-    const output = results.map(pr => {
-      const row = { ...pr.originalData };
-      // Find or create target columns
-      const setField = (terms: string[], value: string) => {
-        const key = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
-        if (key) {
-          if (isEmpty(String(row[key] || ""))) row[key] = value;
-        } else {
-          // Add as new column
+    if (originalWb && input1Meta) {
+      // Modify the original workbook in-place to preserve formatting
+      const ws = originalWb.Sheets[originalWb.SheetNames[0]];
+      const headers = input1Meta.headers;
+      const dataStartRow = input1Meta.headerRowIndex + 2; // 1-indexed, after header
+
+      const findOrAddCol = (terms: string[]): number => {
+        let colIdx = findColumnIndex(headers, ...terms);
+        if (colIdx < 0) {
+          // Add new column
           const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
-          row[label.toUpperCase()] = value;
+          headers.push(label.toUpperCase());
+          colIdx = headers.length - 1;
+          // Write header cell
+          const cellRef = XLSX.utils.encode_cell({ r: input1Meta.headerRowIndex, c: colIdx });
+          ws[cellRef] = { t: 's', v: label.toUpperCase() };
         }
+        return colIdx;
       };
 
-      if (!isEmpty(pr.dossie)) setField(["dossi", "dossie", "dossiê"], pr.dossie);
-      if (!isEmpty(pr.equipe)) setField(["equipe"], pr.equipe);
-      if (!isEmpty(pr.reclamante)) setField(["reclamante"], pr.reclamante);
-      if (!isEmpty(pr.reclamada)) setField(["reclamada"], pr.reclamada);
-      if (!isEmpty(pr.relator)) setField(["relator"], pr.relator);
+      const colDossie = findOrAddCol(["dossi", "dossie", "dossiê"]);
+      const colEquipe = findOrAddCol(["equipe"]);
+      const colReclamante = findOrAddCol(["reclamante"]);
+      const colReclamada = findOrAddCol(["reclamada"]);
+      const colRelator = findOrAddCol(["relator"]);
 
-      return row;
-    });
+      for (const pr of results) {
+        const excelRow = dataStartRow + pr.originalIndex;
+        const writeIfEmpty = (colIdx: number, value: string) => {
+          if (isEmpty(value)) return;
+          const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
+          const existing = ws[cellRef];
+          if (!existing || isEmpty(String(existing.v || ""))) {
+            ws[cellRef] = { t: 's', v: value };
+          }
+        };
 
-    const ws = XLSX.utils.json_to_sheet(output);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
-    XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
+        writeIfEmpty(colDossie, pr.dossie);
+        writeIfEmpty(colEquipe, pr.equipe);
+        writeIfEmpty(colReclamante, pr.reclamante);
+        writeIfEmpty(colReclamada, pr.reclamada);
+        writeIfEmpty(colRelator, pr.relator);
+      }
+
+      // Update sheet range
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      range.e.c = Math.max(range.e.c, headers.length - 1);
+      ws['!ref'] = XLSX.utils.encode_range(range);
+
+      XLSX.writeFile(originalWb, "Distribuicoes_TST_Complementada.xlsx");
+    } else {
+      // Fallback: simple export
+      const output = results.map(pr => {
+        const row = { ...pr.originalData };
+        const setField = (terms: string[], value: string) => {
+          const key = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
+          if (key) {
+            if (isEmpty(String(row[key] || ""))) row[key] = value;
+          } else {
+            const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
+            row[label.toUpperCase()] = value;
+          }
+        };
+        if (!isEmpty(pr.dossie)) setField(["dossi", "dossie", "dossiê"], pr.dossie);
+        if (!isEmpty(pr.equipe)) setField(["equipe"], pr.equipe);
+        if (!isEmpty(pr.reclamante)) setField(["reclamante"], pr.reclamante);
+        if (!isEmpty(pr.reclamada)) setField(["reclamada"], pr.reclamada);
+        if (!isEmpty(pr.relator)) setField(["relator"], pr.relator);
+        return row;
+      });
+      const ws = XLSX.utils.json_to_sheet(output);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
+      XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
+    }
+
     toast.success("Planilha baixada com sucesso!");
   };
 
