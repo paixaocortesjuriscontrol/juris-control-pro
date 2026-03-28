@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
   FolderSearch,
@@ -62,8 +63,29 @@ export default function AnalisarPrazos() {
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [mode, setMode] = useState<"drive" | "upload">("drive");
+  const [selectedFileIndices, setSelectedFileIndices] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelledRef = useRef(false);
+
+  const sourceFiles = mode === "drive" ? driveFiles : uploadedFiles;
+  const allFileIndices = sourceFiles.map((_, i) => i);
+  const allSelected = sourceFiles.length > 0 && selectedFileIndices.size === sourceFiles.length;
+
+  const toggleFileSelection = (index: number) => {
+    setSelectedFileIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedFileIndices(new Set());
+    } else {
+      setSelectedFileIndices(new Set(allFileIndices));
+    }
+  };
 
   const handleListFiles = async () => {
     if (!driveUrl.trim()) {
@@ -84,6 +106,7 @@ export default function AnalisarPrazos() {
         return;
       }
       setDriveFiles(data.files);
+      setSelectedFileIndices(new Set(data.files.map((_: any, i: number) => i)));
       setResults(
         data.files.map((f: DriveFile, index: number) => ({
           fileName: f.name, fileId: f.id,
@@ -106,6 +129,7 @@ export default function AnalisarPrazos() {
     const docxFiles = Array.from(selected).filter(f => f.name.toLowerCase().endsWith(".docx"));
     if (docxFiles.length === 0) { toast.error("Selecione arquivos .docx"); return; }
     setUploadedFiles(docxFiles);
+    setSelectedFileIndices(new Set(docxFiles.map((_, i) => i)));
     setResults(
       docxFiles.map((f, index) => ({
         fileName: f.name,
@@ -236,9 +260,21 @@ export default function AnalisarPrazos() {
     if (!cancelledRef.current) toast.success("Análise concluída!");
   };
 
-  const handleAnalyzeAll = () => {
-    const count = mode === "drive" ? driveFiles.length : uploadedFiles.length;
-    const indices = Array.from({ length: count }, (_, i) => i);
+  const handleAnalyzeSelected = () => {
+    if (selectedFileIndices.size === 0) { toast.error("Selecione ao menos um arquivo"); return; }
+    // Build results only for selected files
+    const selectedIndices = Array.from(selectedFileIndices).sort((a, b) => a - b);
+    const newResults: AnalysisResult[] = selectedIndices.map((fileIdx) => {
+      const fileName = mode === "drive" ? driveFiles[fileIdx].name : uploadedFiles[fileIdx].name;
+      const fileId = mode === "drive" ? driveFiles[fileIdx].id : undefined;
+      return {
+        fileName, fileId, sourceFileIndex: fileIdx,
+        data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
+        status: "pending" as const,
+      };
+    });
+    setResults(newResults);
+    const indices = Array.from({ length: newResults.length }, (_, i) => i);
     runAnalysis(indices);
   };
 
@@ -277,7 +313,7 @@ export default function AnalisarPrazos() {
             <CardDescription>Escolha como enviar os arquivos .docx para análise</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "drive" | "upload"); setResults([]); setDriveFiles([]); setUploadedFiles([]); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "drive" | "upload"); setResults([]); setDriveFiles([]); setUploadedFiles([]); setSelectedFileIndices(new Set()); }}>
               <TabsList className="mb-4">
                 <TabsTrigger value="drive" className="gap-2"><FolderSearch className="w-4 h-4" />Google Drive</TabsTrigger>
                 <TabsTrigger value="upload" className="gap-2"><Upload className="w-4 h-4" />Upload Manual</TabsTrigger>
@@ -327,7 +363,49 @@ export default function AnalisarPrazos() {
           </CardContent>
         </Card>
 
-        {hasFiles && (
+        {hasFiles && !analyzing && results.every(r => r.status === "pending" || results.length === 0) && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="w-5 h-5 text-primary" />
+                  {sourceFiles.length} arquivo(s) encontrado(s)
+                </CardTitle>
+                <div className="flex gap-2 items-center">
+                  <Button variant="ghost" size="sm" onClick={toggleSelectAll}>
+                    {allSelected ? "Desmarcar Todos" : "Selecionar Todos"}
+                  </Button>
+                  <Button onClick={handleAnalyzeSelected} disabled={selectedFileIndices.size === 0} className="gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Analisar {selectedFileIndices.size > 0 ? `(${selectedFileIndices.size})` : ""} com IA
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                {sourceFiles.map((f, idx) => {
+                  const name = mode === "drive" ? (f as DriveFile).name : (f as File).name;
+                  return (
+                    <label
+                      key={idx}
+                      className="flex items-center gap-3 p-2.5 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <Checkbox
+                        checked={selectedFileIndices.has(idx)}
+                        onCheckedChange={() => toggleFileSelection(idx)}
+                      />
+                      <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm truncate">{name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {(results.some(r => r.status !== "pending") || analyzing) && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -356,10 +434,6 @@ export default function AnalisarPrazos() {
                     </Button>
                   ) : (
                     <>
-                      <Button onClick={handleAnalyzeAll} disabled={doneCount === results.length} className="gap-2">
-                        <Sparkles className="w-4 h-4" />
-                        Analisar Todos com IA
-                      </Button>
                       {errorCount > 0 && (
                         <Button onClick={handleRetryErrors} variant="secondary" className="gap-2">
                           <RefreshCw className="w-4 h-4" />
