@@ -70,17 +70,16 @@ function findColumnIndex(headers: string[], ...terms: string[]): number {
   });
 }
 
-function readSheetData(file: File): Promise<{ headers: string[]; rows: Record<string, any>[] }> {
+function readSheetData(file: File): Promise<SheetData> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array" });
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1, rawNumbers: false }) as any[][];
 
-        // Find header row (first row with content)
         let headerIdx = 0;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
           const row = json[i];
@@ -96,10 +95,37 @@ function readSheetData(file: File): Promise<{ headers: string[]; rows: Record<st
           const row = json[i];
           if (!row || row.every(c => !c && c !== 0)) continue;
           const obj: Record<string, any> = {};
-          headers.forEach((h, idx) => { obj[h] = row[idx]; });
+          headers.forEach((h, idx) => {
+            let val = row[idx];
+            // Convert Date objects to dd/mm/yyyy string
+            if (val instanceof Date && !isNaN(val.getTime())) {
+              const d = val.getDate().toString().padStart(2, '0');
+              const m = (val.getMonth() + 1).toString().padStart(2, '0');
+              const y = val.getFullYear();
+              val = `${d}/${m}/${y}`;
+            }
+            obj[h] = val;
+          });
           rows.push(obj);
         }
-        resolve({ headers, rows });
+        resolve({ headers, rows, headerRowIndex: headerIdx });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function readOriginalWorkbook(file: File): Promise<XLSX.WorkBook> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array", cellDates: true, cellStyles: true });
+        resolve(wb);
       } catch (err) {
         reject(err);
       }
