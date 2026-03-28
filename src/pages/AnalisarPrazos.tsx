@@ -129,6 +129,7 @@ export default function AnalisarPrazos() {
     const docxFiles = Array.from(selected).filter(f => f.name.toLowerCase().endsWith(".docx"));
     if (docxFiles.length === 0) { toast.error("Selecione arquivos .docx"); return; }
     setUploadedFiles(docxFiles);
+    setSelectedFileIndices(new Set(docxFiles.map((_, i) => i)));
     setResults(
       docxFiles.map((f, index) => ({
         fileName: f.name,
