@@ -260,9 +260,21 @@ export default function AnalisarPrazos() {
     if (!cancelledRef.current) toast.success("Análise concluída!");
   };
 
-  const handleAnalyzeAll = () => {
-    const count = mode === "drive" ? driveFiles.length : uploadedFiles.length;
-    const indices = Array.from({ length: count }, (_, i) => i);
+  const handleAnalyzeSelected = () => {
+    if (selectedFileIndices.size === 0) { toast.error("Selecione ao menos um arquivo"); return; }
+    // Build results only for selected files
+    const selectedIndices = Array.from(selectedFileIndices).sort((a, b) => a - b);
+    const newResults: AnalysisResult[] = selectedIndices.map((fileIdx) => {
+      const fileName = mode === "drive" ? driveFiles[fileIdx].name : uploadedFiles[fileIdx].name;
+      const fileId = mode === "drive" ? driveFiles[fileIdx].id : undefined;
+      return {
+        fileName, fileId, sourceFileIndex: fileIdx,
+        data_distribuicao: "", numero_processo: "", dossie: "", equipe: "", reclamante: "", reclamada: "", relator: "", turma: "",
+        status: "pending" as const,
+      };
+    });
+    setResults(newResults);
+    const indices = Array.from({ length: newResults.length }, (_, i) => i);
     runAnalysis(indices);
   };
 
