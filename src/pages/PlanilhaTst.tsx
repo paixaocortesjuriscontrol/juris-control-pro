@@ -384,13 +384,26 @@ export default function PlanilhaTst() {
       }
 
       console.log(`[PlanilhaTST] Passo 1.1: ${countPasso1}/${processRows.length} processos complementados via Input 2/3`);
-      // Log unmatched processes for debugging
-      const unmatched = processRows.filter(pr => {
+      
+      // Detailed match diagnostics
+      let matchCount2 = 0, matchCount3 = 0;
+      const unmatchedSamples: string[] = [];
+      for (const pr of processRows) {
         const norm = normalizeProcesso(pr.numero_processo);
-        return !lookupProcess(norm, lookup2) && !lookupProcess(norm, lookup3);
-      });
-      if (unmatched.length > 0) {
-        console.log(`[PlanilhaTST] ${unmatched.length} processos sem match nos Inputs 2/3. Exemplos:`, unmatched.slice(0, 5).map(p => p.numero_processo));
+        if (lookupProcess(norm, lookup2)) matchCount2++;
+        if (lookupProcess(norm, lookup3)) matchCount3++;
+        if (!lookupProcess(norm, lookup2) && !lookupProcess(norm, lookup3) && unmatchedSamples.length < 5) {
+          unmatchedSamples.push(`"${pr.numero_processo}" (norm: "${norm}")`);
+        }
+      }
+      console.log(`[PlanilhaTST] Match rates: Input2: ${matchCount2}/${processRows.length}, Input3: ${matchCount3}/${processRows.length}`);
+      if (unmatchedSamples.length > 0) {
+        console.log(`[PlanilhaTST] Unmatched samples:`, unmatchedSamples);
+      }
+      // Log first successful match to verify field extraction
+      const firstMatched = processRows.find(pr => !isEmpty(pr.dossie) || !isEmpty(pr.equipe) || !isEmpty(pr.reclamante));
+      if (firstMatched) {
+        console.log(`[PlanilhaTST] First filled row:`, { proc: firstMatched.numero_processo, dossie: firstMatched.dossie, equipe: firstMatched.equipe, reclamante: firstMatched.reclamante, reclamada: firstMatched.reclamada, relator: firstMatched.relator });
       }
 
       setProgress(40);
