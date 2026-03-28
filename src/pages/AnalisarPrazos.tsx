@@ -63,8 +63,29 @@ export default function AnalisarPrazos() {
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [mode, setMode] = useState<"drive" | "upload">("drive");
+  const [selectedFileIndices, setSelectedFileIndices] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelledRef = useRef(false);
+
+  const sourceFiles = mode === "drive" ? driveFiles : uploadedFiles;
+  const allFileIndices = sourceFiles.map((_, i) => i);
+  const allSelected = sourceFiles.length > 0 && selectedFileIndices.size === sourceFiles.length;
+
+  const toggleFileSelection = (index: number) => {
+    setSelectedFileIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedFileIndices(new Set());
+    } else {
+      setSelectedFileIndices(new Set(allFileIndices));
+    }
+  };
 
   const handleListFiles = async () => {
     if (!driveUrl.trim()) {
