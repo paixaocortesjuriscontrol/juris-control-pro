@@ -303,8 +303,8 @@ export default function PlanilhaTst() {
         };
 
         // Passo 1.1: Input 2 (priority) then Input 3
-        const row2 = lookup2.get(procNorm);
-        const row3 = lookup3.get(procNorm);
+        const row2 = lookupProcess(procNorm, lookup2);
+        const row3 = lookupProcess(procNorm, lookup3);
         let complemented1 = false;
 
         const fields1: Array<{ key: keyof ProcessRow; terms: string[]; includeRelator: boolean }> = [
@@ -348,7 +348,7 @@ export default function PlanilhaTst() {
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
       for (const pr of processRows) {
         const procNorm = normalizeProcesso(pr.numero_processo);
-        const row4 = lookup4.get(procNorm);
+        const row4 = lookupProcess(procNorm, lookup4);
         if (!row4 || !input4) continue;
 
         let complemented2 = false;
