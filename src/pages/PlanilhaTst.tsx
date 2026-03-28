@@ -274,9 +274,9 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
       const input3 = files[2] ? await readSheetData(files[2]) : null;
       const input4 = files[3] ? await readSheetData(files[3]) : null;
 
-      const lookup2 = input2 ? buildLookup(input2.rows, input2.headers) : new Map();
-      const lookup3 = input3 ? buildLookup(input3.rows, input3.headers) : new Map();
-      const lookup4 = input4 ? buildLookup(input4.rows, input4.headers) : new Map();
+      const lookup2 = input2 ? buildAllLookups(input2.rows, input2.headers) : new Map();
+      const lookup3 = input3 ? buildAllLookups(input3.rows, input3.headers) : new Map();
+      const lookup4 = input4 ? buildAllLookups(input4.rows, input4.headers) : new Map();
 
       // Diagnostic logging
       console.log("[PlanilhaTST] Input1:", input1.rows.length, "rows | Headers:", input1.headers.join(", "));
