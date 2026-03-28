@@ -419,17 +419,8 @@ export default function PlanilhaTst() {
   };
 
   return (
-    <MainLayout title="Planilha TST — Cruzamento de Dados">
+    <MainLayout title="Planilha TST — Cruzamento de Dados" subtitle="Carregue 4 planilhas para cruzar e complementar automaticamente os dados de distribuições do TST">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Table2 className="w-7 h-7 text-sky-500" />
-            Planilha TST — Cruzamento de Dados
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Carregue 4 planilhas para cruzar e complementar automaticamente os dados de distribuições do TST
-          </p>
-        </div>
 
         {/* File Upload Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
