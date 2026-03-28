@@ -279,6 +279,22 @@ export default function PlanilhaTst() {
       const lookup3 = input3 ? buildLookup(input3.rows, input3.headers) : new Map();
       const lookup4 = input4 ? buildLookup(input4.rows, input4.headers) : new Map();
 
+      // Diagnostic logging
+      console.log("[PlanilhaTST] Input1:", input1.rows.length, "rows | Headers:", input1.headers.join(", "));
+      if (input2) console.log("[PlanilhaTST] Input2:", input2.rows.length, "rows | Headers:", input2.headers.join(", ") , "| Lookup keys:", lookup2.size);
+      if (input3) console.log("[PlanilhaTST] Input3:", input3.rows.length, "rows | Headers:", input3.headers.join(", "), "| Lookup keys:", lookup3.size);
+      if (input4) console.log("[PlanilhaTST] Input4:", input4.rows.length, "rows | Headers:", input4.headers.join(", "), "| Lookup keys:", lookup4.size);
+
+      // Log first 3 process numbers from each input for debugging
+      const logSample = (label: string, rows: Record<string, any>[], headers: string[]) => {
+        const samples = rows.slice(0, 3).map(r => `"${getProcessoFromRow(r, headers)}" → norm: "${normalizeProcesso(getProcessoFromRow(r, headers))}"`);
+        console.log(`[PlanilhaTST] ${label} sample processes:`, samples);
+      };
+      logSample("Input1", input1.rows, input1.headers);
+      if (input2) logSample("Input2", input2.rows, input2.headers);
+      if (input3) logSample("Input3", input3.rows, input3.headers);
+      if (input4) logSample("Input4", input4.rows, input4.headers);
+
       setProgress(10);
       setProgressLabel("Cruzando dados (Passo 1.1)...");
 
