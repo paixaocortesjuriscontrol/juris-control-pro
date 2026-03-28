@@ -324,11 +324,11 @@ export default function PlanilhaTst() {
         let complemented1 = false;
 
         const fields1: Array<{ key: keyof ProcessRow; terms: string[]; includeRelator: boolean }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"], includeRelator: true },
-          { key: "equipe", terms: ["equipe"], includeRelator: true },
-          { key: "reclamante", terms: ["reclamante"], includeRelator: true },
-          { key: "reclamada", terms: ["reclamada"], includeRelator: true },
-          { key: "relator", terms: ["relator"], includeRelator: true },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo"], includeRelator: true },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"], includeRelator: true },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"], includeRelator: true },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido"], includeRelator: true },
+          { key: "relator", terms: ["relator", "ministro"], includeRelator: true },
         ];
 
         for (const f of fields1) {
