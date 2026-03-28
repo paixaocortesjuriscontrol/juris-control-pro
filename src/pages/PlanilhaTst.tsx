@@ -348,12 +348,12 @@ export default function PlanilhaTst() {
         const row3 = lookupProcess(procNorm, lookup3);
         let complemented1 = false;
 
-        const fields1: Array<{ key: keyof ProcessRow; terms: string[]; includeRelator: boolean }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo"], includeRelator: true },
-          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"], includeRelator: true },
-          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"], includeRelator: true },
-          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido"], includeRelator: true },
-          { key: "relator", terms: ["relator", "ministro"], includeRelator: true },
+        const fields1: Array<{ key: keyof ProcessRow; terms: string[] }> = [
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo", "cod", "folder"] },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor", "area", "área", "grupo", "unidade"] },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "parte ativa", "empregado", "trabalhador", "nome"] },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "parte passiva", "empresa", "cliente", "parte contraria", "parte contrária"] },
+          { key: "relator", terms: ["relator", "ministro", "desembargador", "juiz"] },
         ];
 
         for (const f of fields1) {
@@ -404,10 +404,10 @@ export default function PlanilhaTst() {
 
         let complemented2 = false;
         const fields2: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo"] },
-          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor"] },
-          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "nome"] },
-          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo", "cod", "folder"] },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor", "area", "área", "grupo", "unidade"] },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "parte ativa", "empregado", "trabalhador", "nome"] },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "parte passiva", "empresa", "cliente", "parte contraria", "parte contrária"] },
         ];
 
         for (const f of fields2) {
