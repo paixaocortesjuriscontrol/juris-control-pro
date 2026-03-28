@@ -106,6 +106,7 @@ export default function AnalisarPrazos() {
         return;
       }
       setDriveFiles(data.files);
+      setSelectedFileIndices(new Set(data.files.map((_: any, i: number) => i)));
       setResults(
         data.files.map((f: DriveFile, index: number) => ({
           fileName: f.name, fileId: f.id,
