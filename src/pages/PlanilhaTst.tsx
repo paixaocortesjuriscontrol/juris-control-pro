@@ -419,7 +419,7 @@ export default function PlanilhaTst() {
   };
 
   return (
-    <MainLayout>
+    <MainLayout title="Planilha TST — Cruzamento de Dados">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
