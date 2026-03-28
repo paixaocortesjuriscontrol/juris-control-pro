@@ -175,6 +175,8 @@ export default function PlanilhaTst() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
+  const [originalWb, setOriginalWb] = useState<XLSX.WorkBook | null>(null);
+  const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
   const cancelledRef = useRef(false);
 
   const fileLabels = [
