@@ -43,6 +43,12 @@ interface ProcessRow {
   origem_relator?: string;
 }
 
+interface SheetData {
+  headers: string[];
+  rows: Record<string, any>[];
+  headerRowIndex: number;
+}
+
 interface Stats {
   total: number;
   passo1: number;
