@@ -491,7 +491,6 @@ export default function PlanilhaTst() {
 
     toast.success("Planilha baixada com sucesso!");
   };
-  };
 
   const origemBadge = (origem?: string) => {
     if (!origem) return null;
