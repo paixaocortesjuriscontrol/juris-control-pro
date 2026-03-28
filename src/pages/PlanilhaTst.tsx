@@ -413,35 +413,84 @@ export default function PlanilhaTst() {
   const baixarPlanilha = () => {
     if (results.length === 0) return;
 
-    // Rebuild Input 1 with complemented data
-    const output = results.map(pr => {
-      const row = { ...pr.originalData };
-      // Find or create target columns
-      const setField = (terms: string[], value: string) => {
-        const key = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
-        if (key) {
-          if (isEmpty(String(row[key] || ""))) row[key] = value;
-        } else {
-          // Add as new column
+    if (originalWb && input1Meta) {
+      // Modify the original workbook in-place to preserve formatting
+      const ws = originalWb.Sheets[originalWb.SheetNames[0]];
+      const headers = input1Meta.headers;
+      const dataStartRow = input1Meta.headerRowIndex + 2; // 1-indexed, after header
+
+      const findOrAddCol = (terms: string[]): number => {
+        let colIdx = findColumnIndex(headers, ...terms);
+        if (colIdx < 0) {
+          // Add new column
           const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
-          row[label.toUpperCase()] = value;
+          headers.push(label.toUpperCase());
+          colIdx = headers.length - 1;
+          // Write header cell
+          const cellRef = XLSX.utils.encode_cell({ r: input1Meta.headerRowIndex, c: colIdx });
+          ws[cellRef] = { t: 's', v: label.toUpperCase() };
         }
+        return colIdx;
       };
 
-      if (!isEmpty(pr.dossie)) setField(["dossi", "dossie", "dossiê"], pr.dossie);
-      if (!isEmpty(pr.equipe)) setField(["equipe"], pr.equipe);
-      if (!isEmpty(pr.reclamante)) setField(["reclamante"], pr.reclamante);
-      if (!isEmpty(pr.reclamada)) setField(["reclamada"], pr.reclamada);
-      if (!isEmpty(pr.relator)) setField(["relator"], pr.relator);
+      const colDossie = findOrAddCol(["dossi", "dossie", "dossiê"]);
+      const colEquipe = findOrAddCol(["equipe"]);
+      const colReclamante = findOrAddCol(["reclamante"]);
+      const colReclamada = findOrAddCol(["reclamada"]);
+      const colRelator = findOrAddCol(["relator"]);
 
-      return row;
-    });
+      for (const pr of results) {
+        const excelRow = dataStartRow + pr.originalIndex;
+        const writeIfEmpty = (colIdx: number, value: string) => {
+          if (isEmpty(value)) return;
+          const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
+          const existing = ws[cellRef];
+          if (!existing || isEmpty(String(existing.v || ""))) {
+            ws[cellRef] = { t: 's', v: value };
+          }
+        };
 
-    const ws = XLSX.utils.json_to_sheet(output);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
-    XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
+        writeIfEmpty(colDossie, pr.dossie);
+        writeIfEmpty(colEquipe, pr.equipe);
+        writeIfEmpty(colReclamante, pr.reclamante);
+        writeIfEmpty(colReclamada, pr.reclamada);
+        writeIfEmpty(colRelator, pr.relator);
+      }
+
+      // Update sheet range
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      range.e.c = Math.max(range.e.c, headers.length - 1);
+      ws['!ref'] = XLSX.utils.encode_range(range);
+
+      XLSX.writeFile(originalWb, "Distribuicoes_TST_Complementada.xlsx");
+    } else {
+      // Fallback: simple export
+      const output = results.map(pr => {
+        const row = { ...pr.originalData };
+        const setField = (terms: string[], value: string) => {
+          const key = Object.keys(row).find(k => terms.some(t => k.toLowerCase().includes(t)));
+          if (key) {
+            if (isEmpty(String(row[key] || ""))) row[key] = value;
+          } else {
+            const label = terms[0].charAt(0).toUpperCase() + terms[0].slice(1);
+            row[label.toUpperCase()] = value;
+          }
+        };
+        if (!isEmpty(pr.dossie)) setField(["dossi", "dossie", "dossiê"], pr.dossie);
+        if (!isEmpty(pr.equipe)) setField(["equipe"], pr.equipe);
+        if (!isEmpty(pr.reclamante)) setField(["reclamante"], pr.reclamante);
+        if (!isEmpty(pr.reclamada)) setField(["reclamada"], pr.reclamada);
+        if (!isEmpty(pr.relator)) setField(["relator"], pr.relator);
+        return row;
+      });
+      const ws = XLSX.utils.json_to_sheet(output);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
+      XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
+    }
+
     toast.success("Planilha baixada com sucesso!");
+  };
   };
 
   const origemBadge = (origem?: string) => {
