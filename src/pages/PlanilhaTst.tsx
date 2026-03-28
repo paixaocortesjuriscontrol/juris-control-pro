@@ -210,9 +210,46 @@ export default function PlanilhaTst() {
     const map = new Map<string, Record<string, any>>();
     for (const row of rows) {
       const proc = normalizeProcesso(getProcessoFromRow(row, headers));
-      if (proc) map.set(proc, row);
+      if (proc) {
+        map.set(proc, row);
+        // Also store last 13 digits (CNJ process without segment) as fallback
+        if (proc.length > 13) {
+          const suffix = proc.slice(-13);
+          if (!map.has(suffix)) map.set(suffix, row);
+        }
+        // Also store last 7 digits (sequential number) for broader matching
+        if (proc.length >= 7) {
+          const shortSuffix = proc.slice(0, 7);
+          const shortKey = `seq_${shortSuffix}`;
+          if (!map.has(shortKey)) map.set(shortKey, row);
+        }
+      }
     }
     return map;
+  };
+
+  const lookupProcess = (procNorm: string, lookup: Map<string, Record<string, any>>): Record<string, any> | undefined => {
+    // Exact match
+    let found = lookup.get(procNorm);
+    if (found) return found;
+    // Suffix match (last 13 digits)
+    if (procNorm.length > 13) {
+      found = lookup.get(procNorm.slice(-13));
+      if (found) return found;
+    }
+    // Sequential number match (first 7 digits)
+    if (procNorm.length >= 7) {
+      found = lookup.get(`seq_${procNorm.slice(0, 7)}`);
+      if (found) return found;
+    }
+    // Substring containment: check if any key contains or is contained in procNorm
+    for (const [key, val] of lookup) {
+      if (key.startsWith("seq_")) continue;
+      if (key.length >= 7 && procNorm.length >= 7) {
+        if (procNorm.includes(key) || key.includes(procNorm)) return val;
+      }
+    }
+    return undefined;
   };
 
   const processarPlanilhas = async () => {
