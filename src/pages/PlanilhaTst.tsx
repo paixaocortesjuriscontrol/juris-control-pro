@@ -408,30 +408,26 @@ export default function PlanilhaTst() {
 
     if (originalFileBuffer && input1Meta) {
       try {
-        // Use JSZip to modify the xlsx XML directly, preserving all styles
+        // Modifica apenas os valores nas células, preservando os estilos originais
         const zip = await JSZip.loadAsync(originalFileBuffer);
         const sheetXml = await zip.file("xl/worksheets/sheet1.xml")?.async("string");
-        const sharedStringsXml = await zip.file("xl/sharedStrings.xml")?.async("string");
 
         if (!sheetXml) {
           toast.error("Erro ao ler a planilha original");
           return;
         }
 
-        // Parse shared strings
-        const sharedStrings: string[] = [];
-        if (sharedStringsXml) {
-          const siMatches = sharedStringsXml.matchAll(/<si>(.*?)<\/si>/gs);
-          for (const m of siMatches) {
-            // Extract text from <t> tags within <si>
-            const tMatches = m[1].matchAll(/<t[^>]*>(.*?)<\/t>/gs);
-            let text = "";
-            for (const t of tMatches) text += t[1];
-            sharedStrings.push(text);
-          }
+        const parser = new DOMParser();
+        const serializer = new XMLSerializer();
+        const sheetDoc = parser.parseFromString(sheetXml, "application/xml");
+        const sheetNs = sheetDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const sheetData = sheetDoc.getElementsByTagNameNS(sheetNs, "sheetData")[0];
+
+        if (!sheetData) {
+          toast.error("Estrutura da planilha original inválida");
+          return;
         }
 
-        // Build a map of cells to write: { "B5": "value", ... }
         const headers = input1Meta.headers;
         const dataStartRow = input1Meta.headerRowIndex + 2; // 1-indexed
 
@@ -442,98 +438,153 @@ export default function PlanilhaTst() {
         const colReclamada = getColIdx(["reclamada"]);
         const colRelator = getColIdx(["relator"]);
 
-        // Helper to get cell value from the original XML
-        const getCellValueFromXml = (cellRef: string): string => {
-          const regex = new RegExp(`<c r="${cellRef}"[^>]*(?:t="s"[^>]*)?>\\s*<v>(.*?)<\\/v>`, "s");
-          const inlineRegex = new RegExp(`<c r="${cellRef}"[^>]*t="inlineStr"[^>]*>.*?<is>.*?<t[^>]*>(.*?)<\\/t>.*?<\\/is>`, "s");
-          const match = sheetXml!.match(regex);
-          if (match) {
-            const rawVal = match[0];
-            if (rawVal.includes('t="s"') && sharedStrings.length > 0) {
-              const idx = parseInt(match[1]);
-              return sharedStrings[idx] || "";
-            }
-            return match[1] || "";
+        const rowMap = new Map<number, Element>();
+        for (const rowEl of Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row"))) {
+          const rowNumber = Number(rowEl.getAttribute("r"));
+          if (!Number.isNaN(rowNumber)) {
+            rowMap.set(rowNumber, rowEl);
           }
-          const inlineMatch = sheetXml!.match(inlineRegex);
-          if (inlineMatch) return inlineMatch[1] || "";
-          return "";
+        }
+
+        const getRowCells = (rowEl: Element) =>
+          Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter((cell) => cell.parentNode === rowEl);
+
+        const getColumnLetters = (cellRef: string) => cellRef.replace(/\d+/g, "");
+
+        const columnLettersToIndex = (letters: string) => {
+          let value = 0;
+          for (const char of letters) {
+            value = value * 26 + (char.charCodeAt(0) - 64);
+          }
+          return value - 1;
         };
 
-        // Collect new shared strings and cells to add/modify
-        const newStrings: string[] = [];
-        const cellsToWrite: Map<string, number> = new Map(); // cellRef -> sharedStringIndex
+        const getCell = (rowEl: Element, cellRef: string) =>
+          getRowCells(rowEl).find((cell) => cell.getAttribute("r") === cellRef) || null;
+
+        const ensureRow = (rowNumber: number) => {
+          const existing = rowMap.get(rowNumber);
+          if (existing) return existing;
+
+          const rowEl = sheetDoc.createElementNS(sheetNs, "row");
+          rowEl.setAttribute("r", String(rowNumber));
+
+          const allRows = Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row")).filter((row) => row.parentNode === sheetData);
+          const nextRow = allRows.find((row) => Number(row.getAttribute("r")) > rowNumber);
+          if (nextRow) {
+            sheetData.insertBefore(rowEl, nextRow);
+          } else {
+            sheetData.appendChild(rowEl);
+          }
+
+          rowMap.set(rowNumber, rowEl);
+          return rowEl;
+        };
+
+        const createInlineStringChildren = (cellEl: Element, value: string) => {
+          while (cellEl.firstChild) {
+            cellEl.removeChild(cellEl.firstChild);
+          }
+
+          cellEl.setAttribute("t", "inlineStr");
+
+          const isEl = sheetDoc.createElementNS(sheetNs, "is");
+          const tEl = sheetDoc.createElementNS(sheetNs, "t");
+          if (/^\s|\s$| {2,}|\n/.test(value)) {
+            tEl.setAttribute("xml:space", "preserve");
+          }
+          tEl.textContent = value;
+          isEl.appendChild(tEl);
+          cellEl.appendChild(isEl);
+        };
+
+        const findStyleForNewCell = (rowEl: Element, rowNumber: number, colIdx: number) => {
+          const sameRowStyle = getRowCells(rowEl)
+            .map((cell) => ({
+              style: cell.getAttribute("s"),
+              distance: Math.abs(columnLettersToIndex(getColumnLetters(cell.getAttribute("r") || "A")) - colIdx),
+            }))
+            .filter((item): item is { style: string; distance: number } => Boolean(item.style))
+            .sort((a, b) => a.distance - b.distance)[0]?.style;
+
+          if (sameRowStyle) return sameRowStyle;
+
+          const colLetters = XLSX.utils.encode_col(colIdx);
+          for (let offset = 1; offset <= results.length; offset++) {
+            for (const candidateRowNumber of [rowNumber - offset, rowNumber + offset]) {
+              const candidateRow = rowMap.get(candidateRowNumber);
+              if (!candidateRow) continue;
+
+              const sameColumnCell = getCell(candidateRow, `${colLetters}${candidateRowNumber}`);
+              const sameColumnStyle = sameColumnCell?.getAttribute("s");
+              if (sameColumnStyle) return sameColumnStyle;
+
+              const fallbackRowStyle = getRowCells(candidateRow)
+                .map((cell) => cell.getAttribute("s"))
+                .find((style): style is string => Boolean(style));
+              if (fallbackRowStyle) return fallbackRowStyle;
+            }
+          }
+
+          return null;
+        };
+
+        const upsertCellValue = (rowNumber: number, colIdx: number, value: string) => {
+          if (colIdx < 0 || isEmpty(value)) return;
+
+          const rowEl = ensureRow(rowNumber);
+          const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+          const existingCell = getCell(rowEl, cellRef);
+
+          if (existingCell) {
+            createInlineStringChildren(existingCell, value);
+            return;
+          }
+
+          const newCell = sheetDoc.createElementNS(sheetNs, "c");
+          newCell.setAttribute("r", cellRef);
+
+          const inheritedStyle = findStyleForNewCell(rowEl, rowNumber, colIdx);
+          if (inheritedStyle) {
+            newCell.setAttribute("s", inheritedStyle);
+          }
+
+          createInlineStringChildren(newCell, value);
+
+          const rowCells = getRowCells(rowEl);
+          const nextCell = rowCells.find((cell) => {
+            const ref = cell.getAttribute("r") || "";
+            return columnLettersToIndex(getColumnLetters(ref)) > colIdx;
+          });
+
+          if (nextCell) {
+            rowEl.insertBefore(newCell, nextCell);
+          } else {
+            rowEl.appendChild(newCell);
+          }
+        };
 
         for (const pr of results) {
           const excelRow = dataStartRow + pr.originalIndex;
-          const tryWrite = (colIdx: number, value: string) => {
-            if (colIdx < 0 || isEmpty(value)) return;
-            const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
-            const existing = getCellValueFromXml(cellRef);
-            if (isEmpty(existing)) {
-              // Check if value already exists in shared strings
-              let ssIdx = sharedStrings.indexOf(value);
-              if (ssIdx < 0) {
-                ssIdx = sharedStrings.length + newStrings.indexOf(value);
-                if (!newStrings.includes(value)) {
-                  ssIdx = sharedStrings.length + newStrings.length;
-                  newStrings.push(value);
-                }
-              }
-              cellsToWrite.set(cellRef, ssIdx);
-            }
+          const tryWrite = (colIdx: number, value: string, originalValue: any) => {
+            if (colIdx < 0 || isEmpty(value) || !isEmpty(String(originalValue ?? ""))) return;
+            upsertCellValue(excelRow, colIdx, value);
           };
 
-          tryWrite(colDossie, pr.dossie);
-          tryWrite(colEquipe, pr.equipe);
-          tryWrite(colReclamante, pr.reclamante);
-          tryWrite(colReclamada, pr.reclamada);
-          tryWrite(colRelator, pr.relator);
+          tryWrite(colDossie, pr.dossie, pr.originalData[headers[colDossie]]);
+          tryWrite(colEquipe, pr.equipe, pr.originalData[headers[colEquipe]]);
+          tryWrite(colReclamante, pr.reclamante, pr.originalData[headers[colReclamante]]);
+          tryWrite(colReclamada, pr.reclamada, pr.originalData[headers[colReclamada]]);
+          tryWrite(colRelator, pr.relator, pr.originalData[headers[colRelator]]);
         }
 
-        // Modify sheet XML: add or update cells
-        let modifiedSheetXml = sheetXml;
-        for (const [cellRef, ssIdx] of cellsToWrite) {
-          const existingCellRegex = new RegExp(`<c r="${cellRef}"[^/]*(?:/>|>.*?</c>)`, "s");
-          const existingMatch = modifiedSheetXml.match(existingCellRegex);
-          const newCellXml = `<c r="${cellRef}" t="s"><v>${ssIdx}</v></c>`;
-
-          if (existingMatch) {
-            modifiedSheetXml = modifiedSheetXml.replace(existingCellRegex, newCellXml);
-          } else {
-            // Need to insert cell into the correct row
-            const rowNum = parseInt(cellRef.replace(/[A-Z]+/, ""));
-            const rowRegex = new RegExp(`(<row r="${rowNum}"[^>]*>)(.*?)(</row>)`, "s");
-            const rowMatch = modifiedSheetXml.match(rowRegex);
-            if (rowMatch) {
-              modifiedSheetXml = modifiedSheetXml.replace(
-                rowRegex,
-                `$1$2${newCellXml}$3`
-              );
-            }
-          }
+        const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
+        if (parserError) {
+          toast.error("Erro ao montar a planilha final");
+          return;
         }
 
-        zip.file("xl/worksheets/sheet1.xml", modifiedSheetXml);
-
-        // Update shared strings if we added new ones
-        if (newStrings.length > 0 && sharedStringsXml) {
-          const totalCount = sharedStrings.length + newStrings.length;
-          let modifiedSS = sharedStringsXml.replace(
-            /count="\d+"/,
-            `count="${totalCount}"`
-          ).replace(
-            /uniqueCount="\d+"/,
-            `uniqueCount="${totalCount}"`
-          );
-          const insertPoint = modifiedSS.lastIndexOf("</sst>");
-          const newEntries = newStrings.map(s => {
-            const escaped = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            return `<si><t>${escaped}</t></si>`;
-          }).join("");
-          modifiedSS = modifiedSS.slice(0, insertPoint) + newEntries + modifiedSS.slice(insertPoint);
-          zip.file("xl/sharedStrings.xml", modifiedSS);
-        }
+        zip.file("xl/worksheets/sheet1.xml", serializer.serializeToString(sheetDoc));
 
         // Generate and download
         const blob = await zip.generateAsync({ type: "blob" });
