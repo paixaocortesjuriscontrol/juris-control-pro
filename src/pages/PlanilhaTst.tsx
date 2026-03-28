@@ -623,6 +623,101 @@ export default function PlanilhaTst() {
 
         zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
 
+        // --- Adicionar estilo amarelo no styles.xml para células preenchidas ---
+        const stylesPath = "xl/styles.xml";
+        const stylesXml = await zip.file(stylesPath)?.async("string");
+        let yellowStyleIndex: string | null = null;
+
+        if (stylesXml) {
+          const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
+          const stylesNs = stylesDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+          // 1. Adicionar fill amarelo
+          const fills = stylesDoc.getElementsByTagNameNS(stylesNs, "fills")[0];
+          const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
+          const newFillIndex = fillCount;
+
+          if (fills) {
+            const fillEl = stylesDoc.createElementNS(stylesNs, "fill");
+            const patternEl = stylesDoc.createElementNS(stylesNs, "patternFill");
+            patternEl.setAttribute("patternType", "solid");
+            const fgColor = stylesDoc.createElementNS(stylesNs, "fgColor");
+            fgColor.setAttribute("rgb", "FFFFFF00");
+            const bgColor = stylesDoc.createElementNS(stylesNs, "bgColor");
+            bgColor.setAttribute("indexed", "64");
+            patternEl.appendChild(fgColor);
+            patternEl.appendChild(bgColor);
+            fillEl.appendChild(patternEl);
+            fills.appendChild(fillEl);
+            fills.setAttribute("count", String(fillCount + 1));
+          }
+
+          // 2. Adicionar um novo xf em cellXfs que herda do primeiro xf mas com fill amarelo
+          const cellXfs = stylesDoc.getElementsByTagNameNS(stylesNs, "cellXfs")[0];
+          const xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
+
+          if (cellXfs) {
+            // Pegar o primeiro xf como base para herdar fonte/borda/alinhamento
+            const baseXf = cellXfs.getElementsByTagNameNS(stylesNs, "xf")[0];
+            const newXf = stylesDoc.createElementNS(stylesNs, "xf");
+            if (baseXf) {
+              newXf.setAttribute("numFmtId", baseXf.getAttribute("numFmtId") || "0");
+              newXf.setAttribute("fontId", baseXf.getAttribute("fontId") || "0");
+              newXf.setAttribute("borderId", baseXf.getAttribute("borderId") || "0");
+            } else {
+              newXf.setAttribute("numFmtId", "0");
+              newXf.setAttribute("fontId", "0");
+              newXf.setAttribute("borderId", "0");
+            }
+            newXf.setAttribute("fillId", String(newFillIndex));
+            newXf.setAttribute("applyFill", "1");
+            cellXfs.appendChild(newXf);
+            cellXfs.setAttribute("count", String(xfCount + 1));
+            yellowStyleIndex = String(xfCount);
+          }
+
+          zip.file(stylesPath, serializer.serializeToString(stylesDoc));
+        }
+
+        // --- Aplicar o estilo amarelo nas células que foram preenchidas ---
+        if (yellowStyleIndex) {
+          const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
+          if (updatedSheetXml) {
+            const updatedDoc = parser.parseFromString(updatedSheetXml, "application/xml");
+            const updatedNs = updatedDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+            const updatedSheetData = updatedDoc.getElementsByTagNameNS(updatedNs, "sheetData")[0];
+
+            if (updatedSheetData) {
+              const updatedRowMap = new Map<number, Element>();
+              for (const rowEl of Array.from(updatedSheetData.getElementsByTagNameNS(updatedNs, "row"))) {
+                const rn = Number(rowEl.getAttribute("r"));
+                if (!Number.isNaN(rn)) updatedRowMap.set(rn, rowEl);
+              }
+
+              for (const pr of results) {
+                const excelRow = dataStartRow + pr.originalIndex;
+                const markYellow = (colIdx: number, value: string, originalValue: any) => {
+                  if (colIdx < 0 || isEmpty(value) || !isEmpty(String(originalValue ?? ""))) return;
+                  const rowEl = updatedRowMap.get(excelRow);
+                  if (!rowEl) return;
+                  const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
+                  const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
+                  const cell = cells.find(c => c.getAttribute("r") === cellRef);
+                  if (cell) cell.setAttribute("s", yellowStyleIndex!);
+                };
+
+                markYellow(colDossie, pr.dossie, pr.originalData[headers[colDossie]]);
+                markYellow(colEquipe, pr.equipe, pr.originalData[headers[colEquipe]]);
+                markYellow(colReclamante, pr.reclamante, pr.originalData[headers[colReclamante]]);
+                markYellow(colReclamada, pr.reclamada, pr.originalData[headers[colReclamada]]);
+                markYellow(colRelator, pr.relator, pr.originalData[headers[colRelator]]);
+              }
+
+              zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
+            }
+          }
+        }
+
         // Generate and download
         const blob = await zip.generateAsync({ type: "blob" });
         const url = URL.createObjectURL(blob);
