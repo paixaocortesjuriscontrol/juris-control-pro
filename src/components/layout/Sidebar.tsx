@@ -29,6 +29,7 @@ import {
   FileWarning,
   BookOpen,
   LayoutPanelTop,
+  Table2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -49,6 +50,7 @@ const menuItemsPublicos = [
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },
+  { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
