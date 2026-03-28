@@ -69,7 +69,8 @@ function normalizeText(val: unknown): string {
 }
 
 function normalizeProcesso(val: string): string {
-  return String(val || "").replace(/[\.\-\s\/]/g, "").trim();
+  // Remove everything except digits
+  return String(val || "").replace(/\D/g, "").trim();
 }
 
 function findColumnIndex(headers: string[], ...terms: string[]): number {
@@ -137,14 +138,17 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
 }
 
 function getProcessoFromRow(row: Record<string, any>, headers: string[]): string {
-  const idx = findColumnIndex(headers, "processo", "nº processo", "numero");
+  const idx = findColumnIndex(headers, "processo", "nº processo", "numero", "número", "proc", "cnj", "nº");
   if (idx >= 0) {
     const key = headers[idx];
     return String(row[key] || "");
   }
-  // Try any key with "processo"
+  // Try any key with "processo" or "proc"
   for (const key of Object.keys(row)) {
-    if (key.toLowerCase().includes("processo")) return String(row[key] || "");
+    const lower = key.toLowerCase();
+    if (lower.includes("processo") || lower.includes("proc") || lower.includes("cnj")) {
+      return String(row[key] || "");
+    }
   }
   return "";
 }
@@ -206,9 +210,46 @@ export default function PlanilhaTst() {
     const map = new Map<string, Record<string, any>>();
     for (const row of rows) {
       const proc = normalizeProcesso(getProcessoFromRow(row, headers));
-      if (proc) map.set(proc, row);
+      if (proc) {
+        map.set(proc, row);
+        // Also store last 13 digits (CNJ process without segment) as fallback
+        if (proc.length > 13) {
+          const suffix = proc.slice(-13);
+          if (!map.has(suffix)) map.set(suffix, row);
+        }
+        // Also store last 7 digits (sequential number) for broader matching
+        if (proc.length >= 7) {
+          const shortSuffix = proc.slice(0, 7);
+          const shortKey = `seq_${shortSuffix}`;
+          if (!map.has(shortKey)) map.set(shortKey, row);
+        }
+      }
     }
     return map;
+  };
+
+  const lookupProcess = (procNorm: string, lookup: Map<string, Record<string, any>>): Record<string, any> | undefined => {
+    // Exact match
+    let found = lookup.get(procNorm);
+    if (found) return found;
+    // Suffix match (last 13 digits)
+    if (procNorm.length > 13) {
+      found = lookup.get(procNorm.slice(-13));
+      if (found) return found;
+    }
+    // Sequential number match (first 7 digits)
+    if (procNorm.length >= 7) {
+      found = lookup.get(`seq_${procNorm.slice(0, 7)}`);
+      if (found) return found;
+    }
+    // Substring containment: check if any key contains or is contained in procNorm
+    for (const [key, val] of lookup) {
+      if (key.startsWith("seq_")) continue;
+      if (key.length >= 7 && procNorm.length >= 7) {
+        if (procNorm.includes(key) || key.includes(procNorm)) return val;
+      }
+    }
+    return undefined;
   };
 
   const processarPlanilhas = async () => {
@@ -238,6 +279,22 @@ export default function PlanilhaTst() {
       const lookup3 = input3 ? buildLookup(input3.rows, input3.headers) : new Map();
       const lookup4 = input4 ? buildLookup(input4.rows, input4.headers) : new Map();
 
+      // Diagnostic logging
+      console.log("[PlanilhaTST] Input1:", input1.rows.length, "rows | Headers:", input1.headers.join(", "));
+      if (input2) console.log("[PlanilhaTST] Input2:", input2.rows.length, "rows | Headers:", input2.headers.join(", ") , "| Lookup keys:", lookup2.size);
+      if (input3) console.log("[PlanilhaTST] Input3:", input3.rows.length, "rows | Headers:", input3.headers.join(", "), "| Lookup keys:", lookup3.size);
+      if (input4) console.log("[PlanilhaTST] Input4:", input4.rows.length, "rows | Headers:", input4.headers.join(", "), "| Lookup keys:", lookup4.size);
+
+      // Log first 3 process numbers from each input for debugging
+      const logSample = (label: string, rows: Record<string, any>[], headers: string[]) => {
+        const samples = rows.slice(0, 3).map(r => `"${getProcessoFromRow(r, headers)}" → norm: "${normalizeProcesso(getProcessoFromRow(r, headers))}"`);
+        console.log(`[PlanilhaTST] ${label} sample processes:`, samples);
+      };
+      logSample("Input1", input1.rows, input1.headers);
+      if (input2) logSample("Input2", input2.rows, input2.headers);
+      if (input3) logSample("Input3", input3.rows, input3.headers);
+      if (input4) logSample("Input4", input4.rows, input4.headers);
+
       setProgress(10);
       setProgressLabel("Cruzando dados (Passo 1.1)...");
 
@@ -262,16 +319,16 @@ export default function PlanilhaTst() {
         };
 
         // Passo 1.1: Input 2 (priority) then Input 3
-        const row2 = lookup2.get(procNorm);
-        const row3 = lookup3.get(procNorm);
+        const row2 = lookupProcess(procNorm, lookup2);
+        const row3 = lookupProcess(procNorm, lookup3);
         let complemented1 = false;
 
         const fields1: Array<{ key: keyof ProcessRow; terms: string[]; includeRelator: boolean }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"], includeRelator: true },
-          { key: "equipe", terms: ["equipe"], includeRelator: true },
-          { key: "reclamante", terms: ["reclamante"], includeRelator: true },
-          { key: "reclamada", terms: ["reclamada"], includeRelator: true },
-          { key: "relator", terms: ["relator"], includeRelator: true },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo"], includeRelator: true },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"], includeRelator: true },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"], includeRelator: true },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido"], includeRelator: true },
+          { key: "relator", terms: ["relator", "ministro"], includeRelator: true },
         ];
 
         for (const f of fields1) {
@@ -301,21 +358,31 @@ export default function PlanilhaTst() {
         processRows.push(pr);
       }
 
+      console.log(`[PlanilhaTST] Passo 1.1: ${countPasso1}/${processRows.length} processos complementados via Input 2/3`);
+      // Log unmatched processes for debugging
+      const unmatched = processRows.filter(pr => {
+        const norm = normalizeProcesso(pr.numero_processo);
+        return !lookupProcess(norm, lookup2) && !lookupProcess(norm, lookup3);
+      });
+      if (unmatched.length > 0) {
+        console.log(`[PlanilhaTST] ${unmatched.length} processos sem match nos Inputs 2/3. Exemplos:`, unmatched.slice(0, 5).map(p => p.numero_processo));
+      }
+
       setProgress(40);
       setProgressLabel("Cruzando dados (Passo 1.2 — Dossiês Ativos)...");
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
       for (const pr of processRows) {
         const procNorm = normalizeProcesso(pr.numero_processo);
-        const row4 = lookup4.get(procNorm);
+        const row4 = lookupProcess(procNorm, lookup4);
         if (!row4 || !input4) continue;
 
         let complemented2 = false;
         const fields2: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
-          { key: "equipe", terms: ["equipe"] },
-          { key: "reclamante", terms: ["reclamante"] },
-          { key: "reclamada", terms: ["reclamada"] },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo"] },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor"] },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "nome"] },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
         ];
 
         for (const f of fields2) {
