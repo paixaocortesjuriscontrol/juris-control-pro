@@ -446,17 +446,35 @@ export default function PlanilhaTst() {
         if (complemented2) countPasso2++;
       }
 
-      setProgress(60);
-      setProgressLabel("Enviando processos incompletos para IA...");
+      // Input 4 diagnostics
+      let matchCount4 = 0;
+      for (const pr of processRows) {
+        if (lookupProcess(normalizeProcesso(pr.numero_processo), lookup4)) matchCount4++;
+      }
+      console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
+      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4}/${processRows.length}`);
 
-      // Passo 2: AI for remaining incomplete
+      setProgress(60);
+
+      // Compute field fill counts
+      const fieldFills: Record<string, number> = { dossie: 0, equipe: 0, reclamante: 0, reclamada: 0, relator: 0 };
+      for (const pr of processRows) {
+        if (!isEmpty(pr.dossie) && pr.origem_dossie) fieldFills.dossie++;
+        if (!isEmpty(pr.equipe) && pr.origem_equipe) fieldFills.equipe++;
+        if (!isEmpty(pr.reclamante) && pr.origem_reclamante) fieldFills.reclamante++;
+        if (!isEmpty(pr.reclamada) && pr.origem_reclamada) fieldFills.reclamada++;
+        if (!isEmpty(pr.relator) && pr.origem_relator) fieldFills.relator++;
+      }
+
+      // Passo 2: AI for remaining incomplete (only if enabled)
       const incomplete = processRows.filter(pr =>
         isEmpty(pr.dossie) || isEmpty(pr.equipe) || isEmpty(pr.reclamante) || isEmpty(pr.reclamada) || isEmpty(pr.relator)
       );
 
       let countIA = 0;
 
-      if (incomplete.length > 0) {
+      if (useAI && incomplete.length > 0) {
+        setProgressLabel("Enviando processos incompletos para IA...");
         const batchSize = 10;
         for (let b = 0; b < incomplete.length; b += batchSize) {
           if (cancelledRef.current) break;
