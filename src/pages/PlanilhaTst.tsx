@@ -70,6 +70,7 @@ interface Stats {
   matchInput2: number;
   matchInput3: number;
   matchInput4: number;
+  totalUnicosInput1: number;
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
 }
@@ -255,7 +256,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, fieldFills: {}, unmatchedSamples: [] });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [] });
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
@@ -398,9 +399,11 @@ export default function PlanilhaTst() {
       // Detailed match diagnostics — count UNIQUE processes, not rows
       const matchedSet2 = new Set<string>();
       const matchedSet3 = new Set<string>();
+      const uniqueInput1Set = new Set<string>();
       const unmatchedSamples: string[] = [];
       for (const pr of processRows) {
         const norm = normalizeProcesso(pr.numero_processo);
+        if (norm) uniqueInput1Set.add(norm);
         if (lookupProcess(norm, lookup2)) matchedSet2.add(norm);
         if (lookupProcess(norm, lookup3)) matchedSet3.add(norm);
         if (!lookupProcess(norm, lookup2) && !lookupProcess(norm, lookup3) && unmatchedSamples.length < 5) {
@@ -554,6 +557,7 @@ export default function PlanilhaTst() {
         matchInput2: matchCount2,
         matchInput3: matchCount3,
         matchInput4: matchCount4,
+        totalUnicosInput1: uniqueInput1Set.size,
         fieldFills,
         unmatchedSamples,
       });
@@ -630,10 +634,11 @@ export default function PlanilhaTst() {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    const matchRate = (val: number) => stats.total > 0 ? `${((val / stats.total) * 100).toFixed(1)}%` : "0%";
-    doc.text(`• Rel. Prazos: ${stats.matchInput2}/${stats.total} (${matchRate(stats.matchInput2)})`, 18, y); y += 6;
-    doc.text(`• Processos: ${stats.matchInput3}/${stats.total} (${matchRate(stats.matchInput3)})`, 18, y); y += 6;
-    doc.text(`• Dossiês Ativos: ${stats.matchInput4}/${stats.total} (${matchRate(stats.matchInput4)})`, 18, y); y += 10;
+    const matchRate = (val: number) => stats.totalUnicosInput1 > 0 ? `${((val / stats.totalUnicosInput1) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Base única (Distribuições): ${stats.totalUnicosInput1} processos`, 18, y); y += 6;
+    doc.text(`• Rel. Prazos: ${stats.matchInput2}/${stats.totalUnicosInput1} (${matchRate(stats.matchInput2)})`, 18, y); y += 6;
+    doc.text(`• Processos: ${stats.matchInput3}/${stats.totalUnicosInput1} (${matchRate(stats.matchInput3)})`, 18, y); y += 6;
+    doc.text(`• Dossiês Ativos: ${stats.matchInput4}/${stats.totalUnicosInput1} (${matchRate(stats.matchInput4)})`, 18, y); y += 10;
 
     // Campos preenchidos detalhado por fonte
     doc.setFontSize(13);
@@ -1240,12 +1245,14 @@ export default function PlanilhaTst() {
               <div className="grid grid-cols-1 gap-4 text-sm">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="font-medium mb-1">Matches por Planilha</p>
+                    <p className="font-medium mb-1">Processos únicos em comum por planilha</p>
                     <ul className="space-y-1 text-muted-foreground">
-                      <li>Rel. Prazos: <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
-                      <li>Processos: <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
-                      <li>Dossiês Ativos: <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
+                      <li>Base única (Distribuições): <span className="text-foreground font-medium">{stats.totalUnicosInput1}</span></li>
+                      <li>Rel. Prazos: <span className="text-foreground font-medium">{stats.matchInput2}/{stats.totalUnicosInput1 || 0}</span></li>
+                      <li>Processos: <span className="text-foreground font-medium">{stats.matchInput3}/{stats.totalUnicosInput1 || 0}</span></li>
+                      <li>Dossiês Ativos: <span className="text-foreground font-medium">{stats.matchInput4}/{stats.totalUnicosInput1 || 0}</span></li>
                     </ul>
+                    <p className="mt-2 text-xs text-muted-foreground">Os números abaixo na tabela de campos representam preenchimentos por campo/linha, não interseções únicas de processos.</p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">Processos Não Encontrados (amostras)</p>
