@@ -58,6 +58,11 @@ interface Stats {
   passo2: number;
   ia: number;
   naoEncontrados: number;
+  matchInput2: number;
+  matchInput3: number;
+  matchInput4: number;
+  fieldFills: Record<string, number>;
+  unmatchedSamples: string[];
 }
 
 const NOT_FOUND = "(Não localizado)";
