@@ -53,6 +53,14 @@ interface SheetData {
   headerRowIndex: number;
 }
 
+interface FieldFillDetail {
+  total: number;
+  input2: number;
+  input3: number;
+  input4: number;
+  ia: number;
+}
+
 interface Stats {
   total: number;
   passo1: number;
@@ -62,7 +70,7 @@ interface Stats {
   matchInput2: number;
   matchInput3: number;
   matchInput4: number;
-  fieldFills: Record<string, number>;
+  fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
 }
 
@@ -504,14 +512,23 @@ export default function PlanilhaTst() {
 
       setProgress(60);
 
-      // Compute field fill counts
-      const fieldFills: Record<string, number> = { dossie: 0, equipe: 0, reclamante: 0, reclamada: 0, relator: 0 };
+      // Compute field fill counts per source
+      const emptyDetail = (): FieldFillDetail => ({ total: 0, input2: 0, input3: 0, input4: 0, ia: 0 });
+      const fieldFills: Record<string, FieldFillDetail> = {
+        dossie: emptyDetail(), equipe: emptyDetail(), reclamante: emptyDetail(), reclamada: emptyDetail(), relator: emptyDetail(),
+      };
+      const fieldKeys = ["dossie", "equipe", "reclamante", "reclamada", "relator"] as const;
       for (const pr of processRows) {
-        if (!isEmpty(pr.dossie) && pr.origem_dossie) fieldFills.dossie++;
-        if (!isEmpty(pr.equipe) && pr.origem_equipe) fieldFills.equipe++;
-        if (!isEmpty(pr.reclamante) && pr.origem_reclamante) fieldFills.reclamante++;
-        if (!isEmpty(pr.reclamada) && pr.origem_reclamada) fieldFills.reclamada++;
-        if (!isEmpty(pr.relator) && pr.origem_relator) fieldFills.relator++;
+        for (const fk of fieldKeys) {
+          const origem = (pr as any)[`origem_${fk}`] as string | undefined;
+          if (!isEmpty(pr[fk] as string) && origem) {
+            fieldFills[fk].total++;
+            if (origem === "input2") fieldFills[fk].input2++;
+            else if (origem === "input3") fieldFills[fk].input3++;
+            else if (origem === "input4") fieldFills[fk].input4++;
+            else if (origem === "ia") fieldFills[fk].ia++;
+          }
+        }
       }
 
       // Passo 2: AI for remaining incomplete (only if enabled)
