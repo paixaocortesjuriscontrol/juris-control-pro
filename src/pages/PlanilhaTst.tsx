@@ -654,8 +654,8 @@ export default function PlanilhaTst() {
 
     const totals = [
       { label: "Total de Processos", value: stats.total, color: [0, 0, 0] as [number, number, number] },
-      { label: "Complementados via Passo 1.1 (Inputs 2/3)", value: stats.passo1, color: [59, 130, 246] as [number, number, number] },
-      { label: "Complementados via Passo 1.2 (Input 4)", value: stats.passo2, color: [147, 51, 234] as [number, number, number] },
+      { label: "Complementados via Passo 1.1 (Rel. Prazos / Processos)", value: stats.passo1, color: [59, 130, 246] as [number, number, number] },
+      { label: "Complementados via Passo 1.2 (Dossiês Ativos)", value: stats.passo2, color: [147, 51, 234] as [number, number, number] },
       { label: "Complementados via IA", value: stats.ia, color: [245, 158, 11] as [number, number, number] },
       { label: "Não Encontrados", value: stats.naoEncontrados, color: [239, 68, 68] as [number, number, number] },
     ];
@@ -672,18 +672,18 @@ export default function PlanilhaTst() {
     doc.setTextColor(0, 0, 0);
     y += 6;
 
-    // Matches por Input
+    // Matches por Planilha
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text("Matches por Input", 14, y);
+    doc.text("Matches por Planilha", 14, y);
     y += 8;
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     const matchRate = (val: number) => stats.total > 0 ? `${((val / stats.total) * 100).toFixed(1)}%` : "0%";
-    doc.text(`• Input 2 (Prazos): ${stats.matchInput2}/${stats.total} (${matchRate(stats.matchInput2)})`, 18, y); y += 6;
-    doc.text(`• Input 3 (Processos): ${stats.matchInput3}/${stats.total} (${matchRate(stats.matchInput3)})`, 18, y); y += 6;
-    doc.text(`• Input 4 (Dossiês): ${stats.matchInput4}/${stats.total} (${matchRate(stats.matchInput4)})`, 18, y); y += 10;
+    doc.text(`• Rel. Prazos: ${stats.matchInput2}/${stats.total} (${matchRate(stats.matchInput2)})`, 18, y); y += 6;
+    doc.text(`• Processos: ${stats.matchInput3}/${stats.total} (${matchRate(stats.matchInput3)})`, 18, y); y += 6;
+    doc.text(`• Dossiês Ativos: ${stats.matchInput4}/${stats.total} (${matchRate(stats.matchInput4)})`, 18, y); y += 10;
 
     // Campos preenchidos detalhado por fonte
     doc.setFontSize(13);
@@ -705,9 +705,9 @@ export default function PlanilhaTst() {
     const colX = [18, 60, 95, 130, 160, 185];
     doc.text("Campo", colX[0], y);
     doc.text("Total", colX[1], y);
-    doc.text("Input 2", colX[2], y);
-    doc.text("Input 3", colX[3], y);
-    doc.text("Input 4", colX[4], y);
+    doc.text("Rel. Prazos", colX[2], y);
+    doc.text("Processos", colX[3], y);
+    doc.text("Dossiês At.", colX[4], y);
     doc.text("IA", colX[5], y);
     y += 2;
     doc.setDrawColor(180);
@@ -1290,11 +1290,11 @@ export default function PlanilhaTst() {
               <div className="grid grid-cols-1 gap-4 text-sm">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="font-medium mb-1">Matches por Input</p>
+                    <p className="font-medium mb-1">Matches por Planilha</p>
                     <ul className="space-y-1 text-muted-foreground">
-                      <li>Input 2 (Prazos): <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
-                      <li>Input 3 (Processos): <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
-                      <li>Input 4 (Dossiês): <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
+                      <li>Rel. Prazos: <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
+                      <li>Processos: <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
+                      <li>Dossiês Ativos: <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
                     </ul>
                   </div>
                   <div>
@@ -1319,13 +1319,13 @@ export default function PlanilhaTst() {
                           <TableHead className="text-xs">Campo</TableHead>
                           <TableHead className="text-xs text-center">Total</TableHead>
                           <TableHead className="text-xs text-center">
-                            <Badge variant="default" className="text-[10px]">Input 2</Badge>
+                            <Badge variant="default" className="text-[10px]">Rel. Prazos</Badge>
                           </TableHead>
                           <TableHead className="text-xs text-center">
-                            <Badge variant="secondary" className="text-[10px]">Input 3</Badge>
+                            <Badge variant="secondary" className="text-[10px]">Processos</Badge>
                           </TableHead>
                           <TableHead className="text-xs text-center">
-                            <Badge variant="outline" className="text-[10px]">Input 4</Badge>
+                            <Badge variant="outline" className="text-[10px]">Dossiês Ativos</Badge>
                           </TableHead>
                           <TableHead className="text-xs text-center">
                             <Badge variant="destructive" className="text-[10px]">IA</Badge>
