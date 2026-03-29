@@ -536,6 +536,11 @@ export default function PlanilhaTst() {
         passo2: countPasso2,
         ia: countIA,
         naoEncontrados,
+        matchInput2: matchCount2,
+        matchInput3: matchCount3,
+        matchInput4: matchCount4,
+        fieldFills,
+        unmatchedSamples,
       });
 
       setResults(processRows);
