@@ -996,6 +996,10 @@ export default function PlanilhaTst() {
         const colReclamante = getColIdx(["reclamante"]);
         const colReclamada = getColIdx(["reclamada"]);
         const colRelator = getColIdx(["relator"]);
+        // Columns H (index 7), I (index 8), J (index 9) - fixed positions
+        const colClassRelator = 7;  // Column H
+        const colObservacoes = 8;   // Column I
+        const colClassTurma = 9;    // Column J
 
         const rowMap = new Map<number, Element>();
         for (const rowEl of Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row"))) {
