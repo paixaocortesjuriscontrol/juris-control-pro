@@ -382,6 +382,11 @@ export default function PlanilhaTst() {
 
       console.log(`[PlanilhaTST] Passo 1.1: ${countPasso1}/${processRows.length} processos complementados via Input 2/3`);
       
+      // Log headers para diagnóstico de colunas
+      if (input2) console.log(`[PlanilhaTST] Input2 headers:`, input2.headers.filter(h => h.trim()));
+      if (input3) console.log(`[PlanilhaTST] Input3 headers:`, input3.headers.filter(h => h.trim()));
+      if (input4) console.log(`[PlanilhaTST] Input4 headers:`, input4.headers.filter(h => h.trim()));
+      
       // Detailed match diagnostics
       let matchCount2 = 0, matchCount3 = 0;
       const unmatchedSamples: string[] = [];
