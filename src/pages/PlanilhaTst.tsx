@@ -558,6 +558,143 @@ export default function PlanilhaTst() {
     }
   };
 
+  const gerarRelatorioPDF = () => {
+    if (results.length === 0) return;
+
+    const doc = new jsPDF();
+    const now = new Date();
+    const dataHora = `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
+
+    // Title
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Relatório de Cruzamento — Planilha TST", pageWidth / 2, y, { align: "center" });
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Gerado em: ${dataHora}`, pageWidth / 2, y, { align: "center" });
+    y += 5;
+    doc.text(`Arquivo base: ${input1FileName || "N/A"}`, pageWidth / 2, y, { align: "center" });
+    y += 12;
+
+    // Separator
+    doc.setDrawColor(200);
+    doc.line(14, y, pageWidth - 14, y);
+    y += 10;
+
+    // Totalizadores
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Totalizadores", 14, y);
+    y += 8;
+
+    const totals = [
+      { label: "Total de Processos", value: stats.total, color: [0, 0, 0] as [number, number, number] },
+      { label: "Complementados via Passo 1.1 (Inputs 2/3)", value: stats.passo1, color: [59, 130, 246] as [number, number, number] },
+      { label: "Complementados via Passo 1.2 (Input 4)", value: stats.passo2, color: [147, 51, 234] as [number, number, number] },
+      { label: "Complementados via IA", value: stats.ia, color: [245, 158, 11] as [number, number, number] },
+      { label: "Não Encontrados", value: stats.naoEncontrados, color: [239, 68, 68] as [number, number, number] },
+    ];
+
+    doc.setFontSize(10);
+    for (const t of totals) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(t.color[0], t.color[1], t.color[2]);
+      doc.text(`• ${t.label}: `, 18, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(t.value), 18 + doc.getTextWidth(`• ${t.label}: `), y);
+      y += 6;
+    }
+    doc.setTextColor(0, 0, 0);
+    y += 6;
+
+    // Matches por Input
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Matches por Input", 14, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const matchRate = (val: number) => stats.total > 0 ? `${((val / stats.total) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Input 2 (Prazos): ${stats.matchInput2}/${stats.total} (${matchRate(stats.matchInput2)})`, 18, y); y += 6;
+    doc.text(`• Input 3 (Processos): ${stats.matchInput3}/${stats.total} (${matchRate(stats.matchInput3)})`, 18, y); y += 6;
+    doc.text(`• Input 4 (Dossiês): ${stats.matchInput4}/${stats.total} (${matchRate(stats.matchInput4)})`, 18, y); y += 10;
+
+    // Campos preenchidos
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Campos Preenchidos pelo Sistema", 14, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const fieldLabels: Record<string, string> = {
+      dossie: "Dossiê",
+      equipe: "Equipe",
+      reclamante: "Reclamante",
+      reclamada: "Reclamada",
+      relator: "Relator",
+    };
+    for (const [field, count] of Object.entries(stats.fieldFills)) {
+      const pct = stats.total > 0 ? `${((count / stats.total) * 100).toFixed(1)}%` : "0%";
+      doc.text(`• ${fieldLabels[field] || field}: ${count}/${stats.total} (${pct})`, 18, y);
+      y += 6;
+    }
+    y += 6;
+
+    // Processos não encontrados (amostras)
+    if (stats.unmatchedSamples.length > 0) {
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Amostras de Processos Não Encontrados", 14, y);
+      y += 8;
+
+      doc.setFontSize(9);
+      doc.setFont("courier", "normal");
+      for (const s of stats.unmatchedSamples) {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(`• ${s}`, 18, y);
+        y += 5;
+      }
+    }
+
+    // Configurações utilizadas
+    y += 6;
+    if (y > 250) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Configurações", 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`• Sobrescrever campos já preenchidos: ${forceOverwrite ? "Sim" : "Não"}`, 18, y); y += 6;
+    doc.text(`• IA habilitada: ${useAI ? "Sim" : "Não"}`, 18, y); y += 6;
+
+    // Files used
+    y += 4;
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Arquivos Utilizados", 14, y);
+    y += 8;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    files.forEach((f, i) => {
+      if (f) {
+        doc.text(`• Input ${i + 1}: ${f.name}`, 18, y);
+        y += 5;
+      }
+    });
+
+    doc.save(`${input1FileName || "Distribuicoes_TST"} - Relatório.pdf`);
+    toast.success("Relatório PDF gerado com sucesso!");
+  };
+
   const baixarPlanilha = async () => {
     if (results.length === 0) return;
 
