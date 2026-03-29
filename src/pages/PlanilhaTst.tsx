@@ -835,8 +835,8 @@ export default function PlanilhaTst() {
 
               for (const pr of results) {
                 const excelRow = dataStartRow + pr.originalIndex;
-                const markYellow = (colIdx: number, value: string, originalValue: any) => {
-                  if (colIdx < 0 || isEmpty(value) || !isEmpty(String(originalValue ?? ""))) return;
+                const markYellow = (colIdx: number, value: string, origemKey: string) => {
+                  if (colIdx < 0 || isEmpty(value) || !(pr as any)[origemKey]) return;
                   const rowEl = updatedRowMap.get(excelRow);
                   if (!rowEl) return;
                   const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
@@ -845,11 +845,11 @@ export default function PlanilhaTst() {
                   if (cell) cell.setAttribute("s", yellowStyleIndex!);
                 };
 
-                markYellow(colDossie, pr.dossie, pr.originalData[headers[colDossie]]);
-                markYellow(colEquipe, pr.equipe, pr.originalData[headers[colEquipe]]);
-                markYellow(colReclamante, pr.reclamante, pr.originalData[headers[colReclamante]]);
-                markYellow(colReclamada, pr.reclamada, pr.originalData[headers[colReclamada]]);
-                markYellow(colRelator, pr.relator, pr.originalData[headers[colRelator]]);
+                markYellow(colDossie, pr.dossie, "origem_dossie");
+                markYellow(colEquipe, pr.equipe, "origem_equipe");
+                markYellow(colReclamante, pr.reclamante, "origem_reclamante");
+                markYellow(colReclamada, pr.reclamada, "origem_reclamada");
+                markYellow(colRelator, pr.relator, "origem_relator");
               }
 
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
