@@ -475,6 +475,10 @@ export default function PlanilhaTst() {
         const proc = getProcessoFromRow(row, input1.headers);
         const procNorm = normalizeProcesso(proc);
 
+        const relatorVal = getFieldFromRow(row, input1.headers, "relator") || NOT_FOUND;
+        const classRelator = classificarRelator(relatorVal);
+        const turmaInfo = classificarTurmaDoRelator(relatorVal);
+
         const pr: ProcessRow = {
           originalIndex: i,
           originalData: { ...row },
@@ -483,7 +487,10 @@ export default function PlanilhaTst() {
           equipe: getFieldFromRow(row, input1.headers, "equipe") || NOT_FOUND,
           reclamante: getFieldFromRow(row, input1.headers, "reclamante") || NOT_FOUND,
           reclamada: getFieldFromRow(row, input1.headers, "reclamada") || NOT_FOUND,
-          relator: getFieldFromRow(row, input1.headers, "relator") || NOT_FOUND,
+          relator: relatorVal,
+          classificacao_relator: classRelator,
+          turma_relator: turmaInfo.turma,
+          classificacao_turma: turmaInfo.classificacao,
         };
 
         // Passo 1.1: Input 2 (priority) then Input 3
