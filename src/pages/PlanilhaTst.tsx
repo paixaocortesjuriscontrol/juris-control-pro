@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
   Download,
@@ -18,6 +19,7 @@ import {
   FileSpreadsheet,
   ArrowRight,
   Table2,
+  Info,
 } from "lucide-react";
 import {
   Table,
