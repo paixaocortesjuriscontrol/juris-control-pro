@@ -1087,6 +1087,7 @@ export default function PlanilhaTst() {
               </div>
             </CardContent>
           </Card>
+        )}
 
         {/* Download */}
         {results.length > 0 && (
