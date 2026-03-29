@@ -597,6 +597,24 @@ export default function PlanilhaTst() {
         if (complemented2) countPasso2++;
       }
 
+      // Re-classify relator/turma after all data sources updated relator field
+      for (const pr of processRows) {
+        if (!isEmpty(pr.relator)) {
+          const cl = classificarRelator(pr.relator);
+          const ti = classificarTurmaDoRelator(pr.relator);
+          if (cl) {
+            pr.classificacao_relator = cl;
+            pr.origem_classificacao_relator = pr.origem_relator || "auto";
+          }
+          if (ti.turma) {
+            pr.turma_relator = ti.turma;
+            pr.classificacao_turma = ti.classificacao;
+            pr.origem_turma_relator = pr.origem_relator || "auto";
+            pr.origem_classificacao_turma = pr.origem_relator || "auto";
+          }
+        }
+      }
+
       // Input 4 diagnostics — count UNIQUE processes, not rows
       const matchedSet4 = new Set<string>();
       for (const pr of processRows) {
