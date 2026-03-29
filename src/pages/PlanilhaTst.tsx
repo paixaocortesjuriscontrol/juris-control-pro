@@ -747,11 +747,11 @@ export default function PlanilhaTst() {
             upsertCellValue(excelRow, colIdx, value);
           };
 
-          tryWrite(colDossie, pr.dossie, pr.originalData[headers[colDossie]]);
-          tryWrite(colEquipe, pr.equipe, pr.originalData[headers[colEquipe]]);
-          tryWrite(colReclamante, pr.reclamante, pr.originalData[headers[colReclamante]]);
-          tryWrite(colReclamada, pr.reclamada, pr.originalData[headers[colReclamada]]);
-          tryWrite(colRelator, pr.relator, pr.originalData[headers[colRelator]]);
+          tryWrite(colDossie, pr.dossie, "origem_dossie");
+          tryWrite(colEquipe, pr.equipe, "origem_equipe");
+          tryWrite(colReclamante, pr.reclamante, "origem_reclamante");
+          tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
+          tryWrite(colRelator, pr.relator, "origem_relator");
         }
 
         const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
