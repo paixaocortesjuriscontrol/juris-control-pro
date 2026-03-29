@@ -1233,10 +1233,16 @@ export default function PlanilhaTst() {
 
         {/* Download */}
         {results.length > 0 && (
-          <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Baixar Planilha Complementada
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Baixar Planilha Complementada
+            </Button>
+            <Button onClick={gerarRelatorioPDF} variant="outline" className="gap-2">
+              <FileSpreadsheet className="w-4 h-4" />
+              Baixar Relatório PDF
+            </Button>
+          </div>
         )}
 
         {/* Results Table */}
