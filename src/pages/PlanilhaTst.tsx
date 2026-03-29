@@ -31,6 +31,132 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// --- Classificação de Relatores (Prompt item g) ---
+const RELATOR_CLASSIFICACAO: Record<string, "POSITIVO" | "NEGATIVO"> = {
+  "luiz philippe vieira de mello filho": "NEGATIVO",
+  "guilherme augusto caputo bastos": "POSITIVO",
+  "jose roberto freire pimenta": "NEGATIVO",
+  "ives gandra da silva martins filho": "POSITIVO",
+  "maria cristina irigoyen peduzzi": "POSITIVO",
+  "lelio bentes correa": "NEGATIVO",
+  "mauricio jose godinho delgado": "NEGATIVO",
+  "katia magalhaes arruda": "NEGATIVO",
+  "augusto cesar leite de carvalho": "NEGATIVO",
+  "delaide alves miranda arantes": "NEGATIVO",
+  "hugo carlos scheuermann": "NEGATIVO",
+  "alexandre de souza agra belmonte": "POSITIVO",
+  "claudio mascarenhas brandao": "NEGATIVO",
+  "douglas alencar rodrigues": "POSITIVO",
+  "maria helena mallmann": "NEGATIVO",
+  "breno medeiros": "POSITIVO",
+  "alexandre luiz ramos": "POSITIVO",
+  "luiz jose dezena da silva": "POSITIVO",
+  "evandro pereira valadao lopes": "POSITIVO",
+  "amaury rodrigues pinto junior": "POSITIVO",
+  "alberto bastos balazeiro": "NEGATIVO",
+  "morgana de almeida richa": "POSITIVO",
+  "sergio pinto martins": "POSITIVO",
+  "liana chaib": "NEGATIVO",
+  "antonio fabricio de matos goncalves": "NEGATIVO",
+  "jose pedro de camargo rodrigues de souza": "POSITIVO",
+  "joao pedro silvestrin": "POSITIVO",
+};
+
+// --- Relator → Turma mapping (Prompt item h) ---
+const RELATOR_TURMA: Record<string, string> = {
+  "luiz philippe vieira de mello filho": "Presidente",
+  "guilherme augusto caputo bastos": "Vice-Presidente",
+  "jose roberto freire pimenta": "Corregedor-Geral",
+  "ives gandra da silva martins filho": "4ª Turma",
+  "maria cristina irigoyen peduzzi": "Impedida",
+  "lelio bentes correa": "1ª Turma",
+  "mauricio jose godinho delgado": "3ª Turma",
+  "katia magalhaes arruda": "6ª Turma",
+  "augusto cesar leite de carvalho": "6ª Turma",
+  "delaide alves miranda arantes": "2ª Turma",
+  "hugo carlos scheuermann": "1ª Turma",
+  "alexandre de souza agra belmonte": "3ª Turma",
+  "claudio mascarenhas brandao": "7ª Turma",
+  "douglas alencar rodrigues": "5ª Turma",
+  "maria helena mallmann": "2ª Turma",
+  "breno medeiros": "5ª Turma",
+  "alexandre luiz ramos": "4ª Turma",
+  "luiz jose dezena da silva": "8ª Turma",
+  "evandro pereira valadao lopes": "8ª Turma",
+  "amaury rodrigues pinto junior": "1ª Turma",
+  "alberto bastos balazeiro": "7ª Turma",
+  "morgana de almeida richa": "4ª Turma",
+  "sergio pinto martins": "8ª Turma",
+  "liana chaib": "3ª Turma",
+  "antonio fabricio de matos goncalves": "7ª Turma",
+  "jose pedro de camargo rodrigues de souza": "5ª Turma",
+  "joao pedro silvestrin": "2ª Turma",
+};
+
+// --- Classificação de Turmas (Prompt item h) ---
+const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
+  "1ª turma": "POSITIVA",
+  "2ª turma": "NEGATIVA",
+  "3ª turma": "NEGATIVA",
+  "4ª turma": "POSITIVA",
+  "5ª turma": "POSITIVA",
+  "6ª turma": "NEGATIVA",
+  "7ª turma": "NEGATIVA",
+  "8ª turma": "POSITIVA",
+  "sbdi-1": "NEGATIVA",
+  "sbdi-2": "POSITIVA",
+  "pleno": "NEGATIVA",
+};
+
+function classificarRelator(nomeRelator: string): "POSITIVO" | "NEGATIVO" | "" {
+  if (!nomeRelator || isEmpty(nomeRelator)) return "";
+  const norm = nomeRelator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  // Try exact match first, then partial match
+  if (RELATOR_CLASSIFICACAO[norm]) return RELATOR_CLASSIFICACAO[norm];
+  for (const [key, val] of Object.entries(RELATOR_CLASSIFICACAO)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  // Try matching by last name
+  const parts = norm.split(/\s+/);
+  for (const [key, val] of Object.entries(RELATOR_CLASSIFICACAO)) {
+    const keyParts = key.split(/\s+/);
+    // Match if last name matches
+    if (parts.length > 0 && keyParts.length > 0 && parts[parts.length - 1] === keyParts[keyParts.length - 1]) {
+      return val;
+    }
+  }
+  return "";
+}
+
+function classificarTurmaDoRelator(nomeRelator: string): { turma: string; classificacao: "POSITIVA" | "NEGATIVA" | "" } {
+  if (!nomeRelator || isEmpty(nomeRelator)) return { turma: "", classificacao: "" };
+  const norm = nomeRelator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  
+  const findTurma = (key: string): string | undefined => RELATOR_TURMA[key];
+  
+  let turma = findTurma(norm);
+  if (!turma) {
+    for (const [key, val] of Object.entries(RELATOR_TURMA)) {
+      if (norm.includes(key) || key.includes(norm)) { turma = val; break; }
+    }
+  }
+  if (!turma) {
+    const parts = norm.split(/\s+/);
+    for (const [key, val] of Object.entries(RELATOR_TURMA)) {
+      const keyParts = key.split(/\s+/);
+      if (parts.length > 0 && keyParts.length > 0 && parts[parts.length - 1] === keyParts[keyParts.length - 1]) {
+        turma = val; break;
+      }
+    }
+  }
+  
+  if (!turma) return { turma: "", classificacao: "" };
+  
+  const turmaLower = turma.toLowerCase();
+  const classificacao = TURMA_CLASSIFICACAO[turmaLower] || "";
+  return { turma, classificacao };
+}
+
 interface ProcessRow {
   originalIndex: number;
   originalData: Record<string, any>;
@@ -40,11 +166,17 @@ interface ProcessRow {
   reclamante: string;
   reclamada: string;
   relator: string;
+  classificacao_relator: string;
+  turma_relator: string;
+  classificacao_turma: string;
   origem_dossie?: string;
   origem_equipe?: string;
   origem_reclamante?: string;
   origem_reclamada?: string;
   origem_relator?: string;
+  origem_classificacao_relator?: string;
+  origem_turma_relator?: string;
+  origem_classificacao_turma?: string;
 }
 
 interface SheetData {
