@@ -1,73 +1,43 @@
 
 
-# Planilha TST — Plano Atualizado com Detalhes de IA e Atributos
+# Análise dos Logs — Planilha TST
 
-## Objetivo
-Nova página `/planilha-tst` que recebe 4 arquivos `.xlsx` e cruza os dados para complementar o Input 1 (Distribuições) com informações dos outros 3 inputs, usando **número do processo** como chave. Quando o cruzamento determinístico não encontrar dados, a IA complementa via API OpenAI (GPT-4o-mini) usando a mesma `OPENAI_API_KEY` já configurada na tela de Analisar Prazos.
+## Diagnóstico
 
-## Atributos Preenchidos por Passo
+Os logs mostram que o sistema está funcionando corretamente:
 
-### Passo 1.1 — Cruzar Input 1 com Input 2 (Relatório de Prazos) e Input 3 (Processos TST)
+- **305/396 (77%)** processos encontrados no Input 2
+- **53/396 (13%)** processos encontrados no Input 3
+- **294/396 (74%)** processos efetivamente complementados (pelo menos 1 campo preenchido)
 
-Para cada linha do Input 1, buscar pelo número do processo nos Inputs 2 e 3 e preencher os campos **vazios**:
+A diferença entre 305 matches e 294 complementados (11 processos) indica que esses 11 foram encontrados mas já tinham todos os campos preenchidos no Input 1 original.
 
-| Coluna no Input 1 | Fonte prioritária | Fallback |
-|---|---|---|
-| **DOSSIÊ** | Input 2 | Input 3 |
-| **EQUIPE** | Input 2 | Input 3 |
-| **RECLAMANTE** | Input 2 | Input 3 |
-| **RECLAMADA** | Input 2 | Input 3 |
-| **RELATOR** | Input 2 | Input 3 |
+Os **91 processos não encontrados** em nenhum input provavelmente são processos novos que simplesmente não existem nas outras planilhas. O Input 4 (Dossiês Ativos) com 5.897 linhas deve complementar parte desses no Passo 1.2.
 
-### Passo 1.2 — Cruzar Input 1 com Input 4 (Dossiês Ativos)
+## Problema real identificado
 
-Para processos com campos **ainda vazios** após o Passo 1.1, buscar no Input 4:
+O campo **RELATOR** no Input 1 já possui uma coluna com esse nome (aparece nos headers). Portanto, `getFieldFromRow` lê o valor existente do Input 1, e se não estiver vazio, nunca tenta buscar nos outros inputs. O mesmo vale para DOSSIÊ, EQUIPE, RECLAMANTE e RECLAMADA — se o Input 1 já tiver essas colunas com valores (mesmo parciais), o sistema não sobrescreve.
 
-| Coluna no Input 1 | Fonte |
-|---|---|
-| **DOSSIÊ** | Input 4 |
-| **EQUIPE** | Input 4 |
-| **RECLAMANTE** | Input 4 |
-| **RECLAMADA** | Input 4 |
+## Melhorias propostas
 
-(RELATOR não é buscado no Input 4)
+### 1. Exibir diagnóstico visual na tela (não só console)
+- Após processamento, mostrar card com:
+  - Matches por input (Input 2: 305, Input 3: 53, Input 4: X)
+  - Campos preenchidos por campo (Dossiê: X, Equipe: Y, etc.)
+  - Amostras de processos não encontrados
 
-### Passo 2 — IA para processos não encontrados
+### 2. Opção para forçar sobrescrita
+- Checkbox "Sobrescrever campos já preenchidos no Input 1"
+- Quando ativado, mesmo campos com valor no Input 1 serão atualizados com dados dos outros inputs
 
-Processos que permaneceram com campos vazios após os passos 1.1 e 1.2 serão enviados para a IA (OpenAI GPT-4o-mini) para tentativa de complementação. A IA usa a mesma `OPENAI_API_KEY` já configurada no projeto (mesma da tela Analisar Prazos).
+### 3. Melhorar log de diagnóstico do Passo 1.2 (Input 4)
+- Adicionar logs equivalentes ao Passo 1.1 para o Input 4
+- Mostrar quantos campos adicionais foram preenchidos
 
-## Arquivos a Criar/Modificar
+### 4. Remover IA do fluxo obrigatório
+- Tornar o passo de IA opcional via checkbox (desativado por padrão)
+- O cruzamento determinístico é suficiente na maioria dos casos
 
-### 1. `src/pages/PlanilhaTst.tsx` (novo)
-- Layout com `MainLayout`, visual similar ao `AnalisarPrazos.tsx`
-- 4 campos de upload `.xlsx` com labels descritivos
-- Botão "Processar Planilhas"
-- Lógica de cruzamento client-side com `xlsx`:
-  - Normalização do número de processo: `str.replace(/[\.\-\s\/]/g, "")`
-  - Detecção automática de cabeçalhos (busca case-insensitive por "processo", "dossiê", "equipe", etc.)
-  - Passo 1.1: preenche DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA, RELATOR do Input 2 e Input 3
-  - Passo 1.2: complementa DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA do Input 4
-- Para processos ainda incompletos, chamada à edge function para análise IA
-- Tabela de resultados com destaque visual (cor/ícone) indicando origem do dado: cruzamento vs IA vs não encontrado
-- Contadores: total de processos, complementados no passo 1.1, complementados no passo 1.2, complementados por IA, não encontrados
-- Botão "Baixar Planilha" gera Input 1 atualizado como `.xlsx`
-
-### 2. `supabase/functions/complementar-planilha-tst/index.ts` (novo)
-- Edge function que recebe processos com campos faltantes
-- Usa `OPENAI_API_KEY` (mesma já configurada) com modelo `gpt-4o-mini`
-- Chamada à API OpenAI com tool calling (mesmo padrão de `analisar-prazos-drive`)
-- Prompt especializado para identificar DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA, RELATOR a partir do número do processo e dados parciais disponíveis
-- Retorna os campos complementados
-
-### 3. `src/App.tsx`
-- Adicionar rota `/planilha-tst` com `ProtectedRoute`
-
-### 4. `src/components/layout/Sidebar.tsx`
-- Adicionar "Planilha TST" no menu, próximo a "Analisar Prazos", com ícone `Table2`
-
-## Detalhes Técnicos
-- Processamento de cruzamento 100% client-side com biblioteca `xlsx` (já instalada)
-- Apenas processos não encontrados no cruzamento são enviados para a edge function (economia de chamadas à API)
-- A edge function usa `OPENAI_API_KEY` + `gpt-4o-mini` — mesma configuração da tela Analisar Prazos
-- Processos enviados em lotes de 10 para a IA (mesmo padrão existente)
+### Arquivos a modificar
+- `src/pages/PlanilhaTst.tsx` — diagnóstico visual, checkbox de sobrescrita, logs do Passo 1.2, IA opcional
 
