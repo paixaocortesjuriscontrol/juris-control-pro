@@ -205,6 +205,19 @@ function isEmpty(val: string): boolean {
   );
 }
 
+function extractCnjCore(digits: string): string {
+  // CNJ format: NNNNNNN-DD.AAAA.J.TT.OOOO = 20 digits
+  // Core = first 7 digits (sequential number) + digits 10-13 (year) + digit 14 (justice) + digits 15-16 (tribunal)
+  // This gives us a unique-enough key: sequential + year + justice + tribunal
+  if (digits.length >= 16) {
+    return digits.slice(0, 7) + digits.slice(9, 16); // 7 + 7 = 14 digit core
+  }
+  if (digits.length >= 13) {
+    return digits.slice(0, 7) + digits.slice(9, 13); // 7 + 4 = 11 digit core
+  }
+  return digits;
+}
+
 function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<string, Record<string, any>> {
   const map = new Map<string, Record<string, any>>();
   for (const row of rows) {
@@ -214,13 +227,23 @@ function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<st
     // Store with full normalized number
     if (!map.has(proc)) map.set(proc, row);
     
-    // Store with last 20, 17, 15, 13 digit suffixes only (shorter causes false matches)
+    // Store with multiple suffix lengths (>= not > to include exact length matches)
     for (const len of [20, 17, 15, 13]) {
-      if (proc.length > len) {
+      if (proc.length >= len) {
         const suffix = proc.slice(-len);
         if (!map.has(suffix)) map.set(suffix, row);
       }
     }
+    
+    // Store CNJ core key for flexible matching
+    if (proc.length >= 13) {
+      const core = extractCnjCore(proc);
+      if (!map.has("core:" + core)) map.set("core:" + core, row);
+    }
+    
+    // Store with leading zeros stripped for cases where zeros are dropped
+    const stripped = proc.replace(/^0+/, "");
+    if (stripped.length >= 7 && !map.has(stripped)) map.set(stripped, row);
   }
   return map;
 }
@@ -228,17 +251,31 @@ function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<st
 function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>>): Record<string, any> | undefined {
   if (!procNorm || procNorm.length < 7) return undefined;
   
-  // Exact match
+  // Exact match first
   let found = lookup.get(procNorm);
   if (found) return found;
   
-  // Try suffix lengths (minimum 13 digits to avoid false positives)
+  // Try suffix lengths
   for (const len of [20, 17, 15, 13]) {
     if (procNorm.length >= len) {
       const suffix = procNorm.slice(-len);
       found = lookup.get(suffix);
       if (found) return found;
     }
+  }
+  
+  // Try CNJ core match
+  if (procNorm.length >= 13) {
+    const core = extractCnjCore(procNorm);
+    found = lookup.get("core:" + core);
+    if (found) return found;
+  }
+  
+  // Try without leading zeros
+  const stripped = procNorm.replace(/^0+/, "");
+  if (stripped !== procNorm && stripped.length >= 7) {
+    found = lookup.get(stripped);
+    if (found) return found;
   }
   
   return undefined;
