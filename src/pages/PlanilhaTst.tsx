@@ -1189,7 +1189,7 @@ export default function PlanilhaTst() {
 
         zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
 
-        // --- Adicionar estilo amarelo no styles.xml para células preenchidas ---
+        // --- Adicionar estilos no styles.xml: fonte Calibri 8pt + fill amarelo ---
         const stylesPath = "xl/styles.xml";
         const stylesXml = await zip.file(stylesPath)?.async("string");
         let yellowStyleIndex: string | null = null;
@@ -1198,7 +1198,30 @@ export default function PlanilhaTst() {
           const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
           const stylesNs = stylesDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-          // 1. Adicionar fill amarelo
+          // 1. Adicionar fonte Calibri tamanho 8
+          const fonts = stylesDoc.getElementsByTagNameNS(stylesNs, "fonts")[0];
+          const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
+          const newFontIndex = fontCount;
+
+          if (fonts) {
+            const fontEl = stylesDoc.createElementNS(stylesNs, "font");
+            const szEl = stylesDoc.createElementNS(stylesNs, "sz");
+            szEl.setAttribute("val", "8");
+            const nameEl = stylesDoc.createElementNS(stylesNs, "name");
+            nameEl.setAttribute("val", "Calibri");
+            const familyEl = stylesDoc.createElementNS(stylesNs, "family");
+            familyEl.setAttribute("val", "2");
+            const schemeEl = stylesDoc.createElementNS(stylesNs, "scheme");
+            schemeEl.setAttribute("val", "minor");
+            fontEl.appendChild(szEl);
+            fontEl.appendChild(nameEl);
+            fontEl.appendChild(familyEl);
+            fontEl.appendChild(schemeEl);
+            fonts.appendChild(fontEl);
+            fonts.setAttribute("count", String(fontCount + 1));
+          }
+
+          // 2. Adicionar fill amarelo
           const fills = stylesDoc.getElementsByTagNameNS(stylesNs, "fills")[0];
           const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
           const newFillIndex = fillCount;
@@ -1218,24 +1241,23 @@ export default function PlanilhaTst() {
             fills.setAttribute("count", String(fillCount + 1));
           }
 
-          // 2. Adicionar um novo xf em cellXfs que herda do primeiro xf mas com fill amarelo
+          // 3. Adicionar xf com Calibri 8 + fill amarelo
           const cellXfs = stylesDoc.getElementsByTagNameNS(stylesNs, "cellXfs")[0];
           const xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
 
           if (cellXfs) {
-            // Pegar o primeiro xf como base para herdar fonte/borda/alinhamento
             const baseXf = cellXfs.getElementsByTagNameNS(stylesNs, "xf")[0];
             const newXf = stylesDoc.createElementNS(stylesNs, "xf");
             if (baseXf) {
               newXf.setAttribute("numFmtId", baseXf.getAttribute("numFmtId") || "0");
-              newXf.setAttribute("fontId", baseXf.getAttribute("fontId") || "0");
               newXf.setAttribute("borderId", baseXf.getAttribute("borderId") || "0");
             } else {
               newXf.setAttribute("numFmtId", "0");
-              newXf.setAttribute("fontId", "0");
               newXf.setAttribute("borderId", "0");
             }
+            newXf.setAttribute("fontId", String(newFontIndex));
             newXf.setAttribute("fillId", String(newFillIndex));
+            newXf.setAttribute("applyFont", "1");
             newXf.setAttribute("applyFill", "1");
             cellXfs.appendChild(newXf);
             cellXfs.setAttribute("count", String(xfCount + 1));
@@ -1245,7 +1267,7 @@ export default function PlanilhaTst() {
           zip.file(stylesPath, serializer.serializeToString(stylesDoc));
         }
 
-        // --- Aplicar o estilo amarelo nas células que foram preenchidas ---
+        // --- Aplicar o estilo Calibri 8 + amarelo nas células preenchidas pelo programa ---
         if (yellowStyleIndex) {
           const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
           if (updatedSheetXml) {
@@ -1260,16 +1282,22 @@ export default function PlanilhaTst() {
                 if (!Number.isNaN(rn)) updatedRowMap.set(rn, rowEl);
               }
 
+              const markStyle = (rowEl: Element, excelRow: number, colIdx: number) => {
+                if (colIdx < 0) return;
+                const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
+                const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
+                const cell = cells.find(c => c.getAttribute("r") === cellRef);
+                if (cell) cell.setAttribute("s", yellowStyleIndex!);
+              };
+
               for (const pr of results) {
                 const excelRow = dataStartRow + pr.originalIndex;
+                const rowEl = updatedRowMap.get(excelRow);
+                if (!rowEl) continue;
+
                 const markYellow = (colIdx: number, value: string, origemKey: string) => {
                   if (colIdx < 0 || isEmpty(value) || !(pr as any)[origemKey]) return;
-                  const rowEl = updatedRowMap.get(excelRow);
-                  if (!rowEl) return;
-                  const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
-                  const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
-                  const cell = cells.find(c => c.getAttribute("r") === cellRef);
-                  if (cell) cell.setAttribute("s", yellowStyleIndex!);
+                  markStyle(rowEl, excelRow, colIdx);
                 };
 
                 markYellow(colDossie, pr.dossie, "origem_dossie");
@@ -1277,6 +1305,10 @@ export default function PlanilhaTst() {
                 markYellow(colReclamante, pr.reclamante, "origem_reclamante");
                 markYellow(colReclamada, pr.reclamada, "origem_reclamada");
                 markYellow(colRelator, pr.relator, "origem_relator");
+
+                // Also mark classification columns
+                if (pr.classificacao_relator) markStyle(rowEl, excelRow, colClassRelator);
+                if (pr.classificacao_turma) markStyle(rowEl, excelRow, colClassTurma);
               }
 
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
