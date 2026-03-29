@@ -1048,6 +1048,46 @@ export default function PlanilhaTst() {
           </div>
         )}
 
+        {/* Diagnostics Card */}
+        {results.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Info className="w-4 h-4" /> Diagnóstico do Cruzamento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="font-medium mb-1">Matches por Input</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li>Input 2 (Prazos): <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
+                    <li>Input 3 (Processos): <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
+                    <li>Input 4 (Dossiês): <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Campos Preenchidos</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    {Object.entries(stats.fieldFills).map(([field, count]) => (
+                      <li key={field}>{field.charAt(0).toUpperCase() + field.slice(1)}: <span className="text-foreground font-medium">{count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Processos Não Encontrados (amostras)</p>
+                  {stats.unmatchedSamples.length > 0 ? (
+                    <ul className="space-y-1 text-xs font-mono text-muted-foreground">
+                      {stats.unmatchedSamples.map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Todos encontrados!</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
         {/* Download */}
         {results.length > 0 && (
           <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
