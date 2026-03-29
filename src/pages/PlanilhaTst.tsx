@@ -395,17 +395,20 @@ export default function PlanilhaTst() {
       if (input3) console.log(`[PlanilhaTST] Input3 headers:`, input3.headers.filter(h => h.trim()));
       if (input4) console.log(`[PlanilhaTST] Input4 headers:`, input4.headers.filter(h => h.trim()));
       
-      // Detailed match diagnostics
-      let matchCount2 = 0, matchCount3 = 0;
+      // Detailed match diagnostics — count UNIQUE processes, not rows
+      const matchedSet2 = new Set<string>();
+      const matchedSet3 = new Set<string>();
       const unmatchedSamples: string[] = [];
       for (const pr of processRows) {
         const norm = normalizeProcesso(pr.numero_processo);
-        if (lookupProcess(norm, lookup2)) matchCount2++;
-        if (lookupProcess(norm, lookup3)) matchCount3++;
+        if (lookupProcess(norm, lookup2)) matchedSet2.add(norm);
+        if (lookupProcess(norm, lookup3)) matchedSet3.add(norm);
         if (!lookupProcess(norm, lookup2) && !lookupProcess(norm, lookup3) && unmatchedSamples.length < 5) {
           unmatchedSamples.push(`"${pr.numero_processo}" (norm: "${norm}")`);
         }
       }
+      const matchCount2 = matchedSet2.size;
+      const matchCount3 = matchedSet3.size;
       console.log(`[PlanilhaTST] Match rates: Input2: ${matchCount2}/${processRows.length}, Input3: ${matchCount3}/${processRows.length}`);
       if (unmatchedSamples.length > 0) {
         console.log(`[PlanilhaTST] Unmatched samples:`, unmatchedSamples);
@@ -447,13 +450,15 @@ export default function PlanilhaTst() {
         if (complemented2) countPasso2++;
       }
 
-      // Input 4 diagnostics
-      let matchCount4 = 0;
+      // Input 4 diagnostics — count UNIQUE processes, not rows
+      const matchedSet4 = new Set<string>();
       for (const pr of processRows) {
-        if (lookupProcess(normalizeProcesso(pr.numero_processo), lookup4)) matchCount4++;
+        const norm = normalizeProcesso(pr.numero_processo);
+        if (lookupProcess(norm, lookup4)) matchedSet4.add(norm);
       }
+      const matchCount4 = matchedSet4.size;
       console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
-      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4}/${processRows.length}`);
+      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4} unique processes`);
 
       setProgress(60);
 
