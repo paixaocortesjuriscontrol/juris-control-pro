@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+import jsPDF from "jspdf";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
@@ -270,6 +271,7 @@ export default function PlanilhaTst() {
   const cancelledRef = useRef(false);
   const [forceOverwrite, setForceOverwrite] = useState(false);
   const [useAI, setUseAI] = useState(false);
+  const [input1FileName, setInput1FileName] = useState("");
 
   const fileLabels = [
     { label: "Input 1 — Distribuições TST 2025", desc: "Planilha base que será complementada", required: true },
@@ -305,6 +307,7 @@ export default function PlanilhaTst() {
       ]);
       setOriginalFileBuffer(buf);
       setInput1Meta({ headers: input1.headers, headerRowIndex: input1.headerRowIndex });
+      setInput1FileName(files[0].name.replace(/\.(xlsx|xls)$/i, ""));
       const input2 = files[1] ? await readSheetData(files[1]) : null;
       const input3 = files[2] ? await readSheetData(files[2]) : null;
       const input4 = files[3] ? await readSheetData(files[3]) : null;
@@ -862,7 +865,7 @@ export default function PlanilhaTst() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "Distribuicoes_TST_Complementada.xlsx";
+        a.download = `${input1FileName || "Distribuicoes_TST"} complementada.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
       } catch (err) {
@@ -900,7 +903,7 @@ export default function PlanilhaTst() {
     const ws = XLSX.utils.json_to_sheet(output);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
-    XLSX.writeFile(wb, "Distribuicoes_TST_Complementada.xlsx");
+    XLSX.writeFile(wb, `${input1FileName || "Distribuicoes_TST"} complementada.xlsx`);
   };
 
   const origemBadge = (origem?: string) => {
