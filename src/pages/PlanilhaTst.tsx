@@ -685,14 +685,12 @@ export default function PlanilhaTst() {
     doc.text(`• Input 3 (Processos): ${stats.matchInput3}/${stats.total} (${matchRate(stats.matchInput3)})`, 18, y); y += 6;
     doc.text(`• Input 4 (Dossiês): ${stats.matchInput4}/${stats.total} (${matchRate(stats.matchInput4)})`, 18, y); y += 10;
 
-    // Campos preenchidos
+    // Campos preenchidos detalhado por fonte
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text("Campos Preenchidos pelo Sistema", 14, y);
-    y += 8;
+    doc.text("Campos Preenchidos — Detalhamento por Fonte", 14, y);
+    y += 10;
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
     const fieldLabels: Record<string, string> = {
       dossie: "Dossiê",
       equipe: "Equipe",
@@ -700,9 +698,37 @@ export default function PlanilhaTst() {
       reclamada: "Reclamada",
       relator: "Relator",
     };
-    for (const [field, count] of Object.entries(stats.fieldFills)) {
-      const pct = stats.total > 0 ? `${((count / stats.total) * 100).toFixed(1)}%` : "0%";
-      doc.text(`• ${fieldLabels[field] || field}: ${count}/${stats.total} (${pct})`, 18, y);
+
+    // Table header
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    const colX = [18, 60, 95, 130, 160, 185];
+    doc.text("Campo", colX[0], y);
+    doc.text("Total", colX[1], y);
+    doc.text("Input 2", colX[2], y);
+    doc.text("Input 3", colX[3], y);
+    doc.text("Input 4", colX[4], y);
+    doc.text("IA", colX[5], y);
+    y += 2;
+    doc.setDrawColor(180);
+    doc.line(colX[0], y, pageWidth - 14, y);
+    y += 5;
+
+    doc.setFont("helvetica", "normal");
+    for (const [field, detail] of Object.entries(stats.fieldFills)) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      const pct = stats.total > 0 ? `${((detail.total / stats.total) * 100).toFixed(1)}%` : "0%";
+      doc.text(fieldLabels[field] || field, colX[0], y);
+      doc.text(`${detail.total} (${pct})`, colX[1], y);
+      doc.setTextColor(59, 130, 246);
+      doc.text(String(detail.input2), colX[2], y);
+      doc.setTextColor(147, 51, 234);
+      doc.text(String(detail.input3), colX[3], y);
+      doc.setTextColor(107, 114, 128);
+      doc.text(String(detail.input4), colX[4], y);
+      doc.setTextColor(245, 158, 11);
+      doc.text(String(detail.ia), colX[5], y);
+      doc.setTextColor(0, 0, 0);
       y += 6;
     }
     y += 6;
@@ -1261,32 +1287,69 @@ export default function PlanilhaTst() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="font-medium mb-1">Matches por Input</p>
-                  <ul className="space-y-1 text-muted-foreground">
-                    <li>Input 2 (Prazos): <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
-                    <li>Input 3 (Processos): <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
-                    <li>Input 4 (Dossiês): <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
-                  </ul>
-                </div>
-                <div>
-                  <p className="font-medium mb-1">Campos Preenchidos</p>
-                  <ul className="space-y-1 text-muted-foreground">
-                    {Object.entries(stats.fieldFills).map(([field, count]) => (
-                      <li key={field}>{field.charAt(0).toUpperCase() + field.slice(1)}: <span className="text-foreground font-medium">{count}</span></li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="font-medium mb-1">Processos Não Encontrados (amostras)</p>
-                  {stats.unmatchedSamples.length > 0 ? (
-                    <ul className="space-y-1 text-xs font-mono text-muted-foreground">
-                      {stats.unmatchedSamples.map((s, i) => <li key={i}>{s}</li>)}
+              <div className="grid grid-cols-1 gap-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="font-medium mb-1">Matches por Input</p>
+                    <ul className="space-y-1 text-muted-foreground">
+                      <li>Input 2 (Prazos): <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
+                      <li>Input 3 (Processos): <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
+                      <li>Input 4 (Dossiês): <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
                     </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Todos encontrados!</p>
-                  )}
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">Processos Não Encontrados (amostras)</p>
+                    {stats.unmatchedSamples.length > 0 ? (
+                      <ul className="space-y-1 text-xs font-mono text-muted-foreground">
+                        {stats.unmatchedSamples.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Todos encontrados!</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Detailed field fills table */}
+                <div>
+                  <p className="font-medium mb-2">Campos Preenchidos — Detalhamento por Fonte</p>
+                  <div className="overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Campo</TableHead>
+                          <TableHead className="text-xs text-center">Total</TableHead>
+                          <TableHead className="text-xs text-center">
+                            <Badge variant="default" className="text-[10px]">Input 2</Badge>
+                          </TableHead>
+                          <TableHead className="text-xs text-center">
+                            <Badge variant="secondary" className="text-[10px]">Input 3</Badge>
+                          </TableHead>
+                          <TableHead className="text-xs text-center">
+                            <Badge variant="outline" className="text-[10px]">Input 4</Badge>
+                          </TableHead>
+                          <TableHead className="text-xs text-center">
+                            <Badge variant="destructive" className="text-[10px]">IA</Badge>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(stats.fieldFills).map(([field, detail]) => {
+                          const label = field.charAt(0).toUpperCase() + field.slice(1);
+                          const pct = stats.total > 0 ? `${((detail.total / stats.total) * 100).toFixed(1)}%` : "0%";
+                          return (
+                            <TableRow key={field}>
+                              <TableCell className="text-xs font-medium">{label}</TableCell>
+                              <TableCell className="text-xs text-center font-bold">{detail.total} <span className="text-muted-foreground font-normal">({pct})</span></TableCell>
+                              <TableCell className="text-xs text-center">{detail.input2 || "—"}</TableCell>
+                              <TableCell className="text-xs text-center">{detail.input3 || "—"}</TableCell>
+                              <TableCell className="text-xs text-center">{detail.input4 || "—"}</TableCell>
+                              <TableCell className="text-xs text-center">{detail.ia || "—"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               </div>
             </CardContent>
