@@ -249,62 +249,14 @@ function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<st
   for (const row of rows) {
     const proc = normalizeProcesso(getProcessoFromRow(row, headers));
     if (!proc || proc.length < 7) continue;
-    
-    // Store with full normalized number
     if (!map.has(proc)) map.set(proc, row);
-    
-    // Store with multiple suffix lengths (>= not > to include exact length matches)
-    for (const len of [20, 17, 15, 13]) {
-      if (proc.length >= len) {
-        const suffix = proc.slice(-len);
-        if (!map.has(suffix)) map.set(suffix, row);
-      }
-    }
-    
-    // Store CNJ core key for flexible matching
-    if (proc.length >= 13) {
-      const core = extractCnjCore(proc);
-      if (!map.has("core:" + core)) map.set("core:" + core, row);
-    }
-    
-    // Store with leading zeros stripped for cases where zeros are dropped
-    const stripped = proc.replace(/^0+/, "");
-    if (stripped.length >= 7 && !map.has(stripped)) map.set(stripped, row);
   }
   return map;
 }
 
 function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>>): Record<string, any> | undefined {
   if (!procNorm || procNorm.length < 7) return undefined;
-  
-  // Exact match first
-  let found = lookup.get(procNorm);
-  if (found) return found;
-  
-  // Try suffix lengths
-  for (const len of [20, 17, 15, 13]) {
-    if (procNorm.length >= len) {
-      const suffix = procNorm.slice(-len);
-      found = lookup.get(suffix);
-      if (found) return found;
-    }
-  }
-  
-  // Try CNJ core match
-  if (procNorm.length >= 13) {
-    const core = extractCnjCore(procNorm);
-    found = lookup.get("core:" + core);
-    if (found) return found;
-  }
-  
-  // Try without leading zeros
-  const stripped = procNorm.replace(/^0+/, "");
-  if (stripped !== procNorm && stripped.length >= 7) {
-    found = lookup.get(stripped);
-    if (found) return found;
-  }
-  
-  return undefined;
+  return lookup.get(procNorm);
 }
 
 export default function PlanilhaTst() {
