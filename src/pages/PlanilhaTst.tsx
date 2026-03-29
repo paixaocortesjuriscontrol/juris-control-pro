@@ -146,30 +146,48 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
 }
 
 function getProcessoFromRow(row: Record<string, any>, headers: string[]): string {
-  // Priority: columns that explicitly mention "processo"
-  const priorityTerms = ["processo", "proc", "cnj"];
-  const fallbackTerms = ["nº", "numero", "número"];
-  
-  for (const terms of [priorityTerms, fallbackTerms]) {
-    for (const key of Object.keys(row)) {
-      const lower = key.toLowerCase().trim();
-      if (terms.some(t => lower.includes(t))) {
-        const val = String(row[key] || "").trim();
-        // Validate it looks like a process number (has at least 7 digits)
-        if (val && val.replace(/\D/g, "").length >= 7) {
-          return val;
-        }
-      }
-    }
-  }
-  // Last resort: find any value that looks like a CNJ number (XX digits with dots/dashes)
+  const normalizedHeaders = headers.map((header) => ({
+    raw: header,
+    normalized: normalizeText(header),
+  }));
+
+  const pickFromHeader = (matcher: (header: string) => boolean) => {
+    const match = normalizedHeaders.find(({ normalized }) => matcher(normalized));
+    if (!match) return "";
+
+    const val = String(row[match.raw] || "").trim();
+    return val && val.replace(/\D/g, "").length >= 7 ? val : "";
+  };
+
+  const explicitProcess = pickFromHeader(
+    (header) =>
+      header.includes("numero do processo") ||
+      header.includes("número do processo") ||
+      header.includes("num processo") ||
+      header.includes("processo") ||
+      header.includes("cnj")
+  );
+  if (explicitProcess) return explicitProcess;
+
+  const genericNumber = pickFromHeader(
+    (header) =>
+      (header === "numero" || header === "número" || header === "nº" || header === "no") &&
+      !header.includes("dossie") &&
+      !header.includes("dossiê")
+  );
+  if (genericNumber) return genericNumber;
+
   for (const key of Object.keys(row)) {
+    const normalizedKey = normalizeText(key);
+    if (normalizedKey.includes("dossie") || normalizedKey.includes("dossiê")) continue;
+
     const val = String(row[key] || "").trim();
     const digits = val.replace(/\D/g, "");
     if (digits.length >= 13 && digits.length <= 25) {
       return val;
     }
   }
+
   return "";
 }
 
