@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
   Download,
@@ -18,6 +19,7 @@ import {
   FileSpreadsheet,
   ArrowRight,
   Table2,
+  Info,
 } from "lucide-react";
 import {
   Table,
@@ -56,6 +58,11 @@ interface Stats {
   passo2: number;
   ia: number;
   naoEncontrados: number;
+  matchInput2: number;
+  matchInput3: number;
+  matchInput4: number;
+  fieldFills: Record<string, number>;
+  unmatchedSamples: string[];
 }
 
 const NOT_FOUND = "(Não localizado)";
@@ -254,13 +261,15 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, fieldFills: {}, unmatchedSamples: [] });
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
   const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
   const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
   const cancelledRef = useRef(false);
+  const [forceOverwrite, setForceOverwrite] = useState(false);
+  const [useAI, setUseAI] = useState(false);
 
   const fileLabels = [
     { label: "Input 1 — Distribuições TST 2025", desc: "Planilha base que será complementada", required: true },
@@ -357,7 +366,7 @@ export default function PlanilhaTst() {
         ];
 
         for (const f of fields1) {
-          if (isEmpty(pr[f.key] as string)) {
+          if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             // Try Input 2 first
             if (row2 && input2) {
               const val = getFieldFromRow(row2, input2.headers, ...f.terms);
@@ -368,7 +377,7 @@ export default function PlanilhaTst() {
               }
             }
             // Fallback to Input 3
-            if (isEmpty(pr[f.key] as string) && row3 && input3) {
+            if ((forceOverwrite || isEmpty(pr[f.key] as string)) && row3 && input3) {
               const val = getFieldFromRow(row3, input3.headers, ...f.terms);
               if (!isEmpty(val)) {
                 (pr as any)[f.key] = val;
@@ -424,7 +433,7 @@ export default function PlanilhaTst() {
         ];
 
         for (const f of fields2) {
-          if (isEmpty(pr[f.key] as string)) {
+          if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             const val = getFieldFromRow(row4, input4.headers, ...f.terms);
             if (!isEmpty(val)) {
               (pr as any)[f.key] = val;
@@ -437,17 +446,35 @@ export default function PlanilhaTst() {
         if (complemented2) countPasso2++;
       }
 
-      setProgress(60);
-      setProgressLabel("Enviando processos incompletos para IA...");
+      // Input 4 diagnostics
+      let matchCount4 = 0;
+      for (const pr of processRows) {
+        if (lookupProcess(normalizeProcesso(pr.numero_processo), lookup4)) matchCount4++;
+      }
+      console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
+      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4}/${processRows.length}`);
 
-      // Passo 2: AI for remaining incomplete
+      setProgress(60);
+
+      // Compute field fill counts
+      const fieldFills: Record<string, number> = { dossie: 0, equipe: 0, reclamante: 0, reclamada: 0, relator: 0 };
+      for (const pr of processRows) {
+        if (!isEmpty(pr.dossie) && pr.origem_dossie) fieldFills.dossie++;
+        if (!isEmpty(pr.equipe) && pr.origem_equipe) fieldFills.equipe++;
+        if (!isEmpty(pr.reclamante) && pr.origem_reclamante) fieldFills.reclamante++;
+        if (!isEmpty(pr.reclamada) && pr.origem_reclamada) fieldFills.reclamada++;
+        if (!isEmpty(pr.relator) && pr.origem_relator) fieldFills.relator++;
+      }
+
+      // Passo 2: AI for remaining incomplete (only if enabled)
       const incomplete = processRows.filter(pr =>
         isEmpty(pr.dossie) || isEmpty(pr.equipe) || isEmpty(pr.reclamante) || isEmpty(pr.reclamada) || isEmpty(pr.relator)
       );
 
       let countIA = 0;
 
-      if (incomplete.length > 0) {
+      if (useAI && incomplete.length > 0) {
+        setProgressLabel("Enviando processos incompletos para IA...");
         const batchSize = 10;
         for (let b = 0; b < incomplete.length; b += batchSize) {
           if (cancelledRef.current) break;
@@ -509,6 +536,11 @@ export default function PlanilhaTst() {
         passo2: countPasso2,
         ia: countIA,
         naoEncontrados,
+        matchInput2: matchCount2,
+        matchInput3: matchCount3,
+        matchInput4: matchCount4,
+        fieldFills,
+        unmatchedSamples,
       });
 
       setResults(processRows);
@@ -708,16 +740,18 @@ export default function PlanilhaTst() {
 
         for (const pr of results) {
           const excelRow = dataStartRow + pr.originalIndex;
-          const tryWrite = (colIdx: number, value: string, originalValue: any) => {
-            if (colIdx < 0 || isEmpty(value) || !isEmpty(String(originalValue ?? ""))) return;
+          const tryWrite = (colIdx: number, value: string, origemKey: string) => {
+            if (colIdx < 0 || isEmpty(value)) return;
+            // Write if the field was filled by the system (has origem)
+            if (!(pr as any)[origemKey]) return;
             upsertCellValue(excelRow, colIdx, value);
           };
 
-          tryWrite(colDossie, pr.dossie, pr.originalData[headers[colDossie]]);
-          tryWrite(colEquipe, pr.equipe, pr.originalData[headers[colEquipe]]);
-          tryWrite(colReclamante, pr.reclamante, pr.originalData[headers[colReclamante]]);
-          tryWrite(colReclamada, pr.reclamada, pr.originalData[headers[colReclamada]]);
-          tryWrite(colRelator, pr.relator, pr.originalData[headers[colRelator]]);
+          tryWrite(colDossie, pr.dossie, "origem_dossie");
+          tryWrite(colEquipe, pr.equipe, "origem_equipe");
+          tryWrite(colReclamante, pr.reclamante, "origem_reclamante");
+          tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
+          tryWrite(colRelator, pr.relator, "origem_relator");
         }
 
         const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
@@ -801,8 +835,8 @@ export default function PlanilhaTst() {
 
               for (const pr of results) {
                 const excelRow = dataStartRow + pr.originalIndex;
-                const markYellow = (colIdx: number, value: string, originalValue: any) => {
-                  if (colIdx < 0 || isEmpty(value) || !isEmpty(String(originalValue ?? ""))) return;
+                const markYellow = (colIdx: number, value: string, origemKey: string) => {
+                  if (colIdx < 0 || isEmpty(value) || !(pr as any)[origemKey]) return;
                   const rowEl = updatedRowMap.get(excelRow);
                   if (!rowEl) return;
                   const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
@@ -811,11 +845,11 @@ export default function PlanilhaTst() {
                   if (cell) cell.setAttribute("s", yellowStyleIndex!);
                 };
 
-                markYellow(colDossie, pr.dossie, pr.originalData[headers[colDossie]]);
-                markYellow(colEquipe, pr.equipe, pr.originalData[headers[colEquipe]]);
-                markYellow(colReclamante, pr.reclamante, pr.originalData[headers[colReclamante]]);
-                markYellow(colReclamada, pr.reclamada, pr.originalData[headers[colReclamada]]);
-                markYellow(colRelator, pr.relator, pr.originalData[headers[colRelator]]);
+                markYellow(colDossie, pr.dossie, "origem_dossie");
+                markYellow(colEquipe, pr.equipe, "origem_equipe");
+                markYellow(colReclamante, pr.reclamante, "origem_reclamante");
+                markYellow(colReclamada, pr.reclamada, "origem_reclamada");
+                markYellow(colRelator, pr.relator, "origem_relator");
               }
 
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
@@ -930,6 +964,20 @@ export default function PlanilhaTst() {
           ))}
         </div>
 
+        {/* Options */}
+        <Card>
+          <CardContent className="pt-4 flex flex-wrap gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={forceOverwrite} onCheckedChange={(v) => setForceOverwrite(!!v)} />
+              <span className="text-sm">Sobrescrever campos já preenchidos no Input 1</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={useAI} onCheckedChange={(v) => setUseAI(!!v)} />
+              <span className="text-sm flex items-center gap-1"><Sparkles className="w-3 h-3" /> Usar IA para processos não encontrados</span>
+            </label>
+          </CardContent>
+        </Card>
+
         {/* Process Button */}
         <div className="flex items-center gap-4">
           <Button
@@ -1000,6 +1048,47 @@ export default function PlanilhaTst() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Diagnostics Card */}
+        {results.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Info className="w-4 h-4" /> Diagnóstico do Cruzamento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="font-medium mb-1">Matches por Input</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li>Input 2 (Prazos): <span className="text-foreground font-medium">{stats.matchInput2}/{stats.total}</span></li>
+                    <li>Input 3 (Processos): <span className="text-foreground font-medium">{stats.matchInput3}/{stats.total}</span></li>
+                    <li>Input 4 (Dossiês): <span className="text-foreground font-medium">{stats.matchInput4}/{stats.total}</span></li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Campos Preenchidos</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    {Object.entries(stats.fieldFills).map(([field, count]) => (
+                      <li key={field}>{field.charAt(0).toUpperCase() + field.slice(1)}: <span className="text-foreground font-medium">{count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Processos Não Encontrados (amostras)</p>
+                  {stats.unmatchedSamples.length > 0 ? (
+                    <ul className="space-y-1 text-xs font-mono text-muted-foreground">
+                      {stats.unmatchedSamples.map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Todos encontrados!</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Download */}
