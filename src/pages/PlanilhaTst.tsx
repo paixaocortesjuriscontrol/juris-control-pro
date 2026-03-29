@@ -962,6 +962,20 @@ export default function PlanilhaTst() {
           ))}
         </div>
 
+        {/* Options */}
+        <Card>
+          <CardContent className="pt-4 flex flex-wrap gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={forceOverwrite} onCheckedChange={(v) => setForceOverwrite(!!v)} />
+              <span className="text-sm">Sobrescrever campos já preenchidos no Input 1</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={useAI} onCheckedChange={(v) => setUseAI(!!v)} />
+              <span className="text-sm flex items-center gap-1"><Sparkles className="w-3 h-3" /> Usar IA para processos não encontrados</span>
+            </label>
+          </CardContent>
+        </Card>
+
         {/* Process Button */}
         <div className="flex items-center gap-4">
           <Button
