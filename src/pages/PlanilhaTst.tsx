@@ -261,13 +261,15 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, fieldFills: {}, unmatchedSamples: [] });
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
   const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
   const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
   const cancelledRef = useRef(false);
+  const [forceOverwrite, setForceOverwrite] = useState(false);
+  const [useAI, setUseAI] = useState(false);
 
   const fileLabels = [
     { label: "Input 1 — Distribuições TST 2025", desc: "Planilha base que será complementada", required: true },
@@ -364,7 +366,7 @@ export default function PlanilhaTst() {
         ];
 
         for (const f of fields1) {
-          if (isEmpty(pr[f.key] as string)) {
+          if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             // Try Input 2 first
             if (row2 && input2) {
               const val = getFieldFromRow(row2, input2.headers, ...f.terms);
@@ -375,7 +377,7 @@ export default function PlanilhaTst() {
               }
             }
             // Fallback to Input 3
-            if (isEmpty(pr[f.key] as string) && row3 && input3) {
+            if ((forceOverwrite || isEmpty(pr[f.key] as string)) && row3 && input3) {
               const val = getFieldFromRow(row3, input3.headers, ...f.terms);
               if (!isEmpty(val)) {
                 (pr as any)[f.key] = val;
@@ -431,7 +433,7 @@ export default function PlanilhaTst() {
         ];
 
         for (const f of fields2) {
-          if (isEmpty(pr[f.key] as string)) {
+          if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             const val = getFieldFromRow(row4, input4.headers, ...f.terms);
             if (!isEmpty(val)) {
               (pr as any)[f.key] = val;
