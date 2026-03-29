@@ -1136,7 +1136,7 @@ export default function PlanilhaTst() {
     const map: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
       input2: { label: "Prazos", variant: "default" },
       input3: { label: "Processos", variant: "secondary" },
-      input4: { label: "Dossiês", variant: "outline" },
+      input4: { label: "Dossiês Ativos", variant: "outline" },
       ia: { label: "IA", variant: "destructive" },
     };
     const info = map[origem];
