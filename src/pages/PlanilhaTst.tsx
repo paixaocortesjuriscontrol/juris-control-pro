@@ -55,10 +55,15 @@ interface SheetData {
 
 interface FieldFillDetail {
   total: number;
+  uniqueTotal: number;
   input2: number;
+  uniqueInput2: number;
   input3: number;
+  uniqueInput3: number;
   input4: number;
+  uniqueInput4: number;
   ia: number;
+  uniqueIa: number;
 }
 
 interface Stats {
@@ -466,22 +471,62 @@ export default function PlanilhaTst() {
       setProgress(60);
 
       // Compute field fill counts per source
-      const emptyDetail = (): FieldFillDetail => ({ total: 0, input2: 0, input3: 0, input4: 0, ia: 0 });
+      const emptyDetail = (): FieldFillDetail => ({
+        total: 0,
+        uniqueTotal: 0,
+        input2: 0,
+        uniqueInput2: 0,
+        input3: 0,
+        uniqueInput3: 0,
+        input4: 0,
+        uniqueInput4: 0,
+        ia: 0,
+        uniqueIa: 0,
+      });
       const fieldFills: Record<string, FieldFillDetail> = {
         dossie: emptyDetail(), equipe: emptyDetail(), reclamante: emptyDetail(), reclamada: emptyDetail(), relator: emptyDetail(),
       };
+      const fieldFillUniques: Record<string, Record<"total" | "input2" | "input3" | "input4" | "ia", Set<string>>> = {
+        dossie: { total: new Set(), input2: new Set(), input3: new Set(), input4: new Set(), ia: new Set() },
+        equipe: { total: new Set(), input2: new Set(), input3: new Set(), input4: new Set(), ia: new Set() },
+        reclamante: { total: new Set(), input2: new Set(), input3: new Set(), input4: new Set(), ia: new Set() },
+        reclamada: { total: new Set(), input2: new Set(), input3: new Set(), input4: new Set(), ia: new Set() },
+        relator: { total: new Set(), input2: new Set(), input3: new Set(), input4: new Set(), ia: new Set() },
+      };
       const fieldKeys = ["dossie", "equipe", "reclamante", "reclamada", "relator"] as const;
       for (const pr of processRows) {
+        const procNorm = normalizeProcesso(pr.numero_processo);
         for (const fk of fieldKeys) {
           const origem = (pr as any)[`origem_${fk}`] as string | undefined;
           if (!isEmpty(pr[fk] as string) && origem) {
             fieldFills[fk].total++;
-            if (origem === "input2") fieldFills[fk].input2++;
-            else if (origem === "input3") fieldFills[fk].input3++;
-            else if (origem === "input4") fieldFills[fk].input4++;
-            else if (origem === "ia") fieldFills[fk].ia++;
+            if (procNorm) fieldFillUniques[fk].total.add(procNorm);
+            if (origem === "input2") {
+              fieldFills[fk].input2++;
+              if (procNorm) fieldFillUniques[fk].input2.add(procNorm);
+            }
+            else if (origem === "input3") {
+              fieldFills[fk].input3++;
+              if (procNorm) fieldFillUniques[fk].input3.add(procNorm);
+            }
+            else if (origem === "input4") {
+              fieldFills[fk].input4++;
+              if (procNorm) fieldFillUniques[fk].input4.add(procNorm);
+            }
+            else if (origem === "ia") {
+              fieldFills[fk].ia++;
+              if (procNorm) fieldFillUniques[fk].ia.add(procNorm);
+            }
           }
         }
+      }
+
+      for (const fk of fieldKeys) {
+        fieldFills[fk].uniqueTotal = fieldFillUniques[fk].total.size;
+        fieldFills[fk].uniqueInput2 = fieldFillUniques[fk].input2.size;
+        fieldFills[fk].uniqueInput3 = fieldFillUniques[fk].input3.size;
+        fieldFills[fk].uniqueInput4 = fieldFillUniques[fk].input4.size;
+        fieldFills[fk].uniqueIa = fieldFillUniques[fk].ia.size;
       }
 
       // Passo 2: AI for remaining incomplete (only if enabled)
@@ -1252,7 +1297,7 @@ export default function PlanilhaTst() {
                       <li>Processos: <span className="text-foreground font-medium">{stats.matchInput3}/{stats.totalUnicosInput1 || 0}</span></li>
                       <li>Dossiês Ativos: <span className="text-foreground font-medium">{stats.matchInput4}/{stats.totalUnicosInput1 || 0}</span></li>
                     </ul>
-                    <p className="mt-2 text-xs text-muted-foreground">Os números abaixo na tabela de campos representam preenchimentos por campo/linha, não interseções únicas de processos.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Na tabela abaixo, cada célula mostra primeiro os processos únicos e abaixo a quantidade de linhas preenchidas.</p>
                   </div>
                   <div>
                     <p className="font-medium mb-1">Processos Não Encontrados (amostras)</p>
@@ -1268,7 +1313,7 @@ export default function PlanilhaTst() {
 
                 {/* Detailed field fills table */}
                 <div>
-                  <p className="font-medium mb-2">Campos Preenchidos — Detalhamento por Fonte</p>
+                  <p className="font-medium mb-2">Campos Preenchidos — Processos únicos e linhas</p>
                   <div className="overflow-auto">
                     <Table>
                       <TableHeader>
@@ -1292,15 +1337,45 @@ export default function PlanilhaTst() {
                       <TableBody>
                         {Object.entries(stats.fieldFills).map(([field, detail]) => {
                           const label = field.charAt(0).toUpperCase() + field.slice(1);
-                          const pct = stats.total > 0 ? `${((detail.total / stats.total) * 100).toFixed(1)}%` : "0%";
                           return (
                             <TableRow key={field}>
                               <TableCell className="text-xs font-medium">{label}</TableCell>
-                              <TableCell className="text-xs text-center font-bold">{detail.total} <span className="text-muted-foreground font-normal">({pct})</span></TableCell>
-                              <TableCell className="text-xs text-center">{detail.input2 || "—"}</TableCell>
-                              <TableCell className="text-xs text-center">{detail.input3 || "—"}</TableCell>
-                              <TableCell className="text-xs text-center">{detail.input4 || "—"}</TableCell>
-                              <TableCell className="text-xs text-center">{detail.ia || "—"}</TableCell>
+                              <TableCell className="text-xs text-center font-bold">
+                                <div>{detail.uniqueTotal} proc.</div>
+                                <div className="text-muted-foreground font-normal">{detail.total} linhas</div>
+                              </TableCell>
+                              <TableCell className="text-xs text-center">
+                                {detail.input2 ? (
+                                  <>
+                                    <div>{detail.uniqueInput2} proc.</div>
+                                    <div className="text-muted-foreground">{detail.input2} linhas</div>
+                                  </>
+                                ) : "—"}
+                              </TableCell>
+                              <TableCell className="text-xs text-center">
+                                {detail.input3 ? (
+                                  <>
+                                    <div>{detail.uniqueInput3} proc.</div>
+                                    <div className="text-muted-foreground">{detail.input3} linhas</div>
+                                  </>
+                                ) : "—"}
+                              </TableCell>
+                              <TableCell className="text-xs text-center">
+                                {detail.input4 ? (
+                                  <>
+                                    <div>{detail.uniqueInput4} proc.</div>
+                                    <div className="text-muted-foreground">{detail.input4} linhas</div>
+                                  </>
+                                ) : "—"}
+                              </TableCell>
+                              <TableCell className="text-xs text-center">
+                                {detail.ia ? (
+                                  <>
+                                    <div>{detail.uniqueIa} proc.</div>
+                                    <div className="text-muted-foreground">{detail.ia} linhas</div>
+                                  </>
+                                ) : "—"}
+                              </TableCell>
                             </TableRow>
                           );
                         })}
