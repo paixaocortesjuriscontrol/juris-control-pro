@@ -187,16 +187,7 @@ function getProcessoFromRow(row: Record<string, any>, headers: string[]): string
   );
   if (genericNumber) return genericNumber;
 
-  for (const key of Object.keys(row)) {
-    const normalizedKey = normalizeText(key);
-    if (normalizedKey.includes("dossie") || normalizedKey.includes("dossiê")) continue;
-
-    const val = String(row[key] || "").trim();
-    const digits = val.replace(/\D/g, "");
-    if (digits.length >= 13 && digits.length <= 25) {
-      return val;
-    }
-  }
+  // No regex fallback — only use explicitly matched header columns
 
   return "";
 }
