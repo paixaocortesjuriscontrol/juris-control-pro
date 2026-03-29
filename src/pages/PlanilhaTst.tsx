@@ -1092,8 +1092,19 @@ export default function PlanilhaTst() {
           return null;
         };
 
-        const upsertCellValue = (rowNumber: number, colIdx: number, value: string) => {
-          if (colIdx < 0 || isEmpty(value)) return;
+        // Helper to read current cell value (inline string or shared string)
+        const readCellValue = (rowEl: Element, colIdx: number, rowNumber: number): string => {
+          const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+          const cell = getCell(rowEl, cellRef);
+          if (!cell) return "";
+          const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
+          if (tEls.length > 0) return tEls[0].textContent || "";
+          const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
+          return vEl?.textContent || "";
+        };
+
+        const upsertCellValue = (rowNumber: number, colIdx: number, value: string, allowEmpty = false) => {
+          if (colIdx < 0 || (!allowEmpty && isEmpty(value))) return;
 
           const rowEl = ensureRow(rowNumber);
           const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
@@ -1141,6 +1152,33 @@ export default function PlanilhaTst() {
           tryWrite(colReclamante, pr.reclamante, "origem_reclamante");
           tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
           tryWrite(colRelator, pr.relator, "origem_relator");
+
+          // Column J (classificação turma): first check existing content
+          const rowEl = rowMap.get(excelRow);
+          if (rowEl) {
+            const currentJ = readCellValue(rowEl, colClassTurma, excelRow).trim();
+            const currentJNorm = currentJ.toUpperCase();
+            const isValidJ = !currentJ || currentJNorm === "POSITIVO" || currentJNorm === "NEGATIVO" 
+              || currentJNorm === "POSITIVA" || currentJNorm === "NEGATIVA"
+              || currentJNorm.includes("AINDA NÃO DISTRIBU");
+            
+            // If column J has invalid content, move it to column I
+            if (currentJ && !isValidJ) {
+              const currentI = readCellValue(rowEl, colObservacoes, excelRow).trim();
+              const newI = currentI ? `${currentI} | ${currentJ}` : currentJ;
+              upsertCellValue(excelRow, colObservacoes, newI, true);
+            }
+          }
+
+          // Write classificação do relator in column H
+          if (pr.classificacao_relator) {
+            upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
+          }
+
+          // Write classificação da turma in column J
+          if (pr.classificacao_turma) {
+            upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+          }
         }
 
         const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
