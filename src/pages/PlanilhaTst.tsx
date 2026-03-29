@@ -740,8 +740,10 @@ export default function PlanilhaTst() {
 
         for (const pr of results) {
           const excelRow = dataStartRow + pr.originalIndex;
-          const tryWrite = (colIdx: number, value: string, originalValue: any) => {
-            if (colIdx < 0 || isEmpty(value) || !isEmpty(String(originalValue ?? ""))) return;
+          const tryWrite = (colIdx: number, value: string, origemKey: string) => {
+            if (colIdx < 0 || isEmpty(value)) return;
+            // Write if the field was filled by the system (has origem)
+            if (!(pr as any)[origemKey]) return;
             upsertCellValue(excelRow, colIdx, value);
           };
 
