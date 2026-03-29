@@ -214,8 +214,8 @@ function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<st
     // Store with full normalized number
     if (!map.has(proc)) map.set(proc, row);
     
-    // Store with last 20, 17, 15, 13, 10, 7 digit suffixes for flexible matching
-    for (const len of [20, 17, 15, 13, 10, 7]) {
+    // Store with last 20, 17, 15, 13 digit suffixes only (shorter causes false matches)
+    for (const len of [20, 17, 15, 13]) {
       if (proc.length > len) {
         const suffix = proc.slice(-len);
         if (!map.has(suffix)) map.set(suffix, row);
@@ -232,27 +232,12 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
   let found = lookup.get(procNorm);
   if (found) return found;
   
-  // Try multiple suffix lengths
-  for (const len of [20, 17, 15, 13, 10, 7]) {
-    if (procNorm.length > len) {
-      found = lookup.get(procNorm.slice(-len));
-      if (found) return found;
-    }
+  // Try suffix lengths (minimum 13 digits to avoid false positives)
+  for (const len of [20, 17, 15, 13]) {
     if (procNorm.length >= len) {
-      // Also try if the lookup has a longer key ending with our suffix
       const suffix = procNorm.slice(-len);
       found = lookup.get(suffix);
       if (found) return found;
-    }
-  }
-  
-  // Containment: check if any lookup key contains this number or vice versa
-  for (const [key, val] of lookup) {
-    if (key.length < 7) continue;
-    if (procNorm.endsWith(key) || key.endsWith(procNorm)) return val;
-    // Check if the "core" part (removing check digits) matches
-    if (procNorm.length >= 13 && key.length >= 13) {
-      if (procNorm.slice(-13) === key.slice(-13)) return val;
     }
   }
   
@@ -361,11 +346,11 @@ export default function PlanilhaTst() {
         let complemented1 = false;
 
         const fields1: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo", "cod", "folder"] },
-          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor", "area", "área", "grupo", "unidade"] },
-          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "parte ativa", "empregado", "trabalhador", "nome"] },
-          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "parte passiva", "empresa", "cliente", "parte contraria", "parte contrária"] },
-          { key: "relator", terms: ["relator", "ministro", "desembargador", "juiz"] },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"] },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"] },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
+          { key: "relator", terms: ["relator", "ministro", "desembargador"] },
         ];
 
         for (const f of fields1) {
@@ -429,10 +414,10 @@ export default function PlanilhaTst() {
 
         let complemented2 = false;
         const fields2: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê", "pasta", "código", "codigo", "cod", "folder"] },
-          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao", "setor", "area", "área", "grupo", "unidade"] },
-          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente", "parte ativa", "empregado", "trabalhador", "nome"] },
-          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "parte passiva", "empresa", "cliente", "parte contraria", "parte contrária"] },
+          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
+          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"] },
+          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"] },
+          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
         ];
 
         for (const f of fields2) {
