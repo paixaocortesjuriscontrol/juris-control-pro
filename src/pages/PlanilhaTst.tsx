@@ -85,8 +85,10 @@ function normalizeText(val: unknown): string {
 }
 
 function normalizeProcesso(val: string): string {
-  // Remove everything except digits
-  return String(val || "").replace(/\D/g, "").trim();
+  // Remove everything except digits, then zero-pad to 20 digits (CNJ standard)
+  const digits = String(val || "").replace(/\D/g, "").trim();
+  if (digits.length < 7) return digits;
+  return digits.padStart(20, "0");
 }
 
 function findColumnIndex(headers: string[], ...terms: string[]): number {
