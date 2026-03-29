@@ -1651,6 +1651,8 @@ export default function PlanilhaTst() {
                       <TableHead className="text-xs">Reclamante</TableHead>
                       <TableHead className="text-xs">Reclamada</TableHead>
                       <TableHead className="text-xs">Relator</TableHead>
+                      <TableHead className="text-xs">Class. Relator</TableHead>
+                      <TableHead className="text-xs">Class. Turma</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1677,6 +1679,23 @@ export default function PlanilhaTst() {
                         <TableCell className="text-xs">
                           <span className={isEmpty(pr.relator) ? "text-muted-foreground" : ""}>{pr.relator}</span>
                           {origemBadge(pr.origem_relator)}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {pr.classificacao_relator ? (
+                            <Badge variant={pr.classificacao_relator === "POSITIVO" ? "default" : "destructive"} className="text-[10px]">
+                              {pr.classificacao_relator}
+                            </Badge>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {pr.classificacao_turma ? (
+                            <span className="flex flex-col gap-0.5">
+                              <Badge variant={pr.classificacao_turma === "POSITIVA" ? "default" : "destructive"} className="text-[10px]">
+                                {pr.classificacao_turma}
+                              </Badge>
+                              {pr.turma_relator && <span className="text-[10px] text-muted-foreground">{pr.turma_relator}</span>}
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                       </TableRow>
                     ))}
