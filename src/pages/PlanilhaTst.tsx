@@ -2383,6 +2383,7 @@ export default function PlanilhaTst() {
                       })}
                   </div>
                 )}
+              </div>
             </CardContent>
           </Card>
         )}
