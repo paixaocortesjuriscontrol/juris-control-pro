@@ -115,6 +115,17 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "corregedoria": "NEGATIVA",
 };
 
+const TURMA_NUMERO_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
+  "1": "POSITIVA",
+  "2": "NEGATIVA",
+  "3": "NEGATIVA",
+  "4": "POSITIVA",
+  "5": "POSITIVA",
+  "6": "NEGATIVA",
+  "7": "NEGATIVA",
+  "8": "POSITIVA",
+};
+
 // Classificar turma pelo nome da turma (coluna I)
 function normalizeTurmaKey(value: string): string {
   return String(value || "")
@@ -122,6 +133,16 @@ function normalizeTurmaKey(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[º°]/g, "ª")
+    .replace(/\bturma\s*([1-8])\b/g, "$1ª turma")
+    .replace(/\b([1-8])\s*ª?\s*(?:turma|t)\b/g, "$1ª turma")
+    .replace(/\bprimeira\s+turma\b/g, "1ª turma")
+    .replace(/\bsegunda\s+turma\b/g, "2ª turma")
+    .replace(/\bterceira\s+turma\b/g, "3ª turma")
+    .replace(/\bquarta\s+turma\b/g, "4ª turma")
+    .replace(/\bquinta\s+turma\b/g, "5ª turma")
+    .replace(/\bsexta\s+turma\b/g, "6ª turma")
+    .replace(/\bsetima\s+turma\b/g, "7ª turma")
+    .replace(/\boitava\s+turma\b/g, "8ª turma")
     .replace(/(\d+)a\s+turma/g, "$1ª turma")
     .replace(/vice\s*presid[ea]n[ct]ia/g, "vice-presidencia")
     .replace(/corregedor(?:ia)?(?:\s*-?\s*geral)?/g, "corregedoria")
@@ -132,10 +153,16 @@ function normalizeTurmaKey(value: string): string {
 function classificarTurma(nomeTurma: string): "POSITIVA" | "NEGATIVA" | "" {
   if (!nomeTurma || isEmpty(nomeTurma)) return "";
   const norm = normalizeTurmaKey(nomeTurma);
+  const numeroDireto = norm.match(/^([1-8])(?:ª\s*turma)?$/)?.[1] || norm.match(/\b([1-8])ª\s*turma\b/)?.[1];
+  if (numeroDireto && TURMA_NUMERO_CLASSIFICACAO[numeroDireto]) return TURMA_NUMERO_CLASSIFICACAO[numeroDireto];
   if (TURMA_CLASSIFICACAO[norm]) return TURMA_CLASSIFICACAO[norm];
   for (const [key, val] of Object.entries(TURMA_CLASSIFICACAO)) {
     const normKey = normalizeTurmaKey(key);
     if (norm.includes(normKey) || normKey.includes(norm)) return val;
+  }
+  const numeroComTurma = norm.match(/\bturma\s*([1-8])\b/)?.[1] || norm.match(/\b([1-8])\b/)?.[1];
+  if (numeroComTurma && norm.includes("turma") && TURMA_NUMERO_CLASSIFICACAO[numeroComTurma]) {
+    return TURMA_NUMERO_CLASSIFICACAO[numeroComTurma];
   }
   return "";
 }
@@ -562,11 +589,11 @@ function normalizeClassificacaoRelator(valor: string): "POSITIVO" | "NEGATIVO" |
   if (!raw) return "";
   const norm = normalizeText(raw);
   // Handle full words / partial variants
-  if (norm.includes("positiv")) return "POSITIVO";
-  if (norm.includes("negativ")) return "NEGATIVO";
+  if (norm.includes("positiv") || norm.startsWith("pos")) return "POSITIVO";
+  if (norm.includes("negativ") || norm.startsWith("neg")) return "NEGATIVO";
   // Handle abbreviated forms: +, -, P, N, Sim, Não, Favorável/Desfavorável
-  if (["+", "＋", "﹢"].includes(raw) || norm === "p" || norm === "sim" || norm === "s" || norm.includes("favoravel")) return "POSITIVO";
-  if (["-", "−", "–", "—", "﹣"].includes(raw) || norm === "n" || norm === "nao" || norm === "não" || norm.includes("desfavor")) return "NEGATIVO";
+  if (["+", "＋", "﹢"].includes(raw) || /[+＋﹢]/.test(raw) || norm === "p" || norm === "sim" || norm === "s" || norm === "1" || norm === "true" || norm === "ok" || norm === "pos" || norm.includes("favoravel")) return "POSITIVO";
+  if (["-", "−", "–", "—", "﹣"].includes(raw) || /[-−–—﹣]/.test(raw) || norm === "n" || norm === "nao" || norm === "não" || norm === "0" || norm === "-1" || norm === "false" || norm === "neg" || norm.includes("desfavor")) return "NEGATIVO";
   return "";
 }
 
@@ -575,11 +602,11 @@ function normalizeClassificacaoTurma(valor: string): "POSITIVA" | "NEGATIVA" | "
   if (!raw) return "";
   const norm = normalizeText(raw);
   // Handle full words / partial variants
-  if (norm.includes("positiv")) return "POSITIVA";
-  if (norm.includes("negativ")) return "NEGATIVA";
+  if (norm.includes("positiv") || norm.startsWith("pos")) return "POSITIVA";
+  if (norm.includes("negativ") || norm.startsWith("neg")) return "NEGATIVA";
   // Handle abbreviated forms: +, -, P, N, Sim, Não, Favorável/Desfavorável
-  if (["+", "＋", "﹢"].includes(raw) || norm === "p" || norm === "sim" || norm === "s" || norm.includes("favoravel")) return "POSITIVA";
-  if (["-", "−", "–", "—", "﹣"].includes(raw) || norm === "n" || norm === "nao" || norm === "não" || norm.includes("desfavor")) return "NEGATIVA";
+  if (["+", "＋", "﹢"].includes(raw) || /[+＋﹢]/.test(raw) || norm === "p" || norm === "sim" || norm === "s" || norm === "1" || norm === "true" || norm === "ok" || norm === "pos" || norm.includes("favoravel")) return "POSITIVA";
+  if (["-", "−", "–", "—", "﹣"].includes(raw) || /[-−–—﹣]/.test(raw) || norm === "n" || norm === "nao" || norm === "não" || norm === "0" || norm === "-1" || norm === "false" || norm === "neg" || norm.includes("desfavor")) return "NEGATIVA";
   return "";
 }
 
