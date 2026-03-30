@@ -1353,27 +1353,31 @@ export default function PlanilhaTst() {
         estatisticasPorMes[mesKey].totalProcessos += aggAba.totalProcessos;
 
         for (const [relator, counts] of Object.entries(aggAba.classificacaoPorRelator)) {
-          if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+          if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           classificacaoPorRelator[relator].positivo += counts.positivo;
           classificacaoPorRelator[relator].negativo += counts.negativo;
+          classificacaoPorRelator[relator].semClassificacao = (classificacaoPorRelator[relator].semClassificacao || 0) + (counts.semClassificacao || 0);
 
           if (!estatisticasPorMes[mesKey].classificacaoPorRelator[relator]) {
-            estatisticasPorMes[mesKey].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+            estatisticasPorMes[mesKey].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           }
           estatisticasPorMes[mesKey].classificacaoPorRelator[relator].positivo += counts.positivo;
           estatisticasPorMes[mesKey].classificacaoPorRelator[relator].negativo += counts.negativo;
+          estatisticasPorMes[mesKey].classificacaoPorRelator[relator].semClassificacao = (estatisticasPorMes[mesKey].classificacaoPorRelator[relator].semClassificacao || 0) + (counts.semClassificacao || 0);
         }
 
         for (const [turma, counts] of Object.entries(aggAba.classificacaoPorTurma)) {
-          if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+          if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           classificacaoPorTurma[turma].positiva += counts.positiva;
           classificacaoPorTurma[turma].negativa += counts.negativa;
+          classificacaoPorTurma[turma].semClassificacao = (classificacaoPorTurma[turma].semClassificacao || 0) + (counts.semClassificacao || 0);
 
           if (!estatisticasPorMes[mesKey].classificacaoPorTurma[turma]) {
-            estatisticasPorMes[mesKey].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+            estatisticasPorMes[mesKey].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           }
           estatisticasPorMes[mesKey].classificacaoPorTurma[turma].positiva += counts.positiva;
           estatisticasPorMes[mesKey].classificacaoPorTurma[turma].negativa += counts.negativa;
+          estatisticasPorMes[mesKey].classificacaoPorTurma[turma].semClassificacao = (estatisticasPorMes[mesKey].classificacaoPorTurma[turma].semClassificacao || 0) + (counts.semClassificacao || 0);
         }
       }
 
