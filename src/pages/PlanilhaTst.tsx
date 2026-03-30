@@ -1183,40 +1183,44 @@ export default function PlanilhaTst() {
 
           const rowEl = rowMap.get(excelRow);
 
-          // Column H (classificação relator): only write if cell is empty
-          if (pr.classificacao_relator && rowEl) {
+          if (rowEl) {
             const currentH = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
-            const hasValidH = currentH === "POSITIVO" || currentH === "NEGATIVO";
-            if (!hasValidH) {
-              upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
-            }
-          }
-
-          // Column I (turma nome): only write if cell is empty or has invalid content (numbers like "32 | 33")
-          if (pr.turma_relator && rowEl) {
             const currentI = readCellValue(rowEl, colTurma, excelRow).trim();
             const currentINorm = currentI.toUpperCase();
-            // Valid turma values contain "TURMA" or known terms
+            const currentJRaw = readCellValue(rowEl, colClassTurma, excelRow).trim();
+            const currentJ = currentJRaw.toUpperCase();
+
+            const hasValidH = currentH === "POSITIVO" || currentH === "NEGATIVO";
             const hasValidTurma = currentI && (
-              currentINorm.includes("TURMA") || 
-              currentINorm.includes("SBDI") || 
+              currentINorm.includes("TURMA") ||
+              currentINorm.includes("SBDI") ||
               currentINorm.includes("PLENO") ||
               currentINorm.includes("PRESIDENTE") ||
               currentINorm.includes("CORREGEDOR") ||
               currentINorm.includes("IMPEDID")
             );
-            if (!hasValidTurma) {
-              upsertCellValue(excelRow, colTurma, pr.turma_relator);
-            }
-          }
-
-          // Column J (classificação turma): only write if cell is empty or has invalid content
-          if (pr.classificacao_turma && rowEl) {
-            const currentJ = readCellValue(rowEl, colClassTurma, excelRow).trim().toUpperCase();
-            const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO" 
+            const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO"
               || currentJ === "POSITIVA" || currentJ === "NEGATIVA"
               || currentJ.includes("AINDA NÃO DISTRIBU");
-            if (!hasValidJ) {
+
+            // Sempre mover conteúdo inválido de J para I antes de qualquer classificação
+            if (currentJRaw && !hasValidJ) {
+              const mergedTurma = hasValidTurma ? currentI : pr.turma_relator || currentI;
+              if (!isEmpty(mergedTurma)) {
+                upsertCellValue(excelRow, colTurma, mergedTurma);
+              }
+              upsertCellValue(excelRow, colClassTurma, "", true);
+            }
+
+            if (pr.classificacao_relator && !hasValidH) {
+              upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
+            }
+
+            if (pr.turma_relator && !hasValidTurma) {
+              upsertCellValue(excelRow, colTurma, pr.turma_relator);
+            }
+
+            if (pr.classificacao_turma && !hasValidJ) {
               upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
             }
           }
