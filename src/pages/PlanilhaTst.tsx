@@ -704,9 +704,16 @@ export default function PlanilhaTst() {
           const proc = getProcessoFromRow(row, sheet.headers);
           const procNorm = normalizeProcesso(proc);
 
-          const relatorFromHeader = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador");
+          // Read relator name — exclude "relator (+" pattern to avoid reading classification column
+          const relatorHeaderIdx = sheet.headers.findIndex(h => {
+            const low = (h || "").toLowerCase().trim();
+            return (low.includes("relator") || low.includes("ministro") || low.includes("desembargador")) && !low.includes("(") && !low.includes("+") && !low.includes("-");
+          });
+          const relatorFromHeader = relatorHeaderIdx >= 0 ? String(row[sheet.headers[relatorHeaderIdx]] ?? "").trim() : "";
           const relatorFromColG = String((row as any).__colG ?? "").trim();
-          const relatorVal = relatorFromHeader || relatorFromColG || NOT_FOUND;
+          const relatorRaw = relatorFromHeader || relatorFromColG;
+          // Don't treat "-" as empty for relator name — only truly empty values
+          const relatorVal = (relatorRaw && relatorRaw !== "-" && relatorRaw !== "—") ? relatorRaw : NOT_FOUND;
           const classRelatorFromSheet =
             normalizeClassificacaoRelator(getFieldFromRow(row, sheet.headers, "classificacao relator", "classificação relator", "class relator")) ||
             normalizeClassificacaoRelator(getValueByColumnIndex(row, sheet.headers, 7)) || // coluna H
