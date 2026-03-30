@@ -247,6 +247,7 @@ interface SheetData {
   headers: string[];
   rows: Record<string, any>[];
   headerRowIndex: number;
+  grayCellDossieRows?: Set<number>;
 }
 
 interface FieldFillDetail {
