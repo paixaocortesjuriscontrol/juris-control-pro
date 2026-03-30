@@ -225,6 +225,8 @@ interface ProcessRow {
   originalIndex: number;
   originalData: Record<string, any>;
   numero_processo: string;
+  data_distribuicao: string;
+  mes_ano: string; // "MM/YYYY" extracted from data_distribuicao
   dossie: string;
   equipe: string;
   reclamante: string;
@@ -241,6 +243,41 @@ interface ProcessRow {
   origem_classificacao_relator?: string;
   origem_turma_relator?: string;
   origem_classificacao_turma?: string;
+}
+
+function extrairMesAno(dataStr: string): string {
+  if (!dataStr || isEmpty(dataStr)) return "Sem data";
+  // Try DD/MM/YYYY or DD-MM-YYYY
+  const match = dataStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (match) {
+    const mes = match[2].padStart(2, "0");
+    return `${mes}/${match[3]}`;
+  }
+  // Try YYYY-MM-DD
+  const match2 = dataStr.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (match2) {
+    const mes = match2[2].padStart(2, "0");
+    return `${mes}/${match2[1]}`;
+  }
+  return "Sem data";
+}
+
+const MESES_NOME: Record<string, string> = {
+  "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
+  "05": "Maio", "06": "Junho", "07": "Julho", "08": "Agosto",
+  "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro",
+};
+
+function mesAnoLabel(mesAno: string): string {
+  if (mesAno === "Sem data") return mesAno;
+  const [mes, ano] = mesAno.split("/");
+  return `${MESES_NOME[mes] || mes}/${ano}`;
+}
+
+interface MesAnoStats {
+  totalProcessos: number;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
 }
 
 interface SheetData {
@@ -283,6 +320,7 @@ interface Stats {
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
   classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
   classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  estatisticasPorMes: Record<string, MesAnoStats>;
 }
 
 const NOT_FOUND = "(Não localizado)";
@@ -471,7 +509,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {} });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {}, estatisticasPorMes: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -595,11 +633,18 @@ export default function PlanilhaTst() {
           const classRelator = classificarRelator(relatorVal);
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
 
+          // Extract distribution date from first column (column A) or column with "data" + "distribui"
+          const dataDistrib = getFieldFromRow(row, sheet.headers, "data") || 
+            (sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "");
+          const mesAno = extrairMesAno(dataDistrib);
+
           const pr: ProcessRow = {
             sheetIndex: sheet.sheetIndex,
             originalIndex: i,
             originalData: { ...row },
             numero_processo: proc,
+            data_distribuicao: dataDistrib,
+            mes_ano: mesAno,
             dossie: getFieldFromRow(row, sheet.headers, "dossi", "dossie", "dossiê") || NOT_FOUND,
             equipe: getFieldFromRow(row, sheet.headers, "equipe") || NOT_FOUND,
             reclamante: getFieldFromRow(row, sheet.headers, "reclamante") || NOT_FOUND,
@@ -975,6 +1020,42 @@ export default function PlanilhaTst() {
         else classificacaoPorTurma[turma].negativa++;
       }
 
+      // Estatísticas por Mês/Ano
+      const estatisticasPorMes: Record<string, MesAnoStats> = {};
+      for (const pr of processRows) {
+        const key = pr.mes_ano;
+        if (!estatisticasPorMes[key]) {
+          estatisticasPorMes[key] = { totalProcessos: 0, classificacaoPorRelator: {}, classificacaoPorTurma: {} };
+        }
+        estatisticasPorMes[key].totalProcessos++;
+
+        // Relator por mês
+        const relator = (pr.relator || "").trim();
+        if (relator && !isEmpty(relator)) {
+          const cr = (pr.classificacao_relator || "").toUpperCase();
+          if (cr === "POSITIVO" || cr === "NEGATIVO") {
+            if (!estatisticasPorMes[key].classificacaoPorRelator[relator]) {
+              estatisticasPorMes[key].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+            }
+            if (cr === "POSITIVO") estatisticasPorMes[key].classificacaoPorRelator[relator].positivo++;
+            else estatisticasPorMes[key].classificacaoPorRelator[relator].negativo++;
+          }
+        }
+
+        // Turma por mês
+        const turma = (pr.turma_relator || "").trim();
+        if (turma && !isEmpty(turma)) {
+          const ct = (pr.classificacao_turma || "").toUpperCase();
+          if (ct === "POSITIVA" || ct === "NEGATIVA") {
+            if (!estatisticasPorMes[key].classificacaoPorTurma[turma]) {
+              estatisticasPorMes[key].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+            }
+            if (ct === "POSITIVA") estatisticasPorMes[key].classificacaoPorTurma[turma].positiva++;
+            else estatisticasPorMes[key].classificacaoPorTurma[turma].negativa++;
+          }
+        }
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -995,6 +1076,7 @@ export default function PlanilhaTst() {
         preenchimentoPorColuna,
         classificacaoPorRelator,
         classificacaoPorTurma,
+        estatisticasPorMes,
       });
 
       setResults(processRows);
@@ -1230,7 +1312,105 @@ export default function PlanilhaTst() {
       y += 8;
     }
 
-    // Processos não encontrados (amostras)
+    // Estatísticas por Mês/Ano
+    const mesesOrdenados = Object.entries(stats.estatisticasPorMes)
+      .sort(([a], [b]) => {
+        if (a === "Sem data") return 1;
+        if (b === "Sem data") return -1;
+        const [mA, yA] = a.split("/").map(Number);
+        const [mB, yB] = b.split("/").map(Number);
+        return yA !== yB ? yA - yB : mA - mB;
+      });
+
+    if (mesesOrdenados.length > 0) {
+      doc.addPage();
+      y = 20;
+      doc.setFontSize(15);
+      doc.setFont("helvetica", "bold");
+      doc.text("Estatísticas por Mês/Ano (Data de Distribuição)", 14, y);
+      y += 10;
+
+      for (const [mesAno, mesStats] of mesesOrdenados) {
+        // Check space for header
+        if (y > 240) { doc.addPage(); y = 20; }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${mesAnoLabel(mesAno)} — ${mesStats.totalProcessos} processos`, 14, y);
+        y += 8;
+
+        // Relator por mês
+        const mesRelEntries = Object.entries(mesStats.classificacaoPorRelator).sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo));
+        if (mesRelEntries.length > 0) {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("Por Relator", 18, y);
+          y += 6;
+          doc.setFontSize(8);
+          doc.text("Relator", 22, y);
+          doc.text("Pos.", 135, y);
+          doc.text("Neg.", 155, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          for (const [rel, c] of mesRelEntries) {
+            if (y > 275) { doc.addPage(); y = 20; }
+            const dn = rel.length > 48 ? rel.substring(0, 45) + "..." : rel;
+            doc.text(dn, 22, y);
+            doc.text(`${c.positivo}`, 137, y);
+            doc.text(`${c.negativo}`, 157, y);
+            y += 4;
+          }
+          doc.setFont("helvetica", "bold");
+          if (y > 275) { doc.addPage(); y = 20; }
+          const trp = mesRelEntries.reduce((s, [, c]) => s + c.positivo, 0);
+          const trn = mesRelEntries.reduce((s, [, c]) => s + c.negativo, 0);
+          doc.text("TOTAL", 22, y);
+          doc.text(`${trp}`, 137, y);
+          doc.text(`${trn}`, 157, y);
+          doc.setFont("helvetica", "normal");
+          y += 6;
+        }
+
+        // Turma por mês
+        const mesTurmaEntries = Object.entries(mesStats.classificacaoPorTurma).sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa));
+        if (mesTurmaEntries.length > 0) {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("Por Turma", 18, y);
+          y += 6;
+          doc.setFontSize(8);
+          doc.text("Turma", 22, y);
+          doc.text("Pos.", 135, y);
+          doc.text("Neg.", 155, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          for (const [t, c] of mesTurmaEntries) {
+            if (y > 275) { doc.addPage(); y = 20; }
+            const dn = t.length > 48 ? t.substring(0, 45) + "..." : t;
+            doc.text(dn, 22, y);
+            doc.text(`${c.positiva}`, 137, y);
+            doc.text(`${c.negativa}`, 157, y);
+            y += 4;
+          }
+          doc.setFont("helvetica", "bold");
+          if (y > 275) { doc.addPage(); y = 20; }
+          const ttp = mesTurmaEntries.reduce((s, [, c]) => s + c.positiva, 0);
+          const ttn = mesTurmaEntries.reduce((s, [, c]) => s + c.negativa, 0);
+          doc.text("TOTAL", 22, y);
+          doc.text(`${ttp}`, 137, y);
+          doc.text(`${ttn}`, 157, y);
+          doc.setFont("helvetica", "normal");
+          y += 8;
+        }
+
+        // Separator line between months
+        if (y > 275) { doc.addPage(); y = 20; }
+        doc.setDrawColor(200);
+        doc.line(14, y, pageWidth - 14, y);
+        y += 6;
+      }
+    }
+
     if (stats.unmatchedSamples.length > 0) {
       if (y > 240) { doc.addPage(); y = 20; }
       doc.setFontSize(13);
@@ -2202,6 +2382,103 @@ export default function PlanilhaTst() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+
+                {/* Estatísticas por Mês/Ano */}
+                {Object.keys(stats.estatisticasPorMes).length > 0 && (
+                  <div>
+                    <div className="text-base font-semibold mb-3 mt-4 border-b pb-2">📅 Estatísticas por Mês/Ano (Data de Distribuição)</div>
+                    {Object.entries(stats.estatisticasPorMes)
+                      .sort(([a], [b]) => {
+                        if (a === "Sem data") return 1;
+                        if (b === "Sem data") return -1;
+                        const [mA, yA] = a.split("/").map(Number);
+                        const [mB, yB] = b.split("/").map(Number);
+                        return yA !== yB ? yA - yB : mA - mB;
+                      })
+                      .map(([mesAno, mesStats]) => {
+                        const totalRelPos = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + c.positivo, 0);
+                        const totalRelNeg = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + c.negativo, 0);
+                        const totalTurmaPos = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + c.positiva, 0);
+                        const totalTurmaNeg = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + c.negativa, 0);
+                        return (
+                          <div key={mesAno} className="mb-6 border rounded-lg p-4">
+                            <div className="text-sm font-bold mb-3 flex items-center gap-2">
+                              <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs">{mesAnoLabel(mesAno)}</span>
+                              <span className="text-muted-foreground font-normal">— {mesStats.totalProcessos} processos</span>
+                            </div>
+
+                            {/* Relator por mês */}
+                            {Object.keys(mesStats.classificacaoPorRelator).length > 0 && (
+                              <div className="mb-3">
+                                <div className="text-xs font-medium mb-1">Por Relator</div>
+                                <div className="border rounded-md overflow-hidden">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-muted/50">
+                                        <th className="text-left p-1.5 font-medium">Relator</th>
+                                        <th className="text-center p-1.5 font-medium text-green-600 w-20">Positivo</th>
+                                        <th className="text-center p-1.5 font-medium text-red-500 w-20">Negativo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {Object.entries(mesStats.classificacaoPorRelator)
+                                        .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
+                                        .map(([rel, c]) => (
+                                          <tr key={rel} className="border-t">
+                                            <td className="p-1.5">{rel}</td>
+                                            <td className="p-1.5 text-center font-bold text-green-600">{c.positivo}</td>
+                                            <td className="p-1.5 text-center font-bold text-red-500">{c.negativo}</td>
+                                          </tr>
+                                        ))}
+                                      <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                                        <td className="p-1.5 font-bold">TOTAL</td>
+                                        <td className="p-1.5 text-center font-bold text-green-600">{totalRelPos}</td>
+                                        <td className="p-1.5 text-center font-bold text-red-500">{totalRelNeg}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Turma por mês */}
+                            {Object.keys(mesStats.classificacaoPorTurma).length > 0 && (
+                              <div>
+                                <div className="text-xs font-medium mb-1">Por Turma</div>
+                                <div className="border rounded-md overflow-hidden">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-muted/50">
+                                        <th className="text-left p-1.5 font-medium">Turma</th>
+                                        <th className="text-center p-1.5 font-medium text-green-600 w-20">Positiva</th>
+                                        <th className="text-center p-1.5 font-medium text-red-500 w-20">Negativa</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {Object.entries(mesStats.classificacaoPorTurma)
+                                        .sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa))
+                                        .map(([t, c]) => (
+                                          <tr key={t} className="border-t">
+                                            <td className="p-1.5">{t}</td>
+                                            <td className="p-1.5 text-center font-bold text-green-600">{c.positiva}</td>
+                                            <td className="p-1.5 text-center font-bold text-red-500">{c.negativa}</td>
+                                          </tr>
+                                        ))}
+                                      <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                                        <td className="p-1.5 font-bold">TOTAL</td>
+                                        <td className="p-1.5 text-center font-bold text-green-600">{totalTurmaPos}</td>
+                                        <td className="p-1.5 text-center font-bold text-red-500">{totalTurmaNeg}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 )}
               </div>
