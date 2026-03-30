@@ -1070,18 +1070,30 @@ export default function PlanilhaTst() {
       const debugClassRelFilled = processRows.filter(pr => (pr.classificacao_relator || "").trim() !== "").length;
       const debugTurmaFilled = processRows.filter(pr => !isEmpty(pr.turma_relator)).length;
       const debugClassTurFilled = processRows.filter(pr => (pr.classificacao_turma || "").trim() !== "").length;
-      const debugColHSamples = processRows.slice(0, 20).map(pr => ({
+      const debugColHSamples = processRows.filter(pr => (pr.classificacao_relator || "").trim() !== "" || (pr.classificacao_turma || "").trim() !== "").slice(0, 10).map(pr => ({
         proc: pr.numero_processo?.slice(0, 15),
         relator: (pr.relator || "").slice(0, 30),
         classRel: pr.classificacao_relator,
         turma: (pr.turma_relator || "").slice(0, 20),
         classTur: pr.classificacao_turma,
+        rawH: String((pr.originalData as any)?.__colH ?? "").slice(0, 20),
+        rawJ: String((pr.originalData as any)?.__colJ ?? "").slice(0, 20),
+        sheet: pr.sheetIndex,
+      }));
+      const debugEmptySamples = processRows.filter(pr => isEmpty(pr.relator) && (pr.classificacao_relator || "").trim() === "").slice(0, 5).map(pr => ({
+        proc: pr.numero_processo?.slice(0, 15),
+        rawG: String((pr.originalData as any)?.__colG ?? "").slice(0, 30),
+        rawH: String((pr.originalData as any)?.__colH ?? "").slice(0, 20),
+        rawI: String((pr.originalData as any)?.__colI ?? "").slice(0, 20),
+        rawJ: String((pr.originalData as any)?.__colJ ?? "").slice(0, 20),
+        headerG: (pr.relator || "").slice(0, 30),
         sheet: pr.sheetIndex,
       }));
       console.log(`[PlanilhaTST] DEBUG: Total processRows: ${processRows.length}`);
       console.log(`[PlanilhaTST] DEBUG: Relator preenchido: ${debugRelatorFilled}, Classificação Relator preenchida: ${debugClassRelFilled}`);
       console.log(`[PlanilhaTST] DEBUG: Turma preenchida: ${debugTurmaFilled}, Classificação Turma preenchida: ${debugClassTurFilled}`);
-      console.log(`[PlanilhaTST] DEBUG: Amostras:`, debugColHSamples);
+      console.log(`[PlanilhaTST] DEBUG: Amostras preenchidas:`, debugColHSamples);
+      console.log(`[PlanilhaTST] DEBUG: Amostras vazias:`, debugEmptySamples);
       
       // Contar por aba
       const sheetsUsed = new Set(processRows.map(pr => pr.sheetIndex));
