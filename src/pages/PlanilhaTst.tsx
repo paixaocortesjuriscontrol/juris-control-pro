@@ -122,7 +122,6 @@ function limparNomeMinistroColG(valor: string): string {
 // Regra B: Na coluna I, remover nome do ministro, deixando só turma/órgão
 function limparTurmaColI(valor: string): string {
   if (!valor || isEmpty(valor)) return valor;
-  // Padrões de turma/órgão válidos para extrair
   const padroes = [
     /\d+[ªa]\s*turma/i,
     /sbdi[\s-]*[12]/i,
@@ -139,13 +138,23 @@ function limparTurmaColI(valor: string): string {
     /sess[ãa]o/i,
     /impedid[oa]/i,
   ];
-  // Try to extract the turma/órgão pattern from the value
   for (const padrao of padroes) {
     const match = valor.match(padrao);
     if (match) return match[0].trim();
   }
-  // If no turma pattern found, return as-is
   return valor;
+}
+
+// Extrair nome do ministro de texto combinado como "7ª Turma - Gabinete do Ministro Evandro..."
+function extrairMinistroDeTextoCombinadoI(valor: string): string {
+  if (!valor || isEmpty(valor)) return "";
+  // Pattern: "Xª Turma - Gabinete do/da Ministro/a Nome..." or "Xª Turma - Gabinete do Desembargador..."
+  const match = valor.match(/(?:gabinete\s+d[aoe]\s+)(?:ministr[oa]\s+|desembargador(?:a)?\s+(?:convocad[oa]\s+)?)?(.+)/i);
+  if (match && match[1]) return match[1].trim();
+  // Pattern without "Gabinete": "Xª Turma - Ministro Nome"
+  const match2 = valor.match(/(?:turma|sbdi|pleno|presid)\s*[-–]\s*(?:ministr[oa]\s+|desembargador(?:a)?\s+(?:convocad[oa]\s+)?)?(.+)/i);
+  if (match2 && match2[1]) return match2[1].trim();
+  return "";
 }
 
 function classificarRelator(nomeRelator: string): "POSITIVO" | "NEGATIVO" | "" {
