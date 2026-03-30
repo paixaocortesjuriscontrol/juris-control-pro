@@ -109,6 +109,17 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "pleno": "NEGATIVA",
 };
 
+// Classificar turma pelo nome da turma (coluna I)
+function classificarTurma(nomeTurma: string): "POSITIVA" | "NEGATIVA" | "" {
+  if (!nomeTurma || isEmpty(nomeTurma)) return "";
+  const norm = nomeTurma.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  if (TURMA_CLASSIFICACAO[norm]) return TURMA_CLASSIFICACAO[norm];
+  for (const [key, val] of Object.entries(TURMA_CLASSIFICACAO)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  return "";
+}
+
 // Regra A: Remove "Gabinete do/da" e prefixos similares, deixando só o nome do ministro
 function limparNomeMinistroColG(valor: string): string {
   if (!valor || isEmpty(valor)) return valor;
@@ -122,7 +133,6 @@ function limparNomeMinistroColG(valor: string): string {
 // Regra B: Na coluna I, remover nome do ministro, deixando só turma/órgão
 function limparTurmaColI(valor: string): string {
   if (!valor || isEmpty(valor)) return valor;
-  // Padrões de turma/órgão válidos para extrair
   const padroes = [
     /\d+[ªa]\s*turma/i,
     /sbdi[\s-]*[12]/i,
@@ -139,13 +149,23 @@ function limparTurmaColI(valor: string): string {
     /sess[ãa]o/i,
     /impedid[oa]/i,
   ];
-  // Try to extract the turma/órgão pattern from the value
   for (const padrao of padroes) {
     const match = valor.match(padrao);
     if (match) return match[0].trim();
   }
-  // If no turma pattern found, return as-is
   return valor;
+}
+
+// Extrair nome do ministro de texto combinado como "7ª Turma - Gabinete do Ministro Evandro..."
+function extrairMinistroDeTextoCombinadoI(valor: string): string {
+  if (!valor || isEmpty(valor)) return "";
+  // Pattern: "Xª Turma - Gabinete do/da Ministro/a Nome..." or "Xª Turma - Gabinete do Desembargador..."
+  const match = valor.match(/(?:gabinete\s+d[aoe]\s+)(?:ministr[oa]\s+|desembargador(?:a)?\s+(?:convocad[oa]\s+)?)?(.+)/i);
+  if (match && match[1]) return match[1].trim();
+  // Pattern without "Gabinete": "Xª Turma - Ministro Nome"
+  const match2 = valor.match(/(?:turma|sbdi|pleno|presid)\s*[-–]\s*(?:ministr[oa]\s+|desembargador(?:a)?\s+(?:convocad[oa]\s+)?)?(.+)/i);
+  if (match2 && match2[1]) return match2[1].trim();
+  return "";
 }
 
 function classificarRelator(nomeRelator: string): "POSITIVO" | "NEGATIVO" | "" {
@@ -1308,7 +1328,25 @@ export default function PlanilhaTst() {
 
             const rowEl = rowMap.get(excelRow);
             if (rowEl) {
-              // Regra A: Limpar coluna G (Relator) - remover "Gabinete do/da", deixar só nome
+              // === PASSO 1: Analisar coluna I primeiro - extrair ministro para G se possível ===
+              const rawI = readCellValue(rowEl, colTurma, excelRow).trim();
+              if (rawI) {
+                // Se I contém texto combinado (ex: "7ª Turma - Gabinete do Ministro X"), extrair ministro para G
+                const ministroExtraido = extrairMinistroDeTextoCombinadoI(rawI);
+                if (ministroExtraido && colRelator >= 0) {
+                  const currentG = readCellValue(rowEl, colRelator, excelRow).trim();
+                  if (!currentG || isEmpty(currentG)) {
+                    upsertCellValue(excelRow, colRelator, ministroExtraido);
+                  }
+                }
+                // Limpar coluna I - manter só turma/órgão
+                const limpoI = limparTurmaColI(rawI);
+                if (limpoI !== rawI) {
+                  upsertCellValue(excelRow, colTurma, limpoI);
+                }
+              }
+
+              // === PASSO 2: Regra A - Limpar coluna G (remover "Gabinete do/da") ===
               if (colRelator >= 0) {
                 const currentG = readCellValue(rowEl, colRelator, excelRow).trim();
                 if (currentG) {
@@ -1319,19 +1357,20 @@ export default function PlanilhaTst() {
                 }
               }
 
+              // === PASSO 3: Ler valores atualizados e classificar ===
               const currentH = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
-              const currentI = readCellValue(rowEl, colTurma, excelRow).trim();
-              const currentINorm = currentI.toUpperCase();
+              const currentI2 = readCellValue(rowEl, colTurma, excelRow).trim();
+              const currentINorm = currentI2.toUpperCase();
               const currentJRaw = readCellValue(rowEl, colClassTurma, excelRow).trim();
               const currentJ = currentJRaw.toUpperCase();
 
               const hasValidH = currentH === "POSITIVO" || currentH === "NEGATIVO";
-              const hasValidTurma = currentI && (
+              const hasValidTurma = currentI2 && (
                 currentINorm.includes("TURMA") || currentINorm.includes("SBDI") ||
                 currentINorm.includes("PLENO") || currentINorm.includes("PRESIDENTE") ||
                 currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID") ||
                 currentINorm.includes("CEJUSC") || currentINorm.includes("SESS") ||
-                currentINorm.includes("SE") // seção/subseção
+                currentINorm.includes("SE")
               );
               const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO"
                 || currentJ === "POSITIVA" || currentJ === "NEGATIVA"
@@ -1340,28 +1379,43 @@ export default function PlanilhaTst() {
               // Move invalid J content to column I (only if I doesn't have valid turma)
               if (currentJRaw && !hasValidJ) {
                 if (!hasValidTurma) {
-                  upsertCellValue(excelRow, colTurma, limparTurmaColI(currentJRaw));
+                  const turmaFromJ = limparTurmaColI(currentJRaw);
+                  upsertCellValue(excelRow, colTurma, turmaFromJ);
+                  // Also try to extract minister from J content
+                  const minFromJ = extrairMinistroDeTextoCombinadoI(currentJRaw);
+                  if (minFromJ && colRelator >= 0) {
+                    const gNow = readCellValue(rowEl, colRelator, excelRow).trim();
+                    if (!gNow || isEmpty(gNow)) {
+                      upsertCellValue(excelRow, colRelator, limparNomeMinistroColG(minFromJ));
+                    }
+                  }
                 }
                 upsertCellValue(excelRow, colClassTurma, "", true);
               }
 
-              if (pr.classificacao_relator && !hasValidH) {
+              // === PASSO 4: Classificar relator (H) e turma (J) ===
+              // Re-read G after all changes for classification
+              const finalG = colRelator >= 0 ? readCellValue(rowEl, colRelator, excelRow).trim() : "";
+              if (finalG && !hasValidH) {
+                const classRel = classificarRelator(finalG);
+                if (classRel) upsertCellValue(excelRow, colClassRelator, classRel);
+              }
+              if (pr.classificacao_relator && !hasValidH && !finalG) {
                 upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
               }
-              if (pr.turma_relator && !hasValidTurma) {
+
+              // Re-read I after all changes for turma classification
+              const finalI = readCellValue(rowEl, colTurma, excelRow).trim();
+              if (!hasValidTurma && pr.turma_relator) {
                 upsertCellValue(excelRow, colTurma, limparTurmaColI(pr.turma_relator));
               }
-              if (pr.classificacao_turma && !hasValidJ) {
-                upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+              const finalIForClass = readCellValue(rowEl, colTurma, excelRow).trim();
+              if (finalIForClass && !hasValidJ) {
+                const classTurma = classificarTurma(finalIForClass);
+                if (classTurma) upsertCellValue(excelRow, colClassTurma, classTurma);
               }
-
-              // Regra B: Limpar coluna I existente - remover nome do ministro, manter só turma/órgão
-              const finalI = readCellValue(rowEl, colTurma, excelRow).trim();
-              if (finalI) {
-                const limpoI = limparTurmaColI(finalI);
-                if (limpoI !== finalI) {
-                  upsertCellValue(excelRow, colTurma, limpoI);
-                }
+              if (pr.classificacao_turma && !hasValidJ && !finalIForClass) {
+                upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
               }
             }
           }
