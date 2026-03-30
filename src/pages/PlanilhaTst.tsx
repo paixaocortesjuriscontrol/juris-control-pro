@@ -320,6 +320,7 @@ interface Stats {
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
   classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
   classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  estatisticasPorMes: Record<string, MesAnoStats>;
 }
 
 const NOT_FOUND = "(Não localizado)";
