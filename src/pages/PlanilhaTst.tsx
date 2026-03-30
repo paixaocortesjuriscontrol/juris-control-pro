@@ -1271,7 +1271,7 @@ export default function PlanilhaTst() {
           // 2. Adicionar fill amarelo
           const fills = stylesDoc.getElementsByTagNameNS(stylesNs, "fills")[0];
           const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
-          const newFillIndex = fillCount;
+          newFillIndex = fillCount;
 
           if (fills) {
             const fillEl = stylesDoc.createElementNS(stylesNs, "fill");
