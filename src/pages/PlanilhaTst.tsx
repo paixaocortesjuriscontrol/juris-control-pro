@@ -1312,7 +1312,105 @@ export default function PlanilhaTst() {
       y += 8;
     }
 
-    // Processos não encontrados (amostras)
+    // Estatísticas por Mês/Ano
+    const mesesOrdenados = Object.entries(stats.estatisticasPorMes)
+      .sort(([a], [b]) => {
+        if (a === "Sem data") return 1;
+        if (b === "Sem data") return -1;
+        const [mA, yA] = a.split("/").map(Number);
+        const [mB, yB] = b.split("/").map(Number);
+        return yA !== yB ? yA - yB : mA - mB;
+      });
+
+    if (mesesOrdenados.length > 0) {
+      doc.addPage();
+      y = 20;
+      doc.setFontSize(15);
+      doc.setFont("helvetica", "bold");
+      doc.text("Estatísticas por Mês/Ano (Data de Distribuição)", 14, y);
+      y += 10;
+
+      for (const [mesAno, mesStats] of mesesOrdenados) {
+        // Check space for header
+        if (y > 240) { doc.addPage(); y = 20; }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${mesAnoLabel(mesAno)} — ${mesStats.totalProcessos} processos`, 14, y);
+        y += 8;
+
+        // Relator por mês
+        const mesRelEntries = Object.entries(mesStats.classificacaoPorRelator).sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo));
+        if (mesRelEntries.length > 0) {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("Por Relator", 18, y);
+          y += 6;
+          doc.setFontSize(8);
+          doc.text("Relator", 22, y);
+          doc.text("Pos.", 135, y);
+          doc.text("Neg.", 155, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          for (const [rel, c] of mesRelEntries) {
+            if (y > 275) { doc.addPage(); y = 20; }
+            const dn = rel.length > 48 ? rel.substring(0, 45) + "..." : rel;
+            doc.text(dn, 22, y);
+            doc.text(`${c.positivo}`, 137, y);
+            doc.text(`${c.negativo}`, 157, y);
+            y += 4;
+          }
+          doc.setFont("helvetica", "bold");
+          if (y > 275) { doc.addPage(); y = 20; }
+          const trp = mesRelEntries.reduce((s, [, c]) => s + c.positivo, 0);
+          const trn = mesRelEntries.reduce((s, [, c]) => s + c.negativo, 0);
+          doc.text("TOTAL", 22, y);
+          doc.text(`${trp}`, 137, y);
+          doc.text(`${trn}`, 157, y);
+          doc.setFont("helvetica", "normal");
+          y += 6;
+        }
+
+        // Turma por mês
+        const mesTurmaEntries = Object.entries(mesStats.classificacaoPorTurma).sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa));
+        if (mesTurmaEntries.length > 0) {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("Por Turma", 18, y);
+          y += 6;
+          doc.setFontSize(8);
+          doc.text("Turma", 22, y);
+          doc.text("Pos.", 135, y);
+          doc.text("Neg.", 155, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          for (const [t, c] of mesTurmaEntries) {
+            if (y > 275) { doc.addPage(); y = 20; }
+            const dn = t.length > 48 ? t.substring(0, 45) + "..." : t;
+            doc.text(dn, 22, y);
+            doc.text(`${c.positiva}`, 137, y);
+            doc.text(`${c.negativa}`, 157, y);
+            y += 4;
+          }
+          doc.setFont("helvetica", "bold");
+          if (y > 275) { doc.addPage(); y = 20; }
+          const ttp = mesTurmaEntries.reduce((s, [, c]) => s + c.positiva, 0);
+          const ttn = mesTurmaEntries.reduce((s, [, c]) => s + c.negativa, 0);
+          doc.text("TOTAL", 22, y);
+          doc.text(`${ttp}`, 137, y);
+          doc.text(`${ttn}`, 157, y);
+          doc.setFont("helvetica", "normal");
+          y += 8;
+        }
+
+        // Separator line between months
+        if (y > 275) { doc.addPage(); y = 20; }
+        doc.setDrawColor(200);
+        doc.line(14, y, pageWidth - 14, y);
+        y += 6;
+      }
+    }
+
     if (stats.unmatchedSamples.length > 0) {
       if (y > 240) { doc.addPage(); y = 20; }
       doc.setFontSize(13);
