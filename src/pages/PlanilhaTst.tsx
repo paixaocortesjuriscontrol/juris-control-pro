@@ -310,6 +310,27 @@ const MESES_NOME: Record<string, string> = {
   "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro",
 };
 
+// Reverse mapping: tab name → MM (for fallback when date parsing fails)
+const NOME_MESES_REVERSE: Record<string, string> = {
+  "janeiro": "01", "fevereiro": "02", "marco": "03", "março": "03", "abril": "04",
+  "maio": "05", "junho": "06", "julho": "07", "agosto": "08",
+  "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12",
+};
+
+function mesAnoFromSheetName(sheetName: string): string {
+  const norm = sheetName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  // Try exact month name
+  for (const [key, mm] of Object.entries(NOME_MESES_REVERSE)) {
+    if (norm.includes(key.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) {
+      // Try to find year in the sheet name or use current year
+      const yearMatch = sheetName.match(/(\d{4})/);
+      const year = yearMatch ? yearMatch[1] : new Date().getFullYear().toString();
+      return `${mm}/${year}`;
+    }
+  }
+  return "";
+}
+
 function mesAnoLabel(mesAno: string): string {
   if (mesAno === "Sem data") return mesAno;
   const [mes, ano] = mesAno.split("/");
@@ -749,6 +770,11 @@ export default function PlanilhaTst() {
               mesAno = extrairMesAno(distribVal);
             }
           }
+          // Fallback: use the tab/sheet name as month (e.g., "Outubro" → "10/2024")
+          if (mesAno === "Sem data") {
+            const fromTab = mesAnoFromSheetName(sheet.sheetName);
+            if (fromTab) mesAno = fromTab;
+          }
 
           const pr: ProcessRow = {
             sheetIndex: sheet.sheetIndex,
@@ -1107,6 +1133,13 @@ export default function PlanilhaTst() {
 
       const rowsParaTotalizadores = processRows.filter(pr => normalizeProcesso(pr.numero_processo).length >= 7);
       console.log(`[PlanilhaTST] DEBUG: rowsParaTotalizadores: ${rowsParaTotalizadores.length} (filtrados de ${processRows.length})`);
+
+      // Debug: monthly distribution
+      const mesAnoCounts: Record<string, number> = {};
+      for (const pr of rowsParaTotalizadores) {
+        mesAnoCounts[pr.mes_ano] = (mesAnoCounts[pr.mes_ano] || 0) + 1;
+      }
+      console.log(`[PlanilhaTST] DEBUG: Distribuição por mês/ano:`, mesAnoCounts);
 
       const naoEncontrados = rowsParaTotalizadores.filter(pr =>
         isEmpty(pr.dossie) && isEmpty(pr.equipe) && isEmpty(pr.reclamante) && isEmpty(pr.reclamada) && isEmpty(pr.relator)
