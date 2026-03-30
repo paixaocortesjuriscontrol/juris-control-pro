@@ -1134,6 +1134,13 @@ export default function PlanilhaTst() {
       const rowsParaTotalizadores = processRows.filter(pr => normalizeProcesso(pr.numero_processo).length >= 7);
       console.log(`[PlanilhaTST] DEBUG: rowsParaTotalizadores: ${rowsParaTotalizadores.length} (filtrados de ${processRows.length})`);
 
+      // Debug: monthly distribution
+      const mesAnoCounts: Record<string, number> = {};
+      for (const pr of rowsParaTotalizadores) {
+        mesAnoCounts[pr.mes_ano] = (mesAnoCounts[pr.mes_ano] || 0) + 1;
+      }
+      console.log(`[PlanilhaTST] DEBUG: Distribuição por mês/ano:`, mesAnoCounts);
+
       const naoEncontrados = rowsParaTotalizadores.filter(pr =>
         isEmpty(pr.dossie) && isEmpty(pr.equipe) && isEmpty(pr.reclamante) && isEmpty(pr.reclamada) && isEmpty(pr.relator)
       ).length;
