@@ -1338,8 +1338,8 @@ export default function PlanilhaTst() {
 
       const anoPadrao = Object.entries(anosDetectados).sort((a, b) => b[1] - a[1])[0]?.[0];
 
-      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
-      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
+      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }> = {};
+      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }> = {};
       const estatisticasPorMes: Record<string, MesAnoStats> = {};
 
       for (const aggAba of Object.values(totalizadoresTemporariosPorAba)) {
