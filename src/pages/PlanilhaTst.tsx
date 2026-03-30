@@ -31,6 +31,132 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// --- Classificação de Relatores (Prompt item g) ---
+const RELATOR_CLASSIFICACAO: Record<string, "POSITIVO" | "NEGATIVO"> = {
+  "luiz philippe vieira de mello filho": "NEGATIVO",
+  "guilherme augusto caputo bastos": "POSITIVO",
+  "jose roberto freire pimenta": "NEGATIVO",
+  "ives gandra da silva martins filho": "POSITIVO",
+  "maria cristina irigoyen peduzzi": "POSITIVO",
+  "lelio bentes correa": "NEGATIVO",
+  "mauricio jose godinho delgado": "NEGATIVO",
+  "katia magalhaes arruda": "NEGATIVO",
+  "augusto cesar leite de carvalho": "NEGATIVO",
+  "delaide alves miranda arantes": "NEGATIVO",
+  "hugo carlos scheuermann": "NEGATIVO",
+  "alexandre de souza agra belmonte": "POSITIVO",
+  "claudio mascarenhas brandao": "NEGATIVO",
+  "douglas alencar rodrigues": "POSITIVO",
+  "maria helena mallmann": "NEGATIVO",
+  "breno medeiros": "POSITIVO",
+  "alexandre luiz ramos": "POSITIVO",
+  "luiz jose dezena da silva": "POSITIVO",
+  "evandro pereira valadao lopes": "POSITIVO",
+  "amaury rodrigues pinto junior": "POSITIVO",
+  "alberto bastos balazeiro": "NEGATIVO",
+  "morgana de almeida richa": "POSITIVO",
+  "sergio pinto martins": "POSITIVO",
+  "liana chaib": "NEGATIVO",
+  "antonio fabricio de matos goncalves": "NEGATIVO",
+  "jose pedro de camargo rodrigues de souza": "POSITIVO",
+  "joao pedro silvestrin": "POSITIVO",
+};
+
+// --- Relator → Turma mapping (Prompt item h) ---
+const RELATOR_TURMA: Record<string, string> = {
+  "luiz philippe vieira de mello filho": "Presidente",
+  "guilherme augusto caputo bastos": "Vice-Presidente",
+  "jose roberto freire pimenta": "Corregedor-Geral",
+  "ives gandra da silva martins filho": "4ª Turma",
+  "maria cristina irigoyen peduzzi": "Impedida",
+  "lelio bentes correa": "1ª Turma",
+  "mauricio jose godinho delgado": "3ª Turma",
+  "katia magalhaes arruda": "6ª Turma",
+  "augusto cesar leite de carvalho": "6ª Turma",
+  "delaide alves miranda arantes": "2ª Turma",
+  "hugo carlos scheuermann": "1ª Turma",
+  "alexandre de souza agra belmonte": "3ª Turma",
+  "claudio mascarenhas brandao": "7ª Turma",
+  "douglas alencar rodrigues": "5ª Turma",
+  "maria helena mallmann": "2ª Turma",
+  "breno medeiros": "5ª Turma",
+  "alexandre luiz ramos": "4ª Turma",
+  "luiz jose dezena da silva": "8ª Turma",
+  "evandro pereira valadao lopes": "8ª Turma",
+  "amaury rodrigues pinto junior": "1ª Turma",
+  "alberto bastos balazeiro": "7ª Turma",
+  "morgana de almeida richa": "4ª Turma",
+  "sergio pinto martins": "8ª Turma",
+  "liana chaib": "3ª Turma",
+  "antonio fabricio de matos goncalves": "7ª Turma",
+  "jose pedro de camargo rodrigues de souza": "5ª Turma",
+  "joao pedro silvestrin": "2ª Turma",
+};
+
+// --- Classificação de Turmas (Prompt item h) ---
+const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
+  "1ª turma": "POSITIVA",
+  "2ª turma": "NEGATIVA",
+  "3ª turma": "NEGATIVA",
+  "4ª turma": "POSITIVA",
+  "5ª turma": "POSITIVA",
+  "6ª turma": "NEGATIVA",
+  "7ª turma": "NEGATIVA",
+  "8ª turma": "POSITIVA",
+  "sbdi-1": "NEGATIVA",
+  "sbdi-2": "POSITIVA",
+  "pleno": "NEGATIVA",
+};
+
+function classificarRelator(nomeRelator: string): "POSITIVO" | "NEGATIVO" | "" {
+  if (!nomeRelator || isEmpty(nomeRelator)) return "";
+  const norm = nomeRelator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  // Try exact match first, then partial match
+  if (RELATOR_CLASSIFICACAO[norm]) return RELATOR_CLASSIFICACAO[norm];
+  for (const [key, val] of Object.entries(RELATOR_CLASSIFICACAO)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  // Try matching by last name
+  const parts = norm.split(/\s+/);
+  for (const [key, val] of Object.entries(RELATOR_CLASSIFICACAO)) {
+    const keyParts = key.split(/\s+/);
+    // Match if last name matches
+    if (parts.length > 0 && keyParts.length > 0 && parts[parts.length - 1] === keyParts[keyParts.length - 1]) {
+      return val;
+    }
+  }
+  return "";
+}
+
+function classificarTurmaDoRelator(nomeRelator: string): { turma: string; classificacao: "POSITIVA" | "NEGATIVA" | "" } {
+  if (!nomeRelator || isEmpty(nomeRelator)) return { turma: "", classificacao: "" };
+  const norm = nomeRelator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  
+  const findTurma = (key: string): string | undefined => RELATOR_TURMA[key];
+  
+  let turma = findTurma(norm);
+  if (!turma) {
+    for (const [key, val] of Object.entries(RELATOR_TURMA)) {
+      if (norm.includes(key) || key.includes(norm)) { turma = val; break; }
+    }
+  }
+  if (!turma) {
+    const parts = norm.split(/\s+/);
+    for (const [key, val] of Object.entries(RELATOR_TURMA)) {
+      const keyParts = key.split(/\s+/);
+      if (parts.length > 0 && keyParts.length > 0 && parts[parts.length - 1] === keyParts[keyParts.length - 1]) {
+        turma = val; break;
+      }
+    }
+  }
+  
+  if (!turma) return { turma: "", classificacao: "" };
+  
+  const turmaLower = turma.toLowerCase();
+  const classificacao = TURMA_CLASSIFICACAO[turmaLower] || "";
+  return { turma, classificacao };
+}
+
 interface ProcessRow {
   originalIndex: number;
   originalData: Record<string, any>;
@@ -40,11 +166,17 @@ interface ProcessRow {
   reclamante: string;
   reclamada: string;
   relator: string;
+  classificacao_relator: string;
+  turma_relator: string;
+  classificacao_turma: string;
   origem_dossie?: string;
   origem_equipe?: string;
   origem_reclamante?: string;
   origem_reclamada?: string;
   origem_relator?: string;
+  origem_classificacao_relator?: string;
+  origem_turma_relator?: string;
+  origem_classificacao_turma?: string;
 }
 
 interface SheetData {
@@ -343,6 +475,10 @@ export default function PlanilhaTst() {
         const proc = getProcessoFromRow(row, input1.headers);
         const procNorm = normalizeProcesso(proc);
 
+        const relatorVal = getFieldFromRow(row, input1.headers, "relator") || NOT_FOUND;
+        const classRelator = classificarRelator(relatorVal);
+        const turmaInfo = classificarTurmaDoRelator(relatorVal);
+
         const pr: ProcessRow = {
           originalIndex: i,
           originalData: { ...row },
@@ -351,7 +487,10 @@ export default function PlanilhaTst() {
           equipe: getFieldFromRow(row, input1.headers, "equipe") || NOT_FOUND,
           reclamante: getFieldFromRow(row, input1.headers, "reclamante") || NOT_FOUND,
           reclamada: getFieldFromRow(row, input1.headers, "reclamada") || NOT_FOUND,
-          relator: getFieldFromRow(row, input1.headers, "relator") || NOT_FOUND,
+          relator: relatorVal,
+          classificacao_relator: classRelator,
+          turma_relator: turmaInfo.turma,
+          classificacao_turma: turmaInfo.classificacao,
         };
 
         // Passo 1.1: Input 2 (priority) then Input 3
@@ -456,6 +595,24 @@ export default function PlanilhaTst() {
         }
 
         if (complemented2) countPasso2++;
+      }
+
+      // Re-classify relator/turma after all data sources updated relator field
+      for (const pr of processRows) {
+        if (!isEmpty(pr.relator)) {
+          const cl = classificarRelator(pr.relator);
+          const ti = classificarTurmaDoRelator(pr.relator);
+          if (cl) {
+            pr.classificacao_relator = cl;
+            pr.origem_classificacao_relator = pr.origem_relator || "auto";
+          }
+          if (ti.turma) {
+            pr.turma_relator = ti.turma;
+            pr.classificacao_turma = ti.classificacao;
+            pr.origem_turma_relator = pr.origem_relator || "auto";
+            pr.origem_classificacao_turma = pr.origem_relator || "auto";
+          }
+        }
       }
 
       // Input 4 diagnostics — count UNIQUE processes, not rows
@@ -839,6 +996,10 @@ export default function PlanilhaTst() {
         const colReclamante = getColIdx(["reclamante"]);
         const colReclamada = getColIdx(["reclamada"]);
         const colRelator = getColIdx(["relator"]);
+        // Columns H (index 7), I (index 8), J (index 9) - fixed positions
+        const colClassRelator = 7;  // Column H
+        const colObservacoes = 8;   // Column I
+        const colClassTurma = 9;    // Column J
 
         const rowMap = new Map<number, Element>();
         for (const rowEl of Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row"))) {
@@ -931,8 +1092,19 @@ export default function PlanilhaTst() {
           return null;
         };
 
-        const upsertCellValue = (rowNumber: number, colIdx: number, value: string) => {
-          if (colIdx < 0 || isEmpty(value)) return;
+        // Helper to read current cell value (inline string or shared string)
+        const readCellValue = (rowEl: Element, colIdx: number, rowNumber: number): string => {
+          const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+          const cell = getCell(rowEl, cellRef);
+          if (!cell) return "";
+          const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
+          if (tEls.length > 0) return tEls[0].textContent || "";
+          const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
+          return vEl?.textContent || "";
+        };
+
+        const upsertCellValue = (rowNumber: number, colIdx: number, value: string, allowEmpty = false) => {
+          if (colIdx < 0 || (!allowEmpty && isEmpty(value))) return;
 
           const rowEl = ensureRow(rowNumber);
           const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
@@ -980,6 +1152,33 @@ export default function PlanilhaTst() {
           tryWrite(colReclamante, pr.reclamante, "origem_reclamante");
           tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
           tryWrite(colRelator, pr.relator, "origem_relator");
+
+          // Column J (classificação turma): first check existing content
+          const rowEl = rowMap.get(excelRow);
+          if (rowEl) {
+            const currentJ = readCellValue(rowEl, colClassTurma, excelRow).trim();
+            const currentJNorm = currentJ.toUpperCase();
+            const isValidJ = !currentJ || currentJNorm === "POSITIVO" || currentJNorm === "NEGATIVO" 
+              || currentJNorm === "POSITIVA" || currentJNorm === "NEGATIVA"
+              || currentJNorm.includes("AINDA NÃO DISTRIBU");
+            
+            // If column J has invalid content, move it to column I
+            if (currentJ && !isValidJ) {
+              const currentI = readCellValue(rowEl, colObservacoes, excelRow).trim();
+              const newI = currentI ? `${currentI} | ${currentJ}` : currentJ;
+              upsertCellValue(excelRow, colObservacoes, newI, true);
+            }
+          }
+
+          // Write classificação do relator in column H
+          if (pr.classificacao_relator) {
+            upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
+          }
+
+          // Write classificação da turma in column J
+          if (pr.classificacao_turma) {
+            upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+          }
         }
 
         const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
@@ -990,7 +1189,7 @@ export default function PlanilhaTst() {
 
         zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
 
-        // --- Adicionar estilo amarelo no styles.xml para células preenchidas ---
+        // --- Adicionar estilos no styles.xml: fonte Calibri 8pt + fill amarelo ---
         const stylesPath = "xl/styles.xml";
         const stylesXml = await zip.file(stylesPath)?.async("string");
         let yellowStyleIndex: string | null = null;
@@ -999,7 +1198,30 @@ export default function PlanilhaTst() {
           const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
           const stylesNs = stylesDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-          // 1. Adicionar fill amarelo
+          // 1. Adicionar fonte Calibri tamanho 8
+          const fonts = stylesDoc.getElementsByTagNameNS(stylesNs, "fonts")[0];
+          const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
+          const newFontIndex = fontCount;
+
+          if (fonts) {
+            const fontEl = stylesDoc.createElementNS(stylesNs, "font");
+            const szEl = stylesDoc.createElementNS(stylesNs, "sz");
+            szEl.setAttribute("val", "8");
+            const nameEl = stylesDoc.createElementNS(stylesNs, "name");
+            nameEl.setAttribute("val", "Calibri");
+            const familyEl = stylesDoc.createElementNS(stylesNs, "family");
+            familyEl.setAttribute("val", "2");
+            const schemeEl = stylesDoc.createElementNS(stylesNs, "scheme");
+            schemeEl.setAttribute("val", "minor");
+            fontEl.appendChild(szEl);
+            fontEl.appendChild(nameEl);
+            fontEl.appendChild(familyEl);
+            fontEl.appendChild(schemeEl);
+            fonts.appendChild(fontEl);
+            fonts.setAttribute("count", String(fontCount + 1));
+          }
+
+          // 2. Adicionar fill amarelo
           const fills = stylesDoc.getElementsByTagNameNS(stylesNs, "fills")[0];
           const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
           const newFillIndex = fillCount;
@@ -1019,24 +1241,23 @@ export default function PlanilhaTst() {
             fills.setAttribute("count", String(fillCount + 1));
           }
 
-          // 2. Adicionar um novo xf em cellXfs que herda do primeiro xf mas com fill amarelo
+          // 3. Adicionar xf com Calibri 8 + fill amarelo
           const cellXfs = stylesDoc.getElementsByTagNameNS(stylesNs, "cellXfs")[0];
           const xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
 
           if (cellXfs) {
-            // Pegar o primeiro xf como base para herdar fonte/borda/alinhamento
             const baseXf = cellXfs.getElementsByTagNameNS(stylesNs, "xf")[0];
             const newXf = stylesDoc.createElementNS(stylesNs, "xf");
             if (baseXf) {
               newXf.setAttribute("numFmtId", baseXf.getAttribute("numFmtId") || "0");
-              newXf.setAttribute("fontId", baseXf.getAttribute("fontId") || "0");
               newXf.setAttribute("borderId", baseXf.getAttribute("borderId") || "0");
             } else {
               newXf.setAttribute("numFmtId", "0");
-              newXf.setAttribute("fontId", "0");
               newXf.setAttribute("borderId", "0");
             }
+            newXf.setAttribute("fontId", String(newFontIndex));
             newXf.setAttribute("fillId", String(newFillIndex));
+            newXf.setAttribute("applyFont", "1");
             newXf.setAttribute("applyFill", "1");
             cellXfs.appendChild(newXf);
             cellXfs.setAttribute("count", String(xfCount + 1));
@@ -1046,7 +1267,7 @@ export default function PlanilhaTst() {
           zip.file(stylesPath, serializer.serializeToString(stylesDoc));
         }
 
-        // --- Aplicar o estilo amarelo nas células que foram preenchidas ---
+        // --- Aplicar o estilo Calibri 8 + amarelo nas células preenchidas pelo programa ---
         if (yellowStyleIndex) {
           const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
           if (updatedSheetXml) {
@@ -1061,16 +1282,22 @@ export default function PlanilhaTst() {
                 if (!Number.isNaN(rn)) updatedRowMap.set(rn, rowEl);
               }
 
+              const markStyle = (rowEl: Element, excelRow: number, colIdx: number) => {
+                if (colIdx < 0) return;
+                const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
+                const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
+                const cell = cells.find(c => c.getAttribute("r") === cellRef);
+                if (cell) cell.setAttribute("s", yellowStyleIndex!);
+              };
+
               for (const pr of results) {
                 const excelRow = dataStartRow + pr.originalIndex;
+                const rowEl = updatedRowMap.get(excelRow);
+                if (!rowEl) continue;
+
                 const markYellow = (colIdx: number, value: string, origemKey: string) => {
                   if (colIdx < 0 || isEmpty(value) || !(pr as any)[origemKey]) return;
-                  const rowEl = updatedRowMap.get(excelRow);
-                  if (!rowEl) return;
-                  const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
-                  const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
-                  const cell = cells.find(c => c.getAttribute("r") === cellRef);
-                  if (cell) cell.setAttribute("s", yellowStyleIndex!);
+                  markStyle(rowEl, excelRow, colIdx);
                 };
 
                 markYellow(colDossie, pr.dossie, "origem_dossie");
@@ -1078,6 +1305,10 @@ export default function PlanilhaTst() {
                 markYellow(colReclamante, pr.reclamante, "origem_reclamante");
                 markYellow(colReclamada, pr.reclamada, "origem_reclamada");
                 markYellow(colRelator, pr.relator, "origem_relator");
+
+                // Also mark classification columns
+                if (pr.classificacao_relator) markStyle(rowEl, excelRow, colClassRelator);
+                if (pr.classificacao_turma) markStyle(rowEl, excelRow, colClassTurma);
               }
 
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
@@ -1420,6 +1651,8 @@ export default function PlanilhaTst() {
                       <TableHead className="text-xs">Reclamante</TableHead>
                       <TableHead className="text-xs">Reclamada</TableHead>
                       <TableHead className="text-xs">Relator</TableHead>
+                      <TableHead className="text-xs">Class. Relator</TableHead>
+                      <TableHead className="text-xs">Class. Turma</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1446,6 +1679,23 @@ export default function PlanilhaTst() {
                         <TableCell className="text-xs">
                           <span className={isEmpty(pr.relator) ? "text-muted-foreground" : ""}>{pr.relator}</span>
                           {origemBadge(pr.origem_relator)}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {pr.classificacao_relator ? (
+                            <Badge variant={pr.classificacao_relator === "POSITIVO" ? "default" : "destructive"} className="text-[10px]">
+                              {pr.classificacao_relator}
+                            </Badge>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {pr.classificacao_turma ? (
+                            <span className="flex flex-col gap-0.5">
+                              <Badge variant={pr.classificacao_turma === "POSITIVA" ? "default" : "destructive"} className="text-[10px]">
+                                {pr.classificacao_turma}
+                              </Badge>
+                              {pr.turma_relator && <span className="text-[10px] text-muted-foreground">{pr.turma_relator}</span>}
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                       </TableRow>
                     ))}
