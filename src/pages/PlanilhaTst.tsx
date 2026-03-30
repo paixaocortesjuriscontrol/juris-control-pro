@@ -933,6 +933,22 @@ export default function PlanilhaTst() {
         }
       }
 
+      // Count Benner Atualizado = SIM (column AA)
+      let bennerAtualizadoSim = 0;
+      for (const sheet of allInput1Sheets.sheets) {
+        const bennerColIdx = sheet.headers.findIndex(h => {
+          const lower = (h || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return lower.includes("benner") && lower.includes("atualizado");
+        });
+        if (bennerColIdx >= 0) {
+          const bennerHeader = sheet.headers[bennerColIdx];
+          for (const row of sheet.rows) {
+            const val = String(row[bennerHeader] || "").trim().toUpperCase();
+            if (val === "SIM") bennerAtualizadoSim++;
+          }
+        }
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -947,6 +963,7 @@ export default function PlanilhaTst() {
         unmatchedSamples,
         dossiesNaoLocalizados,
         dossiesCinza,
+        bennerAtualizadoSim,
         linhasPreenchidas,
         totalLinhas: processRows.length,
         preenchimentoPorColuna,
