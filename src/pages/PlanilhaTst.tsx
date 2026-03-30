@@ -511,7 +511,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [] });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -908,6 +908,23 @@ export default function PlanilhaTst() {
         isEmpty(pr.dossie) && isEmpty(pr.equipe) && isEmpty(pr.reclamante) && isEmpty(pr.reclamada) && isEmpty(pr.relator)
       ).length;
 
+      const dossiesNaoLocalizados = processRows.filter(pr => isEmpty(pr.dossie)).length;
+
+      // Linhas preenchidas = linhas que têm ao menos 1 campo preenchido pelo sistema
+      const linhasPreenchidas = processRows.filter(pr =>
+        pr.origem_dossie || pr.origem_equipe || pr.origem_reclamante || pr.origem_reclamada || pr.origem_relator
+      ).length;
+
+      // Preenchimento por coluna
+      const colunas = ["dossie", "equipe", "reclamante", "reclamada", "relator"] as const;
+      const preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }> = {};
+      for (const col of colunas) {
+        preenchimentoPorColuna[col] = {
+          preenchidas: processRows.filter(pr => !isEmpty(pr[col])).length,
+          total: processRows.length,
+        };
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -920,6 +937,10 @@ export default function PlanilhaTst() {
         totalUnicosInput1: uniqueInput1Set.size,
         fieldFills,
         unmatchedSamples,
+        dossiesNaoLocalizados,
+        linhasPreenchidas,
+        totalLinhas: processRows.length,
+        preenchimentoPorColuna,
       });
 
       setResults(processRows);
