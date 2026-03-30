@@ -1183,7 +1183,16 @@ export default function PlanilhaTst() {
         doc.text(`${counts.negativo}`, 165, y);
         y += 5;
       }
-      y += 6;
+      // Total geral
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      const totalRelPos = relatorEntries.reduce((s, [, c]) => s + c.positivo, 0);
+      const totalRelNeg = relatorEntries.reduce((s, [, c]) => s + c.negativo, 0);
+      doc.text("TOTAL GERAL", 18, y);
+      doc.text(`${totalRelPos}`, 135, y);
+      doc.text(`${totalRelNeg}`, 165, y);
+      doc.setFont("helvetica", "normal");
+      y += 8;
     }
 
     // Classificação por Turma
@@ -1209,7 +1218,16 @@ export default function PlanilhaTst() {
         doc.text(`${counts.negativa}`, 165, y);
         y += 5;
       }
-      y += 6;
+      // Total geral
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      const totalTurmaPos = turmaEntries.reduce((s, [, c]) => s + c.positiva, 0);
+      const totalTurmaNeg = turmaEntries.reduce((s, [, c]) => s + c.negativa, 0);
+      doc.text("TOTAL GERAL", 18, y);
+      doc.text(`${totalTurmaPos}`, 135, y);
+      doc.text(`${totalTurmaNeg}`, 165, y);
+      doc.setFont("helvetica", "normal");
+      y += 8;
     }
 
     // Processos não encontrados (amostras)
@@ -2134,6 +2152,15 @@ export default function PlanilhaTst() {
                                 <td className="p-2 text-center font-bold text-red-500">{counts.negativo}</td>
                               </tr>
                             ))}
+                          <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                            <td className="p-2 text-xs font-bold">TOTAL GERAL</td>
+                            <td className="p-2 text-center font-bold text-green-600">
+                              {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + c.positivo, 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-red-500">
+                              {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + c.negativo, 0)}
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
@@ -2163,6 +2190,15 @@ export default function PlanilhaTst() {
                                 <td className="p-2 text-center font-bold text-red-500">{counts.negativa}</td>
                               </tr>
                             ))}
+                          <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                            <td className="p-2 text-xs font-bold">TOTAL GERAL</td>
+                            <td className="p-2 text-center font-bold text-green-600">
+                              {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + c.positiva, 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-red-500">
+                              {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + c.negativa, 0)}
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
