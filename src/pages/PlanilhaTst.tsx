@@ -434,7 +434,7 @@ export default function PlanilhaTst() {
       ...(useAI ? ["Análise por IA"] : []),
       "Finalizando",
     ];
-    const steps = stepLabels.map(label => ({ label, status: "pending" as const }));
+    const steps: { label: string; status: StepStatus }[] = stepLabels.map(label => ({ label, status: "pending" as StepStatus }));
     let currentStep = 0;
 
     const tick = async (pct?: number) => {
@@ -442,9 +442,9 @@ export default function PlanilhaTst() {
       await new Promise(r => setTimeout(r, 0));
     };
     const advanceStep = async (pct: number) => {
-      steps[currentStep] = { ...steps[currentStep], status: "done" };
+      steps[currentStep].status = "done";
       currentStep++;
-      if (currentStep < steps.length) steps[currentStep] = { ...steps[currentStep], status: "active" };
+      if (currentStep < steps.length) steps[currentStep].status = "active";
       setProgressSteps([...steps]);
       setProgressPct(pct);
       await new Promise(r => setTimeout(r, 0));
@@ -452,7 +452,7 @@ export default function PlanilhaTst() {
 
     setProcessing(true);
     setProgressPct(0);
-    steps[0] = { ...steps[0], status: "active" };
+    steps[0].status = "active";
     setProgressSteps([...steps]);
     cancelledRef.current = false;
 
@@ -790,7 +790,7 @@ export default function PlanilhaTst() {
       setResults(processRows);
       await advanceStep(95);
       await tick(100);
-      steps.forEach(s => s.status = "done");
+      steps.forEach(s => { s.status = "done"; });
       setProgressSteps([...steps]);
       toast.success(`Processamento concluído! ${processRows.length} processos analisados.`);
     } catch (err: any) {
@@ -1497,12 +1497,30 @@ export default function PlanilhaTst() {
         {/* Progress */}
         {processing && (
           <Card>
-            <CardContent className="pt-4 space-y-2">
+            <CardContent className="pt-4 space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{progressLabel}</span>
-                <span className="font-medium">{progress}%</span>
+                <span className="text-muted-foreground font-medium">Progresso</span>
+                <span className="font-semibold">{progressPct}%</span>
               </div>
-              <Progress value={progress} />
+              <Progress value={progressPct} className="h-2" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+                {progressSteps.map((step, i) => (
+                  <div key={i} className={`flex items-center gap-1.5 text-xs rounded-md px-2 py-1.5 border ${
+                    step.status === "done" ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-400" :
+                    step.status === "active" ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-400" :
+                    "bg-muted/30 border-border text-muted-foreground"
+                  }`}>
+                    {step.status === "done" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    ) : step.status === "active" ? (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span className="truncate">{step.label}</span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
