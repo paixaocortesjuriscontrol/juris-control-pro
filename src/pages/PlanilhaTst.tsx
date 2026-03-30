@@ -263,6 +263,35 @@ function classificarTurmaDoRelator(nomeRelator: string): { turma: string; classi
   return { turma, classificacao };
 }
 
+function formatRelatorTotalizador(nome: string): string {
+  const limpo = limparNomeMinistroColG(String(nome || "")).replace(/\s+/g, " ").trim();
+  if (!limpo || isEmpty(limpo)) return "(Não identificado)";
+  const norm = normalizeText(limpo);
+  const isVicePresidencia = norm.includes("vice") && norm.includes("presid");
+  if ((norm.includes("presidencia") || norm.includes("presidente")) && !isVicePresidencia) {
+    return "MINISTRO PRESIDENTE LUIZ PHILIPPE VIEIRA DE MELLO FILHO";
+  }
+  return limpo.toUpperCase();
+}
+
+function formatTurmaTotalizador(nome: string): string {
+  const limpo = limparTurmaColI(String(nome || "")).replace(/\s+/g, " ").trim();
+  if (!limpo || isEmpty(limpo)) return "(Não identificada)";
+
+  const norm = normalizeTurmaKey(limpo);
+  const numeroTurma = norm.match(/\b([1-8])ª?\s*turma\b/)?.[1] || norm.match(/^([1-8])$/)?.[1];
+  if (numeroTurma) return `${numeroTurma}ª TURMA`;
+
+  const isVicePresidencia = norm.includes("vice") && norm.includes("presid");
+  if ((norm.includes("presidencia") || norm.includes("presidente")) && !isVicePresidencia) {
+    return "PRESIDÊNCIA / PRESIDENTE";
+  }
+  if (norm.includes("corregedor")) return "CORREGEDOR-GERAL";
+  if (norm.includes("cejusc")) return "CEJUSC";
+
+  return limpo.toUpperCase();
+}
+
 interface ProcessRow {
   sheetIndex: number;
   originalIndex: number;
@@ -820,7 +849,7 @@ export default function PlanilhaTst() {
             normalizeClassificacaoRelator(getFieldFromRow(row, sheet.headers, "classificacao relator", "classificação relator", "class relator")) ||
             normalizeClassificacaoRelator(getValueByColumnIndex(row, sheet.headers, 7)) || // coluna H
             normalizeClassificacaoRelator(String((row as any).__colH ?? ""));
-          const classRelator = classificarRelator(relatorVal) || classRelatorFromSheet;
+          const classRelator = classRelatorFromSheet || classificarRelator(relatorVal);
           // Read turma name — exclude "turma (+" pattern to avoid reading classification column
           const turmaHeaderIdx = sheet.headers.findIndex(h => {
             const low = (h || "").toLowerCase().trim();
@@ -835,7 +864,7 @@ export default function PlanilhaTst() {
             normalizeClassificacaoTurma(getFieldFromRow(row, sheet.headers, "classificacao turma", "classificação turma", "class turma")) ||
             normalizeClassificacaoTurma(getValueByColumnIndex(row, sheet.headers, 9)) || // coluna J
             normalizeClassificacaoTurma(String((row as any).__colJ ?? ""));
-          const classTurmaInicial = classificarTurma(turmaInicial) || turmaInfo.classificacao || classTurmaFromSheet;
+          const classTurmaInicial = classTurmaFromSheet || classificarTurma(turmaInicial) || turmaInfo.classificacao;
 
           // Extract distribution date: prioritize column A, then look for "distribui" header
           const colAFromWorker = String((row as any).__colA ?? "").trim();
@@ -1013,7 +1042,8 @@ export default function PlanilhaTst() {
         if (!isEmpty(pr.relator)) {
           const cl = classificarRelator(pr.relator);
           const ti = classificarTurmaDoRelator(pr.relator);
-          if (cl) {
+          const classRelatorAtual = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+          if (cl && !classRelatorAtual) {
             pr.classificacao_relator = cl;
             pr.origem_classificacao_relator = pr.origem_relator || "auto";
           }
@@ -1024,7 +1054,8 @@ export default function PlanilhaTst() {
 
         if (!isEmpty(pr.turma_relator)) {
           const classTurma = classificarTurma(pr.turma_relator);
-          if (classTurma) {
+          const classTurmaAtual = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+          if (classTurma && !classTurmaAtual) {
             pr.classificacao_turma = classTurma;
             pr.origem_classificacao_turma = pr.origem_turma_relator || "auto";
           }
@@ -1299,16 +1330,15 @@ export default function PlanilhaTst() {
           if (ano) anosDetectados[ano] = (anosDetectados[ano] || 0) + 1;
         }
 
-        const relatorRaw = String((pr.originalData as any)?.__colG ?? "").trim();
-        const relatorNome = (!isEmpty(pr.relator) ? pr.relator : limparNomeMinistroColG(relatorRaw)).trim();
-        const crFromAtual = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+        const relatorRawColuna = limparNomeMinistroColG(String((pr.originalData as any)?.__colG ?? "").trim());
+        const relatorFallback = limparNomeMinistroColG(String(pr.relator || "").trim());
+        const relatorNome = !isEmpty(relatorRawColuna) ? relatorRawColuna : relatorFallback;
         const crFromColuna = normalizeClassificacaoRelator(String((pr.originalData as any)?.__colH ?? ""));
-        const crFromRelator = relatorNome && !isEmpty(relatorNome) ? classificarRelator(relatorNome) : "";
-        const cr = crFromAtual || crFromColuna || crFromRelator;
+        const crFromAtual = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+        const cr = crFromColuna || crFromAtual;
         // Always count every process — use "Sem classificação" bucket when no +/- is available
         {
-          const relator = relatorNome;
-          const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
+          const relatorKey = formatRelatorTotalizador(relatorNome);
           if (!aggAba.classificacaoPorRelator[relatorKey]) {
             aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           }
@@ -1317,16 +1347,15 @@ export default function PlanilhaTst() {
           else aggAba.classificacaoPorRelator[relatorKey].semClassificacao = (aggAba.classificacaoPorRelator[relatorKey].semClassificacao || 0) + 1;
         }
 
-        const turmaRaw = String((pr.originalData as any)?.__colI ?? "").trim();
-        const turmaNome = (!isEmpty(pr.turma_relator) ? pr.turma_relator : limparTurmaColI(turmaRaw)).trim();
-        const ctFromAtual = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+        const turmaRawColuna = limparTurmaColI(String((pr.originalData as any)?.__colI ?? "").trim());
+        const turmaFallback = limparTurmaColI(String(pr.turma_relator || "").trim());
+        const turmaNome = !isEmpty(turmaRawColuna) ? turmaRawColuna : turmaFallback;
         const ctFromColuna = normalizeClassificacaoTurma(String((pr.originalData as any)?.__colJ ?? ""));
-        const ctFromTurma = turmaNome && !isEmpty(turmaNome) ? classificarTurma(turmaNome) : "";
-        const ct = ctFromAtual || ctFromColuna || ctFromTurma;
+        const ctFromAtual = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+        const ct = ctFromColuna || ctFromAtual;
         // Always count every process — use "Sem classificação" bucket when no +/- is available
         {
-          const turma = turmaNome;
-          const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
+          const turmaKey = formatTurmaTotalizador(turmaNome);
           if (!aggAba.classificacaoPorTurma[turmaKey]) {
             aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           }
