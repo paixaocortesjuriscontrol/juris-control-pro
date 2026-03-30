@@ -951,6 +951,30 @@ export default function PlanilhaTst() {
         }
       }
 
+      // Classificação por Relator (positivo/negativo)
+      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
+      for (const pr of processRows) {
+        const relator = (pr.relator || "").trim();
+        if (!relator || isEmpty(relator)) continue;
+        const class_ = (pr.classificacao_relator || "").toUpperCase();
+        if (class_ !== "POSITIVO" && class_ !== "NEGATIVO") continue;
+        if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+        if (class_ === "POSITIVO") classificacaoPorRelator[relator].positivo++;
+        else classificacaoPorRelator[relator].negativo++;
+      }
+
+      // Classificação por Turma (positiva/negativa)
+      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
+      for (const pr of processRows) {
+        const turma = (pr.turma_relator || "").trim();
+        if (!turma || isEmpty(turma)) continue;
+        const class_ = (pr.classificacao_turma || "").toUpperCase();
+        if (class_ !== "POSITIVA" && class_ !== "NEGATIVA") continue;
+        if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+        if (class_ === "POSITIVA") classificacaoPorTurma[turma].positiva++;
+        else classificacaoPorTurma[turma].negativa++;
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -969,6 +993,8 @@ export default function PlanilhaTst() {
         linhasPreenchidas,
         totalLinhas: processRows.length,
         preenchimentoPorColuna,
+        classificacaoPorRelator,
+        classificacaoPorTurma,
       });
 
       setResults(processRows);
