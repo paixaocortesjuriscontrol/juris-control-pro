@@ -277,6 +277,10 @@ interface Stats {
   totalUnicosInput1: number;
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
+  dossiesNaoLocalizados: number;
+  linhasPreenchidas: number;
+  totalLinhas: number;
+  preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
 }
 
 const NOT_FOUND = "(Não localizado)";
