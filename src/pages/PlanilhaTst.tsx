@@ -1308,6 +1308,17 @@ export default function PlanilhaTst() {
 
             const rowEl = rowMap.get(excelRow);
             if (rowEl) {
+              // Regra A: Limpar coluna G (Relator) - remover "Gabinete do/da", deixar só nome
+              if (colRelator >= 0) {
+                const currentG = readCellValue(rowEl, colRelator, excelRow).trim();
+                if (currentG) {
+                  const limpoG = limparNomeMinistroColG(currentG);
+                  if (limpoG !== currentG) {
+                    upsertCellValue(excelRow, colRelator, limpoG);
+                  }
+                }
+              }
+
               const currentH = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
               const currentI = readCellValue(rowEl, colTurma, excelRow).trim();
               const currentINorm = currentI.toUpperCase();
@@ -1318,7 +1329,9 @@ export default function PlanilhaTst() {
               const hasValidTurma = currentI && (
                 currentINorm.includes("TURMA") || currentINorm.includes("SBDI") ||
                 currentINorm.includes("PLENO") || currentINorm.includes("PRESIDENTE") ||
-                currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID")
+                currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID") ||
+                currentINorm.includes("CEJUSC") || currentINorm.includes("SESS") ||
+                currentINorm.includes("SE") // seção/subseção
               );
               const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO"
                 || currentJ === "POSITIVA" || currentJ === "NEGATIVA"
@@ -1327,7 +1340,7 @@ export default function PlanilhaTst() {
               // Move invalid J content to column I (only if I doesn't have valid turma)
               if (currentJRaw && !hasValidJ) {
                 if (!hasValidTurma) {
-                  upsertCellValue(excelRow, colTurma, currentJRaw);
+                  upsertCellValue(excelRow, colTurma, limparTurmaColI(currentJRaw));
                 }
                 upsertCellValue(excelRow, colClassTurma, "", true);
               }
@@ -1336,10 +1349,19 @@ export default function PlanilhaTst() {
                 upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
               }
               if (pr.turma_relator && !hasValidTurma) {
-                upsertCellValue(excelRow, colTurma, pr.turma_relator);
+                upsertCellValue(excelRow, colTurma, limparTurmaColI(pr.turma_relator));
               }
               if (pr.classificacao_turma && !hasValidJ) {
                 upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+              }
+
+              // Regra B: Limpar coluna I existente - remover nome do ministro, manter só turma/órgão
+              const finalI = readCellValue(rowEl, colTurma, excelRow).trim();
+              if (finalI) {
+                const limpoI = limparTurmaColI(finalI);
+                if (limpoI !== finalI) {
+                  upsertCellValue(excelRow, colTurma, limpoI);
+                }
               }
             }
           }
