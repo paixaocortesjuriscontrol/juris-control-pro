@@ -417,8 +417,8 @@ interface Stats {
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
-  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
-  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }>;
   estatisticasPorMes: Record<string, MesAnoStats>;
 }
 
