@@ -107,6 +107,9 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "sbdi-1": "NEGATIVA",
   "sbdi-2": "POSITIVA",
   "pleno": "NEGATIVA",
+  "presidencia": "NEGATIVA",
+  "vice-presidencia": "NEGATIVA",
+  "corregedoria": "NEGATIVA",
 };
 
 // Classificar turma pelo nome da turma (coluna I)
@@ -1469,6 +1472,17 @@ export default function PlanilhaTst() {
               }
               if (pr.classificacao_turma && !hasValidJ && !finalIForClass) {
                 upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+              }
+
+              // === PASSO 4.5: Presidência → preenchimento automático ===
+              const finalICheck = readCellValue(rowEl, colTurma, excelRow).trim();
+              const finalINorm = finalICheck.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+              if (finalINorm.includes("presidencia") || finalINorm.includes("presidente")) {
+                if (colRelator >= 0) {
+                  upsertCellValue(excelRow, colRelator, "Ministro Presidente Luiz Philippe Vieira de Mello Filho");
+                }
+                upsertCellValue(excelRow, colClassRelator, "NEGATIVO");
+                upsertCellValue(excelRow, colClassTurma, "NEGATIVA");
               }
 
             }
