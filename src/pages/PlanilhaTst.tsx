@@ -561,12 +561,12 @@ function normalizeClassificacaoRelator(valor: string): "POSITIVO" | "NEGATIVO" |
   const raw = (valor ?? "").trim();
   if (!raw) return "";
   const norm = normalizeText(raw);
-  // Handle full words
-  if (norm.startsWith("positivo") || norm.startsWith("positiva")) return "POSITIVO";
-  if (norm.startsWith("negativo") || norm.startsWith("negativa")) return "NEGATIVO";
-  // Handle abbreviated forms: +, -, P, N, p, n, Sim, Não
-  if (raw === "+" || norm === "p" || norm === "sim" || norm === "s") return "POSITIVO";
-  if (raw === "-" || norm === "n" || norm === "nao" || norm === "não") return "NEGATIVO";
+  // Handle full words / partial variants
+  if (norm.includes("positiv")) return "POSITIVO";
+  if (norm.includes("negativ")) return "NEGATIVO";
+  // Handle abbreviated forms: +, -, P, N, Sim, Não, Favorável/Desfavorável
+  if (["+", "＋", "﹢"].includes(raw) || norm === "p" || norm === "sim" || norm === "s" || norm.includes("favoravel")) return "POSITIVO";
+  if (["-", "−", "–", "—", "﹣"].includes(raw) || norm === "n" || norm === "nao" || norm === "não" || norm.includes("desfavor")) return "NEGATIVO";
   return "";
 }
 
@@ -574,12 +574,12 @@ function normalizeClassificacaoTurma(valor: string): "POSITIVA" | "NEGATIVA" | "
   const raw = (valor ?? "").trim();
   if (!raw) return "";
   const norm = normalizeText(raw);
-  // Handle full words
-  if (norm.startsWith("positivo") || norm.startsWith("positiva")) return "POSITIVA";
-  if (norm.startsWith("negativo") || norm.startsWith("negativa")) return "NEGATIVA";
-  // Handle abbreviated forms: +, -, P, N, p, n, Sim, Não
-  if (raw === "+" || norm === "p" || norm === "sim" || norm === "s") return "POSITIVA";
-  if (raw === "-" || norm === "n" || norm === "nao" || norm === "não") return "NEGATIVA";
+  // Handle full words / partial variants
+  if (norm.includes("positiv")) return "POSITIVA";
+  if (norm.includes("negativ")) return "NEGATIVA";
+  // Handle abbreviated forms: +, -, P, N, Sim, Não, Favorável/Desfavorável
+  if (["+", "＋", "﹢"].includes(raw) || norm === "p" || norm === "sim" || norm === "s" || norm.includes("favoravel")) return "POSITIVA";
+  if (["-", "−", "–", "—", "﹣"].includes(raw) || norm === "n" || norm === "nao" || norm === "não" || norm.includes("desfavor")) return "NEGATIVA";
   return "";
 }
 
@@ -1272,9 +1272,14 @@ export default function PlanilhaTst() {
           if (ano) anosDetectados[ano] = (anosDetectados[ano] || 0) + 1;
         }
 
-        const cr = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+        const relatorRaw = String((pr.originalData as any)?.__colG ?? "").trim();
+        const relatorNome = (!isEmpty(pr.relator) ? pr.relator : limparNomeMinistroColG(relatorRaw)).trim();
+        const crFromAtual = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+        const crFromColuna = normalizeClassificacaoRelator(String((pr.originalData as any)?.__colH ?? ""));
+        const crFromRelator = relatorNome && !isEmpty(relatorNome) ? classificarRelator(relatorNome) : "";
+        const cr = crFromAtual || crFromColuna || crFromRelator;
         if (cr) {
-          const relator = (pr.relator || "").trim();
+          const relator = relatorNome;
           const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
           if (!aggAba.classificacaoPorRelator[relatorKey]) {
             aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
@@ -1283,9 +1288,14 @@ export default function PlanilhaTst() {
           else aggAba.classificacaoPorRelator[relatorKey].negativo++;
         }
 
-        const ct = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+        const turmaRaw = String((pr.originalData as any)?.__colI ?? "").trim();
+        const turmaNome = (!isEmpty(pr.turma_relator) ? pr.turma_relator : limparTurmaColI(turmaRaw)).trim();
+        const ctFromAtual = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+        const ctFromColuna = normalizeClassificacaoTurma(String((pr.originalData as any)?.__colJ ?? ""));
+        const ctFromTurma = turmaNome && !isEmpty(turmaNome) ? classificarTurma(turmaNome) : "";
+        const ct = ctFromAtual || ctFromColuna || ctFromTurma;
         if (ct) {
-          const turma = (pr.turma_relator || "").trim();
+          const turma = turmaNome;
           const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
           if (!aggAba.classificacaoPorTurma[turmaKey]) {
             aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
@@ -1348,6 +1358,19 @@ export default function PlanilhaTst() {
           totalProcessos: agg.totalProcessos,
           totalClassRelator: totalRel,
           totalClassTurma: totalTur,
+        };
+      }));
+
+      console.log("[PlanilhaTST] DEBUG: Divergência por mês (total vs classificações):", Object.entries(estatisticasPorMes).map(([mes, m]) => {
+        const totalRel = Object.values(m.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo, 0);
+        const totalTur = Object.values(m.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
+        return {
+          mes,
+          totalProcessos: m.totalProcessos,
+          totalClassRelator: totalRel,
+          semClassRelator: m.totalProcessos - totalRel,
+          totalClassTurma: totalTur,
+          semClassTurma: m.totalProcessos - totalTur,
         };
       }));
 
