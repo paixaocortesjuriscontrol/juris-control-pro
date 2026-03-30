@@ -1339,11 +1339,52 @@ export default function PlanilhaTst() {
 
         // --- Aplicar o estilo Calibri 8 + amarelo nas células preenchidas pelo programa ---
         {
-          // Re-read styles to get the getYellowStyle function, then re-read sheet
-          const updatedStylesXml = await zip.file(stylesPath)?.async("string");
+          const updatedStylesXml2 = await zip.file(stylesPath)?.async("string");
           const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
-          if (updatedStylesXml && updatedSheetXml) {
-            const stylesDoc2 = parser.parseFromString(updatedStylesXml, "application/xml");
+          if (updatedStylesXml2 && updatedSheetXml) {
+            const stylesDoc2 = parser.parseFromString(updatedStylesXml2, "application/xml");
+            const sNs = stylesDoc2.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+            const cellXfs2 = stylesDoc2.getElementsByTagNameNS(sNs, "cellXfs")[0];
+            let xfCount2 = cellXfs2 ? Number(cellXfs2.getAttribute("count") || "0") : 0;
+            const styleCache: Record<string, string> = {};
+
+            const makeYellowStyle = (origStyleId: string | null, centered: boolean): string => {
+              let borderId = "0";
+              if (origStyleId && cellXfs2) {
+                const xfs = cellXfs2.getElementsByTagNameNS(sNs, "xf");
+                const idx = Number(origStyleId);
+                if (!isNaN(idx) && idx < xfs.length) {
+                  borderId = xfs[idx].getAttribute("borderId") || "0";
+                }
+              }
+              const key = `${borderId}|${centered ? "1" : "0"}`;
+              if (styleCache[key]) return styleCache[key];
+              if (!cellXfs2) return "0";
+
+              const newXf = stylesDoc2.createElementNS(sNs, "xf");
+              newXf.setAttribute("numFmtId", "0");
+              newXf.setAttribute("fontId", String(newFontIndex));
+              newXf.setAttribute("fillId", String(newFillIndex));
+              newXf.setAttribute("borderId", borderId);
+              newXf.setAttribute("applyFont", "1");
+              newXf.setAttribute("applyFill", "1");
+              if (borderId !== "0") newXf.setAttribute("applyBorder", "1");
+              if (centered) {
+                newXf.setAttribute("applyAlignment", "1");
+                const al = stylesDoc2.createElementNS(sNs, "alignment");
+                al.setAttribute("horizontal", "center");
+                al.setAttribute("vertical", "center");
+                al.setAttribute("wrapText", "1");
+                newXf.appendChild(al);
+              }
+              cellXfs2.appendChild(newXf);
+              const styleIdx = String(xfCount2);
+              xfCount2++;
+              cellXfs2.setAttribute("count", String(xfCount2));
+              styleCache[key] = styleIdx;
+              return styleIdx;
+            };
+
             const updatedDoc = parser.parseFromString(updatedSheetXml, "application/xml");
             const updatedNs = updatedDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
             const updatedSheetData = updatedDoc.getElementsByTagNameNS(updatedNs, "sheetData")[0];
@@ -1362,7 +1403,7 @@ export default function PlanilhaTst() {
                 const cell = cells.find(c => c.getAttribute("r") === cellRef);
                 if (cell) {
                   const origStyle = cell.getAttribute("s") || null;
-                  cell.setAttribute("s", getYellowStyle(origStyle, centered));
+                  cell.setAttribute("s", makeYellowStyle(origStyle, centered));
                 }
               };
 
@@ -1388,7 +1429,6 @@ export default function PlanilhaTst() {
                 if (pr.classificacao_turma) applyStyle(rowEl, excelRow, colClassTurma, true);
               }
 
-              // Save updated styles (with new xf entries) and sheet
               zip.file(stylesPath, serializer.serializeToString(stylesDoc2));
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
             }
