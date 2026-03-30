@@ -497,6 +497,7 @@ export default function PlanilhaTst() {
       let countPasso2 = 0;
 
       for (let i = 0; i < input1.rows.length; i++) {
+        if (i % 50 === 0) await tick();
         const row = input1.rows[i];
         const proc = getProcessoFromRow(row, input1.headers);
         const procNorm = normalizeProcesso(proc);
