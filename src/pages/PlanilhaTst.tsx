@@ -575,6 +575,7 @@ export default function PlanilhaTst() {
       for (let pi = 0; pi < processRows.length; pi++) {
         if (pi % 50 === 0) await tick();
         const pr = processRows[pi];
+        const norm = normalizeProcesso(pr.numero_processo);
         if (norm) uniqueInput1Set.add(norm);
         if (lookupProcess(norm, lookup2)) matchedSet2.add(norm);
         if (lookupProcess(norm, lookup3)) matchedSet3.add(norm);
@@ -600,6 +601,8 @@ export default function PlanilhaTst() {
       for (let pi = 0; pi < processRows.length; pi++) {
         if (pi % 50 === 0) await tick();
         const pr = processRows[pi];
+        const procNorm = normalizeProcesso(pr.numero_processo);
+        const row4 = lookupProcess(procNorm, lookup4);
         if (!row4 || !input4) continue;
 
         let complemented2 = false;
