@@ -440,7 +440,7 @@ export default function PlanilhaTst() {
 
     const tick = async (pct?: number) => {
       if (pct !== undefined) setProgressPct(pct);
-      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 16)));
     };
     const advanceStep = async (pct: number) => {
       steps[currentStep].status = "done";
@@ -448,7 +448,7 @@ export default function PlanilhaTst() {
       if (currentStep < steps.length) steps[currentStep].status = "active";
       setProgressSteps([...steps]);
       setProgressPct(pct);
-      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
     };
 
     setProcessing(true);
@@ -458,21 +458,28 @@ export default function PlanilhaTst() {
     cancelledRef.current = false;
 
     try {
-      // Read all files + preserve original workbook for export
-      const [input1, buf] = await Promise.all([
-        readSheetData(files[0]),
-        readOriginalFileBuffer(files[0]),
-      ]);
+      // Read all files sequentially with yields between each
+      await tick(2);
+      const input1 = await readSheetData(files[0]);
+      await tick(5);
+      const buf = await readOriginalFileBuffer(files[0]);
+      await tick(7);
       setOriginalFileBuffer(buf);
       setInput1Meta({ headers: input1.headers, headerRowIndex: input1.headerRowIndex });
       setInput1FileName(files[0].name.replace(/\.(xlsx|xls)$/i, ""));
-      const input2 = files[1] ? await readSheetData(files[1]) : null;
-      const input3 = files[2] ? await readSheetData(files[2]) : null;
-      const input4 = files[3] ? await readSheetData(files[3]) : null;
+      let input2: SheetData | null = null;
+      if (files[1]) { input2 = await readSheetData(files[1]); await tick(9); }
+      let input3: SheetData | null = null;
+      if (files[2]) { input3 = await readSheetData(files[2]); await tick(11); }
+      let input4: SheetData | null = null;
+      if (files[3]) { input4 = await readSheetData(files[3]); await tick(13); }
 
-      const lookup2 = input2 ? buildAllLookups(input2.rows, input2.headers) : new Map();
-      const lookup3 = input3 ? buildAllLookups(input3.rows, input3.headers) : new Map();
-      const lookup4 = input4 ? buildAllLookups(input4.rows, input4.headers) : new Map();
+      await tick(14);
+      const lookup2 = input2 ? buildAllLookups(input2.rows, input2.headers) : new Map<string, Record<string, any>>();
+      await tick(14);
+      const lookup3 = input3 ? buildAllLookups(input3.rows, input3.headers) : new Map<string, Record<string, any>>();
+      await tick(14);
+      const lookup4 = input4 ? buildAllLookups(input4.rows, input4.headers) : new Map<string, Record<string, any>>();
 
       // Diagnostic logging
       console.log("[PlanilhaTST] Input1:", input1.rows.length, "rows | Headers:", input1.headers.join(", "));
@@ -497,7 +504,7 @@ export default function PlanilhaTst() {
       let countPasso2 = 0;
 
       for (let i = 0; i < input1.rows.length; i++) {
-        if (i % 50 === 0) await tick();
+        if (i % 20 === 0) await tick(15 + Math.round((i / input1.rows.length) * 20));
         const row = input1.rows[i];
         const proc = getProcessoFromRow(row, input1.headers);
         const procNorm = normalizeProcesso(proc);
@@ -573,7 +580,7 @@ export default function PlanilhaTst() {
       const uniqueInput1Set = new Set<string>();
       const unmatchedSamples: string[] = [];
       for (let pi = 0; pi < processRows.length; pi++) {
-        if (pi % 50 === 0) await tick();
+        if (pi % 20 === 0) await tick();
         const pr = processRows[pi];
         const norm = normalizeProcesso(pr.numero_processo);
         if (norm) uniqueInput1Set.add(norm);
@@ -599,7 +606,7 @@ export default function PlanilhaTst() {
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
       for (let pi = 0; pi < processRows.length; pi++) {
-        if (pi % 50 === 0) await tick();
+        if (pi % 20 === 0) await tick(40 + Math.round((pi / processRows.length) * 15));
         const pr = processRows[pi];
         const procNorm = normalizeProcesso(pr.numero_processo);
         const row4 = lookupProcess(procNorm, lookup4);
@@ -641,7 +648,7 @@ export default function PlanilhaTst() {
 
       // Re-classify relator/turma after all data sources updated relator field
       for (let pi = 0; pi < processRows.length; pi++) {
-        if (pi % 50 === 0) await tick();
+        if (pi % 20 === 0) await tick(55 + Math.round((pi / processRows.length) * 10));
         const pr = processRows[pi];
         if (!isEmpty(pr.relator)) {
           const cl = classificarRelator(pr.relator);
