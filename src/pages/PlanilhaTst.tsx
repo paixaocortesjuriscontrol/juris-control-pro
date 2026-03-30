@@ -1648,16 +1648,20 @@ export default function PlanilhaTst() {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.text("Turma", 18, y);
-      doc.text("Positiva", 130, y);
-      doc.text("Negativa", 160, y);
+      doc.text("Positiva", 115, y);
+      doc.text("Negativa", 140, y);
+      doc.text("Sem Class.", 165, y);
+      doc.text("Total", 190, y);
       y += 6;
       doc.setFont("helvetica", "normal");
       for (const [turma, counts] of turmaEntries) {
         if (y > 275) { doc.addPage(); y = 20; }
-        const displayName = turma.length > 50 ? turma.substring(0, 47) + "..." : turma;
+        const displayName = turma.length > 45 ? turma.substring(0, 42) + "..." : turma;
         doc.text(`${displayName}`, 18, y);
-        doc.text(`${counts.positiva}`, 135, y);
-        doc.text(`${counts.negativa}`, 165, y);
+        doc.text(`${counts.positiva}`, 120, y);
+        doc.text(`${counts.negativa}`, 145, y);
+        doc.text(`${counts.semClassificacao || 0}`, 170, y);
+        doc.text(`${counts.positiva + counts.negativa + (counts.semClassificacao || 0)}`, 193, y);
         y += 5;
       }
       // Total geral
@@ -1665,9 +1669,12 @@ export default function PlanilhaTst() {
       doc.setFont("helvetica", "bold");
       const totalTurmaPos = turmaEntries.reduce((s, [, c]) => s + c.positiva, 0);
       const totalTurmaNeg = turmaEntries.reduce((s, [, c]) => s + c.negativa, 0);
+      const totalTurmaSem = turmaEntries.reduce((s, [, c]) => s + (c.semClassificacao || 0), 0);
       doc.text("TOTAL GERAL", 18, y);
-      doc.text(`${totalTurmaPos}`, 135, y);
-      doc.text(`${totalTurmaNeg}`, 165, y);
+      doc.text(`${totalTurmaPos}`, 120, y);
+      doc.text(`${totalTurmaNeg}`, 145, y);
+      doc.text(`${totalTurmaSem}`, 170, y);
+      doc.text(`${totalTurmaPos + totalTurmaNeg + totalTurmaSem}`, 193, y);
       doc.setFont("helvetica", "normal");
       y += 8;
     }
