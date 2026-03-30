@@ -1108,6 +1108,8 @@ export default function PlanilhaTst() {
     doc.text(`• Linhas preenchidas (verde): ${stats.linhasPreenchidas} de ${stats.totalLinhas} (${pctLinhas})`, 18, y); y += 6;
     const pctDossie = stats.totalLinhas > 0 ? `${((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
     doc.text(`• Dossiês não localizados: ${stats.dossiesNaoLocalizados} de ${stats.totalLinhas} (${pctDossie})`, 18, y); y += 6;
+    const pctCinza = stats.totalLinhas > 0 ? `${((stats.dossiesCinza / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Dossiês cinza (original): ${stats.dossiesCinza} de ${stats.totalLinhas} (${pctCinza})`, 18, y); y += 6;
     doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
 
     // Processos não encontrados (amostras)
