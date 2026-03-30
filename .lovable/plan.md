@@ -1,43 +1,92 @@
 
 
-# Análise dos Logs — Planilha TST
+# Plano: Criar tela "Carga Benner"
 
-## Diagnóstico
+## Objetivo
+Nova página que recebe 2 inputs (planilha complementada TST + Pautas de Julgamento), cruza os dados por número de processo/dossiê, e gera como output a planilha "Layout Carga - módulo TST" para envio ao Banco Santander.
 
-Os logs mostram que o sistema está funcionando corretamente:
+## Mapeamento de Dados (Input → Output)
 
-- **305/396 (77%)** processos encontrados no Input 2
-- **53/396 (13%)** processos encontrados no Input 3
-- **294/396 (74%)** processos efetivamente complementados (pelo menos 1 campo preenchido)
+### Input 1: Planilha Complementada (resultado da tela Planilha TST)
+Colunas: DATA DA DISTRIBUIÇÃO, NÚMERO DO PROCESSO, DOSSIÊ, EQUIPE, RECLAMANTE, RECLAMADA, RELATOR, RELATOR (+/-), TURMA, TURMA (+/-), PARTE RECORRENTE, TIPO DE RECURSO DO RECLAMANTE, MATÉRIAS RECURSO RECLAMANTE, APARELHAMENTO, CHANCE DE ÊXITO, TIPO DE RECURSO DO BANCO, MATÉRIAS RECURSO DO BANCO, APARELHAMENTO, CHANCE DE ÊXITO, HONRA, DECISÃO, MÍDIA NEGATIVA, BENNER ATUALIZADO?
 
-A diferença entre 305 matches e 294 complementados (11 processos) indica que esses 11 foram encontrados mas já tinham todos os campos preenchidos no Input 1 original.
+### Input 2: Pautas de Julgamento
+Colunas: DOSSIÊ, NUMERO DO PROCESSO, DATA DO JULGAMENTO, HORARIO, VIRTUAL/TELEPRESENCIAL/HÍBRIDO, RELATOR, ORGÃO, SUSTENTAÇÃO ORAL, ENTREGA DE MEMORIAS, RESULTADO
 
-Os **91 processos não encontrados** em nenhum input provavelmente são processos novos que simplesmente não existem nas outras planilhas. O Input 4 (Dossiês Ativos) com 5.897 linhas deve complementar parte desses no Passo 1.2.
+### Output: Layout Carga - módulo TST (35 colunas)
 
-## Problema real identificado
+| Coluna Output | Fonte |
+|---|---|
+| Dossiê | Input 1 |
+| Tribunal | Fixo: "TST" |
+| Tipo de Recurso | Input 1 (tipo recurso banco ou reclamante) |
+| Data da distribuição | Input 1 |
+| Turma | Input 1 |
+| Relator | Input 1 |
+| Análise do quarteirizado | Input 1 (DECISÃO) |
+| Há risco de mídia negativa? | Input 1 (MÍDIA NEGATIVA) |
+| Risco | Vazio |
+| Há discussão sobre provas digitais? | Padrão "NÃO" |
+| Temos data de julgamento? | "SIM" se match no Input 2, senão "NÃO" |
+| Data Julgamento | Input 2 (DATA DO JULGAMENTO) |
+| Horário | Input 2 (HORARIO) |
+| Tipo Julgamento | Input 2 (VIRTUAL/TELEPRESENCIAL) |
+| Matéria de Honra | Input 1 (HONRA) |
+| Entrega de Memoriais | Input 2 |
+| Sustentação Oral | Input 2 |
+| Sem transcendência...Outra (5 cols resultado) | Vazio (preenchimento posterior) |
+| Observações | Vazio |
+| Ganhamos / Perdemos | Vazio |
+| Processo baixado | Padrão "NÃO" |
+| Recorrente | Input 1 (PARTE RECORRENTE) |
+| Turma Favorável/Desfavorável | Derivado de TURMA (+/-) |
+| Relator Favorável/Desfavorável | Derivado de RELATOR (+/-) |
+| Recurso Bem/Mal aparelhado | Input 1 (APARELHAMENTO) |
+| Chance de êxito | Input 1 (CHANCE DE ÊXITO) |
 
-O campo **RELATOR** no Input 1 já possui uma coluna com esse nome (aparece nos headers). Portanto, `getFieldFromRow` lê o valor existente do Input 1, e se não estiver vazio, nunca tenta buscar nos outros inputs. O mesmo vale para DOSSIÊ, EQUIPE, RECLAMANTE e RECLAMADA — se o Input 1 já tiver essas colunas com valores (mesmo parciais), o sistema não sobrescreve.
+## Arquivos a Criar/Modificar
 
-## Melhorias propostas
+### 1. `src/pages/CargaBenner.tsx` (novo)
+- Estrutura idêntica à PlanilhaTst.tsx (layout, cards, progress, etc.)
+- **Input 1**: Upload da planilha complementada (todas as abas)
+- **Input 2**: Upload da planilha de Pautas de Julgamento
+- Processamento:
+  1. Ler ambos os inputs via Web Worker
+  2. Criar lookup de Pautas por número de processo normalizado (CNJ 20 dígitos) e por dossiê
+  3. Para cada linha do Input 1, mapear para as 35 colunas do Layout
+  4. Cruzar com Pautas para preencher campos de julgamento
+- **Output**: Download da planilha Layout preenchida (.xlsx)
+- Dashboard com estatísticas: total de processos, matches com pautas, campos preenchidos
+- Barra de progresso por fases
 
-### 1. Exibir diagnóstico visual na tela (não só console)
-- Após processamento, mostrar card com:
-  - Matches por input (Input 2: 305, Input 3: 53, Input 4: X)
-  - Campos preenchidos por campo (Dossiê: X, Equipe: Y, etc.)
-  - Amostras de processos não encontrados
+### 2. `src/workers/cargaBennerReader.worker.ts` (novo)
+- Reutiliza o padrão do `planilhaTstReader.worker.ts`
+- Lê ambos os inputs com `defval: ""` para manter alinhamento de colunas
+- Detecta cabeçalhos via scoring
 
-### 2. Opção para forçar sobrescrita
-- Checkbox "Sobrescrever campos já preenchidos no Input 1"
-- Quando ativado, mesmo campos com valor no Input 1 serão atualizados com dados dos outros inputs
+### 3. `src/components/layout/Sidebar.tsx` (modificar)
+- Adicionar item "Carga Benner" no menu, com ícone `Upload` e cor `text-sky-400`
+- Posicionar após "Planilha TST"
 
-### 3. Melhorar log de diagnóstico do Passo 1.2 (Input 4)
-- Adicionar logs equivalentes ao Passo 1.1 para o Input 4
-- Mostrar quantos campos adicionais foram preenchidos
+### 4. `src/App.tsx` (modificar)
+- Adicionar rota `/carga-benner` com import lazy do componente
+- Proteger com `<ProtectedRoute>`
 
-### 4. Remover IA do fluxo obrigatório
-- Tornar o passo de IA opcional via checkbox (desativado por padrão)
-- O cruzamento determinístico é suficiente na maioria dos casos
+## Fluxo do Usuário
 
-### Arquivos a modificar
-- `src/pages/PlanilhaTst.tsx` — diagnóstico visual, checkbox de sobrescrita, logs do Passo 1.2, IA opcional
+1. Acessa "Carga Benner" no menu lateral
+2. Faz upload da planilha complementada (Input 1)
+3. Faz upload da planilha de Pautas (Input 2)
+4. Clica "Processar"
+5. Vê barra de progresso (Fase 1: Lendo planilhas → Fase 2: Cruzando dados → Fase 3: Gerando Layout)
+6. Vê dashboard com estatísticas do cruzamento
+7. Clica "Baixar Planilha Layout" para download do .xlsx final
+
+## Detalhes Técnicos
+
+- Cruzamento por número de processo normalizado (CNJ 20 dígitos), com fallback por dossiê
+- Geração do .xlsx via SheetJS (XLSX) com os cabeçalhos exatos do Layout Carga
+- A linha 2 do Layout original (com "SIM", "SIM", etc.) será usada como referência de quais campos são obrigatórios, mas não será incluída no output
+- Web Worker para evitar travamento do browser
+- Mesmo padrão visual e de UX da tela Planilha TST
 
