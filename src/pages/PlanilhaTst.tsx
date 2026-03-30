@@ -572,8 +572,9 @@ export default function PlanilhaTst() {
       const matchedSet3 = new Set<string>();
       const uniqueInput1Set = new Set<string>();
       const unmatchedSamples: string[] = [];
-      for (const pr of processRows) {
-        const norm = normalizeProcesso(pr.numero_processo);
+      for (let pi = 0; pi < processRows.length; pi++) {
+        if (pi % 50 === 0) await tick();
+        const pr = processRows[pi];
         if (norm) uniqueInput1Set.add(norm);
         if (lookupProcess(norm, lookup2)) matchedSet2.add(norm);
         if (lookupProcess(norm, lookup3)) matchedSet3.add(norm);
@@ -596,9 +597,9 @@ export default function PlanilhaTst() {
       await advanceStep(40);
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
-      for (const pr of processRows) {
-        const procNorm = normalizeProcesso(pr.numero_processo);
-        const row4 = lookupProcess(procNorm, lookup4);
+      for (let pi = 0; pi < processRows.length; pi++) {
+        if (pi % 50 === 0) await tick();
+        const pr = processRows[pi];
         if (!row4 || !input4) continue;
 
         let complemented2 = false;
@@ -636,8 +637,9 @@ export default function PlanilhaTst() {
       await advanceStep(55);
 
       // Re-classify relator/turma after all data sources updated relator field
-      for (const pr of processRows) {
-        if (!isEmpty(pr.relator)) {
+      for (let pi = 0; pi < processRows.length; pi++) {
+        if (pi % 50 === 0) await tick();
+        const pr = processRows[pi];
           const cl = classificarRelator(pr.relator);
           const ti = classificarTurmaDoRelator(pr.relator);
           if (cl) {
