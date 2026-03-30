@@ -659,10 +659,18 @@ export default function PlanilhaTst() {
           const classRelator = classificarRelator(relatorVal);
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
 
-          // Extract distribution date from first column (column A) or column with "data" + "distribui"
-          const dataDistrib = getFieldFromRow(row, sheet.headers, "data") || 
-            (sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "");
-          const mesAno = extrairMesAno(dataDistrib);
+          // Extract distribution date: prioritize column A, then look for "distribui" header
+          const colAVal = sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "";
+          const colAMesAno = extrairMesAno(colAVal);
+          let dataDistrib = colAVal;
+          let mesAno = colAMesAno;
+          if (colAMesAno === "Sem data") {
+            const distribVal = getFieldFromRow(row, sheet.headers, "distribui", "data_distribui");
+            if (distribVal) {
+              dataDistrib = distribVal;
+              mesAno = extrairMesAno(distribVal);
+            }
+          }
 
           const pr: ProcessRow = {
             sheetIndex: sheet.sheetIndex,
