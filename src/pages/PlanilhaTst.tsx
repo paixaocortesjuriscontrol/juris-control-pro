@@ -985,14 +985,16 @@ export default function PlanilhaTst() {
         }
       }
 
-      const naoEncontrados = processRows.filter(pr =>
+      const rowsParaTotalizadores = processRows.filter(pr => normalizeProcesso(pr.numero_processo).length >= 7);
+
+      const naoEncontrados = rowsParaTotalizadores.filter(pr =>
         isEmpty(pr.dossie) && isEmpty(pr.equipe) && isEmpty(pr.reclamante) && isEmpty(pr.reclamada) && isEmpty(pr.relator)
       ).length;
 
-      const dossiesNaoLocalizados = processRows.filter(pr => isEmpty(pr.dossie)).length;
+      const dossiesNaoLocalizados = rowsParaTotalizadores.filter(pr => isEmpty(pr.dossie)).length;
 
       // Linhas preenchidas = linhas que têm ao menos 1 campo preenchido pelo sistema
-      const linhasPreenchidas = processRows.filter(pr =>
+      const linhasPreenchidas = rowsParaTotalizadores.filter(pr =>
         pr.origem_dossie || pr.origem_equipe || pr.origem_reclamante || pr.origem_reclamada || pr.origem_relator
       ).length;
 
@@ -1001,8 +1003,8 @@ export default function PlanilhaTst() {
       const preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }> = {};
       for (const col of colunas) {
         preenchimentoPorColuna[col] = {
-          preenchidas: processRows.filter(pr => !isEmpty(pr[col])).length,
-          total: processRows.length,
+          preenchidas: rowsParaTotalizadores.filter(pr => !isEmpty(pr[col])).length,
+          total: rowsParaTotalizadores.length,
         };
       }
 
@@ -1032,7 +1034,7 @@ export default function PlanilhaTst() {
 
       // Classificação por Relator (positivo/negativo)
       const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
-      for (const pr of processRows) {
+      for (const pr of rowsParaTotalizadores) {
         const relator = (pr.relator || "").trim();
         if (!relator || isEmpty(relator)) continue;
         const class_ = (pr.classificacao_relator || "").toUpperCase();
@@ -1044,7 +1046,7 @@ export default function PlanilhaTst() {
 
       // Classificação por Turma (positiva/negativa)
       const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
-      for (const pr of processRows) {
+      for (const pr of rowsParaTotalizadores) {
         const turma = (pr.turma_relator || "").trim();
         if (!turma || isEmpty(turma)) continue;
         const class_ = (pr.classificacao_turma || "").toUpperCase();
@@ -1056,7 +1058,7 @@ export default function PlanilhaTst() {
 
       // Estatísticas por Mês/Ano
       const estatisticasPorMes: Record<string, MesAnoStats> = {};
-      for (const pr of processRows) {
+      for (const pr of rowsParaTotalizadores) {
         const key = pr.mes_ano;
         if (!estatisticasPorMes[key]) {
           estatisticasPorMes[key] = { totalProcessos: 0, classificacaoPorRelator: {}, classificacaoPorTurma: {} };
@@ -1091,7 +1093,7 @@ export default function PlanilhaTst() {
       }
 
       setStats({
-        total: processRows.length,
+        total: rowsParaTotalizadores.length,
         passo1: countPasso1,
         passo2: countPasso2,
         ia: countIA,
@@ -1118,7 +1120,7 @@ export default function PlanilhaTst() {
       await tick(100);
       steps.forEach(s => { s.status = "done"; });
       setProgressSteps([...steps]);
-      toast.success(`Processamento concluído! ${processRows.length} processos analisados.`);
+      toast.success(`Processamento concluído! ${rowsParaTotalizadores.length} processos válidos em ${allInput1Sheets.sheets.length} abas analisadas.`);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Erro ao processar planilhas");

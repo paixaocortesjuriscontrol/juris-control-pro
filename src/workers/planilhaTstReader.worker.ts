@@ -18,6 +18,62 @@ interface ParsedSheet {
   grayCellDossieRowIndices: number[];
 }
 
+function scoreHeaderRow(row: any[]): number {
+  const keys = [
+    "processo",
+    "cnj",
+    "dossie",
+    "dossiê",
+    "relator",
+    "turma",
+    "reclamante",
+    "reclamada",
+    "equipe",
+    "distrib",
+    "data",
+  ];
+
+  let score = 0;
+  for (const cell of row || []) {
+    const text = normalizeText(cell);
+    if (!text) continue;
+    for (const key of keys) {
+      if (text.includes(key)) {
+        score++;
+        break;
+      }
+    }
+  }
+  return score;
+}
+
+function detectHeaderRow(json: any[][]): number {
+  const maxScan = Math.min(json.length, 60);
+  let bestIdx = 0;
+  let bestScore = -1;
+
+  for (let i = 0; i < maxScan; i++) {
+    const row = json[i];
+    if (!row || row.every((c: any) => !String(c ?? "").trim())) continue;
+    const score = scoreHeaderRow(row);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+
+  if (bestScore >= 2) return bestIdx;
+
+  for (let i = 0; i < Math.min(json.length, 20); i++) {
+    const row = json[i];
+    if (!row) continue;
+    const hasProcesso = row.some((c: any) => normalizeText(c).includes("processo") || normalizeText(c).includes("cnj"));
+    if (hasProcesso) return i;
+  }
+
+  return 0;
+}
+
 function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
   const wb = XLSX.read(new Uint8Array(data), { type: "array", cellDates: true });
   const sheetNames = allSheets ? wb.SheetNames : [wb.SheetNames[0]];
@@ -28,15 +84,7 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
     const ws = wb.Sheets[sheetName];
     const json = XLSX.utils.sheet_to_json(ws, { header: 1, rawNumbers: false }) as any[][];
 
-    let headerIdx = 0;
-    for (let i = 0; i < Math.min(json.length, 10); i++) {
-      const row = json[i];
-      if (row && row.some((c: any) => c && String(c).toLowerCase().includes("processo"))) {
-        headerIdx = i;
-        break;
-      }
-    }
-
+    const headerIdx = detectHeaderRow(json);
     const headers = (json[headerIdx] || []).map((h: any) => String(h || ""));
 
     // Find dossier column for "não localizado" detection
