@@ -1288,54 +1288,6 @@ export default function PlanilhaTst() {
             fills.setAttribute("count", String(fillCount + 1));
           }
 
-          // 3. Build xf styles that preserve original borders + add centering variant
-          const cellXfs = stylesDoc.getElementsByTagNameNS(stylesNs, "cellXfs")[0];
-          let xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
-
-          // Cache: "borderId|centered" -> styleIndex
-          const yellowStyleCache: Record<string, string> = {};
-
-          const getYellowStyle = (originalStyleId: string | null, centered: boolean): string => {
-            // Get borderId from the original style
-            let borderId = "0";
-            if (originalStyleId && cellXfs) {
-              const xfs = cellXfs.getElementsByTagNameNS(stylesNs, "xf");
-              const origIdx = Number(originalStyleId);
-              if (!isNaN(origIdx) && origIdx < xfs.length) {
-                borderId = xfs[origIdx].getAttribute("borderId") || "0";
-              }
-            }
-
-            const cacheKey = `${borderId}|${centered ? "1" : "0"}`;
-            if (yellowStyleCache[cacheKey]) return yellowStyleCache[cacheKey];
-
-            if (cellXfs) {
-              const newXf = stylesDoc.createElementNS(stylesNs, "xf");
-              newXf.setAttribute("numFmtId", "0");
-              newXf.setAttribute("fontId", String(newFontIndex));
-              newXf.setAttribute("fillId", String(newFillIndex));
-              newXf.setAttribute("borderId", borderId);
-              newXf.setAttribute("applyFont", "1");
-              newXf.setAttribute("applyFill", "1");
-              if (borderId !== "0") newXf.setAttribute("applyBorder", "1");
-              if (centered) {
-                newXf.setAttribute("applyAlignment", "1");
-                const alignment = stylesDoc.createElementNS(stylesNs, "alignment");
-                alignment.setAttribute("horizontal", "center");
-                alignment.setAttribute("vertical", "center");
-                alignment.setAttribute("wrapText", "1");
-                newXf.appendChild(alignment);
-              }
-              cellXfs.appendChild(newXf);
-              const idx = String(xfCount);
-              xfCount++;
-              cellXfs.setAttribute("count", String(xfCount));
-              yellowStyleCache[cacheKey] = idx;
-              return idx;
-            }
-            return "0";
-          };
-
           zip.file(stylesPath, serializer.serializeToString(stylesDoc));
         }
 
