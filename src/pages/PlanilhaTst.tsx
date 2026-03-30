@@ -1926,6 +1926,44 @@ export default function PlanilhaTst() {
                     </Table>
                   </div>
                 </div>
+
+                {/* Preenchimento por Coluna */}
+                <div>
+                  <p className="font-medium mb-2">Preenchimento por Coluna</p>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {Object.entries(stats.preenchimentoPorColuna).map(([col, info]) => {
+                      const pct = info.total > 0 ? Math.round((info.preenchidas / info.total) * 100) : 0;
+                      const label = col.charAt(0).toUpperCase() + col.slice(1);
+                      return (
+                        <div key={col} className="border rounded-md p-3 text-center">
+                          <div className="text-sm font-medium">{label}</div>
+                          <div className="text-lg font-bold text-foreground">{info.preenchidas}/{info.total}</div>
+                          <Progress value={pct} className="h-1.5 mt-1" />
+                          <div className="text-xs text-muted-foreground mt-1">{pct}%</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Resumo por linha */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Linhas Preenchidas (verde)</div>
+                    <div className="text-2xl font-bold text-green-600">{stats.linhasPreenchidas}</div>
+                    <div className="text-xs text-muted-foreground">de {stats.totalLinhas} linhas totais ({stats.totalLinhas > 0 ? Math.round((stats.linhasPreenchidas / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Dossiês Não Localizados</div>
+                    <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
+                    <div className="text-xs text-muted-foreground">de {stats.totalLinhas} processos ({stats.totalLinhas > 0 ? Math.round((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Sem Nenhum Dado</div>
+                    <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
+                    <div className="text-xs text-muted-foreground">processos sem cruzamento</div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
