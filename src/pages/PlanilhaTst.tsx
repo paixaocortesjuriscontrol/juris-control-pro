@@ -1332,7 +1332,7 @@ export default function PlanilhaTst() {
           }
           if (ct === "POSITIVA") aggAba.classificacaoPorTurma[turmaKey].positiva++;
           else if (ct === "NEGATIVA") aggAba.classificacaoPorTurma[turmaKey].negativa++;
-          else (aggAba.classificacaoPorTurma[turmaKey] as any).semClassificacao = ((aggAba.classificacaoPorTurma[turmaKey] as any).semClassificacao || 0) + 1;
+          else aggAba.classificacaoPorTurma[turmaKey].semClassificacao = (aggAba.classificacaoPorTurma[turmaKey].semClassificacao || 0) + 1;
         }
       }
 
