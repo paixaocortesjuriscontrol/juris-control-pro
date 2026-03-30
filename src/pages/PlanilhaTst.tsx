@@ -1248,7 +1248,7 @@ export default function PlanilhaTst() {
           // 1. Adicionar fonte Calibri tamanho 8
           const fonts = stylesDoc.getElementsByTagNameNS(stylesNs, "fonts")[0];
           const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
-          const newFontIndex = fontCount;
+          newFontIndex = fontCount;
 
           if (fonts) {
             const fontEl = stylesDoc.createElementNS(stylesNs, "font");
