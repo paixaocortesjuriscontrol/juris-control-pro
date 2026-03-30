@@ -1051,7 +1051,36 @@ export default function PlanilhaTst() {
         aplicarRegrasClassificacao(pr);
       }
 
+      // DEBUG: Diagnóstico de classificações
+      const debugRelatorFilled = processRows.filter(pr => !isEmpty(pr.relator)).length;
+      const debugClassRelFilled = processRows.filter(pr => (pr.classificacao_relator || "").trim() !== "").length;
+      const debugTurmaFilled = processRows.filter(pr => !isEmpty(pr.turma_relator)).length;
+      const debugClassTurFilled = processRows.filter(pr => (pr.classificacao_turma || "").trim() !== "").length;
+      const debugColHSamples = processRows.slice(0, 20).map(pr => ({
+        proc: pr.numero_processo?.slice(0, 15),
+        relator: (pr.relator || "").slice(0, 30),
+        classRel: pr.classificacao_relator,
+        turma: (pr.turma_relator || "").slice(0, 20),
+        classTur: pr.classificacao_turma,
+        sheet: pr.sheetIndex,
+      }));
+      console.log(`[PlanilhaTST] DEBUG: Total processRows: ${processRows.length}`);
+      console.log(`[PlanilhaTST] DEBUG: Relator preenchido: ${debugRelatorFilled}, Classificação Relator preenchida: ${debugClassRelFilled}`);
+      console.log(`[PlanilhaTST] DEBUG: Turma preenchida: ${debugTurmaFilled}, Classificação Turma preenchida: ${debugClassTurFilled}`);
+      console.log(`[PlanilhaTST] DEBUG: Amostras:`, debugColHSamples);
+      
+      // Contar por aba
+      const sheetsUsed = new Set(processRows.map(pr => pr.sheetIndex));
+      for (const si of sheetsUsed) {
+        const rowsOfSheet = processRows.filter(pr => pr.sheetIndex === si);
+        const relFilled = rowsOfSheet.filter(pr => !isEmpty(pr.relator)).length;
+        const classRelFilled = rowsOfSheet.filter(pr => (pr.classificacao_relator || "").trim() !== "").length;
+        const classTurFilled = rowsOfSheet.filter(pr => (pr.classificacao_turma || "").trim() !== "").length;
+        console.log(`[PlanilhaTST] DEBUG Aba ${si}: ${rowsOfSheet.length} linhas, relator=${relFilled}, classRel=${classRelFilled}, classTur=${classTurFilled}`);
+      }
+
       const rowsParaTotalizadores = processRows.filter(pr => normalizeProcesso(pr.numero_processo).length >= 7);
+      console.log(`[PlanilhaTST] DEBUG: rowsParaTotalizadores: ${rowsParaTotalizadores.length} (filtrados de ${processRows.length})`);
 
       const naoEncontrados = rowsParaTotalizadores.filter(pr =>
         isEmpty(pr.dossie) && isEmpty(pr.equipe) && isEmpty(pr.reclamante) && isEmpty(pr.reclamada) && isEmpty(pr.relator)
