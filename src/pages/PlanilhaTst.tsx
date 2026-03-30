@@ -1128,6 +1128,8 @@ export default function PlanilhaTst() {
     doc.text(`• Dossiês não localizados: ${stats.dossiesNaoLocalizados} de ${stats.totalLinhas} (${pctDossie})`, 18, y); y += 6;
     const pctCinza = stats.totalLinhas > 0 ? `${((stats.dossiesCinza / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
     doc.text(`• Dossiês cinza (original): ${stats.dossiesCinza} de ${stats.totalLinhas} (${pctCinza})`, 18, y); y += 6;
+    const pctBenner = stats.totalLinhas > 0 ? `${((stats.bennerAtualizadoSim / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Benner Atualizado (SIM): ${stats.bennerAtualizadoSim} de ${stats.totalLinhas} (${pctBenner})`, 18, y); y += 6;
     doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
 
     // Processos não encontrados (amostras)
