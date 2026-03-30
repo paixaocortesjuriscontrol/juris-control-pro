@@ -412,6 +412,10 @@ function normalizeProcesso(val: string): string {
   return digits.padStart(20, "0");
 }
 
+function yieldToMainThread(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+}
+
 function findColumnIndex(headers: string[], ...terms: string[]): number {
   return headers.findIndex(h => {
     const lower = (h || "").toString().toLowerCase().trim();
@@ -606,18 +610,30 @@ function extractCnjCore(digits: string): string {
   return digits;
 }
 
-function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<string, Record<string, any>> {
+async function buildAllLookups(
+  rows: Record<string, any>[],
+  headers: string[],
+  onProgress?: (progress: number) => Promise<void> | void
+): Promise<Map<string, Record<string, any>>> {
   const map = new Map<string, Record<string, any>>();
   let extractor = processoExtractorCache.get(headers);
   if (!extractor) {
     extractor = buildProcessoExtractor(headers);
     processoExtractorCache.set(headers, extractor);
   }
-  for (const row of rows) {
+  const total = rows.length;
+  for (let i = 0; i < total; i++) {
+    if (i % 1000 === 0) {
+      const progress = total > 0 ? i / total : 1;
+      if (onProgress) await onProgress(progress);
+      else await yieldToMainThread();
+    }
+    const row = rows[i];
     const proc = normalizeProcesso(extractor(row));
     if (!proc || proc.length < 7) continue;
     if (!map.has(proc)) map.set(proc, row);
   }
+  if (onProgress) await onProgress(1);
   return map;
 }
 
@@ -709,11 +725,25 @@ export default function PlanilhaTst() {
       if (files[3]) { input4 = await readSheetData(files[3]); await tick(13); }
 
       await tick(14);
-      const lookup2 = input2 ? buildAllLookups(input2.rows, input2.headers) : new Map<string, Record<string, any>>();
-      await tick(14);
-      const lookup3 = input3 ? buildAllLookups(input3.rows, input3.headers) : new Map<string, Record<string, any>>();
-      await tick(14);
-      const lookup4 = input4 ? buildAllLookups(input4.rows, input4.headers) : new Map<string, Record<string, any>>();
+      const buildLookupWithProgress = async (
+        input: SheetData | null,
+        startPct: number,
+        endPct: number
+      ) => {
+        if (!input) return new Map<string, Record<string, any>>();
+        let lastProgress = -1;
+        return buildAllLookups(input.rows, input.headers, async (progress) => {
+          if (progress === 1 || progress - lastProgress >= 0.08 || lastProgress < 0) {
+            lastProgress = progress;
+            const pct = startPct + (endPct - startPct) * progress;
+            await tick(pct);
+          }
+        });
+      };
+
+      const lookup2 = await buildLookupWithProgress(input2, 13.1, 13.7);
+      const lookup3 = await buildLookupWithProgress(input3, 13.7, 14.1);
+      const lookup4 = await buildLookupWithProgress(input4, 14.1, 15);
 
       for (const sheet of allInput1Sheets.sheets) {
         console.log(`[PlanilhaTST] Input1 Aba "${sheet.sheetName}" (${sheet.sheetIndex}):`, sheet.rows.length, "rows | Headers:", sheet.headers.join(", "));
