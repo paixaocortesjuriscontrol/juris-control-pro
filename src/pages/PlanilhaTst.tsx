@@ -2286,7 +2286,103 @@ export default function PlanilhaTst() {
                     </div>
                   </div>
                 )}
-              </div>
+
+                {/* Estatísticas por Mês/Ano */}
+                {Object.keys(stats.estatisticasPorMes).length > 0 && (
+                  <div>
+                    <div className="text-base font-semibold mb-3 mt-4 border-b pb-2">📅 Estatísticas por Mês/Ano (Data de Distribuição)</div>
+                    {Object.entries(stats.estatisticasPorMes)
+                      .sort(([a], [b]) => {
+                        if (a === "Sem data") return 1;
+                        if (b === "Sem data") return -1;
+                        const [mA, yA] = a.split("/").map(Number);
+                        const [mB, yB] = b.split("/").map(Number);
+                        return yA !== yB ? yA - yB : mA - mB;
+                      })
+                      .map(([mesAno, mesStats]) => {
+                        const totalRelPos = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + c.positivo, 0);
+                        const totalRelNeg = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + c.negativo, 0);
+                        const totalTurmaPos = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + c.positiva, 0);
+                        const totalTurmaNeg = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + c.negativa, 0);
+                        return (
+                          <div key={mesAno} className="mb-6 border rounded-lg p-4">
+                            <div className="text-sm font-bold mb-3 flex items-center gap-2">
+                              <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs">{mesAnoLabel(mesAno)}</span>
+                              <span className="text-muted-foreground font-normal">— {mesStats.totalProcessos} processos</span>
+                            </div>
+
+                            {/* Relator por mês */}
+                            {Object.keys(mesStats.classificacaoPorRelator).length > 0 && (
+                              <div className="mb-3">
+                                <div className="text-xs font-medium mb-1">Por Relator</div>
+                                <div className="border rounded-md overflow-hidden">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-muted/50">
+                                        <th className="text-left p-1.5 font-medium">Relator</th>
+                                        <th className="text-center p-1.5 font-medium text-green-600 w-20">Positivo</th>
+                                        <th className="text-center p-1.5 font-medium text-red-500 w-20">Negativo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {Object.entries(mesStats.classificacaoPorRelator)
+                                        .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
+                                        .map(([rel, c]) => (
+                                          <tr key={rel} className="border-t">
+                                            <td className="p-1.5">{rel}</td>
+                                            <td className="p-1.5 text-center font-bold text-green-600">{c.positivo}</td>
+                                            <td className="p-1.5 text-center font-bold text-red-500">{c.negativo}</td>
+                                          </tr>
+                                        ))}
+                                      <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                                        <td className="p-1.5 font-bold">TOTAL</td>
+                                        <td className="p-1.5 text-center font-bold text-green-600">{totalRelPos}</td>
+                                        <td className="p-1.5 text-center font-bold text-red-500">{totalRelNeg}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Turma por mês */}
+                            {Object.keys(mesStats.classificacaoPorTurma).length > 0 && (
+                              <div>
+                                <div className="text-xs font-medium mb-1">Por Turma</div>
+                                <div className="border rounded-md overflow-hidden">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-muted/50">
+                                        <th className="text-left p-1.5 font-medium">Turma</th>
+                                        <th className="text-center p-1.5 font-medium text-green-600 w-20">Positiva</th>
+                                        <th className="text-center p-1.5 font-medium text-red-500 w-20">Negativa</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {Object.entries(mesStats.classificacaoPorTurma)
+                                        .sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa))
+                                        .map(([t, c]) => (
+                                          <tr key={t} className="border-t">
+                                            <td className="p-1.5">{t}</td>
+                                            <td className="p-1.5 text-center font-bold text-green-600">{c.positiva}</td>
+                                            <td className="p-1.5 text-center font-bold text-red-500">{c.negativa}</td>
+                                          </tr>
+                                        ))}
+                                      <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                                        <td className="p-1.5 font-bold">TOTAL</td>
+                                        <td className="p-1.5 text-center font-bold text-green-600">{totalTurmaPos}</td>
+                                        <td className="p-1.5 text-center font-bold text-red-500">{totalTurmaNeg}</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
             </CardContent>
           </Card>
         )}
