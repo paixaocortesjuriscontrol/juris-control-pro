@@ -109,6 +109,17 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "pleno": "NEGATIVA",
 };
 
+// Classificar turma pelo nome da turma (coluna I)
+function classificarTurma(nomeTurma: string): "POSITIVA" | "NEGATIVA" | "" {
+  if (!nomeTurma || isEmpty(nomeTurma)) return "";
+  const norm = nomeTurma.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  if (TURMA_CLASSIFICACAO[norm]) return TURMA_CLASSIFICACAO[norm];
+  for (const [key, val] of Object.entries(TURMA_CLASSIFICACAO)) {
+    if (norm.includes(key) || key.includes(norm)) return val;
+  }
+  return "";
+}
+
 // Regra A: Remove "Gabinete do/da" e prefixos similares, deixando só o nome do ministro
 function limparNomeMinistroColG(valor: string): string {
   if (!valor || isEmpty(valor)) return valor;
