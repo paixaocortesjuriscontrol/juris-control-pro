@@ -632,11 +632,18 @@ export default function PlanilhaTst() {
           const classRelator = classificarRelator(relatorVal);
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
 
+          // Extract distribution date from first column (column A) or column with "data" + "distribui"
+          const dataDistrib = getFieldFromRow(row, sheet.headers, "data") || 
+            (sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "");
+          const mesAno = extrairMesAno(dataDistrib);
+
           const pr: ProcessRow = {
             sheetIndex: sheet.sheetIndex,
             originalIndex: i,
             originalData: { ...row },
             numero_processo: proc,
+            data_distribuicao: dataDistrib,
+            mes_ano: mesAno,
             dossie: getFieldFromRow(row, sheet.headers, "dossi", "dossie", "dossiê") || NOT_FOUND,
             equipe: getFieldFromRow(row, sheet.headers, "equipe") || NOT_FOUND,
             reclamante: getFieldFromRow(row, sheet.headers, "reclamante") || NOT_FOUND,
