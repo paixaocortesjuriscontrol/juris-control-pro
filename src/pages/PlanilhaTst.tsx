@@ -395,7 +395,8 @@ export default function PlanilhaTst() {
   const [results, setResults] = useState<ProcessRow[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [] });
   const [processing, setProcessing] = useState(false);
-  const [progressSteps, setProgressSteps] = useState<{ label: string; status: "pending" | "active" | "done" }[]>([]);
+  type StepStatus = "pending" | "active" | "done";
+  const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
   const [progressPct, setProgressPct] = useState(0);
   const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
   const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
@@ -488,8 +489,7 @@ export default function PlanilhaTst() {
       if (input3) logSample("Input3", input3.rows, input3.headers);
       if (input4) logSample("Input4", input4.rows, input4.headers);
 
-      setProgress(10);
-      setProgressLabel("Cruzando dados (Passo 1.1)...");
+      await advanceStep(15);
 
       const processRows: ProcessRow[] = [];
       let countPasso1 = 0;
@@ -591,8 +591,7 @@ export default function PlanilhaTst() {
         console.log(`[PlanilhaTST] First filled row:`, { proc: firstMatched.numero_processo, dossie: firstMatched.dossie, equipe: firstMatched.equipe, reclamante: firstMatched.reclamante, reclamada: firstMatched.reclamada, relator: firstMatched.relator });
       }
 
-      setProgress(40);
-      setProgressLabel("Cruzando dados (Passo 1.2 — Dossiês Ativos)...");
+      await advanceStep(40);
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
       for (const pr of processRows) {
@@ -650,7 +649,7 @@ export default function PlanilhaTst() {
       console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
       console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4} unique processes`);
 
-      setProgress(60);
+      await advanceStep(60);
 
       // Compute field fill counts per source
       const emptyDetail = (): FieldFillDetail => ({
@@ -719,15 +718,14 @@ export default function PlanilhaTst() {
       let countIA = 0;
 
       if (useAI && incomplete.length > 0) {
-        setProgressLabel("Enviando processos incompletos para IA...");
+        await advanceStep(65);
         const batchSize = 10;
         for (let b = 0; b < incomplete.length; b += batchSize) {
           if (cancelledRef.current) break;
 
           const batch = incomplete.slice(b, b + batchSize);
           const pct = 60 + Math.round((b / incomplete.length) * 30);
-          setProgress(pct);
-          setProgressLabel(`IA analisando lote ${Math.floor(b / batchSize) + 1}/${Math.ceil(incomplete.length / batchSize)}...`);
+          await tick(65 + Math.round((b / incomplete.length) * 25));
 
           try {
             const { data, error } = await supabase.functions.invoke("complementar-planilha-tst", {
@@ -790,8 +788,10 @@ export default function PlanilhaTst() {
       });
 
       setResults(processRows);
-      setProgress(100);
-      setProgressLabel("Concluído!");
+      await advanceStep(95);
+      await tick(100);
+      steps.forEach(s => s.status = "done");
+      setProgressSteps([...steps]);
       toast.success(`Processamento concluído! ${processRows.length} processos analisados.`);
     } catch (err: any) {
       console.error(err);
