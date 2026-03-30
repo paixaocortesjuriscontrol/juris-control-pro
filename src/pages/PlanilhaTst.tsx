@@ -1182,30 +1182,28 @@ export default function PlanilhaTst() {
         }
         estatisticasPorMes[key].totalProcessos++;
 
-        // Relator por mês
-        const relator = (pr.relator || "").trim();
-        if (relator && !isEmpty(relator)) {
-          const cr = normalizeClassificacaoRelator(pr.classificacao_relator || "");
-          if (cr) {
-            if (!estatisticasPorMes[key].classificacaoPorRelator[relator]) {
-              estatisticasPorMes[key].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
-            }
-            if (cr === "POSITIVO") estatisticasPorMes[key].classificacaoPorRelator[relator].positivo++;
-            else estatisticasPorMes[key].classificacaoPorRelator[relator].negativo++;
+        // Relator por mês — count ALL rows with classification
+        const cr = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+        if (cr) {
+          const relator = (pr.relator || "").trim();
+          const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
+          if (!estatisticasPorMes[key].classificacaoPorRelator[relatorKey]) {
+            estatisticasPorMes[key].classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
           }
+          if (cr === "POSITIVO") estatisticasPorMes[key].classificacaoPorRelator[relatorKey].positivo++;
+          else estatisticasPorMes[key].classificacaoPorRelator[relatorKey].negativo++;
         }
 
-        // Turma por mês
-        const turma = (pr.turma_relator || "").trim();
-        if (turma && !isEmpty(turma)) {
-          const ct = normalizeClassificacaoTurma(pr.classificacao_turma || "");
-          if (ct) {
-            if (!estatisticasPorMes[key].classificacaoPorTurma[turma]) {
-              estatisticasPorMes[key].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
-            }
-            if (ct === "POSITIVA") estatisticasPorMes[key].classificacaoPorTurma[turma].positiva++;
-            else estatisticasPorMes[key].classificacaoPorTurma[turma].negativa++;
+        // Turma por mês — count ALL rows with classification
+        const ct = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+        if (ct) {
+          const turma = (pr.turma_relator || "").trim();
+          const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
+          if (!estatisticasPorMes[key].classificacaoPorTurma[turmaKey]) {
+            estatisticasPorMes[key].classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
           }
+          if (ct === "POSITIVA") estatisticasPorMes[key].classificacaoPorTurma[turmaKey].positiva++;
+          else estatisticasPorMes[key].classificacaoPorTurma[turmaKey].negativa++;
         }
       }
 
