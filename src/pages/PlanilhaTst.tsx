@@ -1862,6 +1862,12 @@ export default function PlanilhaTst() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{stats.bennerAtualizadoSim}</div>
+                <div className="text-xs text-muted-foreground">Benner Atualizado (SIM)</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
                 <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Não Encontrados
