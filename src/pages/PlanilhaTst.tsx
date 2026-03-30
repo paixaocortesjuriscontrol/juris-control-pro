@@ -1114,7 +1114,7 @@ export default function PlanilhaTst() {
           if (sameRowStyle) return sameRowStyle;
 
           const colLetters = XLSX.utils.encode_col(colIdx);
-          for (let offset = 1; offset <= results.length; offset++) {
+          for (let offset = 1; offset <= Math.min(results.length, 10); offset++) {
             for (const candidateRowNumber of [rowNumber - offset, rowNumber + offset]) {
               const candidateRow = rowMap.get(candidateRowNumber);
               if (!candidateRow) continue;
