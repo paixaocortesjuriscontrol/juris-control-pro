@@ -655,9 +655,20 @@ export default function PlanilhaTst() {
           const proc = getProcessoFromRow(row, sheet.headers);
           const procNorm = normalizeProcesso(proc);
 
-          const relatorVal = getFieldFromRow(row, sheet.headers, "relator") || NOT_FOUND;
+          const relatorVal = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador") || NOT_FOUND;
           const classRelator = classificarRelator(relatorVal);
+          const turmaValPlanilha = getFieldFromRow(
+            row,
+            sheet.headers,
+            "turma",
+            "orgao julgador",
+            "órgão julgador",
+            "orgao",
+            "unidade"
+          );
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
+          const turmaInicial = !isEmpty(turmaValPlanilha) ? turmaValPlanilha : (turmaInfo.turma || NOT_FOUND);
+          const classTurmaInicial = classificarTurma(turmaInicial) || turmaInfo.classificacao;
 
           // Extract distribution date: prioritize column A, then look for "distribui" header
           const colAVal = sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "";
@@ -685,8 +696,8 @@ export default function PlanilhaTst() {
             reclamada: getFieldFromRow(row, sheet.headers, "reclamada") || NOT_FOUND,
             relator: relatorVal,
             classificacao_relator: classRelator,
-            turma_relator: turmaInfo.turma,
-            classificacao_turma: turmaInfo.classificacao,
+            turma_relator: turmaInicial,
+            classificacao_turma: classTurmaInicial,
           };
 
           const row2 = lookupProcess(procNorm, lookup2);
