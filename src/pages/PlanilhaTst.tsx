@@ -997,9 +997,9 @@ export default function PlanilhaTst() {
         const colReclamada = getColIdx(["reclamada"]);
         const colRelator = getColIdx(["relator"]);
         // Columns H (index 7), I (index 8), J (index 9) - fixed positions
-        const colClassRelator = 7;  // Column H
-        const colObservacoes = 8;   // Column I
-        const colClassTurma = 9;    // Column J
+        const colClassRelator = 7;  // Column H - RELATOR (+ OU -)
+        const colTurma = 8;         // Column I - TURMA (nome)
+        const colClassTurma = 9;    // Column J - TURMA (+ OU -)
 
         const rowMap = new Map<number, Element>();
         for (const rowEl of Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row"))) {
@@ -1153,31 +1153,44 @@ export default function PlanilhaTst() {
           tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
           tryWrite(colRelator, pr.relator, "origem_relator");
 
-          // Column J (classificação turma): first check existing content
           const rowEl = rowMap.get(excelRow);
-          if (rowEl) {
-            const currentJ = readCellValue(rowEl, colClassTurma, excelRow).trim();
-            const currentJNorm = currentJ.toUpperCase();
-            const isValidJ = !currentJ || currentJNorm === "POSITIVO" || currentJNorm === "NEGATIVO" 
-              || currentJNorm === "POSITIVA" || currentJNorm === "NEGATIVA"
-              || currentJNorm.includes("AINDA NÃO DISTRIBU");
-            
-            // If column J has invalid content, move it to column I
-            if (currentJ && !isValidJ) {
-              const currentI = readCellValue(rowEl, colObservacoes, excelRow).trim();
-              const newI = currentI ? `${currentI} | ${currentJ}` : currentJ;
-              upsertCellValue(excelRow, colObservacoes, newI, true);
+
+          // Column H (classificação relator): only write if cell is empty
+          if (pr.classificacao_relator && rowEl) {
+            const currentH = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
+            const hasValidH = currentH === "POSITIVO" || currentH === "NEGATIVO";
+            if (!hasValidH) {
+              upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
             }
           }
 
-          // Write classificação do relator in column H
-          if (pr.classificacao_relator) {
-            upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
+          // Column I (turma nome): only write if cell is empty or has invalid content (numbers like "32 | 33")
+          if (pr.turma_relator && rowEl) {
+            const currentI = readCellValue(rowEl, colTurma, excelRow).trim();
+            const currentINorm = currentI.toUpperCase();
+            // Valid turma values contain "TURMA" or known terms
+            const hasValidTurma = currentI && (
+              currentINorm.includes("TURMA") || 
+              currentINorm.includes("SBDI") || 
+              currentINorm.includes("PLENO") ||
+              currentINorm.includes("PRESIDENTE") ||
+              currentINorm.includes("CORREGEDOR") ||
+              currentINorm.includes("IMPEDID")
+            );
+            if (!hasValidTurma) {
+              upsertCellValue(excelRow, colTurma, pr.turma_relator);
+            }
           }
 
-          // Write classificação da turma in column J
-          if (pr.classificacao_turma) {
-            upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+          // Column J (classificação turma): only write if cell is empty or has invalid content
+          if (pr.classificacao_turma && rowEl) {
+            const currentJ = readCellValue(rowEl, colClassTurma, excelRow).trim().toUpperCase();
+            const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO" 
+              || currentJ === "POSITIVA" || currentJ === "NEGATIVA"
+              || currentJ.includes("AINDA NÃO DISTRIBU");
+            if (!hasValidJ) {
+              upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+            }
           }
         }
 
