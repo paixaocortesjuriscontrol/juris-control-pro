@@ -2806,7 +2806,7 @@ export default function PlanilhaTst() {
                 {/* Estatísticas por Mês/Ano */}
                 {Object.keys(stats.estatisticasPorMes).length > 0 && (
                   <div>
-                    <div className="text-base font-semibold mb-3 mt-4 border-b pb-2">📅 Estatísticas por Mês/Ano (Data de Distribuição)</div>
+                    <div className="text-base font-semibold mb-3 mt-4 border-b pb-2">📅 Fechamento por Mês/Ano (Data de Distribuição)</div>
                     {Object.entries(stats.estatisticasPorMes)
                       .sort(([a], [b]) => {
                         if (a === "Sem data") return 1;
@@ -2818,83 +2818,113 @@ export default function PlanilhaTst() {
                       .map(([mesAno, mesStats]) => {
                         const totalRelPos = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + c.positivo, 0);
                         const totalRelNeg = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + c.negativo, 0);
+                        const totalRelSem = Object.values(mesStats.classificacaoPorRelator).reduce((s, c) => s + (c.semClassificacao || 0), 0);
                         const totalTurmaPos = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + c.positiva, 0);
                         const totalTurmaNeg = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + c.negativa, 0);
+                        const totalTurmaSem = Object.values(mesStats.classificacaoPorTurma).reduce((s, c) => s + (c.semClassificacao || 0), 0);
                         return (
-                          <div key={mesAno} className="mb-6 border rounded-lg p-4">
-                            <div className="text-sm font-bold mb-3 flex items-center gap-2">
-                              <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs">{mesAnoLabel(mesAno)}</span>
-                              <span className="text-muted-foreground font-normal">— {mesStats.totalProcessos} processos</span>
-                            </div>
-
-                            {/* Relator por mês */}
-                            {Object.keys(mesStats.classificacaoPorRelator).length > 0 && (
-                              <div className="mb-3">
-                                <div className="text-xs font-medium mb-1">Por Relator</div>
-                                <div className="border rounded-md overflow-hidden">
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="bg-muted/50">
-                                        <th className="text-left p-1.5 font-medium">Relator</th>
-                                        <th className="text-center p-1.5 font-medium text-green-600 w-20">Positivo</th>
-                                        <th className="text-center p-1.5 font-medium text-red-500 w-20">Negativo</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {Object.entries(mesStats.classificacaoPorRelator)
-                                        .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
-                                        .map(([rel, c]) => (
-                                          <tr key={rel} className="border-t">
-                                            <td className="p-1.5">{rel}</td>
-                                            <td className="p-1.5 text-center font-bold text-green-600">{c.positivo}</td>
-                                            <td className="p-1.5 text-center font-bold text-red-500">{c.negativo}</td>
-                                          </tr>
-                                        ))}
-                                      <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
-                                        <td className="p-1.5 font-bold">TOTAL</td>
-                                        <td className="p-1.5 text-center font-bold text-green-600">{totalRelPos}</td>
-                                        <td className="p-1.5 text-center font-bold text-red-500">{totalRelNeg}</td>
-                                      </tr>
-                                    </tbody>
-                                  </table>
+                          <Collapsible key={mesAno} className="mb-3 border rounded-lg overflow-hidden">
+                            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors text-left group">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="bg-primary text-primary-foreground px-2.5 py-1 rounded text-xs font-bold">{mesAnoLabel(mesAno)}</span>
+                                <span className="text-sm font-semibold">{mesStats.totalProcessos} processos</span>
+                                <div className="flex items-center gap-3 text-xs">
+                                  <span className="text-muted-foreground">Relator:</span>
+                                  <span className="text-green-600 font-bold">+{totalRelPos}</span>
+                                  <span className="text-red-500 font-bold">-{totalRelNeg}</span>
+                                  {totalRelSem > 0 && <span className="text-muted-foreground">({totalRelSem} s/c)</span>}
+                                  <span className="text-muted-foreground ml-2">Turma:</span>
+                                  <span className="text-green-600 font-bold">+{totalTurmaPos}</span>
+                                  <span className="text-red-500 font-bold">-{totalTurmaNeg}</span>
+                                  {totalTurmaSem > 0 && <span className="text-muted-foreground">({totalTurmaSem} s/c)</span>}
                                 </div>
                               </div>
-                            )}
-
-                            {/* Turma por mês */}
-                            {Object.keys(mesStats.classificacaoPorTurma).length > 0 && (
-                              <div>
-                                <div className="text-xs font-medium mb-1">Por Turma</div>
-                                <div className="border rounded-md overflow-hidden">
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="bg-muted/50">
-                                        <th className="text-left p-1.5 font-medium">Turma</th>
-                                        <th className="text-center p-1.5 font-medium text-green-600 w-20">Positiva</th>
-                                        <th className="text-center p-1.5 font-medium text-red-500 w-20">Negativa</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {Object.entries(mesStats.classificacaoPorTurma)
-                                        .sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa))
-                                        .map(([t, c]) => (
-                                          <tr key={t} className="border-t">
-                                            <td className="p-1.5">{t}</td>
-                                            <td className="p-1.5 text-center font-bold text-green-600">{c.positiva}</td>
-                                            <td className="p-1.5 text-center font-bold text-red-500">{c.negativa}</td>
+                              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="px-4 pb-4 space-y-3">
+                                {/* Relator por mês */}
+                                {Object.keys(mesStats.classificacaoPorRelator).length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-medium mb-1">Por Relator</div>
+                                    <div className="border rounded-md overflow-hidden">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="bg-muted/50">
+                                            <th className="text-left p-1.5 font-medium">Relator</th>
+                                            <th className="text-center p-1.5 font-medium text-green-600 w-16">Positivo</th>
+                                            <th className="text-center p-1.5 font-medium text-red-500 w-16">Negativo</th>
+                                            <th className="text-center p-1.5 font-medium text-muted-foreground w-16">Sem Class.</th>
+                                            <th className="text-center p-1.5 font-medium w-16">Total</th>
                                           </tr>
-                                        ))}
-                                      <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
-                                        <td className="p-1.5 font-bold">TOTAL</td>
-                                        <td className="p-1.5 text-center font-bold text-green-600">{totalTurmaPos}</td>
-                                        <td className="p-1.5 text-center font-bold text-red-500">{totalTurmaNeg}</td>
-                                      </tr>
-                                    </tbody>
-                                  </table>
-                                </div>
+                                        </thead>
+                                        <tbody>
+                                          {Object.entries(mesStats.classificacaoPorRelator)
+                                            .sort((a, b) => (b[1].positivo + b[1].negativo + (b[1].semClassificacao || 0)) - (a[1].positivo + a[1].negativo + (a[1].semClassificacao || 0)))
+                                            .map(([rel, c]) => (
+                                              <tr key={rel} className="border-t">
+                                                <td className="p-1.5">{rel}</td>
+                                                <td className="p-1.5 text-center font-bold text-green-600">{c.positivo}</td>
+                                                <td className="p-1.5 text-center font-bold text-red-500">{c.negativo}</td>
+                                                <td className="p-1.5 text-center text-muted-foreground">{c.semClassificacao || 0}</td>
+                                                <td className="p-1.5 text-center font-bold">{c.positivo + c.negativo + (c.semClassificacao || 0)}</td>
+                                              </tr>
+                                            ))}
+                                          <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                                            <td className="p-1.5 font-bold">TOTAL</td>
+                                            <td className="p-1.5 text-center font-bold text-green-600">{totalRelPos}</td>
+                                            <td className="p-1.5 text-center font-bold text-red-500">{totalRelNeg}</td>
+                                            <td className="p-1.5 text-center font-bold text-muted-foreground">{totalRelSem}</td>
+                                            <td className="p-1.5 text-center font-bold">{totalRelPos + totalRelNeg + totalRelSem}</td>
+                                          </tr>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Turma por mês */}
+                                {Object.keys(mesStats.classificacaoPorTurma).length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-medium mb-1">Por Turma</div>
+                                    <div className="border rounded-md overflow-hidden">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="bg-muted/50">
+                                            <th className="text-left p-1.5 font-medium">Turma</th>
+                                            <th className="text-center p-1.5 font-medium text-green-600 w-16">Positiva</th>
+                                            <th className="text-center p-1.5 font-medium text-red-500 w-16">Negativa</th>
+                                            <th className="text-center p-1.5 font-medium text-muted-foreground w-16">Sem Class.</th>
+                                            <th className="text-center p-1.5 font-medium w-16">Total</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {Object.entries(mesStats.classificacaoPorTurma)
+                                            .sort((a, b) => (b[1].positiva + b[1].negativa + (b[1].semClassificacao || 0)) - (a[1].positiva + a[1].negativa + (a[1].semClassificacao || 0)))
+                                            .map(([t, c]) => (
+                                              <tr key={t} className="border-t">
+                                                <td className="p-1.5">{t}</td>
+                                                <td className="p-1.5 text-center font-bold text-green-600">{c.positiva}</td>
+                                                <td className="p-1.5 text-center font-bold text-red-500">{c.negativa}</td>
+                                                <td className="p-1.5 text-center text-muted-foreground">{c.semClassificacao || 0}</td>
+                                                <td className="p-1.5 text-center font-bold">{c.positiva + c.negativa + (c.semClassificacao || 0)}</td>
+                                              </tr>
+                                            ))}
+                                          <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                                            <td className="p-1.5 font-bold">TOTAL</td>
+                                            <td className="p-1.5 text-center font-bold text-green-600">{totalTurmaPos}</td>
+                                            <td className="p-1.5 text-center font-bold text-red-500">{totalTurmaNeg}</td>
+                                            <td className="p-1.5 text-center font-bold text-muted-foreground">{totalTurmaSem}</td>
+                                            <td className="p-1.5 text-center font-bold">{totalTurmaPos + totalTurmaNeg + totalTurmaSem}</td>
+                                          </tr>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         );
                       })}
                   </div>
