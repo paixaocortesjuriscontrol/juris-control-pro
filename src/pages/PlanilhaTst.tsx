@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Table2,
   Info,
+  Circle,
 } from "lucide-react";
 import {
   Table,
@@ -395,8 +396,9 @@ export default function PlanilhaTst() {
   const [results, setResults] = useState<ProcessRow[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [] });
   const [processing, setProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("");
+  type StepStatus = "pending" | "active" | "done";
+  const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
+  const [progressPct, setProgressPct] = useState(0);
   const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
   const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
   const cancelledRef = useRef(false);
@@ -425,9 +427,34 @@ export default function PlanilhaTst() {
       return;
     }
 
+    const stepLabels = [
+      "Lendo planilhas",
+      "Cruzando Prazos e Processos",
+      "Cruzando Dossiês Ativos",
+      "Classificando Relatores e Turmas",
+      ...(useAI ? ["Análise por IA"] : []),
+      "Finalizando",
+    ];
+    const steps: { label: string; status: StepStatus }[] = stepLabels.map(label => ({ label, status: "pending" as StepStatus }));
+    let currentStep = 0;
+
+    const tick = async (pct?: number) => {
+      if (pct !== undefined) setProgressPct(pct);
+      await new Promise(r => setTimeout(r, 0));
+    };
+    const advanceStep = async (pct: number) => {
+      steps[currentStep].status = "done";
+      currentStep++;
+      if (currentStep < steps.length) steps[currentStep].status = "active";
+      setProgressSteps([...steps]);
+      setProgressPct(pct);
+      await new Promise(r => setTimeout(r, 0));
+    };
+
     setProcessing(true);
-    setProgress(0);
-    setProgressLabel("Lendo planilhas...");
+    setProgressPct(0);
+    steps[0].status = "active";
+    setProgressSteps([...steps]);
     cancelledRef.current = false;
 
     try {
@@ -463,8 +490,7 @@ export default function PlanilhaTst() {
       if (input3) logSample("Input3", input3.rows, input3.headers);
       if (input4) logSample("Input4", input4.rows, input4.headers);
 
-      setProgress(10);
-      setProgressLabel("Cruzando dados (Passo 1.1)...");
+      await advanceStep(15);
 
       const processRows: ProcessRow[] = [];
       let countPasso1 = 0;
@@ -566,8 +592,7 @@ export default function PlanilhaTst() {
         console.log(`[PlanilhaTST] First filled row:`, { proc: firstMatched.numero_processo, dossie: firstMatched.dossie, equipe: firstMatched.equipe, reclamante: firstMatched.reclamante, reclamada: firstMatched.reclamada, relator: firstMatched.relator });
       }
 
-      setProgress(40);
-      setProgressLabel("Cruzando dados (Passo 1.2 — Dossiês Ativos)...");
+      await advanceStep(40);
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
       for (const pr of processRows) {
@@ -597,6 +622,18 @@ export default function PlanilhaTst() {
         if (complemented2) countPasso2++;
       }
 
+      // Input 4 diagnostics — count UNIQUE processes, not rows
+      const matchedSet4 = new Set<string>();
+      for (const pr of processRows) {
+        const norm = normalizeProcesso(pr.numero_processo);
+        if (lookupProcess(norm, lookup4)) matchedSet4.add(norm);
+      }
+      const matchCount4 = matchedSet4.size;
+      console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
+      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4} unique processes`);
+
+      await advanceStep(55);
+
       // Re-classify relator/turma after all data sources updated relator field
       for (const pr of processRows) {
         if (!isEmpty(pr.relator)) {
@@ -615,17 +652,7 @@ export default function PlanilhaTst() {
         }
       }
 
-      // Input 4 diagnostics — count UNIQUE processes, not rows
-      const matchedSet4 = new Set<string>();
-      for (const pr of processRows) {
-        const norm = normalizeProcesso(pr.numero_processo);
-        if (lookupProcess(norm, lookup4)) matchedSet4.add(norm);
-      }
-      const matchCount4 = matchedSet4.size;
-      console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
-      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4} unique processes`);
-
-      setProgress(60);
+      await advanceStep(65);
 
       // Compute field fill counts per source
       const emptyDetail = (): FieldFillDetail => ({
@@ -694,15 +721,14 @@ export default function PlanilhaTst() {
       let countIA = 0;
 
       if (useAI && incomplete.length > 0) {
-        setProgressLabel("Enviando processos incompletos para IA...");
+        await advanceStep(65);
         const batchSize = 10;
         for (let b = 0; b < incomplete.length; b += batchSize) {
           if (cancelledRef.current) break;
 
           const batch = incomplete.slice(b, b + batchSize);
           const pct = 60 + Math.round((b / incomplete.length) * 30);
-          setProgress(pct);
-          setProgressLabel(`IA analisando lote ${Math.floor(b / batchSize) + 1}/${Math.ceil(incomplete.length / batchSize)}...`);
+          await tick(65 + Math.round((b / incomplete.length) * 25));
 
           try {
             const { data, error } = await supabase.functions.invoke("complementar-planilha-tst", {
@@ -765,8 +791,10 @@ export default function PlanilhaTst() {
       });
 
       setResults(processRows);
-      setProgress(100);
-      setProgressLabel("Concluído!");
+      await advanceStep(95);
+      await tick(100);
+      steps.forEach(s => { s.status = "done"; });
+      setProgressSteps([...steps]);
       toast.success(`Processamento concluído! ${processRows.length} processos analisados.`);
     } catch (err: any) {
       console.error(err);
@@ -1472,12 +1500,30 @@ export default function PlanilhaTst() {
         {/* Progress */}
         {processing && (
           <Card>
-            <CardContent className="pt-4 space-y-2">
+            <CardContent className="pt-4 space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{progressLabel}</span>
-                <span className="font-medium">{progress}%</span>
+                <span className="text-muted-foreground font-medium">Progresso</span>
+                <span className="font-semibold">{progressPct}%</span>
               </div>
-              <Progress value={progress} />
+              <Progress value={progressPct} className="h-2" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+                {progressSteps.map((step, i) => (
+                  <div key={i} className={`flex items-center gap-1.5 text-xs rounded-md px-2 py-1.5 border ${
+                    step.status === "done" ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-400" :
+                    step.status === "active" ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-400" :
+                    "bg-muted/30 border-border text-muted-foreground"
+                  }`}>
+                    {step.status === "done" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    ) : step.status === "active" ? (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                    ) : (
+                      <Circle className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span className="truncate">{step.label}</span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
