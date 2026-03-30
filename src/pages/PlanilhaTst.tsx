@@ -324,7 +324,7 @@ function mesAnoFromSheetName(sheetName: string, fallbackYear?: string): string {
     if (norm.includes(key.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) {
       // Try to find year in the sheet name or use inferred workbook year
       const yearMatch = sheetName.match(/(\d{4})/);
-      const year = yearMatch ? yearMatch[1] : fallbackYear;
+      const year = yearMatch ? yearMatch[1] : (fallbackYear || new Date().getFullYear().toString());
       return year ? `${mm}/${year}` : "Sem data";
     }
   }
