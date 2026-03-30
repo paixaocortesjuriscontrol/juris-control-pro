@@ -245,8 +245,28 @@ interface ProcessRow {
   origem_classificacao_turma?: string;
 }
 
+function excelSerialToDate(serial: number): Date | null {
+  if (serial < 1 || serial > 200000) return null;
+  // Excel epoch: 1900-01-01 is serial 1, but Excel incorrectly treats 1900 as leap year
+  const utcDays = serial - 25569; // 25569 = days from 1900-01-01 to 1970-01-01
+  const d = new Date(utcDays * 86400000);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
 function extrairMesAno(dataStr: string): string {
   if (!dataStr || isEmpty(dataStr)) return "Sem data";
+
+  // Try Excel serial number (pure number like 45234)
+  const numVal = Number(dataStr);
+  if (!isNaN(numVal) && numVal > 30000 && numVal < 200000) {
+    const d = excelSerialToDate(numVal);
+    if (d) {
+      const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
+      return `${mes}/${d.getUTCFullYear()}`;
+    }
+  }
+
   // Try DD/MM/YYYY or DD-MM-YYYY
   const match = dataStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (match) {
@@ -258,6 +278,12 @@ function extrairMesAno(dataStr: string): string {
   if (match2) {
     const mes = match2[2].padStart(2, "0");
     return `${mes}/${match2[1]}`;
+  }
+  // Try JS Date string (e.g. "Mon Oct 07 2024 ...")
+  const d2 = new Date(dataStr);
+  if (!isNaN(d2.getTime()) && d2.getFullYear() > 1990) {
+    const mes = String(d2.getMonth() + 1).padStart(2, "0");
+    return `${mes}/${d2.getFullYear()}`;
   }
   return "Sem data";
 }
