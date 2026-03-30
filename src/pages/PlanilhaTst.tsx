@@ -1834,6 +1834,12 @@ export default function PlanilhaTst() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-gray-500">{stats.dossiesCinza}</div>
+                <div className="text-xs text-muted-foreground">Dossiês Cinza (original)</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
                 <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Não Encontrados
