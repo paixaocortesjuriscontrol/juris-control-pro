@@ -1398,7 +1398,7 @@ export default function PlanilhaTst() {
 
       console.log("[PlanilhaTST] DEBUG: Divergência por mês (total vs classificações):", Object.entries(estatisticasPorMes).map(([mes, m]) => {
         const totalRel = Object.values(m.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0);
-        const totalTur = Object.values(m.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
+        const totalTur = Object.values(m.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa + (c.semClassificacao || 0), 0);
         return {
           mes,
           totalProcessos: m.totalProcessos,
