@@ -1771,7 +1771,7 @@ export default function PlanilhaTst() {
 
         {/* Stats */}
         {results.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <Card>
               <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-foreground">{stats.total}</div>
@@ -1796,6 +1796,18 @@ export default function PlanilhaTst() {
                 <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                   <Sparkles className="w-3 h-3" /> IA
                 </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-green-500">{stats.linhasPreenchidas}</div>
+                <div className="text-xs text-muted-foreground">Linhas Preenchidas</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
+                <div className="text-xs text-muted-foreground">Dossiês Não Localizados</div>
               </CardContent>
             </Card>
             <Card>
