@@ -640,6 +640,7 @@ export default function PlanilhaTst() {
       for (let pi = 0; pi < processRows.length; pi++) {
         if (pi % 50 === 0) await tick();
         const pr = processRows[pi];
+        if (!isEmpty(pr.relator)) {
           const cl = classificarRelator(pr.relator);
           const ti = classificarTurmaDoRelator(pr.relator);
           if (cl) {
