@@ -1238,6 +1238,8 @@ export default function PlanilhaTst() {
         const stylesPath = "xl/styles.xml";
         const stylesXml = await zip.file(stylesPath)?.async("string");
         let yellowStyleIndex: string | null = null;
+        let newFontIndex = 0;
+        let newFillIndex = 0;
 
         if (stylesXml) {
           const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
