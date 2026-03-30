@@ -82,7 +82,13 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
   for (let si = 0; si < sheetNames.length; si++) {
     const sheetName = sheetNames[si];
     const ws = wb.Sheets[sheetName];
-    const json = XLSX.utils.sheet_to_json(ws, { header: 1, rawNumbers: false }) as any[][];
+    const json = XLSX.utils.sheet_to_json(ws, {
+      header: 1,
+      raw: false,
+      rawNumbers: false,
+      defval: "",
+      blankrows: false,
+    }) as any[][];
 
     const headerIdx = detectHeaderRow(json);
     const headers = (json[headerIdx] || []).map((h: any) => String(h || ""));
