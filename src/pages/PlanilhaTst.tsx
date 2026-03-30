@@ -1149,28 +1149,28 @@ export default function PlanilhaTst() {
         }
       }
 
-      // Classificação por Relator (positivo/negativo)
+      // Classificação por Relator (positivo/negativo) — count ALL rows with classification, even without name
       const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
       for (const pr of rowsParaTotalizadores) {
-        const relator = (pr.relator || "").trim();
-        if (!relator || isEmpty(relator)) continue;
         const class_ = normalizeClassificacaoRelator(pr.classificacao_relator || "");
         if (!class_) continue;
-        if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
-        if (class_ === "POSITIVO") classificacaoPorRelator[relator].positivo++;
-        else classificacaoPorRelator[relator].negativo++;
+        const relator = (pr.relator || "").trim();
+        const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
+        if (!classificacaoPorRelator[relatorKey]) classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
+        if (class_ === "POSITIVO") classificacaoPorRelator[relatorKey].positivo++;
+        else classificacaoPorRelator[relatorKey].negativo++;
       }
 
-      // Classificação por Turma (positiva/negativa)
+      // Classificação por Turma (positiva/negativa) — count ALL rows with classification, even without name
       const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
       for (const pr of rowsParaTotalizadores) {
-        const turma = (pr.turma_relator || "").trim();
-        if (!turma || isEmpty(turma)) continue;
         const class_ = normalizeClassificacaoTurma(pr.classificacao_turma || "");
         if (!class_) continue;
-        if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
-        if (class_ === "POSITIVA") classificacaoPorTurma[turma].positiva++;
-        else classificacaoPorTurma[turma].negativa++;
+        const turma = (pr.turma_relator || "").trim();
+        const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
+        if (!classificacaoPorTurma[turmaKey]) classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
+        if (class_ === "POSITIVA") classificacaoPorTurma[turmaKey].positiva++;
+        else classificacaoPorTurma[turmaKey].negativa++;
       }
 
       // Estatísticas por Mês/Ano
