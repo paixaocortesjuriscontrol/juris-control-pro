@@ -107,12 +107,6 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "sbdi-1": "NEGATIVA",
   "sbdi-2": "POSITIVA",
   "pleno": "NEGATIVA",
-  "presidencia": "NEGATIVA",
-  "presidente": "NEGATIVA",
-  "vice-presidencia": "NEGATIVA",
-  "vice-presidente": "NEGATIVA",
-  "corregedoria": "NEGATIVA",
-  "corregedor-geral": "NEGATIVA",
 };
 
 // Classificar turma pelo nome da turma (coluna I)
@@ -1407,19 +1401,6 @@ export default function PlanilhaTst() {
                 }
               }
 
-              // === PASSO 1.5: Presidência → preencher G com ministro presidente ===
-              {
-                const iAfterClean = readCellValue(rowEl, colTurma, excelRow).trim();
-                const iNorm = iAfterClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-                if (iNorm.includes("presidencia") || iNorm.includes("presidente")) {
-                  if (colRelator >= 0) {
-                    const gNow = readCellValue(rowEl, colRelator, excelRow).trim();
-                    if (!gNow || isEmpty(gNow)) {
-                      upsertCellValue(excelRow, colRelator, "Luiz Philippe Vieira de Mello Filho");
-                    }
-                  }
-                }
-              }
 
               // === PASSO 2: Regra A - Limpar coluna G (remover "Gabinete do/da") ===
               if (colRelator >= 0) {
@@ -1491,21 +1472,6 @@ export default function PlanilhaTst() {
                 upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
               }
 
-              // === PASSO 4.5: Presidência → forçar NEGATIVO em H e NEGATIVA em J ===
-              {
-                const finalICheck = readCellValue(rowEl, colTurma, excelRow).trim();
-                const finalINorm = finalICheck.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-                if (finalINorm.includes("presidencia") || finalINorm.includes("presidente")) {
-                  const hNow = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
-                  if (hNow !== "POSITIVO" && hNow !== "NEGATIVO") {
-                    upsertCellValue(excelRow, colClassRelator, "NEGATIVO");
-                  }
-                  const jNow = readCellValue(rowEl, colClassTurma, excelRow).trim().toUpperCase();
-                  if (jNow !== "POSITIVO" && jNow !== "NEGATIVO" && jNow !== "POSITIVA" && jNow !== "NEGATIVA") {
-                    upsertCellValue(excelRow, colClassTurma, "NEGATIVA");
-                  }
-                }
-              }
             }
           }
 
