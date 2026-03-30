@@ -719,15 +719,12 @@ export default function PlanilhaTst() {
             normalizeClassificacaoRelator(getValueByColumnIndex(row, sheet.headers, 7)) || // coluna H
             normalizeClassificacaoRelator(String((row as any).__colH ?? ""));
           const classRelator = classificarRelator(relatorVal) || classRelatorFromSheet;
-          const turmaFromHeader = getFieldFromRow(
-            row,
-            sheet.headers,
-            "turma",
-            "orgao julgador",
-            "órgão julgador",
-            "orgao",
-            "unidade"
-          );
+          // Read turma name — exclude "turma (+" pattern to avoid reading classification column
+          const turmaHeaderIdx = sheet.headers.findIndex(h => {
+            const low = (h || "").toLowerCase().trim();
+            return (low.includes("turma") || low.includes("orgao julgador") || low.includes("órgão julgador") || low.includes("unidade")) && !low.includes("(") && !low.includes("+") && !low.includes("-");
+          });
+          const turmaFromHeader = turmaHeaderIdx >= 0 ? String(row[sheet.headers[turmaHeaderIdx]] ?? "").trim() : "";
           const turmaFromColI = String((row as any).__colI ?? "").trim();
           const turmaValPlanilha = turmaFromHeader || turmaFromColI;
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
