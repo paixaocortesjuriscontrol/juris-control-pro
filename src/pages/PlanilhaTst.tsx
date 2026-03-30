@@ -275,6 +275,7 @@ interface Stats {
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
   dossiesNaoLocalizados: number;
+  dossiesCinza: number;
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
