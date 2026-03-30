@@ -514,18 +514,28 @@ function getValueByColumnIndex(row: Record<string, any>, headers: string[], inde
 }
 
 function normalizeClassificacaoRelator(valor: string): "POSITIVO" | "NEGATIVO" | "" {
-  const norm = normalizeText(valor);
-  if (!norm) return "";
+  const raw = (valor ?? "").trim();
+  if (!raw) return "";
+  const norm = normalizeText(raw);
+  // Handle full words
   if (norm.startsWith("positivo") || norm.startsWith("positiva")) return "POSITIVO";
   if (norm.startsWith("negativo") || norm.startsWith("negativa")) return "NEGATIVO";
+  // Handle abbreviated forms: +, -, P, N, p, n, Sim, Não
+  if (raw === "+" || norm === "p" || norm === "sim" || norm === "s") return "POSITIVO";
+  if (raw === "-" || norm === "n" || norm === "nao" || norm === "não") return "NEGATIVO";
   return "";
 }
 
 function normalizeClassificacaoTurma(valor: string): "POSITIVA" | "NEGATIVA" | "" {
-  const norm = normalizeText(valor);
-  if (!norm) return "";
+  const raw = (valor ?? "").trim();
+  if (!raw) return "";
+  const norm = normalizeText(raw);
+  // Handle full words
   if (norm.startsWith("positivo") || norm.startsWith("positiva")) return "POSITIVA";
   if (norm.startsWith("negativo") || norm.startsWith("negativa")) return "NEGATIVA";
+  // Handle abbreviated forms: +, -, P, N, p, n, Sim, Não
+  if (raw === "+" || norm === "p" || norm === "sim" || norm === "s") return "POSITIVA";
+  if (raw === "-" || norm === "n" || norm === "nao" || norm === "não") return "NEGATIVA";
   return "";
 }
 
