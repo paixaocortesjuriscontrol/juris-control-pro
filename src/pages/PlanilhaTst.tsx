@@ -1020,6 +1020,42 @@ export default function PlanilhaTst() {
         else classificacaoPorTurma[turma].negativa++;
       }
 
+      // Estatísticas por Mês/Ano
+      const estatisticasPorMes: Record<string, MesAnoStats> = {};
+      for (const pr of processRows) {
+        const key = pr.mes_ano;
+        if (!estatisticasPorMes[key]) {
+          estatisticasPorMes[key] = { totalProcessos: 0, classificacaoPorRelator: {}, classificacaoPorTurma: {} };
+        }
+        estatisticasPorMes[key].totalProcessos++;
+
+        // Relator por mês
+        const relator = (pr.relator || "").trim();
+        if (relator && !isEmpty(relator)) {
+          const cr = (pr.classificacao_relator || "").toUpperCase();
+          if (cr === "POSITIVO" || cr === "NEGATIVO") {
+            if (!estatisticasPorMes[key].classificacaoPorRelator[relator]) {
+              estatisticasPorMes[key].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+            }
+            if (cr === "POSITIVO") estatisticasPorMes[key].classificacaoPorRelator[relator].positivo++;
+            else estatisticasPorMes[key].classificacaoPorRelator[relator].negativo++;
+          }
+        }
+
+        // Turma por mês
+        const turma = (pr.turma_relator || "").trim();
+        if (turma && !isEmpty(turma)) {
+          const ct = (pr.classificacao_turma || "").toUpperCase();
+          if (ct === "POSITIVA" || ct === "NEGATIVA") {
+            if (!estatisticasPorMes[key].classificacaoPorTurma[turma]) {
+              estatisticasPorMes[key].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+            }
+            if (ct === "POSITIVA") estatisticasPorMes[key].classificacaoPorTurma[turma].positiva++;
+            else estatisticasPorMes[key].classificacaoPorTurma[turma].negativa++;
+          }
+        }
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -1040,6 +1076,7 @@ export default function PlanilhaTst() {
         preenchimentoPorColuna,
         classificacaoPorRelator,
         classificacaoPorTurma,
+        estatisticasPorMes,
       });
 
       setResults(processRows);
