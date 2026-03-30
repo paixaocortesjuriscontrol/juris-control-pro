@@ -225,6 +225,8 @@ interface ProcessRow {
   originalIndex: number;
   originalData: Record<string, any>;
   numero_processo: string;
+  data_distribuicao: string;
+  mes_ano: string; // "MM/YYYY" extracted from data_distribuicao
   dossie: string;
   equipe: string;
   reclamante: string;
@@ -241,6 +243,41 @@ interface ProcessRow {
   origem_classificacao_relator?: string;
   origem_turma_relator?: string;
   origem_classificacao_turma?: string;
+}
+
+function extrairMesAno(dataStr: string): string {
+  if (!dataStr || isEmpty(dataStr)) return "Sem data";
+  // Try DD/MM/YYYY or DD-MM-YYYY
+  const match = dataStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (match) {
+    const mes = match[2].padStart(2, "0");
+    return `${mes}/${match[3]}`;
+  }
+  // Try YYYY-MM-DD
+  const match2 = dataStr.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (match2) {
+    const mes = match2[2].padStart(2, "0");
+    return `${mes}/${match2[1]}`;
+  }
+  return "Sem data";
+}
+
+const MESES_NOME: Record<string, string> = {
+  "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
+  "05": "Maio", "06": "Junho", "07": "Julho", "08": "Agosto",
+  "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro",
+};
+
+function mesAnoLabel(mesAno: string): string {
+  if (mesAno === "Sem data") return mesAno;
+  const [mes, ano] = mesAno.split("/");
+  return `${MESES_NOME[mes] || mes}/${ano}`;
+}
+
+interface MesAnoStats {
+  totalProcessos: number;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
 }
 
 interface SheetData {
