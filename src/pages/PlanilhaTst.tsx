@@ -2172,6 +2172,15 @@ export default function PlanilhaTst() {
                                 <td className="p-2 text-center font-bold text-red-500">{counts.negativa}</td>
                               </tr>
                             ))}
+                          <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
+                            <td className="p-2 text-xs font-bold">TOTAL GERAL</td>
+                            <td className="p-2 text-center font-bold text-green-600">
+                              {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + c.positiva, 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-red-500">
+                              {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + c.negativa, 0)}
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
