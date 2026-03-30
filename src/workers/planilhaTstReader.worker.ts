@@ -112,6 +112,27 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
         obj[h] = val;
       });
 
+      // Guardar colunas posicionais para evitar perda quando o cabeçalho não representa a coluna real
+      // (ex.: data de distribuição em A e Benner em AA)
+      let colA = row[0];
+      if (colA instanceof Date && !isNaN(colA.getTime())) {
+        const d = colA.getUTCDate().toString().padStart(2, "0");
+        const m = (colA.getUTCMonth() + 1).toString().padStart(2, "0");
+        const y = colA.getUTCFullYear();
+        colA = `${d}/${m}/${y}`;
+      }
+      obj.__colA = colA ?? "";
+
+      const aaIndex = 26; // coluna AA
+      let colAA = row[aaIndex];
+      if (colAA instanceof Date && !isNaN(colAA.getTime())) {
+        const d = colAA.getUTCDate().toString().padStart(2, "0");
+        const m = (colAA.getUTCMonth() + 1).toString().padStart(2, "0");
+        const y = colAA.getUTCFullYear();
+        colAA = `${d}/${m}/${y}`;
+      }
+      obj.__colAA = colAA ?? "";
+
       if (dossieColIdx >= 0) {
         const dossieVal = normalizeText(row[dossieColIdx]);
         if (

@@ -107,18 +107,35 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "sbdi-1": "NEGATIVA",
   "sbdi-2": "POSITIVA",
   "pleno": "NEGATIVA",
+  "presidente": "NEGATIVA",
   "presidencia": "NEGATIVA",
+  "vice-presidente": "NEGATIVA",
   "vice-presidencia": "NEGATIVA",
+  "corregedor-geral": "NEGATIVA",
   "corregedoria": "NEGATIVA",
 };
 
 // Classificar turma pelo nome da turma (coluna I)
+function normalizeTurmaKey(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[º°]/g, "ª")
+    .replace(/(\d+)a\s+turma/g, "$1ª turma")
+    .replace(/vice\s*presid[ea]n[ct]ia/g, "vice-presidencia")
+    .replace(/corregedor(?:ia)?(?:\s*-?\s*geral)?/g, "corregedoria")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function classificarTurma(nomeTurma: string): "POSITIVA" | "NEGATIVA" | "" {
   if (!nomeTurma || isEmpty(nomeTurma)) return "";
-  const norm = nomeTurma.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const norm = normalizeTurmaKey(nomeTurma);
   if (TURMA_CLASSIFICACAO[norm]) return TURMA_CLASSIFICACAO[norm];
   for (const [key, val] of Object.entries(TURMA_CLASSIFICACAO)) {
-    if (norm.includes(key) || key.includes(norm)) return val;
+    const normKey = normalizeTurmaKey(key);
+    if (norm.includes(normKey) || normKey.includes(norm)) return val;
   }
   return "";
 }
@@ -214,9 +231,8 @@ function classificarTurmaDoRelator(nomeRelator: string): { turma: string; classi
   }
   
   if (!turma) return { turma: "", classificacao: "" };
-  
-  const turmaLower = turma.toLowerCase();
-  const classificacao = TURMA_CLASSIFICACAO[turmaLower] || "";
+
+  const classificacao = classificarTurma(turma);
   return { turma, classificacao };
 }
 
@@ -655,12 +671,25 @@ export default function PlanilhaTst() {
           const proc = getProcessoFromRow(row, sheet.headers);
           const procNorm = normalizeProcesso(proc);
 
-          const relatorVal = getFieldFromRow(row, sheet.headers, "relator") || NOT_FOUND;
+          const relatorVal = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador") || NOT_FOUND;
           const classRelator = classificarRelator(relatorVal);
+          const turmaValPlanilha = getFieldFromRow(
+            row,
+            sheet.headers,
+            "turma",
+            "orgao julgador",
+            "órgão julgador",
+            "orgao",
+            "unidade"
+          );
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
+          const turmaInicial = !isEmpty(turmaValPlanilha) ? turmaValPlanilha : (turmaInfo.turma || NOT_FOUND);
+          const classTurmaInicial = classificarTurma(turmaInicial) || turmaInfo.classificacao;
 
           // Extract distribution date: prioritize column A, then look for "distribui" header
-          const colAVal = sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "";
+          const colAFromWorker = String((row as any).__colA ?? "").trim();
+          const colAFromHeader = sheet.headers[0] ? String(row[sheet.headers[0]] || "").trim() : "";
+          const colAVal = colAFromWorker || colAFromHeader;
           const colAMesAno = extrairMesAno(colAVal);
           let dataDistrib = colAVal;
           let mesAno = colAMesAno;
@@ -685,8 +714,8 @@ export default function PlanilhaTst() {
             reclamada: getFieldFromRow(row, sheet.headers, "reclamada") || NOT_FOUND,
             relator: relatorVal,
             classificacao_relator: classRelator,
-            turma_relator: turmaInfo.turma,
-            classificacao_turma: turmaInfo.classificacao,
+            turma_relator: turmaInicial,
+            classificacao_turma: classTurmaInicial,
           };
 
           const row2 = lookupProcess(procNorm, lookup2);
@@ -804,28 +833,20 @@ export default function PlanilhaTst() {
 
       await advanceStep(55);
 
-      // Re-classify relator/turma after all data sources updated relator field
-      // Apply the same pipeline as the Excel export: extract minister from turma_relator (col I) → relator (col G),
-      // clean turma, clean relator name, classify, and apply Presidência rule
-      for (let pi = 0; pi < processRows.length; pi++) {
-        if (pi % 20 === 0) await tick(55 + Math.round((pi / processRows.length) * 10));
-        const pr = processRows[pi];
-
-        // Step 1: Extract minister name from turma_relator (column I) into relator (column G) if empty
+      const aplicarRegrasClassificacao = (pr: ProcessRow) => {
         if (!isEmpty(pr.turma_relator)) {
           const ministroExtraido = extrairMinistroDeTextoCombinadoI(pr.turma_relator);
           if (ministroExtraido && isEmpty(pr.relator)) {
             pr.relator = ministroExtraido;
             pr.origem_relator = pr.origem_relator || "auto";
           }
-          // Clean turma (Regra B)
+
           const turmaLimpa = limparTurmaColI(pr.turma_relator);
           if (turmaLimpa !== pr.turma_relator) {
             pr.turma_relator = turmaLimpa;
           }
         }
 
-        // Step 2: Clean relator name (Regra A - remove "Gabinete do/da")
         if (!isEmpty(pr.relator)) {
           const relatorLimpo = limparNomeMinistroColG(pr.relator);
           if (relatorLimpo !== pr.relator) {
@@ -833,7 +854,6 @@ export default function PlanilhaTst() {
           }
         }
 
-        // Step 3: Classify relator and turma
         if (!isEmpty(pr.relator)) {
           const cl = classificarRelator(pr.relator);
           const ti = classificarTurmaDoRelator(pr.relator);
@@ -846,7 +866,6 @@ export default function PlanilhaTst() {
           }
         }
 
-        // Classify turma directly from turma_relator (column I)
         if (!isEmpty(pr.turma_relator)) {
           const classTurma = classificarTurma(pr.turma_relator);
           if (classTurma) {
@@ -855,15 +874,22 @@ export default function PlanilhaTst() {
           }
         }
 
-        // Step 4: Presidência rule
         if (!isEmpty(pr.turma_relator)) {
           const turmaNorm = pr.turma_relator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-          if (turmaNorm.includes("presidencia") || turmaNorm.includes("presidente")) {
+          const isVicePresidencia = turmaNorm.includes("vice") && turmaNorm.includes("presid");
+          const isPresidencia = (turmaNorm.includes("presidencia") || turmaNorm.includes("presidente")) && !isVicePresidencia;
+          if (isPresidencia) {
             pr.relator = "Ministro Presidente Luiz Philippe Vieira de Mello Filho";
             pr.classificacao_relator = "NEGATIVO";
             pr.classificacao_turma = "NEGATIVA";
           }
         }
+      };
+
+      // Re-classify relator/turma after all data sources updated relator field
+      for (let pi = 0; pi < processRows.length; pi++) {
+        if (pi % 20 === 0) await tick(55 + Math.round((pi / processRows.length) * 10));
+        aplicarRegrasClassificacao(processRows[pi]);
       }
 
       await advanceStep(65);
@@ -985,6 +1011,11 @@ export default function PlanilhaTst() {
         }
       }
 
+      // Garantir totalizadores após finalização completa (incluindo IA)
+      for (const pr of processRows) {
+        aplicarRegrasClassificacao(pr);
+      }
+
       const rowsParaTotalizadores = processRows.filter(pr => normalizeProcesso(pr.numero_processo).length >= 7);
 
       const naoEncontrados = rowsParaTotalizadores.filter(pr =>
@@ -1027,6 +1058,11 @@ export default function PlanilhaTst() {
           const bennerHeader = sheet.headers[bennerColIdx];
           for (const row of sheet.rows) {
             const val = String(row[bennerHeader] || "").trim().toUpperCase();
+            if (val === "SIM") bennerAtualizadoSim++;
+          }
+        } else {
+          for (const row of sheet.rows) {
+            const val = String((row as any).__colAA || "").trim().toUpperCase();
             if (val === "SIM") bennerAtualizadoSim++;
           }
         }
