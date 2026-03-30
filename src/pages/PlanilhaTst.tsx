@@ -277,6 +277,7 @@ interface Stats {
   unmatchedSamples: string[];
   dossiesNaoLocalizados: number;
   dossiesCinza: number;
+  bennerAtualizadoSim: number;
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
