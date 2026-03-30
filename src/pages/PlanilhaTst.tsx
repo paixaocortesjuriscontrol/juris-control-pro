@@ -107,6 +107,12 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "sbdi-1": "NEGATIVA",
   "sbdi-2": "POSITIVA",
   "pleno": "NEGATIVA",
+  "presidencia": "NEGATIVA",
+  "presidente": "NEGATIVA",
+  "vice-presidencia": "NEGATIVA",
+  "vice-presidente": "NEGATIVA",
+  "corregedoria": "NEGATIVA",
+  "corregedor-geral": "NEGATIVA",
 };
 
 // Classificar turma pelo nome da turma (coluna I)
@@ -271,6 +277,10 @@ interface Stats {
   totalUnicosInput1: number;
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
+  dossiesNaoLocalizados: number;
+  linhasPreenchidas: number;
+  totalLinhas: number;
+  preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
 }
 
 const NOT_FOUND = "(Não localizado)";
@@ -501,7 +511,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [] });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -898,6 +908,23 @@ export default function PlanilhaTst() {
         isEmpty(pr.dossie) && isEmpty(pr.equipe) && isEmpty(pr.reclamante) && isEmpty(pr.reclamada) && isEmpty(pr.relator)
       ).length;
 
+      const dossiesNaoLocalizados = processRows.filter(pr => isEmpty(pr.dossie)).length;
+
+      // Linhas preenchidas = linhas que têm ao menos 1 campo preenchido pelo sistema
+      const linhasPreenchidas = processRows.filter(pr =>
+        pr.origem_dossie || pr.origem_equipe || pr.origem_reclamante || pr.origem_reclamada || pr.origem_relator
+      ).length;
+
+      // Preenchimento por coluna
+      const colunas = ["dossie", "equipe", "reclamante", "reclamada", "relator"] as const;
+      const preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }> = {};
+      for (const col of colunas) {
+        preenchimentoPorColuna[col] = {
+          preenchidas: processRows.filter(pr => !isEmpty(pr[col])).length,
+          total: processRows.length,
+        };
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -910,6 +937,10 @@ export default function PlanilhaTst() {
         totalUnicosInput1: uniqueInput1Set.size,
         fieldFills,
         unmatchedSamples,
+        dossiesNaoLocalizados,
+        linhasPreenchidas,
+        totalLinhas: processRows.length,
+        preenchimentoPorColuna,
       });
 
       setResults(processRows);
@@ -1040,8 +1071,40 @@ export default function PlanilhaTst() {
     }
     y += 6;
 
+    // Preenchimento por Coluna
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Preenchimento por Coluna", 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    for (const [col, info] of Object.entries(stats.preenchimentoPorColuna)) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      const pct = info.total > 0 ? `${((info.preenchidas / info.total) * 100).toFixed(1)}%` : "0%";
+      const label = col.charAt(0).toUpperCase() + col.slice(1);
+      doc.text(`• ${label}: ${info.preenchidas}/${info.total} (${pct})`, 18, y);
+      y += 6;
+    }
+    y += 4;
+
+    // Resumo por Linha
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumo por Linha", 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const pctLinhas = stats.totalLinhas > 0 ? `${((stats.linhasPreenchidas / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Linhas preenchidas (verde): ${stats.linhasPreenchidas} de ${stats.totalLinhas} (${pctLinhas})`, 18, y); y += 6;
+    const pctDossie = stats.totalLinhas > 0 ? `${((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Dossiês não localizados: ${stats.dossiesNaoLocalizados} de ${stats.totalLinhas} (${pctDossie})`, 18, y); y += 6;
+    doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
+
     // Processos não encontrados (amostras)
     if (stats.unmatchedSamples.length > 0) {
+      if (y > 240) { doc.addPage(); y = 20; }
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.text("Amostras de Processos Não Encontrados", 14, y);
@@ -1331,7 +1394,6 @@ export default function PlanilhaTst() {
               // === PASSO 1: Analisar coluna I primeiro - extrair ministro para G se possível ===
               const rawI = readCellValue(rowEl, colTurma, excelRow).trim();
               if (rawI) {
-                // Se I contém texto combinado (ex: "7ª Turma - Gabinete do Ministro X"), extrair ministro para G
                 const ministroExtraido = extrairMinistroDeTextoCombinadoI(rawI);
                 if (ministroExtraido && colRelator >= 0) {
                   const currentG = readCellValue(rowEl, colRelator, excelRow).trim();
@@ -1339,10 +1401,23 @@ export default function PlanilhaTst() {
                     upsertCellValue(excelRow, colRelator, ministroExtraido);
                   }
                 }
-                // Limpar coluna I - manter só turma/órgão
                 const limpoI = limparTurmaColI(rawI);
                 if (limpoI !== rawI) {
                   upsertCellValue(excelRow, colTurma, limpoI);
+                }
+              }
+
+              // === PASSO 1.5: Presidência → preencher G com ministro presidente ===
+              {
+                const iAfterClean = readCellValue(rowEl, colTurma, excelRow).trim();
+                const iNorm = iAfterClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                if (iNorm.includes("presidencia") || iNorm.includes("presidente")) {
+                  if (colRelator >= 0) {
+                    const gNow = readCellValue(rowEl, colRelator, excelRow).trim();
+                    if (!gNow || isEmpty(gNow)) {
+                      upsertCellValue(excelRow, colRelator, "Luiz Philippe Vieira de Mello Filho");
+                    }
+                  }
                 }
               }
 
@@ -1368,6 +1443,7 @@ export default function PlanilhaTst() {
               const hasValidTurma = currentI2 && (
                 currentINorm.includes("TURMA") || currentINorm.includes("SBDI") ||
                 currentINorm.includes("PLENO") || currentINorm.includes("PRESIDENTE") ||
+                currentINorm.includes("PRESIDENCIA") || currentINorm.includes("PRESIDÊNCIA") ||
                 currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID") ||
                 currentINorm.includes("CEJUSC") || currentINorm.includes("SESS") ||
                 currentINorm.includes("SE")
@@ -1381,7 +1457,6 @@ export default function PlanilhaTst() {
                 if (!hasValidTurma) {
                   const turmaFromJ = limparTurmaColI(currentJRaw);
                   upsertCellValue(excelRow, colTurma, turmaFromJ);
-                  // Also try to extract minister from J content
                   const minFromJ = extrairMinistroDeTextoCombinadoI(currentJRaw);
                   if (minFromJ && colRelator >= 0) {
                     const gNow = readCellValue(rowEl, colRelator, excelRow).trim();
@@ -1394,7 +1469,6 @@ export default function PlanilhaTst() {
               }
 
               // === PASSO 4: Classificar relator (H) e turma (J) ===
-              // Re-read G after all changes for classification
               const finalG = colRelator >= 0 ? readCellValue(rowEl, colRelator, excelRow).trim() : "";
               if (finalG && !hasValidH) {
                 const classRel = classificarRelator(finalG);
@@ -1404,7 +1478,6 @@ export default function PlanilhaTst() {
                 upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
               }
 
-              // Re-read I after all changes for turma classification
               const finalI = readCellValue(rowEl, colTurma, excelRow).trim();
               if (!hasValidTurma && pr.turma_relator) {
                 upsertCellValue(excelRow, colTurma, limparTurmaColI(pr.turma_relator));
@@ -1416,6 +1489,22 @@ export default function PlanilhaTst() {
               }
               if (pr.classificacao_turma && !hasValidJ && !finalIForClass) {
                 upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+              }
+
+              // === PASSO 4.5: Presidência → forçar NEGATIVO em H e NEGATIVA em J ===
+              {
+                const finalICheck = readCellValue(rowEl, colTurma, excelRow).trim();
+                const finalINorm = finalICheck.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                if (finalINorm.includes("presidencia") || finalINorm.includes("presidente")) {
+                  const hNow = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
+                  if (hNow !== "POSITIVO" && hNow !== "NEGATIVO") {
+                    upsertCellValue(excelRow, colClassRelator, "NEGATIVO");
+                  }
+                  const jNow = readCellValue(rowEl, colClassTurma, excelRow).trim().toUpperCase();
+                  if (jNow !== "POSITIVO" && jNow !== "NEGATIVO" && jNow !== "POSITIVA" && jNow !== "NEGATIVA") {
+                    upsertCellValue(excelRow, colClassTurma, "NEGATIVA");
+                  }
+                }
               }
             }
           }
@@ -1714,7 +1803,7 @@ export default function PlanilhaTst() {
 
         {/* Stats */}
         {results.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <Card>
               <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-foreground">{stats.total}</div>
@@ -1739,6 +1828,18 @@ export default function PlanilhaTst() {
                 <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                   <Sparkles className="w-3 h-3" /> IA
                 </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-green-500">{stats.linhasPreenchidas}</div>
+                <div className="text-xs text-muted-foreground">Linhas Preenchidas</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
+                <div className="text-xs text-muted-foreground">Dossiês Não Localizados</div>
               </CardContent>
             </Card>
             <Card>
@@ -1855,6 +1956,44 @@ export default function PlanilhaTst() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                </div>
+
+                {/* Preenchimento por Coluna */}
+                <div>
+                  <p className="font-medium mb-2">Preenchimento por Coluna</p>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {Object.entries(stats.preenchimentoPorColuna).map(([col, info]) => {
+                      const pct = info.total > 0 ? Math.round((info.preenchidas / info.total) * 100) : 0;
+                      const label = col.charAt(0).toUpperCase() + col.slice(1);
+                      return (
+                        <div key={col} className="border rounded-md p-3 text-center">
+                          <div className="text-sm font-medium">{label}</div>
+                          <div className="text-lg font-bold text-foreground">{info.preenchidas}/{info.total}</div>
+                          <Progress value={pct} className="h-1.5 mt-1" />
+                          <div className="text-xs text-muted-foreground mt-1">{pct}%</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Resumo por linha */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Linhas Preenchidas (verde)</div>
+                    <div className="text-2xl font-bold text-green-600">{stats.linhasPreenchidas}</div>
+                    <div className="text-xs text-muted-foreground">de {stats.totalLinhas} linhas totais ({stats.totalLinhas > 0 ? Math.round((stats.linhasPreenchidas / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Dossiês Não Localizados</div>
+                    <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
+                    <div className="text-xs text-muted-foreground">de {stats.totalLinhas} processos ({stats.totalLinhas > 0 ? Math.round((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Sem Nenhum Dado</div>
+                    <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
+                    <div className="text-xs text-muted-foreground">processos sem cruzamento</div>
                   </div>
                 </div>
               </div>
