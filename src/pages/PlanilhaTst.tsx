@@ -159,6 +159,7 @@ function classificarTurmaDoRelator(nomeRelator: string): { turma: string; classi
 }
 
 interface ProcessRow {
+  sheetIndex: number;
   originalIndex: number;
   originalData: Record<string, any>;
   numero_processo: string;
@@ -400,7 +401,7 @@ export default function PlanilhaTst() {
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
   const [progressPct, setProgressPct] = useState(0);
   const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
-  const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
+  const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number; sheetName: string }[]>([]);
   const cancelledRef = useRef(false);
   const [forceOverwrite, setForceOverwrite] = useState(false);
   const [useAI, setUseAI] = useState(false);
@@ -458,14 +459,13 @@ export default function PlanilhaTst() {
     cancelledRef.current = false;
 
     try {
-      // Read all files sequentially with yields between each
       await tick(2);
-      const input1 = await readSheetData(files[0]);
+      const allInput1Sheets = await readAllSheetsFromFile(files[0]);
       await tick(5);
       const buf = await readOriginalFileBuffer(files[0]);
       await tick(7);
       setOriginalFileBuffer(buf);
-      setInput1Meta({ headers: input1.headers, headerRowIndex: input1.headerRowIndex });
+      setInput1Meta(allInput1Sheets.sheets.map(s => ({ headers: s.headers, headerRowIndex: s.headerRowIndex, sheetName: s.sheetName })));
       setInput1FileName(files[0].name.replace(/\.(xlsx|xls)$/i, ""));
       let input2: SheetData | null = null;
       if (files[1]) { input2 = await readSheetData(files[1]); await tick(9); }
@@ -481,18 +481,20 @@ export default function PlanilhaTst() {
       await tick(14);
       const lookup4 = input4 ? buildAllLookups(input4.rows, input4.headers) : new Map<string, Record<string, any>>();
 
-      // Diagnostic logging
-      console.log("[PlanilhaTST] Input1:", input1.rows.length, "rows | Headers:", input1.headers.join(", "));
-      if (input2) console.log("[PlanilhaTST] Input2:", input2.rows.length, "rows | Headers:", input2.headers.join(", ") , "| Lookup keys:", lookup2.size);
-      if (input3) console.log("[PlanilhaTST] Input3:", input3.rows.length, "rows | Headers:", input3.headers.join(", "), "| Lookup keys:", lookup3.size);
-      if (input4) console.log("[PlanilhaTST] Input4:", input4.rows.length, "rows | Headers:", input4.headers.join(", "), "| Lookup keys:", lookup4.size);
+      for (const sheet of allInput1Sheets.sheets) {
+        console.log(`[PlanilhaTST] Input1 Aba "${sheet.sheetName}" (${sheet.sheetIndex}):`, sheet.rows.length, "rows | Headers:", sheet.headers.join(", "));
+      }
+      if (input2) console.log("[PlanilhaTST] Input2:", input2.rows.length, "rows | Lookup keys:", lookup2.size);
+      if (input3) console.log("[PlanilhaTST] Input3:", input3.rows.length, "rows | Lookup keys:", lookup3.size);
+      if (input4) console.log("[PlanilhaTST] Input4:", input4.rows.length, "rows | Lookup keys:", lookup4.size);
 
-      // Log first 3 process numbers from each input for debugging
       const logSample = (label: string, rows: Record<string, any>[], headers: string[]) => {
         const samples = rows.slice(0, 3).map(r => `"${getProcessoFromRow(r, headers)}" → norm: "${normalizeProcesso(getProcessoFromRow(r, headers))}"`);
         console.log(`[PlanilhaTST] ${label} sample processes:`, samples);
       };
-      logSample("Input1", input1.rows, input1.headers);
+      for (const sheet of allInput1Sheets.sheets) {
+        logSample(`Input1[${sheet.sheetName}]`, sheet.rows, sheet.headers);
+      }
       if (input2) logSample("Input2", input2.rows, input2.headers);
       if (input3) logSample("Input3", input3.rows, input3.headers);
       if (input4) logSample("Input4", input4.rows, input4.headers);
@@ -502,79 +504,81 @@ export default function PlanilhaTst() {
       const processRows: ProcessRow[] = [];
       let countPasso1 = 0;
       let countPasso2 = 0;
+      const totalInput1Rows = allInput1Sheets.sheets.reduce((sum, s) => sum + s.rows.length, 0);
+      let globalRowCounter = 0;
 
-      for (let i = 0; i < input1.rows.length; i++) {
-        if (i % 20 === 0) await tick(15 + Math.round((i / input1.rows.length) * 20));
-        const row = input1.rows[i];
-        const proc = getProcessoFromRow(row, input1.headers);
-        const procNorm = normalizeProcesso(proc);
+      for (const sheet of allInput1Sheets.sheets) {
+        for (let i = 0; i < sheet.rows.length; i++) {
+          if (globalRowCounter % 20 === 0) await tick(15 + Math.round((globalRowCounter / totalInput1Rows) * 20));
+          globalRowCounter++;
+          const row = sheet.rows[i];
+          const proc = getProcessoFromRow(row, sheet.headers);
+          const procNorm = normalizeProcesso(proc);
 
-        const relatorVal = getFieldFromRow(row, input1.headers, "relator") || NOT_FOUND;
-        const classRelator = classificarRelator(relatorVal);
-        const turmaInfo = classificarTurmaDoRelator(relatorVal);
+          const relatorVal = getFieldFromRow(row, sheet.headers, "relator") || NOT_FOUND;
+          const classRelator = classificarRelator(relatorVal);
+          const turmaInfo = classificarTurmaDoRelator(relatorVal);
 
-        const pr: ProcessRow = {
-          originalIndex: i,
-          originalData: { ...row },
-          numero_processo: proc,
-          dossie: getFieldFromRow(row, input1.headers, "dossi", "dossie", "dossiê") || NOT_FOUND,
-          equipe: getFieldFromRow(row, input1.headers, "equipe") || NOT_FOUND,
-          reclamante: getFieldFromRow(row, input1.headers, "reclamante") || NOT_FOUND,
-          reclamada: getFieldFromRow(row, input1.headers, "reclamada") || NOT_FOUND,
-          relator: relatorVal,
-          classificacao_relator: classRelator,
-          turma_relator: turmaInfo.turma,
-          classificacao_turma: turmaInfo.classificacao,
-        };
+          const pr: ProcessRow = {
+            sheetIndex: sheet.sheetIndex,
+            originalIndex: i,
+            originalData: { ...row },
+            numero_processo: proc,
+            dossie: getFieldFromRow(row, sheet.headers, "dossi", "dossie", "dossiê") || NOT_FOUND,
+            equipe: getFieldFromRow(row, sheet.headers, "equipe") || NOT_FOUND,
+            reclamante: getFieldFromRow(row, sheet.headers, "reclamante") || NOT_FOUND,
+            reclamada: getFieldFromRow(row, sheet.headers, "reclamada") || NOT_FOUND,
+            relator: relatorVal,
+            classificacao_relator: classRelator,
+            turma_relator: turmaInfo.turma,
+            classificacao_turma: turmaInfo.classificacao,
+          };
 
-        // Passo 1.1: Input 2 (priority) then Input 3
-        const row2 = lookupProcess(procNorm, lookup2);
-        const row3 = lookupProcess(procNorm, lookup3);
-        let complemented1 = false;
+          const row2 = lookupProcess(procNorm, lookup2);
+          const row3 = lookupProcess(procNorm, lookup3);
+          let complemented1 = false;
 
-        const fields1: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
-          { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"] },
-          { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"] },
-          { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
-          { key: "relator", terms: ["relator", "ministro", "desembargador"] },
-        ];
+          const fields1: Array<{ key: keyof ProcessRow; terms: string[] }> = [
+            { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
+            { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"] },
+            { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"] },
+            { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
+            { key: "relator", terms: ["relator", "ministro", "desembargador"] },
+          ];
 
-        for (const f of fields1) {
-          if (forceOverwrite || isEmpty(pr[f.key] as string)) {
-            // Try Input 2 first
-            if (row2 && input2) {
-              const val = getFieldFromRow(row2, input2.headers, ...f.terms);
-              if (!isEmpty(val)) {
-                (pr as any)[f.key] = val;
-                (pr as any)[`origem_${f.key}`] = "input2";
-                complemented1 = true;
+          for (const f of fields1) {
+            if (forceOverwrite || isEmpty(pr[f.key] as string)) {
+              if (row2 && input2) {
+                const val = getFieldFromRow(row2, input2.headers, ...f.terms);
+                if (!isEmpty(val)) {
+                  (pr as any)[f.key] = val;
+                  (pr as any)[`origem_${f.key}`] = "input2";
+                  complemented1 = true;
+                }
               }
-            }
-            // Fallback to Input 3
-            if ((forceOverwrite || isEmpty(pr[f.key] as string)) && row3 && input3) {
-              const val = getFieldFromRow(row3, input3.headers, ...f.terms);
-              if (!isEmpty(val)) {
-                (pr as any)[f.key] = val;
-                (pr as any)[`origem_${f.key}`] = "input3";
-                complemented1 = true;
+              if ((forceOverwrite || isEmpty(pr[f.key] as string)) && row3 && input3) {
+                const val = getFieldFromRow(row3, input3.headers, ...f.terms);
+                if (!isEmpty(val)) {
+                  (pr as any)[f.key] = val;
+                  (pr as any)[`origem_${f.key}`] = "input3";
+                  complemented1 = true;
+                }
               }
             }
           }
-        }
 
-        if (complemented1) countPasso1++;
-        processRows.push(pr);
+          if (complemented1) countPasso1++;
+          processRows.push(pr);
+        }
       }
 
       console.log(`[PlanilhaTST] Passo 1.1: ${countPasso1}/${processRows.length} processos complementados via Input 2/3`);
-      
-      // Log headers para diagnóstico de colunas
+      console.log(`[PlanilhaTST] Total abas processadas: ${allInput1Sheets.sheets.length}`);
+
       if (input2) console.log(`[PlanilhaTST] Input2 headers:`, input2.headers.filter(h => h.trim()));
       if (input3) console.log(`[PlanilhaTST] Input3 headers:`, input3.headers.filter(h => h.trim()));
       if (input4) console.log(`[PlanilhaTST] Input4 headers:`, input4.headers.filter(h => h.trim()));
-      
-      // Detailed match diagnostics — count UNIQUE processes, not rows
+
       const matchedSet2 = new Set<string>();
       const matchedSet3 = new Set<string>();
       const uniqueInput1Set = new Set<string>();
@@ -596,7 +600,6 @@ export default function PlanilhaTst() {
       if (unmatchedSamples.length > 0) {
         console.log(`[PlanilhaTST] Unmatched samples:`, unmatchedSamples);
       }
-      // Log first successful match to verify field extraction
       const firstMatched = processRows.find(pr => !isEmpty(pr.dossie) || !isEmpty(pr.equipe) || !isEmpty(pr.reclamante));
       if (firstMatched) {
         console.log(`[PlanilhaTST] First filled row:`, { proc: firstMatched.numero_processo, dossie: firstMatched.dossie, equipe: firstMatched.equipe, reclamante: firstMatched.reclamante, reclamada: firstMatched.reclamada, relator: firstMatched.relator });
@@ -984,270 +987,51 @@ export default function PlanilhaTst() {
   const baixarPlanilha = async () => {
     if (results.length === 0) return;
 
-    if (originalFileBuffer && input1Meta) {
+    if (originalFileBuffer && input1Meta.length > 0) {
       try {
-        // Modifica apenas os valores nas células, preservando os estilos originais
         const zip = await JSZip.loadAsync(originalFileBuffer);
         const parser = new DOMParser();
         const serializer = new XMLSerializer();
         const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
         const workbookRelsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
 
-        let worksheetPath = "xl/worksheets/sheet1.xml";
-
+        // Discover ALL sheet paths
+        const sheetPaths: { index: number; path: string }[] = [];
         if (workbookXml && workbookRelsXml) {
-          const workbookDoc = parser.parseFromString(workbookXml, "application/xml");
+          const wbDoc = parser.parseFromString(workbookXml, "application/xml");
           const relsDoc = parser.parseFromString(workbookRelsXml, "application/xml");
-          const workbookNs = workbookDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+          const wbNs = wbDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
           const relsNs = relsDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/package/2006/relationships";
-          const firstSheet = workbookDoc.getElementsByTagNameNS(workbookNs, "sheet")[0];
-          const relationId = firstSheet?.getAttribute("r:id") || firstSheet?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
-          const relation = relationId
-            ? Array.from(relsDoc.getElementsByTagNameNS(relsNs, "Relationship")).find((node) => node.getAttribute("Id") === relationId)
-            : null;
-          const target = relation?.getAttribute("Target");
-
-          if (target) {
-            worksheetPath = `xl/${target.replace(/^\/+/, "").replace(/^xl\//, "")}`;
-          }
-        }
-
-        const sheetXml = await zip.file(worksheetPath)?.async("string");
-
-        if (!sheetXml) {
-          toast.error("Erro ao ler a planilha original");
-          return;
-        }
-
-        const sheetDoc = parser.parseFromString(sheetXml, "application/xml");
-        const sheetNs = sheetDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        const sheetData = sheetDoc.getElementsByTagNameNS(sheetNs, "sheetData")[0];
-
-        if (!sheetData) {
-          toast.error("Estrutura da planilha original inválida");
-          return;
-        }
-
-        const headers = input1Meta.headers;
-        const dataStartRow = input1Meta.headerRowIndex + 2; // 1-indexed
-
-        const getColIdx = (terms: string[]): number => findColumnIndex(headers, ...terms);
-        const colDossie = getColIdx(["dossi", "dossie", "dossiê"]);
-        const colEquipe = getColIdx(["equipe"]);
-        const colReclamante = getColIdx(["reclamante"]);
-        const colReclamada = getColIdx(["reclamada"]);
-        const colRelator = getColIdx(["relator"]);
-        // Columns H (index 7), I (index 8), J (index 9) - fixed positions
-        const colClassRelator = 7;  // Column H - RELATOR (+ OU -)
-        const colTurma = 8;         // Column I - TURMA (nome)
-        const colClassTurma = 9;    // Column J - TURMA (+ OU -)
-
-        const rowMap = new Map<number, Element>();
-        for (const rowEl of Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row"))) {
-          const rowNumber = Number(rowEl.getAttribute("r"));
-          if (!Number.isNaN(rowNumber)) {
-            rowMap.set(rowNumber, rowEl);
-          }
-        }
-
-        const getRowCells = (rowEl: Element) =>
-          Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter((cell) => cell.parentNode === rowEl);
-
-        const getColumnLetters = (cellRef: string) => cellRef.replace(/\d+/g, "");
-
-        const columnLettersToIndex = (letters: string) => {
-          let value = 0;
-          for (const char of letters) {
-            value = value * 26 + (char.charCodeAt(0) - 64);
-          }
-          return value - 1;
-        };
-
-        const getCell = (rowEl: Element, cellRef: string) =>
-          getRowCells(rowEl).find((cell) => cell.getAttribute("r") === cellRef) || null;
-
-        const ensureRow = (rowNumber: number) => {
-          const existing = rowMap.get(rowNumber);
-          if (existing) return existing;
-
-          const rowEl = sheetDoc.createElementNS(sheetNs, "row");
-          rowEl.setAttribute("r", String(rowNumber));
-
-          const allRows = Array.from(sheetData.getElementsByTagNameNS(sheetNs, "row")).filter((row) => row.parentNode === sheetData);
-          const nextRow = allRows.find((row) => Number(row.getAttribute("r")) > rowNumber);
-          if (nextRow) {
-            sheetData.insertBefore(rowEl, nextRow);
-          } else {
-            sheetData.appendChild(rowEl);
-          }
-
-          rowMap.set(rowNumber, rowEl);
-          return rowEl;
-        };
-
-        const createInlineStringChildren = (cellEl: Element, value: string) => {
-          while (cellEl.firstChild) {
-            cellEl.removeChild(cellEl.firstChild);
-          }
-
-          cellEl.setAttribute("t", "inlineStr");
-
-          const isEl = sheetDoc.createElementNS(sheetNs, "is");
-          const tEl = sheetDoc.createElementNS(sheetNs, "t");
-          if (/^\s|\s$| {2,}|\n/.test(value)) {
-            tEl.setAttribute("xml:space", "preserve");
-          }
-          tEl.textContent = value;
-          isEl.appendChild(tEl);
-          cellEl.appendChild(isEl);
-        };
-
-        const findStyleForNewCell = (rowEl: Element, rowNumber: number, colIdx: number) => {
-          const sameRowStyle = getRowCells(rowEl)
-            .map((cell) => ({
-              style: cell.getAttribute("s"),
-              distance: Math.abs(columnLettersToIndex(getColumnLetters(cell.getAttribute("r") || "A")) - colIdx),
-            }))
-            .filter((item): item is { style: string; distance: number } => Boolean(item.style))
-            .sort((a, b) => a.distance - b.distance)[0]?.style;
-
-          if (sameRowStyle) return sameRowStyle;
-
-          const colLetters = XLSX.utils.encode_col(colIdx);
-          for (let offset = 1; offset <= Math.min(results.length, 10); offset++) {
-            for (const candidateRowNumber of [rowNumber - offset, rowNumber + offset]) {
-              const candidateRow = rowMap.get(candidateRowNumber);
-              if (!candidateRow) continue;
-
-              const sameColumnCell = getCell(candidateRow, `${colLetters}${candidateRowNumber}`);
-              const sameColumnStyle = sameColumnCell?.getAttribute("s");
-              if (sameColumnStyle) return sameColumnStyle;
-
-              const fallbackRowStyle = getRowCells(candidateRow)
-                .map((cell) => cell.getAttribute("s"))
-                .find((style): style is string => Boolean(style));
-              if (fallbackRowStyle) return fallbackRowStyle;
+          const sheetEls = Array.from(wbDoc.getElementsByTagNameNS(wbNs, "sheet"));
+          for (let si = 0; si < sheetEls.length; si++) {
+            const rId = sheetEls[si].getAttribute("r:id") || sheetEls[si].getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+            const rel = rId ? Array.from(relsDoc.getElementsByTagNameNS(relsNs, "Relationship")).find(n => n.getAttribute("Id") === rId) : null;
+            const target = rel?.getAttribute("Target");
+            if (target) {
+              sheetPaths.push({ index: si, path: `xl/${target.replace(/^\/+/, "").replace(/^xl\//, "")}` });
             }
           }
+        }
+        if (sheetPaths.length === 0) sheetPaths.push({ index: 0, path: "xl/worksheets/sheet1.xml" });
 
-          return null;
-        };
-
-        // Helper to read current cell value (inline string or shared string)
-        const readCellValue = (rowEl: Element, colIdx: number, rowNumber: number): string => {
-          const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
-          const cell = getCell(rowEl, cellRef);
-          if (!cell) return "";
-          const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
-          if (tEls.length > 0) return tEls[0].textContent || "";
-          const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
-          return vEl?.textContent || "";
-        };
-
-        const upsertCellValue = (rowNumber: number, colIdx: number, value: string, allowEmpty = false) => {
-          if (colIdx < 0 || (!allowEmpty && isEmpty(value))) return;
-
-          const rowEl = ensureRow(rowNumber);
-          const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
-          const existingCell = getCell(rowEl, cellRef);
-
-          if (existingCell) {
-            createInlineStringChildren(existingCell, value);
-            return;
-          }
-
-          const newCell = sheetDoc.createElementNS(sheetNs, "c");
-          newCell.setAttribute("r", cellRef);
-
-          const inheritedStyle = findStyleForNewCell(rowEl, rowNumber, colIdx);
-          if (inheritedStyle) {
-            newCell.setAttribute("s", inheritedStyle);
-          }
-
-          createInlineStringChildren(newCell, value);
-
-          const rowCells = getRowCells(rowEl);
-          const nextCell = rowCells.find((cell) => {
-            const ref = cell.getAttribute("r") || "";
-            return columnLettersToIndex(getColumnLetters(ref)) > colIdx;
-          });
-
-          if (nextCell) {
-            rowEl.insertBefore(newCell, nextCell);
-          } else {
-            rowEl.appendChild(newCell);
-          }
-        };
-
-        for (const pr of results) {
-          const excelRow = dataStartRow + pr.originalIndex;
-          const tryWrite = (colIdx: number, value: string, origemKey: string) => {
-            if (colIdx < 0 || isEmpty(value)) return;
-            // Write if the field was filled by the system (has origem)
-            if (!(pr as any)[origemKey]) return;
-            upsertCellValue(excelRow, colIdx, value);
-          };
-
-          tryWrite(colDossie, pr.dossie, "origem_dossie");
-          tryWrite(colEquipe, pr.equipe, "origem_equipe");
-          tryWrite(colReclamante, pr.reclamante, "origem_reclamante");
-          tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
-          tryWrite(colRelator, pr.relator, "origem_relator");
-
-          const rowEl = rowMap.get(excelRow);
-
-          if (rowEl) {
-            const currentH = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
-            const currentI = readCellValue(rowEl, colTurma, excelRow).trim();
-            const currentINorm = currentI.toUpperCase();
-            const currentJRaw = readCellValue(rowEl, colClassTurma, excelRow).trim();
-            const currentJ = currentJRaw.toUpperCase();
-
-            const hasValidH = currentH === "POSITIVO" || currentH === "NEGATIVO";
-            const hasValidTurma = currentI && (
-              currentINorm.includes("TURMA") ||
-              currentINorm.includes("SBDI") ||
-              currentINorm.includes("PLENO") ||
-              currentINorm.includes("PRESIDENTE") ||
-              currentINorm.includes("CORREGEDOR") ||
-              currentINorm.includes("IMPEDID")
-            );
-            const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO"
-              || currentJ === "POSITIVA" || currentJ === "NEGATIVA"
-              || currentJ.includes("AINDA NÃO DISTRIBU");
-
-            // Sempre mover conteúdo inválido de J para I antes de qualquer classificação
-            if (currentJRaw && !hasValidJ) {
-              const mergedTurma = hasValidTurma ? currentI : pr.turma_relator || currentI;
-              if (!isEmpty(mergedTurma)) {
-                upsertCellValue(excelRow, colTurma, mergedTurma);
-              }
-              upsertCellValue(excelRow, colClassTurma, "", true);
-            }
-
-            if (pr.classificacao_relator && !hasValidH) {
-              upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
-            }
-
-            if (pr.turma_relator && !hasValidTurma) {
-              upsertCellValue(excelRow, colTurma, pr.turma_relator);
-            }
-
-            if (pr.classificacao_turma && !hasValidJ) {
-              upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+        // Parse shared strings table (critical for reading cell values correctly)
+        const sstXml = await zip.file("xl/sharedStrings.xml")?.async("string");
+        const sharedStrings: string[] = [];
+        if (sstXml) {
+          const sstDoc = parser.parseFromString(sstXml, "application/xml");
+          const sstNs = sstDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+          const siEls = sstDoc.getElementsByTagNameNS(sstNs, "si");
+          for (const si of Array.from(siEls)) {
+            const tEls = si.getElementsByTagNameNS(sstNs, "t");
+            if (tEls.length > 0) {
+              sharedStrings.push(Array.from(tEls).map(t => t.textContent || "").join(""));
+            } else {
+              sharedStrings.push("");
             }
           }
         }
 
-        const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
-        if (parserError) {
-          toast.error("Erro ao montar a planilha final");
-          return;
-        }
-
-        zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
-
-        // --- Adicionar estilos no styles.xml: fonte Calibri 8pt + fill amarelo ---
+        // --- Add styles (font Calibri 8 + yellow fill) ONCE ---
         const stylesPath = "xl/styles.xml";
         const stylesXml = await zip.file(stylesPath)?.async("string");
         let newFontIndex = 0;
@@ -1256,58 +1040,236 @@ export default function PlanilhaTst() {
         if (stylesXml) {
           const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
           const stylesNs = stylesDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-
-          // 1. Adicionar fonte Calibri tamanho 8
           const fonts = stylesDoc.getElementsByTagNameNS(stylesNs, "fonts")[0];
           const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
           newFontIndex = fontCount;
-
           if (fonts) {
             const fontEl = stylesDoc.createElementNS(stylesNs, "font");
-            const szEl = stylesDoc.createElementNS(stylesNs, "sz");
-            szEl.setAttribute("val", "8");
-            const nameEl = stylesDoc.createElementNS(stylesNs, "name");
-            nameEl.setAttribute("val", "Calibri");
-            const familyEl = stylesDoc.createElementNS(stylesNs, "family");
-            familyEl.setAttribute("val", "2");
-            const schemeEl = stylesDoc.createElementNS(stylesNs, "scheme");
-            schemeEl.setAttribute("val", "minor");
-            fontEl.appendChild(szEl);
-            fontEl.appendChild(nameEl);
-            fontEl.appendChild(familyEl);
-            fontEl.appendChild(schemeEl);
+            const szEl = stylesDoc.createElementNS(stylesNs, "sz"); szEl.setAttribute("val", "8");
+            const nameEl = stylesDoc.createElementNS(stylesNs, "name"); nameEl.setAttribute("val", "Calibri");
+            const familyEl = stylesDoc.createElementNS(stylesNs, "family"); familyEl.setAttribute("val", "2");
+            const schemeEl = stylesDoc.createElementNS(stylesNs, "scheme"); schemeEl.setAttribute("val", "minor");
+            fontEl.appendChild(szEl); fontEl.appendChild(nameEl); fontEl.appendChild(familyEl); fontEl.appendChild(schemeEl);
             fonts.appendChild(fontEl);
             fonts.setAttribute("count", String(fontCount + 1));
           }
-
-          // 2. Adicionar fill amarelo
           const fills = stylesDoc.getElementsByTagNameNS(stylesNs, "fills")[0];
           const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
           newFillIndex = fillCount;
-
           if (fills) {
             const fillEl = stylesDoc.createElementNS(stylesNs, "fill");
-            const patternEl = stylesDoc.createElementNS(stylesNs, "patternFill");
-            patternEl.setAttribute("patternType", "solid");
-            const fgColor = stylesDoc.createElementNS(stylesNs, "fgColor");
-            fgColor.setAttribute("rgb", "FFFFFF00");
-            const bgColor = stylesDoc.createElementNS(stylesNs, "bgColor");
-            bgColor.setAttribute("indexed", "64");
-            patternEl.appendChild(fgColor);
-            patternEl.appendChild(bgColor);
+            const patternEl = stylesDoc.createElementNS(stylesNs, "patternFill"); patternEl.setAttribute("patternType", "solid");
+            const fgColor = stylesDoc.createElementNS(stylesNs, "fgColor"); fgColor.setAttribute("rgb", "FFFFFF00");
+            const bgColor = stylesDoc.createElementNS(stylesNs, "bgColor"); bgColor.setAttribute("indexed", "64");
+            patternEl.appendChild(fgColor); patternEl.appendChild(bgColor);
             fillEl.appendChild(patternEl);
             fills.appendChild(fillEl);
             fills.setAttribute("count", String(fillCount + 1));
           }
-
           zip.file(stylesPath, serializer.serializeToString(stylesDoc));
         }
 
-        // --- Aplicar o estilo Calibri 8 + amarelo nas células preenchidas pelo programa ---
+        // --- VALUE PASS: process each sheet ---
+        for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
+          const sheetResults = results.filter(r => r.sheetIndex === sheetIdx);
+          if (sheetResults.length === 0) continue;
+          const meta = input1Meta[sheetIdx];
+          if (!meta) continue;
+
+          const sheetXml = await zip.file(worksheetPath)?.async("string");
+          if (!sheetXml) continue;
+
+          const sheetDoc = parser.parseFromString(sheetXml, "application/xml");
+          const sheetNs = sheetDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+          const sheetDataEl = sheetDoc.getElementsByTagNameNS(sheetNs, "sheetData")[0];
+          if (!sheetDataEl) continue;
+
+          const headers = meta.headers;
+          const dataStartRow = meta.headerRowIndex + 2;
+
+          const getColIdx = (terms: string[]): number => findColumnIndex(headers, ...terms);
+          const colDossie = getColIdx(["dossi", "dossie", "dossiê"]);
+          const colEquipe = getColIdx(["equipe"]);
+          const colReclamante = getColIdx(["reclamante"]);
+          const colReclamada = getColIdx(["reclamada"]);
+          const colRelator = getColIdx(["relator"]);
+          const colClassRelator = 7;
+          const colTurma = 8;
+          const colClassTurma = 9;
+
+          const rowMap = new Map<number, Element>();
+          for (const rowEl of Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row"))) {
+            const rowNumber = Number(rowEl.getAttribute("r"));
+            if (!Number.isNaN(rowNumber)) rowMap.set(rowNumber, rowEl);
+          }
+
+          const getRowCells = (rowEl: Element) =>
+            Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter((cell) => cell.parentNode === rowEl);
+
+          const getColumnLetters = (cellRef: string) => cellRef.replace(/\d+/g, "");
+
+          const columnLettersToIndex = (letters: string) => {
+            let value = 0;
+            for (const char of letters) value = value * 26 + (char.charCodeAt(0) - 64);
+            return value - 1;
+          };
+
+          const getCell = (rowEl: Element, cellRef: string) =>
+            getRowCells(rowEl).find((cell) => cell.getAttribute("r") === cellRef) || null;
+
+          const ensureRow = (rowNumber: number) => {
+            const existing = rowMap.get(rowNumber);
+            if (existing) return existing;
+            const rowEl = sheetDoc.createElementNS(sheetNs, "row");
+            rowEl.setAttribute("r", String(rowNumber));
+            const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter((row) => row.parentNode === sheetDataEl);
+            const nextRow = allRows.find((row) => Number(row.getAttribute("r")) > rowNumber);
+            if (nextRow) sheetDataEl.insertBefore(rowEl, nextRow);
+            else sheetDataEl.appendChild(rowEl);
+            rowMap.set(rowNumber, rowEl);
+            return rowEl;
+          };
+
+          const createInlineStringChildren = (cellEl: Element, value: string) => {
+            while (cellEl.firstChild) cellEl.removeChild(cellEl.firstChild);
+            cellEl.setAttribute("t", "inlineStr");
+            const isEl = sheetDoc.createElementNS(sheetNs, "is");
+            const tEl = sheetDoc.createElementNS(sheetNs, "t");
+            if (/^\s|\s$| {2,}|\n/.test(value)) tEl.setAttribute("xml:space", "preserve");
+            tEl.textContent = value;
+            isEl.appendChild(tEl);
+            cellEl.appendChild(isEl);
+          };
+
+          const findStyleForNewCell = (rowEl: Element, rowNumber: number, colIdx: number) => {
+            const sameRowStyle = getRowCells(rowEl)
+              .map((cell) => ({ style: cell.getAttribute("s"), distance: Math.abs(columnLettersToIndex(getColumnLetters(cell.getAttribute("r") || "A")) - colIdx) }))
+              .filter((item): item is { style: string; distance: number } => Boolean(item.style))
+              .sort((a, b) => a.distance - b.distance)[0]?.style;
+            if (sameRowStyle) return sameRowStyle;
+            const colLetters = XLSX.utils.encode_col(colIdx);
+            for (let offset = 1; offset <= Math.min(sheetResults.length, 10); offset++) {
+              for (const candidateRowNumber of [rowNumber - offset, rowNumber + offset]) {
+                const candidateRow = rowMap.get(candidateRowNumber);
+                if (!candidateRow) continue;
+                const sameColumnCell = getCell(candidateRow, `${colLetters}${candidateRowNumber}`);
+                const sameColumnStyle = sameColumnCell?.getAttribute("s");
+                if (sameColumnStyle) return sameColumnStyle;
+                const fallbackRowStyle = getRowCells(candidateRow).map((cell) => cell.getAttribute("s")).find((style): style is string => Boolean(style));
+                if (fallbackRowStyle) return fallbackRowStyle;
+              }
+            }
+            return null;
+          };
+
+          const readCellValue = (rowEl: Element, colIdx: number, rowNumber: number): string => {
+            const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+            const cell = getCell(rowEl, cellRef);
+            if (!cell) return "";
+            const cellType = cell.getAttribute("t");
+            if (cellType === "inlineStr") {
+              const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
+              return tEls.length > 0 ? tEls[0].textContent || "" : "";
+            }
+            if (cellType === "s") {
+              const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
+              const idx = parseInt(vEl?.textContent || "0", 10);
+              return sharedStrings[idx] || "";
+            }
+            const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
+            if (tEls.length > 0) return tEls[0].textContent || "" ;
+            const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
+            return vEl?.textContent || "";
+          };
+
+          const upsertCellValue = (rowNumber: number, colIdx: number, value: string, allowEmpty = false) => {
+            if (colIdx < 0 || (!allowEmpty && isEmpty(value))) return;
+            const rowEl = ensureRow(rowNumber);
+            const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+            const existingCell = getCell(rowEl, cellRef);
+            if (existingCell) {
+              createInlineStringChildren(existingCell, value);
+              return;
+            }
+            const newCell = sheetDoc.createElementNS(sheetNs, "c");
+            newCell.setAttribute("r", cellRef);
+            const inheritedStyle = findStyleForNewCell(rowEl, rowNumber, colIdx);
+            if (inheritedStyle) newCell.setAttribute("s", inheritedStyle);
+            createInlineStringChildren(newCell, value);
+            const rowCells = getRowCells(rowEl);
+            const nextCell = rowCells.find((cell) => {
+              const ref = cell.getAttribute("r") || "";
+              return columnLettersToIndex(getColumnLetters(ref)) > colIdx;
+            });
+            if (nextCell) rowEl.insertBefore(newCell, nextCell);
+            else rowEl.appendChild(newCell);
+          };
+
+          // Write cell values
+          for (const pr of sheetResults) {
+            const excelRow = dataStartRow + pr.originalIndex;
+            const tryWrite = (colIdx: number, value: string, origemKey: string) => {
+              if (colIdx < 0 || isEmpty(value)) return;
+              if (!(pr as any)[origemKey]) return;
+              upsertCellValue(excelRow, colIdx, value);
+            };
+
+            tryWrite(colDossie, pr.dossie, "origem_dossie");
+            tryWrite(colEquipe, pr.equipe, "origem_equipe");
+            tryWrite(colReclamante, pr.reclamante, "origem_reclamante");
+            tryWrite(colReclamada, pr.reclamada, "origem_reclamada");
+            tryWrite(colRelator, pr.relator, "origem_relator");
+
+            const rowEl = rowMap.get(excelRow);
+            if (rowEl) {
+              const currentH = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
+              const currentI = readCellValue(rowEl, colTurma, excelRow).trim();
+              const currentINorm = currentI.toUpperCase();
+              const currentJRaw = readCellValue(rowEl, colClassTurma, excelRow).trim();
+              const currentJ = currentJRaw.toUpperCase();
+
+              const hasValidH = currentH === "POSITIVO" || currentH === "NEGATIVO";
+              const hasValidTurma = currentI && (
+                currentINorm.includes("TURMA") || currentINorm.includes("SBDI") ||
+                currentINorm.includes("PLENO") || currentINorm.includes("PRESIDENTE") ||
+                currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID")
+              );
+              const hasValidJ = currentJ === "POSITIVO" || currentJ === "NEGATIVO"
+                || currentJ === "POSITIVA" || currentJ === "NEGATIVA"
+                || currentJ.includes("AINDA NÃO DISTRIBU");
+
+              // Move invalid J content to column I (only if I doesn't have valid turma)
+              if (currentJRaw && !hasValidJ) {
+                if (!hasValidTurma) {
+                  upsertCellValue(excelRow, colTurma, currentJRaw);
+                }
+                upsertCellValue(excelRow, colClassTurma, "", true);
+              }
+
+              if (pr.classificacao_relator && !hasValidH) {
+                upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
+              }
+              if (pr.turma_relator && !hasValidTurma) {
+                upsertCellValue(excelRow, colTurma, pr.turma_relator);
+              }
+              if (pr.classificacao_turma && !hasValidJ) {
+                upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+              }
+            }
+          }
+
+          const parserError = sheetDoc.getElementsByTagName("parsererror")[0];
+          if (parserError) {
+            console.error(`Erro ao montar aba ${sheetIdx}`);
+            continue;
+          }
+          zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
+        }
+
+        // --- STYLE PASS: apply yellow/Calibri styles across all sheets ---
         {
           const updatedStylesXml2 = await zip.file(stylesPath)?.async("string");
-          const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
-          if (updatedStylesXml2 && updatedSheetXml) {
+          if (updatedStylesXml2) {
             const stylesDoc2 = parser.parseFromString(updatedStylesXml2, "application/xml");
             const sNs = stylesDoc2.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
             const cellXfs2 = stylesDoc2.getElementsByTagNameNS(sNs, "cellXfs")[0];
@@ -1319,14 +1281,11 @@ export default function PlanilhaTst() {
               if (origStyleId && cellXfs2) {
                 const xfs = cellXfs2.getElementsByTagNameNS(sNs, "xf");
                 const idx = Number(origStyleId);
-                if (!isNaN(idx) && idx < xfs.length) {
-                  borderId = xfs[idx].getAttribute("borderId") || "0";
-                }
+                if (!isNaN(idx) && idx < xfs.length) borderId = xfs[idx].getAttribute("borderId") || "0";
               }
               const key = `${borderId}|${centered ? "1" : "0"}`;
               if (styleCache[key]) return styleCache[key];
               if (!cellXfs2) return "0";
-
               const newXf = stylesDoc2.createElementNS(sNs, "xf");
               newXf.setAttribute("numFmtId", "0");
               newXf.setAttribute("fontId", String(newFontIndex));
@@ -1351,16 +1310,36 @@ export default function PlanilhaTst() {
               return styleIdx;
             };
 
-            const updatedDoc = parser.parseFromString(updatedSheetXml, "application/xml");
-            const updatedNs = updatedDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-            const updatedSheetData = updatedDoc.getElementsByTagNameNS(updatedNs, "sheetData")[0];
+            for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
+              const sheetResults = results.filter(r => r.sheetIndex === sheetIdx);
+              if (sheetResults.length === 0) continue;
+              const meta = input1Meta[sheetIdx];
+              if (!meta) continue;
 
-            if (updatedSheetData) {
+              const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
+              if (!updatedSheetXml) continue;
+
+              const updatedDoc = parser.parseFromString(updatedSheetXml, "application/xml");
+              const updatedNs = updatedDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+              const updatedSheetData = updatedDoc.getElementsByTagNameNS(updatedNs, "sheetData")[0];
+              if (!updatedSheetData) continue;
+
               const updatedRowMap = new Map<number, Element>();
               for (const rowEl of Array.from(updatedSheetData.getElementsByTagNameNS(updatedNs, "row"))) {
                 const rn = Number(rowEl.getAttribute("r"));
                 if (!Number.isNaN(rn)) updatedRowMap.set(rn, rowEl);
               }
+
+              const sheetHeaders = meta.headers;
+              const dataStartRow = meta.headerRowIndex + 2;
+              const colDossie = findColumnIndex(sheetHeaders, "dossi", "dossie", "dossiê");
+              const colEquipe = findColumnIndex(sheetHeaders, "equipe");
+              const colReclamante = findColumnIndex(sheetHeaders, "reclamante");
+              const colReclamada = findColumnIndex(sheetHeaders, "reclamada");
+              const colRelator = findColumnIndex(sheetHeaders, "relator");
+              const colClassRelator = 7;
+              const colTurma = 8;
+              const colClassTurma = 9;
 
               const applyStyle = (rowEl: Element, excelRow: number, colIdx: number, centered: boolean) => {
                 if (colIdx < 0) return;
@@ -1373,7 +1352,7 @@ export default function PlanilhaTst() {
                 }
               };
 
-              for (const pr of results) {
+              for (const pr of sheetResults) {
                 const excelRow = dataStartRow + pr.originalIndex;
                 const rowEl = updatedRowMap.get(excelRow);
                 if (!rowEl) continue;
@@ -1389,15 +1368,15 @@ export default function PlanilhaTst() {
                 markYellow(colReclamada, pr.reclamada, "origem_reclamada");
                 markYellow(colRelator, pr.relator, "origem_relator");
 
-                // Classification columns: centered
                 if (pr.classificacao_relator) applyStyle(rowEl, excelRow, colClassRelator, true);
                 if (pr.turma_relator) applyStyle(rowEl, excelRow, colTurma, true);
                 if (pr.classificacao_turma) applyStyle(rowEl, excelRow, colClassTurma, true);
               }
 
-              zip.file(stylesPath, serializer.serializeToString(stylesDoc2));
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
             }
+
+            zip.file(stylesPath, serializer.serializeToString(stylesDoc2));
           }
         }
 
@@ -1412,7 +1391,6 @@ export default function PlanilhaTst() {
       } catch (err) {
         console.error("Erro ao exportar:", err);
         toast.error("Erro ao exportar planilha. Tentando método alternativo...");
-        // Fallback
         exportFallback();
       }
     } else {
