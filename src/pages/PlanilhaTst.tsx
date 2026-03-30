@@ -1474,6 +1474,17 @@ export default function PlanilhaTst() {
                 upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
               }
 
+              // === PASSO 4.5: Presidência → preenchimento automático ===
+              const finalICheck = readCellValue(rowEl, colTurma, excelRow).trim();
+              const finalINorm = finalICheck.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+              if (finalINorm.includes("presidencia") || finalINorm.includes("presidente")) {
+                if (colRelator >= 0) {
+                  upsertCellValue(excelRow, colRelator, "Ministro Presidente Luiz Philippe Vieira de Mello Filho");
+                }
+                upsertCellValue(excelRow, colClassRelator, "NEGATIVO");
+                upsertCellValue(excelRow, colClassTurma, "NEGATIVA");
+              }
+
             }
           }
 
