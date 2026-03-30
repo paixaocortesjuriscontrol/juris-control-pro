@@ -735,14 +735,13 @@ export default function PlanilhaTst() {
       let countIA = 0;
 
       if (useAI && incomplete.length > 0) {
-        await advanceStep(65);
+        await advanceStep(70);
         const batchSize = 10;
         for (let b = 0; b < incomplete.length; b += batchSize) {
           if (cancelledRef.current) break;
 
           const batch = incomplete.slice(b, b + batchSize);
-          const pct = 60 + Math.round((b / incomplete.length) * 30);
-          await tick(65 + Math.round((b / incomplete.length) * 25));
+          await tick(70 + Math.round((b / incomplete.length) * 20));
 
           try {
             const { data, error } = await supabase.functions.invoke("complementar-planilha-tst", {
