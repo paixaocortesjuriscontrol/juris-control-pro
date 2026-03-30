@@ -1987,6 +1987,11 @@ export default function PlanilhaTst() {
                     <div className="text-xs text-muted-foreground">de {stats.totalLinhas} processos ({stats.totalLinhas > 0 ? Math.round((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100) : 0}%)</div>
                   </div>
                   <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Dossiês Cinza (original)</div>
+                    <div className="text-2xl font-bold text-gray-500">{stats.dossiesCinza}</div>
+                    <div className="text-xs text-muted-foreground">células cinza na planilha original ({stats.totalLinhas > 0 ? Math.round((stats.dossiesCinza / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
                     <div className="text-sm font-medium mb-1">Sem Nenhum Dado</div>
                     <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
                     <div className="text-xs text-muted-foreground">processos sem cruzamento</div>
