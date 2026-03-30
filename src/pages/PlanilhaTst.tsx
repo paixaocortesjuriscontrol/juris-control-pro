@@ -468,6 +468,44 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
   });
 }
 
+type ProcessoExtractor = (row: Record<string, any>) => string;
+const processoExtractorCache = new WeakMap<string[], ProcessoExtractor>();
+
+function buildProcessoExtractor(headers: string[]): ProcessoExtractor {
+  const normalizedHeaders = headers.map((header) => ({
+    raw: header,
+    normalized: normalizeText(header),
+  }));
+
+  const explicitProcessHeader = normalizedHeaders.find(({ normalized }) =>
+    normalized.includes("numero do processo") ||
+    normalized.includes("número do processo") ||
+    normalized.includes("num processo") ||
+    normalized.includes("processo") ||
+    normalized.includes("cnj")
+  )?.raw;
+
+  const genericNumberHeader = normalizedHeaders.find(({ normalized }) =>
+    (normalized === "numero" || normalized === "número" || normalized === "nº" || normalized === "no") &&
+    !normalized.includes("dossie") &&
+    !normalized.includes("dossiê")
+  )?.raw;
+
+  return (row: Record<string, any>) => {
+    if (explicitProcessHeader) {
+      const val = String(row[explicitProcessHeader] ?? "").trim();
+      if (val && val.replace(/\D/g, "").length >= 7) return val;
+    }
+
+    if (genericNumberHeader) {
+      const val = String(row[genericNumberHeader] ?? "").trim();
+      if (val && val.replace(/\D/g, "").length >= 7) return val;
+    }
+
+    return "";
+  };
+}
+
 async function readAllSheetsFromFile(file: File): Promise<{ sheets: (SheetData & { sheetName: string; sheetIndex: number })[] }> {
   const parsed = await parseFileInWorker(file, true);
   const sheets = parsed.map((s: any) => ({
@@ -482,40 +520,12 @@ async function readAllSheetsFromFile(file: File): Promise<{ sheets: (SheetData &
 }
 
 function getProcessoFromRow(row: Record<string, any>, headers: string[]): string {
-  const normalizedHeaders = headers.map((header) => ({
-    raw: header,
-    normalized: normalizeText(header),
-  }));
-
-  const pickFromHeader = (matcher: (header: string) => boolean) => {
-    const match = normalizedHeaders.find(({ normalized }) => matcher(normalized));
-    if (!match) return "";
-
-    const val = String(row[match.raw] || "").trim();
-    return val && val.replace(/\D/g, "").length >= 7 ? val : "";
-  };
-
-  const explicitProcess = pickFromHeader(
-    (header) =>
-      header.includes("numero do processo") ||
-      header.includes("número do processo") ||
-      header.includes("num processo") ||
-      header.includes("processo") ||
-      header.includes("cnj")
-  );
-  if (explicitProcess) return explicitProcess;
-
-  const genericNumber = pickFromHeader(
-    (header) =>
-      (header === "numero" || header === "número" || header === "nº" || header === "no") &&
-      !header.includes("dossie") &&
-      !header.includes("dossiê")
-  );
-  if (genericNumber) return genericNumber;
-
-  // No regex fallback — only use explicitly matched header columns
-
-  return "";
+  let extractor = processoExtractorCache.get(headers);
+  if (!extractor) {
+    extractor = buildProcessoExtractor(headers);
+    processoExtractorCache.set(headers, extractor);
+  }
+  return extractor(row);
 }
 
 function getFieldFromRow(row: Record<string, any>, headers: string[], ...terms: string[]): string {
@@ -598,8 +608,13 @@ function extractCnjCore(digits: string): string {
 
 function buildAllLookups(rows: Record<string, any>[], headers: string[]): Map<string, Record<string, any>> {
   const map = new Map<string, Record<string, any>>();
+  let extractor = processoExtractorCache.get(headers);
+  if (!extractor) {
+    extractor = buildProcessoExtractor(headers);
+    processoExtractorCache.set(headers, extractor);
+  }
   for (const row of rows) {
-    const proc = normalizeProcesso(getProcessoFromRow(row, headers));
+    const proc = normalizeProcesso(extractor(row));
     if (!proc || proc.length < 7) continue;
     if (!map.has(proc)) map.set(proc, row);
   }
