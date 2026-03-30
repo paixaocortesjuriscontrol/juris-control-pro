@@ -247,6 +247,7 @@ interface SheetData {
   headers: string[];
   rows: Record<string, any>[];
   headerRowIndex: number;
+  grayCellDossieRows?: Set<number>;
 }
 
 interface FieldFillDetail {
@@ -275,6 +276,7 @@ interface Stats {
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
   dossiesNaoLocalizados: number;
+  dossiesCinza: number;
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
@@ -508,7 +510,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -922,6 +924,14 @@ export default function PlanilhaTst() {
         };
       }
 
+      // Count gray dossier cells from original input
+      let dossiesCinza = 0;
+      for (const sheet of allInput1Sheets.sheets) {
+        if (sheet.grayCellDossieRows) {
+          dossiesCinza += sheet.grayCellDossieRows.size;
+        }
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -935,6 +945,7 @@ export default function PlanilhaTst() {
         fieldFills,
         unmatchedSamples,
         dossiesNaoLocalizados,
+        dossiesCinza,
         linhasPreenchidas,
         totalLinhas: processRows.length,
         preenchimentoPorColuna,
@@ -1097,6 +1108,8 @@ export default function PlanilhaTst() {
     doc.text(`• Linhas preenchidas (verde): ${stats.linhasPreenchidas} de ${stats.totalLinhas} (${pctLinhas})`, 18, y); y += 6;
     const pctDossie = stats.totalLinhas > 0 ? `${((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
     doc.text(`• Dossiês não localizados: ${stats.dossiesNaoLocalizados} de ${stats.totalLinhas} (${pctDossie})`, 18, y); y += 6;
+    const pctCinza = stats.totalLinhas > 0 ? `${((stats.dossiesCinza / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Dossiês cinza (original): ${stats.dossiesCinza} de ${stats.totalLinhas} (${pctCinza})`, 18, y); y += 6;
     doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
 
     // Processos não encontrados (amostras)
@@ -1823,6 +1836,12 @@ export default function PlanilhaTst() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-gray-500">{stats.dossiesCinza}</div>
+                <div className="text-xs text-muted-foreground">Dossiês Cinza (original)</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
                 <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Não Encontrados
@@ -1968,6 +1987,11 @@ export default function PlanilhaTst() {
                     <div className="text-sm font-medium mb-1">Dossiês Não Localizados</div>
                     <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
                     <div className="text-xs text-muted-foreground">de {stats.totalLinhas} processos ({stats.totalLinhas > 0 ? Math.round((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Dossiês Cinza (original)</div>
+                    <div className="text-2xl font-bold text-gray-500">{stats.dossiesCinza}</div>
+                    <div className="text-xs text-muted-foreground">células cinza na planilha original ({stats.totalLinhas > 0 ? Math.round((stats.dossiesCinza / stats.totalLinhas) * 100) : 0}%)</div>
                   </div>
                   <div className="border rounded-md p-3">
                     <div className="text-sm font-medium mb-1">Sem Nenhum Dado</div>
