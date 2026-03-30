@@ -1424,7 +1424,6 @@ export default function PlanilhaTst() {
               const hasValidTurma = currentI2 && (
                 currentINorm.includes("TURMA") || currentINorm.includes("SBDI") ||
                 currentINorm.includes("PLENO") || currentINorm.includes("PRESIDENTE") ||
-                currentINorm.includes("PRESIDENCIA") || currentINorm.includes("PRESIDÊNCIA") ||
                 currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID") ||
                 currentINorm.includes("CEJUSC") || currentINorm.includes("SESS") ||
                 currentINorm.includes("SE")
