@@ -726,9 +726,35 @@ export default function PlanilhaTst() {
       await advanceStep(55);
 
       // Re-classify relator/turma after all data sources updated relator field
+      // Apply the same pipeline as the Excel export: extract minister from turma_relator (col I) → relator (col G),
+      // clean turma, clean relator name, classify, and apply Presidência rule
       for (let pi = 0; pi < processRows.length; pi++) {
         if (pi % 20 === 0) await tick(55 + Math.round((pi / processRows.length) * 10));
         const pr = processRows[pi];
+
+        // Step 1: Extract minister name from turma_relator (column I) into relator (column G) if empty
+        if (!isEmpty(pr.turma_relator)) {
+          const ministroExtraido = extrairMinistroDeTextoCombinadoI(pr.turma_relator);
+          if (ministroExtraido && isEmpty(pr.relator)) {
+            pr.relator = ministroExtraido;
+            pr.origem_relator = pr.origem_relator || "auto";
+          }
+          // Clean turma (Regra B)
+          const turmaLimpa = limparTurmaColI(pr.turma_relator);
+          if (turmaLimpa !== pr.turma_relator) {
+            pr.turma_relator = turmaLimpa;
+          }
+        }
+
+        // Step 2: Clean relator name (Regra A - remove "Gabinete do/da")
+        if (!isEmpty(pr.relator)) {
+          const relatorLimpo = limparNomeMinistroColG(pr.relator);
+          if (relatorLimpo !== pr.relator) {
+            pr.relator = relatorLimpo;
+          }
+        }
+
+        // Step 3: Classify relator and turma
         if (!isEmpty(pr.relator)) {
           const cl = classificarRelator(pr.relator);
           const ti = classificarTurmaDoRelator(pr.relator);
@@ -736,11 +762,27 @@ export default function PlanilhaTst() {
             pr.classificacao_relator = cl;
             pr.origem_classificacao_relator = pr.origem_relator || "auto";
           }
-          if (ti.turma) {
+          if (ti.turma && isEmpty(pr.turma_relator)) {
             pr.turma_relator = ti.turma;
-            pr.classificacao_turma = ti.classificacao;
-            pr.origem_turma_relator = pr.origem_relator || "auto";
-            pr.origem_classificacao_turma = pr.origem_relator || "auto";
+          }
+        }
+
+        // Classify turma directly from turma_relator (column I)
+        if (!isEmpty(pr.turma_relator)) {
+          const classTurma = classificarTurma(pr.turma_relator);
+          if (classTurma) {
+            pr.classificacao_turma = classTurma;
+            pr.origem_classificacao_turma = pr.origem_turma_relator || "auto";
+          }
+        }
+
+        // Step 4: Presidência rule
+        if (!isEmpty(pr.turma_relator)) {
+          const turmaNorm = pr.turma_relator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+          if (turmaNorm.includes("presidencia") || turmaNorm.includes("presidente")) {
+            pr.relator = "Ministro Presidente Luiz Philippe Vieira de Mello Filho";
+            pr.classificacao_relator = "NEGATIVO";
+            pr.classificacao_turma = "NEGATIVA";
           }
         }
       }
