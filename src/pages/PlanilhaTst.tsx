@@ -1314,7 +1314,7 @@ export default function PlanilhaTst() {
           }
           if (cr === "POSITIVO") aggAba.classificacaoPorRelator[relatorKey].positivo++;
           else if (cr === "NEGATIVO") aggAba.classificacaoPorRelator[relatorKey].negativo++;
-          else (aggAba.classificacaoPorRelator[relatorKey] as any).semClassificacao = ((aggAba.classificacaoPorRelator[relatorKey] as any).semClassificacao || 0) + 1;
+          else aggAba.classificacaoPorRelator[relatorKey].semClassificacao = (aggAba.classificacaoPorRelator[relatorKey].semClassificacao || 0) + 1;
         }
 
         const turmaRaw = String((pr.originalData as any)?.__colI ?? "").trim();
