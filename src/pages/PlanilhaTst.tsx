@@ -1606,16 +1606,20 @@ export default function PlanilhaTst() {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.text("Relator", 18, y);
-      doc.text("Positivo", 130, y);
-      doc.text("Negativo", 160, y);
+      doc.text("Positivo", 115, y);
+      doc.text("Negativo", 140, y);
+      doc.text("Sem Class.", 165, y);
+      doc.text("Total", 190, y);
       y += 6;
       doc.setFont("helvetica", "normal");
       for (const [relator, counts] of relatorEntries) {
         if (y > 275) { doc.addPage(); y = 20; }
-        const displayName = relator.length > 50 ? relator.substring(0, 47) + "..." : relator;
+        const displayName = relator.length > 45 ? relator.substring(0, 42) + "..." : relator;
         doc.text(`${displayName}`, 18, y);
-        doc.text(`${counts.positivo}`, 135, y);
-        doc.text(`${counts.negativo}`, 165, y);
+        doc.text(`${counts.positivo}`, 120, y);
+        doc.text(`${counts.negativo}`, 145, y);
+        doc.text(`${counts.semClassificacao || 0}`, 170, y);
+        doc.text(`${counts.positivo + counts.negativo + (counts.semClassificacao || 0)}`, 193, y);
         y += 5;
       }
       // Total geral
@@ -1623,9 +1627,12 @@ export default function PlanilhaTst() {
       doc.setFont("helvetica", "bold");
       const totalRelPos = relatorEntries.reduce((s, [, c]) => s + c.positivo, 0);
       const totalRelNeg = relatorEntries.reduce((s, [, c]) => s + c.negativo, 0);
+      const totalRelSem = relatorEntries.reduce((s, [, c]) => s + (c.semClassificacao || 0), 0);
       doc.text("TOTAL GERAL", 18, y);
-      doc.text(`${totalRelPos}`, 135, y);
-      doc.text(`${totalRelNeg}`, 165, y);
+      doc.text(`${totalRelPos}`, 120, y);
+      doc.text(`${totalRelNeg}`, 145, y);
+      doc.text(`${totalRelSem}`, 170, y);
+      doc.text(`${totalRelPos + totalRelNeg + totalRelSem}`, 193, y);
       doc.setFont("helvetica", "normal");
       y += 8;
     }
