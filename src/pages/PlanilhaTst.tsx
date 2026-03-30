@@ -425,9 +425,34 @@ export default function PlanilhaTst() {
       return;
     }
 
+    const stepLabels = [
+      "Lendo planilhas",
+      "Cruzando Prazos e Processos",
+      "Cruzando Dossiês Ativos",
+      "Classificando Relatores e Turmas",
+      ...(useAI ? ["Análise por IA"] : []),
+      "Finalizando",
+    ];
+    const steps = stepLabels.map(label => ({ label, status: "pending" as const }));
+    let currentStep = 0;
+
+    const tick = async (pct?: number) => {
+      if (pct !== undefined) setProgressPct(pct);
+      await new Promise(r => setTimeout(r, 0));
+    };
+    const advanceStep = async (pct: number) => {
+      steps[currentStep] = { ...steps[currentStep], status: "done" };
+      currentStep++;
+      if (currentStep < steps.length) steps[currentStep] = { ...steps[currentStep], status: "active" };
+      setProgressSteps([...steps]);
+      setProgressPct(pct);
+      await new Promise(r => setTimeout(r, 0));
+    };
+
     setProcessing(true);
-    setProgress(0);
-    setProgressLabel("Lendo planilhas...");
+    setProgressPct(0);
+    steps[0] = { ...steps[0], status: "active" };
+    setProgressSteps([...steps]);
     cancelledRef.current = false;
 
     try {
