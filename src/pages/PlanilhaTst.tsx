@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Table2,
   Info,
+  Circle,
 } from "lucide-react";
 import {
   Table,
