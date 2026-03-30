@@ -1218,7 +1218,16 @@ export default function PlanilhaTst() {
         doc.text(`${counts.negativa}`, 165, y);
         y += 5;
       }
-      y += 6;
+      // Total geral
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      const totalTurmaPos = turmaEntries.reduce((s, [, c]) => s + c.positiva, 0);
+      const totalTurmaNeg = turmaEntries.reduce((s, [, c]) => s + c.negativa, 0);
+      doc.text("TOTAL GERAL", 18, y);
+      doc.text(`${totalTurmaPos}`, 135, y);
+      doc.text(`${totalTurmaNeg}`, 165, y);
+      doc.setFont("helvetica", "normal");
+      y += 8;
     }
 
     // Processos não encontrados (amostras)
