@@ -109,6 +109,45 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "pleno": "NEGATIVA",
 };
 
+// Regra A: Remove "Gabinete do/da" e prefixos similares, deixando só o nome do ministro
+function limparNomeMinistroColG(valor: string): string {
+  if (!valor || isEmpty(valor)) return valor;
+  // Remove "Gabinete do ", "Gabinete da ", "Gab. do ", "Gab. da ", case-insensitive
+  let limpo = valor.replace(/^gabinete\s+d[aoe]\s+/i, "").replace(/^gab\.\s*d[aoe]\s+/i, "").trim();
+  // Remove "Min. " or "Ministro " or "Ministra " prefix
+  limpo = limpo.replace(/^min\.\s*/i, "").replace(/^ministr[oa]\s+/i, "").trim();
+  return limpo;
+}
+
+// Regra B: Na coluna I, remover nome do ministro, deixando só turma/órgão
+function limparTurmaColI(valor: string): string {
+  if (!valor || isEmpty(valor)) return valor;
+  // Padrões de turma/órgão válidos para extrair
+  const padroes = [
+    /\d+[ªa]\s*turma/i,
+    /sbdi[\s-]*[12]/i,
+    /pleno/i,
+    /presid[eê]ncia/i,
+    /presidente/i,
+    /vice[\s-]*presid[eê]ncia/i,
+    /vice[\s-]*presidente/i,
+    /corregedor(?:ia)?(?:[\s-]*geral)?/i,
+    /cejusc/i,
+    /sub[\s-]*se[çc][ãa]o/i,
+    /subse[çc][ãa]o/i,
+    /se[çc][ãa]o/i,
+    /sess[ãa]o/i,
+    /impedid[oa]/i,
+  ];
+  // Try to extract the turma/órgão pattern from the value
+  for (const padrao of padroes) {
+    const match = valor.match(padrao);
+    if (match) return match[0].trim();
+  }
+  // If no turma pattern found, return as-is
+  return valor;
+}
+
 function classificarRelator(nomeRelator: string): "POSITIVO" | "NEGATIVO" | "" {
   if (!nomeRelator || isEmpty(nomeRelator)) return "";
   const norm = nomeRelator.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
