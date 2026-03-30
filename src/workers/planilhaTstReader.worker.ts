@@ -56,9 +56,9 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
       headers.forEach((h: string, idx: number) => {
         let val = row[idx];
         if (val instanceof Date && !isNaN(val.getTime())) {
-          const d = val.getDate().toString().padStart(2, "0");
-          const m = (val.getMonth() + 1).toString().padStart(2, "0");
-          const y = val.getFullYear();
+          const d = val.getUTCDate().toString().padStart(2, "0");
+          const m = (val.getUTCMonth() + 1).toString().padStart(2, "0");
+          const y = val.getUTCFullYear();
           val = `${d}/${m}/${y}`;
         }
         obj[h] = val;
