@@ -1305,14 +1305,16 @@ export default function PlanilhaTst() {
         const crFromColuna = normalizeClassificacaoRelator(String((pr.originalData as any)?.__colH ?? ""));
         const crFromRelator = relatorNome && !isEmpty(relatorNome) ? classificarRelator(relatorNome) : "";
         const cr = crFromAtual || crFromColuna || crFromRelator;
-        if (cr) {
+        // Always count every process — use "Sem classificação" bucket when no +/- is available
+        {
           const relator = relatorNome;
           const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
           if (!aggAba.classificacaoPorRelator[relatorKey]) {
-            aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
+            aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           }
           if (cr === "POSITIVO") aggAba.classificacaoPorRelator[relatorKey].positivo++;
-          else aggAba.classificacaoPorRelator[relatorKey].negativo++;
+          else if (cr === "NEGATIVO") aggAba.classificacaoPorRelator[relatorKey].negativo++;
+          else (aggAba.classificacaoPorRelator[relatorKey] as any).semClassificacao = ((aggAba.classificacaoPorRelator[relatorKey] as any).semClassificacao || 0) + 1;
         }
 
         const turmaRaw = String((pr.originalData as any)?.__colI ?? "").trim();
@@ -1321,14 +1323,16 @@ export default function PlanilhaTst() {
         const ctFromColuna = normalizeClassificacaoTurma(String((pr.originalData as any)?.__colJ ?? ""));
         const ctFromTurma = turmaNome && !isEmpty(turmaNome) ? classificarTurma(turmaNome) : "";
         const ct = ctFromAtual || ctFromColuna || ctFromTurma;
-        if (ct) {
+        // Always count every process — use "Sem classificação" bucket when no +/- is available
+        {
           const turma = turmaNome;
           const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
           if (!aggAba.classificacaoPorTurma[turmaKey]) {
-            aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
+            aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           }
           if (ct === "POSITIVA") aggAba.classificacaoPorTurma[turmaKey].positiva++;
-          else aggAba.classificacaoPorTurma[turmaKey].negativa++;
+          else if (ct === "NEGATIVA") aggAba.classificacaoPorTurma[turmaKey].negativa++;
+          else (aggAba.classificacaoPorTurma[turmaKey] as any).semClassificacao = ((aggAba.classificacaoPorTurma[turmaKey] as any).semClassificacao || 0) + 1;
         }
       }
 
