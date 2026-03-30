@@ -386,7 +386,16 @@ function readAllSheetsFromFile(file: File): Promise<{ sheets: (SheetData & { she
             }
           }
           const headers = (json[headerIdx] || []).map(h => String(h || ""));
+          
+          // Find dossier column index for gray/não localizado detection
+          const dossieColIdx = headers.findIndex(h => {
+            const lower = (h || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return lower.includes("dossie") || lower.includes("dossiê");
+          });
+          
+          const grayCellDossieRows = new Set<number>();
           const rows: Record<string, any>[] = [];
+          let rowCounter = 0;
           for (let i = headerIdx + 1; i < json.length; i++) {
             const row = json[i];
             if (!row || row.every(c => !c && c !== 0)) continue;
@@ -401,9 +410,19 @@ function readAllSheetsFromFile(file: File): Promise<{ sheets: (SheetData & { she
               }
               obj[h] = val;
             });
+            
+            // Detect "dossiê não localizado" text in dossier column
+            if (dossieColIdx >= 0) {
+              const dossieVal = normalizeText(row[dossieColIdx]);
+              if (dossieVal.includes("nao localizado") || dossieVal.includes("não localizado") || dossieVal.includes("n/localizado") || dossieVal.includes("n/ localizado")) {
+                grayCellDossieRows.add(rowCounter);
+              }
+            }
+            
             rows.push(obj);
+            rowCounter++;
           }
-          sheets.push({ headers, rows, headerRowIndex: headerIdx, sheetName, sheetIndex: si });
+          sheets.push({ headers, rows, headerRowIndex: headerIdx, sheetName, sheetIndex: si, grayCellDossieRows });
         }
         resolve({ sheets });
       } catch (err) { reject(err); }
