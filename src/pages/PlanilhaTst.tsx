@@ -622,6 +622,18 @@ export default function PlanilhaTst() {
         if (complemented2) countPasso2++;
       }
 
+      // Input 4 diagnostics — count UNIQUE processes, not rows
+      const matchedSet4 = new Set<string>();
+      for (const pr of processRows) {
+        const norm = normalizeProcesso(pr.numero_processo);
+        if (lookupProcess(norm, lookup4)) matchedSet4.add(norm);
+      }
+      const matchCount4 = matchedSet4.size;
+      console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
+      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4} unique processes`);
+
+      await advanceStep(55);
+
       // Re-classify relator/turma after all data sources updated relator field
       for (const pr of processRows) {
         if (!isEmpty(pr.relator)) {
@@ -640,17 +652,7 @@ export default function PlanilhaTst() {
         }
       }
 
-      // Input 4 diagnostics — count UNIQUE processes, not rows
-      const matchedSet4 = new Set<string>();
-      for (const pr of processRows) {
-        const norm = normalizeProcesso(pr.numero_processo);
-        if (lookupProcess(norm, lookup4)) matchedSet4.add(norm);
-      }
-      const matchCount4 = matchedSet4.size;
-      console.log(`[PlanilhaTST] Passo 1.2: ${countPasso2}/${processRows.length} processos complementados via Input 4`);
-      console.log(`[PlanilhaTST] Match rate Input4: ${matchCount4} unique processes`);
-
-      await advanceStep(60);
+      await advanceStep(65);
 
       // Compute field fill counts per source
       const emptyDetail = (): FieldFillDetail => ({
