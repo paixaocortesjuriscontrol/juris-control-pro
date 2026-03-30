@@ -116,12 +116,26 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
 };
 
 // Classificar turma pelo nome da turma (coluna I)
+function normalizeTurmaKey(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[º°]/g, "ª")
+    .replace(/(\d+)a\s+turma/g, "$1ª turma")
+    .replace(/vice\s*presid[ea]n[ct]ia/g, "vice-presidencia")
+    .replace(/corregedor(?:ia)?(?:\s*-?\s*geral)?/g, "corregedoria")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function classificarTurma(nomeTurma: string): "POSITIVA" | "NEGATIVA" | "" {
   if (!nomeTurma || isEmpty(nomeTurma)) return "";
-  const norm = nomeTurma.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const norm = normalizeTurmaKey(nomeTurma);
   if (TURMA_CLASSIFICACAO[norm]) return TURMA_CLASSIFICACAO[norm];
   for (const [key, val] of Object.entries(TURMA_CLASSIFICACAO)) {
-    if (norm.includes(key) || key.includes(norm)) return val;
+    const normKey = normalizeTurmaKey(key);
+    if (norm.includes(normKey) || normKey.includes(norm)) return val;
   }
   return "";
 }
