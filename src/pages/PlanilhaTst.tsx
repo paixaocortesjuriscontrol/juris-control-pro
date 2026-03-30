@@ -1384,8 +1384,8 @@ export default function PlanilhaTst() {
       console.log("[PlanilhaTST] DEBUG: Totalizadores temporários por aba:", Object.values(totalizadoresTemporariosPorAba).map(agg => {
         const mesAnoMaisFrequente = Object.entries(agg.mesAnoContadores).sort((a, b) => b[1] - a[1])[0]?.[0];
         const mesAnoAba = mesAnoMaisFrequente || mesAnoFromSheetName(agg.sheetName, anoPadrao) || "Sem data";
-        const totalRel = Object.values(agg.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo, 0);
-        const totalTur = Object.values(agg.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
+        const totalRel = Object.values(agg.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0);
+        const totalTur = Object.values(agg.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa + (c.semClassificacao || 0), 0);
         return {
           aba: agg.sheetName,
           sheetIndex: agg.sheetIndex,
@@ -1397,7 +1397,7 @@ export default function PlanilhaTst() {
       }));
 
       console.log("[PlanilhaTST] DEBUG: Divergência por mês (total vs classificações):", Object.entries(estatisticasPorMes).map(([mes, m]) => {
-        const totalRel = Object.values(m.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo, 0);
+        const totalRel = Object.values(m.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0);
         const totalTur = Object.values(m.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
         return {
           mes,
