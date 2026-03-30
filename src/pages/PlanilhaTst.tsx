@@ -1211,7 +1211,6 @@ export default function PlanilhaTst() {
       }
       y += 6;
     }
-    doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
 
     // Processos não encontrados (amostras)
     if (stats.unmatchedSamples.length > 0) {
