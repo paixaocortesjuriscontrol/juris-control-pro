@@ -506,6 +506,29 @@ function getFieldFromRow(row: Record<string, any>, headers: string[], ...terms: 
   return "";
 }
 
+function getValueByColumnIndex(row: Record<string, any>, headers: string[], index: number): string {
+  if (index < 0 || index >= headers.length) return "";
+  const header = headers[index];
+  const val = row?.[header];
+  return val === null || val === undefined ? "" : String(val).trim();
+}
+
+function normalizeClassificacaoRelator(valor: string): "POSITIVO" | "NEGATIVO" | "" {
+  const norm = normalizeText(valor);
+  if (!norm) return "";
+  if (norm.startsWith("positivo") || norm.startsWith("positiva")) return "POSITIVO";
+  if (norm.startsWith("negativo") || norm.startsWith("negativa")) return "NEGATIVO";
+  return "";
+}
+
+function normalizeClassificacaoTurma(valor: string): "POSITIVA" | "NEGATIVA" | "" {
+  const norm = normalizeText(valor);
+  if (!norm) return "";
+  if (norm.startsWith("positivo") || norm.startsWith("positiva")) return "POSITIVA";
+  if (norm.startsWith("negativo") || norm.startsWith("negativa")) return "NEGATIVA";
+  return "";
+}
+
 function isEmpty(val: string): boolean {
   const normalized = normalizeText(val);
   return (
@@ -671,9 +694,15 @@ export default function PlanilhaTst() {
           const proc = getProcessoFromRow(row, sheet.headers);
           const procNorm = normalizeProcesso(proc);
 
-          const relatorVal = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador") || NOT_FOUND;
-          const classRelator = classificarRelator(relatorVal);
-          const turmaValPlanilha = getFieldFromRow(
+          const relatorFromHeader = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador");
+          const relatorFromColG = String((row as any).__colG ?? "").trim();
+          const relatorVal = relatorFromHeader || relatorFromColG || NOT_FOUND;
+          const classRelatorFromSheet =
+            normalizeClassificacaoRelator(getFieldFromRow(row, sheet.headers, "classificacao relator", "classificação relator", "class relator")) ||
+            normalizeClassificacaoRelator(getValueByColumnIndex(row, sheet.headers, 7)) || // coluna H
+            normalizeClassificacaoRelator(String((row as any).__colH ?? ""));
+          const classRelator = classificarRelator(relatorVal) || classRelatorFromSheet;
+          const turmaFromHeader = getFieldFromRow(
             row,
             sheet.headers,
             "turma",
@@ -682,9 +711,15 @@ export default function PlanilhaTst() {
             "orgao",
             "unidade"
           );
+          const turmaFromColI = String((row as any).__colI ?? "").trim();
+          const turmaValPlanilha = turmaFromHeader || turmaFromColI;
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
           const turmaInicial = !isEmpty(turmaValPlanilha) ? turmaValPlanilha : (turmaInfo.turma || NOT_FOUND);
-          const classTurmaInicial = classificarTurma(turmaInicial) || turmaInfo.classificacao;
+          const classTurmaFromSheet =
+            normalizeClassificacaoTurma(getFieldFromRow(row, sheet.headers, "classificacao turma", "classificação turma", "class turma")) ||
+            normalizeClassificacaoTurma(getValueByColumnIndex(row, sheet.headers, 9)) || // coluna J
+            normalizeClassificacaoTurma(String((row as any).__colJ ?? ""));
+          const classTurmaInicial = classificarTurma(turmaInicial) || turmaInfo.classificacao || classTurmaFromSheet;
 
           // Extract distribution date: prioritize column A, then look for "distribui" header
           const colAFromWorker = String((row as any).__colA ?? "").trim();
@@ -1073,8 +1108,8 @@ export default function PlanilhaTst() {
       for (const pr of rowsParaTotalizadores) {
         const relator = (pr.relator || "").trim();
         if (!relator || isEmpty(relator)) continue;
-        const class_ = (pr.classificacao_relator || "").toUpperCase();
-        if (class_ !== "POSITIVO" && class_ !== "NEGATIVO") continue;
+        const class_ = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+        if (!class_) continue;
         if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
         if (class_ === "POSITIVO") classificacaoPorRelator[relator].positivo++;
         else classificacaoPorRelator[relator].negativo++;
@@ -1085,8 +1120,8 @@ export default function PlanilhaTst() {
       for (const pr of rowsParaTotalizadores) {
         const turma = (pr.turma_relator || "").trim();
         if (!turma || isEmpty(turma)) continue;
-        const class_ = (pr.classificacao_turma || "").toUpperCase();
-        if (class_ !== "POSITIVA" && class_ !== "NEGATIVA") continue;
+        const class_ = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+        if (!class_) continue;
         if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
         if (class_ === "POSITIVA") classificacaoPorTurma[turma].positiva++;
         else classificacaoPorTurma[turma].negativa++;
@@ -1104,8 +1139,8 @@ export default function PlanilhaTst() {
         // Relator por mês
         const relator = (pr.relator || "").trim();
         if (relator && !isEmpty(relator)) {
-          const cr = (pr.classificacao_relator || "").toUpperCase();
-          if (cr === "POSITIVO" || cr === "NEGATIVO") {
+          const cr = normalizeClassificacaoRelator(pr.classificacao_relator || "");
+          if (cr) {
             if (!estatisticasPorMes[key].classificacaoPorRelator[relator]) {
               estatisticasPorMes[key].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
             }
@@ -1117,8 +1152,8 @@ export default function PlanilhaTst() {
         // Turma por mês
         const turma = (pr.turma_relator || "").trim();
         if (turma && !isEmpty(turma)) {
-          const ct = (pr.classificacao_turma || "").toUpperCase();
-          if (ct === "POSITIVA" || ct === "NEGATIVA") {
+          const ct = normalizeClassificacaoTurma(pr.classificacao_turma || "");
+          if (ct) {
             if (!estatisticasPorMes[key].classificacaoPorTurma[turma]) {
               estatisticasPorMes[key].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
             }
