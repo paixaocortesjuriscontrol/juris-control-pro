@@ -924,6 +924,14 @@ export default function PlanilhaTst() {
         };
       }
 
+      // Count gray dossier cells from original input
+      let dossiesCinza = 0;
+      for (const sheet of allInput1Sheets.sheets) {
+        if (sheet.grayCellDossieRows) {
+          dossiesCinza += sheet.grayCellDossieRows.size;
+        }
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -937,6 +945,7 @@ export default function PlanilhaTst() {
         fieldFills,
         unmatchedSamples,
         dossiesNaoLocalizados,
+        dossiesCinza,
         linhasPreenchidas,
         totalLinhas: processRows.length,
         preenchimentoPorColuna,
