@@ -1237,7 +1237,8 @@ export default function PlanilhaTst() {
         // --- Adicionar estilos no styles.xml: fonte Calibri 8pt + fill amarelo ---
         const stylesPath = "xl/styles.xml";
         const stylesXml = await zip.file(stylesPath)?.async("string");
-        let yellowStyleIndex: string | null = null;
+        let newFontIndex = 0;
+        let newFillIndex = 0;
 
         if (stylesXml) {
           const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
@@ -1246,7 +1247,7 @@ export default function PlanilhaTst() {
           // 1. Adicionar fonte Calibri tamanho 8
           const fonts = stylesDoc.getElementsByTagNameNS(stylesNs, "fonts")[0];
           const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
-          const newFontIndex = fontCount;
+          newFontIndex = fontCount;
 
           if (fonts) {
             const fontEl = stylesDoc.createElementNS(stylesNs, "font");
@@ -1269,7 +1270,7 @@ export default function PlanilhaTst() {
           // 2. Adicionar fill amarelo
           const fills = stylesDoc.getElementsByTagNameNS(stylesNs, "fills")[0];
           const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
-          const newFillIndex = fillCount;
+          newFillIndex = fillCount;
 
           if (fills) {
             const fillEl = stylesDoc.createElementNS(stylesNs, "fill");
@@ -1286,36 +1287,57 @@ export default function PlanilhaTst() {
             fills.setAttribute("count", String(fillCount + 1));
           }
 
-          // 3. Adicionar xf com Calibri 8 + fill amarelo
-          const cellXfs = stylesDoc.getElementsByTagNameNS(stylesNs, "cellXfs")[0];
-          const xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
-
-          if (cellXfs) {
-            const baseXf = cellXfs.getElementsByTagNameNS(stylesNs, "xf")[0];
-            const newXf = stylesDoc.createElementNS(stylesNs, "xf");
-            if (baseXf) {
-              newXf.setAttribute("numFmtId", baseXf.getAttribute("numFmtId") || "0");
-              newXf.setAttribute("borderId", baseXf.getAttribute("borderId") || "0");
-            } else {
-              newXf.setAttribute("numFmtId", "0");
-              newXf.setAttribute("borderId", "0");
-            }
-            newXf.setAttribute("fontId", String(newFontIndex));
-            newXf.setAttribute("fillId", String(newFillIndex));
-            newXf.setAttribute("applyFont", "1");
-            newXf.setAttribute("applyFill", "1");
-            cellXfs.appendChild(newXf);
-            cellXfs.setAttribute("count", String(xfCount + 1));
-            yellowStyleIndex = String(xfCount);
-          }
-
           zip.file(stylesPath, serializer.serializeToString(stylesDoc));
         }
 
         // --- Aplicar o estilo Calibri 8 + amarelo nas células preenchidas pelo programa ---
-        if (yellowStyleIndex) {
+        {
+          const updatedStylesXml2 = await zip.file(stylesPath)?.async("string");
           const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
-          if (updatedSheetXml) {
+          if (updatedStylesXml2 && updatedSheetXml) {
+            const stylesDoc2 = parser.parseFromString(updatedStylesXml2, "application/xml");
+            const sNs = stylesDoc2.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+            const cellXfs2 = stylesDoc2.getElementsByTagNameNS(sNs, "cellXfs")[0];
+            let xfCount2 = cellXfs2 ? Number(cellXfs2.getAttribute("count") || "0") : 0;
+            const styleCache: Record<string, string> = {};
+
+            const makeYellowStyle = (origStyleId: string | null, centered: boolean): string => {
+              let borderId = "0";
+              if (origStyleId && cellXfs2) {
+                const xfs = cellXfs2.getElementsByTagNameNS(sNs, "xf");
+                const idx = Number(origStyleId);
+                if (!isNaN(idx) && idx < xfs.length) {
+                  borderId = xfs[idx].getAttribute("borderId") || "0";
+                }
+              }
+              const key = `${borderId}|${centered ? "1" : "0"}`;
+              if (styleCache[key]) return styleCache[key];
+              if (!cellXfs2) return "0";
+
+              const newXf = stylesDoc2.createElementNS(sNs, "xf");
+              newXf.setAttribute("numFmtId", "0");
+              newXf.setAttribute("fontId", String(newFontIndex));
+              newXf.setAttribute("fillId", String(newFillIndex));
+              newXf.setAttribute("borderId", borderId);
+              newXf.setAttribute("applyFont", "1");
+              newXf.setAttribute("applyFill", "1");
+              if (borderId !== "0") newXf.setAttribute("applyBorder", "1");
+              if (centered) {
+                newXf.setAttribute("applyAlignment", "1");
+                const al = stylesDoc2.createElementNS(sNs, "alignment");
+                al.setAttribute("horizontal", "center");
+                al.setAttribute("vertical", "center");
+                al.setAttribute("wrapText", "1");
+                newXf.appendChild(al);
+              }
+              cellXfs2.appendChild(newXf);
+              const styleIdx = String(xfCount2);
+              xfCount2++;
+              cellXfs2.setAttribute("count", String(xfCount2));
+              styleCache[key] = styleIdx;
+              return styleIdx;
+            };
+
             const updatedDoc = parser.parseFromString(updatedSheetXml, "application/xml");
             const updatedNs = updatedDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
             const updatedSheetData = updatedDoc.getElementsByTagNameNS(updatedNs, "sheetData")[0];
@@ -1327,12 +1349,15 @@ export default function PlanilhaTst() {
                 if (!Number.isNaN(rn)) updatedRowMap.set(rn, rowEl);
               }
 
-              const markStyle = (rowEl: Element, excelRow: number, colIdx: number) => {
+              const applyStyle = (rowEl: Element, excelRow: number, colIdx: number, centered: boolean) => {
                 if (colIdx < 0) return;
                 const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
                 const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
                 const cell = cells.find(c => c.getAttribute("r") === cellRef);
-                if (cell) cell.setAttribute("s", yellowStyleIndex!);
+                if (cell) {
+                  const origStyle = cell.getAttribute("s") || null;
+                  cell.setAttribute("s", makeYellowStyle(origStyle, centered));
+                }
               };
 
               for (const pr of results) {
@@ -1342,7 +1367,7 @@ export default function PlanilhaTst() {
 
                 const markYellow = (colIdx: number, value: string, origemKey: string) => {
                   if (colIdx < 0 || isEmpty(value) || !(pr as any)[origemKey]) return;
-                  markStyle(rowEl, excelRow, colIdx);
+                  applyStyle(rowEl, excelRow, colIdx, false);
                 };
 
                 markYellow(colDossie, pr.dossie, "origem_dossie");
@@ -1351,11 +1376,13 @@ export default function PlanilhaTst() {
                 markYellow(colReclamada, pr.reclamada, "origem_reclamada");
                 markYellow(colRelator, pr.relator, "origem_relator");
 
-                // Also mark classification columns
-                if (pr.classificacao_relator) markStyle(rowEl, excelRow, colClassRelator);
-                if (pr.classificacao_turma) markStyle(rowEl, excelRow, colClassTurma);
+                // Classification columns: centered
+                if (pr.classificacao_relator) applyStyle(rowEl, excelRow, colClassRelator, true);
+                if (pr.turma_relator) applyStyle(rowEl, excelRow, colTurma, true);
+                if (pr.classificacao_turma) applyStyle(rowEl, excelRow, colClassTurma, true);
               }
 
+              zip.file(stylesPath, serializer.serializeToString(stylesDoc2));
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
             }
           }
