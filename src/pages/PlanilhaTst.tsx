@@ -366,8 +366,8 @@ function mesAnoLabel(mesAno: string): string {
 
 interface MesAnoStats {
   totalProcessos: number;
-  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
-  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }>;
 }
 
 interface AbaTempTotals {
@@ -375,8 +375,8 @@ interface AbaTempTotals {
   sheetName: string;
   totalProcessos: number;
   mesAnoContadores: Record<string, number>;
-  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
-  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }>;
 }
 
 interface SheetData {
