@@ -1183,7 +1183,16 @@ export default function PlanilhaTst() {
         doc.text(`${counts.negativo}`, 165, y);
         y += 5;
       }
-      y += 6;
+      // Total geral
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      const totalRelPos = relatorEntries.reduce((s, [, c]) => s + c.positivo, 0);
+      const totalRelNeg = relatorEntries.reduce((s, [, c]) => s + c.negativo, 0);
+      doc.text("TOTAL GERAL", 18, y);
+      doc.text(`${totalRelPos}`, 135, y);
+      doc.text(`${totalRelNeg}`, 165, y);
+      doc.setFont("helvetica", "normal");
+      y += 8;
     }
 
     // Classificação por Turma
