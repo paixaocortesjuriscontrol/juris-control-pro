@@ -295,6 +295,53 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
   });
 }
 
+function readAllSheetsFromFile(file: File): Promise<{ sheets: (SheetData & { sheetName: string; sheetIndex: number })[] }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
+        const sheets: (SheetData & { sheetName: string; sheetIndex: number })[] = [];
+        for (let si = 0; si < wb.SheetNames.length; si++) {
+          const sheetName = wb.SheetNames[si];
+          const ws = wb.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(ws, { header: 1, rawNumbers: false }) as any[][];
+          let headerIdx = 0;
+          for (let i = 0; i < Math.min(json.length, 10); i++) {
+            const row = json[i];
+            if (row && row.some(c => c && String(c).toLowerCase().includes("processo"))) {
+              headerIdx = i; break;
+            }
+          }
+          const headers = (json[headerIdx] || []).map(h => String(h || ""));
+          const rows: Record<string, any>[] = [];
+          for (let i = headerIdx + 1; i < json.length; i++) {
+            const row = json[i];
+            if (!row || row.every(c => !c && c !== 0)) continue;
+            const obj: Record<string, any> = {};
+            headers.forEach((h, idx) => {
+              let val = row[idx];
+              if (val instanceof Date && !isNaN(val.getTime())) {
+                const d = val.getDate().toString().padStart(2, '0');
+                const m = (val.getMonth() + 1).toString().padStart(2, '0');
+                const y = val.getFullYear();
+                val = `${d}/${m}/${y}`;
+              }
+              obj[h] = val;
+            });
+            rows.push(obj);
+          }
+          sheets.push({ headers, rows, headerRowIndex: headerIdx, sheetName, sheetIndex: si });
+        }
+        resolve({ sheets });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function getProcessoFromRow(row: Record<string, any>, headers: string[]): string {
   const normalizedHeaders = headers.map((header) => ({
     raw: header,
