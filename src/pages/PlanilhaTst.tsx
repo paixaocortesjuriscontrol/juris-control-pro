@@ -107,6 +107,12 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "sbdi-1": "NEGATIVA",
   "sbdi-2": "POSITIVA",
   "pleno": "NEGATIVA",
+  "presidencia": "NEGATIVA",
+  "presidente": "NEGATIVA",
+  "vice-presidencia": "NEGATIVA",
+  "vice-presidente": "NEGATIVA",
+  "corregedoria": "NEGATIVA",
+  "corregedor-geral": "NEGATIVA",
 };
 
 // Classificar turma pelo nome da turma (coluna I)
@@ -1331,7 +1337,6 @@ export default function PlanilhaTst() {
               // === PASSO 1: Analisar coluna I primeiro - extrair ministro para G se possível ===
               const rawI = readCellValue(rowEl, colTurma, excelRow).trim();
               if (rawI) {
-                // Se I contém texto combinado (ex: "7ª Turma - Gabinete do Ministro X"), extrair ministro para G
                 const ministroExtraido = extrairMinistroDeTextoCombinadoI(rawI);
                 if (ministroExtraido && colRelator >= 0) {
                   const currentG = readCellValue(rowEl, colRelator, excelRow).trim();
@@ -1339,10 +1344,23 @@ export default function PlanilhaTst() {
                     upsertCellValue(excelRow, colRelator, ministroExtraido);
                   }
                 }
-                // Limpar coluna I - manter só turma/órgão
                 const limpoI = limparTurmaColI(rawI);
                 if (limpoI !== rawI) {
                   upsertCellValue(excelRow, colTurma, limpoI);
+                }
+              }
+
+              // === PASSO 1.5: Presidência → preencher G com ministro presidente ===
+              {
+                const iAfterClean = readCellValue(rowEl, colTurma, excelRow).trim();
+                const iNorm = iAfterClean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                if (iNorm.includes("presidencia") || iNorm.includes("presidente")) {
+                  if (colRelator >= 0) {
+                    const gNow = readCellValue(rowEl, colRelator, excelRow).trim();
+                    if (!gNow || isEmpty(gNow)) {
+                      upsertCellValue(excelRow, colRelator, "Luiz Philippe Vieira de Mello Filho");
+                    }
+                  }
                 }
               }
 
@@ -1368,6 +1386,7 @@ export default function PlanilhaTst() {
               const hasValidTurma = currentI2 && (
                 currentINorm.includes("TURMA") || currentINorm.includes("SBDI") ||
                 currentINorm.includes("PLENO") || currentINorm.includes("PRESIDENTE") ||
+                currentINorm.includes("PRESIDENCIA") || currentINorm.includes("PRESIDÊNCIA") ||
                 currentINorm.includes("CORREGEDOR") || currentINorm.includes("IMPEDID") ||
                 currentINorm.includes("CEJUSC") || currentINorm.includes("SESS") ||
                 currentINorm.includes("SE")
@@ -1381,7 +1400,6 @@ export default function PlanilhaTst() {
                 if (!hasValidTurma) {
                   const turmaFromJ = limparTurmaColI(currentJRaw);
                   upsertCellValue(excelRow, colTurma, turmaFromJ);
-                  // Also try to extract minister from J content
                   const minFromJ = extrairMinistroDeTextoCombinadoI(currentJRaw);
                   if (minFromJ && colRelator >= 0) {
                     const gNow = readCellValue(rowEl, colRelator, excelRow).trim();
@@ -1394,7 +1412,6 @@ export default function PlanilhaTst() {
               }
 
               // === PASSO 4: Classificar relator (H) e turma (J) ===
-              // Re-read G after all changes for classification
               const finalG = colRelator >= 0 ? readCellValue(rowEl, colRelator, excelRow).trim() : "";
               if (finalG && !hasValidH) {
                 const classRel = classificarRelator(finalG);
@@ -1404,7 +1421,6 @@ export default function PlanilhaTst() {
                 upsertCellValue(excelRow, colClassRelator, pr.classificacao_relator);
               }
 
-              // Re-read I after all changes for turma classification
               const finalI = readCellValue(rowEl, colTurma, excelRow).trim();
               if (!hasValidTurma && pr.turma_relator) {
                 upsertCellValue(excelRow, colTurma, limparTurmaColI(pr.turma_relator));
@@ -1416,6 +1432,22 @@ export default function PlanilhaTst() {
               }
               if (pr.classificacao_turma && !hasValidJ && !finalIForClass) {
                 upsertCellValue(excelRow, colClassTurma, pr.classificacao_turma);
+              }
+
+              // === PASSO 4.5: Presidência → forçar NEGATIVO em H e NEGATIVA em J ===
+              {
+                const finalICheck = readCellValue(rowEl, colTurma, excelRow).trim();
+                const finalINorm = finalICheck.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                if (finalINorm.includes("presidencia") || finalINorm.includes("presidente")) {
+                  const hNow = readCellValue(rowEl, colClassRelator, excelRow).trim().toUpperCase();
+                  if (hNow !== "POSITIVO" && hNow !== "NEGATIVO") {
+                    upsertCellValue(excelRow, colClassRelator, "NEGATIVO");
+                  }
+                  const jNow = readCellValue(rowEl, colClassTurma, excelRow).trim().toUpperCase();
+                  if (jNow !== "POSITIVO" && jNow !== "NEGATIVO" && jNow !== "POSITIVA" && jNow !== "NEGATIVA") {
+                    upsertCellValue(excelRow, colClassTurma, "NEGATIVA");
+                  }
+                }
               }
             }
           }
