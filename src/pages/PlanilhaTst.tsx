@@ -366,8 +366,8 @@ function mesAnoLabel(mesAno: string): string {
 
 interface MesAnoStats {
   totalProcessos: number;
-  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
-  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }>;
 }
 
 interface AbaTempTotals {
@@ -375,8 +375,8 @@ interface AbaTempTotals {
   sheetName: string;
   totalProcessos: number;
   mesAnoContadores: Record<string, number>;
-  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
-  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }>;
 }
 
 interface SheetData {
@@ -417,8 +417,8 @@ interface Stats {
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
-  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
-  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }>;
   estatisticasPorMes: Record<string, MesAnoStats>;
 }
 
@@ -1305,14 +1305,16 @@ export default function PlanilhaTst() {
         const crFromColuna = normalizeClassificacaoRelator(String((pr.originalData as any)?.__colH ?? ""));
         const crFromRelator = relatorNome && !isEmpty(relatorNome) ? classificarRelator(relatorNome) : "";
         const cr = crFromAtual || crFromColuna || crFromRelator;
-        if (cr) {
+        // Always count every process — use "Sem classificação" bucket when no +/- is available
+        {
           const relator = relatorNome;
           const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
           if (!aggAba.classificacaoPorRelator[relatorKey]) {
-            aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
+            aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           }
           if (cr === "POSITIVO") aggAba.classificacaoPorRelator[relatorKey].positivo++;
-          else aggAba.classificacaoPorRelator[relatorKey].negativo++;
+          else if (cr === "NEGATIVO") aggAba.classificacaoPorRelator[relatorKey].negativo++;
+          else aggAba.classificacaoPorRelator[relatorKey].semClassificacao = (aggAba.classificacaoPorRelator[relatorKey].semClassificacao || 0) + 1;
         }
 
         const turmaRaw = String((pr.originalData as any)?.__colI ?? "").trim();
@@ -1321,21 +1323,23 @@ export default function PlanilhaTst() {
         const ctFromColuna = normalizeClassificacaoTurma(String((pr.originalData as any)?.__colJ ?? ""));
         const ctFromTurma = turmaNome && !isEmpty(turmaNome) ? classificarTurma(turmaNome) : "";
         const ct = ctFromAtual || ctFromColuna || ctFromTurma;
-        if (ct) {
+        // Always count every process — use "Sem classificação" bucket when no +/- is available
+        {
           const turma = turmaNome;
           const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
           if (!aggAba.classificacaoPorTurma[turmaKey]) {
-            aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
+            aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           }
           if (ct === "POSITIVA") aggAba.classificacaoPorTurma[turmaKey].positiva++;
-          else aggAba.classificacaoPorTurma[turmaKey].negativa++;
+          else if (ct === "NEGATIVA") aggAba.classificacaoPorTurma[turmaKey].negativa++;
+          else aggAba.classificacaoPorTurma[turmaKey].semClassificacao = (aggAba.classificacaoPorTurma[turmaKey].semClassificacao || 0) + 1;
         }
       }
 
       const anoPadrao = Object.entries(anosDetectados).sort((a, b) => b[1] - a[1])[0]?.[0];
 
-      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
-      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
+      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number; semClassificacao?: number }> = {};
+      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number; semClassificacao?: number }> = {};
       const estatisticasPorMes: Record<string, MesAnoStats> = {};
 
       for (const aggAba of Object.values(totalizadoresTemporariosPorAba)) {
@@ -1349,35 +1353,39 @@ export default function PlanilhaTst() {
         estatisticasPorMes[mesKey].totalProcessos += aggAba.totalProcessos;
 
         for (const [relator, counts] of Object.entries(aggAba.classificacaoPorRelator)) {
-          if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+          if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           classificacaoPorRelator[relator].positivo += counts.positivo;
           classificacaoPorRelator[relator].negativo += counts.negativo;
+          classificacaoPorRelator[relator].semClassificacao = (classificacaoPorRelator[relator].semClassificacao || 0) + (counts.semClassificacao || 0);
 
           if (!estatisticasPorMes[mesKey].classificacaoPorRelator[relator]) {
-            estatisticasPorMes[mesKey].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+            estatisticasPorMes[mesKey].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0, semClassificacao: 0 };
           }
           estatisticasPorMes[mesKey].classificacaoPorRelator[relator].positivo += counts.positivo;
           estatisticasPorMes[mesKey].classificacaoPorRelator[relator].negativo += counts.negativo;
+          estatisticasPorMes[mesKey].classificacaoPorRelator[relator].semClassificacao = (estatisticasPorMes[mesKey].classificacaoPorRelator[relator].semClassificacao || 0) + (counts.semClassificacao || 0);
         }
 
         for (const [turma, counts] of Object.entries(aggAba.classificacaoPorTurma)) {
-          if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+          if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           classificacaoPorTurma[turma].positiva += counts.positiva;
           classificacaoPorTurma[turma].negativa += counts.negativa;
+          classificacaoPorTurma[turma].semClassificacao = (classificacaoPorTurma[turma].semClassificacao || 0) + (counts.semClassificacao || 0);
 
           if (!estatisticasPorMes[mesKey].classificacaoPorTurma[turma]) {
-            estatisticasPorMes[mesKey].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+            estatisticasPorMes[mesKey].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0, semClassificacao: 0 };
           }
           estatisticasPorMes[mesKey].classificacaoPorTurma[turma].positiva += counts.positiva;
           estatisticasPorMes[mesKey].classificacaoPorTurma[turma].negativa += counts.negativa;
+          estatisticasPorMes[mesKey].classificacaoPorTurma[turma].semClassificacao = (estatisticasPorMes[mesKey].classificacaoPorTurma[turma].semClassificacao || 0) + (counts.semClassificacao || 0);
         }
       }
 
       console.log("[PlanilhaTST] DEBUG: Totalizadores temporários por aba:", Object.values(totalizadoresTemporariosPorAba).map(agg => {
         const mesAnoMaisFrequente = Object.entries(agg.mesAnoContadores).sort((a, b) => b[1] - a[1])[0]?.[0];
         const mesAnoAba = mesAnoMaisFrequente || mesAnoFromSheetName(agg.sheetName, anoPadrao) || "Sem data";
-        const totalRel = Object.values(agg.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo, 0);
-        const totalTur = Object.values(agg.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
+        const totalRel = Object.values(agg.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0);
+        const totalTur = Object.values(agg.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa + (c.semClassificacao || 0), 0);
         return {
           aba: agg.sheetName,
           sheetIndex: agg.sheetIndex,
@@ -1389,8 +1397,8 @@ export default function PlanilhaTst() {
       }));
 
       console.log("[PlanilhaTST] DEBUG: Divergência por mês (total vs classificações):", Object.entries(estatisticasPorMes).map(([mes, m]) => {
-        const totalRel = Object.values(m.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo, 0);
-        const totalTur = Object.values(m.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
+        const totalRel = Object.values(m.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0);
+        const totalTur = Object.values(m.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa + (c.semClassificacao || 0), 0);
         return {
           mes,
           totalProcessos: m.totalProcessos,
@@ -1598,16 +1606,20 @@ export default function PlanilhaTst() {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.text("Relator", 18, y);
-      doc.text("Positivo", 130, y);
-      doc.text("Negativo", 160, y);
+      doc.text("Positivo", 115, y);
+      doc.text("Negativo", 140, y);
+      doc.text("Sem Class.", 165, y);
+      doc.text("Total", 190, y);
       y += 6;
       doc.setFont("helvetica", "normal");
       for (const [relator, counts] of relatorEntries) {
         if (y > 275) { doc.addPage(); y = 20; }
-        const displayName = relator.length > 50 ? relator.substring(0, 47) + "..." : relator;
+        const displayName = relator.length > 45 ? relator.substring(0, 42) + "..." : relator;
         doc.text(`${displayName}`, 18, y);
-        doc.text(`${counts.positivo}`, 135, y);
-        doc.text(`${counts.negativo}`, 165, y);
+        doc.text(`${counts.positivo}`, 120, y);
+        doc.text(`${counts.negativo}`, 145, y);
+        doc.text(`${counts.semClassificacao || 0}`, 170, y);
+        doc.text(`${counts.positivo + counts.negativo + (counts.semClassificacao || 0)}`, 193, y);
         y += 5;
       }
       // Total geral
@@ -1615,9 +1627,12 @@ export default function PlanilhaTst() {
       doc.setFont("helvetica", "bold");
       const totalRelPos = relatorEntries.reduce((s, [, c]) => s + c.positivo, 0);
       const totalRelNeg = relatorEntries.reduce((s, [, c]) => s + c.negativo, 0);
+      const totalRelSem = relatorEntries.reduce((s, [, c]) => s + (c.semClassificacao || 0), 0);
       doc.text("TOTAL GERAL", 18, y);
-      doc.text(`${totalRelPos}`, 135, y);
-      doc.text(`${totalRelNeg}`, 165, y);
+      doc.text(`${totalRelPos}`, 120, y);
+      doc.text(`${totalRelNeg}`, 145, y);
+      doc.text(`${totalRelSem}`, 170, y);
+      doc.text(`${totalRelPos + totalRelNeg + totalRelSem}`, 193, y);
       doc.setFont("helvetica", "normal");
       y += 8;
     }
@@ -1633,16 +1648,20 @@ export default function PlanilhaTst() {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.text("Turma", 18, y);
-      doc.text("Positiva", 130, y);
-      doc.text("Negativa", 160, y);
+      doc.text("Positiva", 115, y);
+      doc.text("Negativa", 140, y);
+      doc.text("Sem Class.", 165, y);
+      doc.text("Total", 190, y);
       y += 6;
       doc.setFont("helvetica", "normal");
       for (const [turma, counts] of turmaEntries) {
         if (y > 275) { doc.addPage(); y = 20; }
-        const displayName = turma.length > 50 ? turma.substring(0, 47) + "..." : turma;
+        const displayName = turma.length > 45 ? turma.substring(0, 42) + "..." : turma;
         doc.text(`${displayName}`, 18, y);
-        doc.text(`${counts.positiva}`, 135, y);
-        doc.text(`${counts.negativa}`, 165, y);
+        doc.text(`${counts.positiva}`, 120, y);
+        doc.text(`${counts.negativa}`, 145, y);
+        doc.text(`${counts.semClassificacao || 0}`, 170, y);
+        doc.text(`${counts.positiva + counts.negativa + (counts.semClassificacao || 0)}`, 193, y);
         y += 5;
       }
       // Total geral
@@ -1650,9 +1669,12 @@ export default function PlanilhaTst() {
       doc.setFont("helvetica", "bold");
       const totalTurmaPos = turmaEntries.reduce((s, [, c]) => s + c.positiva, 0);
       const totalTurmaNeg = turmaEntries.reduce((s, [, c]) => s + c.negativa, 0);
+      const totalTurmaSem = turmaEntries.reduce((s, [, c]) => s + (c.semClassificacao || 0), 0);
       doc.text("TOTAL GERAL", 18, y);
-      doc.text(`${totalTurmaPos}`, 135, y);
-      doc.text(`${totalTurmaNeg}`, 165, y);
+      doc.text(`${totalTurmaPos}`, 120, y);
+      doc.text(`${totalTurmaNeg}`, 145, y);
+      doc.text(`${totalTurmaSem}`, 170, y);
+      doc.text(`${totalTurmaPos + totalTurmaNeg + totalTurmaSem}`, 193, y);
       doc.setFont("helvetica", "normal");
       y += 8;
     }
@@ -2663,18 +2685,22 @@ export default function PlanilhaTst() {
                         <thead>
                           <tr className="bg-muted/50">
                             <th className="text-left p-2 font-medium">Relator</th>
-                            <th className="text-center p-2 font-medium text-green-600 w-24">Positivo</th>
-                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativo</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-20">Positivo</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-20">Negativo</th>
+                            <th className="text-center p-2 font-medium text-muted-foreground w-20">Sem Class.</th>
+                            <th className="text-center p-2 font-medium w-20">Total</th>
                           </tr>
                         </thead>
                         <tbody>
                           {Object.entries(stats.classificacaoPorRelator)
-                            .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
+                            .sort((a, b) => (b[1].positivo + b[1].negativo + (b[1].semClassificacao || 0)) - (a[1].positivo + a[1].negativo + (a[1].semClassificacao || 0)))
                             .map(([relator, counts]) => (
                               <tr key={relator} className="border-t">
                                 <td className="p-2 text-xs">{relator}</td>
                                 <td className="p-2 text-center font-bold text-green-600">{counts.positivo}</td>
                                 <td className="p-2 text-center font-bold text-red-500">{counts.negativo}</td>
+                                <td className="p-2 text-center text-muted-foreground">{counts.semClassificacao || 0}</td>
+                                <td className="p-2 text-center font-bold">{counts.positivo + counts.negativo + (counts.semClassificacao || 0)}</td>
                               </tr>
                             ))}
                           <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
@@ -2684,6 +2710,12 @@ export default function PlanilhaTst() {
                             </td>
                             <td className="p-2 text-center font-bold text-red-500">
                               {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + c.negativo, 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-muted-foreground">
+                              {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + (c.semClassificacao || 0), 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold">
+                              {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0)}
                             </td>
                           </tr>
                         </tbody>
@@ -2701,18 +2733,22 @@ export default function PlanilhaTst() {
                         <thead>
                           <tr className="bg-muted/50">
                             <th className="text-left p-2 font-medium">Turma</th>
-                            <th className="text-center p-2 font-medium text-green-600 w-24">Positiva</th>
-                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativa</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-20">Positiva</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-20">Negativa</th>
+                            <th className="text-center p-2 font-medium text-muted-foreground w-20">Sem Class.</th>
+                            <th className="text-center p-2 font-medium w-20">Total</th>
                           </tr>
                         </thead>
                         <tbody>
                           {Object.entries(stats.classificacaoPorTurma)
-                            .sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa))
+                            .sort((a, b) => (b[1].positiva + b[1].negativa + (b[1].semClassificacao || 0)) - (a[1].positiva + a[1].negativa + (a[1].semClassificacao || 0)))
                             .map(([turma, counts]) => (
                               <tr key={turma} className="border-t">
                                 <td className="p-2 text-xs">{turma}</td>
                                 <td className="p-2 text-center font-bold text-green-600">{counts.positiva}</td>
                                 <td className="p-2 text-center font-bold text-red-500">{counts.negativa}</td>
+                                <td className="p-2 text-center text-muted-foreground">{counts.semClassificacao || 0}</td>
+                                <td className="p-2 text-center font-bold">{counts.positiva + counts.negativa + (counts.semClassificacao || 0)}</td>
                               </tr>
                             ))}
                           <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
@@ -2722,6 +2758,12 @@ export default function PlanilhaTst() {
                             </td>
                             <td className="p-2 text-center font-bold text-red-500">
                               {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + c.negativa, 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-muted-foreground">
+                              {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + (c.semClassificacao || 0), 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold">
+                              {Object.values(stats.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa + (c.semClassificacao || 0), 0)}
                             </td>
                           </tr>
                         </tbody>
