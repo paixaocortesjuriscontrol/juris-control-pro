@@ -2111,6 +2111,64 @@ export default function PlanilhaTst() {
                     <div className="text-xs text-muted-foreground">processos sem cruzamento</div>
                   </div>
                 </div>
+
+                {/* Classificação por Relator */}
+                {Object.keys(stats.classificacaoPorRelator).length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Classificação por Relator</div>
+                    <div className="border rounded-md overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left p-2 font-medium">Relator</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-24">Positivo</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(stats.classificacaoPorRelator)
+                            .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
+                            .map(([relator, counts]) => (
+                              <tr key={relator} className="border-t">
+                                <td className="p-2 text-xs">{relator}</td>
+                                <td className="p-2 text-center font-bold text-green-600">{counts.positivo}</td>
+                                <td className="p-2 text-center font-bold text-red-500">{counts.negativo}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Classificação por Turma */}
+                {Object.keys(stats.classificacaoPorTurma).length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Classificação por Turma</div>
+                    <div className="border rounded-md overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left p-2 font-medium">Turma</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-24">Positiva</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativa</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(stats.classificacaoPorTurma)
+                            .sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa))
+                            .map(([turma, counts]) => (
+                              <tr key={turma} className="border-t">
+                                <td className="p-2 text-xs">{turma}</td>
+                                <td className="p-2 text-center font-bold text-green-600">{counts.positiva}</td>
+                                <td className="p-2 text-center font-bold text-red-500">{counts.negativa}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
