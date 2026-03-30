@@ -2020,6 +2020,11 @@ export default function PlanilhaTst() {
                     <div className="text-xs text-muted-foreground">células cinza na planilha original ({stats.totalLinhas > 0 ? Math.round((stats.dossiesCinza / stats.totalLinhas) * 100) : 0}%)</div>
                   </div>
                   <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Benner Atualizado (SIM)</div>
+                    <div className="text-2xl font-bold text-green-600">{stats.bennerAtualizadoSim}</div>
+                    <div className="text-xs text-muted-foreground">linhas com SIM na coluna AA ({stats.totalLinhas > 0 ? Math.round((stats.bennerAtualizadoSim / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
                     <div className="text-sm font-medium mb-1">Sem Nenhum Dado</div>
                     <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
                     <div className="text-xs text-muted-foreground">processos sem cruzamento</div>
