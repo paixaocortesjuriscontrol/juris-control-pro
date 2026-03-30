@@ -1160,6 +1160,59 @@ export default function PlanilhaTst() {
     doc.text(`• Benner Atualizado (SIM): ${stats.bennerAtualizadoSim} de ${stats.totalLinhas} (${pctBenner})`, 18, y); y += 6;
     doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
 
+    // Classificação por Relator
+    const relatorEntries = Object.entries(stats.classificacaoPorRelator).sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo));
+    if (relatorEntries.length > 0) {
+      if (y > 220) { doc.addPage(); y = 20; }
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Classificação por Relator", 14, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Relator", 18, y);
+      doc.text("Positivo", 130, y);
+      doc.text("Negativo", 160, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      for (const [relator, counts] of relatorEntries) {
+        if (y > 275) { doc.addPage(); y = 20; }
+        const displayName = relator.length > 50 ? relator.substring(0, 47) + "..." : relator;
+        doc.text(`${displayName}`, 18, y);
+        doc.text(`${counts.positivo}`, 135, y);
+        doc.text(`${counts.negativo}`, 165, y);
+        y += 5;
+      }
+      y += 6;
+    }
+
+    // Classificação por Turma
+    const turmaEntries = Object.entries(stats.classificacaoPorTurma).sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa));
+    if (turmaEntries.length > 0) {
+      if (y > 220) { doc.addPage(); y = 20; }
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Classificação por Turma", 14, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Turma", 18, y);
+      doc.text("Positiva", 130, y);
+      doc.text("Negativa", 160, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      for (const [turma, counts] of turmaEntries) {
+        if (y > 275) { doc.addPage(); y = 20; }
+        const displayName = turma.length > 50 ? turma.substring(0, 47) + "..." : turma;
+        doc.text(`${displayName}`, 18, y);
+        doc.text(`${counts.positiva}`, 135, y);
+        doc.text(`${counts.negativa}`, 165, y);
+        y += 5;
+      }
+      y += 6;
+    }
+    doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
+
     // Processos não encontrados (amostras)
     if (stats.unmatchedSamples.length > 0) {
       if (y > 240) { doc.addPage(); y = 20; }
