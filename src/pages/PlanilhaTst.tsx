@@ -317,18 +317,18 @@ const NOME_MESES_REVERSE: Record<string, string> = {
   "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12",
 };
 
-function mesAnoFromSheetName(sheetName: string): string {
+function mesAnoFromSheetName(sheetName: string, fallbackYear?: string): string {
   const norm = sheetName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   // Try exact month name
   for (const [key, mm] of Object.entries(NOME_MESES_REVERSE)) {
     if (norm.includes(key.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) {
-      // Try to find year in the sheet name or use current year
+      // Try to find year in the sheet name or use inferred workbook year
       const yearMatch = sheetName.match(/(\d{4})/);
-      const year = yearMatch ? yearMatch[1] : new Date().getFullYear().toString();
-      return `${mm}/${year}`;
+      const year = yearMatch ? yearMatch[1] : fallbackYear;
+      return year ? `${mm}/${year}` : "Sem data";
     }
   }
-  return "";
+  return "Sem data";
 }
 
 function mesAnoLabel(mesAno: string): string {
@@ -339,6 +339,15 @@ function mesAnoLabel(mesAno: string): string {
 
 interface MesAnoStats {
   totalProcessos: number;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
+}
+
+interface AbaTempTotals {
+  sheetIndex: number;
+  sheetName: string;
+  totalProcessos: number;
+  mesAnoContadores: Record<string, number>;
   classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
   classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
 }
@@ -1191,63 +1200,111 @@ export default function PlanilhaTst() {
         }
       }
 
-      // Classificação por Relator (positivo/negativo) — count ALL rows with classification, even without name
-      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
-      for (const pr of rowsParaTotalizadores) {
-        const class_ = normalizeClassificacaoRelator(pr.classificacao_relator || "");
-        if (!class_) continue;
-        const relator = (pr.relator || "").trim();
-        const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
-        if (!classificacaoPorRelator[relatorKey]) classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
-        if (class_ === "POSITIVO") classificacaoPorRelator[relatorKey].positivo++;
-        else classificacaoPorRelator[relatorKey].negativo++;
-      }
+      // Totalização em 2 etapas: 1) acumula por aba (temporário) 2) consolida por mês/ano e geral
+      const sheetNameByIndex = new Map<number, string>(allInput1Sheets.sheets.map(s => [s.sheetIndex, s.sheetName]));
+      const totalizadoresTemporariosPorAba: Record<number, AbaTempTotals> = {};
+      const anosDetectados: Record<string, number> = {};
 
-      // Classificação por Turma (positiva/negativa) — count ALL rows with classification, even without name
-      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
       for (const pr of rowsParaTotalizadores) {
-        const class_ = normalizeClassificacaoTurma(pr.classificacao_turma || "");
-        if (!class_) continue;
-        const turma = (pr.turma_relator || "").trim();
-        const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
-        if (!classificacaoPorTurma[turmaKey]) classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
-        if (class_ === "POSITIVA") classificacaoPorTurma[turmaKey].positiva++;
-        else classificacaoPorTurma[turmaKey].negativa++;
-      }
-
-      // Estatísticas por Mês/Ano
-      const estatisticasPorMes: Record<string, MesAnoStats> = {};
-      for (const pr of rowsParaTotalizadores) {
-        const key = pr.mes_ano;
-        if (!estatisticasPorMes[key]) {
-          estatisticasPorMes[key] = { totalProcessos: 0, classificacaoPorRelator: {}, classificacaoPorTurma: {} };
+        const sheetName = sheetNameByIndex.get(pr.sheetIndex) || `Aba ${pr.sheetIndex + 1}`;
+        if (!totalizadoresTemporariosPorAba[pr.sheetIndex]) {
+          totalizadoresTemporariosPorAba[pr.sheetIndex] = {
+            sheetIndex: pr.sheetIndex,
+            sheetName,
+            totalProcessos: 0,
+            mesAnoContadores: {},
+            classificacaoPorRelator: {},
+            classificacaoPorTurma: {},
+          };
         }
-        estatisticasPorMes[key].totalProcessos++;
 
-        // Relator por mês — count ALL rows with classification
+        const aggAba = totalizadoresTemporariosPorAba[pr.sheetIndex];
+        aggAba.totalProcessos++;
+
+        if (pr.mes_ano && pr.mes_ano !== "Sem data") {
+          aggAba.mesAnoContadores[pr.mes_ano] = (aggAba.mesAnoContadores[pr.mes_ano] || 0) + 1;
+          const [, ano] = pr.mes_ano.split("/");
+          if (ano) anosDetectados[ano] = (anosDetectados[ano] || 0) + 1;
+        }
+
         const cr = normalizeClassificacaoRelator(pr.classificacao_relator || "");
         if (cr) {
           const relator = (pr.relator || "").trim();
           const relatorKey = (!relator || isEmpty(relator)) ? "(Não identificado)" : relator;
-          if (!estatisticasPorMes[key].classificacaoPorRelator[relatorKey]) {
-            estatisticasPorMes[key].classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
+          if (!aggAba.classificacaoPorRelator[relatorKey]) {
+            aggAba.classificacaoPorRelator[relatorKey] = { positivo: 0, negativo: 0 };
           }
-          if (cr === "POSITIVO") estatisticasPorMes[key].classificacaoPorRelator[relatorKey].positivo++;
-          else estatisticasPorMes[key].classificacaoPorRelator[relatorKey].negativo++;
+          if (cr === "POSITIVO") aggAba.classificacaoPorRelator[relatorKey].positivo++;
+          else aggAba.classificacaoPorRelator[relatorKey].negativo++;
         }
 
-        // Turma por mês — count ALL rows with classification
         const ct = normalizeClassificacaoTurma(pr.classificacao_turma || "");
         if (ct) {
           const turma = (pr.turma_relator || "").trim();
           const turmaKey = (!turma || isEmpty(turma)) ? "(Não identificada)" : turma;
-          if (!estatisticasPorMes[key].classificacaoPorTurma[turmaKey]) {
-            estatisticasPorMes[key].classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
+          if (!aggAba.classificacaoPorTurma[turmaKey]) {
+            aggAba.classificacaoPorTurma[turmaKey] = { positiva: 0, negativa: 0 };
           }
-          if (ct === "POSITIVA") estatisticasPorMes[key].classificacaoPorTurma[turmaKey].positiva++;
-          else estatisticasPorMes[key].classificacaoPorTurma[turmaKey].negativa++;
+          if (ct === "POSITIVA") aggAba.classificacaoPorTurma[turmaKey].positiva++;
+          else aggAba.classificacaoPorTurma[turmaKey].negativa++;
         }
       }
+
+      const anoPadrao = Object.entries(anosDetectados).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
+      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
+      const estatisticasPorMes: Record<string, MesAnoStats> = {};
+
+      for (const aggAba of Object.values(totalizadoresTemporariosPorAba)) {
+        const mesAnoMaisFrequente = Object.entries(aggAba.mesAnoContadores).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const mesAnoAba = mesAnoMaisFrequente || mesAnoFromSheetName(aggAba.sheetName, anoPadrao);
+        const mesKey = mesAnoAba || "Sem data";
+
+        if (!estatisticasPorMes[mesKey]) {
+          estatisticasPorMes[mesKey] = { totalProcessos: 0, classificacaoPorRelator: {}, classificacaoPorTurma: {} };
+        }
+        estatisticasPorMes[mesKey].totalProcessos += aggAba.totalProcessos;
+
+        for (const [relator, counts] of Object.entries(aggAba.classificacaoPorRelator)) {
+          if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+          classificacaoPorRelator[relator].positivo += counts.positivo;
+          classificacaoPorRelator[relator].negativo += counts.negativo;
+
+          if (!estatisticasPorMes[mesKey].classificacaoPorRelator[relator]) {
+            estatisticasPorMes[mesKey].classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+          }
+          estatisticasPorMes[mesKey].classificacaoPorRelator[relator].positivo += counts.positivo;
+          estatisticasPorMes[mesKey].classificacaoPorRelator[relator].negativo += counts.negativo;
+        }
+
+        for (const [turma, counts] of Object.entries(aggAba.classificacaoPorTurma)) {
+          if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+          classificacaoPorTurma[turma].positiva += counts.positiva;
+          classificacaoPorTurma[turma].negativa += counts.negativa;
+
+          if (!estatisticasPorMes[mesKey].classificacaoPorTurma[turma]) {
+            estatisticasPorMes[mesKey].classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+          }
+          estatisticasPorMes[mesKey].classificacaoPorTurma[turma].positiva += counts.positiva;
+          estatisticasPorMes[mesKey].classificacaoPorTurma[turma].negativa += counts.negativa;
+        }
+      }
+
+      console.log("[PlanilhaTST] DEBUG: Totalizadores temporários por aba:", Object.values(totalizadoresTemporariosPorAba).map(agg => {
+        const mesAnoMaisFrequente = Object.entries(agg.mesAnoContadores).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const mesAnoAba = mesAnoMaisFrequente || mesAnoFromSheetName(agg.sheetName, anoPadrao) || "Sem data";
+        const totalRel = Object.values(agg.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo, 0);
+        const totalTur = Object.values(agg.classificacaoPorTurma).reduce((s, c) => s + c.positiva + c.negativa, 0);
+        return {
+          aba: agg.sheetName,
+          sheetIndex: agg.sheetIndex,
+          mesAno: mesAnoAba,
+          totalProcessos: agg.totalProcessos,
+          totalClassRelator: totalRel,
+          totalClassTurma: totalTur,
+        };
+      }));
 
       setStats({
         total: rowsParaTotalizadores.length,
