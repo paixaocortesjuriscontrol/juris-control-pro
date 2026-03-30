@@ -1071,8 +1071,40 @@ export default function PlanilhaTst() {
     }
     y += 6;
 
+    // Preenchimento por Coluna
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Preenchimento por Coluna", 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    for (const [col, info] of Object.entries(stats.preenchimentoPorColuna)) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      const pct = info.total > 0 ? `${((info.preenchidas / info.total) * 100).toFixed(1)}%` : "0%";
+      const label = col.charAt(0).toUpperCase() + col.slice(1);
+      doc.text(`• ${label}: ${info.preenchidas}/${info.total} (${pct})`, 18, y);
+      y += 6;
+    }
+    y += 4;
+
+    // Resumo por Linha
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumo por Linha", 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const pctLinhas = stats.totalLinhas > 0 ? `${((stats.linhasPreenchidas / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Linhas preenchidas (verde): ${stats.linhasPreenchidas} de ${stats.totalLinhas} (${pctLinhas})`, 18, y); y += 6;
+    const pctDossie = stats.totalLinhas > 0 ? `${((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Dossiês não localizados: ${stats.dossiesNaoLocalizados} de ${stats.totalLinhas} (${pctDossie})`, 18, y); y += 6;
+    doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
+
     // Processos não encontrados (amostras)
     if (stats.unmatchedSamples.length > 0) {
+      if (y > 240) { doc.addPage(); y = 20; }
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.text("Amostras de Processos Não Encontrados", 14, y);
