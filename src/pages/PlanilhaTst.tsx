@@ -107,6 +107,9 @@ const TURMA_CLASSIFICACAO: Record<string, "POSITIVA" | "NEGATIVA"> = {
   "sbdi-1": "NEGATIVA",
   "sbdi-2": "POSITIVA",
   "pleno": "NEGATIVA",
+  "presidencia": "NEGATIVA",
+  "vice-presidencia": "NEGATIVA",
+  "corregedoria": "NEGATIVA",
 };
 
 // Classificar turma pelo nome da turma (coluna I)
