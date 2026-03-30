@@ -2671,18 +2671,22 @@ export default function PlanilhaTst() {
                         <thead>
                           <tr className="bg-muted/50">
                             <th className="text-left p-2 font-medium">Relator</th>
-                            <th className="text-center p-2 font-medium text-green-600 w-24">Positivo</th>
-                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativo</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-20">Positivo</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-20">Negativo</th>
+                            <th className="text-center p-2 font-medium text-muted-foreground w-20">Sem Class.</th>
+                            <th className="text-center p-2 font-medium w-20">Total</th>
                           </tr>
                         </thead>
                         <tbody>
                           {Object.entries(stats.classificacaoPorRelator)
-                            .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
+                            .sort((a, b) => (b[1].positivo + b[1].negativo + (b[1].semClassificacao || 0)) - (a[1].positivo + a[1].negativo + (a[1].semClassificacao || 0)))
                             .map(([relator, counts]) => (
                               <tr key={relator} className="border-t">
                                 <td className="p-2 text-xs">{relator}</td>
                                 <td className="p-2 text-center font-bold text-green-600">{counts.positivo}</td>
                                 <td className="p-2 text-center font-bold text-red-500">{counts.negativo}</td>
+                                <td className="p-2 text-center text-muted-foreground">{counts.semClassificacao || 0}</td>
+                                <td className="p-2 text-center font-bold">{counts.positivo + counts.negativo + (counts.semClassificacao || 0)}</td>
                               </tr>
                             ))}
                           <tr className="border-t-2 border-foreground/30 bg-muted/80 font-bold">
@@ -2692,6 +2696,12 @@ export default function PlanilhaTst() {
                             </td>
                             <td className="p-2 text-center font-bold text-red-500">
                               {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + c.negativo, 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-muted-foreground">
+                              {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + (c.semClassificacao || 0), 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold">
+                              {Object.values(stats.classificacaoPorRelator).reduce((s, c) => s + c.positivo + c.negativo + (c.semClassificacao || 0), 0)}
                             </td>
                           </tr>
                         </tbody>
