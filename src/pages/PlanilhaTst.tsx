@@ -770,6 +770,11 @@ export default function PlanilhaTst() {
               mesAno = extrairMesAno(distribVal);
             }
           }
+          // Fallback: use the tab/sheet name as month (e.g., "Outubro" → "10/2024")
+          if (mesAno === "Sem data") {
+            const fromTab = mesAnoFromSheetName(sheet.sheetName);
+            if (fromTab) mesAno = fromTab;
+          }
 
           const pr: ProcessRow = {
             sheetIndex: sheet.sheetIndex,
