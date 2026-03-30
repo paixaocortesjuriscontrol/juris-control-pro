@@ -113,7 +113,7 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
       });
 
       // Guardar colunas posicionais para evitar perda quando o cabeçalho não representa a coluna real
-      // (ex.: data de distribuição em A e Benner em AA)
+      // (ex.: data de distribuição em A, G/H/I/J e Benner em AA)
       let colA = row[0];
       if (colA instanceof Date && !isNaN(colA.getTime())) {
         const d = colA.getUTCDate().toString().padStart(2, "0");
@@ -122,6 +122,18 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
         colA = `${d}/${m}/${y}`;
       }
       obj.__colA = colA ?? "";
+
+      // Coluna G (Relator)
+      obj.__colG = row[6] ?? "";
+
+      // Coluna H (Classificação Relator)
+      obj.__colH = row[7] ?? "";
+
+      // Coluna I (Turma)
+      obj.__colI = row[8] ?? "";
+
+      // Coluna J (Classificação Turma)
+      obj.__colJ = row[9] ?? "";
 
       const aaIndex = 26; // coluna AA
       let colAA = row[aaIndex];
