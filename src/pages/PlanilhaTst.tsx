@@ -395,8 +395,8 @@ export default function PlanilhaTst() {
   const [results, setResults] = useState<ProcessRow[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [] });
   const [processing, setProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("");
+  const [progressSteps, setProgressSteps] = useState<{ label: string; status: "pending" | "active" | "done" }[]>([]);
+  const [progressPct, setProgressPct] = useState(0);
   const [originalFileBuffer, setOriginalFileBuffer] = useState<ArrayBuffer | null>(null);
   const [input1Meta, setInput1Meta] = useState<{ headers: string[]; headerRowIndex: number } | null>(null);
   const cancelledRef = useRef(false);
