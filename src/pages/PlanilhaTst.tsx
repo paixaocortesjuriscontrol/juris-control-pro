@@ -1338,9 +1338,12 @@ export default function PlanilhaTst() {
         }
 
         // --- Aplicar o estilo Calibri 8 + amarelo nas células preenchidas pelo programa ---
-        if (yellowStyleIndex) {
+        {
+          // Re-read styles to get the getYellowStyle function, then re-read sheet
+          const updatedStylesXml = await zip.file(stylesPath)?.async("string");
           const updatedSheetXml = await zip.file(worksheetPath)?.async("string");
-          if (updatedSheetXml) {
+          if (updatedStylesXml && updatedSheetXml) {
+            const stylesDoc2 = parser.parseFromString(updatedStylesXml, "application/xml");
             const updatedDoc = parser.parseFromString(updatedSheetXml, "application/xml");
             const updatedNs = updatedDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
             const updatedSheetData = updatedDoc.getElementsByTagNameNS(updatedNs, "sheetData")[0];
@@ -1352,12 +1355,15 @@ export default function PlanilhaTst() {
                 if (!Number.isNaN(rn)) updatedRowMap.set(rn, rowEl);
               }
 
-              const markStyle = (rowEl: Element, excelRow: number, colIdx: number) => {
+              const applyStyle = (rowEl: Element, excelRow: number, colIdx: number, centered: boolean) => {
                 if (colIdx < 0) return;
                 const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: colIdx });
                 const cells = Array.from(rowEl.getElementsByTagNameNS(updatedNs, "c")).filter(c => c.parentNode === rowEl);
                 const cell = cells.find(c => c.getAttribute("r") === cellRef);
-                if (cell) cell.setAttribute("s", yellowStyleIndex!);
+                if (cell) {
+                  const origStyle = cell.getAttribute("s") || null;
+                  cell.setAttribute("s", getYellowStyle(origStyle, centered));
+                }
               };
 
               for (const pr of results) {
@@ -1367,7 +1373,7 @@ export default function PlanilhaTst() {
 
                 const markYellow = (colIdx: number, value: string, origemKey: string) => {
                   if (colIdx < 0 || isEmpty(value) || !(pr as any)[origemKey]) return;
-                  markStyle(rowEl, excelRow, colIdx);
+                  applyStyle(rowEl, excelRow, colIdx, false);
                 };
 
                 markYellow(colDossie, pr.dossie, "origem_dossie");
@@ -1376,11 +1382,14 @@ export default function PlanilhaTst() {
                 markYellow(colReclamada, pr.reclamada, "origem_reclamada");
                 markYellow(colRelator, pr.relator, "origem_relator");
 
-                // Also mark classification columns
-                if (pr.classificacao_relator) markStyle(rowEl, excelRow, colClassRelator);
-                if (pr.classificacao_turma) markStyle(rowEl, excelRow, colClassTurma);
+                // Classification columns: centered
+                if (pr.classificacao_relator) applyStyle(rowEl, excelRow, colClassRelator, true);
+                if (pr.turma_relator) applyStyle(rowEl, excelRow, colTurma, true);
+                if (pr.classificacao_turma) applyStyle(rowEl, excelRow, colClassTurma, true);
               }
 
+              // Save updated styles (with new xf entries) and sheet
+              zip.file(stylesPath, serializer.serializeToString(stylesDoc2));
               zip.file(worksheetPath, serializer.serializeToString(updatedDoc));
             }
           }
