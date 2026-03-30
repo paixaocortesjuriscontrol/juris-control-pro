@@ -281,6 +281,8 @@ interface Stats {
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
+  classificacaoPorRelator: Record<string, { positivo: number; negativo: number }>;
+  classificacaoPorTurma: Record<string, { positiva: number; negativa: number }>;
 }
 
 const NOT_FOUND = "(Não localizado)";
@@ -511,7 +513,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -949,6 +951,30 @@ export default function PlanilhaTst() {
         }
       }
 
+      // Classificação por Relator (positivo/negativo)
+      const classificacaoPorRelator: Record<string, { positivo: number; negativo: number }> = {};
+      for (const pr of processRows) {
+        const relator = (pr.relator || "").trim();
+        if (!relator || isEmpty(relator)) continue;
+        const class_ = (pr.classificacao_relator || "").toUpperCase();
+        if (class_ !== "POSITIVO" && class_ !== "NEGATIVO") continue;
+        if (!classificacaoPorRelator[relator]) classificacaoPorRelator[relator] = { positivo: 0, negativo: 0 };
+        if (class_ === "POSITIVO") classificacaoPorRelator[relator].positivo++;
+        else classificacaoPorRelator[relator].negativo++;
+      }
+
+      // Classificação por Turma (positiva/negativa)
+      const classificacaoPorTurma: Record<string, { positiva: number; negativa: number }> = {};
+      for (const pr of processRows) {
+        const turma = (pr.turma_relator || "").trim();
+        if (!turma || isEmpty(turma)) continue;
+        const class_ = (pr.classificacao_turma || "").toUpperCase();
+        if (class_ !== "POSITIVA" && class_ !== "NEGATIVA") continue;
+        if (!classificacaoPorTurma[turma]) classificacaoPorTurma[turma] = { positiva: 0, negativa: 0 };
+        if (class_ === "POSITIVA") classificacaoPorTurma[turma].positiva++;
+        else classificacaoPorTurma[turma].negativa++;
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -967,6 +993,8 @@ export default function PlanilhaTst() {
         linhasPreenchidas,
         totalLinhas: processRows.length,
         preenchimentoPorColuna,
+        classificacaoPorRelator,
+        classificacaoPorTurma,
       });
 
       setResults(processRows);
@@ -1131,6 +1159,58 @@ export default function PlanilhaTst() {
     const pctBenner = stats.totalLinhas > 0 ? `${((stats.bennerAtualizadoSim / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
     doc.text(`• Benner Atualizado (SIM): ${stats.bennerAtualizadoSim} de ${stats.totalLinhas} (${pctBenner})`, 18, y); y += 6;
     doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
+
+    // Classificação por Relator
+    const relatorEntries = Object.entries(stats.classificacaoPorRelator).sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo));
+    if (relatorEntries.length > 0) {
+      if (y > 220) { doc.addPage(); y = 20; }
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Classificação por Relator", 14, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Relator", 18, y);
+      doc.text("Positivo", 130, y);
+      doc.text("Negativo", 160, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      for (const [relator, counts] of relatorEntries) {
+        if (y > 275) { doc.addPage(); y = 20; }
+        const displayName = relator.length > 50 ? relator.substring(0, 47) + "..." : relator;
+        doc.text(`${displayName}`, 18, y);
+        doc.text(`${counts.positivo}`, 135, y);
+        doc.text(`${counts.negativo}`, 165, y);
+        y += 5;
+      }
+      y += 6;
+    }
+
+    // Classificação por Turma
+    const turmaEntries = Object.entries(stats.classificacaoPorTurma).sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa));
+    if (turmaEntries.length > 0) {
+      if (y > 220) { doc.addPage(); y = 20; }
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Classificação por Turma", 14, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Turma", 18, y);
+      doc.text("Positiva", 130, y);
+      doc.text("Negativa", 160, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      for (const [turma, counts] of turmaEntries) {
+        if (y > 275) { doc.addPage(); y = 20; }
+        const displayName = turma.length > 50 ? turma.substring(0, 47) + "..." : turma;
+        doc.text(`${displayName}`, 18, y);
+        doc.text(`${counts.positiva}`, 135, y);
+        doc.text(`${counts.negativa}`, 165, y);
+        y += 5;
+      }
+      y += 6;
+    }
 
     // Processos não encontrados (amostras)
     if (stats.unmatchedSamples.length > 0) {
@@ -2030,6 +2110,64 @@ export default function PlanilhaTst() {
                     <div className="text-xs text-muted-foreground">processos sem cruzamento</div>
                   </div>
                 </div>
+
+                {/* Classificação por Relator */}
+                {Object.keys(stats.classificacaoPorRelator).length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Classificação por Relator</div>
+                    <div className="border rounded-md overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left p-2 font-medium">Relator</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-24">Positivo</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(stats.classificacaoPorRelator)
+                            .sort((a, b) => (b[1].positivo + b[1].negativo) - (a[1].positivo + a[1].negativo))
+                            .map(([relator, counts]) => (
+                              <tr key={relator} className="border-t">
+                                <td className="p-2 text-xs">{relator}</td>
+                                <td className="p-2 text-center font-bold text-green-600">{counts.positivo}</td>
+                                <td className="p-2 text-center font-bold text-red-500">{counts.negativo}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Classificação por Turma */}
+                {Object.keys(stats.classificacaoPorTurma).length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Classificação por Turma</div>
+                    <div className="border rounded-md overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left p-2 font-medium">Turma</th>
+                            <th className="text-center p-2 font-medium text-green-600 w-24">Positiva</th>
+                            <th className="text-center p-2 font-medium text-red-500 w-24">Negativa</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(stats.classificacaoPorTurma)
+                            .sort((a, b) => (b[1].positiva + b[1].negativa) - (a[1].positiva + a[1].negativa))
+                            .map(([turma, counts]) => (
+                              <tr key={turma} className="border-t">
+                                <td className="p-2 text-xs">{turma}</td>
+                                <td className="p-2 text-center font-bold text-green-600">{counts.positiva}</td>
+                                <td className="p-2 text-center font-bold text-red-500">{counts.negativa}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
