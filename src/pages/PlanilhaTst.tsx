@@ -309,52 +309,44 @@ function findColumnIndex(headers: string[], ...terms: string[]): number {
   });
 }
 
-function readSheetData(file: File): Promise<SheetData> {
+let xlsxWorker: Worker | null = null;
+let workerIdCounter = 0;
+
+function getXlsxWorker(): Worker {
+  if (!xlsxWorker) {
+    xlsxWorker = new Worker(
+      new URL("../workers/planilhaTstReader.worker.ts", import.meta.url),
+      { type: "module" }
+    );
+  }
+  return xlsxWorker;
+}
+
+function parseFileInWorker(file: File, allSheets: boolean): Promise<any[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array", cellDates: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1, rawNumbers: false }) as any[][];
-
-        let headerIdx = 0;
-        for (let i = 0; i < Math.min(json.length, 10); i++) {
-          const row = json[i];
-          if (row && row.some(c => c && String(c).toLowerCase().includes("processo"))) {
-            headerIdx = i;
-            break;
-          }
-        }
-
-        const headers = (json[headerIdx] || []).map(h => String(h || ""));
-        const rows: Record<string, any>[] = [];
-        for (let i = headerIdx + 1; i < json.length; i++) {
-          const row = json[i];
-          if (!row || row.every(c => !c && c !== 0)) continue;
-          const obj: Record<string, any> = {};
-          headers.forEach((h, idx) => {
-            let val = row[idx];
-            // Convert Date objects to dd/mm/yyyy string
-            if (val instanceof Date && !isNaN(val.getTime())) {
-              const d = val.getDate().toString().padStart(2, '0');
-              const m = (val.getMonth() + 1).toString().padStart(2, '0');
-              const y = val.getFullYear();
-              val = `${d}/${m}/${y}`;
-            }
-            obj[h] = val;
-          });
-          rows.push(obj);
-        }
-        resolve({ headers, rows, headerRowIndex: headerIdx });
-      } catch (err) {
-        reject(err);
-      }
+      const buffer = e.target?.result as ArrayBuffer;
+      const worker = getXlsxWorker();
+      const id = ++workerIdCounter;
+      const handler = (ev: MessageEvent) => {
+        if (ev.data.id !== id) return;
+        worker.removeEventListener("message", handler);
+        if (ev.data.type === "error") reject(new Error(ev.data.error));
+        else resolve(ev.data.sheets);
+      };
+      worker.addEventListener("message", handler);
+      worker.postMessage({ type: "parse", buffer, allSheets, id }, [buffer]);
     };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
+}
+
+async function readSheetData(file: File): Promise<SheetData> {
+  const sheets = await parseFileInWorker(file, false);
+  const s = sheets[0];
+  return { headers: s.headers, rows: s.rows, headerRowIndex: s.headerRowIndex };
 }
 
 function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
