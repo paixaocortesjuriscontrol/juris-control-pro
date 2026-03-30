@@ -1237,7 +1237,6 @@ export default function PlanilhaTst() {
         // --- Adicionar estilos no styles.xml: fonte Calibri 8pt + fill amarelo ---
         const stylesPath = "xl/styles.xml";
         const stylesXml = await zip.file(stylesPath)?.async("string");
-        let yellowStyleIndex: string | null = null;
         let newFontIndex = 0;
         let newFillIndex = 0;
 
