@@ -59,6 +59,7 @@ import WorkerDjenVps from "./pages/WorkerDjenVps";
 import TstPrazos from "./pages/TstPrazos";
 import AnalisarPrazos from "./pages/AnalisarPrazos";
 import PlanilhaTst from "./pages/PlanilhaTst";
+import CargaBenner from "./pages/CargaBenner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
