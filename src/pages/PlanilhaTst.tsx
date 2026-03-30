@@ -277,6 +277,7 @@ interface Stats {
   unmatchedSamples: string[];
   dossiesNaoLocalizados: number;
   dossiesCinza: number;
+  bennerAtualizadoSim: number;
   linhasPreenchidas: number;
   totalLinhas: number;
   preenchimentoPorColuna: Record<string, { preenchidas: number; total: number }>;
@@ -510,7 +511,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -932,6 +933,22 @@ export default function PlanilhaTst() {
         }
       }
 
+      // Count Benner Atualizado = SIM (column AA)
+      let bennerAtualizadoSim = 0;
+      for (const sheet of allInput1Sheets.sheets) {
+        const bennerColIdx = sheet.headers.findIndex(h => {
+          const lower = (h || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return lower.includes("benner") && lower.includes("atualizado");
+        });
+        if (bennerColIdx >= 0) {
+          const bennerHeader = sheet.headers[bennerColIdx];
+          for (const row of sheet.rows) {
+            const val = String(row[bennerHeader] || "").trim().toUpperCase();
+            if (val === "SIM") bennerAtualizadoSim++;
+          }
+        }
+      }
+
       setStats({
         total: processRows.length,
         passo1: countPasso1,
@@ -946,6 +963,7 @@ export default function PlanilhaTst() {
         unmatchedSamples,
         dossiesNaoLocalizados,
         dossiesCinza,
+        bennerAtualizadoSim,
         linhasPreenchidas,
         totalLinhas: processRows.length,
         preenchimentoPorColuna,
@@ -1110,6 +1128,8 @@ export default function PlanilhaTst() {
     doc.text(`• Dossiês não localizados: ${stats.dossiesNaoLocalizados} de ${stats.totalLinhas} (${pctDossie})`, 18, y); y += 6;
     const pctCinza = stats.totalLinhas > 0 ? `${((stats.dossiesCinza / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
     doc.text(`• Dossiês cinza (original): ${stats.dossiesCinza} de ${stats.totalLinhas} (${pctCinza})`, 18, y); y += 6;
+    const pctBenner = stats.totalLinhas > 0 ? `${((stats.bennerAtualizadoSim / stats.totalLinhas) * 100).toFixed(1)}%` : "0%";
+    doc.text(`• Benner Atualizado (SIM): ${stats.bennerAtualizadoSim} de ${stats.totalLinhas} (${pctBenner})`, 18, y); y += 6;
     doc.text(`• Processos sem nenhum cruzamento: ${stats.naoEncontrados}`, 18, y); y += 10;
 
     // Processos não encontrados (amostras)
@@ -1842,6 +1862,12 @@ export default function PlanilhaTst() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{stats.bennerAtualizadoSim}</div>
+                <div className="text-xs text-muted-foreground">Benner Atualizado (SIM)</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-red-500">{stats.naoEncontrados}</div>
                 <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Não Encontrados
@@ -1992,6 +2018,11 @@ export default function PlanilhaTst() {
                     <div className="text-sm font-medium mb-1">Dossiês Cinza (original)</div>
                     <div className="text-2xl font-bold text-gray-500">{stats.dossiesCinza}</div>
                     <div className="text-xs text-muted-foreground">células cinza na planilha original ({stats.totalLinhas > 0 ? Math.round((stats.dossiesCinza / stats.totalLinhas) * 100) : 0}%)</div>
+                  </div>
+                  <div className="border rounded-md p-3">
+                    <div className="text-sm font-medium mb-1">Benner Atualizado (SIM)</div>
+                    <div className="text-2xl font-bold text-green-600">{stats.bennerAtualizadoSim}</div>
+                    <div className="text-xs text-muted-foreground">linhas com SIM na coluna AA ({stats.totalLinhas > 0 ? Math.round((stats.bennerAtualizadoSim / stats.totalLinhas) * 100) : 0}%)</div>
                   </div>
                   <div className="border rounded-md p-3">
                     <div className="text-sm font-medium mb-1">Sem Nenhum Dado</div>
