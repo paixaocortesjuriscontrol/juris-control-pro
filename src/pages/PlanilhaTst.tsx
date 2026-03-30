@@ -694,12 +694,15 @@ export default function PlanilhaTst() {
           const proc = getProcessoFromRow(row, sheet.headers);
           const procNorm = normalizeProcesso(proc);
 
-          const relatorVal = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador") || NOT_FOUND;
+          const relatorFromHeader = getFieldFromRow(row, sheet.headers, "relator", "ministro", "desembargador");
+          const relatorFromColG = String((row as any).__colG ?? "").trim();
+          const relatorVal = relatorFromHeader || relatorFromColG || NOT_FOUND;
           const classRelatorFromSheet =
             normalizeClassificacaoRelator(getFieldFromRow(row, sheet.headers, "classificacao relator", "classificação relator", "class relator")) ||
-            normalizeClassificacaoRelator(getValueByColumnIndex(row, sheet.headers, 7)); // coluna H
+            normalizeClassificacaoRelator(getValueByColumnIndex(row, sheet.headers, 7)) || // coluna H
+            normalizeClassificacaoRelator(String((row as any).__colH ?? ""));
           const classRelator = classificarRelator(relatorVal) || classRelatorFromSheet;
-          const turmaValPlanilha = getFieldFromRow(
+          const turmaFromHeader = getFieldFromRow(
             row,
             sheet.headers,
             "turma",
@@ -708,11 +711,14 @@ export default function PlanilhaTst() {
             "orgao",
             "unidade"
           );
+          const turmaFromColI = String((row as any).__colI ?? "").trim();
+          const turmaValPlanilha = turmaFromHeader || turmaFromColI;
           const turmaInfo = classificarTurmaDoRelator(relatorVal);
           const turmaInicial = !isEmpty(turmaValPlanilha) ? turmaValPlanilha : (turmaInfo.turma || NOT_FOUND);
           const classTurmaFromSheet =
             normalizeClassificacaoTurma(getFieldFromRow(row, sheet.headers, "classificacao turma", "classificação turma", "class turma")) ||
-            normalizeClassificacaoTurma(getValueByColumnIndex(row, sheet.headers, 9)); // coluna J
+            normalizeClassificacaoTurma(getValueByColumnIndex(row, sheet.headers, 9)) || // coluna J
+            normalizeClassificacaoTurma(String((row as any).__colJ ?? ""));
           const classTurmaInicial = classificarTurma(turmaInicial) || turmaInfo.classificacao || classTurmaFromSheet;
 
           // Extract distribution date: prioritize column A, then look for "distribui" header
