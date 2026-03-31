@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import {
   Upload, Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet,
   ArrowRight, Info, Table2,
