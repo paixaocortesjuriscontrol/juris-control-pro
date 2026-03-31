@@ -582,7 +582,7 @@ export default function CargaBenner() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-xs whitespace-nowrap">#</TableHead>
-                      {LAYOUT_HEADERS.slice(0, 15).map(h => (
+                      {LAYOUT_COLS.slice(0, 15).map(h => (
                         <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
                       ))}
                     </TableRow>
