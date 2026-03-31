@@ -268,43 +268,46 @@ export default function CargaBenner() {
         const relatorClassRaw = colRelatorClass ? String(row[colRelatorClass] ?? "") : "";
         const turmaClassRaw = colTurmaClass ? String(row[colTurmaClass] ?? "") : "";
 
-        const outRow: Record<string, any> = {
-          "Dossiê": dossie,
-          "Tribunal": "TST",
-          "Tipo de Recurso": tipoRecurso,
-          "Data da distribuição": colDataDist ? String(row[colDataDist] ?? "") : "",
-          "Turma": colTurma ? String(row[colTurma] ?? "") : "",
-          "Relator": colRelator ? String(row[colRelator] ?? "") : "",
-          "Análise do quarteirizado": colDecisao ? String(row[colDecisao] ?? "") : "",
-          "Há risco de mídia negativa?": colMidia ? String(row[colMidia] ?? "") : "",
-          "Risco": "",
-          "Há discussão sobre provas digitais?": "NÃO",
-          "Temos data de julgamento?": hasJulg ? "SIM" : "NÃO",
-          "Data Julgamento": hasJulg && pColDataJulg ? String(pauta![pColDataJulg] ?? "") : "",
-          "Horário": hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : "",
-          "Tipo Julgamento": hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : "",
-          "Matéria de Honra": colHonra ? String(row[colHonra] ?? "") : "",
-          "Entrega de Memoriais": hasJulg && pColMemoriais ? String(pauta![pColMemoriais] ?? "") : "",
-          "Sustentação Oral": hasJulg && pColSustentacao ? String(pauta![pColSustentacao] ?? "") : "",
-          "Sem transcendência": "",
-          "Transcendência não reconhecida": "",
-          "Transcendência reconhecida e recurso desprovido": "",
-          "Transcendência reconhecida e recurso provido": "",
-          "Outra": "",
-          "Observações": "",
-          "Ganhamos / Perdemos": "",
-          "Processo baixado": "NÃO",
-          "Recorrente": colParteRecorrente ? String(row[colParteRecorrente] ?? "") : "",
-          "Turma Favorável/Desfavorável": deriveFavoravel(turmaClassRaw),
-          "Relator Favorável/Desfavorável": deriveFavoravel(relatorClassRaw),
-          "Recurso Bem/Mal aparelhado": deriveAparelhamento(aparelhamento),
-          "Chance de êxito": chanceExito,
-          "Número do Processo": numProcesso,
-          "Reclamante": colReclamante ? String(row[colReclamante] ?? "") : "",
-          "Reclamada": colReclamada ? String(row[colReclamada] ?? "") : "",
-          "Equipe": colEquipe ? String(row[colEquipe] ?? "") : "",
-          "Data Distribuição Original": colDataDist ? String(row[colDataDist] ?? "") : "",
-        };
+        const outRow: Record<string, any> = {};
+        outRow[LAYOUT_COLS[0]] = dossie; // Dossiê
+        outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
+        outRow[LAYOUT_COLS[2]] = tipoRecurso; // Tipo de Recurso
+        outRow[LAYOUT_COLS[3]] = colDataDist ? String(row[colDataDist] ?? "") : ""; // Data distribuição
+        outRow[LAYOUT_COLS[4]] = colTurma ? String(row[colTurma] ?? "") : ""; // Turma
+        outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
+        outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
+        outRow[LAYOUT_COLS[7]] = colMidia ? String(row[colMidia] ?? "") : ""; // Mídia negativa
+        outRow[LAYOUT_COLS[8]] = ""; // Risco
+        outRow[LAYOUT_COLS[9]] = "NÃO"; // Provas digitais
+        outRow[LAYOUT_COLS[10]] = hasJulg ? "SIM" : "NÃO"; // Temos data julgamento
+        outRow[LAYOUT_COLS[11]] = hasJulg && pColDataJulg ? String(pauta![pColDataJulg] ?? "") : ""; // Data julgamento
+        outRow[LAYOUT_COLS[12]] = hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : ""; // Horário
+        outRow[LAYOUT_COLS[13]] = hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : ""; // Tipo julgamento
+        outRow[LAYOUT_COLS[14]] = colHonra ? String(row[colHonra] ?? "") : ""; // Matéria de Honra
+        outRow[LAYOUT_COLS[15]] = hasJulg && pColMemoriais ? String(pauta![pColMemoriais] ?? "") : ""; // Memoriais
+        outRow[LAYOUT_COLS[16]] = hasJulg && pColSustentacao ? String(pauta![pColSustentacao] ?? "") : ""; // Sustentação
+        outRow[LAYOUT_COLS[17]] = ""; // Sem transcendência
+        outRow[LAYOUT_COLS[18]] = ""; // Recurso não conhecido
+        outRow[LAYOUT_COLS[19]] = ""; // Recurso conhecido e provido
+        outRow[LAYOUT_COLS[20]] = ""; // Recurso conhecido e não provido
+        outRow[LAYOUT_COLS[21]] = ""; // Outra
+        outRow[LAYOUT_COLS[22]] = ""; // Observações
+        outRow[LAYOUT_COLS[23]] = ""; // Ganhamos
+        outRow[LAYOUT_COLS[24]] = ""; // Perdemos
+        outRow[LAYOUT_COLS[25]] = "NÃO"; // Processo baixado
+        outRow[LAYOUT_COLS[26]] = colParteRecorrente ? String(row[colParteRecorrente] ?? "") : ""; // Recorrente
+        // Turma favorável/desfavorável → split into two columns
+        const turmaFav = deriveFavoravel(turmaClassRaw);
+        outRow[LAYOUT_COLS[27]] = turmaFav === "Favorável" ? "X" : ""; // AB - Favorável (turma)
+        outRow[LAYOUT_COLS[28]] = turmaFav === "Desfavorável" ? "X" : ""; // AC - Desfavorável (turma)
+        const relatorFav = deriveFavoravel(relatorClassRaw);
+        outRow[LAYOUT_COLS[29]] = relatorFav === "Favorável" ? "X" : ""; // AD - Favorável (relator)
+        outRow[LAYOUT_COLS[30]] = relatorFav === "Desfavorável" ? "X" : ""; // AE - Desfavorável (relator)
+        // Aparelhamento → split into two columns
+        const aparelhamentoVal = deriveAparelhamento(aparelhamento);
+        outRow[LAYOUT_COLS[31]] = aparelhamentoVal === "Bem aparelhado" ? "X" : ""; // AF
+        outRow[LAYOUT_COLS[32]] = aparelhamentoVal === "Mal aparelhado" ? "X" : ""; // AG
+        outRow[LAYOUT_COLS[33]] = chanceExito; // AH - Chance de êxito
 
         output.push(outRow);
 
