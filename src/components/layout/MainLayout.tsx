@@ -45,6 +45,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
           {children}
         </main>
       </div>
+      <MonitoramentosFloatingIndicator />
     </div>
   );
 }
