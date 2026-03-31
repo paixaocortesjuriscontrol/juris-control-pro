@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import {
   Upload, Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet,
   ArrowRight, Info, Table2,
@@ -52,19 +52,42 @@ function findCol(headers: string[], ...keywords: string[]): string | null {
   return null;
 }
 
-// Layout Carga headers (35 columns)
-const LAYOUT_HEADERS = [
-  "Dossiê", "Tribunal", "Tipo de Recurso", "Data da distribuição", "Turma", "Relator",
-  "Análise do quarteirizado", "Há risco de mídia negativa?", "Risco",
-  "Há discussão sobre provas digitais?", "Temos data de julgamento?",
-  "Data Julgamento", "Horário", "Tipo Julgamento", "Matéria de Honra",
-  "Entrega de Memoriais", "Sustentação Oral",
-  "Sem transcendência", "Transcendência não reconhecida", "Transcendência reconhecida e recurso desprovido",
-  "Transcendência reconhecida e recurso provido", "Outra",
-  "Observações", "Ganhamos / Perdemos", "Processo baixado",
-  "Recorrente", "Turma Favorável/Desfavorável", "Relator Favorável/Desfavorável",
-  "Recurso Bem/Mal aparelhado", "Chance de êxito",
-  "Número do Processo", "Reclamante", "Reclamada", "Equipe", "Data Distribuição Original",
+// Layout Carga - 34 colunas (A-AH) exatamente como o template original
+const LAYOUT_COLS = [
+  "Dossiê",                                                       // A
+  "Tribunal (TST, STF ou STJ)",                                    // B
+  "Tipo de Recurso",                                               // C
+  "Data da distribuição no TST/STF",                                // D
+  "Turma",                                                         // E
+  "Relator",                                                       // F
+  "Análise do quarteirizado",                                      // G
+  "Há risco de mídia negativa? (S/N)",                              // H
+  "Risco",                                                         // I
+  "Há discussão sobre provas digitais? (S/N)",                      // J
+  "Temos data de julgamento? (S/N)",                                // K
+  "Data Julgamento",                                               // L
+  "Horário",                                                       // M
+  "Julgamento (Virtual, Telepresencial, Híbrido ou Presencial)",    // N
+  "Matéria de Honra (S/N)",                                        // O
+  "Entrega de Memoriais (S/N)",                                    // P
+  "Sustentação Oral (S/N/ Não cabe)",                               // Q
+  "Sem transcendência",                                            // R
+  "Recurso não conhecido",                                         // S
+  "Recurso conhecido e provido",                                    // T
+  "Recurso conhecido e não provido",                                // U
+  "Outra",                                                         // V
+  "Observações",                                                   // W
+  "Ganhamos",                                                      // X
+  "Perdemos",                                                      // Y
+  "Processo baixado do TST/STF (S/N)",                              // Z
+  "Recorrente",                                                    // AA
+  "Favorável (turma)",                                             // AB
+  "Desfavorável (turma)",                                          // AC
+  "Favorável (relator)",                                            // AD
+  "Desfavorável (relator)",                                         // AE
+  "Bem aparelhado",                                                // AF
+  "Mal aparelhado",                                                // AG
+  "Com chances de êxito",                                           // AH
 ];
 
 function deriveFavoravel(classificacao: string): string {
@@ -245,43 +268,46 @@ export default function CargaBenner() {
         const relatorClassRaw = colRelatorClass ? String(row[colRelatorClass] ?? "") : "";
         const turmaClassRaw = colTurmaClass ? String(row[colTurmaClass] ?? "") : "";
 
-        const outRow: Record<string, any> = {
-          "Dossiê": dossie,
-          "Tribunal": "TST",
-          "Tipo de Recurso": tipoRecurso,
-          "Data da distribuição": colDataDist ? String(row[colDataDist] ?? "") : "",
-          "Turma": colTurma ? String(row[colTurma] ?? "") : "",
-          "Relator": colRelator ? String(row[colRelator] ?? "") : "",
-          "Análise do quarteirizado": colDecisao ? String(row[colDecisao] ?? "") : "",
-          "Há risco de mídia negativa?": colMidia ? String(row[colMidia] ?? "") : "",
-          "Risco": "",
-          "Há discussão sobre provas digitais?": "NÃO",
-          "Temos data de julgamento?": hasJulg ? "SIM" : "NÃO",
-          "Data Julgamento": hasJulg && pColDataJulg ? String(pauta![pColDataJulg] ?? "") : "",
-          "Horário": hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : "",
-          "Tipo Julgamento": hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : "",
-          "Matéria de Honra": colHonra ? String(row[colHonra] ?? "") : "",
-          "Entrega de Memoriais": hasJulg && pColMemoriais ? String(pauta![pColMemoriais] ?? "") : "",
-          "Sustentação Oral": hasJulg && pColSustentacao ? String(pauta![pColSustentacao] ?? "") : "",
-          "Sem transcendência": "",
-          "Transcendência não reconhecida": "",
-          "Transcendência reconhecida e recurso desprovido": "",
-          "Transcendência reconhecida e recurso provido": "",
-          "Outra": "",
-          "Observações": "",
-          "Ganhamos / Perdemos": "",
-          "Processo baixado": "NÃO",
-          "Recorrente": colParteRecorrente ? String(row[colParteRecorrente] ?? "") : "",
-          "Turma Favorável/Desfavorável": deriveFavoravel(turmaClassRaw),
-          "Relator Favorável/Desfavorável": deriveFavoravel(relatorClassRaw),
-          "Recurso Bem/Mal aparelhado": deriveAparelhamento(aparelhamento),
-          "Chance de êxito": chanceExito,
-          "Número do Processo": numProcesso,
-          "Reclamante": colReclamante ? String(row[colReclamante] ?? "") : "",
-          "Reclamada": colReclamada ? String(row[colReclamada] ?? "") : "",
-          "Equipe": colEquipe ? String(row[colEquipe] ?? "") : "",
-          "Data Distribuição Original": colDataDist ? String(row[colDataDist] ?? "") : "",
-        };
+        const outRow: Record<string, any> = {};
+        outRow[LAYOUT_COLS[0]] = dossie; // Dossiê
+        outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
+        outRow[LAYOUT_COLS[2]] = tipoRecurso; // Tipo de Recurso
+        outRow[LAYOUT_COLS[3]] = colDataDist ? String(row[colDataDist] ?? "") : ""; // Data distribuição
+        outRow[LAYOUT_COLS[4]] = colTurma ? String(row[colTurma] ?? "") : ""; // Turma
+        outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
+        outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
+        outRow[LAYOUT_COLS[7]] = colMidia ? String(row[colMidia] ?? "") : ""; // Mídia negativa
+        outRow[LAYOUT_COLS[8]] = ""; // Risco
+        outRow[LAYOUT_COLS[9]] = "NÃO"; // Provas digitais
+        outRow[LAYOUT_COLS[10]] = hasJulg ? "SIM" : "NÃO"; // Temos data julgamento
+        outRow[LAYOUT_COLS[11]] = hasJulg && pColDataJulg ? String(pauta![pColDataJulg] ?? "") : ""; // Data julgamento
+        outRow[LAYOUT_COLS[12]] = hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : ""; // Horário
+        outRow[LAYOUT_COLS[13]] = hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : ""; // Tipo julgamento
+        outRow[LAYOUT_COLS[14]] = colHonra ? String(row[colHonra] ?? "") : ""; // Matéria de Honra
+        outRow[LAYOUT_COLS[15]] = hasJulg && pColMemoriais ? String(pauta![pColMemoriais] ?? "") : ""; // Memoriais
+        outRow[LAYOUT_COLS[16]] = hasJulg && pColSustentacao ? String(pauta![pColSustentacao] ?? "") : ""; // Sustentação
+        outRow[LAYOUT_COLS[17]] = ""; // Sem transcendência
+        outRow[LAYOUT_COLS[18]] = ""; // Recurso não conhecido
+        outRow[LAYOUT_COLS[19]] = ""; // Recurso conhecido e provido
+        outRow[LAYOUT_COLS[20]] = ""; // Recurso conhecido e não provido
+        outRow[LAYOUT_COLS[21]] = ""; // Outra
+        outRow[LAYOUT_COLS[22]] = ""; // Observações
+        outRow[LAYOUT_COLS[23]] = ""; // Ganhamos
+        outRow[LAYOUT_COLS[24]] = ""; // Perdemos
+        outRow[LAYOUT_COLS[25]] = "NÃO"; // Processo baixado
+        outRow[LAYOUT_COLS[26]] = colParteRecorrente ? String(row[colParteRecorrente] ?? "") : ""; // Recorrente
+        // Turma favorável/desfavorável → split into two columns
+        const turmaFav = deriveFavoravel(turmaClassRaw);
+        outRow[LAYOUT_COLS[27]] = turmaFav === "Favorável" ? "X" : ""; // AB - Favorável (turma)
+        outRow[LAYOUT_COLS[28]] = turmaFav === "Desfavorável" ? "X" : ""; // AC - Desfavorável (turma)
+        const relatorFav = deriveFavoravel(relatorClassRaw);
+        outRow[LAYOUT_COLS[29]] = relatorFav === "Favorável" ? "X" : ""; // AD - Favorável (relator)
+        outRow[LAYOUT_COLS[30]] = relatorFav === "Desfavorável" ? "X" : ""; // AE - Desfavorável (relator)
+        // Aparelhamento → split into two columns
+        const aparelhamentoVal = deriveAparelhamento(aparelhamento);
+        outRow[LAYOUT_COLS[31]] = aparelhamentoVal === "Bem aparelhado" ? "X" : ""; // AF
+        outRow[LAYOUT_COLS[32]] = aparelhamentoVal === "Mal aparelhado" ? "X" : ""; // AG
+        outRow[LAYOUT_COLS[33]] = chanceExito; // AH - Chance de êxito
 
         output.push(outRow);
 
@@ -312,15 +338,93 @@ export default function CargaBenner() {
     }
   };
 
-  const downloadXlsx = () => {
+  const downloadXlsx = async () => {
     if (!outputData) return;
-    const ws = XLSX.utils.json_to_sheet(outputData, { header: LAYOUT_HEADERS });
-    // Set column widths
-    ws["!cols"] = LAYOUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 15) }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Layout Carga TST");
-    XLSX.writeFile(wb, "Layout_Carga_modulo_TST.xlsx");
-    toast.success("Planilha baixada!");
+    try {
+      // Fetch the original template
+      const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
+      if (!resp.ok) throw new Error("Template não encontrado");
+      const templateBuf = await resp.arrayBuffer();
+      const zip = await JSZip.loadAsync(templateBuf);
+
+      // Read the existing shared strings
+      const sstXml = await zip.file("xl/sharedStrings.xml")!.async("string");
+      // Parse existing strings
+      const existingStrings: string[] = [];
+      const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
+      let m: RegExpExecArray | null;
+      while ((m = siRegex.exec(sstXml)) !== null) {
+        existingStrings.push(m[1]);
+      }
+
+      // Build string index for data values
+      const stringMap = new Map<string, number>();
+      existingStrings.forEach((s, i) => stringMap.set(s, i));
+      const newStrings = [...existingStrings];
+
+      function getStringIndex(val: string): number {
+        if (stringMap.has(val)) return stringMap.get(val)!;
+        const idx = newStrings.length;
+        newStrings.push(val);
+        stringMap.set(val, idx);
+        return idx;
+      }
+
+      // Convert column index to Excel letter (0=A, 1=B, ..., 25=Z, 26=AA, ...)
+      function colToLetter(c: number): string {
+        let s = "";
+        let n = c;
+        while (n >= 0) {
+          s = String.fromCharCode(65 + (n % 26)) + s;
+          n = Math.floor(n / 26) - 1;
+        }
+        return s;
+      }
+
+      // Build data rows XML (starting at row 3)
+      let dataRowsXml = "";
+      for (let i = 0; i < outputData.length; i++) {
+        const row = outputData[i];
+        const rowNum = i + 3; // rows 1,2 are headers
+        let cellsXml = "";
+        for (let c = 0; c < LAYOUT_COLS.length; c++) {
+          const val = String(row[LAYOUT_COLS[c]] ?? "");
+          if (!val) continue;
+          const ref = colToLetter(c) + rowNum;
+          const idx = getStringIndex(val);
+          cellsXml += `<c r="${ref}" t="s"><v>${idx}</v></c>`;
+        }
+        dataRowsXml += `<row r="${rowNum}" spans="1:34">${cellsXml}</row>`;
+      }
+
+      // Modify sheet1.xml: insert data rows before </sheetData>
+      let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+      // Update dimension
+      const lastRow = outputData.length + 2;
+      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:AH${lastRow}"/>`);
+      // Insert data rows before </sheetData>
+      sheetXml = sheetXml.replace("</sheetData>", dataRowsXml + "</sheetData>");
+      zip.file("xl/worksheets/sheet1.xml", sheetXml);
+
+      // Update shared strings
+      const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const newSstEntries = newStrings.map(s => `<si><t>${escapeXml(s)}</t></si>`).join("");
+      const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
+      zip.file("xl/sharedStrings.xml", newSst);
+
+      // Generate and download
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Layout_Carga_modulo_TST.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Planilha baixada!");
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+      console.error("[CargaBenner] Download error:", err);
+    }
   };
 
   return (
@@ -451,7 +555,7 @@ export default function CargaBenner() {
                   <CheckCircle2 className="w-6 h-6 text-green-500" />
                   <div>
                     <p className="font-semibold text-foreground">Layout Carga pronto!</p>
-                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas com {LAYOUT_HEADERS.length} colunas</p>
+                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas com {LAYOUT_COLS.length} colunas</p>
                   </div>
                 </div>
                 <Button onClick={downloadXlsx}>
@@ -478,7 +582,7 @@ export default function CargaBenner() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-xs whitespace-nowrap">#</TableHead>
-                      {LAYOUT_HEADERS.slice(0, 15).map(h => (
+                      {LAYOUT_COLS.slice(0, 15).map(h => (
                         <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -487,7 +591,7 @@ export default function CargaBenner() {
                     {outputData.slice(0, 20).map((row, i) => (
                       <TableRow key={i}>
                         <TableCell className="text-xs">{i + 1}</TableCell>
-                        {LAYOUT_HEADERS.slice(0, 15).map(h => (
+                        {LAYOUT_COLS.slice(0, 15).map(h => (
                           <TableCell key={h} className="text-xs whitespace-nowrap max-w-[150px] truncate">
                             {String(row[h] ?? "")}
                           </TableCell>
