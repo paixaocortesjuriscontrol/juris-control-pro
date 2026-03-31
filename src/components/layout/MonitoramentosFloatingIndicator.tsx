@@ -1,14 +1,19 @@
 /**
  * Indicador flutuante global que mostra engines DJEN ativos em qualquer página.
  * Aparece no canto inferior-direito quando há engines rodando.
+ * 
+ * Usa DUAS fontes:
+ * 1. Subscribers locais (engine rodando nesta aba)
+ * 2. Polling do banco (configuracoes_monitoramento) para engines em outras abas
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, ChevronDown, ChevronUp, Settings, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import {
   subscribeDjenProcessos,
   getDjenProcessosProgress,
@@ -37,6 +42,15 @@ interface EngineInfo {
   novas: number;
 }
 
+interface DbEngineState {
+  tipo: string;
+  status: string;
+  percentage: number;
+  mensagem: string;
+  novas: number;
+  tempoDecorrido: number;
+}
+
 function formatTempo(ms: number): string {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -47,12 +61,34 @@ function formatTempo(ms: number): string {
   return `${h}h${m % 60}m`;
 }
 
+const ENGINE_LABELS: Record<string, string> = {
+  djen_processos: "DJEN Processos",
+  djen_termos_pro: "DJEN Termos Pro",
+  djen_termos: "DJEN Termos",
+};
+
+function parseDbMetadata(tipo: string, metadata: any): DbEngineState | null {
+  if (!metadata) return null;
+  const status = metadata.status || metadata.statusExecucao;
+  if (!status || status === 'idle' || status === 'concluido' || status === 'cancelado') return null;
+  
+  // Consider "executando" or "em_execucao" as active
+  if (status !== 'executando' && status !== 'em_execucao') return null;
+
+  const percentage = metadata.percentage || metadata.progresso || 0;
+  const mensagem = metadata.mensagem || metadata.etapaAtual || 'Executando...';
+  const novas = metadata.novas || metadata.totalNovas || 0;
+  const tempoDecorrido = metadata.tempoDecorrido || 0;
+
+  return { tipo, status, percentage, mensagem, novas, tempoDecorrido };
+}
+
 export function MonitoramentosFloatingIndicator() {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
-  // Engine states
+  // Local engine states (from in-tab subscribers)
   const [procProgress, setProcProgress] = useState<DjenProcessosProgress>(getDjenProcessosProgress);
   const [procRunning, setProcRunning] = useState(isDjenProcessosRunning);
   const [termosProProgress, setTermosProProgress] = useState<DjenTermosProProgress>(getDjenTermosProProgress);
@@ -60,6 +96,10 @@ export function MonitoramentosFloatingIndicator() {
   const [termosProgress, setTermosProgress] = useState(getDjenTermosProgress);
   const [termosRunning, setTermosRunning] = useState(isDjenTermosRunning);
 
+  // DB engine states (from other tabs/sessions)
+  const [dbEngines, setDbEngines] = useState<DbEngineState[]>([]);
+
+  // Subscribe to local engines
   useEffect(() => {
     const unsub1 = subscribeDjenProcessos((p) => {
       setProcProgress(p);
@@ -76,10 +116,41 @@ export function MonitoramentosFloatingIndicator() {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
-  // Build active engines list
+  // Poll DB for engine states every 10s
+  useEffect(() => {
+    let cancelled = false;
+
+    async function pollDb() {
+      try {
+        const { data } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('tipo, metadata')
+          .in('tipo', ['djen_processos', 'djen_termos_pro', 'djen_termos']);
+
+        if (cancelled || !data) return;
+
+        const active: DbEngineState[] = [];
+        for (const row of data) {
+          const parsed = parseDbMetadata(row.tipo, row.metadata);
+          if (parsed) active.push(parsed);
+        }
+        setDbEngines(active);
+      } catch {
+        // ignore
+      }
+    }
+
+    pollDb();
+    const interval = setInterval(pollDb, 10_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Build active engines list — prefer local state, fallback to DB
   const engines: EngineInfo[] = [];
+  const localActive = new Set<string>();
 
   if (procRunning || procProgress.status === 'executando') {
+    localActive.add('djen_processos');
     engines.push({
       id: 'processos',
       label: 'DJEN Processos',
@@ -92,6 +163,7 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   if (termosProRunning || termosProProgress.status === 'executando') {
+    localActive.add('djen_termos_pro');
     engines.push({
       id: 'termos_pro',
       label: 'DJEN Termos Pro',
@@ -104,6 +176,7 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   if (termosRunning || (termosProgress as any)?.status === 'executando') {
+    localActive.add('djen_termos');
     const tp = termosProgress as any;
     engines.push({
       id: 'termos',
@@ -116,7 +189,22 @@ export function MonitoramentosFloatingIndicator() {
     });
   }
 
-  // Reset dismissed when engines change
+  // Add DB-detected engines not already tracked locally
+  for (const dbEng of dbEngines) {
+    if (!localActive.has(dbEng.tipo)) {
+      engines.push({
+        id: `db_${dbEng.tipo}`,
+        label: ENGINE_LABELS[dbEng.tipo] || dbEng.tipo,
+        status: dbEng.status,
+        percentage: dbEng.percentage,
+        mensagem: dbEng.mensagem,
+        tempoDecorrido: dbEng.tempoDecorrido,
+        novas: dbEng.novas,
+      });
+    }
+  }
+
+  // Reset dismissed when engines appear
   useEffect(() => {
     if (engines.length > 0) setDismissed(false);
   }, [engines.length]);
