@@ -102,33 +102,37 @@ export function MonitoramentosFloatingIndicator() {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
-  // Poll DB for active schedulers every 8s
+  // Poll DB for actively RUNNING executions (not just scheduler enabled)
   useEffect(() => {
     let cancelled = false;
 
     async function pollDb() {
       try {
+        // Only show engines that are actually executing right now
         const { data } = await supabase
-          .from('configuracoes_monitoramento')
-          .select('tipo, ativo, metadata')
-          .in('tipo', ['djen_pro', 'djen_processos', 'djen_termos']);
+          .from('execucoes_agendadas')
+          .select('id, tipo, status, detalhes, iniciado_em')
+          .eq('status', 'executando')
+          .in('tipo', ['djen_pro', 'djen_processos', 'djen'])
+          .is('finalizado_em', null);
 
         if (cancelled || !data) return;
 
         const active: DbActiveEngine[] = [];
         for (const row of data) {
-          if (!row.ativo) continue;
-          const mapping = DB_TYPE_MAP[row.tipo];
+          const tipoKey = row.tipo === 'djen' ? 'djen_termos' : row.tipo === 'djen_pro' ? 'djen_pro' : 'djen_processos';
+          const mapping = DB_TYPE_MAP[tipoKey];
           if (!mapping) continue;
 
-          const meta = row.metadata as any;
-          const percentage = meta?.percentage || meta?.progresso || 0;
-          const mensagem = meta?.mensagem || meta?.etapaAtual || 'Scheduler ativo';
-          const novas = meta?.novas || meta?.totalNovas || 0;
-          const tempoDecorrido = meta?.tempoDecorrido || 0;
+          const det = row.detalhes as any;
+          const percentage = det?.percentage || det?.progress?.percentage || 0;
+          const mensagem = det?.mensagem || det?.etapaAtual || 'Executando...';
+          const novas = det?.novas || det?.totalNovas || 0;
+          const iniciadoEm = row.iniciado_em ? new Date(row.iniciado_em).getTime() : Date.now();
+          const tempoDecorrido = Date.now() - iniciadoEm;
 
           active.push({
-            tipo: row.tipo,
+            tipo: tipoKey,
             label: mapping.label,
             ativo: true,
             percentage,
