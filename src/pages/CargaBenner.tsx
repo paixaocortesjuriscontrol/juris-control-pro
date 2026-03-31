@@ -52,19 +52,42 @@ function findCol(headers: string[], ...keywords: string[]): string | null {
   return null;
 }
 
-// Layout Carga headers (35 columns)
-const LAYOUT_HEADERS = [
-  "Dossiê", "Tribunal", "Tipo de Recurso", "Data da distribuição", "Turma", "Relator",
-  "Análise do quarteirizado", "Há risco de mídia negativa?", "Risco",
-  "Há discussão sobre provas digitais?", "Temos data de julgamento?",
-  "Data Julgamento", "Horário", "Tipo Julgamento", "Matéria de Honra",
-  "Entrega de Memoriais", "Sustentação Oral",
-  "Sem transcendência", "Transcendência não reconhecida", "Transcendência reconhecida e recurso desprovido",
-  "Transcendência reconhecida e recurso provido", "Outra",
-  "Observações", "Ganhamos / Perdemos", "Processo baixado",
-  "Recorrente", "Turma Favorável/Desfavorável", "Relator Favorável/Desfavorável",
-  "Recurso Bem/Mal aparelhado", "Chance de êxito",
-  "Número do Processo", "Reclamante", "Reclamada", "Equipe", "Data Distribuição Original",
+// Layout Carga - 34 colunas (A-AH) exatamente como o template original
+const LAYOUT_COLS = [
+  "Dossiê",                                                       // A
+  "Tribunal (TST, STF ou STJ)",                                    // B
+  "Tipo de Recurso",                                               // C
+  "Data da distribuição no TST/STF",                                // D
+  "Turma",                                                         // E
+  "Relator",                                                       // F
+  "Análise do quarteirizado",                                      // G
+  "Há risco de mídia negativa? (S/N)",                              // H
+  "Risco",                                                         // I
+  "Há discussão sobre provas digitais? (S/N)",                      // J
+  "Temos data de julgamento? (S/N)",                                // K
+  "Data Julgamento",                                               // L
+  "Horário",                                                       // M
+  "Julgamento (Virtual, Telepresencial, Híbrido ou Presencial)",    // N
+  "Matéria de Honra (S/N)",                                        // O
+  "Entrega de Memoriais (S/N)",                                    // P
+  "Sustentação Oral (S/N/ Não cabe)",                               // Q
+  "Sem transcendência",                                            // R
+  "Recurso não conhecido",                                         // S
+  "Recurso conhecido e provido",                                    // T
+  "Recurso conhecido e não provido",                                // U
+  "Outra",                                                         // V
+  "Observações",                                                   // W
+  "Ganhamos",                                                      // X
+  "Perdemos",                                                      // Y
+  "Processo baixado do TST/STF (S/N)",                              // Z
+  "Recorrente",                                                    // AA
+  "Favorável (turma)",                                             // AB
+  "Desfavorável (turma)",                                          // AC
+  "Favorável (relator)",                                            // AD
+  "Desfavorável (relator)",                                         // AE
+  "Bem aparelhado",                                                // AF
+  "Mal aparelhado",                                                // AG
+  "Com chances de êxito",                                           // AH
 ];
 
 function deriveFavoravel(classificacao: string): string {
