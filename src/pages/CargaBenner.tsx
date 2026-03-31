@@ -591,7 +591,7 @@ export default function CargaBenner() {
                     {outputData.slice(0, 20).map((row, i) => (
                       <TableRow key={i}>
                         <TableCell className="text-xs">{i + 1}</TableCell>
-                        {LAYOUT_HEADERS.slice(0, 15).map(h => (
+                        {LAYOUT_COLS.slice(0, 15).map(h => (
                           <TableCell key={h} className="text-xs whitespace-nowrap max-w-[150px] truncate">
                             {String(row[h] ?? "")}
                           </TableCell>
