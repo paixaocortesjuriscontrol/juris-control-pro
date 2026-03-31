@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { MonitoramentosFloatingIndicator } from "./MonitoramentosFloatingIndicator";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
@@ -44,6 +45,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
           {children}
         </main>
       </div>
+      <MonitoramentosFloatingIndicator />
     </div>
   );
 }
