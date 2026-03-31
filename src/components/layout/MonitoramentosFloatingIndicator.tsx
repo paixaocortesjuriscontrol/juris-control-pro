@@ -2,12 +2,13 @@
  * Indicador flutuante global que mostra engines DJEN ativos em qualquer página.
  * Aparece no canto inferior-direito quando há engines rodando.
  * 
- * Usa DUAS fontes:
+ * Usa TRÊS fontes:
  * 1. Subscribers locais (engine rodando nesta aba)
- * 2. Polling do banco (configuracoes_monitoramento) para engines em outras abas
+ * 2. Polling do banco (configuracoes_monitoramento.ativo) para schedulers ativos
+ * 3. Polling de execucoes_agendadas com status='executando' para engines backend
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, ChevronDown, ChevronUp, Settings, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -42,9 +43,10 @@ interface EngineInfo {
   novas: number;
 }
 
-interface DbEngineState {
+interface DbActiveEngine {
   tipo: string;
-  status: string;
+  label: string;
+  ativo: boolean;
   percentage: number;
   mensagem: string;
   novas: number;
@@ -61,27 +63,11 @@ function formatTempo(ms: number): string {
   return `${h}h${m % 60}m`;
 }
 
-const ENGINE_LABELS: Record<string, string> = {
-  djen_processos: "DJEN Processos",
-  djen_termos_pro: "DJEN Termos Pro",
-  djen_termos: "DJEN Termos",
+const DB_TYPE_MAP: Record<string, { localKey: string; label: string }> = {
+  djen_pro: { localKey: 'termos_pro', label: 'DJEN Termos Pro' },
+  djen_processos: { localKey: 'processos', label: 'DJEN Processos' },
+  djen_termos: { localKey: 'termos', label: 'DJEN Termos' },
 };
-
-function parseDbMetadata(tipo: string, metadata: any): DbEngineState | null {
-  if (!metadata) return null;
-  const status = metadata.status || metadata.statusExecucao;
-  if (!status || status === 'idle' || status === 'concluido' || status === 'cancelado') return null;
-  
-  // Consider "executando" or "em_execucao" as active
-  if (status !== 'executando' && status !== 'em_execucao') return null;
-
-  const percentage = metadata.percentage || metadata.progresso || 0;
-  const mensagem = metadata.mensagem || metadata.etapaAtual || 'Executando...';
-  const novas = metadata.novas || metadata.totalNovas || 0;
-  const tempoDecorrido = metadata.tempoDecorrido || 0;
-
-  return { tipo, status, percentage, mensagem, novas, tempoDecorrido };
-}
 
 export function MonitoramentosFloatingIndicator() {
   const navigate = useNavigate();
@@ -96,8 +82,8 @@ export function MonitoramentosFloatingIndicator() {
   const [termosProgress, setTermosProgress] = useState(getDjenTermosProgress);
   const [termosRunning, setTermosRunning] = useState(isDjenTermosRunning);
 
-  // DB engine states (from other tabs/sessions)
-  const [dbEngines, setDbEngines] = useState<DbEngineState[]>([]);
+  // DB-detected active schedulers/engines
+  const [dbActiveEngines, setDbActiveEngines] = useState<DbActiveEngine[]>([]);
 
   // Subscribe to local engines
   useEffect(() => {
@@ -116,7 +102,7 @@ export function MonitoramentosFloatingIndicator() {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
-  // Poll DB for engine states every 10s
+  // Poll DB for active schedulers every 8s
   useEffect(() => {
     let cancelled = false;
 
@@ -124,33 +110,50 @@ export function MonitoramentosFloatingIndicator() {
       try {
         const { data } = await supabase
           .from('configuracoes_monitoramento')
-          .select('tipo, metadata')
-          .in('tipo', ['djen_processos', 'djen_termos_pro', 'djen_termos']);
+          .select('tipo, ativo, metadata')
+          .in('tipo', ['djen_pro', 'djen_processos', 'djen_termos']);
 
         if (cancelled || !data) return;
 
-        const active: DbEngineState[] = [];
+        const active: DbActiveEngine[] = [];
         for (const row of data) {
-          const parsed = parseDbMetadata(row.tipo, row.metadata);
-          if (parsed) active.push(parsed);
+          if (!row.ativo) continue;
+          const mapping = DB_TYPE_MAP[row.tipo];
+          if (!mapping) continue;
+
+          const meta = row.metadata as any;
+          const percentage = meta?.percentage || meta?.progresso || 0;
+          const mensagem = meta?.mensagem || meta?.etapaAtual || 'Scheduler ativo';
+          const novas = meta?.novas || meta?.totalNovas || 0;
+          const tempoDecorrido = meta?.tempoDecorrido || 0;
+
+          active.push({
+            tipo: row.tipo,
+            label: mapping.label,
+            ativo: true,
+            percentage,
+            mensagem,
+            novas,
+            tempoDecorrido,
+          });
         }
-        setDbEngines(active);
+        setDbActiveEngines(active);
       } catch {
         // ignore
       }
     }
 
     pollDb();
-    const interval = setInterval(pollDb, 10_000);
+    const interval = setInterval(pollDb, 8_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
   // Build active engines list — prefer local state, fallback to DB
   const engines: EngineInfo[] = [];
-  const localActive = new Set<string>();
+  const localActiveKeys = new Set<string>();
 
   if (procRunning || procProgress.status === 'executando') {
-    localActive.add('djen_processos');
+    localActiveKeys.add('processos');
     engines.push({
       id: 'processos',
       label: 'DJEN Processos',
@@ -163,7 +166,7 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   if (termosProRunning || termosProProgress.status === 'executando') {
-    localActive.add('djen_termos_pro');
+    localActiveKeys.add('termos_pro');
     engines.push({
       id: 'termos_pro',
       label: 'DJEN Termos Pro',
@@ -176,7 +179,7 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   if (termosRunning || (termosProgress as any)?.status === 'executando') {
-    localActive.add('djen_termos');
+    localActiveKeys.add('termos');
     const tp = termosProgress as any;
     engines.push({
       id: 'termos',
@@ -190,12 +193,13 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   // Add DB-detected engines not already tracked locally
-  for (const dbEng of dbEngines) {
-    if (!localActive.has(dbEng.tipo)) {
+  for (const dbEng of dbActiveEngines) {
+    const mapping = DB_TYPE_MAP[dbEng.tipo];
+    if (mapping && !localActiveKeys.has(mapping.localKey)) {
       engines.push({
         id: `db_${dbEng.tipo}`,
-        label: ENGINE_LABELS[dbEng.tipo] || dbEng.tipo,
-        status: dbEng.status,
+        label: dbEng.label,
+        status: 'executando',
         percentage: dbEng.percentage,
         mensagem: dbEng.mensagem,
         tempoDecorrido: dbEng.tempoDecorrido,
@@ -205,8 +209,10 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   // Reset dismissed when engines appear
+  const prevCount = useRef(0);
   useEffect(() => {
-    if (engines.length > 0) setDismissed(false);
+    if (engines.length > 0 && prevCount.current === 0) setDismissed(false);
+    prevCount.current = engines.length;
   }, [engines.length]);
 
   if (engines.length === 0 || dismissed) return null;
@@ -214,7 +220,6 @@ export function MonitoramentosFloatingIndicator() {
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-xs">
       {!expanded ? (
-        /* Pill compacta */
         <button
           onClick={() => setExpanded(true)}
           className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-primary-foreground shadow-lg hover:bg-primary/90 transition-all animate-pulse"
@@ -226,7 +231,6 @@ export function MonitoramentosFloatingIndicator() {
           <ChevronUp className="h-3 w-3" />
         </button>
       ) : (
-        /* Card expandido */
         <div className="rounded-lg border bg-card text-card-foreground shadow-xl">
           <div className="flex items-center justify-between p-3 border-b">
             <div className="flex items-center gap-2">
