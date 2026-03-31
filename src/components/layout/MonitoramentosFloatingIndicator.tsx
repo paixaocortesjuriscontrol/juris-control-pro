@@ -1,14 +1,20 @@
 /**
  * Indicador flutuante global que mostra engines DJEN ativos em qualquer página.
  * Aparece no canto inferior-direito quando há engines rodando.
+ * 
+ * Usa TRÊS fontes:
+ * 1. Subscribers locais (engine rodando nesta aba)
+ * 2. Polling do banco (configuracoes_monitoramento.ativo) para schedulers ativos
+ * 3. Polling de execucoes_agendadas com status='executando' para engines backend
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, ChevronDown, ChevronUp, Settings, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import {
   subscribeDjenProcessos,
   getDjenProcessosProgress,
@@ -37,6 +43,16 @@ interface EngineInfo {
   novas: number;
 }
 
+interface DbActiveEngine {
+  tipo: string;
+  label: string;
+  ativo: boolean;
+  percentage: number;
+  mensagem: string;
+  novas: number;
+  tempoDecorrido: number;
+}
+
 function formatTempo(ms: number): string {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -47,12 +63,18 @@ function formatTempo(ms: number): string {
   return `${h}h${m % 60}m`;
 }
 
+const DB_TYPE_MAP: Record<string, { localKey: string; label: string }> = {
+  djen_pro: { localKey: 'termos_pro', label: 'DJEN Termos Pro' },
+  djen_processos: { localKey: 'processos', label: 'DJEN Processos' },
+  djen_termos: { localKey: 'termos', label: 'DJEN Termos' },
+};
+
 export function MonitoramentosFloatingIndicator() {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
-  // Engine states
+  // Local engine states (from in-tab subscribers)
   const [procProgress, setProcProgress] = useState<DjenProcessosProgress>(getDjenProcessosProgress);
   const [procRunning, setProcRunning] = useState(isDjenProcessosRunning);
   const [termosProProgress, setTermosProProgress] = useState<DjenTermosProProgress>(getDjenTermosProProgress);
@@ -60,6 +82,10 @@ export function MonitoramentosFloatingIndicator() {
   const [termosProgress, setTermosProgress] = useState(getDjenTermosProgress);
   const [termosRunning, setTermosRunning] = useState(isDjenTermosRunning);
 
+  // DB-detected active schedulers/engines
+  const [dbActiveEngines, setDbActiveEngines] = useState<DbActiveEngine[]>([]);
+
+  // Subscribe to local engines
   useEffect(() => {
     const unsub1 = subscribeDjenProcessos((p) => {
       setProcProgress(p);
@@ -76,10 +102,58 @@ export function MonitoramentosFloatingIndicator() {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
-  // Build active engines list
+  // Poll DB for active schedulers every 8s
+  useEffect(() => {
+    let cancelled = false;
+
+    async function pollDb() {
+      try {
+        const { data } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('tipo, ativo, metadata')
+          .in('tipo', ['djen_pro', 'djen_processos', 'djen_termos']);
+
+        if (cancelled || !data) return;
+
+        const active: DbActiveEngine[] = [];
+        for (const row of data) {
+          if (!row.ativo) continue;
+          const mapping = DB_TYPE_MAP[row.tipo];
+          if (!mapping) continue;
+
+          const meta = row.metadata as any;
+          const percentage = meta?.percentage || meta?.progresso || 0;
+          const mensagem = meta?.mensagem || meta?.etapaAtual || 'Scheduler ativo';
+          const novas = meta?.novas || meta?.totalNovas || 0;
+          const tempoDecorrido = meta?.tempoDecorrido || 0;
+
+          active.push({
+            tipo: row.tipo,
+            label: mapping.label,
+            ativo: true,
+            percentage,
+            mensagem,
+            novas,
+            tempoDecorrido,
+          });
+        }
+        setDbActiveEngines(active);
+      } catch {
+        // ignore
+      }
+    }
+
+    pollDb();
+    const interval = setInterval(pollDb, 8_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Build active engines list — prefer local state, fallback to DB
   const engines: EngineInfo[] = [];
+  const localActiveKeys = new Set<string>();
 
   if (procRunning || procProgress.status === 'executando') {
+    localActiveKeys.add('processos');
     engines.push({
       id: 'processos',
       label: 'DJEN Processos',
@@ -92,6 +166,7 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   if (termosProRunning || termosProProgress.status === 'executando') {
+    localActiveKeys.add('termos_pro');
     engines.push({
       id: 'termos_pro',
       label: 'DJEN Termos Pro',
@@ -104,6 +179,7 @@ export function MonitoramentosFloatingIndicator() {
   }
 
   if (termosRunning || (termosProgress as any)?.status === 'executando') {
+    localActiveKeys.add('termos');
     const tp = termosProgress as any;
     engines.push({
       id: 'termos',
@@ -116,9 +192,27 @@ export function MonitoramentosFloatingIndicator() {
     });
   }
 
-  // Reset dismissed when engines change
+  // Add DB-detected engines not already tracked locally
+  for (const dbEng of dbActiveEngines) {
+    const mapping = DB_TYPE_MAP[dbEng.tipo];
+    if (mapping && !localActiveKeys.has(mapping.localKey)) {
+      engines.push({
+        id: `db_${dbEng.tipo}`,
+        label: dbEng.label,
+        status: 'executando',
+        percentage: dbEng.percentage,
+        mensagem: dbEng.mensagem,
+        tempoDecorrido: dbEng.tempoDecorrido,
+        novas: dbEng.novas,
+      });
+    }
+  }
+
+  // Reset dismissed when engines appear
+  const prevCount = useRef(0);
   useEffect(() => {
-    if (engines.length > 0) setDismissed(false);
+    if (engines.length > 0 && prevCount.current === 0) setDismissed(false);
+    prevCount.current = engines.length;
   }, [engines.length]);
 
   if (engines.length === 0 || dismissed) return null;
@@ -126,7 +220,6 @@ export function MonitoramentosFloatingIndicator() {
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-xs">
       {!expanded ? (
-        /* Pill compacta */
         <button
           onClick={() => setExpanded(true)}
           className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-primary-foreground shadow-lg hover:bg-primary/90 transition-all animate-pulse"
@@ -138,7 +231,6 @@ export function MonitoramentosFloatingIndicator() {
           <ChevronUp className="h-3 w-3" />
         </button>
       ) : (
-        /* Card expandido */
         <div className="rounded-lg border bg-card text-card-foreground shadow-xl">
           <div className="flex items-center justify-between p-3 border-b">
             <div className="flex items-center gap-2">
