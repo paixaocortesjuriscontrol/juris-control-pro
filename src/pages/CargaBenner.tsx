@@ -302,20 +302,20 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[0]] = dossie; // Dossiê
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
         outRow[LAYOUT_COLS[2]] = tipoRecurso; // Tipo de Recurso
-        outRow[LAYOUT_COLS[3]] = colDataDist ? String(row[colDataDist] ?? "") : ""; // Data distribuição
+        outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
         outRow[LAYOUT_COLS[4]] = colTurma ? String(row[colTurma] ?? "") : ""; // Turma
         outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
         outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
-        outRow[LAYOUT_COLS[7]] = colMidia ? String(row[colMidia] ?? "") : ""; // Mídia negativa
+        outRow[LAYOUT_COLS[7]] = colMidia ? toSN(String(row[colMidia] ?? "")) : ""; // Mídia negativa S/N
         outRow[LAYOUT_COLS[8]] = ""; // Risco
-        outRow[LAYOUT_COLS[9]] = "NÃO"; // Provas digitais
-        outRow[LAYOUT_COLS[10]] = hasJulg ? "SIM" : "NÃO"; // Temos data julgamento
-        outRow[LAYOUT_COLS[11]] = hasJulg && pColDataJulg ? String(pauta![pColDataJulg] ?? "") : ""; // Data julgamento
+        outRow[LAYOUT_COLS[9]] = "N"; // Provas digitais
+        outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N"; // Temos data julgamento
+        outRow[LAYOUT_COLS[11]] = hasJulg && pColDataJulg ? formatDateDDMMYYYY(String(pauta![pColDataJulg] ?? "")) : ""; // Data julgamento
         outRow[LAYOUT_COLS[12]] = hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : ""; // Horário
         outRow[LAYOUT_COLS[13]] = hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : ""; // Tipo julgamento
-        outRow[LAYOUT_COLS[14]] = colHonra ? String(row[colHonra] ?? "") : ""; // Matéria de Honra
-        outRow[LAYOUT_COLS[15]] = hasJulg && pColMemoriais ? String(pauta![pColMemoriais] ?? "") : ""; // Memoriais
-        outRow[LAYOUT_COLS[16]] = hasJulg && pColSustentacao ? String(pauta![pColSustentacao] ?? "") : ""; // Sustentação
+        outRow[LAYOUT_COLS[14]] = colHonra ? toSN(String(row[colHonra] ?? "")) : ""; // Matéria de Honra S/N
+        outRow[LAYOUT_COLS[15]] = hasJulg && pColMemoriais ? toSN(String(pauta![pColMemoriais] ?? "")) : ""; // Memoriais S/N
+        outRow[LAYOUT_COLS[16]] = hasJulg && pColSustentacao ? toSN(String(pauta![pColSustentacao] ?? "")) : ""; // Sustentação S/N
         outRow[LAYOUT_COLS[17]] = ""; // Sem transcendência
         outRow[LAYOUT_COLS[18]] = ""; // Recurso não conhecido
         outRow[LAYOUT_COLS[19]] = ""; // Recurso conhecido e provido
@@ -324,7 +324,7 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[22]] = ""; // Observações
         outRow[LAYOUT_COLS[23]] = ""; // Ganhamos
         outRow[LAYOUT_COLS[24]] = ""; // Perdemos
-        outRow[LAYOUT_COLS[25]] = "NÃO"; // Processo baixado
+        outRow[LAYOUT_COLS[25]] = "N"; // Processo baixado
         outRow[LAYOUT_COLS[26]] = colParteRecorrente ? String(row[colParteRecorrente] ?? "") : ""; // Recorrente
         // Turma favorável/desfavorável → split into two columns
         const turmaFav = deriveFavoravel(turmaClassRaw);
