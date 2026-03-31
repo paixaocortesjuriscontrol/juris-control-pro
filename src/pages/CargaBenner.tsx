@@ -338,15 +338,93 @@ export default function CargaBenner() {
     }
   };
 
-  const downloadXlsx = () => {
+  const downloadXlsx = async () => {
     if (!outputData) return;
-    const ws = XLSX.utils.json_to_sheet(outputData, { header: LAYOUT_HEADERS });
-    // Set column widths
-    ws["!cols"] = LAYOUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 15) }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Layout Carga TST");
-    XLSX.writeFile(wb, "Layout_Carga_modulo_TST.xlsx");
-    toast.success("Planilha baixada!");
+    try {
+      // Fetch the original template
+      const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
+      if (!resp.ok) throw new Error("Template não encontrado");
+      const templateBuf = await resp.arrayBuffer();
+      const zip = await JSZip.loadAsync(templateBuf);
+
+      // Read the existing shared strings
+      const sstXml = await zip.file("xl/sharedStrings.xml")!.async("string");
+      // Parse existing strings
+      const existingStrings: string[] = [];
+      const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
+      let m: RegExpExecArray | null;
+      while ((m = siRegex.exec(sstXml)) !== null) {
+        existingStrings.push(m[1]);
+      }
+
+      // Build string index for data values
+      const stringMap = new Map<string, number>();
+      existingStrings.forEach((s, i) => stringMap.set(s, i));
+      const newStrings = [...existingStrings];
+
+      function getStringIndex(val: string): number {
+        if (stringMap.has(val)) return stringMap.get(val)!;
+        const idx = newStrings.length;
+        newStrings.push(val);
+        stringMap.set(val, idx);
+        return idx;
+      }
+
+      // Convert column index to Excel letter (0=A, 1=B, ..., 25=Z, 26=AA, ...)
+      function colToLetter(c: number): string {
+        let s = "";
+        let n = c;
+        while (n >= 0) {
+          s = String.fromCharCode(65 + (n % 26)) + s;
+          n = Math.floor(n / 26) - 1;
+        }
+        return s;
+      }
+
+      // Build data rows XML (starting at row 3)
+      let dataRowsXml = "";
+      for (let i = 0; i < outputData.length; i++) {
+        const row = outputData[i];
+        const rowNum = i + 3; // rows 1,2 are headers
+        let cellsXml = "";
+        for (let c = 0; c < LAYOUT_COLS.length; c++) {
+          const val = String(row[LAYOUT_COLS[c]] ?? "");
+          if (!val) continue;
+          const ref = colToLetter(c) + rowNum;
+          const idx = getStringIndex(val);
+          cellsXml += `<c r="${ref}" t="s"><v>${idx}</v></c>`;
+        }
+        dataRowsXml += `<row r="${rowNum}" spans="1:34">${cellsXml}</row>`;
+      }
+
+      // Modify sheet1.xml: insert data rows before </sheetData>
+      let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+      // Update dimension
+      const lastRow = outputData.length + 2;
+      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:AH${lastRow}"/>`);
+      // Insert data rows before </sheetData>
+      sheetXml = sheetXml.replace("</sheetData>", dataRowsXml + "</sheetData>");
+      zip.file("xl/worksheets/sheet1.xml", sheetXml);
+
+      // Update shared strings
+      const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const newSstEntries = newStrings.map(s => `<si><t>${escapeXml(s)}</t></si>`).join("");
+      const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
+      zip.file("xl/sharedStrings.xml", newSst);
+
+      // Generate and download
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Layout_Carga_modulo_TST.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Planilha baixada!");
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+      console.error("[CargaBenner] Download error:", err);
+    }
   };
 
   return (
