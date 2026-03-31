@@ -168,12 +168,14 @@ class DjenTermosProScheduler {
     }
 
     try {
+      // Check for running OR already-completed execution today
+      const todayStart = `${todayYmd}T00:00:00.000Z`;
       const { data, error } = await supabase
         .from('execucoes_agendadas')
-        .select('id')
+        .select('id, status')
         .eq('tipo', 'djen_pro')
-        .eq('status', 'executando')
-        .is('finalizado_em', null)
+        .gte('created_at', todayStart)
+        .in('status', ['executando', 'concluido'])
         .limit(1);
 
       if (error) {
@@ -182,7 +184,17 @@ class DjenTermosProScheduler {
       }
 
       if (data && data.length > 0) {
-        this.showToast('DJEN Termos Pro já está em execução no banco', 'info');
+        const exec = data[0];
+        if (exec.status === 'executando') {
+          this.showToast('DJEN Termos Pro já está em execução no banco', 'info');
+        } else {
+          // Already completed today — mark locally so we don't check again
+          console.log('[Pro Scheduler] Já executou com sucesso hoje, pulando.');
+          this.lastRunDate = todayYmd;
+          const key = `djen-pro-scheduler-last-run-${todayYmd}`;
+          localStorage.setItem(key, String(Date.now()));
+          this.notifySubscribers();
+        }
         return;
       }
     } catch (err) {
