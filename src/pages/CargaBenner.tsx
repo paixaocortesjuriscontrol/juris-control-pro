@@ -555,7 +555,7 @@ export default function CargaBenner() {
                   <CheckCircle2 className="w-6 h-6 text-green-500" />
                   <div>
                     <p className="font-semibold text-foreground">Layout Carga pronto!</p>
-                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas com {LAYOUT_HEADERS.length} colunas</p>
+                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas com {LAYOUT_COLS.length} colunas</p>
                   </div>
                 </div>
                 <Button onClick={downloadXlsx}>
