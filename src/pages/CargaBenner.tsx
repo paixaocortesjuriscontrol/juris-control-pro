@@ -90,6 +90,36 @@ const LAYOUT_COLS = [
   "Com chances de êxito",                                           // AH
 ];
 
+// Formata data para DD/MM/YYYY
+function formatDateDDMMYYYY(val: string): string {
+  if (!val) return "";
+  const s = String(val).trim();
+  // Already DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = s.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  // D/M/YYYY → pad
+  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (brMatch) return `${brMatch[1].padStart(2, "0")}/${brMatch[2].padStart(2, "0")}/${brMatch[3]}`;
+  // MM/DD/YYYY heuristic or other — try Date parse
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+  }
+  return s;
+}
+
+// Converte SIM/NÃO para S/N
+function toSN(val: string): string {
+  const n = normalizeText(val);
+  if (n === "sim" || n === "s") return "S";
+  if (n === "nao" || n === "não" || n === "n") return "N";
+  return val;
+}
+
 function deriveFavoravel(classificacao: string): string {
   const n = normalizeText(classificacao);
   if (n.includes("positiv") || n === "positivo" || n === "positiva") return "Favorável";
