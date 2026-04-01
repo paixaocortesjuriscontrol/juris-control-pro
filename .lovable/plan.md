@@ -1,46 +1,48 @@
 
 
-# Diagnóstico e Correção: DJEN Termos Pro executando parcialmente
+# Diagnóstico: DJEN Termos Pro caindo em Rate Limit
 
-## Problema Identificado
+## Causa Raiz Encontrada
 
-O motor DJEN Termos Pro hoje processou apenas **2 de 164 monitoramentos** (65 publicações vs. 600-800 na semana passada). A causa raiz:
+A tabela `execucoes_agendadas` tem uma constraint CHECK no campo `tipo` que **NÃO inclui `djen_pro`**:
 
-1. **O INSERT na tabela `execucoes_agendadas` está falhando silenciosamente** -- zero registros `djen_pro` existem na tabela, apesar do código tentar inserir
-2. Sem registro no banco, a trava "já executou hoje" do scheduler não funciona
-3. O scheduler dispara execuções repetidas, que sofrem rate limiting (429) da API PJE Comunica
-4. Resultado: apenas os primeiros monitoramentos conseguem dados antes do bloqueio
+```text
+CHECK (tipo IN ('redistribuicoes','andamentos','distribuicoes','djen','djen_processos','termos','datajud_termos'))
+```
 
-## Causa Raiz Técnica
-
-O `executarLoop()` faz o INSERT com `.select('id').single()`, mas o erro é capturado em um `try/catch` silencioso (só faz `console.warn`). O problema provável: o campo `status` do INSERT usa valor `'executando'` mas pode haver uma constraint ou o RLS está bloqueando de forma inesperada. Porém, a policy de INSERT diz `with_check: true` (permite tudo para authenticated), então o problema pode ser no `.single()` retornando erro quando o INSERT funciona mas a resposta não vem como esperado.
+O INSERT com `tipo: 'djen_pro'` falha silenciosamente. Sem registro no banco:
+1. O scheduler verifica o banco e não encontra execução concluída hoje
+2. Dispara nova execução a cada 30 segundos
+3. Múltiplas execuções simultâneas sobrecarregam a API com 429s
 
 ## Ações
 
-### 1. Corrigir o INSERT na `execucoes_agendadas` (useDjenTermosProEngine.ts)
-- Remover `.single()` e usar `.select('id')` com acesso ao array `data[0]`
-- Adicionar log explícito do erro se o INSERT falhar
-- Adicionar campos obrigatórios que podem estar faltando (ex: `job_name`)
+### 1. Adicionar `djen_pro` à constraint CHECK (migração SQL)
+Alterar a constraint para incluir o novo tipo:
+```sql
+ALTER TABLE execucoes_agendadas DROP CONSTRAINT execucoes_agendadas_tipo_check;
+ALTER TABLE execucoes_agendadas ADD CONSTRAINT execucoes_agendadas_tipo_check 
+  CHECK (tipo = ANY (ARRAY['redistribuicoes','andamentos','distribuicoes','djen','djen_processos','termos','datajud_termos','djen_pro']));
+```
 
-### 2. Adicionar fallback robusto para a trava diária (useDjenTermosProScheduler.ts)
-- Se o INSERT no banco falhar, usar localStorage como fallback para evitar re-execuções
-- Registrar `lastRunDate` ANTES de chamar `executarDjenTermosPro`, não depois
+### 2. Restaurar delays conservadores (useDjenTermosProEngine.ts)
+O CONFIG atual usa 800ms entre termos e 800ms entre páginas (muito agressivo). Restaurar para valores seguros:
+- `delay_between_terms`: 800 → 1500ms
+- `delay_between_pages`: 800 → 1500ms
+- `retry_base_delay`: 5000 → 10000ms
 
-### 3. Logar erros 429 de forma mais visível (pjeComunicaClient.ts)
-- Quando ocorrerem múltiplos 429s consecutivos, emitir um aviso no progresso para o usuário saber que está sendo throttled
+### 3. Cancelar execução duplicada atual
+Forçar `cancelarDjenTermosPro()` para limpar o estado.
 
 ## Arquivos Modificados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/hooks/useDjenTermosProEngine.ts` | Fix INSERT (remover `.single()`, adicionar `job_name`, melhorar error logging) |
-| `src/hooks/useDjenTermosProScheduler.ts` | Fallback localStorage antes de executar, prevenir re-execução mesmo sem DB |
+| Migração SQL | Adicionar `djen_pro` à constraint CHECK |
+| `src/hooks/useDjenTermosProEngine.ts` | Restaurar delays conservadores |
 
 ## Resultado Esperado
-
-Após a correção:
-- O registro `djen_pro` será gravado corretamente na `execucoes_agendadas`
-- O indicador flutuante mostrará progresso real
-- A trava diária impedirá execuções duplicadas
-- O motor processará todos os 164 monitoramentos sem interrupção por 429
+- INSERT funcionará, registrando execução no banco
+- Scheduler não disparará execuções duplicadas
+- API não será sobrecarregada com requisições excessivas
 
