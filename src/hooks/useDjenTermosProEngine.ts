@@ -82,10 +82,6 @@ const CONFIG = {
   delay_between_termos_or: 1000,
   max_retries: 3,
   retry_base_delay: 8000,
-  // Cooldown a cada N termos para evitar rate limit sustentado
-  // Cooldown a cada N termos para evitar rate limit sustentado
-  batch_size: 10,
-  batch_cooldown_ms: 12000,
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -1332,12 +1328,6 @@ async function executarLoop(
         
         await delay(CONFIG.delay_between_terms);
         
-        // Cooldown a cada batch_size termos para evitar rate limit sustentado
-        if (globalCurrent > 0 && globalCurrent % CONFIG.batch_size === 0) {
-          console.log(`[DJEN Pro] Cooldown de ${CONFIG.batch_cooldown_ms}ms após ${globalCurrent} termos`);
-          updateProgress({ mensagem: `⏳ Cooldown preventivo (${globalCurrent}/${totalOps} termos)` });
-          await delay(CONFIG.batch_cooldown_ms);
-        }
       }
     }
     
