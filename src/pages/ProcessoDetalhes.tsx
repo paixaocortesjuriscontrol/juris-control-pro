@@ -1917,6 +1917,11 @@ export default function ProcessoDetalhes() {
       <TabsContent value="tst" className="mt-4">
         <ProcessoTstTab processo={processo} />
       </TabsContent>
+
+      {/* Tab Contents - Distribuições TST */}
+      <TabsContent value="distribuicoes-tst" className="mt-4">
+        <ProcessoDistribuicoesTab processoId={id!} processoNumero={processo?.numero || ""} />
+      </TabsContent>
     </Tabs>
   );
 
