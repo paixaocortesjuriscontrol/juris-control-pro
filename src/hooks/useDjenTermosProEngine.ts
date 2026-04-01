@@ -1115,6 +1115,23 @@ async function executarLoop(
       acumDescartadas = cp.descartadas;
     }
     
+    // Registrar execução no banco
+    try {
+      const { data: inserted } = await supabase
+        .from('execucoes_agendadas')
+        .insert({
+          tipo: 'djen_pro',
+          status: 'executando',
+          iniciado_em: new Date().toISOString(),
+          detalhes: { totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
+        })
+        .select('id')
+        .single();
+      if (inserted) executionId = inserted.id;
+    } catch (e) {
+      console.warn('[DJEN Pro] Erro ao registrar execução:', e);
+    }
+
     updateProgress({
       status: 'executando',
       globalTotal: totalOps,
