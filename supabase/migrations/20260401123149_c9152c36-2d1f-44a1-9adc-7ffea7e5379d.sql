@@ -1,0 +1,1 @@
+UPDATE public.execucoes_agendadas SET status = 'cancelado', finalizado_em = NOW() WHERE id = 'a92be70b-43d1-4e2a-aa8b-1bd9392994db' AND status = 'executando';
