@@ -1117,19 +1117,26 @@ async function executarLoop(
     
     // Registrar execução no banco
     try {
-      const { data: inserted } = await supabase
+      const { data: inserted, error: insertErr } = await supabase
         .from('execucoes_agendadas')
         .insert({
           tipo: 'djen_pro',
           status: 'executando',
+          job_name: 'DJEN Termos Pro',
           iniciado_em: new Date().toISOString(),
           detalhes: { totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
         })
-        .select('id')
-        .single();
-      if (inserted) executionId = inserted.id;
+        .select('id');
+      if (insertErr) {
+        console.error('[DJEN Pro] FALHA ao registrar execução no banco:', insertErr.message, insertErr.details, insertErr.hint);
+      } else if (inserted && inserted.length > 0) {
+        executionId = inserted[0].id;
+        console.log('[DJEN Pro] Execução registrada no banco com ID:', executionId);
+      } else {
+        console.error('[DJEN Pro] INSERT retornou sem erro mas sem dados');
+      }
     } catch (e) {
-      console.warn('[DJEN Pro] Erro ao registrar execução:', e);
+      console.error('[DJEN Pro] Erro inesperado ao registrar execução:', e);
     }
 
     updateProgress({

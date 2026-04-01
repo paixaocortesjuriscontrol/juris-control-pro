@@ -202,13 +202,15 @@ class DjenTermosProScheduler {
       return;
     }
 
+    // Marcar como executado ANTES de iniciar para evitar re-execuções mesmo se o DB falhar
+    this.lastRunDate = todayYmd;
+    const key = `djen-pro-scheduler-last-run-${todayYmd}`;
+    localStorage.setItem(key, String(Date.now()));
+    this.notifySubscribers();
+
     try {
       this.showToast('Iniciando DJEN Termos Pro agendado...', 'info');
       await executarDjenTermosPro(todayYmd, todayYmd);
-
-      this.lastRunDate = todayYmd;
-      const key = `djen-pro-scheduler-last-run-${todayYmd}`;
-      localStorage.setItem(key, String(Date.now()));
 
       // Update ultima_execucao in DB
       if (this.dbConfigId) {
