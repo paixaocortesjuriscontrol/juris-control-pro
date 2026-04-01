@@ -1,48 +1,43 @@
 
 
-# Diagnóstico: DJEN Termos Pro caindo em Rate Limit
+## Plano: Restaurar DJEN Termos Pro para Versão Simples e Estável
 
-## Causa Raiz Encontrada
+### Problema Identificado
 
-A tabela `execucoes_agendadas` tem uma constraint CHECK no campo `tipo` que **NÃO inclui `djen_pro`**:
+As alterações recentes adicionaram **complexidade desnecessária** ao engine:
+1. **Timeout por termo** (7 min com AbortController separado) — aborta termos prematuramente
+2. **Fila de retry** — faz chamadas extras à API, piorando o rate limit
+3. **Catch no loop principal** que pula termos ao invés de parar — termos são perdidos silenciosamente
+4. O acúmulo dessas chamadas extras causa mais **HTTP 429** (rate limit), gerando um ciclo vicioso
+
+### O que será feito
+
+**Arquivo: `src/hooks/useDjenTermosProEngine.ts`**
+
+1. **Remover timeout por termo** — eliminar o `AbortController` de timeout individual (linhas 561-606). A função `processarTermoPro` voltará a ser uma chamada direta a `_processarTermoProInterno` sem wrapper de timeout
+2. **Remover fila de retry** — eliminar `retryQueue`, `MAX_RETRY_ATTEMPTS`, `RETRY_COOLDOWN_MS` e todo o bloco de retry (linhas 1260-1454). Se um termo falhar, o erro será propagado normalmente (parando a execução) como era antes
+3. **Remover catch que pula termos** — o `.catch()` na linha 1289 que adiciona à fila de retry será removido. Volta ao comportamento original: se um termo falha após os retries do `pjeComunicaClient`, a execução para com erro claro
+4. **Restaurar CONFIG conservador** — manter os delays atuais (1200ms entre termos, 12s cooldown a cada 10) que são adequados
+
+### Resultado esperado
+
+- Engine sequencial simples: busca termo por termo, sem pular, sem retry separado
+- Se a API retornar 429, o `pjeComunicaClient` já tem retry com backoff exponencial (5 tentativas)
+- Se falhar após 5 tentativas, a execução para com mensagem clara ao invés de pular silenciosamente
+- Menos chamadas à API = menos chance de rate limit
+
+### Seção Técnica
 
 ```text
-CHECK (tipo IN ('redistribuicoes','andamentos','distribuicoes','djen','djen_processos','termos','datajud_termos'))
+ANTES (complexo):
+  processarTermoPro → AbortController timeout 7min
+    → _processarTermoProInterno → buscarPjeComunicaPaginado
+  catch → retryQueue.push()
+  ... loop principal ...
+  retryQueue loop (2 rodadas, delay dobrado)
+
+DEPOIS (simples):
+  processarTermoPro → buscarPjeComunicaPaginado (direto)
+  catch → throw (para execução com erro claro)
 ```
-
-O INSERT com `tipo: 'djen_pro'` falha silenciosamente. Sem registro no banco:
-1. O scheduler verifica o banco e não encontra execução concluída hoje
-2. Dispara nova execução a cada 30 segundos
-3. Múltiplas execuções simultâneas sobrecarregam a API com 429s
-
-## Ações
-
-### 1. Adicionar `djen_pro` à constraint CHECK (migração SQL)
-Alterar a constraint para incluir o novo tipo:
-```sql
-ALTER TABLE execucoes_agendadas DROP CONSTRAINT execucoes_agendadas_tipo_check;
-ALTER TABLE execucoes_agendadas ADD CONSTRAINT execucoes_agendadas_tipo_check 
-  CHECK (tipo = ANY (ARRAY['redistribuicoes','andamentos','distribuicoes','djen','djen_processos','termos','datajud_termos','djen_pro']));
-```
-
-### 2. Restaurar delays conservadores (useDjenTermosProEngine.ts)
-O CONFIG atual usa 800ms entre termos e 800ms entre páginas (muito agressivo). Restaurar para valores seguros:
-- `delay_between_terms`: 800 → 1500ms
-- `delay_between_pages`: 800 → 1500ms
-- `retry_base_delay`: 5000 → 10000ms
-
-### 3. Cancelar execução duplicada atual
-Forçar `cancelarDjenTermosPro()` para limpar o estado.
-
-## Arquivos Modificados
-
-| Arquivo | Mudança |
-|---------|---------|
-| Migração SQL | Adicionar `djen_pro` à constraint CHECK |
-| `src/hooks/useDjenTermosProEngine.ts` | Restaurar delays conservadores |
-
-## Resultado Esperado
-- INSERT funcionará, registrando execução no banco
-- Scheduler não disparará execuções duplicadas
-- API não será sobrecarregada com requisições excessivas
 
