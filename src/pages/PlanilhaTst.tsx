@@ -1025,9 +1025,11 @@ export default function PlanilhaTst() {
           if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             const val = getFieldFromRow(row4, input4.headers, ...f.terms);
             if (!isEmpty(val)) {
-              (pr as any)[f.key] = val;
-              (pr as any)[`origem_${f.key}`] = "input4";
-              complemented2 = true;
+              (pr as any)[f.key] = f.key === "dossie" ? sanitizeDossie(val, pr.numero_processo) : val;
+              if (!isEmpty((pr as any)[f.key])) {
+                (pr as any)[`origem_${f.key}`] = "input4";
+                complemented2 = true;
+              }
             }
           }
         }
