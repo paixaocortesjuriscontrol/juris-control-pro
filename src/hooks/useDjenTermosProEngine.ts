@@ -792,10 +792,10 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        if (tribLoop.length > 1) await delay(800);
+        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
       }
 
-      await delay(400);
+      await delay(CONFIG.delay_between_termos_or);
     }
   }
   
