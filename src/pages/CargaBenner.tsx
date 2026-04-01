@@ -319,11 +319,13 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[8]] = ""; // Risco
         outRow[LAYOUT_COLS[9]] = "N"; // Provas digitais
         outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N"; // Temos data julgamento
-        outRow[LAYOUT_COLS[11]] = hasJulg && pColDataJulg ? formatDateDDMMYYYY(String(pauta![pColDataJulg] ?? "")) : ""; // Data julgamento
+        const dataJulgVal = hasJulg && pColDataJulg ? formatDateDDMMYYYY(String(pauta![pColDataJulg] ?? "")) : "";
+        outRow[LAYOUT_COLS[11]] = dataJulgVal; // Data julgamento
         outRow[LAYOUT_COLS[12]] = hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : ""; // Horário
         outRow[LAYOUT_COLS[13]] = hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : ""; // Tipo julgamento
         outRow[LAYOUT_COLS[14]] = colHonra ? toSN(String(row[colHonra] ?? "")) : ""; // Matéria de Honra S/N
-        outRow[LAYOUT_COLS[15]] = hasJulg ? (pColMemoriais ? toSN(String(pauta![pColMemoriais] ?? "")) : "") : "N"; // Memoriais S/N
+        const colLHasValidDate = /^\d{2}\/\d{2}\/\d{4}$/.test(dataJulgVal);
+        outRow[LAYOUT_COLS[15]] = colLHasValidDate ? "S" : (hasJulg ? (pColMemoriais ? toSN(String(pauta![pColMemoriais] ?? "")) : "") : "N"); // Memoriais S/N
         outRow[LAYOUT_COLS[16]] = hasJulg ? (pColSustentacao ? toSN(String(pauta![pColSustentacao] ?? "")) : "") : "N"; // Sustentação S/N
         outRow[LAYOUT_COLS[17]] = ""; // Sem transcendência
         outRow[LAYOUT_COLS[18]] = ""; // Recurso não conhecido
