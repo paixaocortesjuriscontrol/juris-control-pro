@@ -655,6 +655,29 @@ function isEmpty(val: string): boolean {
   );
 }
 
+/** Returns true if the value looks like a CNJ process number (7+ digits in sequence) */
+function looksLikeProcessNumber(val: string): boolean {
+  if (!val) return false;
+  const digits = val.replace(/\D/g, "");
+  return digits.length >= 13; // CNJ numbers have 20 digits; dossie numbers are typically short
+}
+
+/** Sanitize dossie: if it looks like a process number, return NOT_FOUND */
+function sanitizeDossie(dossieVal: string, processoNum: string): string {
+  if (!dossieVal || isEmpty(dossieVal)) return NOT_FOUND;
+  // If dossie equals the process number (normalized), it's wrong
+  const dossieDigits = dossieVal.replace(/\D/g, "");
+  const procDigits = processoNum.replace(/\D/g, "");
+  if (dossieDigits.length >= 13 && procDigits.length >= 13 && dossieDigits === procDigits) {
+    return NOT_FOUND;
+  }
+  // If dossie looks like a CNJ process number, it's wrong
+  if (looksLikeProcessNumber(dossieVal)) {
+    return NOT_FOUND;
+  }
+  return dossieVal;
+}
+
 function extractCnjCore(digits: string): string {
   // CNJ format: NNNNNNN-DD.AAAA.J.TT.OOOO = 20 digits
   // Core = first 7 digits (sequential number) + digits 10-13 (year) + digit 14 (justice) + digits 15-16 (tribunal)
