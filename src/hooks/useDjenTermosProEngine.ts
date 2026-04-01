@@ -1094,8 +1094,46 @@ async function executarLoop(
   monitoramentoIds?: string[],
 ) {
   if (state.isRunning) {
-    console.warn('[DJEN Pro] Já existe uma execução em andamento');
+    console.warn('[DJEN Pro] Já existe uma execução em andamento (local)');
     return;
+  }
+  
+  // Verificar no banco se já existe execução rodando (evita duplicatas entre abas/sessões)
+  try {
+    const { data: running } = await supabase
+      .from('execucoes_agendadas')
+      .select('id, iniciado_em')
+      .eq('tipo', 'djen_pro')
+      .eq('status', 'executando')
+      .is('finalizado_em', null);
+    
+    if (running && running.length > 0) {
+      const ids = running.map(r => r.id).join(', ');
+      console.warn(`[DJEN Pro] Já existe(m) ${running.length} execução(ões) no banco: ${ids}. Cancelando início.`);
+      
+      // Cancelar execuções órfãs com mais de 2 horas
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const stale = running.filter(r => r.iniciado_em && r.iniciado_em < twoHoursAgo);
+      if (stale.length > 0) {
+        console.log(`[DJEN Pro] Cancelando ${stale.length} execuções órfãs (>2h)`);
+        for (const s of stale) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({ status: 'cancelado', finalizado_em: new Date().toISOString(), detalhes: { mensagem: 'Cancelado: execução órfã (>2h)' } })
+            .eq('id', s.id);
+        }
+        // Se todas eram órfãs, continuar
+        if (stale.length === running.length) {
+          console.log('[DJEN Pro] Todas as execuções eram órfãs, prosseguindo...');
+        } else {
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[DJEN Pro] Erro ao verificar execuções no banco, prosseguindo:', e);
   }
   
   state.isRunning = true;
