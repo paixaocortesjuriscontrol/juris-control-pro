@@ -1202,6 +1202,7 @@ async function executarLoop(
         console.error('[DJEN Pro] FALHA ao registrar execução no banco:', insertErr.message, insertErr.details, insertErr.hint);
       } else if (inserted && inserted.length > 0) {
         executionId = inserted[0].id;
+        state.executionId = executionId;
         console.log('[DJEN Pro] Execução registrada no banco com ID:', executionId);
       } else {
         console.error('[DJEN Pro] INSERT retornou sem erro mas sem dados');
