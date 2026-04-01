@@ -906,7 +906,7 @@ async function _processarTermoProInterno(
   let descartadas = 0;
   const pubsDescartadas: any[] = [];
   
-  console.log(`[DJEN Pro] Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo})`);
+  console.log(`[DJEN Pro] 📋 Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo}, tribunais=${tribunais.join(',') || 'TODOS'}, exclusoes=${mon.exclusoes?.join(',') || 'nenhuma'}, condicao=${mon.condicao_concomitante || 'nenhuma'})`);
   
   const pubsValidas = resultados.filter(pub => {
     // 1. Filtro de tribunal
