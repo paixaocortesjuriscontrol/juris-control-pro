@@ -76,10 +76,10 @@ interface Checkpoint {
 // ============================================================================
 
 const CONFIG = {
-  delay_between_terms: 800,
-  delay_between_pages: 800,
+  delay_between_terms: 1500,
+  delay_between_pages: 1500,
   max_retries: 3,
-  retry_base_delay: 5000,
+  retry_base_delay: 10000,
   term_timeout_ms: 120000, // 2 minutes max per term
 };
 
