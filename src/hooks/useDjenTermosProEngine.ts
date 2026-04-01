@@ -897,6 +897,7 @@ async function _processarTermoProInterno(
   }
   
   if (signal.aborted || resultados.length === 0) {
+    console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}": ${resultados.length} resultados brutos, abortado=${signal.aborted}. Nada a validar.`);
     return { novas: 0, duplicadas: 0, descartadas: 0, ...diagnostico };
   }
   
