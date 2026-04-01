@@ -945,17 +945,21 @@ export default function PlanilhaTst() {
               if (row2 && input2) {
                 const val = getFieldFromRow(row2, input2.headers, ...f.terms);
                 if (!isEmpty(val)) {
-                  (pr as any)[f.key] = val;
-                  (pr as any)[`origem_${f.key}`] = "input2";
-                  complemented1 = true;
+                  (pr as any)[f.key] = f.key === "dossie" ? sanitizeDossie(val, pr.numero_processo) : val;
+                  if (!isEmpty((pr as any)[f.key])) {
+                    (pr as any)[`origem_${f.key}`] = "input2";
+                    complemented1 = true;
+                  }
                 }
               }
               if ((forceOverwrite || isEmpty(pr[f.key] as string)) && row3 && input3) {
                 const val = getFieldFromRow(row3, input3.headers, ...f.terms);
                 if (!isEmpty(val)) {
-                  (pr as any)[f.key] = val;
-                  (pr as any)[`origem_${f.key}`] = "input3";
-                  complemented1 = true;
+                  (pr as any)[f.key] = f.key === "dossie" ? sanitizeDossie(val, pr.numero_processo) : val;
+                  if (!isEmpty((pr as any)[f.key])) {
+                    (pr as any)[`origem_${f.key}`] = "input3";
+                    complemented1 = true;
+                  }
                 }
               }
             }
