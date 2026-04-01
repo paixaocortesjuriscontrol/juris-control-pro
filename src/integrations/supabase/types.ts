@@ -1449,6 +1449,119 @@ export type Database = {
           },
         ]
       }
+      distribuicoes_tst: {
+        Row: {
+          aba_origem: string | null
+          aparelhamento_banco: string | null
+          aparelhamento_reclamante: string | null
+          benner_atualizado: boolean | null
+          chance_exito_banco: string | null
+          chance_exito_reclamante: string | null
+          created_at: string
+          data_distribuicao: string | null
+          decisao_quarteirizado: string | null
+          dossie: string | null
+          equipe: string | null
+          execucao: string | null
+          honra: string | null
+          id: string
+          materias_recurso_banco: string | null
+          materias_recurso_reclamante: string | null
+          midia_negativa: string | null
+          parte_recorrente: string | null
+          processo_id: string
+          processo_numero: string
+          reclamada: string | null
+          reclamante: string | null
+          recurso_terceiros: string | null
+          relator: string | null
+          relator_favorabilidade: string | null
+          tema: string | null
+          tipo_recurso_banco: string | null
+          tipo_recurso_reclamante: string | null
+          transito_julgado: boolean | null
+          turma: string | null
+          turma_favorabilidade: string | null
+          updated_at: string
+        }
+        Insert: {
+          aba_origem?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
+          benner_atualizado?: boolean | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
+          created_at?: string
+          data_distribuicao?: string | null
+          decisao_quarteirizado?: string | null
+          dossie?: string | null
+          equipe?: string | null
+          execucao?: string | null
+          honra?: string | null
+          id?: string
+          materias_recurso_banco?: string | null
+          materias_recurso_reclamante?: string | null
+          midia_negativa?: string | null
+          parte_recorrente?: string | null
+          processo_id: string
+          processo_numero: string
+          reclamada?: string | null
+          reclamante?: string | null
+          recurso_terceiros?: string | null
+          relator?: string | null
+          relator_favorabilidade?: string | null
+          tema?: string | null
+          tipo_recurso_banco?: string | null
+          tipo_recurso_reclamante?: string | null
+          transito_julgado?: boolean | null
+          turma?: string | null
+          turma_favorabilidade?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aba_origem?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
+          benner_atualizado?: boolean | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
+          created_at?: string
+          data_distribuicao?: string | null
+          decisao_quarteirizado?: string | null
+          dossie?: string | null
+          equipe?: string | null
+          execucao?: string | null
+          honra?: string | null
+          id?: string
+          materias_recurso_banco?: string | null
+          materias_recurso_reclamante?: string | null
+          midia_negativa?: string | null
+          parte_recorrente?: string | null
+          processo_id?: string
+          processo_numero?: string
+          reclamada?: string | null
+          reclamante?: string | null
+          recurso_terceiros?: string | null
+          relator?: string | null
+          relator_favorabilidade?: string | null
+          tema?: string | null
+          tipo_recurso_banco?: string | null
+          tipo_recurso_reclamante?: string | null
+          transito_julgado?: boolean | null
+          turma?: string | null
+          turma_favorabilidade?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribuicoes_tst_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dje_conteudo_indexado: {
         Row: {
           conteudo_texto: string
