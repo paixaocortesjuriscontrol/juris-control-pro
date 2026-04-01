@@ -4179,6 +4179,7 @@ export default function ImportarProcessos() {
             const s = String(v).toLowerCase().trim();
             return s === "sim" || s === "s" || s === "true" || s === "1";
           })(),
+          aba_origem: (row as any).__sheetName || null,
         };
 
         processo.erros = validateProcesso(processo);
