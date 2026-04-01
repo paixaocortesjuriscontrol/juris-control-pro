@@ -1045,6 +1045,7 @@ async function executarLoop(
   state.abortController = new AbortController();
   const signal = state.abortController.signal;
   const tempoInicio = Date.now();
+  let executionId: string | null = null;
   
   // Timer de tempo decorrido
   state.timerInterval = setInterval(() => {
@@ -1114,6 +1115,23 @@ async function executarLoop(
       acumDescartadas = cp.descartadas;
     }
     
+    // Registrar execução no banco
+    try {
+      const { data: inserted } = await supabase
+        .from('execucoes_agendadas')
+        .insert({
+          tipo: 'djen_pro',
+          status: 'executando',
+          iniciado_em: new Date().toISOString(),
+          detalhes: { totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
+        })
+        .select('id')
+        .single();
+      if (inserted) executionId = inserted.id;
+    } catch (e) {
+      console.warn('[DJEN Pro] Erro ao registrar execução:', e);
+    }
+
     updateProgress({
       status: 'executando',
       globalTotal: totalOps,
@@ -1170,6 +1188,22 @@ async function executarLoop(
           novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
           tempoInicio, dataInicioYmd, dataFimYmd,
         });
+
+        // Persist progress to DB every ~10 terms
+        if (executionId && globalCurrent % 10 === 0) {
+          supabase
+            .from('execucoes_agendadas')
+            .update({
+              detalhes: {
+                novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
+                percentage: percentageAfter, termoAtual: mon.descricao || mon.termo_busca,
+                totalTermos: monitoramentos.length, totalDias: datas.length,
+                dataInicioYmd, dataFimYmd,
+              },
+            })
+            .eq('id', executionId)
+            .then(() => {});
+        }
         
         await delay(CONFIG.delay_between_terms);
       }
@@ -1194,6 +1228,30 @@ async function executarLoop(
     if (state.timerInterval) {
       clearInterval(state.timerInterval);
       state.timerInterval = null;
+    }
+    // Finalizar registro no banco
+    if (executionId) {
+      try {
+        const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: finalStatus,
+            finalizado_em: new Date().toISOString(),
+            detalhes: {
+              novas: state.progress.novas,
+              duplicadas: state.progress.duplicadas,
+              descartadas: state.progress.descartadas,
+              percentage: state.progress.percentage,
+              mensagem: state.progress.mensagem,
+              dataInicioYmd,
+              dataFimYmd,
+            },
+          })
+          .eq('id', executionId);
+      } catch (e) {
+        console.warn('[DJEN Pro] Erro ao finalizar execução:', e);
+      }
     }
     // Garantir que status nunca fique preso em 'executando' após término
     if (state.progress.status === 'executando') {
