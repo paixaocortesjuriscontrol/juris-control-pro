@@ -1301,6 +1301,13 @@ async function executarLoop(
         }
         
         await delay(CONFIG.delay_between_terms);
+        
+        // Cooldown a cada batch_size termos para evitar rate limit sustentado
+        if (globalCurrent > 0 && globalCurrent % CONFIG.batch_size === 0) {
+          console.log(`[DJEN Pro] Cooldown de ${CONFIG.batch_cooldown_ms}ms após ${globalCurrent} termos`);
+          updateProgress({ mensagem: `⏳ Cooldown preventivo (${globalCurrent}/${totalOps} termos)` });
+          await delay(CONFIG.batch_cooldown_ms);
+        }
       }
     }
     
