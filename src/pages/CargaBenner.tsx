@@ -282,6 +282,12 @@ export default function CargaBenner() {
         const dossie = colDossie1 ? String(row[colDossie1] ?? "").trim() : "";
         const cnj = normalizeCNJ(numProcesso);
 
+        // Skip rows where dossiê was not found
+        const dossieNorm = normalizeText(dossie);
+        if (!dossie || dossieNorm.includes("nao localizado") || dossieNorm.includes("não localizado") || dossieNorm.includes("n/localizado") || dossieNorm.includes("n/ localizado")) {
+          continue;
+        }
+
         // Find matching pauta
         let pauta: Record<string, any> | undefined;
         if (cnj.length >= 10) pauta = pautaByProcesso.get(cnj);
