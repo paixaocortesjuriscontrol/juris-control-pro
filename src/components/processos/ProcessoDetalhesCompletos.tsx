@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
+import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -726,6 +727,7 @@ export function ProcessoDetalhesCompletos({
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
     { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
     { id: "tst", label: "TST", icon: Gavel },
+    { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
     { id: "prazo", label: "Prazo", icon: Clock },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
@@ -1746,6 +1748,11 @@ export function ProcessoDetalhesCompletos({
               {/* TST Section */}
               {activeSection === "tst" && (
                 <ProcessoTstTab processo={processo} />
+              )}
+
+              {/* Distribuições TST Section */}
+              {activeSection === "distribuicoes-tst" && (
+                <ProcessoDistribuicoesTab processoId={processo.id} processoNumero={processo.numero || ""} />
               )}
 
               {/* Prazo Section - campos da planilha TST - edição inline */}

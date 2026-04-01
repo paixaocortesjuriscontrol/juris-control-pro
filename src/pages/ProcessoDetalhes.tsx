@@ -93,6 +93,7 @@ import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublic
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
 import { ProcessoTstTab } from "@/components/processos/ProcessoTstTab";
+import { ProcessoDistribuicoesTab } from "@/components/processos/ProcessoDistribuicoesTab";
 
 import { ProcessoDetalhesCompletos } from "@/components/processos/ProcessoDetalhesCompletos";
 import { ProcessoEditarCompleto } from "@/components/processos/ProcessoEditarCompleto";
@@ -1413,6 +1414,17 @@ export default function ProcessoDetalhes() {
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">TST</span>
         </TabsTrigger>
+        <TabsTrigger 
+          value="distribuicoes-tst" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "distribuicoes-tst" ? "" : "distribuicoes-tst");
+          }}
+        >
+          <Scale className="w-4 h-4" />
+          <span className="hidden sm:inline">Distribuições</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab Contents - Audiências */}
@@ -1905,6 +1917,11 @@ export default function ProcessoDetalhes() {
       {/* Tab Contents - TST */}
       <TabsContent value="tst" className="mt-4">
         <ProcessoTstTab processo={processo} />
+      </TabsContent>
+
+      {/* Tab Contents - Distribuições TST */}
+      <TabsContent value="distribuicoes-tst" className="mt-4">
+        <ProcessoDistribuicoesTab processoId={id!} processoNumero={processo?.numero || ""} />
       </TabsContent>
     </Tabs>
   );
