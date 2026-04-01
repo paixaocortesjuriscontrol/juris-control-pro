@@ -320,8 +320,8 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[12]] = hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : ""; // Horário
         outRow[LAYOUT_COLS[13]] = hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : ""; // Tipo julgamento
         outRow[LAYOUT_COLS[14]] = colHonra ? toSN(String(row[colHonra] ?? "")) : ""; // Matéria de Honra S/N
-        outRow[LAYOUT_COLS[15]] = hasJulg && pColMemoriais ? toSN(String(pauta![pColMemoriais] ?? "")) : ""; // Memoriais S/N
-        outRow[LAYOUT_COLS[16]] = hasJulg && pColSustentacao ? toSN(String(pauta![pColSustentacao] ?? "")) : ""; // Sustentação S/N
+        outRow[LAYOUT_COLS[15]] = hasJulg ? (pColMemoriais ? toSN(String(pauta![pColMemoriais] ?? "")) : "") : "N"; // Memoriais S/N
+        outRow[LAYOUT_COLS[16]] = hasJulg ? (pColSustentacao ? toSN(String(pauta![pColSustentacao] ?? "")) : "") : "N"; // Sustentação S/N
         outRow[LAYOUT_COLS[17]] = ""; // Sem transcendência
         outRow[LAYOUT_COLS[18]] = ""; // Recurso não conhecido
         outRow[LAYOUT_COLS[19]] = ""; // Recurso conhecido e provido
