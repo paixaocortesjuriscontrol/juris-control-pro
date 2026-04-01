@@ -707,9 +707,7 @@ async function _processarTermoProInterno(
     if (signal.aborted) break;
     
     const resp = await executarBusca(
-      {
-        { ...baseParams, siglaTribunal: trib, page: 1 },
-      },
+      { ...baseParams, siglaTribunal: trib, page: 1 },
       trib,
       `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
     );
@@ -735,13 +733,13 @@ async function _processarTermoProInterno(
         if (signal.aborted) break;
         const resp = await executarBusca(
           {
-            { 
-              tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: termoTexto,
-              siglaTribunal: trib,
-              dataInicio: diaYmd, dataFim: diaYmd, 
-              pageSize: 50, page: 1 
-            },
+            tipo: 'palavra-chave' as PjeSearchType,
+            palavraChave: termoTexto,
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
           },
           trib,
           `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`
@@ -773,15 +771,13 @@ async function _processarTermoProInterno(
         if (signal.aborted) break;
         const resp = await executarBusca(
           {
-            {
-              tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: encurtarParaApi(termoExtra),
-              siglaTribunal: trib,
-              dataInicio: diaYmd,
-              dataFim: diaYmd,
-              pageSize: 50,
-              page: 1,
-            },
+            tipo: 'palavra-chave' as PjeSearchType,
+            palavraChave: encurtarParaApi(termoExtra),
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
           },
           trib,
           `termos_or palavra-chave | ${termoExtra} | ${trib ?? 'TODOS'}`
@@ -817,13 +813,13 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
       await executarBusca(
         {
-          { 
-            tipo: 'advogado' as PjeSearchType,
-            nomeAdvogado: nomeNormalizado,
-            siglaTribunal: trib,
-            dataInicio: diaYmd, dataFim: diaYmd, 
-            pageSize: 50, page: 1 
-          },
+          tipo: 'advogado' as PjeSearchType,
+          nomeAdvogado: nomeNormalizado,
+          siglaTribunal: trib,
+          dataInicio: diaYmd,
+          dataFim: diaYmd,
+          pageSize: 50,
+          page: 1,
         },
         trib,
         `retry sem uf/oab | ${nomeNormalizado} | ${trib}`
@@ -867,13 +863,13 @@ async function _processarTermoProInterno(
         if (signal.aborted) break;
         const resp = await executarBusca(
           {
-            { 
-              tipo: 'advogado' as PjeSearchType,
-              nomeAdvogado: nomeParaApi,
-              siglaTribunal: trib,
-              dataInicio: diaYmd, dataFim: diaYmd,
-              pageSize: 50, page: 1,
-            },
+            tipo: 'advogado' as PjeSearchType,
+            nomeAdvogado: nomeParaApi,
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
           },
           trib,
           `termos_or advogado | ${parsed.nome} | ${trib ?? 'TODOS'}`
@@ -890,13 +886,13 @@ async function _processarTermoProInterno(
           if (signal.aborted) break;
           await executarBusca(
             {
-              {
-                tipo: 'advogado' as PjeSearchType,
-                oab: parsed.oabDigits,
-                siglaTribunal: trib,
-                dataInicio: diaYmd, dataFim: diaYmd,
-                pageSize: 50, page: 1,
-              },
+              tipo: 'advogado' as PjeSearchType,
+              oab: parsed.oabDigits,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
             },
             trib,
             `termos_or advogado OAB | ${parsed.oabDigits} | ${trib ?? 'TODOS'}`
