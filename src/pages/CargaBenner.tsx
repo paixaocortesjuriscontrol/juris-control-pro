@@ -299,7 +299,7 @@ export default function CargaBenner() {
         // Tipo de Recurso: usar colunas posicionais L (col 11) e P (col 15) da planilha de distribuição
         const colLVal = String(row["__col11"] ?? "").trim();
         const colPVal = String(row["__col15"] ?? "").trim();
-        const tipoRecurso = [colLVal, colPVal].filter(Boolean).join(" - ");
+        const tipoRecurso = [colLVal, colPVal].filter(v => v && !/^[-–—\s]+$/.test(v)).join(" - ");
         // Use the last aparelhamento/chance (banco side) if multiple exist
         const aparelhamento = colAparelhamento.length > 0 ? String(row[colAparelhamento[colAparelhamento.length - 1]] ?? "") : "";
         const chanceExito = colChanceExito.length > 0 ? String(row[colChanceExito[colChanceExito.length - 1]] ?? "") : "";
