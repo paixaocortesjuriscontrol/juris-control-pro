@@ -1188,6 +1188,22 @@ async function executarLoop(
           novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
           tempoInicio, dataInicioYmd, dataFimYmd,
         });
+
+        // Persist progress to DB every ~10 terms
+        if (executionId && globalCurrent % 10 === 0) {
+          supabase
+            .from('execucoes_agendadas')
+            .update({
+              detalhes: {
+                novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
+                percentage: percentageAfter, termoAtual: mon.descricao || mon.termo_busca,
+                totalTermos: monitoramentos.length, totalDias: datas.length,
+                dataInicioYmd, dataFimYmd,
+              },
+            })
+            .eq('id', executionId)
+            .then(() => {});
+        }
         
         await delay(CONFIG.delay_between_terms);
       }
