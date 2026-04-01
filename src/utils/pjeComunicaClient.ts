@@ -37,6 +37,10 @@ export interface PjeComunicaResponse {
 export interface PjeComunicaPaginatedResponse extends PjeComunicaResponse {
   pagesFetched: number;
   truncated: boolean;
+  rateLimitHits?: number;
+  failedPages?: number;
+  partial?: boolean;
+  lastError?: string | null;
 }
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
@@ -583,6 +587,9 @@ export async function buscarPjeComunicaPaginado(
   let last: PjeComunicaResponse | null = null;
   let pagesFetched = 0;
   let truncated = false;
+  let rateLimitHits = 0;
+  let failedPages = 0;
+  let lastError: string | null = null;
 
   // Helper para fetch com retry e backoff exponencial
   const fetchWithRetry = async (page: number): Promise<PjeComunicaResponse> => {
@@ -609,6 +616,7 @@ export async function buscarPjeComunicaPaginado(
           const baseDelay = is429 ? Math.max(retryBaseDelay, 8000) : retryBaseDelay;
           const waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
           if (is429) {
+            rateLimitHits += 1;
             setGlobalCooldown(waitTime);
             options?.onRateLimit?.(waitTime, attempt + 1, page);
           }
@@ -648,12 +656,15 @@ export async function buscarPjeComunicaPaginado(
       // Se foi cancelado, parar imediatamente
       if (e?.name === 'AbortError') throw e;
       // Para outros erros, logar e continuar para próxima página
+      failedPages += 1;
+      lastError = String(e?.message ?? 'Falha ao buscar página');
       console.warn(`[PJE Comunica] Falha na página ${p} após retries:`, e?.message);
       break;
     }
   }
 
   if (last?.hasMore) truncated = true;
+  const partial = truncated || failedPages > 0;
 
   // Se por algum motivo não tivemos página alguma, ainda assim garantimos formato.
   const safeLast: PjeComunicaResponse =
@@ -680,6 +691,10 @@ export async function buscarPjeComunicaPaginado(
     hasMore: truncated ? true : false,
     pagesFetched,
     truncated,
+    rateLimitHits,
+    failedPages,
+    partial,
+    lastError,
   };
 }
 
