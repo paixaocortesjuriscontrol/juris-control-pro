@@ -100,6 +100,7 @@ let state: {
   listeners: Set<(p: DjenTermosProProgress) => void>;
   timerInterval: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number;
+  executionId: string | null;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -108,6 +109,7 @@ let state: {
   listeners: new Set(),
   timerInterval: null,
   lastUpdatedAt: 0,
+  executionId: null,
 };
 
 const STORAGE_KEY = 'djen-termos-pro-checkpoint-v1';
@@ -1200,6 +1202,7 @@ async function executarLoop(
         console.error('[DJEN Pro] FALHA ao registrar execução no banco:', insertErr.message, insertErr.details, insertErr.hint);
       } else if (inserted && inserted.length > 0) {
         executionId = inserted[0].id;
+        state.executionId = executionId;
         console.log('[DJEN Pro] Execução registrada no banco com ID:', executionId);
       } else {
         console.error('[DJEN Pro] INSERT retornou sem erro mas sem dados');
@@ -1360,6 +1363,7 @@ async function executarLoop(
       } catch (e) {
         console.warn('[DJEN Pro] Erro ao finalizar execução:', e);
       }
+      state.executionId = null;
     }
     // Garantir que status nunca fique preso em 'executando' após término
     if (state.progress.status === 'executando') {
@@ -1392,6 +1396,35 @@ export function cancelarDjenTermosPro() {
   if (state.abortController) {
     state.abortController.abort();
     updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
+  }
+  // Finalizar registro no banco imediatamente (não depender do loop)
+  if (state.executionId) {
+    const execId = state.executionId;
+    supabase
+      .from('execucoes_agendadas')
+      .update({
+        status: 'cancelado',
+        finalizado_em: new Date().toISOString(),
+        detalhes: {
+          novas: state.progress.novas,
+          duplicadas: state.progress.duplicadas,
+          descartadas: state.progress.descartadas,
+          percentage: state.progress.percentage,
+          mensagem: 'Cancelado pelo usuário',
+          diagnostico: {
+            rateLimitHits: state.progress.rateLimitHits,
+            falhasBusca: state.progress.falhasBusca,
+            buscasParciais: state.progress.buscasParciais,
+            ultimoErroBusca: state.progress.ultimoErroBusca,
+          },
+        },
+      })
+      .eq('id', execId)
+      .then(({ error }) => {
+        if (error) console.warn('[DJEN Pro] Erro ao cancelar no banco:', error);
+        else console.log('[DJEN Pro] Execução cancelada no banco:', execId);
+      });
+    state.executionId = null;
   }
 }
 
