@@ -1363,6 +1363,7 @@ async function executarLoop(
       } catch (e) {
         console.warn('[DJEN Pro] Erro ao finalizar execução:', e);
       }
+      state.executionId = null;
     }
     // Garantir que status nunca fique preso em 'executando' após término
     if (state.progress.status === 'executando') {
