@@ -1,44 +1,46 @@
 
 
-# Plano: Cancelar DJEN Processos + Indicador Global de Progresso
+# Diagnóstico e Correção: DJEN Termos Pro executando parcialmente
 
-## Problema
-1. O DJEN Processos está rodando em background (grupo 128/4138, 8 workers paralelos) e competindo com o DJEN Termos Pro pela API PJE Comunica, causando erros 429
-2. O progresso do DJEN Processos só é visível na página de Configurações — em nenhum outro lugar do sistema
+## Problema Identificado
+
+O motor DJEN Termos Pro hoje processou apenas **2 de 164 monitoramentos** (65 publicações vs. 600-800 na semana passada). A causa raiz:
+
+1. **O INSERT na tabela `execucoes_agendadas` está falhando silenciosamente** -- zero registros `djen_pro` existem na tabela, apesar do código tentar inserir
+2. Sem registro no banco, a trava "já executou hoje" do scheduler não funciona
+3. O scheduler dispara execuções repetidas, que sofrem rate limiting (429) da API PJE Comunica
+4. Resultado: apenas os primeiros monitoramentos conseguem dados antes do bloqueio
+
+## Causa Raiz Técnica
+
+O `executarLoop()` faz o INSERT com `.select('id').single()`, mas o erro é capturado em um `try/catch` silencioso (só faz `console.warn`). O problema provável: o campo `status` do INSERT usa valor `'executando'` mas pode haver uma constraint ou o RLS está bloqueando de forma inesperada. Porém, a policy de INSERT diz `with_check: true` (permite tudo para authenticated), então o problema pode ser no `.single()` retornando erro quando o INSERT funciona mas a resposta não vem como esperado.
 
 ## Ações
 
-### 1. Cancelar DJEN Processos imediatamente
-- Chamar `forceKillDjenProcessos()` e atualizar metadata no banco para `status: 'cancelado'`
-- Limpar o scheduler para que não reinicie automaticamente
+### 1. Corrigir o INSERT na `execucoes_agendadas` (useDjenTermosProEngine.ts)
+- Remover `.single()` e usar `.select('id')` com acesso ao array `data[0]`
+- Adicionar log explícito do erro se o INSERT falhar
+- Adicionar campos obrigatórios que podem estar faltando (ex: `job_name`)
 
-### 2. Criar indicador flutuante global (`MonitoramentosFloatingIndicator.tsx`)
-Componente fixo no canto inferior-direito, visível em **todas as páginas**:
-- Aparece quando qualquer engine DJEN está ativo (Processos, Termos Pro, Termos)
-- Mostra: nome do engine, barra de progresso compacta, percentual, tempo decorrido
-- Minimizável (pill com badge "N ativos" → expandir para detalhes)
-- Botão para navegar à tela de Configurações
-- Desaparece quando nenhum engine está ativo
+### 2. Adicionar fallback robusto para a trava diária (useDjenTermosProScheduler.ts)
+- Se o INSERT no banco falhar, usar localStorage como fallback para evitar re-execuções
+- Registrar `lastRunDate` ANTES de chamar `executarDjenTermosPro`, não depois
 
-### 3. Integrar no MainLayout
-- Adicionar `<MonitoramentosFloatingIndicator />` em `src/components/layout/MainLayout.tsx`
-- Usar hooks existentes: `useDjenProcessos()`, subscriber do Termos Pro, e query de `execucoes_agendadas`
+### 3. Logar erros 429 de forma mais visível (pjeComunicaClient.ts)
+- Quando ocorrerem múltiplos 429s consecutivos, emitir um aviso no progresso para o usuário saber que está sendo throttled
 
-## Arquivos
+## Arquivos Modificados
 
-| Arquivo | Ação |
-|---------|------|
-| `src/components/layout/MonitoramentosFloatingIndicator.tsx` | Criar — widget flutuante com progresso |
-| `src/components/layout/MainLayout.tsx` | Modificar — adicionar o indicador |
-| `src/hooks/useDjenProcessosEngine.ts` | Nenhuma mudança de código, apenas invocar `forceKill` |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/hooks/useDjenTermosProEngine.ts` | Fix INSERT (remover `.single()`, adicionar `job_name`, melhorar error logging) |
+| `src/hooks/useDjenTermosProScheduler.ts` | Fallback localStorage antes de executar, prevenir re-execução mesmo sem DB |
 
-## Detalhes Técnicos
+## Resultado Esperado
 
-O indicador usará:
-- `useDjenProcessos()` para estado do engine de Processos
-- `subscribeDjenTermosPro()` (ou polling de `configuracoes_monitoramento`) para Termos Pro
-- Query em `execucoes_agendadas` com `status = 'executando'` para detectar execuções backend
-- `useNavigate()` para link rápido à Configurações
-
-Visual: pill compacta com ícone pulsante → clique expande mini-card com detalhes de cada engine ativo.
+Após a correção:
+- O registro `djen_pro` será gravado corretamente na `execucoes_agendadas`
+- O indicador flutuante mostrará progresso real
+- A trava diária impedirá execuções duplicadas
+- O motor processará todos os 164 monitoramentos sem interrupção por 429
 
