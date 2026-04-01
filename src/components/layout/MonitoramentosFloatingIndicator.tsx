@@ -118,9 +118,18 @@ export function MonitoramentosFloatingIndicator() {
 
         if (cancelled || !data) return;
 
-        const active: DbActiveEngine[] = [];
+        // Deduplicate by tipo — keep the most recent one per type
+        const byTipo = new Map<string, typeof data[0]>();
         for (const row of data) {
           const tipoKey = row.tipo === 'djen' ? 'djen_termos' : row.tipo === 'djen_pro' ? 'djen_pro' : 'djen_processos';
+          const existing = byTipo.get(tipoKey);
+          if (!existing || (row.iniciado_em && (!existing.iniciado_em || row.iniciado_em > existing.iniciado_em))) {
+            byTipo.set(tipoKey, row);
+          }
+        }
+
+        const active: DbActiveEngine[] = [];
+        for (const [tipoKey, row] of byTipo) {
           const mapping = DB_TYPE_MAP[tipoKey];
           if (!mapping) continue;
 
