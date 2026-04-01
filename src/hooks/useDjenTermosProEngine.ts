@@ -82,7 +82,7 @@ const CONFIG = {
   delay_between_termos_or: 1000,
   max_retries: 3,
   retry_base_delay: 8000,
-  term_timeout_ms: 420000, // 7 minutes max por termo (evita abortar execução válida em dias com 429)
+  // Cooldown a cada N termos para evitar rate limit sustentado
   // Cooldown a cada N termos para evitar rate limit sustentado
   batch_size: 10,
   batch_cooldown_ms: 12000,
