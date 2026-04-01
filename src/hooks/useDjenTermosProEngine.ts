@@ -76,14 +76,16 @@ interface Checkpoint {
 // ============================================================================
 
 const CONFIG = {
-  delay_between_terms: 800,
-  delay_between_pages: 800,
+  delay_between_terms: 1200,
+  delay_between_pages: 1000,
+  delay_between_tribunais: 1200,
+  delay_between_termos_or: 1000,
   max_retries: 3,
-  retry_base_delay: 5000,
-  term_timeout_ms: 120000, // 2 minutes max per term
+  retry_base_delay: 8000,
+  term_timeout_ms: 180000, // 3 minutes max per term (mais tribunais = mais tempo)
   // Cooldown a cada N termos para evitar rate limit sustentado
-  batch_size: 20,
-  batch_cooldown_ms: 8000,
+  batch_size: 10,
+  batch_cooldown_ms: 12000,
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -720,20 +722,20 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
     }
     
-    if (tribLoop.length > 1) await delay(600);
+    if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave (texto)
+  // SOMENTE se a busca primária não retornou resultados suficientes
   // A API PJE Comunica pode não retornar resultados com nomeParte para alguns tribunais
-  // (ex: TST), então fazemos busca por texto como fallback
-  if (tipo === 'parte' && !signal.aborted) {
+  if (tipo === 'parte' && !signal.aborted && resultados.length === 0) {
     const termoTexto = mon.termo_busca
       ?.normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .trim();
     
     if (termoTexto) {
-      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
+      console.log(`[DJEN Pro] Busca complementar parte por palavraChave (primária retornou 0): "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
         const resp = await executarBusca(
@@ -752,7 +754,7 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        if (tribLoop.length > 1) await delay(600);
+        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
       }
     }
   }
@@ -790,10 +792,10 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        if (tribLoop.length > 1) await delay(800);
+        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
       }
 
-      await delay(400);
+      await delay(CONFIG.delay_between_termos_or);
     }
   }
   
@@ -829,7 +831,7 @@ async function _processarTermoProInterno(
         trib,
         `retry sem uf/oab | ${nomeNormalizado} | ${trib}`
       );
-      await delay(600);
+      await delay(CONFIG.delay_between_tribunais);
     }
   }
   
@@ -882,7 +884,7 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        await delay(400);
+        await delay(CONFIG.delay_between_tribunais);
       }
       
       // Se tem OAB, buscar também por OAB (captura resultados que nome não encontra)
@@ -902,7 +904,7 @@ async function _processarTermoProInterno(
             trib,
             `termos_or advogado OAB | ${parsed.oabDigits} | ${trib ?? 'TODOS'}`
           );
-          await delay(400);
+          await delay(CONFIG.delay_between_tribunais);
         }
       }
     }
