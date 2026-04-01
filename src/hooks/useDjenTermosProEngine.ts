@@ -563,7 +563,6 @@ async function _processarTermoProInterno(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
-  globalSignal: AbortSignal,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
   
