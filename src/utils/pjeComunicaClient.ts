@@ -570,11 +570,11 @@ export async function buscarPjeComunicaPaginado(
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages ?? 999;
-  // Delay entre páginas: 1500ms (restaurado do 26/01 - balanceado velocidade/estabilidade)
-  const delayMs = Math.max(options?.delayMs ?? 1500, 0);
+  // Delay entre páginas: 800ms (valor original que funcionava na semana passada)
+  const delayMs = Math.max(options?.delayMs ?? 800, 0);
   // Retry com backoff exponencial
   const maxRetries = options?.maxRetries ?? 5;
-  const retryBaseDelay = options?.retryBaseDelay ?? 10000;  // 10s base para retry
+  const retryBaseDelay = options?.retryBaseDelay ?? 5000;  // 5s base para retry
 
   // API PJE Comunica usa paginação 1-based
   const startPage = Math.max(params.page ?? 1, 1);
