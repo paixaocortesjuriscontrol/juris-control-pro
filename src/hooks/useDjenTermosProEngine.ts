@@ -556,54 +556,7 @@ async function processarTermoPro(
   signal: AbortSignal,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
-  
-  // Timeout por termo: aborta este termo após 120s para não travar a execução inteira
-  const termAbort = new AbortController();
-  const termTimeout = setTimeout(() => {
-    console.warn(`[DJEN Pro] ⏱ Timeout de ${CONFIG.term_timeout_ms / 1000}s atingido para "${mon.termo_busca}". Salvando resultados parciais.`);
-    termAbort.abort();
-  }, CONFIG.term_timeout_ms);
-  
-  // Combinar sinal global com sinal de timeout do termo
-  const combinedSignal = (() => {
-    const combined = new AbortController();
-    signal.addEventListener('abort', () => combined.abort(), { once: true });
-    termAbort.signal.addEventListener('abort', () => combined.abort(), { once: true });
-    if (signal.aborted || termAbort.signal.aborted) combined.abort();
-    return combined.signal;
-  })();
-  
-  try {
-    return await _processarTermoProInterno(mon, diaYmd, combinedSignal, signal);
-  } catch (e: any) {
-    const isAbort = e?.name === 'AbortError' || /abort/i.test(String(e?.message || ''));
-    // Abort global = cancelamento real do usuário
-    if (isAbort && signal.aborted) throw e;
-
-    // Timeout/abort local do termo: registrar e seguir para o próximo termo
-    if (isAbort) {
-      const termo = mon.descricao || mon.termo_busca;
-      const msg = `Timeout no termo "${termo}"`;
-      console.warn(`[DJEN Pro] ${msg}. Continuando execução...`);
-      updateProgress({
-        mensagem: `⚠️ ${msg}. Continuando...`,
-        ultimoErroBusca: msg,
-      });
-      return {
-        novas: 0,
-        duplicadas: 0,
-        descartadas: 0,
-        rateLimitHits: 0,
-        falhasBusca: 1,
-        buscasParciais: 1,
-        ultimoErroBusca: msg,
-      };
-    }
-
-    throw e;
-  } finally {
-    clearTimeout(termTimeout);
-  }
+  return await _processarTermoProInterno(mon, diaYmd, signal);
 }
 
 async function _processarTermoProInterno(
