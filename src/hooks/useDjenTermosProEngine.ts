@@ -610,7 +610,7 @@ async function _processarTermoProInterno(
   };
 
   const executarBusca = async (
-    params: Record<string, any>,
+    params: Parameters<typeof buscarPjeComunicaPaginado>[0],
     tribunal: string | undefined,
     contexto: string,
   ) => {
