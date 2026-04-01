@@ -987,7 +987,8 @@ async function _processarTermoProInterno(
   const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
   const duplicadasBanco = pubsUnicas.length - novas.length;
   
-  console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}" resumo: ${resultados.length} brutos → ${pubsValidas.length} válidas → ${pubsUnicas.length} únicas → ${novas.length} novas, ${duplicadasBanco} já no banco, ${descartadas} descartadas`);
+  const dedupHashLocal = pubsValidas.length - pubsUnicas.length;
+  console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}" resumo: ${resultados.length} brutos (${dedupByContentHash} dedup content-hash na coleta) → ${pubsValidas.length} válidas → ${pubsUnicas.length} únicas (${dedupHashLocal} dedup hash-local) → ${novas.length} novas, ${duplicadasBanco} já no banco, ${descartadas} descartadas`);
   
   // Inserir novas
   if (novas.length > 0) {
