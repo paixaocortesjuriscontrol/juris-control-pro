@@ -4092,9 +4092,20 @@ export default function ImportarProcessos() {
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+      // Read ALL sheets and concatenate rows
+      const jsonData: any[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) continue;
+        const sheetRows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+        // Tag each row with origin sheet name
+        for (const row of sheetRows) {
+          (row as any).__sheetName = sheetName;
+        }
+        jsonData.push(...sheetRows);
+      }
+      console.log(`[Dr. Renata] Lidas ${workbook.SheetNames.length} abas: ${workbook.SheetNames.join(", ")} → ${jsonData.length} linhas totais`);
 
       const getCol = (row: any, names: string[]) => {
         for (const n of names) {
@@ -4168,6 +4179,7 @@ export default function ImportarProcessos() {
             const s = String(v).toLowerCase().trim();
             return s === "sim" || s === "s" || s === "true" || s === "1";
           })(),
+          aba_origem: (row as any).__sheetName || null,
         };
 
         processo.erros = validateProcesso(processo);
