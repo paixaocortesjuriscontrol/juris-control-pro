@@ -1750,6 +1750,11 @@ export function ProcessoDetalhesCompletos({
                 <ProcessoTstTab processo={processo} />
               )}
 
+              {/* Distribuições TST Section */}
+              {activeSection === "distribuicoes-tst" && (
+                <ProcessoDistribuicoesTab processoId={processo.id} processoNumero={processo.numero || ""} />
+              )}
+
               {/* Prazo Section - campos da planilha TST - edição inline */}
               {activeSection === "prazo" && (
                 <PrazoSectionEditable processo={processo} />
