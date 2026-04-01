@@ -1045,6 +1045,7 @@ async function executarLoop(
   state.abortController = new AbortController();
   const signal = state.abortController.signal;
   const tempoInicio = Date.now();
+  let executionId: string | null = null;
   
   // Timer de tempo decorrido
   state.timerInterval = setInterval(() => {
