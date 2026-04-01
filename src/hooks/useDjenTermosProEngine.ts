@@ -1213,6 +1213,30 @@ async function executarLoop(
       clearInterval(state.timerInterval);
       state.timerInterval = null;
     }
+    // Finalizar registro no banco
+    if (executionId) {
+      try {
+        const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: finalStatus,
+            finalizado_em: new Date().toISOString(),
+            detalhes: {
+              novas: state.progress.novas,
+              duplicadas: state.progress.duplicadas,
+              descartadas: state.progress.descartadas,
+              percentage: state.progress.percentage,
+              mensagem: state.progress.mensagem,
+              dataInicioYmd,
+              dataFimYmd,
+            },
+          })
+          .eq('id', executionId);
+      } catch (e) {
+        console.warn('[DJEN Pro] Erro ao finalizar execução:', e);
+      }
+    }
     // Garantir que status nunca fique preso em 'executando' após término
     if (state.progress.status === 'executando') {
       state.progress = { ...state.progress, status: 'concluido' };
