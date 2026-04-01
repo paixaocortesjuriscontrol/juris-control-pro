@@ -4348,6 +4348,46 @@ export default function ImportarProcessos() {
           }
         }
 
+        // Save distribution record in distribuicoes_tst (upsert to handle re-imports)
+        const processoId = existingProcesso?.id || (await supabase.from("processos").select("id").eq("numero", processo.numero.trim()).maybeSingle()).data?.id;
+        if (processoId) {
+          const distData: any = {
+            processo_id: processoId,
+            processo_numero: processo.numero.trim(),
+            data_distribuicao: parseDate(processo.dataDistribuicao),
+            aba_origem: renataData.aba_origem || null,
+            dossie: renataData.dossie_tst ? String(renataData.dossie_tst) : null,
+            equipe: renataData.equipe_tst ? String(renataData.equipe_tst) : null,
+            reclamante: processo.parteAtiva || null,
+            reclamada: processo.partePassiva || null,
+            relator: renataData.relator_tst ? String(renataData.relator_tst) : null,
+            relator_favorabilidade: renataData.relator_favorabilidade ? String(renataData.relator_favorabilidade) : null,
+            turma: renataData.turma_tst ? String(renataData.turma_tst) : null,
+            turma_favorabilidade: renataData.turma_favorabilidade ? String(renataData.turma_favorabilidade) : null,
+            parte_recorrente: renataData.parte_recorrente_tst ? String(renataData.parte_recorrente_tst) : null,
+            tipo_recurso_reclamante: renataData.tipo_recurso_reclamante ? String(renataData.tipo_recurso_reclamante) : null,
+            materias_recurso_reclamante: renataData.materias_recurso_reclamante ? String(renataData.materias_recurso_reclamante) : null,
+            aparelhamento_reclamante: renataData.aparelhamento_reclamante ? String(renataData.aparelhamento_reclamante) : null,
+            chance_exito_reclamante: renataData.chance_exito_reclamante ? String(renataData.chance_exito_reclamante) : null,
+            tipo_recurso_banco: renataData.tipo_recurso_banco ? String(renataData.tipo_recurso_banco) : null,
+            materias_recurso_banco: renataData.materias_recurso_banco ? String(renataData.materias_recurso_banco) : null,
+            aparelhamento_banco: renataData.aparelhamento_banco ? String(renataData.aparelhamento_banco) : null,
+            chance_exito_banco: renataData.chance_exito_banco ? String(renataData.chance_exito_banco) : null,
+            honra: renataData.honra_tst ? String(renataData.honra_tst) : null,
+            tema: renataData.tema_tst ? String(renataData.tema_tst) : null,
+            execucao: renataData.execucao_tst ? String(renataData.execucao_tst) : null,
+            midia_negativa: renataData.midia_negativa_tst ? String(renataData.midia_negativa_tst) : null,
+            decisao_quarteirizado: renataData.decisao_quarteirizado ? String(renataData.decisao_quarteirizado) : null,
+            recurso_terceiros: renataData.recurso_terceiros_tst ? String(renataData.recurso_terceiros_tst) : null,
+            benner_atualizado: renataData.benner_atualizado,
+            transito_julgado: processo.transitadoJulgado,
+          };
+          await supabase.from("distribuicoes_tst" as any).upsert(distData as any, {
+            onConflict: "processo_numero,data_distribuicao,aba_origem",
+            ignoreDuplicates: false,
+          });
+        }
+
         updatedProcessos[i] = {
           ...processo,
           status: "sucesso",
