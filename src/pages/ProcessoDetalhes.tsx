@@ -1413,6 +1413,17 @@ export default function ProcessoDetalhes() {
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">TST</span>
         </TabsTrigger>
+        <TabsTrigger 
+          value="distribuicoes-tst" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "distribuicoes-tst" ? "" : "distribuicoes-tst");
+          }}
+        >
+          <Scale className="w-4 h-4" />
+          <span className="hidden sm:inline">Distribuições</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab Contents - Audiências */}
