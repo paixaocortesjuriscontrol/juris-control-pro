@@ -1396,6 +1396,35 @@ export function cancelarDjenTermosPro() {
     state.abortController.abort();
     updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
   }
+  // Finalizar registro no banco imediatamente (não depender do loop)
+  if (state.executionId) {
+    const execId = state.executionId;
+    supabase
+      .from('execucoes_agendadas')
+      .update({
+        status: 'cancelado',
+        finalizado_em: new Date().toISOString(),
+        detalhes: {
+          novas: state.progress.novas,
+          duplicadas: state.progress.duplicadas,
+          descartadas: state.progress.descartadas,
+          percentage: state.progress.percentage,
+          mensagem: 'Cancelado pelo usuário',
+          diagnostico: {
+            rateLimitHits: state.progress.rateLimitHits,
+            falhasBusca: state.progress.falhasBusca,
+            buscasParciais: state.progress.buscasParciais,
+            ultimoErroBusca: state.progress.ultimoErroBusca,
+          },
+        },
+      })
+      .eq('id', execId)
+      .then(({ error }) => {
+        if (error) console.warn('[DJEN Pro] Erro ao cancelar no banco:', error);
+        else console.log('[DJEN Pro] Execução cancelada no banco:', execId);
+      });
+    state.executionId = null;
+  }
 }
 
 export function limparEstadoDjenTermosPro() {
