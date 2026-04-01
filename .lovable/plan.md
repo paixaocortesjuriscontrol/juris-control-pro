@@ -1,43 +1,57 @@
 
 
-## Plano: Restaurar DJEN Termos Pro para Versão Simples e Estável
+## Análise: Por Que as Duplicatas Estão Elevadas no DJEN Termos Pro
 
-### Problema Identificado
+### Causas Identificadas
 
-As alterações recentes adicionaram **complexidade desnecessária** ao engine:
-1. **Timeout por termo** (7 min com AbortController separado) — aborta termos prematuramente
-2. **Fila de retry** — faz chamadas extras à API, piorando o rate limit
-3. **Catch no loop principal** que pula termos ao invés de parar — termos são perdidos silenciosamente
-4. O acúmulo dessas chamadas extras causa mais **HTTP 429** (rate limit), gerando um ciclo vicioso
+**1. Contador de duplicatas inflado artificialmente (linha 1075)**
 
-### O que será feito
+O cálculo atual é:
+```text
+duplicadas = duplicadasBanco 
+           + (pubsValidas.length - pubsUnicas.length)   // dedup local por hash
+           + (descartadas - descartadasEfetivas)         // ← PROBLEMA
+```
 
-**Arquivo: `src/hooks/useDjenTermosProEngine.ts`**
+O terceiro termo `(descartadas - descartadasEfetivas)` soma ao contador de duplicatas as publicações descartadas que eram duplicatas entre si. Isso **infla** o número porque itens descartados por motivos legítimos (tribunal errado, exclusão, etc.) que coincidentemente tinham hash igual são contados como "duplicatas" quando na verdade são "descartadas repetidas". Esse número deveria ser ignorado ou reportado separadamente.
 
-1. **Remover timeout por termo** — eliminar o `AbortController` de timeout individual (linhas 561-606). A função `processarTermoPro` voltará a ser uma chamada direta a `_processarTermoProInterno` sem wrapper de timeout
-2. **Remover fila de retry** — eliminar `retryQueue`, `MAX_RETRY_ATTEMPTS`, `RETRY_COOLDOWN_MS` e todo o bloco de retry (linhas 1260-1454). Se um termo falhar, o erro será propagado normalmente (parando a execução) como era antes
-3. **Remover catch que pula termos** — o `.catch()` na linha 1289 que adiciona à fila de retry será removido. Volta ao comportamento original: se um termo falha após os retries do `pjeComunicaClient`, a execução para com erro claro
-4. **Restaurar CONFIG conservador** — manter os delays atuais (1200ms entre termos, 12s cooldown a cada 10) que são adequados
+**2. Múltiplas estratégias de busca retornam os mesmos itens com IDs diferentes**
 
-### Resultado esperado
+O engine faz várias chamadas à API para o mesmo monitoramento:
+- Busca primária (por OAB/nome/parte)
+- Retry sem UF para tribunais superiores
+- Buscas individuais para cada `termos_or`
+- Busca complementar para tipo `parte`
 
-- Engine sequencial simples: busca termo por termo, sem pular, sem retry separado
-- Se a API retornar 429, o `pjeComunicaClient` já tem retry com backoff exponencial (5 tentativas)
-- Se falhar após 5 tentativas, a execução para com mensagem clara ao invés de pular silenciosamente
-- Menos chamadas à API = menos chance de rate limit
+A deduplicação no `addResults` (linhas 570-584) usa o `id` da API como chave. Porém, a mesma publicação pode ter IDs diferentes quando retornada por chamadas diferentes (ex: busca por nome vs busca por OAB). Esses itens passam o filtro `seen` mas são pegos depois pelo hash local → contam como duplicatas.
+
+**3. Dedup no banco é por `monitoramento_id + hash_conteudo`**
+
+Se o usuário roda a busca mais de uma vez no mesmo dia, TODAS as publicações já salvas voltam como "duplicadasBanco". Isso é comportamento correto mas faz o número parecer alto.
+
+### Plano de Correção
+
+**Arquivo**: `src/hooks/useDjenTermosProEngine.ts`
+
+1. **Corrigir o cálculo de duplicatas (linha 1075)**: Remover o termo `(descartadas - descartadasEfetivas)` do contador de duplicatas. Publicações descartadas que são duplicatas entre si não devem inflar o contador de duplicadas — são simplesmente descartadas redundantes.
+
+2. **Melhorar a deduplicação no `addResults` (linhas 570-584)**: Além de deduplicar por `id` da API, gerar um hash de conteúdo já no momento da coleta e usar como chave secundária. Isso evita que a mesma publicação entre no array `resultados` múltiplas vezes quando vem de chamadas diferentes com IDs distintos.
+
+3. **Adicionar log separando os tipos de duplicata**: No log de resumo (linha 978), discriminar:
+   - Duplicatas locais (hash): quantas foram deduplicadas dentro da mesma execução
+   - Duplicatas banco: quantas já existiam no banco
+   - Isso permite diagnosticar se o problema é excesso de chamadas à API ou re-execução
 
 ### Seção Técnica
 
 ```text
-ANTES (complexo):
-  processarTermoPro → AbortController timeout 7min
-    → _processarTermoProInterno → buscarPjeComunicaPaginado
-  catch → retryQueue.push()
-  ... loop principal ...
-  retryQueue loop (2 rodadas, delay dobrado)
+ANTES:
+  addResults → dedup por item.id apenas
+  duplicadas = banco + hashLocal + (descartadas - descEfetivas)  ← inflado
 
-DEPOIS (simples):
-  processarTermoPro → buscarPjeComunicaPaginado (direto)
-  catch → throw (para execução com erro claro)
+DEPOIS:
+  addResults → dedup por item.id + fallback por hash de conteúdo
+  duplicadas = banco + hashLocal  ← preciso
+  log: "X dedup API-id, Y dedup hash-local, Z já no banco"
 ```
 
