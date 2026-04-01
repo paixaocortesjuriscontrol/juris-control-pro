@@ -4213,8 +4213,9 @@ export default function ImportarProcessos() {
       setRenataProcessos(deduplicated);
       const validCount = deduplicated.filter(p => p.status === "valido").length;
       const invalidCount = deduplicated.filter(p => p.status === "invalido").length;
+      const sheetCount = workbook.SheetNames.length;
       toast({
-        title: "Planilha TST carregada",
+        title: `Planilha TST carregada (${sheetCount} aba${sheetCount > 1 ? 's' : ''})`,
         description: `${deduplicated.length} processo(s) únicos de ${totalRows} linha(s)${duplicatesRemoved > 0 ? ` (${duplicatesRemoved} duplicatas removidas)` : ''}: ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
         variant: invalidCount > 0 ? "destructive" : "default",
       });
