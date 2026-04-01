@@ -904,7 +904,7 @@ async function _processarTermoProInterno(
             trib,
             `termos_or advogado OAB | ${parsed.oabDigits} | ${trib ?? 'TODOS'}`
           );
-          await delay(400);
+          await delay(CONFIG.delay_between_tribunais);
         }
       }
     }
