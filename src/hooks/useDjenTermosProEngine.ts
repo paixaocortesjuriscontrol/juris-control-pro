@@ -82,7 +82,7 @@ const CONFIG = {
   delay_between_termos_or: 1000,
   max_retries: 3,
   retry_base_delay: 8000,
-  term_timeout_ms: 420000, // 7 minutes max por termo (evita abortar execução válida em dias com 429)
+  // Cooldown a cada N termos para evitar rate limit sustentado
   // Cooldown a cada N termos para evitar rate limit sustentado
   batch_size: 10,
   batch_cooldown_ms: 12000,
@@ -556,61 +556,13 @@ async function processarTermoPro(
   signal: AbortSignal,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
-  
-  // Timeout por termo: aborta este termo após 120s para não travar a execução inteira
-  const termAbort = new AbortController();
-  const termTimeout = setTimeout(() => {
-    console.warn(`[DJEN Pro] ⏱ Timeout de ${CONFIG.term_timeout_ms / 1000}s atingido para "${mon.termo_busca}". Salvando resultados parciais.`);
-    termAbort.abort();
-  }, CONFIG.term_timeout_ms);
-  
-  // Combinar sinal global com sinal de timeout do termo
-  const combinedSignal = (() => {
-    const combined = new AbortController();
-    signal.addEventListener('abort', () => combined.abort(), { once: true });
-    termAbort.signal.addEventListener('abort', () => combined.abort(), { once: true });
-    if (signal.aborted || termAbort.signal.aborted) combined.abort();
-    return combined.signal;
-  })();
-  
-  try {
-    return await _processarTermoProInterno(mon, diaYmd, combinedSignal, signal);
-  } catch (e: any) {
-    const isAbort = e?.name === 'AbortError' || /abort/i.test(String(e?.message || ''));
-    // Abort global = cancelamento real do usuário
-    if (isAbort && signal.aborted) throw e;
-
-    // Timeout/abort local do termo: registrar e seguir para o próximo termo
-    if (isAbort) {
-      const termo = mon.descricao || mon.termo_busca;
-      const msg = `Timeout no termo "${termo}"`;
-      console.warn(`[DJEN Pro] ${msg}. Continuando execução...`);
-      updateProgress({
-        mensagem: `⚠️ ${msg}. Continuando...`,
-        ultimoErroBusca: msg,
-      });
-      return {
-        novas: 0,
-        duplicadas: 0,
-        descartadas: 0,
-        rateLimitHits: 0,
-        falhasBusca: 1,
-        buscasParciais: 1,
-        ultimoErroBusca: msg,
-      };
-    }
-
-    throw e;
-  } finally {
-    clearTimeout(termTimeout);
-  }
+  return await _processarTermoProInterno(mon, diaYmd, signal);
 }
 
 async function _processarTermoProInterno(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
-  globalSignal: AbortSignal,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
   
@@ -1256,11 +1208,6 @@ async function executarLoop(
       mensagem: 'Iniciando DJEN Termos Pro...',
     });
     
-    // Fila de retry: termos que falharem serão reprocessados no final
-    const retryQueue: { mon: Monitoramento; diaYmd: string; attempt: number }[] = [];
-    const MAX_RETRY_ATTEMPTS = 2;
-    const RETRY_COOLDOWN_MS = 20000; // 20s antes de cada retry
-    
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
       if (signal.aborted) break;
       const diaYmd = datas[diaIdx];
@@ -1286,26 +1233,7 @@ async function executarLoop(
 
         console.log(`[DJEN Pro] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
         
-        const resultado = await processarTermoPro(mon, diaYmd, signal).catch((err: any) => {
-          if (signal.aborted) throw err;
-          const termo = mon.descricao || mon.termo_busca;
-          const msg = `Falha no termo "${termo}"`;
-          console.warn(`[DJEN Pro] ${msg}. Adicionando à fila de retry e continuando...`, err?.message || err);
-          retryQueue.push({ mon, diaYmd, attempt: 1 });
-          updateProgress({
-            mensagem: `⚠️ ${msg}. Será retentado no final.`,
-            ultimoErroBusca: err?.message || msg,
-          });
-          return {
-            novas: 0,
-            duplicadas: 0,
-            descartadas: 0,
-            rateLimitHits: 0,
-            falhasBusca: 1,
-            buscasParciais: 1,
-            ultimoErroBusca: err?.message || msg,
-          };
-        });
+        const resultado = await processarTermoPro(mon, diaYmd, signal);
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
         acumDescartadas += resultado.descartadas;
@@ -1366,101 +1294,13 @@ async function executarLoop(
       }
     }
     
-    // ================================================================
-    // RETRY dos termos que falharam
-    // ================================================================
-    if (!signal.aborted && retryQueue.length > 0) {
-      console.log(`[DJEN Pro] 🔄 Iniciando retry de ${retryQueue.length} termos que falharam`);
-      updateProgress({
-        mensagem: `🔄 Retentando ${retryQueue.length} termos que falharam...`,
-      });
-      
-      let retryRound = 0;
-      let currentQueue = [...retryQueue];
-      
-      while (currentQueue.length > 0 && !signal.aborted && retryRound < MAX_RETRY_ATTEMPTS) {
-        retryRound++;
-        const nextQueue: typeof currentQueue = [];
-        
-        console.log(`[DJEN Pro] 🔄 Retry rodada ${retryRound}: ${currentQueue.length} termos`);
-        updateProgress({
-          mensagem: `🔄 Retry rodada ${retryRound}: ${currentQueue.length} termos`,
-        });
-        
-        // Cooldown maior antes de iniciar retries (API pode ter se acalmado)
-        await delay(RETRY_COOLDOWN_MS);
-        
-        for (let i = 0; i < currentQueue.length; i++) {
-          if (signal.aborted) break;
-          const { mon, diaYmd, attempt } = currentQueue[i];
-          const termo = mon.descricao || mon.termo_busca;
-          
-          console.log(`[DJEN Pro] 🔄 Retry ${retryRound}/${MAX_RETRY_ATTEMPTS} | ${i + 1}/${currentQueue.length} | "${termo}"`);
-          updateProgress({
-            termoAtual: `🔄 RETRY: ${termo}`,
-            mensagem: `🔄 Retry ${retryRound}: ${i + 1}/${currentQueue.length} | ${termo}`,
-          });
-          
-          try {
-            const resultado = await processarTermoPro(mon, diaYmd, signal);
-            acumNovas += resultado.novas;
-            acumDuplicadas += resultado.duplicadas;
-            acumDescartadas += resultado.descartadas;
-            acumRateLimitHits += resultado.rateLimitHits;
-            acumFalhasBusca += resultado.falhasBusca;
-            acumBuscasParciais += resultado.buscasParciais;
-            
-            if (resultado.novas > 0 || resultado.duplicadas > 0) {
-              console.log(`[DJEN Pro] ✅ Retry bem-sucedido: "${termo}" → ${resultado.novas} novas`);
-            }
-            
-            updateProgress({
-              novas: acumNovas,
-              duplicadas: acumDuplicadas,
-              descartadas: acumDescartadas,
-              rateLimitHits: acumRateLimitHits,
-              falhasBusca: acumFalhasBusca,
-              buscasParciais: acumBuscasParciais,
-            });
-          } catch (retryErr: any) {
-            if (signal.aborted) break;
-            console.warn(`[DJEN Pro] ❌ Retry falhou para "${termo}" (tentativa ${attempt + 1}):`, retryErr?.message);
-            
-            if (attempt + 1 <= MAX_RETRY_ATTEMPTS) {
-              nextQueue.push({ mon, diaYmd, attempt: attempt + 1 });
-            } else {
-              console.error(`[DJEN Pro] ⛔ Termo "${termo}" falhou após ${MAX_RETRY_ATTEMPTS} retries. Desistindo.`);
-              acumFalhasBusca += 1;
-              updateProgress({
-                falhasBusca: acumFalhasBusca,
-                ultimoErroBusca: `Falha permanente: ${termo}`,
-              });
-            }
-          }
-          
-          await delay(CONFIG.delay_between_terms * 2); // delay dobrado no retry
-        }
-        
-        currentQueue = nextQueue;
-      }
-      
-      const termosRecuperados = retryQueue.length - currentQueue.length;
-      if (termosRecuperados > 0) {
-        console.log(`[DJEN Pro] ✅ Retry recuperou ${termosRecuperados}/${retryQueue.length} termos`);
-      }
-      if (currentQueue.length > 0) {
-        console.warn(`[DJEN Pro] ⛔ ${currentQueue.length} termos não puderam ser recuperados após ${MAX_RETRY_ATTEMPTS} tentativas`);
-      }
-    }
-    
     if (!signal.aborted) {
       saveCheckpoint(null);
-      const retryInfo = retryQueue.length > 0 ? ` • ${retryQueue.length} termos retentados` : '';
       updateProgress({
         status: 'concluido',
         percentage: 100,
         globalCurrent: totalOps,
-        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas${retryInfo}${(acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''}`,
+        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas${(acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''}`,
       });
     } else {
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
