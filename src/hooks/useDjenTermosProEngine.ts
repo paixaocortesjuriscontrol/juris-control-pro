@@ -76,14 +76,16 @@ interface Checkpoint {
 // ============================================================================
 
 const CONFIG = {
-  delay_between_terms: 800,
-  delay_between_pages: 800,
+  delay_between_terms: 1200,
+  delay_between_pages: 1000,
+  delay_between_tribunais: 1200,
+  delay_between_termos_or: 1000,
   max_retries: 3,
-  retry_base_delay: 5000,
-  term_timeout_ms: 120000, // 2 minutes max per term
+  retry_base_delay: 8000,
+  term_timeout_ms: 180000, // 3 minutes max per term (mais tribunais = mais tempo)
   // Cooldown a cada N termos para evitar rate limit sustentado
-  batch_size: 20,
-  batch_cooldown_ms: 8000,
+  batch_size: 10,
+  batch_cooldown_ms: 12000,
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
