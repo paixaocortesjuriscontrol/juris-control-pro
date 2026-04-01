@@ -726,16 +726,16 @@ async function _processarTermoProInterno(
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave (texto)
+  // SOMENTE se a busca primária não retornou resultados suficientes
   // A API PJE Comunica pode não retornar resultados com nomeParte para alguns tribunais
-  // (ex: TST), então fazemos busca por texto como fallback
-  if (tipo === 'parte' && !signal.aborted) {
+  if (tipo === 'parte' && !signal.aborted && resultados.length === 0) {
     const termoTexto = mon.termo_busca
       ?.normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .trim();
     
     if (termoTexto) {
-      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
+      console.log(`[DJEN Pro] Busca complementar parte por palavraChave (primária retornou 0): "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
         const resp = await executarBusca(
@@ -754,7 +754,7 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        if (tribLoop.length > 1) await delay(600);
+        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
       }
     }
   }
