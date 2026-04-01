@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
+import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
