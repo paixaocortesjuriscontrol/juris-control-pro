@@ -350,6 +350,13 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[32]] = aparelhamentoVal === "Mal aparelhado" ? "X" : ""; // AG
         outRow[LAYOUT_COLS[33]] = chanceExito; // AH - Chance de êxito
 
+        // Sanitize: remove dash-only values from all columns
+        const dashOnlyRegex = /^[-–—\s]+$/;
+        for (const key of Object.keys(outRow)) {
+          if (typeof outRow[key] === "string" && dashOnlyRegex.test(outRow[key])) {
+            outRow[key] = "";
+          }
+        }
         output.push(outRow);
 
         if (i % 200 === 0) {
