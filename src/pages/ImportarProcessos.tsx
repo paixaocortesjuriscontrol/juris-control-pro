@@ -4382,10 +4382,21 @@ export default function ImportarProcessos() {
             benner_atualizado: renataData.benner_atualizado,
             transito_julgado: processo.transitadoJulgado,
           };
-          await supabase.from("distribuicoes_tst" as any).upsert(distData as any, {
-            onConflict: "processo_numero,data_distribuicao,aba_origem",
-            ignoreDuplicates: false,
-          });
+          // Delete existing record with same key, then insert
+          await supabase.from("distribuicoes_tst" as any)
+            .delete()
+            .eq("processo_numero", processo.numero.trim())
+            .eq("aba_origem", renataData.aba_origem || "");
+          
+          if (distData.data_distribuicao) {
+            await supabase.from("distribuicoes_tst" as any)
+              .delete()
+              .eq("processo_numero", processo.numero.trim())
+              .eq("data_distribuicao", distData.data_distribuicao)
+              .eq("aba_origem", renataData.aba_origem || "");
+          }
+          
+          await supabase.from("distribuicoes_tst" as any).insert(distData as any);
         }
 
         updatedProcessos[i] = {
