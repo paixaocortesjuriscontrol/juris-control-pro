@@ -1085,7 +1085,7 @@ async function _processarTermoProInterno(
   
   return {
     novas: novas.length,
-    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + (descartadas - descartadasEfetivas),
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length),
     descartadas: descartadasEfetivas,
     ...diagnostico,
   };
