@@ -831,7 +831,7 @@ async function _processarTermoProInterno(
         trib,
         `retry sem uf/oab | ${nomeNormalizado} | ${trib}`
       );
-      await delay(600);
+      await delay(CONFIG.delay_between_tribunais);
     }
   }
   
