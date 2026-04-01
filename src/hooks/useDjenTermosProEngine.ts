@@ -897,6 +897,7 @@ async function _processarTermoProInterno(
   }
   
   if (signal.aborted || resultados.length === 0) {
+    console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}": ${resultados.length} resultados brutos, abortado=${signal.aborted}. Nada a validar.`);
     return { novas: 0, duplicadas: 0, descartadas: 0, ...diagnostico };
   }
   
@@ -906,14 +907,16 @@ async function _processarTermoProInterno(
   let descartadas = 0;
   const pubsDescartadas: any[] = [];
   
-  console.log(`[DJEN Pro] Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo})`);
+  console.log(`[DJEN Pro] 📋 Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo}, tribunais=${tribunais.join(',') || 'TODOS'}, exclusoes=${mon.exclusoes?.join(',') || 'nenhuma'}, condicao=${mon.condicao_concomitante || 'nenhuma'})`);
   
-  const pubsValidas = resultados.filter(pub => {
+  const pubsValidas = resultados.filter((pub, idx) => {
+    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '?';
     // 1. Filtro de tribunal
     if (tribunais.length > 0) {
       const sigla = getSiglaTribunal(pub);
       if (!sigla || !tribunais.includes(sigla)) {
         descartadas++;
+        console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: tribunal "${sigla}" não permitido (esperado: ${tribunais.join(',')})`);
         pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
         return false;
       }
@@ -923,6 +926,7 @@ async function _processarTermoProInterno(
     const excEncontrada = temExclusao(pub, mon.exclusoes);
     if (excEncontrada) {
       descartadas++;
+      console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: exclusão "${excEncontrada}"`);
       pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${excEncontrada}` });
       return false;
     }
@@ -930,6 +934,7 @@ async function _processarTermoProInterno(
     // 3. Validar termo (usando metadados estruturados)
     if (!validarTermo(pub, mon)) {
       descartadas++;
+      console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
@@ -937,10 +942,12 @@ async function _processarTermoProInterno(
     // 4. Condição concomitante
     if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
       descartadas++;
+      console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: condição concomitante não atendida`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
       return false;
     }
     
+    console.log(`[DJEN Pro]   ✅ [${idx}] proc=${procNum} VÁLIDA`);
     return true;
   });
   
@@ -971,6 +978,8 @@ async function _processarTermoProInterno(
   
   const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
   const duplicadasBanco = pubsUnicas.length - novas.length;
+  
+  console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}" resumo: ${resultados.length} brutos → ${pubsValidas.length} válidas → ${pubsUnicas.length} únicas → ${novas.length} novas, ${duplicadasBanco} já no banco, ${descartadas} descartadas`);
   
   // Inserir novas
   if (novas.length > 0) {
