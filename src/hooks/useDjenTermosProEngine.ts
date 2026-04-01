@@ -884,7 +884,7 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        await delay(400);
+        await delay(CONFIG.delay_between_tribunais);
       }
       
       // Se tem OAB, buscar também por OAB (captura resultados que nome não encontra)
