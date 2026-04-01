@@ -38,6 +38,10 @@ export interface DjenTermosProProgress {
   tempoDecorrido: number;
   dataInicioYmd: string | null;
   dataFimYmd: string | null;
+  rateLimitHits: number;
+  falhasBusca: number;
+  buscasParciais: number;
+  ultimoErroBusca: string | null;
 }
 
 interface Monitoramento {
@@ -118,6 +122,10 @@ function createDefaultProgress(): DjenTermosProProgress {
     novas: 0, duplicadas: 0, descartadas: 0,
     mensagem: '', termoAtual: null, tempoDecorrido: 0,
     dataInicioYmd: null, dataFimYmd: null,
+    rateLimitHits: 0,
+    falhasBusca: 0,
+    buscasParciais: 0,
+    ultimoErroBusca: null,
   };
 }
 
@@ -539,8 +547,8 @@ async function processarTermoPro(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
-): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
-  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
+): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
   
   // Timeout por termo: aborta este termo após 120s para não travar a execução inteira
   const termAbort = new AbortController();
@@ -570,8 +578,8 @@ async function _processarTermoProInterno(
   diaYmd: string,
   signal: AbortSignal,
   globalSignal: AbortSignal,
-): Promise<{ novas: number; duplicadas: number; descartadas: number }> {
-  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0 };
+): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
   
   const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
   const tribunais = expandirTribunais(mon.tribunais);
@@ -591,6 +599,66 @@ async function _processarTermoProInterno(
           : item;
         resultados.push(enriched);
       }
+    }
+  };
+
+  const diagnostico = {
+    rateLimitHits: 0,
+    falhasBusca: 0,
+    buscasParciais: 0,
+    ultimoErroBusca: null as string | null,
+  };
+
+  const executarBusca = async (
+    params: Parameters<typeof buscarPjeComunicaPaginado>[0],
+    tribunal: string | undefined,
+    contexto: string,
+  ) => {
+    try {
+      const resp = await buscarPjeComunicaPaginado(params, {
+        signal,
+        maxPages: 999,
+        delayMs: CONFIG.delay_between_pages,
+        maxRetries: CONFIG.max_retries,
+        retryBaseDelay: CONFIG.retry_base_delay,
+        onRateLimit: (waitMs, attempt, page) => {
+          diagnostico.rateLimitHits += 1;
+          diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
+          const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
+          console.warn(`[DJEN Pro] ${aviso} | ${contexto}`);
+          updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
+        },
+      });
+
+      const failedPages = resp.failedPages ?? 0;
+      const buscaParcial = !!resp.partial || !!resp.truncated || failedPages > 0;
+      if (buscaParcial) {
+        diagnostico.buscasParciais += 1;
+        diagnostico.falhasBusca += failedPages;
+        if (resp.lastError) diagnostico.ultimoErroBusca = resp.lastError;
+        console.warn(
+          `[DJEN Pro] Busca parcial em ${contexto}: resultados=${resp.items.length}, ` +
+            `pages=${resp.pagesFetched}, failedPages=${failedPages}, truncated=${resp.truncated}` +
+            `${resp.lastError ? `, erro=${resp.lastError}` : ''}`
+        );
+        updateProgress({
+          mensagem: `⚠️ Busca parcial: ${contexto}`,
+          ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
+        });
+      }
+
+      addResults(resp.items, tribunal);
+      return resp;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+      diagnostico.falhasBusca += 1;
+      diagnostico.ultimoErroBusca = e?.message || 'Falha de busca';
+      console.warn(`[DJEN Pro] Falha em ${contexto}:`, e?.message);
+      updateProgress({
+        mensagem: `⚠️ Falha de busca: ${contexto}`,
+        ultimoErroBusca: diagnostico.ultimoErroBusca,
+      });
+      return null;
     }
   };
   
@@ -638,16 +706,13 @@ async function _processarTermoProInterno(
   for (const trib of tribLoop) {
     if (signal.aborted) break;
     
-    try {
-      const resp = await buscarPjeComunicaPaginado(
-        { ...baseParams, siglaTribunal: trib, page: 1 },
-        { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-      );
+    const resp = await executarBusca(
+      { ...baseParams, siglaTribunal: trib, page: 1 },
+      trib,
+      `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
+    );
+    if (resp) {
       console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
-      addResults(resp.items, trib);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') break;
-      console.warn(`[DJEN Pro] Erro busca ${trib ?? 'TODOS'}:`, e?.message);
     }
     
     if (tribLoop.length > 1) await delay(600);
@@ -666,22 +731,21 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
-        try {
-          const resp = await buscarPjeComunicaPaginado(
-            { 
-              tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: termoTexto,
-              siglaTribunal: trib,
-              dataInicio: diaYmd, dataFim: diaYmd, 
-              pageSize: 50, page: 1 
-            },
-            { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-          );
-          addResults(resp.items, trib);
+        const resp = await executarBusca(
+          {
+            tipo: 'palavra-chave' as PjeSearchType,
+            palavraChave: termoTexto,
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
+          },
+          trib,
+          `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
           console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
-        } catch (e: any) {
-          if (e?.name === 'AbortError') break;
-          console.warn(`[DJEN Pro] Erro busca complementar parte "${termoTexto}":`, e?.message);
         }
         if (tribLoop.length > 1) await delay(600);
       }
@@ -705,24 +769,21 @@ async function _processarTermoProInterno(
 
       for (const trib of tribLoop) {
         if (signal.aborted) break;
-        try {
-          const resp = await buscarPjeComunicaPaginado(
-            {
-              tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: encurtarParaApi(termoExtra),
-              siglaTribunal: trib,
-              dataInicio: diaYmd,
-              dataFim: diaYmd,
-              pageSize: 50,
-              page: 1,
-            },
-            { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-          );
-          addResults(resp.items, trib);
+        const resp = await executarBusca(
+          {
+            tipo: 'palavra-chave' as PjeSearchType,
+            palavraChave: encurtarParaApi(termoExtra),
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
+          },
+          trib,
+          `termos_or palavra-chave | ${termoExtra} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
           console.log(`[DJEN Pro] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
-        } catch (e: any) {
-          if (e?.name === 'AbortError') break;
-          console.warn(`[DJEN Pro] Erro termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}:`, e?.message);
         }
         if (tribLoop.length > 1) await delay(800);
       }
@@ -749,23 +810,20 @@ async function _processarTermoProInterno(
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
-      try {
-        console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
-        const resp = await buscarPjeComunicaPaginado(
-          { 
-            tipo: 'advogado' as PjeSearchType,
-            nomeAdvogado: nomeNormalizado,
-            siglaTribunal: trib,
-            dataInicio: diaYmd, dataFim: diaYmd, 
-            pageSize: 50, page: 1 
-          },
-          { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-        );
-        addResults(resp.items, trib);
-      } catch (e: any) {
-        if (e?.name === 'AbortError') break;
-        console.warn(`[DJEN Pro] Retry sem ufOab ${trib}:`, e?.message);
-      }
+      console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
+      await executarBusca(
+        {
+          tipo: 'advogado' as PjeSearchType,
+          nomeAdvogado: nomeNormalizado,
+          siglaTribunal: trib,
+          dataInicio: diaYmd,
+          dataFim: diaYmd,
+          pageSize: 50,
+          page: 1,
+        },
+        trib,
+        `retry sem uf/oab | ${nomeNormalizado} | ${trib}`
+      );
       await delay(600);
     }
   }
@@ -803,23 +861,21 @@ async function _processarTermoProInterno(
       
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
-        try {
-          // Busca por nomeAdvogado (correto para advogados, não palavraChave)
-          const resp = await buscarPjeComunicaPaginado(
-            { 
-              tipo: 'advogado' as PjeSearchType,
-              nomeAdvogado: nomeParaApi,
-              siglaTribunal: trib,
-              dataInicio: diaYmd, dataFim: diaYmd,
-              pageSize: 50, page: 1,
-            },
-            { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-          );
-          addResults(resp.items, trib);
+        const resp = await executarBusca(
+          {
+            tipo: 'advogado' as PjeSearchType,
+            nomeAdvogado: nomeParaApi,
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
+          },
+          trib,
+          `termos_or advogado | ${parsed.nome} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
           console.log(`[DJEN Pro] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
-        } catch (e: any) {
-          if (e?.name === 'AbortError') break;
-          console.warn(`[DJEN Pro] Erro busca termos_or "${parsed.nome}" trib=${trib}:`, e?.message);
         }
         await delay(400);
       }
@@ -828,29 +884,35 @@ async function _processarTermoProInterno(
       if (parsed.oabDigits && !signal.aborted) {
         for (const trib of textTribLoop) {
           if (signal.aborted) break;
-          try {
-            const resp = await buscarPjeComunicaPaginado(
-              {
-                tipo: 'advogado' as PjeSearchType,
-                oab: parsed.oabDigits,
-                siglaTribunal: trib,
-                dataInicio: diaYmd, dataFim: diaYmd,
-                pageSize: 50, page: 1,
-              },
-              { signal, maxPages: 999, delayMs: CONFIG.delay_between_pages, maxRetries: CONFIG.max_retries, retryBaseDelay: CONFIG.retry_base_delay }
-            );
-            addResults(resp.items, trib);
-          } catch (e: any) {
-            if (e?.name === 'AbortError') break;
-          }
+          await executarBusca(
+            {
+              tipo: 'advogado' as PjeSearchType,
+              oab: parsed.oabDigits,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
+            },
+            trib,
+            `termos_or advogado OAB | ${parsed.oabDigits} | ${trib ?? 'TODOS'}`
+          );
           await delay(400);
         }
       }
     }
   }
+
+  if (diagnostico.rateLimitHits > 0 || diagnostico.falhasBusca > 0 || diagnostico.buscasParciais > 0) {
+    console.warn(
+      `[DJEN Pro] Diagnóstico do termo "${mon.termo_busca}": ` +
+        `429=${diagnostico.rateLimitHits}, falhas=${diagnostico.falhasBusca}, parciais=${diagnostico.buscasParciais}` +
+        `${diagnostico.ultimoErroBusca ? `, último erro=${diagnostico.ultimoErroBusca}` : ''}`
+    );
+  }
   
   if (signal.aborted || resultados.length === 0) {
-    return { novas: 0, duplicadas: 0, descartadas: 0 };
+    return { novas: 0, duplicadas: 0, descartadas: 0, ...diagnostico };
   }
   
   // ================================================================
@@ -1022,6 +1084,7 @@ async function _processarTermoProInterno(
     novas: novas.length,
     duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + (descartadas - descartadasEfetivas),
     descartadas: descartadasEfetivas,
+    ...diagnostico,
   };
 }
 
@@ -1106,6 +1169,9 @@ async function executarLoop(
     let acumNovas = 0;
     let acumDuplicadas = 0;
     let acumDescartadas = 0;
+    let acumRateLimitHits = 0;
+    let acumFalhasBusca = 0;
+    let acumBuscasParciais = 0;
     
     if (cp && cp.runKey === runKey) {
       startDiaIdx = cp.diaIndice;
@@ -1149,6 +1215,10 @@ async function executarLoop(
       novas: acumNovas,
       duplicadas: acumDuplicadas,
       descartadas: acumDescartadas,
+      rateLimitHits: acumRateLimitHits,
+      falhasBusca: acumFalhasBusca,
+      buscasParciais: acumBuscasParciais,
+      ultimoErroBusca: null,
       mensagem: 'Iniciando DJEN Termos Pro...',
     });
     
@@ -1174,11 +1244,16 @@ async function executarLoop(
           percentage: percentageBefore,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
         });
+
+        console.log(`[DJEN Pro] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
         
         const resultado = await processarTermoPro(mon, diaYmd, signal);
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
         acumDescartadas += resultado.descartadas;
+        acumRateLimitHits += resultado.rateLimitHits;
+        acumFalhasBusca += resultado.falhasBusca;
+        acumBuscasParciais += resultado.buscasParciais;
         const percentageAfter = Math.min(99, Math.max(0, Math.round((globalCurrent / totalOps) * 100)));
         
         updateProgress({
@@ -1187,6 +1262,10 @@ async function executarLoop(
           novas: acumNovas,
           duplicadas: acumDuplicadas,
           descartadas: acumDescartadas,
+          rateLimitHits: acumRateLimitHits,
+          falhasBusca: acumFalhasBusca,
+          buscasParciais: acumBuscasParciais,
+          ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
         });
         
         // Checkpoint
@@ -1206,6 +1285,12 @@ async function executarLoop(
                 percentage: percentageAfter, termoAtual: mon.descricao || mon.termo_busca,
                 totalTermos: monitoramentos.length, totalDias: datas.length,
                 dataInicioYmd, dataFimYmd,
+                diagnostico: {
+                  rateLimitHits: acumRateLimitHits,
+                  falhasBusca: acumFalhasBusca,
+                  buscasParciais: acumBuscasParciais,
+                  ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
+                },
               },
             })
             .eq('id', executionId)
@@ -1222,7 +1307,7 @@ async function executarLoop(
         status: 'concluido',
         percentage: 100,
         globalCurrent: totalOps,
-        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas`,
+        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas${(acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''}`,
       });
     } else {
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
@@ -1253,6 +1338,12 @@ async function executarLoop(
               mensagem: state.progress.mensagem,
               dataInicioYmd,
               dataFimYmd,
+              diagnostico: {
+                rateLimitHits: state.progress.rateLimitHits,
+                falhasBusca: state.progress.falhasBusca,
+                buscasParciais: state.progress.buscasParciais,
+                ultimoErroBusca: state.progress.ultimoErroBusca,
+              },
             },
           })
           .eq('id', executionId);
