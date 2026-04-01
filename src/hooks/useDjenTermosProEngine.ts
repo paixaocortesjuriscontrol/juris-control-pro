@@ -82,7 +82,7 @@ const CONFIG = {
   delay_between_termos_or: 1000,
   max_retries: 3,
   retry_base_delay: 8000,
-  term_timeout_ms: 180000, // 3 minutes max per term (mais tribunais = mais tempo)
+  term_timeout_ms: 420000, // 7 minutes max por termo (evita abortar execução válida em dias com 429)
   // Cooldown a cada N termos para evitar rate limit sustentado
   batch_size: 10,
   batch_cooldown_ms: 12000,
@@ -575,6 +575,32 @@ async function processarTermoPro(
   
   try {
     return await _processarTermoProInterno(mon, diaYmd, combinedSignal, signal);
+  } catch (e: any) {
+    const isAbort = e?.name === 'AbortError' || /abort/i.test(String(e?.message || ''));
+    // Abort global = cancelamento real do usuário
+    if (isAbort && signal.aborted) throw e;
+
+    // Timeout/abort local do termo: registrar e seguir para o próximo termo
+    if (isAbort) {
+      const termo = mon.descricao || mon.termo_busca;
+      const msg = `Timeout no termo "${termo}"`;
+      console.warn(`[DJEN Pro] ${msg}. Continuando execução...`);
+      updateProgress({
+        mensagem: `⚠️ ${msg}. Continuando...`,
+        ultimoErroBusca: msg,
+      });
+      return {
+        novas: 0,
+        duplicadas: 0,
+        descartadas: 0,
+        rateLimitHits: 0,
+        falhasBusca: 1,
+        buscasParciais: 1,
+        ultimoErroBusca: msg,
+      };
+    }
+
+    throw e;
   } finally {
     clearTimeout(termTimeout);
   }
@@ -1255,7 +1281,25 @@ async function executarLoop(
 
         console.log(`[DJEN Pro] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
         
-        const resultado = await processarTermoPro(mon, diaYmd, signal);
+        const resultado = await processarTermoPro(mon, diaYmd, signal).catch((err: any) => {
+          if (signal.aborted) throw err;
+          const termo = mon.descricao || mon.termo_busca;
+          const msg = `Falha no termo "${termo}"`;
+          console.warn(`[DJEN Pro] ${msg}. Continuando com o próximo...`, err?.message || err);
+          updateProgress({
+            mensagem: `⚠️ ${msg}. Seguindo para o próximo...`,
+            ultimoErroBusca: err?.message || msg,
+          });
+          return {
+            novas: 0,
+            duplicadas: 0,
+            descartadas: 0,
+            rateLimitHits: 0,
+            falhasBusca: 1,
+            buscasParciais: 1,
+            ultimoErroBusca: err?.message || msg,
+          };
+        });
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
         acumDescartadas += resultado.descartadas;
