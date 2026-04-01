@@ -727,6 +727,7 @@ export function ProcessoDetalhesCompletos({
     { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
     { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
     { id: "tst", label: "TST", icon: Gavel },
+    { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
     { id: "prazo", label: "Prazo", icon: Clock },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
