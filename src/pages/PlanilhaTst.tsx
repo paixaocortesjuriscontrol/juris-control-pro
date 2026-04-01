@@ -918,7 +918,7 @@ export default function PlanilhaTst() {
             numero_processo: proc,
             data_distribuicao: dataDistrib,
             mes_ano: mesAno,
-            dossie: getFieldFromRow(row, sheet.headers, "dossi", "dossie", "dossiê") || NOT_FOUND,
+            dossie: sanitizeDossie(getFieldFromRow(row, sheet.headers, "dossi", "dossie", "dossiê"), proc) || NOT_FOUND,
             equipe: getFieldFromRow(row, sheet.headers, "equipe") || NOT_FOUND,
             reclamante: getFieldFromRow(row, sheet.headers, "reclamante") || NOT_FOUND,
             reclamada: getFieldFromRow(row, sheet.headers, "reclamada") || NOT_FOUND,
