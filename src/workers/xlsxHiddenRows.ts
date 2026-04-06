@@ -3,7 +3,7 @@
  * SheetJS community edition does NOT populate ws["!rows"] with hidden metadata,
  * so we must read it directly from the zip.
  */
-import JSZip from "jszip";
+import * as JSZip from "jszip";
 
 interface SheetHiddenRows {
   [sheetName: string]: Set<number>;
