@@ -302,8 +302,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : formatToUTC(endOfDay(new Date()));
 
-      const buildQ = (table: string, lida?: boolean) => {
-        let q = (supabase.from(table) as any).select('id', { count: 'exact', head: true })
+      const countQuery = (table: 'publicacoes_djen' | 'publicacoes_djen_processos', lida?: boolean) => {
+        let q = supabase.from(table).select('id', { count: 'exact', head: true })
           .gte('created_at', di).lte('created_at', df);
         if (lida !== undefined) q = q.eq('lida', lida);
         return q;
