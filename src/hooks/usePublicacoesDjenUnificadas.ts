@@ -390,9 +390,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
           // Buscar processos tanto pelo número formatado quanto apenas dígitos
           const uniqueNumerosRaw = [...new Set(termoSemId.map((p) => p.processo_numero!).filter(Boolean))];
-          const { data: processosExistentes } = await supabase
+          // Buscar processos da mesma coordenação para matching por dígitos
+          let qProcessos = supabase
             .from('processos')
             .select('id, numero');
+          if (filtros.coordenacaoId) {
+            qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
+          }
+          const { data: processosExistentes } = await qProcessos;
 
           // Construir mapa por dígitos para matching robusto
           const processosDigitsMap: Record<string, string> = {};
