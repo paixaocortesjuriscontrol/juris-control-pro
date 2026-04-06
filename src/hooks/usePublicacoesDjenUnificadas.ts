@@ -302,11 +302,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : formatToUTC(endOfDay(new Date()));
 
-      const countQuery = (table: 'publicacoes_djen' | 'publicacoes_djen_processos', lida?: boolean) => {
+      const countQuery = (table: 'publicacoes_djen' | 'publicacoes_djen_processos', lida?: boolean): any => {
         let q: any = supabase.from(table).select('id', { count: 'exact', head: true })
           .gte('created_at', di).lte('created_at', df);
         if (lida !== undefined) q = q.eq('lida', lida);
-        return q as Promise<{ count: number | null }>;
+        return q;
       };
 
       if (filtros.coordenacaoId) {
