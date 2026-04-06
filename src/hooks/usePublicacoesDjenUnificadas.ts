@@ -271,6 +271,89 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     staleTime: 30_000,
   });
 
+  // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
+  const { data: statsIndependentes } = useQuery({
+    queryKey: [
+      'publicacoes-unificadas-stats-header',
+      user?.id,
+      {
+        coordenacaoId: filtros.coordenacaoId ?? null,
+        apenasHoje: filtros.apenasHoje ?? null,
+        dataInicio: filtros.dataInicio ?? null,
+        dataFim: filtros.dataFim ?? null,
+      },
+    ],
+    queryFn: async () => {
+      if (!user?.id) return { total: 0, naoLidas: 0 };
+
+      const hoje = new Date();
+      const trintaDiasAtras = new Date(hoje);
+      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
+
+      const di = filtros.apenasHoje
+        ? formatToUTC(startOfDay(new Date()))
+        : filtros.dataInicio
+          ? dateLocalToUTCRange(filtros.dataInicio, false)
+          : dateLocalToUTCRange(defaultInicioYmd, false);
+      const df = filtros.apenasHoje
+        ? formatToUTC(endOfDay(new Date()))
+        : filtros.dataFim
+          ? dateLocalToUTCRange(filtros.dataFim, true)
+          : formatToUTC(endOfDay(new Date()));
+
+      const countQuery = (table: 'publicacoes_djen' | 'publicacoes_djen_processos', lida?: boolean): any => {
+        let q: any = supabase.from(table).select('id', { count: 'exact', head: true })
+          .gte('created_at', di).lte('created_at', df);
+        if (lida !== undefined) q = q.eq('lida', lida);
+        return q;
+      };
+
+      if (filtros.coordenacaoId) {
+        const { data: monIds } = await supabase
+          .from('monitoramentos_djen').select('id').eq('coordenacao_id', filtros.coordenacaoId);
+        const mIds = (monIds || []).map(m => m.id);
+
+        const { data: procIds } = await supabase
+          .from('processos').select('id').eq('coordenacao_id', filtros.coordenacaoId);
+        const pIds = (procIds || []).map(p => p.id);
+
+        let tTermos = 0, nTermos = 0, tProc = 0, nProc = 0;
+
+        if (mIds.length > 0) {
+          const [t, n] = await Promise.all([
+            countQuery('publicacoes_djen').in('monitoramento_id', mIds),
+            countQuery('publicacoes_djen', false).in('monitoramento_id', mIds),
+          ]);
+          tTermos = t.count || 0;
+          nTermos = n.count || 0;
+        }
+        if (pIds.length > 0) {
+          const [t, n] = await Promise.all([
+            countQuery('publicacoes_djen_processos').in('processo_id', pIds),
+            countQuery('publicacoes_djen_processos', false).in('processo_id', pIds),
+          ]);
+          tProc = t.count || 0;
+          nProc = n.count || 0;
+        }
+        return { total: tTermos + tProc, naoLidas: nTermos + nProc };
+      }
+
+      const [tT, nT, tP, nP] = await Promise.all([
+        countQuery('publicacoes_djen'),
+        countQuery('publicacoes_djen', false),
+        countQuery('publicacoes_djen_processos'),
+        countQuery('publicacoes_djen_processos', false),
+      ]);
+      return {
+        total: (tT.count || 0) + (tP.count || 0),
+        naoLidas: (nT.count || 0) + (nP.count || 0),
+      };
+    },
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  });
+
   // Buscar publicações unificadas
   const { data: publicacoes = [], isLoading } = useQuery({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
@@ -935,8 +1018,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     loadingStats: isLoading,
     marcarComoLida,
-    totalHoje: estatisticas.reduce((acc, s) => acc + s.total, 0),
-    naoLidasHoje: estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
+    totalHoje: statsIndependentes?.total ?? estatisticas.reduce((acc, s) => acc + s.total, 0),
+    naoLidasHoje: statsIndependentes?.naoLidas ?? estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
     totalDescartadasHoje,
   };
 }
