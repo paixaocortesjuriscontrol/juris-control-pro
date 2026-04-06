@@ -315,8 +315,12 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
         // Turma: garantir que sempre tenha a palavra "Turma"
         let turmaVal = colTurma ? String(row[colTurma] ?? "").trim() : "";
-        if (turmaVal && !normalizeText(turmaVal).includes("turma") && !normalizeText(turmaVal).includes("presidencia") && !normalizeText(turmaVal).includes("gabinete")) {
+        const turmaLower = normalizeText(turmaVal);
+        if (turmaVal && !turmaLower.includes("turma") && !turmaLower.includes("presidencia") && !turmaLower.includes("gabinete") && !turmaLower.includes("pleno")) {
           turmaVal = turmaVal + " Turma";
+        }
+        if (turmaVal === "PRESIDÊNCIA" || turmaVal === "PRESIDENCIA") {
+          turmaVal = "Presidência";
         }
         outRow[LAYOUT_COLS[4]] = turmaVal; // Turma
         outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
