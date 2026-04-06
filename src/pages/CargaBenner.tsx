@@ -322,13 +322,13 @@ export default function CargaBenner() {
         let riscoVal = "";
         if (midiaNorm.startsWith("sim")) {
           midiaHVal = "S";
-          // Extract risk description after "SIM" (e.g. "SIM - Risco alto" or "SIM, descrição")
-          const riscoMatch = midiaRaw.match(/^[Ss][Ii][Mm]\s*[-–—,.:]\s*(.*)/);
-          riscoVal = riscoMatch?.[1]?.trim() || "";
-        } else if (midiaNorm === "nao" || midiaNorm === "n" || midiaNorm === "não") {
+          // Extract everything after "SIM" as risk description (strip separators like "- ", "– ", etc.)
+          const afterSim = midiaRaw.replace(/^[Ss][Ii][Mm]\s*[-–—,.:;]*\s*/, "").trim();
+          riscoVal = afterSim || "";
+        } else if (midiaNorm === "nao" || midiaNorm === "n" || midiaNorm === "não" || midiaNorm === "") {
+          midiaHVal = midiaRaw ? "N" : "";
+        } else {
           midiaHVal = "N";
-        } else if (midiaRaw) {
-          midiaHVal = toSN(midiaRaw);
         }
         outRow[LAYOUT_COLS[7]] = midiaHVal; // Mídia negativa S/N
         outRow[LAYOUT_COLS[8]] = riscoVal; // Risco
