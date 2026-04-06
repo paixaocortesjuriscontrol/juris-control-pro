@@ -113,6 +113,8 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
     let rowCounter = 0;
 
     for (let i = headerIdx + 1; i < json.length; i++) {
+      // Skip hidden rows from the original spreadsheet
+      if (hiddenRows.has(i)) continue;
       const row = json[i];
       if (!row || row.every((c: any) => !c && c !== 0)) continue;
       const obj: Record<string, any> = {};
