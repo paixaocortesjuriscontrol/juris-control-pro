@@ -386,10 +386,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (termoSemId.length > 0) {
           // Extrair apenas dígitos para normalização (publicações podem vir com ou sem formatação)
           const toDigits = (n: string) => n.replace(/\D/g, '');
-          const uniqueDigits = [...new Set(termoSemId.map((p) => toDigits(p.processo_numero!)).filter(Boolean))];
 
-          // Buscar processos tanto pelo número formatado quanto apenas dígitos
-          const uniqueNumerosRaw = [...new Set(termoSemId.map((p) => p.processo_numero!).filter(Boolean))];
+          // Buscar processos da mesma coordenação para matching por dígitos
           // Buscar processos da mesma coordenação para matching por dígitos
           let qProcessos = supabase
             .from('processos')
