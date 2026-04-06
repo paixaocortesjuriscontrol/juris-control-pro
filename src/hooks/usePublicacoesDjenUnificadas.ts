@@ -322,16 +322,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (mIds.length > 0) {
           const [t, n] = await Promise.all([
-            buildQ('publicacoes_djen').in('monitoramento_id', mIds),
-            buildQ('publicacoes_djen', false).in('monitoramento_id', mIds),
+            countQuery('publicacoes_djen').in('monitoramento_id', mIds),
+            countQuery('publicacoes_djen', false).in('monitoramento_id', mIds),
           ]);
           tTermos = t.count || 0;
           nTermos = n.count || 0;
         }
         if (pIds.length > 0) {
           const [t, n] = await Promise.all([
-            buildQ('publicacoes_djen_processos').in('processo_id', pIds),
-            buildQ('publicacoes_djen_processos', false).in('processo_id', pIds),
+            countQuery('publicacoes_djen_processos').in('processo_id', pIds),
+            countQuery('publicacoes_djen_processos', false).in('processo_id', pIds),
           ]);
           tProc = t.count || 0;
           nProc = n.count || 0;
@@ -340,10 +340,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       const [tT, nT, tP, nP] = await Promise.all([
-        buildQ('publicacoes_djen'),
-        buildQ('publicacoes_djen', false),
-        buildQ('publicacoes_djen_processos'),
-        buildQ('publicacoes_djen_processos', false),
+        countQuery('publicacoes_djen'),
+        countQuery('publicacoes_djen', false),
+        countQuery('publicacoes_djen_processos'),
+        countQuery('publicacoes_djen_processos', false),
       ]);
       return {
         total: (tT.count || 0) + (tP.count || 0),
