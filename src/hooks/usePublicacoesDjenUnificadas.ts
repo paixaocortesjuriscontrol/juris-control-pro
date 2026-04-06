@@ -384,20 +384,29 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           (p) => p.tipo_origem === 'termo' && !p.processo_id && !!p.processo_numero
         );
         if (termoSemId.length > 0) {
-          const uniqueNumeros = [...new Set(termoSemId.map((p) => p.processo_numero!).filter(Boolean))];
-          const { data: processosExistentes } = await supabase
-            .from('processos')
-            .select('id, numero')
-            .in('numero', uniqueNumeros);
+          // Extrair apenas dígitos para normalização (publicações podem vir com ou sem formatação)
+          const toDigits = (n: string) => n.replace(/\D/g, '');
 
-          const processosExistentesMap: Record<string, string> = {};
+          // Buscar processos da mesma coordenação para matching por dígitos
+          // Buscar processos da mesma coordenação para matching por dígitos
+          let qProcessos = supabase
+            .from('processos')
+            .select('id, numero');
+          if (filtros.coordenacaoId) {
+            qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
+          }
+          const { data: processosExistentes } = await qProcessos;
+
+          // Construir mapa por dígitos para matching robusto
+          const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
-            processosExistentesMap[p.numero] = p.id;
+            processosDigitsMap[toDigits(p.numero)] = p.id;
           });
 
           filteredByType.forEach((p) => {
             if (p.tipo_origem === 'termo' && !p.processo_id && p.processo_numero) {
-              p.processo_id = processosExistentesMap[p.processo_numero] || null;
+              const digits = toDigits(p.processo_numero);
+              p.processo_id = processosDigitsMap[digits] || null;
             }
           });
         }
