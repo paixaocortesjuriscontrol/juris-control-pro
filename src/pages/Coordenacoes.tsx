@@ -153,8 +153,8 @@ const Coordenacoes = () => {
 
       if (error) throw error;
 
+      await queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
       toast({ title: "Membro removido da equipe" });
-      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
     } catch (error: any) {
       toast({
         title: "Erro ao remover membro",
