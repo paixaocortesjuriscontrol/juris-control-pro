@@ -149,6 +149,7 @@ export default function CargaBenner() {
   // Parsed data
   const [sheets1, setSheets1] = useState<ParsedSheet[] | null>(null);
   const [sheets2, setSheets2] = useState<ParsedSheet[] | null>(null);
+  const [modoCompleto, setModoCompleto] = useState(true); // true = todas colunas, false = até coluna Q
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>, which: 1 | 2) => {
     const f = e.target.files?.[0];
@@ -312,7 +313,12 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
         outRow[LAYOUT_COLS[2]] = tipoRecurso; // Tipo de Recurso
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
-        outRow[LAYOUT_COLS[4]] = colTurma ? String(row[colTurma] ?? "") : ""; // Turma
+        // Turma: garantir que sempre tenha a palavra "Turma"
+        let turmaVal = colTurma ? String(row[colTurma] ?? "").trim() : "";
+        if (turmaVal && !normalizeText(turmaVal).includes("turma") && !normalizeText(turmaVal).includes("presidencia") && !normalizeText(turmaVal).includes("gabinete")) {
+          turmaVal = turmaVal + " Turma";
+        }
+        outRow[LAYOUT_COLS[4]] = turmaVal; // Turma
         outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
         outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
         // Mídia negativa (col W): "NÃO" → H="N"; "SIM - descrição risco" → H="S", I=descrição
@@ -404,18 +410,15 @@ export default function CargaBenner() {
     }
   };
 
-  const downloadXlsx = async () => {
+  const downloadXlsx = async (fullMode: boolean) => {
     if (!outputData) return;
     try {
-      // Fetch the original template
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
       if (!resp.ok) throw new Error("Template não encontrado");
       const templateBuf = await resp.arrayBuffer();
       const zip = await JSZip.loadAsync(templateBuf);
 
-      // Read the existing shared strings
       const sstXml = await zip.file("xl/sharedStrings.xml")!.async("string");
-      // Parse existing strings
       const existingStrings: string[] = [];
       const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
       let m: RegExpExecArray | null;
@@ -423,7 +426,6 @@ export default function CargaBenner() {
         existingStrings.push(m[1]);
       }
 
-      // Build string index for data values
       const stringMap = new Map<string, number>();
       existingStrings.forEach((s, i) => stringMap.set(s, i));
       const newStrings = [...existingStrings];
@@ -436,7 +438,6 @@ export default function CargaBenner() {
         return idx;
       }
 
-      // Convert column index to Excel letter (0=A, 1=B, ..., 25=Z, 26=AA, ...)
       function colToLetter(c: number): string {
         let s = "";
         let n = c;
@@ -447,43 +448,61 @@ export default function CargaBenner() {
         return s;
       }
 
-      // Build data rows XML (starting at row 3)
+      const maxCol = fullMode ? LAYOUT_COLS.length : 17; // até Q (índice 16, 17 colunas)
+
+      // Read existing styles to find/create centered style
+      let stylesXml = await zip.file("xl/styles.xml")!.async("string");
+      // Find existing cellXfs count
+      const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
+      let centeredStyleId = 0;
+      if (cellXfsMatch) {
+        const currentCount = parseInt(cellXfsMatch[1]);
+        // Add a centered alignment xf entry
+        const centeredXf = `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
+        stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + `</cellXfs>`);
+        stylesXml = stylesXml.replace(`<cellXfs count="${currentCount}">`, `<cellXfs count="${currentCount + 1}">`);
+        centeredStyleId = currentCount; // new style is at the end
+        zip.file("xl/styles.xml", stylesXml);
+      }
+
       let dataRowsXml = "";
       for (let i = 0; i < outputData.length; i++) {
         const row = outputData[i];
-        const rowNum = i + 3; // rows 1,2 are headers
+        const rowNum = i + 3;
         let cellsXml = "";
-        for (let c = 0; c < LAYOUT_COLS.length; c++) {
+        for (let c = 0; c < maxCol; c++) {
           const val = String(row[LAYOUT_COLS[c]] ?? "");
           if (!val) continue;
           const ref = colToLetter(c) + rowNum;
           const idx = getStringIndex(val);
-          cellsXml += `<c r="${ref}" t="s"><v>${idx}</v></c>`;
+          // Centralizar colunas A-F (índices 0-5)
+          if (c <= 5 && centeredStyleId > 0) {
+            cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${idx}</v></c>`;
+          } else {
+            cellsXml += `<c r="${ref}" t="s"><v>${idx}</v></c>`;
+          }
         }
-        dataRowsXml += `<row r="${rowNum}" spans="1:34">${cellsXml}</row>`;
+        dataRowsXml += `<row r="${rowNum}" spans="1:${maxCol}">${cellsXml}</row>`;
       }
 
-      // Modify sheet1.xml: insert data rows before </sheetData>
       let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
-      // Update dimension
       const lastRow = outputData.length + 2;
-      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:AH${lastRow}"/>`);
-      // Insert data rows before </sheetData>
+      const lastColLetter = colToLetter(maxCol - 1);
+      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${lastColLetter}${lastRow}"/>`);
       sheetXml = sheetXml.replace("</sheetData>", dataRowsXml + "</sheetData>");
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-      // Update shared strings
       const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       const newSstEntries = newStrings.map(s => `<si><t>${escapeXml(s)}</t></si>`).join("");
       const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
       zip.file("xl/sharedStrings.xml", newSst);
 
-      // Generate and download
+      const suffix = fullMode ? "" : "_ate_recurso";
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Layout_Carga_modulo_TST.xlsx";
+      a.download = `Layout_Carga_modulo_TST${suffix}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Planilha baixada!");
@@ -616,18 +635,24 @@ export default function CargaBenner() {
         {outputData && (
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-6 h-6 text-green-500" />
                   <div>
                     <p className="font-semibold text-foreground">Layout Carga pronto!</p>
-                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas com {LAYOUT_COLS.length} colunas</p>
+                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas</p>
                   </div>
                 </div>
-                <Button onClick={downloadXlsx}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Baixar Layout Carga (.xlsx)
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => downloadXlsx(true)}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Completa (A-AH)
+                  </Button>
+                  <Button variant="outline" onClick={() => downloadXlsx(false)}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Até Recurso (A-Q)
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
