@@ -1,0 +1,1 @@
+UPDATE processos SET cliente_id = '5e0d39dd-a999-477f-a853-925832debdcf' WHERE id IN ('d5dbb9f4-1637-4e7b-9022-0c5f6bab420a','4cbe0fcd-a2d3-4c9d-9b85-9b05d027506e','a05587d2-5536-4f6c-beae-8b7bade96c2b','13dff7c2-4905-481e-88e9-23e816e6c7d3');
