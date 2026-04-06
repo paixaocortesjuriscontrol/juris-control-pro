@@ -87,8 +87,17 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
       raw: false,
       rawNumbers: false,
       defval: "",
-      blankrows: false,
+      blankrows: true,
     }) as any[][];
+
+    // Build set of hidden row indices (0-based) from worksheet metadata
+    const hiddenRows = new Set<number>();
+    const rowInfo = (ws as any)["!rows"];
+    if (Array.isArray(rowInfo)) {
+      for (let r = 0; r < rowInfo.length; r++) {
+        if (rowInfo[r]?.hidden) hiddenRows.add(r);
+      }
+    }
 
     const headerIdx = detectHeaderRow(json);
     const headers = (json[headerIdx] || []).map((h: any) => String(h || ""));
@@ -104,6 +113,8 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
     let rowCounter = 0;
 
     for (let i = headerIdx + 1; i < json.length; i++) {
+      // Skip hidden rows from the original spreadsheet
+      if (hiddenRows.has(i)) continue;
       const row = json[i];
       if (!row || row.every((c: any) => !c && c !== 0)) continue;
       const obj: Record<string, any> = {};
