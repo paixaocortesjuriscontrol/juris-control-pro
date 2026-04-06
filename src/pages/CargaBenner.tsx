@@ -149,6 +149,7 @@ export default function CargaBenner() {
   // Parsed data
   const [sheets1, setSheets1] = useState<ParsedSheet[] | null>(null);
   const [sheets2, setSheets2] = useState<ParsedSheet[] | null>(null);
+  const [modoCompleto, setModoCompleto] = useState(true); // true = todas colunas, false = até coluna Q
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>, which: 1 | 2) => {
     const f = e.target.files?.[0];
