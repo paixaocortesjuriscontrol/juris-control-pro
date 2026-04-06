@@ -1,57 +1,33 @@
 
 
-## Análise: Por Que as Duplicatas Estão Elevadas no DJEN Termos Pro
+## Problema
 
-### Causas Identificadas
+Na tela de Coordenações, os nomes dos membros aparecem como "Membro" ao invés do nome real. Isso acontece porque:
 
-**1. Contador de duplicatas inflado artificialmente (linha 1075)**
+1. A view `profiles_basic` foi alterada para `security_invoker = true` (migration `20251209003234`)
+2. Com `security_invoker`, a view respeita a RLS da tabela `profiles`
+3. A RLS de `profiles` só permite ver o próprio perfil OU se for admin/coordenador
+4. Katarine Dias (advogada comum) não consegue ver os nomes dos outros membros via `profiles_basic`
+5. O código exibe `"Membro"` como fallback quando `member.usuario?.nome` é `undefined`
 
-O cálculo atual é:
-```text
-duplicadas = duplicadasBanco 
-           + (pubsValidas.length - pubsUnicas.length)   // dedup local por hash
-           + (descartadas - descartadasEfetivas)         // ← PROBLEMA
+## Correção
+
+Criar uma migration que recria a view `profiles_basic` com `security_invoker = false` (equivalente a `SECURITY DEFINER`). Essa view expõe apenas `id` e `nome` — dados não sensíveis que qualquer usuário autenticado precisa ver para a interface funcionar.
+
+```sql
+DROP VIEW IF EXISTS public.profiles_basic;
+
+CREATE VIEW public.profiles_basic 
+WITH (security_invoker = false)
+AS
+SELECT id, nome
+FROM public.profiles;
+
+GRANT SELECT ON public.profiles_basic TO authenticated;
 ```
 
-O terceiro termo `(descartadas - descartadasEfetivas)` soma ao contador de duplicatas as publicações descartadas que eram duplicatas entre si. Isso **infla** o número porque itens descartados por motivos legítimos (tribunal errado, exclusão, etc.) que coincidentemente tinham hash igual são contados como "duplicatas" quando na verdade são "descartadas repetidas". Esse número deveria ser ignorado ou reportado separadamente.
+Isso é seguro porque a view expõe apenas dois campos (id, nome) sem dados sensíveis como email ou telefone.
 
-**2. Múltiplas estratégias de busca retornam os mesmos itens com IDs diferentes**
-
-O engine faz várias chamadas à API para o mesmo monitoramento:
-- Busca primária (por OAB/nome/parte)
-- Retry sem UF para tribunais superiores
-- Buscas individuais para cada `termos_or`
-- Busca complementar para tipo `parte`
-
-A deduplicação no `addResults` (linhas 570-584) usa o `id` da API como chave. Porém, a mesma publicação pode ter IDs diferentes quando retornada por chamadas diferentes (ex: busca por nome vs busca por OAB). Esses itens passam o filtro `seen` mas são pegos depois pelo hash local → contam como duplicatas.
-
-**3. Dedup no banco é por `monitoramento_id + hash_conteudo`**
-
-Se o usuário roda a busca mais de uma vez no mesmo dia, TODAS as publicações já salvas voltam como "duplicadasBanco". Isso é comportamento correto mas faz o número parecer alto.
-
-### Plano de Correção
-
-**Arquivo**: `src/hooks/useDjenTermosProEngine.ts`
-
-1. **Corrigir o cálculo de duplicatas (linha 1075)**: Remover o termo `(descartadas - descartadasEfetivas)` do contador de duplicatas. Publicações descartadas que são duplicatas entre si não devem inflar o contador de duplicadas — são simplesmente descartadas redundantes.
-
-2. **Melhorar a deduplicação no `addResults` (linhas 570-584)**: Além de deduplicar por `id` da API, gerar um hash de conteúdo já no momento da coleta e usar como chave secundária. Isso evita que a mesma publicação entre no array `resultados` múltiplas vezes quando vem de chamadas diferentes com IDs distintos.
-
-3. **Adicionar log separando os tipos de duplicata**: No log de resumo (linha 978), discriminar:
-   - Duplicatas locais (hash): quantas foram deduplicadas dentro da mesma execução
-   - Duplicatas banco: quantas já existiam no banco
-   - Isso permite diagnosticar se o problema é excesso de chamadas à API ou re-execução
-
-### Seção Técnica
-
-```text
-ANTES:
-  addResults → dedup por item.id apenas
-  duplicadas = banco + hashLocal + (descartadas - descEfetivas)  ← inflado
-
-DEPOIS:
-  addResults → dedup por item.id + fallback por hash de conteúdo
-  duplicadas = banco + hashLocal  ← preciso
-  log: "X dedup API-id, Y dedup hash-local, Z já no banco"
-```
+### Arquivo modificado
+- Nova migration SQL (via ferramenta de database)
 
