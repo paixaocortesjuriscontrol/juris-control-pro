@@ -342,9 +342,10 @@ export default function CargaBenner() {
         }
         outRow[LAYOUT_COLS[7]] = midiaHVal; // Mídia negativa S/N
         outRow[LAYOUT_COLS[8]] = riscoVal; // Risco
-        // Coluna U da distribuição (índice 20): se contém "Prova Digital" ou "Provas Digitais" → "S"
+        // Coluna U (índice 20) ou Coluna Q (índice 16): se contém "Prova Digital" ou "Provas Digitais" → "S"
         const colUVal = normalizeText(String(row["__col20"] ?? ""));
-        const hasProvaDigital = colUVal.includes("prova digital") || colUVal.includes("provas digitais");
+        const colQVal = normalizeText(String(row["__col16"] ?? ""));
+        const hasProvaDigital = colUVal.includes("prova digital") || colUVal.includes("provas digitais") || colQVal.includes("prova digital") || colQVal.includes("provas digitais");
         outRow[LAYOUT_COLS[9]] = hasProvaDigital ? "S" : "N"; // Provas digitais
         outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N"; // Temos data julgamento
         const dataJulgVal = hasJulg && pColDataJulg ? formatDateDDMMYYYY(String(pauta![pColDataJulg] ?? "")) : "";
