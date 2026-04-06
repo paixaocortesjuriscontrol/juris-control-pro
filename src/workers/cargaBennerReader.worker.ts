@@ -53,12 +53,23 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean, keys: string[]): P
 
   for (let si = 0; si < sheetNames.length; si++) {
     const ws = wb.Sheets[sheetNames[si]];
-    const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, rawNumbers: false, defval: "", blankrows: false }) as any[][];
+    const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, rawNumbers: false, defval: "", blankrows: true }) as any[][];
+
+    // Build set of hidden row indices (0-based) from worksheet metadata
+    const hiddenRows = new Set<number>();
+    const rowInfo = (ws as any)["!rows"];
+    if (Array.isArray(rowInfo)) {
+      for (let r = 0; r < rowInfo.length; r++) {
+        if (rowInfo[r]?.hidden) hiddenRows.add(r);
+      }
+    }
+
     const headerIdx = detectHeaderRow(json, keys);
     const headers = (json[headerIdx] || []).map((h: any) => String(h || ""));
     const rows: Record<string, any>[] = [];
 
     for (let i = headerIdx + 1; i < json.length; i++) {
+      if (hiddenRows.has(i)) continue;
       const row = json[i];
       if (!row || row.every((c: any) => !c && c !== 0)) continue;
       const obj: Record<string, any> = {};
