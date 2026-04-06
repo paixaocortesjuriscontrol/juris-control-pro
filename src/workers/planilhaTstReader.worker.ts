@@ -1,5 +1,6 @@
 // Web Worker for reading XLSX files to avoid freezing the main thread
 import * as XLSX from "xlsx";
+import { extractHiddenRows } from "./xlsxHiddenRows";
 
 function normalizeText(val: unknown): string {
   return String(val ?? "")
@@ -20,28 +21,15 @@ interface ParsedSheet {
 
 function scoreHeaderRow(row: any[]): number {
   const keys = [
-    "processo",
-    "cnj",
-    "dossie",
-    "dossiê",
-    "relator",
-    "turma",
-    "reclamante",
-    "reclamada",
-    "equipe",
-    "distrib",
-    "data",
+    "processo", "cnj", "dossie", "dossiê", "relator", "turma",
+    "reclamante", "reclamada", "equipe", "distrib", "data",
   ];
-
   let score = 0;
   for (const cell of row || []) {
     const text = normalizeText(cell);
     if (!text) continue;
     for (const key of keys) {
-      if (text.includes(key)) {
-        score++;
-        break;
-      }
+      if (text.includes(key)) { score++; break; }
     }
   }
   return score;
@@ -56,10 +44,7 @@ function detectHeaderRow(json: any[][]): number {
     const row = json[i];
     if (!row || row.every((c: any) => !String(c ?? "").trim())) continue;
     const score = scoreHeaderRow(row);
-    if (score > bestScore) {
-      bestScore = score;
-      bestIdx = i;
-    }
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
   }
 
   if (bestScore >= 2) return bestIdx;
@@ -74,30 +59,33 @@ function detectHeaderRow(json: any[][]): number {
   return 0;
 }
 
-function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
+function formatDateVal(val: any): any {
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const d = val.getUTCDate().toString().padStart(2, "0");
+    const m = (val.getUTCMonth() + 1).toString().padStart(2, "0");
+    const y = val.getUTCFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  return val;
+}
+
+async function parseWorkbook(data: ArrayBuffer, allSheets: boolean): Promise<ParsedSheet[]> {
   const wb = XLSX.read(new Uint8Array(data), { type: "array", cellDates: true });
   const sheetNames = allSheets ? wb.SheetNames : [wb.SheetNames[0]];
+
+  // Extract hidden rows from raw XML (SheetJS community doesn't read !rows)
+  const hiddenRowsMap = await extractHiddenRows(data, wb.SheetNames);
+
   const results: ParsedSheet[] = [];
 
   for (let si = 0; si < sheetNames.length; si++) {
     const sheetName = sheetNames[si];
     const ws = wb.Sheets[sheetName];
     const json = XLSX.utils.sheet_to_json(ws, {
-      header: 1,
-      raw: false,
-      rawNumbers: false,
-      defval: "",
-      blankrows: true,
+      header: 1, raw: false, rawNumbers: false, defval: "", blankrows: true,
     }) as any[][];
 
-    // Build set of hidden row indices (0-based) from worksheet metadata
-    const hiddenRows = new Set<number>();
-    const rowInfo = (ws as any)["!rows"];
-    if (Array.isArray(rowInfo)) {
-      for (let r = 0; r < rowInfo.length; r++) {
-        if (rowInfo[r]?.hidden) hiddenRows.add(r);
-      }
-    }
+    const hiddenRows = hiddenRowsMap[sheetName] || new Set<number>();
 
     const headerIdx = detectHeaderRow(json);
     const headers = (json[headerIdx] || []).map((h: any) => String(h || ""));
@@ -113,54 +101,22 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
     let rowCounter = 0;
 
     for (let i = headerIdx + 1; i < json.length; i++) {
-      // Skip hidden rows from the original spreadsheet
       if (hiddenRows.has(i)) continue;
       const row = json[i];
       if (!row || row.every((c: any) => !c && c !== 0)) continue;
       const obj: Record<string, any> = {};
       headers.forEach((h: string, idx: number) => {
-        let val = row[idx];
-        if (val instanceof Date && !isNaN(val.getTime())) {
-          const d = val.getUTCDate().toString().padStart(2, "0");
-          const m = (val.getUTCMonth() + 1).toString().padStart(2, "0");
-          const y = val.getUTCFullYear();
-          val = `${d}/${m}/${y}`;
-        }
-        obj[h] = val;
+        obj[h] = formatDateVal(row[idx]);
       });
 
-      // Guardar colunas posicionais para evitar perda quando o cabeçalho não representa a coluna real
-      // (ex.: data de distribuição em A, G/H/I/J e Benner em AA)
-      let colA = row[0];
-      if (colA instanceof Date && !isNaN(colA.getTime())) {
-        const d = colA.getUTCDate().toString().padStart(2, "0");
-        const m = (colA.getUTCMonth() + 1).toString().padStart(2, "0");
-        const y = colA.getUTCFullYear();
-        colA = `${d}/${m}/${y}`;
-      }
-      obj.__colA = colA ?? "";
-
-      // Coluna G (Relator)
+      // Positional columns
+      obj.__colA = formatDateVal(row[0]) ?? "";
       obj.__colG = row[6] ?? "";
-
-      // Coluna H (Classificação Relator)
       obj.__colH = row[7] ?? "";
-
-      // Coluna I (Turma)
       obj.__colI = row[8] ?? "";
-
-      // Coluna J (Classificação Turma)
       obj.__colJ = row[9] ?? "";
-
-      const aaIndex = 26; // coluna AA
-      let colAA = row[aaIndex];
-      if (colAA instanceof Date && !isNaN(colAA.getTime())) {
-        const d = colAA.getUTCDate().toString().padStart(2, "0");
-        const m = (colAA.getUTCMonth() + 1).toString().padStart(2, "0");
-        const y = colAA.getUTCFullYear();
-        colAA = `${d}/${m}/${y}`;
-      }
-      obj.__colAA = colAA ?? "";
+      const aaIndex = 26;
+      obj.__colAA = formatDateVal(row[aaIndex]) ?? "";
 
       if (dossieColIdx >= 0) {
         const dossieVal = normalizeText(row[dossieColIdx]);
@@ -179,24 +135,20 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean): ParsedSheet[] {
     }
 
     results.push({
-      headers,
-      rows,
-      headerRowIndex: headerIdx,
-      sheetName,
-      sheetIndex: allSheets ? si : 0,
-      grayCellDossieRowIndices,
+      headers, rows, headerRowIndex: headerIdx, sheetName,
+      sheetIndex: allSheets ? si : 0, grayCellDossieRowIndices,
     });
   }
 
   return results;
 }
 
-self.onmessage = (event: MessageEvent) => {
+self.onmessage = async (event: MessageEvent) => {
   const { type, buffer, allSheets, id } = event.data;
 
   if (type === "parse") {
     try {
-      const sheets = parseWorkbook(buffer, allSheets);
+      const sheets = await parseWorkbook(buffer, allSheets);
       self.postMessage({ type: "result", id, sheets });
     } catch (err: any) {
       self.postMessage({ type: "error", id, error: err?.message || String(err) });

@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { extractHiddenRows } from "./xlsxHiddenRows";
 
 function normalizeText(val: unknown): string {
   return String(val ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -46,23 +47,20 @@ function formatDate(val: any): string {
   return String(val ?? "");
 }
 
-function parseWorkbook(data: ArrayBuffer, allSheets: boolean, keys: string[]): ParsedSheet[] {
+async function parseWorkbook(data: ArrayBuffer, allSheets: boolean, keys: string[]): Promise<ParsedSheet[]> {
   const wb = XLSX.read(new Uint8Array(data), { type: "array", cellDates: true });
   const sheetNames = allSheets ? wb.SheetNames : [wb.SheetNames[0]];
+
+  // Extract hidden rows from raw XML (SheetJS community doesn't read !rows)
+  const hiddenRowsMap = await extractHiddenRows(data, wb.SheetNames);
+
   const results: ParsedSheet[] = [];
 
   for (let si = 0; si < sheetNames.length; si++) {
     const ws = wb.Sheets[sheetNames[si]];
     const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, rawNumbers: false, defval: "", blankrows: true }) as any[][];
 
-    // Build set of hidden row indices (0-based) from worksheet metadata
-    const hiddenRows = new Set<number>();
-    const rowInfo = (ws as any)["!rows"];
-    if (Array.isArray(rowInfo)) {
-      for (let r = 0; r < rowInfo.length; r++) {
-        if (rowInfo[r]?.hidden) hiddenRows.add(r);
-      }
-    }
+    const hiddenRows = hiddenRowsMap[sheetNames[si]] || new Set<number>();
 
     const headerIdx = detectHeaderRow(json, keys);
     const headers = (json[headerIdx] || []).map((h: any) => String(h || ""));
@@ -74,7 +72,6 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean, keys: string[]): P
       if (!row || row.every((c: any) => !c && c !== 0)) continue;
       const obj: Record<string, any> = {};
       headers.forEach((h, idx) => { obj[h] = formatDate(row[idx]); });
-      // positional columns
       for (let ci = 0; ci < Math.min(row.length, 30); ci++) {
         obj[`__col${ci}`] = formatDate(row[ci]);
       }
@@ -86,11 +83,11 @@ function parseWorkbook(data: ArrayBuffer, allSheets: boolean, keys: string[]): P
   return results;
 }
 
-self.onmessage = (event: MessageEvent) => {
+self.onmessage = async (event: MessageEvent) => {
   const { type, buffer, allSheets, keys, id, inputType } = event.data;
   if (type === "parse") {
     try {
-      const sheets = parseWorkbook(buffer, allSheets, keys || ["processo", "dossie", "dossiê", "relator", "turma", "recurso", "julgamento", "pauta"]);
+      const sheets = await parseWorkbook(buffer, allSheets, keys || ["processo", "dossie", "dossiê", "relator", "turma", "recurso", "julgamento", "pauta"]);
       self.postMessage({ type: "result", id, sheets, inputType });
     } catch (err: any) {
       self.postMessage({ type: "error", id, error: err?.message || String(err), inputType });
