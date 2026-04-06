@@ -315,8 +315,23 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[4]] = colTurma ? String(row[colTurma] ?? "") : ""; // Turma
         outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
         outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
-        outRow[LAYOUT_COLS[7]] = colMidia ? toSN(String(row[colMidia] ?? "")) : ""; // Mídia negativa S/N
-        outRow[LAYOUT_COLS[8]] = ""; // Risco
+        // Mídia negativa (col W): "NÃO" → H="N"; "SIM - descrição risco" → H="S", I=descrição
+        const midiaRaw = colMidia ? String(row[colMidia] ?? "").trim() : "";
+        const midiaNorm = normalizeText(midiaRaw);
+        let midiaHVal = "";
+        let riscoVal = "";
+        if (midiaNorm.startsWith("sim")) {
+          midiaHVal = "S";
+          // Extract risk description after "SIM" (e.g. "SIM - Risco alto" or "SIM, descrição")
+          const riscoMatch = midiaRaw.match(/^[Ss][Ii][Mm]\s*[-–—,.:]\s*(.*)/);
+          riscoVal = riscoMatch?.[1]?.trim() || "";
+        } else if (midiaNorm === "nao" || midiaNorm === "n" || midiaNorm === "não") {
+          midiaHVal = "N";
+        } else if (midiaRaw) {
+          midiaHVal = toSN(midiaRaw);
+        }
+        outRow[LAYOUT_COLS[7]] = midiaHVal; // Mídia negativa S/N
+        outRow[LAYOUT_COLS[8]] = riscoVal; // Risco
         outRow[LAYOUT_COLS[9]] = "N"; // Provas digitais
         outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N"; // Temos data julgamento
         const dataJulgVal = hasJulg && pColDataJulg ? formatDateDDMMYYYY(String(pauta![pColDataJulg] ?? "")) : "";
