@@ -391,6 +391,10 @@ export default function CargaBenner() {
         if (turmaVal.includes(" - ")) {
           turmaVal = turmaVal.split(" - ")[0].trim();
         }
+        // Se valor é apenas traços/underscores (ex: "---", "___"), deixar vazio
+        if (/^[-–—_\s]+$/.test(turmaVal)) {
+          turmaVal = "";
+        }
         const turmaLower = normalizeText(turmaVal);
         if (turmaLower.includes("presidencia") || turmaLower.includes("presidência")) {
           turmaVal = "Presidência";
