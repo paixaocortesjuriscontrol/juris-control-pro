@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import JSZip from "jszip";
+import * as XLSX from "xlsx";
 import {
   Upload, Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet,
   ArrowRight, Info, Table2,
@@ -27,7 +28,16 @@ interface Stats {
   totalInput2: number;
   matched: number;
   unmatched: number;
+  rejected: number;
   outputRows: number;
+}
+
+interface RejeicaoCargaRow {
+  "Dossiê": string;
+  "Número do Processo": string;
+  "Turma": string;
+  "Relator": string;
+  "Motivo": string;
 }
 
 // --- Normalização de número de processo CNJ (20 dígitos) ---
@@ -39,6 +49,48 @@ function normalizeCNJ(raw: string): string {
 
 function normalizeText(val: unknown): string {
   return String(val ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+const DOSSIE_INVALIDO_PATTERNS = [
+  /nao\s*(encontrad|localizad)/i,
+  /inv[aá]lid/i,
+  /sem\s*dossie/i,
+  /caso\s+encerrado/i,
+  /em\s+andamento\s+no\s+benner/i,
+];
+
+const DOSSIE_VALIDO_REGEX = /^\d{2}\.\d{2}\.\d{3}\.\d{6,12}\/\d{2}$/;
+
+function isCnjLike(val: string): boolean {
+  const s = String(val ?? "").trim();
+  const digits = s.replace(/\D/g, "");
+  return /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(s) || digits.length === 20;
+}
+
+function getMotivoRejeicaoDossie(dossie: string, numeroProcesso: string): string | null {
+  const raw = String(dossie ?? "").trim();
+  const normalized = normalizeText(raw);
+  const processoDigits = String(numeroProcesso ?? "").replace(/\D/g, "");
+  const dossieDigits = raw.replace(/\D/g, "");
+
+  if (!raw) return "Dossiê vazio";
+  if (DOSSIE_INVALIDO_PATTERNS.some((pattern) => pattern.test(normalized))) return "Dossiê não localizado";
+  if (processoDigits && dossieDigits === processoDigits) return "Dossiê igual ao número do processo";
+  if (isCnjLike(raw)) return "Dossiê preenchido com número do processo";
+  if (/[a-z]/i.test(normalized)) return "Dossiê contém texto inválido";
+  if (!DOSSIE_VALIDO_REGEX.test(raw)) return "Dossiê fora do padrão esperado";
+
+  return null;
+}
+
+function getTimestampForFileName() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}_${hh}${min}`;
 }
 
 // --- Header helpers ---
@@ -142,6 +194,7 @@ export default function CargaBenner() {
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
+  const [rejectedData, setRejectedData] = useState<RejeicaoCargaRow[]>([]);
   const workerRef = useRef<Worker | null>(null);
   const input1Ref = useRef<HTMLInputElement>(null);
   const input2Ref = useRef<HTMLInputElement>(null);
@@ -158,6 +211,7 @@ export default function CargaBenner() {
     else { setFile2(f); setSheets2(null); }
     setStats(null);
     setOutputData(null);
+    setRejectedData([]);
   };
 
   const parseFile = useCallback((file: File, allSheets: boolean, inputType: string): Promise<ParsedSheet[]> => {
@@ -198,6 +252,7 @@ export default function CargaBenner() {
     setProgress(0);
     setStats(null);
     setOutputData(null);
+    setRejectedData([]);
 
     try {
       // Phase 1: Read files
@@ -275,6 +330,7 @@ export default function CargaBenner() {
       const colMidia = findCol(h1, "midia", "mídia");
 
       const output: Record<string, any>[] = [];
+      const rejected: RejeicaoCargaRow[] = [];
       let matched = 0;
 
       for (let i = 0; i < allInput1Rows.length; i++) {
@@ -283,9 +339,15 @@ export default function CargaBenner() {
         const dossie = colDossie1 ? String(row[colDossie1] ?? "").trim() : "";
         const cnj = normalizeCNJ(numProcesso);
 
-        // Skip rows where dossiê was not found
-        const dossieNorm = normalizeText(dossie);
-        if (!dossie || dossieNorm.includes("nao localizado") || dossieNorm.includes("não localizado") || dossieNorm.includes("n/localizado") || dossieNorm.includes("n/ localizado")) {
+        const motivoRejeicao = getMotivoRejeicaoDossie(dossie, numProcesso);
+        if (motivoRejeicao) {
+          rejected.push({
+            "Dossiê": dossie,
+            "Número do Processo": numProcesso,
+            "Turma": colTurma ? String(row[colTurma] ?? "") : "",
+            "Relator": colRelator ? String(row[colRelator] ?? "") : "",
+            "Motivo": motivoRejeicao,
+          });
           continue;
         }
 
@@ -400,17 +462,19 @@ export default function CargaBenner() {
 
       setProgress(95);
       setOutputData(output);
+      setRejectedData(rejected);
       setStats({
         totalInput1: allInput1Rows.length,
         totalInput2: pautaSheet.rows.length,
         matched,
-        unmatched: allInput1Rows.length - matched,
+        unmatched: output.length - matched,
+        rejected: rejected.length,
         outputRows: output.length,
       });
 
       setPhase("Concluído!");
       setProgress(100);
-      toast.success(`Layout gerado com ${output.length} linhas!`);
+      toast.success(`Layout gerado com ${output.length} linhas e ${rejected.length} rejeições.`);
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
       console.error("[CargaBenner] Error:", err);
@@ -498,7 +562,14 @@ export default function CargaBenner() {
       const lastRow = outputData.length + 2;
       const lastColLetter = colToLetter(maxCol - 1);
       sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${lastColLetter}${lastRow}"/>`);
-      sheetXml = sheetXml.replace("</sheetData>", dataRowsXml + "</sheetData>");
+      const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
+      if (sheetDataMatch) {
+        const allRowsContent = sheetDataMatch[1];
+        const row1Match = allRowsContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
+        const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
+        const headerRows = `${row1Match?.[0] ?? ""}${row2Match?.[0] ?? ""}`;
+        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
+      }
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -519,6 +590,23 @@ export default function CargaBenner() {
       toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
       console.error("[CargaBenner] Download error:", err);
     }
+  };
+
+  const downloadRejectedXlsx = () => {
+    if (rejectedData.length === 0) return;
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rejectedData);
+    ws["!cols"] = [
+      { wch: 28 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 28 },
+      { wch: 36 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
+    XLSX.writeFile(wb, `Rejeicoes_Carga_Benner_${getTimestampForFileName()}.xlsx`);
+    toast.success("Arquivo de rejeições baixado!");
   };
 
   return (
@@ -606,7 +694,7 @@ export default function CargaBenner() {
 
         {/* Stats Dashboard */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-foreground">{stats.totalInput1.toLocaleString()}</p>
@@ -633,6 +721,12 @@ export default function CargaBenner() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-destructive">{stats.rejected.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">Rejeições por dossiê</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-primary">{stats.outputRows.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">Linhas no Layout</p>
               </CardContent>
@@ -649,10 +743,18 @@ export default function CargaBenner() {
                   <CheckCircle2 className="w-6 h-6 text-green-500" />
                   <div>
                     <p className="font-semibold text-foreground">Layout Carga pronto!</p>
-                    <p className="text-sm text-muted-foreground">{outputData.length} linhas geradas</p>
+                    <p className="text-sm text-muted-foreground">
+                      {outputData.length} linhas geradas{rejectedData.length > 0 ? ` • ${rejectedData.length} rejeições separadas` : ""}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {rejectedData.length > 0 && (
+                    <Button variant="outline" onClick={downloadRejectedXlsx}>
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      Baixar Rejeições
+                    </Button>
+                  )}
                   <Button onClick={() => downloadXlsx(true)}>
                     <Download className="w-4 h-4 mr-2" />
                     Completa (A-AH)
