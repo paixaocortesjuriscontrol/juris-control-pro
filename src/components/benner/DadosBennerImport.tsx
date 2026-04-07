@@ -9,6 +9,17 @@ function normalizeText(val: unknown): string {
   return String(val ?? "").trim();
 }
 
+function parseDateBR(val: unknown): string | null {
+  const t = String(val ?? "").trim();
+  if (!t) return null;
+  // DD/MM/YYYY -> YYYY-MM-DD
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  return t;
+}
+
 function isXCell(val: unknown): boolean {
   const t = String(val ?? "").trim().toUpperCase();
   return t === "X" || t === "S";
@@ -72,7 +83,7 @@ export function DadosBennerImport({ onImported }: Props) {
           contrato: "", // not in the source spreadsheet
           tribunal: normalizeText(r[1]),
           tipo_recurso: normalizeText(r[2]),
-          data_distribuicao: normalizeText(r[3]) || null,
+          data_distribuicao: parseDateBR(r[3]),
           turma: normalizeText(r[4]),
           relator: normalizeText(r[5]),
           analise_quarteirizado: normalizeText(r[6]),
@@ -80,7 +91,7 @@ export function DadosBennerImport({ onImported }: Props) {
           risco_descricao: normalizeText(r[8]) || null,
           provas_digitais: normalizeText(r[9]) || null,
           tem_data_julgamento: normalizeText(r[10]) || null,
-          data_julgamento: normalizeText(r[11]) || null,
+          data_julgamento: parseDateBR(r[11]),
           horario_julgamento: normalizeText(r[12]) || null,
           tipo_julgamento: normalizeText(r[13]) || null,
           materia_honra: normalizeText(r[14]) || null,
