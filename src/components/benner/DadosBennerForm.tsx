@@ -57,30 +57,52 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleBuscarDossie = async () => {
-    if (!form.dossie?.trim()) { toast.warning("Digite o dossiê ou número do processo"); return; }
+  const handleBuscarContrato = async () => {
+    if (!form.contrato?.trim()) { toast.warning("Digite o número do contrato"); return; }
     setBuscando(true);
-    const { data, error } = await supabase
+    // Busca na própria tabela dados_benner por contrato já cadastrado
+    const { data: dadosBenner, error: errBenner } = await supabase
+      .from("dados_benner" as any)
+      .select("dossie, contrato, turma, relator, tribunal, coordenacao_id")
+      .ilike("contrato" as any, `%${form.contrato}%`)
+      .limit(5);
+    
+    // Busca também na tabela processos pelo número do processo (contrato pode ser o número)
+    const { data: processos, error: errProc } = await supabase
       .from("processos")
       .select("id, numero, dossie_tst, turma_tst, relator_tst, coordenacao_id")
-      .or(`dossie_tst.ilike.%${form.dossie}%,numero.ilike.%${form.dossie}%`)
+      .or(`numero.ilike.%${form.contrato}%,dossie_tst.ilike.%${form.contrato}%`)
       .limit(5);
+    
     setBuscando(false);
-    if (error) { toast.error("Erro na busca"); return; }
-    if (!data?.length) { toast.info("Nenhum processo encontrado"); return; }
-    setResultadosBusca(data);
+    
+    const resultados: any[] = [];
+    if (dadosBenner && (dadosBenner as any[]).length > 0) {
+      (dadosBenner as any[]).forEach((d: any) => {
+        resultados.push({ tipo: "benner", contrato: d.contrato, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
+      });
+    }
+    if (processos && processos.length > 0) {
+      processos.forEach((p: any) => {
+        resultados.push({ tipo: "processo", id: p.id, numero: p.numero, dossie: p.dossie_tst, turma: p.turma_tst, relator: p.relator_tst, coordenacao_id: p.coordenacao_id });
+      });
+    }
+    
+    if (!resultados.length) { toast.info("Nenhum registro encontrado para este contrato"); return; }
+    setResultadosBusca(resultados);
   };
 
-  const selecionarProcesso = (proc: any) => {
+  const selecionarResultado = (res: any) => {
     setForm(f => ({
       ...f,
-      dossie: proc.dossie_tst || f.dossie,
-      turma: proc.turma_tst || f.turma,
-      relator: proc.relator_tst || f.relator,
-      coordenacao_id: proc.coordenacao_id || f.coordenacao_id,
+      dossie: res.dossie || f.dossie,
+      turma: res.turma || f.turma,
+      relator: res.relator || f.relator,
+      coordenacao_id: res.coordenacao_id || f.coordenacao_id,
+      tribunal: res.tribunal || f.tribunal,
     }));
     setResultadosBusca([]);
-    toast.success("Dados do processo preenchidos!");
+    toast.success("Dados preenchidos automaticamente!");
   };
 
   const handleSave = async () => {
@@ -109,12 +131,18 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso (Colunas A-Q)" color="bg-blue-600 text-white" />
         <div className="p-4 space-y-4">
-          {/* Dossiê + Buscar */}
+          {/* Dossiê */}
           <div className="space-y-2">
             <Label>Dossiê (A)</Label>
+            <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
+          </div>
+
+          {/* Contrato + Buscar */}
+          <div className="space-y-2">
+            <Label>Contrato</Label>
             <div className="flex gap-2">
-              <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" className="flex-1" />
-              <Button variant="outline" onClick={handleBuscarDossie} disabled={buscando}>
+              <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do contrato" className="flex-1" />
+              <Button variant="outline" onClick={handleBuscarContrato} disabled={buscando}>
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Buscar
               </Button>
@@ -122,25 +150,27 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
             {resultadosBusca.length > 0 && (
               <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
                 <p className="text-xs text-muted-foreground font-medium">Resultados encontrados:</p>
-                {resultadosBusca.map(p => (
-                  <button key={p.id} onClick={() => selecionarProcesso(p)}
+                {resultadosBusca.map((r, i) => (
+                  <button key={i} onClick={() => selecionarResultado(r)}
                     className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm">
-                    <span className="font-medium">{p.numero}</span>
-                    {p.dossie_tst && <span className="text-muted-foreground"> - Dossiê: {p.dossie_tst}</span>}
+                    {r.tipo === "benner" ? (
+                      <>
+                        <span className="font-medium">Contrato: {r.contrato}</span>
+                        {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium">{r.numero}</span>
+                        {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Contrato */}
-          <div className="space-y-2">
-            <Label>Contrato</Label>
-            <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do contrato" />
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Tribunal (B) */}
             <div className="space-y-2">
               <Label>Tribunal (B)</Label>
               <Select value={form.tribunal || ""} onValueChange={v => set("tribunal", v)}>
