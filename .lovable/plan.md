@@ -1,33 +1,44 @@
 
 
-## Problema
+## Plano Atualizado: Tela "Dados Benner"
 
-Na tela de Coordenações, os nomes dos membros aparecem como "Membro" ao invés do nome real. Isso acontece porque:
+### Alteracoes em relacao ao plano anterior
 
-1. A view `profiles_basic` foi alterada para `security_invoker = true` (migration `20251209003234`)
-2. Com `security_invoker`, a view respeita a RLS da tabela `profiles`
-3. A RLS de `profiles` só permite ver o próprio perfil OU se for admin/coordenador
-4. Katarine Dias (advogada comum) não consegue ver os nomes dos outros membros via `profiles_basic`
-5. O código exibe `"Membro"` como fallback quando `member.usuario?.nome` é `undefined`
+Dois itens faltantes foram identificados e serao adicionados:
 
-## Correção
+**1. Campo "Contrato" (novo campo separado do Dossie)**
+- Adicionar coluna `contrato` (TEXT) na tabela `dados_benner`
+- No formulario, posicionar o campo "Contrato" logo apos o campo "Dossie" (coluna A), antes de "Tribunal"
+- Campo de texto livre para o numero do contrato do cliente com o Santander
 
-Criar uma migration que recria a view `profiles_basic` com `security_invoker = false` (equivalente a `SECURITY DEFINER`). Essa view expõe apenas `id` e `nome` — dados não sensíveis que qualquer usuário autenticado precisa ver para a interface funcionar.
+**2. Botao "Buscar Dossie" ao lado do campo Dossie**
+- Ao lado do campo "Dossie" no formulario, adicionar um botao com icone de busca
+- Ao clicar, busca na tabela `processos` pelo campo `dossie_tst` (ou `numero`) que contenha o valor digitado
+- Se encontrar, preenche automaticamente campos disponiveis (tribunal, turma, relator, etc.) vindos do processo cadastrado
+- Exibe feedback visual: resultado encontrado ou "Nenhum processo encontrado"
 
-```sql
-DROP VIEW IF EXISTS public.profiles_basic;
+### Resumo da implementacao completa
 
-CREATE VIEW public.profiles_basic 
-WITH (security_invoker = false)
-AS
-SELECT id, nome
-FROM public.profiles;
+1. **Migration SQL**: Criar tabela `dados_benner` com todas as 34 colunas (A-AH) + campo extra `contrato` + `status` (rascunho/pronto_envio/planilhado/enviado) + `user_id`, `created_at`, `updated_at`, `coordenacao_id`. RLS para usuarios autenticados.
 
-GRANT SELECT ON public.profiles_basic TO authenticated;
-```
+2. **Pagina `src/pages/DadosBenner.tsx`**: Listagem com filtros por status, botoes de acao (Novo, Gerar Planilha, Regerar, Marcar Enviado).
 
-Isso é seguro porque a view expõe apenas dois campos (id, nome) sem dados sensíveis como email ou telefone.
+3. **Formulario `src/components/benner/DadosBennerForm.tsx`**: Todos os campos organizados por secao colorida:
+   - Campo Dossie (A) com **botao "Buscar"** que consulta `processos` por `dossie_tst` ou `numero`
+   - Campo **Contrato** (novo, apos Dossie)
+   - Campos B-AH conforme planilha
+   - Toggle "Pronto para Enviar"
 
-### Arquivo modificado
-- Nova migration SQL (via ferramenta de database)
+4. **Geracao XLSX**: Reutiliza logica do CargaBenner para exportar registros prontos, atualizar status para "planilhado".
+
+5. **Sidebar + Rota**: Item "Dados Benner" no menu, rota `/dados-benner`.
+
+### Campos do formulario (ordem final)
+
+| # | Campo | Tipo |
+|---|-------|------|
+| A | Dossie + Botao Buscar | texto + botao |
+| - | **Contrato** | texto |
+| B | Tribunal | select (TST/STF/STJ) |
+| C-AH | (demais campos conforme plano anterior) | varios |
 
