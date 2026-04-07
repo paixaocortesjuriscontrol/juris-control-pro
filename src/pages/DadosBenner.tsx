@@ -135,7 +135,7 @@ export default function DadosBenner() {
 
   if (showForm || editando) {
     return (
-      <MainLayout>
+      <MainLayout title="Dados Benner">
         <div className="max-w-4xl mx-auto">
           <DadosBennerForm
             dado={editando}
@@ -148,7 +148,7 @@ export default function DadosBenner() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout title="Dados Benner">
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Dados Benner</h1>
