@@ -2363,7 +2363,14 @@ export default function PlanilhaTst() {
       } catch (err) {
         console.error("Erro ao exportar:", err);
         toast.error("Erro ao exportar planilha. Tentando método alternativo...");
-        exportFallback();
+        try {
+          exportFallback();
+          toast.success("Planilha baixada (método alternativo)!");
+        } catch (err2) {
+          console.error("Erro no fallback:", err2);
+          toast.error("Falha ao exportar planilha.");
+        }
+        return;
       }
     } else {
       exportFallback();
