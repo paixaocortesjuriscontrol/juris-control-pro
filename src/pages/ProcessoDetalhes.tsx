@@ -380,6 +380,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
+    enabled: editando,
   });
 
   // Responsáveis do processo
