@@ -58,17 +58,25 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
   const handleBuscarContrato = async () => {
-    if (!form.contrato?.trim()) { toast.warning("Digite o número do contrato"); return; }
+    if (!form.contrato?.trim()) { toast.warning("Digite o número do processo"); return; }
     setBuscando(true);
-    // Busca na própria tabela dados_benner por contrato já cadastrado
-    const { data: dadosBenner, error: errBenner } = await supabase
+    
+    // Busca na tabela distribuicoes_tst pelo número do processo para obter dossiê
+    const { data: distTst } = await supabase
+      .from("distribuicoes_tst" as any)
+      .select("processo_numero, dossie, turma, relator, equipe, relator_favorabilidade, turma_favorabilidade")
+      .ilike("processo_numero" as any, `%${form.contrato}%`)
+      .limit(5);
+
+    // Busca na própria tabela dados_benner
+    const { data: dadosBenner } = await supabase
       .from("dados_benner" as any)
       .select("dossie, contrato, turma, relator, tribunal, coordenacao_id")
       .ilike("contrato" as any, `%${form.contrato}%`)
       .limit(5);
     
-    // Busca também na tabela processos pelo número do processo (contrato pode ser o número)
-    const { data: processos, error: errProc } = await supabase
+    // Busca na tabela processos
+    const { data: processos } = await supabase
       .from("processos")
       .select("id, numero, dossie_tst, turma_tst, relator_tst, coordenacao_id")
       .or(`numero.ilike.%${form.contrato}%,dossie_tst.ilike.%${form.contrato}%`)
@@ -77,6 +85,11 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     setBuscando(false);
     
     const resultados: any[] = [];
+    if (distTst && (distTst as any[]).length > 0) {
+      (distTst as any[]).forEach((d: any) => {
+        resultados.push({ tipo: "distribuicao", processo: d.processo_numero, dossie: d.dossie, turma: d.turma, relator: d.relator });
+      });
+    }
     if (dadosBenner && (dadosBenner as any[]).length > 0) {
       (dadosBenner as any[]).forEach((d: any) => {
         resultados.push({ tipo: "benner", contrato: d.contrato, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
@@ -88,7 +101,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       });
     }
     
-    if (!resultados.length) { toast.info("Nenhum registro encontrado para este contrato"); return; }
+    if (!resultados.length) { toast.info("Nenhum registro encontrado para este número de processo"); return; }
     setResultadosBusca(resultados);
   };
 
@@ -131,11 +144,11 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso (Colunas A-Q)" color="bg-blue-600 text-white" />
         <div className="p-4 space-y-4">
-          {/* Contrato + Buscar */}
+          {/* Número do Processo + Buscar */}
           <div className="space-y-2">
-            <Label>Contrato</Label>
+            <Label>Número do Processo</Label>
             <div className="flex gap-2">
-              <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do contrato" className="flex-1" />
+              <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do processo" className="flex-1" />
               <Button variant="outline" onClick={handleBuscarContrato} disabled={buscando}>
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Buscar
@@ -147,15 +160,23 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 {resultadosBusca.map((r, i) => (
                   <button key={i} onClick={() => selecionarResultado(r)}
                     className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm">
-                    {r.tipo === "benner" ? (
+                    {r.tipo === "distribuicao" ? (
                       <>
-                        <span className="font-medium">Contrato: {r.contrato}</span>
+                        <span className="font-medium">{r.processo}</span>
                         {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                        <Badge variant="outline" className="ml-2 text-xs">Distribuição TST</Badge>
+                      </>
+                    ) : r.tipo === "benner" ? (
+                      <>
+                        <span className="font-medium">Processo: {r.contrato}</span>
+                        {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                        <Badge variant="outline" className="ml-2 text-xs">Dados Benner</Badge>
                       </>
                     ) : (
                       <>
                         <span className="font-medium">{r.numero}</span>
                         {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                        <Badge variant="outline" className="ml-2 text-xs">Processos</Badge>
                       </>
                     )}
                   </button>
