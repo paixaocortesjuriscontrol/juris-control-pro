@@ -276,7 +276,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && (activeTab === "documentos" || activeTab === ""),
   });
 
   // Publicações DJEN query - lazy load
@@ -292,7 +292,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === "publicacoes_djen",
   });
 
   // Movimentações query - lazy load (também alimenta redistribuições)
@@ -365,6 +365,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
+    enabled: editando,
   });
 
   // Clientes query
@@ -379,6 +380,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
+    enabled: editando,
   });
 
   // Responsáveis do processo
