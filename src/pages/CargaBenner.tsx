@@ -520,7 +520,7 @@ export default function CargaBenner() {
       setRejectedData(rejected);
       setStats({
         totalInput1: allInput1Rows.length,
-        totalInput2: pautaSheet.rows.length,
+        totalInput2: totalInput2Rows,
         matched,
         unmatched: output.length - matched,
         rejected: rejected.length,
