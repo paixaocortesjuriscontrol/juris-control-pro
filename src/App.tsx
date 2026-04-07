@@ -60,6 +60,7 @@ import TstPrazos from "./pages/TstPrazos";
 import AnalisarPrazos from "./pages/AnalisarPrazos";
 import PlanilhaTst from "./pages/PlanilhaTst";
 import CargaBenner from "./pages/CargaBenner";
+import DadosBenner from "./pages/DadosBenner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
