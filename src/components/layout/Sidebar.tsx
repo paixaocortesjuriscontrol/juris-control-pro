@@ -53,6 +53,7 @@ const menuItemsPublicos = [
   { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
   { icon: Upload, label: "Carga Benner", path: "/carga-benner", color: "text-sky-400" },
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
+  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink } from "lucide-react";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
@@ -130,6 +131,11 @@ export default function DadosBenner() {
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Novo Cadastro
             </Button>
+            <Link to="/distribuicao-tst">
+              <Button variant="outline">
+                <ExternalLink className="w-4 h-4 mr-2" /> Distribuição TST
+              </Button>
+            </Link>
           </div>
         </div>
 
