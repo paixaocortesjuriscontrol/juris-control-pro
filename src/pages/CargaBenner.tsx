@@ -35,6 +35,7 @@ interface Stats {
 interface RejeicaoCargaRow {
   "Dossiê": string;
   "Número do Processo": string;
+  "Data Distribuição": string;
   "Turma": string;
   "Relator": string;
   "Motivo": string;
