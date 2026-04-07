@@ -29,43 +29,8 @@ const statusColors: Record<string, string> = {
   enviado: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
 };
 
-function gerarPlanilha(dados: DadoBenner[]) {
-  const headers = [
-    "Dossiê", "Contrato", "Tribunal", "Tipo de Recurso", "Data Distribuição", "Turma", "Relator",
-    "Análise Quarteirizado", "Risco Mídia Negativa", "Risco", "Provas Digitais",
-    "Data Julgamento?", "Data Julgamento", "Horário", "Tipo Julgamento",
-    "Matéria de Honra", "Entrega Memoriais", "Sustentação Oral",
-    "Sem Transcendência", "Não Conhecido", "Conhecido e Provido", "Conhecido e Não Provido",
-    "Outra", "Observações", "Ganhamos", "Perdemos", "Processo Baixado", "Recorrente",
-    "Posição Turma Favorável", "Posição Turma Desfavorável",
-    "Posição Relator Favorável", "Posição Relator Desfavorável",
-    "Recurso Bem Aparelhado", "Recurso Mal Aparelhado", "Chance de Êxito"
-  ];
-
-  const rows = dados.map(d => [
-    d.dossie || "", d.contrato || "", d.tribunal || "", d.tipo_recurso || "",
-    d.data_distribuicao || "", d.turma || "", d.relator || "",
-    d.analise_quarteirizado || "", d.risco_midia || "", d.risco_descricao || "",
-    d.provas_digitais || "", d.tem_data_julgamento || "",
-    d.data_julgamento || "", d.horario_julgamento || "", d.tipo_julgamento || "",
-    d.materia_honra || "", d.entrega_memoriais || "", d.sustentacao_oral || "",
-    d.resultado_sem_transcendencia ? "S" : "", d.resultado_nao_conhecido ? "S" : "",
-    d.resultado_conhecido_provido ? "S" : "", d.resultado_conhecido_nao_provido ? "S" : "",
-    d.resultado_outra || "", d.observacoes || "",
-    d.ganhamos ? "S" : "", d.perdemos ? "S" : "",
-    d.processo_baixado || "", d.recorrente || "",
-    d.posicao_turma_favoravel ? "S" : "", d.posicao_turma_desfavoravel ? "S" : "",
-    d.posicao_relator_favoravel ? "S" : "", d.posicao_relator_desfavoravel ? "S" : "",
-    d.recurso_bem_aparelhado ? "S" : "", d.recurso_mal_aparelhado ? "S" : "",
-    d.chance_exito || "",
-  ]);
-
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Layout Carga");
-  const filename = `Layout_Carga_Benner_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
-  XLSX.writeFile(wb, filename);
-  return filename;
+async function gerarPlanilha(dados: DadoBenner[]) {
+  return await gerarPlanilhaBenner(dados);
 }
 
 export default function DadosBenner() {
