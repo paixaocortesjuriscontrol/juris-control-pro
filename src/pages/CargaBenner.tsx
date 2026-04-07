@@ -374,13 +374,14 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[0]] = dossie; // Dossiê
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
         // Abreviar tipo de recurso: extrair somente siglas entre parênteses
+        // e remover prefixos "_____ - " (underscores seguidos de hífen)
         const tipoRecursoAbreviado = tipoRecurso
           .split(" - ")
           .map(part => {
             const siglaMatch = part.match(/\(([^)]+)\)/);
             return siglaMatch ? siglaMatch[1].trim() : part.trim();
           })
-          .filter(Boolean)
+          .filter(v => v && !/^[_\s]+$/.test(v))
           .join(" - ");
         outRow[LAYOUT_COLS[2]] = tipoRecursoAbreviado; // Tipo de Recurso
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
