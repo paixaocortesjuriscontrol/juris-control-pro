@@ -3488,6 +3488,131 @@ export type Database = {
           },
         ]
       }
+      pautas_tst: {
+        Row: {
+          aba_origem: string | null
+          advogado_interno: string | null
+          aparelhamento_banco: string | null
+          aparelhamento_reclamante: string | null
+          chance_exito_banco: string | null
+          chance_exito_reclamante: string | null
+          comentarios_advogado: string | null
+          created_at: string
+          data_julgamento: string | null
+          decisao: string | null
+          desistencia_recurso: string | null
+          dossie: string | null
+          entrega_memoriais: string | null
+          equipe: string | null
+          honra: string | null
+          horario: string | null
+          id: string
+          link_acesso: string | null
+          materia_recurso_banco: string | null
+          materia_recurso_reclamante: string | null
+          midia_negativa: string | null
+          modalidade: string | null
+          orgao: string | null
+          parte_recorrente: string | null
+          processo_id: string | null
+          processo_numero: string | null
+          reclamada: string | null
+          reclamante: string | null
+          relator: string | null
+          resultado_proxima_sessao: string | null
+          retorno_esclarecimentos: string | null
+          solicitacao_providencias_banco: string | null
+          solicitacao_rosa_oliveira: string | null
+          sustentacao_oral: string | null
+          tipo_recurso: string | null
+          updated_at: string
+        }
+        Insert: {
+          aba_origem?: string | null
+          advogado_interno?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
+          comentarios_advogado?: string | null
+          created_at?: string
+          data_julgamento?: string | null
+          decisao?: string | null
+          desistencia_recurso?: string | null
+          dossie?: string | null
+          entrega_memoriais?: string | null
+          equipe?: string | null
+          honra?: string | null
+          horario?: string | null
+          id?: string
+          link_acesso?: string | null
+          materia_recurso_banco?: string | null
+          materia_recurso_reclamante?: string | null
+          midia_negativa?: string | null
+          modalidade?: string | null
+          orgao?: string | null
+          parte_recorrente?: string | null
+          processo_id?: string | null
+          processo_numero?: string | null
+          reclamada?: string | null
+          reclamante?: string | null
+          relator?: string | null
+          resultado_proxima_sessao?: string | null
+          retorno_esclarecimentos?: string | null
+          solicitacao_providencias_banco?: string | null
+          solicitacao_rosa_oliveira?: string | null
+          sustentacao_oral?: string | null
+          tipo_recurso?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aba_origem?: string | null
+          advogado_interno?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
+          comentarios_advogado?: string | null
+          created_at?: string
+          data_julgamento?: string | null
+          decisao?: string | null
+          desistencia_recurso?: string | null
+          dossie?: string | null
+          entrega_memoriais?: string | null
+          equipe?: string | null
+          honra?: string | null
+          horario?: string | null
+          id?: string
+          link_acesso?: string | null
+          materia_recurso_banco?: string | null
+          materia_recurso_reclamante?: string | null
+          midia_negativa?: string | null
+          modalidade?: string | null
+          orgao?: string | null
+          parte_recorrente?: string | null
+          processo_id?: string | null
+          processo_numero?: string | null
+          reclamada?: string | null
+          reclamante?: string | null
+          relator?: string | null
+          resultado_proxima_sessao?: string | null
+          retorno_esclarecimentos?: string | null
+          solicitacao_providencias_banco?: string | null
+          solicitacao_rosa_oliveira?: string | null
+          sustentacao_oral?: string | null
+          tipo_recurso?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pautas_tst_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedidos_processo: {
         Row: {
           acordao: boolean | null
