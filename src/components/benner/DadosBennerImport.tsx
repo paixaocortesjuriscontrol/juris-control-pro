@@ -9,6 +9,17 @@ function normalizeText(val: unknown): string {
   return String(val ?? "").trim();
 }
 
+function parseDateBR(val: unknown): string | null {
+  const t = String(val ?? "").trim();
+  if (!t) return null;
+  // DD/MM/YYYY -> YYYY-MM-DD
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  return t;
+}
+
 function isXCell(val: unknown): boolean {
   const t = String(val ?? "").trim().toUpperCase();
   return t === "X" || t === "S";
