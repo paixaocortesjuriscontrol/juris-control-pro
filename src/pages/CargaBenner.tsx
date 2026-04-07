@@ -340,7 +340,15 @@ export default function CargaBenner() {
         const dossie = colDossie1 ? String(row[colDossie1] ?? "").trim() : "";
         const cnj = normalizeCNJ(numProcesso);
 
-        const motivoRejeicao = getMotivoRejeicaoDossie(dossie, numProcesso);
+        // Check turma
+        let turmaRaw = colTurma ? String(row[colTurma] ?? "").trim() : "";
+        if (turmaRaw.includes(" - ")) turmaRaw = turmaRaw.split(" - ")[0].trim();
+        if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
+
+        let motivoRejeicao = getMotivoRejeicaoDossie(dossie, numProcesso);
+        if (!motivoRejeicao && !turmaRaw) {
+          motivoRejeicao = "Turma não preenchida";
+        }
         if (motivoRejeicao) {
           rejected.push({
             "Dossiê": dossie,
