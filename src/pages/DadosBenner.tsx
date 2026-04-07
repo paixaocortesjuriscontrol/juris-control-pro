@@ -12,8 +12,8 @@ import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import { format } from "date-fns";
+import { gerarPlanilhaBenner } from "@/utils/gerarPlanilhaBenner";
 
 const statusLabels: Record<string, string> = {
   rascunho: "Rascunho",
