@@ -775,7 +775,7 @@ export default function CargaBenner() {
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-destructive">{stats.rejected.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">Rejeições por dossiê</p>
+                <p className="text-xs text-muted-foreground mt-1">Rejeições</p>
               </CardContent>
             </Card>
             <Card>
