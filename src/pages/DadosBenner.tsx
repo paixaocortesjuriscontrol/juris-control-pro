@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2 } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle } from "lucide-react";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
@@ -121,6 +121,13 @@ export default function DadosBenner() {
     toast.success(`Planilha gerada com ${prontos.length} registros prontos!`);
   };
 
+  const handleMarcarPronto = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
+    await updateStatus(ids, "pronto_envio");
+    setSelectedIds(new Set());
+  };
+
   const handleMarcarEnviado = async () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) { toast.warning("Selecione registros para marcar como enviado"); return; }
@@ -180,6 +187,10 @@ export default function DadosBenner() {
           <Button variant="outline" onClick={handleGerarPlanilha} disabled={gerando}>
             {gerando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
             Gerar Planilha (Prontos)
+          </Button>
+
+          <Button variant="outline" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
+            <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pronto
           </Button>
 
           <Button variant="outline" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
