@@ -142,6 +142,7 @@ function App() {
               <Route path="/analisar-prazos" element={<ProtectedRoute><AnalisarPrazos /></ProtectedRoute>} />
               <Route path="/planilha-tst" element={<ProtectedRoute><PlanilhaTst /></ProtectedRoute>} />
               <Route path="/carga-benner" element={<ProtectedRoute><CargaBenner /></ProtectedRoute>} />
+              <Route path="/dados-benner" element={<ProtectedRoute><DadosBenner /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
