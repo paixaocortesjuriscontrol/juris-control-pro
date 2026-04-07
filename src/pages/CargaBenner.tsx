@@ -747,6 +747,7 @@ export default function CargaBenner() {
 
         {/* Stats Dashboard */}
         {stats && (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
@@ -786,7 +787,6 @@ export default function CargaBenner() {
             </Card>
           </div>
 
-          {/* Breakdown by rejection type */}
           {rejectedData.length > 0 && (() => {
             const countByMotivo: Record<string, number> = {};
             for (const r of rejectedData) {
@@ -810,6 +810,7 @@ export default function CargaBenner() {
               </Card>
             );
           })()}
+          </>
         )}
 
         {/* Download */}
