@@ -345,8 +345,17 @@ export default function CargaBenner() {
         if (turmaRaw.includes(" - ")) turmaRaw = turmaRaw.split(" - ")[0].trim();
         if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
 
+        // Check if relator can resolve turma before rejecting
+        const relatorCheckVal = colRelator ? normalizeText(String(row[colRelator] ?? "")) : "";
+        const canResolveTurmaFromRelator = !turmaRaw && relatorCheckVal && [
+          "scheuermann","dezena","amaury","delaide","delaíde","liana chaib","silvestrin",
+          "lelio","lélio","godinho delgado","balazeiro","ives gandra","peduzzi","alexandre luiz ramos",
+          "douglas alencar","breno medeiros","morgana","katia","kátia","augusto c","fabricio","fabrício",
+          "agra belmonte","mascarenhas brand","camargo rodrigues","mallmann","valadao","valadão","sergio pinto","sérgio pinto"
+        ].some(frag => relatorCheckVal.includes(frag));
+
         let motivoRejeicao = getMotivoRejeicaoDossie(dossie, numProcesso);
-        if (!motivoRejeicao && !turmaRaw) {
+        if (!motivoRejeicao && !turmaRaw && !canResolveTurmaFromRelator) {
           motivoRejeicao = "Turma não preenchida";
         }
         if (motivoRejeicao) {
@@ -423,8 +432,61 @@ export default function CargaBenner() {
         } else if (turmaVal && !turmaLower.includes("turma") && !turmaLower.includes("pleno")) {
           turmaVal = turmaVal + " Turma";
         }
+
+        // Corrigir turma com base no relator (ministro → turma)
+        const relatorVal = colRelator ? String(row[colRelator] ?? "").trim() : "";
+        const relatorNorm = normalizeText(relatorVal);
+        const ministroTurmaMap: Record<string, string> = {
+          "hugo carlos scheuermann": "1ª Turma",
+          "luiz jose dezena da silva": "1ª Turma",
+          "luiz josé dezena da silva": "1ª Turma",
+          "amaury rodrigues pinto junior": "1ª Turma",
+          "delaide alves miranda arantes": "2ª Turma",
+          "delaíde alves miranda arantes": "2ª Turma",
+          "liana chaib": "2ª Turma",
+          "joao pedro silvestrin": "2ª Turma",
+          "joão pedro silvestrin": "2ª Turma",
+          "lelio bentes correa": "3ª Turma",
+          "lélio bentes corrêa": "3ª Turma",
+          "lelio bentes corrêa": "3ª Turma",
+          "mauricio jose godinho delgado": "3ª Turma",
+          "mauricio josé godinho delgado": "3ª Turma",
+          "alberto bastos balazeiro": "3ª Turma",
+          "ives gandra da silva martins filho": "4ª Turma",
+          "maria cristina irigoyen peduzzi": "4ª Turma",
+          "alexandre luiz ramos": "4ª Turma",
+          "douglas alencar rodrigues": "5ª Turma",
+          "breno medeiros": "5ª Turma",
+          "morgana de almeida": "5ª Turma",
+          "katia magalhaes arruda": "6ª Turma",
+          "kátia magalhães arruda": "6ª Turma",
+          "augusto cesar leite de carvalho": "6ª Turma",
+          "augusto césar leite de carvalho": "6ª Turma",
+          "antonio fabricio de matos goncalves": "6ª Turma",
+          "antônio fabrício de matos gonçalves": "6ª Turma",
+          "alexandre de souza agra belmonte": "7ª Turma",
+          "claudio mascarenhas brandao": "7ª Turma",
+          "cláudio mascarenhas brandão": "7ª Turma",
+          "jose pedro de camargo rodrigues de souza": "7ª Turma",
+          "josé pedro de camargo rodrigues de souza": "7ª Turma",
+          "maria helena mallmann": "8ª Turma",
+          "evandro pereira valadao lopes": "8ª Turma",
+          "evandro pereira valadão lopes": "8ª Turma",
+          "sergio pinto martins": "8ª Turma",
+          "sérgio pinto martins": "8ª Turma",
+        };
+        // Try to match relator name against known ministers
+        if (relatorNorm) {
+          for (const [nomeMin, turmaMin] of Object.entries(ministroTurmaMap)) {
+            if (relatorNorm.includes(normalizeText(nomeMin))) {
+              turmaVal = turmaMin;
+              break;
+            }
+          }
+        }
+
         outRow[LAYOUT_COLS[4]] = turmaVal; // Turma
-        outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
+        outRow[LAYOUT_COLS[5]] = relatorVal; // Relator
         outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
         // Mídia negativa (col W): "NÃO" → H="N"; "SIM - descrição risco" → H="S", I=descrição
         const midiaRaw = colMidia ? String(row[colMidia] ?? "").trim() : "";
