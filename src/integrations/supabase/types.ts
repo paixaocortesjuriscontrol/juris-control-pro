@@ -1339,6 +1339,146 @@ export type Database = {
           },
         ]
       }
+      dados_benner: {
+        Row: {
+          analise_quarteirizado: string | null
+          chance_exito: string | null
+          contrato: string | null
+          coordenacao_id: string | null
+          created_at: string
+          data_distribuicao: string | null
+          data_julgamento: string | null
+          dossie: string | null
+          entrega_memoriais: string | null
+          ganhamos: boolean | null
+          horario_julgamento: string | null
+          id: string
+          materia_honra: string | null
+          observacoes: string | null
+          perdemos: boolean | null
+          posicao_relator_desfavoravel: boolean | null
+          posicao_relator_favoravel: boolean | null
+          posicao_turma_desfavoravel: boolean | null
+          posicao_turma_favoravel: boolean | null
+          processo_baixado: string | null
+          provas_digitais: string | null
+          recorrente: string | null
+          recurso_bem_aparelhado: boolean | null
+          recurso_mal_aparelhado: boolean | null
+          relator: string | null
+          resultado_conhecido_nao_provido: boolean | null
+          resultado_conhecido_provido: boolean | null
+          resultado_nao_conhecido: boolean | null
+          resultado_outra: string | null
+          resultado_sem_transcendencia: boolean | null
+          risco_descricao: string | null
+          risco_midia: string | null
+          status: string
+          sustentacao_oral: string | null
+          tem_data_julgamento: string | null
+          tipo_julgamento: string | null
+          tipo_recurso: string | null
+          tribunal: string | null
+          turma: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          analise_quarteirizado?: string | null
+          chance_exito?: string | null
+          contrato?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_distribuicao?: string | null
+          data_julgamento?: string | null
+          dossie?: string | null
+          entrega_memoriais?: string | null
+          ganhamos?: boolean | null
+          horario_julgamento?: string | null
+          id?: string
+          materia_honra?: string | null
+          observacoes?: string | null
+          perdemos?: boolean | null
+          posicao_relator_desfavoravel?: boolean | null
+          posicao_relator_favoravel?: boolean | null
+          posicao_turma_desfavoravel?: boolean | null
+          posicao_turma_favoravel?: boolean | null
+          processo_baixado?: string | null
+          provas_digitais?: string | null
+          recorrente?: string | null
+          recurso_bem_aparelhado?: boolean | null
+          recurso_mal_aparelhado?: boolean | null
+          relator?: string | null
+          resultado_conhecido_nao_provido?: boolean | null
+          resultado_conhecido_provido?: boolean | null
+          resultado_nao_conhecido?: boolean | null
+          resultado_outra?: string | null
+          resultado_sem_transcendencia?: boolean | null
+          risco_descricao?: string | null
+          risco_midia?: string | null
+          status?: string
+          sustentacao_oral?: string | null
+          tem_data_julgamento?: string | null
+          tipo_julgamento?: string | null
+          tipo_recurso?: string | null
+          tribunal?: string | null
+          turma?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          analise_quarteirizado?: string | null
+          chance_exito?: string | null
+          contrato?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_distribuicao?: string | null
+          data_julgamento?: string | null
+          dossie?: string | null
+          entrega_memoriais?: string | null
+          ganhamos?: boolean | null
+          horario_julgamento?: string | null
+          id?: string
+          materia_honra?: string | null
+          observacoes?: string | null
+          perdemos?: boolean | null
+          posicao_relator_desfavoravel?: boolean | null
+          posicao_relator_favoravel?: boolean | null
+          posicao_turma_desfavoravel?: boolean | null
+          posicao_turma_favoravel?: boolean | null
+          processo_baixado?: string | null
+          provas_digitais?: string | null
+          recorrente?: string | null
+          recurso_bem_aparelhado?: boolean | null
+          recurso_mal_aparelhado?: boolean | null
+          relator?: string | null
+          resultado_conhecido_nao_provido?: boolean | null
+          resultado_conhecido_provido?: boolean | null
+          resultado_nao_conhecido?: boolean | null
+          resultado_outra?: string | null
+          resultado_sem_transcendencia?: boolean | null
+          risco_descricao?: string | null
+          risco_midia?: string | null
+          status?: string
+          sustentacao_oral?: string | null
+          tem_data_julgamento?: string | null
+          tipo_julgamento?: string | null
+          tipo_recurso?: string | null
+          tribunal?: string | null
+          turma?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dados_benner_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       depositos_recursais: {
         Row: {
           created_at: string
