@@ -57,30 +57,52 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleBuscarDossie = async () => {
-    if (!form.dossie?.trim()) { toast.warning("Digite o dossiê ou número do processo"); return; }
+  const handleBuscarContrato = async () => {
+    if (!form.contrato?.trim()) { toast.warning("Digite o número do contrato"); return; }
     setBuscando(true);
-    const { data, error } = await supabase
+    // Busca na própria tabela dados_benner por contrato já cadastrado
+    const { data: dadosBenner, error: errBenner } = await supabase
+      .from("dados_benner" as any)
+      .select("dossie, contrato, turma, relator, tribunal, coordenacao_id")
+      .ilike("contrato" as any, `%${form.contrato}%`)
+      .limit(5);
+    
+    // Busca também na tabela processos pelo número do processo (contrato pode ser o número)
+    const { data: processos, error: errProc } = await supabase
       .from("processos")
       .select("id, numero, dossie_tst, turma_tst, relator_tst, coordenacao_id")
-      .or(`dossie_tst.ilike.%${form.dossie}%,numero.ilike.%${form.dossie}%`)
+      .or(`numero.ilike.%${form.contrato}%,dossie_tst.ilike.%${form.contrato}%`)
       .limit(5);
+    
     setBuscando(false);
-    if (error) { toast.error("Erro na busca"); return; }
-    if (!data?.length) { toast.info("Nenhum processo encontrado"); return; }
-    setResultadosBusca(data);
+    
+    const resultados: any[] = [];
+    if (dadosBenner && (dadosBenner as any[]).length > 0) {
+      (dadosBenner as any[]).forEach((d: any) => {
+        resultados.push({ tipo: "benner", contrato: d.contrato, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
+      });
+    }
+    if (processos && processos.length > 0) {
+      processos.forEach((p: any) => {
+        resultados.push({ tipo: "processo", id: p.id, numero: p.numero, dossie: p.dossie_tst, turma: p.turma_tst, relator: p.relator_tst, coordenacao_id: p.coordenacao_id });
+      });
+    }
+    
+    if (!resultados.length) { toast.info("Nenhum registro encontrado para este contrato"); return; }
+    setResultadosBusca(resultados);
   };
 
-  const selecionarProcesso = (proc: any) => {
+  const selecionarResultado = (res: any) => {
     setForm(f => ({
       ...f,
-      dossie: proc.dossie_tst || f.dossie,
-      turma: proc.turma_tst || f.turma,
-      relator: proc.relator_tst || f.relator,
-      coordenacao_id: proc.coordenacao_id || f.coordenacao_id,
+      dossie: res.dossie || f.dossie,
+      turma: res.turma || f.turma,
+      relator: res.relator || f.relator,
+      coordenacao_id: res.coordenacao_id || f.coordenacao_id,
+      tribunal: res.tribunal || f.tribunal,
     }));
     setResultadosBusca([]);
-    toast.success("Dados do processo preenchidos!");
+    toast.success("Dados preenchidos automaticamente!");
   };
 
   const handleSave = async () => {
