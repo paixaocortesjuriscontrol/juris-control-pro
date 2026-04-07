@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2 } from "lucide-react";
+import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { toast } from "sonner";
@@ -152,9 +153,12 @@ export default function DadosBenner() {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Dados Benner</h1>
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Cadastro
-          </Button>
+          <div className="flex gap-2">
+            <DadosBennerImport onImported={fetchDados} />
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="w-4 h-4 mr-2" /> Novo Cadastro
+            </Button>
+          </div>
         </div>
 
         {/* Filtros e Ações */}
