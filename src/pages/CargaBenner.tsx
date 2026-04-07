@@ -373,7 +373,16 @@ export default function CargaBenner() {
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie; // Dossiê
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
-        outRow[LAYOUT_COLS[2]] = tipoRecurso; // Tipo de Recurso
+        // Abreviar tipo de recurso: extrair somente siglas entre parênteses
+        const tipoRecursoAbreviado = tipoRecurso
+          .split(" - ")
+          .map(part => {
+            const siglaMatch = part.match(/\(([^)]+)\)/);
+            return siglaMatch ? siglaMatch[1].trim() : part.trim();
+          })
+          .filter(Boolean)
+          .join(" - ");
+        outRow[LAYOUT_COLS[2]] = tipoRecursoAbreviado; // Tipo de Recurso
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
         // Turma: extrair somente a turma, removendo "Gabinete do Ministro..."
         let turmaVal = colTurma ? String(row[colTurma] ?? "").trim() : "";
