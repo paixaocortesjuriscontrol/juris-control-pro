@@ -121,6 +121,13 @@ export default function DadosBenner() {
     toast.success(`Planilha gerada com ${prontos.length} registros prontos!`);
   };
 
+  const handleMarcarPronto = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
+    await updateStatus(ids, "pronto_envio");
+    setSelectedIds(new Set());
+  };
+
   const handleMarcarEnviado = async () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) { toast.warning("Selecione registros para marcar como enviado"); return; }
