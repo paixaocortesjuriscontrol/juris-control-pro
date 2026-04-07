@@ -322,6 +322,9 @@ export default function CargaBenner() {
         if (turmaVal === "PRESIDÊNCIA" || turmaVal === "PRESIDENCIA") {
           turmaVal = "Presidência";
         }
+        if (turmaLower.includes("gabinete") && turmaLower.includes("presidencia")) {
+          turmaVal = "Presidência";
+        }
         outRow[LAYOUT_COLS[4]] = turmaVal; // Turma
         outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
         outRow[LAYOUT_COLS[6]] = colDecisao ? String(row[colDecisao] ?? "") : ""; // Análise quarteirizado
