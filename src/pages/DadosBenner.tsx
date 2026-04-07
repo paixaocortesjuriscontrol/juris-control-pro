@@ -195,7 +195,7 @@ export default function DadosBenner() {
                   <Checkbox checked={dados.length > 0 && selectedIds.size === dados.length} onCheckedChange={toggleAll} />
                 </TableHead>
                 <TableHead>Dossiê</TableHead>
-                <TableHead>Contrato</TableHead>
+                <TableHead>Nº Processo</TableHead>
                 <TableHead>Tribunal</TableHead>
                 <TableHead>Turma</TableHead>
                 <TableHead>Relator</TableHead>
