@@ -112,20 +112,29 @@ export function DadosBennerImport({ onImported }: Props) {
         return;
       }
 
+      console.log(`[DadosBennerImport] ${records.length} registros parseados. Primeiro:`, JSON.stringify(records[0]));
+
       // Insert in batches of 100
       let inserted = 0;
+      let lastError: string | null = null;
       for (let i = 0; i < records.length; i += 100) {
         const batch = records.slice(i, i + 100);
-        const { error } = await supabase.from("dados_benner" as any).insert(batch as any);
+        const { error, data } = await supabase.from("dados_benner" as any).insert(batch as any).select("id");
         if (error) {
+          console.error(`[DadosBennerImport] Erro lote ${Math.floor(i / 100) + 1}:`, error);
+          lastError = error.message;
           toast.error(`Erro ao importar lote ${Math.floor(i / 100) + 1}: ${error.message}`);
           break;
         }
-        inserted += batch.length;
+        inserted += (data as any[])?.length ?? batch.length;
       }
 
-      toast.success(`${inserted} registros importados com sucesso!`);
-      onImported();
+      if (inserted > 0) {
+        toast.success(`${inserted} registros importados com sucesso!`);
+        onImported();
+      } else if (!lastError) {
+        toast.warning("Nenhum registro foi inserido. Verifique se você está logado.");
+      }
     } catch (err: any) {
       toast.error("Erro ao processar planilha: " + (err?.message || String(err)));
     } finally {
