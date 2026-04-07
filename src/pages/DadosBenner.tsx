@@ -8,13 +8,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { gerarPlanilhaBenner } from "@/utils/gerarPlanilhaBenner";
+import { gerarPlanilhaBenner, ResultadoGeracaoBenner } from "@/utils/gerarPlanilhaBenner";
 
 const statusLabels: Record<string, string> = {
   rascunho: "Rascunho",
@@ -30,10 +31,6 @@ const statusColors: Record<string, string> = {
   enviado: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
 };
 
-async function gerarPlanilha(dados: DadoBenner[]) {
-  return await gerarPlanilhaBenner(dados);
-}
-
 export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [showForm, setShowForm] = useState(false);
@@ -42,6 +39,7 @@ export default function DadosBenner() {
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
   const [gerando, setGerando] = useState(false);
+  const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
   const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados } = useDadosBenner(statusFilter);
 
@@ -61,14 +59,33 @@ export default function DadosBenner() {
     }
   };
 
+  const handleGerarComResultado = async (registros: DadoBenner[], atualizarStatus?: string) => {
+    setGerando(true);
+    setUltimoResultado(null);
+    try {
+      const resultado = await gerarPlanilhaBenner(registros);
+      setUltimoResultado(resultado);
+      if (atualizarStatus && resultado.totalValidos > 0) {
+        const idsValidos = registros.filter(d => !resultado.rejeitados.some(r => r.id === d.id)).map(d => d.id);
+        if (idsValidos.length) await updateStatus(idsValidos, atualizarStatus);
+      }
+      if (resultado.totalRejeitados > 0) {
+        toast.warning(`${resultado.totalRejeitados} registro(s) rejeitado(s) por dossiê inválido`);
+      }
+      if (resultado.totalValidos > 0) {
+        toast.success(`Planilha gerada com ${resultado.totalValidos} registros válidos!`);
+      } else {
+        toast.error("Nenhum registro válido para gerar planilha. Todos possuem dossiê inválido.");
+      }
+    } finally {
+      setGerando(false);
+    }
+  };
+
   const handleGerarPlanilha = async () => {
     const prontos = dados.filter(d => d.status === "pronto_envio");
     if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
-    setGerando(true);
-    const filename = await gerarPlanilha(prontos);
-    await updateStatus(prontos.map(d => d.id), "planilhado");
-    setGerando(false);
-    toast.success(`Planilha "${filename}" gerada com ${prontos.length} registros!`);
+    await handleGerarComResultado(prontos, "planilhado");
   };
 
   const handleRegerarPlanilhados = async () => {
@@ -76,15 +93,13 @@ export default function DadosBenner() {
     if (periodoInicio) filtrados = filtrados.filter(d => d.created_at >= periodoInicio);
     if (periodoFim) filtrados = filtrados.filter(d => d.created_at <= periodoFim + "T23:59:59");
     if (!filtrados.length) { toast.warning("Nenhum registro planilhado no período"); return; }
-    await gerarPlanilha(filtrados);
-    toast.success(`Planilha regerada com ${filtrados.length} registros!`);
+    await handleGerarComResultado(filtrados);
   };
 
   const handleRegerarProntos = async () => {
     const prontos = dados.filter(d => d.status === "pronto_envio");
     if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
-    await gerarPlanilha(prontos);
-    toast.success(`Planilha gerada com ${prontos.length} registros prontos!`);
+    await handleGerarComResultado(prontos);
   };
 
   const handleMarcarPronto = async () => {
@@ -185,6 +200,18 @@ export default function DadosBenner() {
             </Button>
           </div>
         </div>
+
+        {/* Resultado da última geração */}
+        {ultimoResultado && ultimoResultado.totalRejeitados > 0 && (
+          <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+              <strong>{ultimoResultado.totalValidos}</strong> registro(s) exportado(s) com sucesso.{" "}
+              <strong>{ultimoResultado.totalRejeitados}</strong> registro(s) rejeitado(s) por dossiê inválido/não localizado 
+              — arquivo de rejeições baixado separadamente.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Tabela */}
         <div className="border border-border rounded-lg overflow-auto">

@@ -1,12 +1,41 @@
 import JSZip from "jszip";
 import { format } from "date-fns";
 import { DadoBenner } from "@/hooks/useDadosBenner";
+import * as XLSX from "xlsx";
+
+const DOSSIE_INVALIDO_PATTERNS = [
+  /n[aã]o\s*(encontrad|localizad)/i,
+  /inv[aá]lid/i,
+  /sem\s*dossi[eê]/i,
+  /dossi[eê]\s*n[aã]o/i,
+];
+
+export function isDossieInvalido(dossie: string | null | undefined): boolean {
+  if (!dossie || !dossie.trim()) return true;
+  return DOSSIE_INVALIDO_PATTERNS.some(p => p.test(dossie));
+}
+
+export interface ResultadoGeracaoBenner {
+  filename: string;
+  totalValidos: number;
+  totalRejeitados: number;
+  rejeitados: DadoBenner[];
+}
 
 /**
  * Generates an XLSX file from Dados Benner records using the original template
  * to preserve exact formatting, fonts, colors, alignments and headers.
+ * Records with invalid dossiê are excluded and returned separately.
  */
-export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<string> {
+export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<ResultadoGeracaoBenner> {
+  const validos = dados.filter(d => !isDossieInvalido(d.dossie));
+  const rejeitados = dados.filter(d => isDossieInvalido(d.dossie));
+
+  // Generate rejections file if any
+  if (rejeitados.length > 0) {
+    gerarPlanilhaRejeicoes(rejeitados);
+  }
+
   // Fetch template
   const response = await fetch("/templates/layout_carga_benner_template.xlsx");
   const templateBuffer = await response.arrayBuffer();
@@ -14,13 +43,10 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<string> 
 
   // Read shared strings
   const ssXml = await zip.file("xl/sharedStrings.xml")!.async("string");
-  // Parse existing shared strings
   const ssMatch = ssXml.match(/<sst[^>]*>([\s\S]*)<\/sst>/);
   const existingSiBlocks = ssMatch ? ssMatch[1] : "";
-  // Count existing strings
   const existingCount = (existingSiBlocks.match(/<si>/g) || []).length;
 
-  // Build data values and track new shared strings
   const newStrings: string[] = [];
   const stringIndexMap = new Map<string, number>();
 
@@ -32,24 +58,14 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<string> 
     return idx;
   }
 
-  // Build data rows XML
-  // Template layout: A=Dossiê, B=Tribunal, C=Tipo Recurso, D=Data Distribuição,
-  // E=Turma, F=Relator, G=Análise, H=Risco Mídia, I=Risco, J=Provas Digitais,
-  // K=Data Julgamento?, L=Data Julgamento, M=Horário, N=Tipo Julgamento,
-  // O=Matéria Honra, P=Entrega Memoriais, Q=Sustentação Oral,
-  // R=Sem Transcendência, S=Não Conhecido, T=Conhecido Provido, U=Conhecido Não Provido,
-  // V=Outra, W=Observações, X=Ganhamos, Y=Perdemos, Z=Processo Baixado,
-  // AA=Recorrente, AB=Turma Favorável, AC=Turma Desfavorável,
-  // AD=Relator Favorável, AE=Relator Desfavorável,
-  // AF=Bem Aparelhado, AG=Mal Aparelhado, AH=Chance Êxito
   const colLetters = [
     "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q",
     "R","S","T","U","V","W","X","Y","Z","AA","AB","AC","AD","AE","AF","AG","AH"
   ];
 
   let dataRowsXml = "";
-  dados.forEach((d, idx) => {
-    const rowNum = idx + 3; // Data starts at row 3
+  validos.forEach((d, idx) => {
+    const rowNum = idx + 3;
     const values = [
       d.dossie || "",
       d.tribunal || "",
@@ -91,7 +107,6 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<string> 
     values.forEach((val, colIdx) => {
       if (!val) return;
       const ref = `${colLetters[colIdx]}${rowNum}`;
-      // Cols A-F (indices 0-5) use style s="5" (centered), rest use default
       const style = colIdx <= 5 ? ' s="5"' : "";
       const strIdx = getStringIndex(escapeXml(val));
       cellsXml += `<c r="${ref}"${style} t="s"><v>${strIdx}</v></c>`;
@@ -112,38 +127,26 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<string> 
 
   zip.file("xl/sharedStrings.xml", updatedSsXml);
 
-  // Update sheet XML - replace data rows (keep rows 1-2)
   let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
-  
-  // Remove all rows after row 2 and insert new data rows
-  // Find the sheetData block
   const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
   if (sheetDataMatch) {
     const allRowsContent = sheetDataMatch[1];
-    // Keep only rows 1 and 2
     const row1Match = allRowsContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
     const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
     const headerRows = (row1Match ? row1Match[0] : "") + (row2Match ? row2Match[0] : "");
-    
     sheetXml = sheetXml.replace(
       /<sheetData>[\s\S]*?<\/sheetData>/,
       `<sheetData>${headerRows}${dataRowsXml}</sheetData>`
     );
   }
 
-  // Update dimension
-  const lastRow = dados.length + 2;
-  sheetXml = sheetXml.replace(
-    /<dimension ref="[^"]*"/,
-    `<dimension ref="A1:AH${lastRow}"`
-  );
-
+  const lastRow = validos.length + 2;
+  sheetXml = sheetXml.replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:AH${lastRow}"`);
   zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-  // Generate file
   const blob = await zip.generateAsync({ type: "blob" });
   const filename = `Layout_Carga_Benner_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
-  
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -151,7 +154,30 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<string> 
   a.click();
   URL.revokeObjectURL(url);
 
-  return filename;
+  return { filename, totalValidos: validos.length, totalRejeitados: rejeitados.length, rejeitados };
+}
+
+function gerarPlanilhaRejeicoes(rejeitados: DadoBenner[]) {
+  const wb = XLSX.utils.book_new();
+  const rows = rejeitados.map(d => ({
+    "Dossiê": d.dossie || "",
+    "Nº Processo": d.contrato || "",
+    "Tribunal": d.tribunal || "",
+    "Turma": d.turma || "",
+    "Relator": d.relator || "",
+    "Motivo": "Dossiê inválido/não localizado",
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
+  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Rejeicoes_Benner_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function escapeXml(s: string): string {
