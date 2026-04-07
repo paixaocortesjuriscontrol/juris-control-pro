@@ -364,7 +364,9 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[22]] = ""; // Observações
         outRow[LAYOUT_COLS[23]] = ""; // Ganhamos
         outRow[LAYOUT_COLS[24]] = ""; // Perdemos
-        outRow[LAYOUT_COLS[25]] = "N"; // Processo baixado
+        const colZDistVal = normalizeText(String(row["__col25"] ?? ""));
+        const hasTransitoJulgado = colZDistVal.includes("transito em julgado") || colZDistVal.includes("trânsito em julgado");
+        outRow[LAYOUT_COLS[25]] = hasTransitoJulgado ? "S" : "N"; // Processo baixado
         outRow[LAYOUT_COLS[26]] = colParteRecorrente ? String(row[colParteRecorrente] ?? "") : ""; // Recorrente
         // Turma favorável/desfavorável → split into two columns
         const turmaFav = deriveFavoravel(turmaClassRaw);
