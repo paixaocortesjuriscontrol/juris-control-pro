@@ -1889,11 +1889,15 @@ export default function PlanilhaTst() {
   };
 
   const baixarPlanilha = async () => {
-    if (results.length === 0) return;
+    if (results.length === 0) {
+      toast.error("Nenhum resultado para exportar.");
+      return;
+    }
 
     if (originalFileBuffer && input1Meta.length > 0) {
       try {
-        const zip = await JSZip.loadAsync(originalFileBuffer);
+        const bufferCopy = originalFileBuffer.slice(0);
+        const zip = await JSZip.loadAsync(bufferCopy);
         const parser = new DOMParser();
         const serializer = new XMLSerializer();
         const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
