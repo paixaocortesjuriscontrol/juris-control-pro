@@ -344,6 +344,7 @@ export default function CargaBenner() {
           rejected.push({
             "Dossiê": dossie,
             "Número do Processo": numProcesso,
+            "Data Distribuição": colDataDist ? String(row[colDataDist] ?? "") : "",
             "Turma": colTurma ? String(row[colTurma] ?? "") : "",
             "Relator": colRelator ? String(row[colRelator] ?? "") : "",
             "Motivo": motivoRejeicao,
@@ -614,6 +615,7 @@ export default function CargaBenner() {
     ws["!cols"] = [
       { wch: 28 },
       { wch: 24 },
+      { wch: 18 },
       { wch: 16 },
       { wch: 28 },
       { wch: 36 },
