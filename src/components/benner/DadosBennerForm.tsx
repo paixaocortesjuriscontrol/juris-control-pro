@@ -149,19 +149,44 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                     className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm">
                     <span className="font-medium">{p.numero}</span>
                     {p.dossie_tst && <span className="text-muted-foreground"> - Dossiê: {p.dossie_tst}</span>}
+          {/* Dossiê */}
+          <div className="space-y-2">
+            <Label>Dossiê (A)</Label>
+            <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
+          </div>
+
+          {/* Contrato + Buscar */}
+          <div className="space-y-2">
+            <Label>Contrato</Label>
+            <div className="flex gap-2">
+              <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do contrato" className="flex-1" />
+              <Button variant="outline" onClick={handleBuscarContrato} disabled={buscando}>
+                {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Buscar
+              </Button>
+            </div>
+            {resultadosBusca.length > 0 && (
+              <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
+                <p className="text-xs text-muted-foreground font-medium">Resultados encontrados:</p>
+                {resultadosBusca.map((r, i) => (
+                  <button key={i} onClick={() => selecionarResultado(r)}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm">
+                    {r.tipo === "benner" ? (
+                      <>
+                        <span className="font-medium">Contrato: {r.contrato}</span>
+                        {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium">{r.numero}</span>
+                        {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Contrato */}
-          <div className="space-y-2">
-            <Label>Contrato</Label>
-            <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do contrato" />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Tribunal (B) */}
             <div className="space-y-2">
               <Label>Tribunal (B)</Label>
