@@ -262,19 +262,23 @@ export default function CargaBenner() {
 
       const [parsed1, parsed2] = await Promise.all([
         parseFile(file1, true, "input1"),
-        parseFile(file2, false, "input2"),
+        parseFile(file2, true, "input2"),
       ]);
 
       setSheets1(parsed1);
       setSheets2(parsed2);
       setProgress(40);
 
-      // Phase 2: Build lookup from Pautas (Input 2)
+      // Phase 2: Build lookup from Pautas (Input 2) - all sheets
       setPhase("Cruzando dados...");
-      const pautaSheet = parsed2[0];
-      if (!pautaSheet) throw new Error("Planilha de Pautas vazia");
+      if (!parsed2.length || parsed2.every(s => !s.rows.length)) throw new Error("Planilha de Pautas vazia");
 
-      const pH = pautaSheet.headers;
+      const pautaByProcesso = new Map<string, Record<string, any>>();
+      const pautaByDossie = new Map<string, Record<string, any>>();
+      let totalInput2Rows = 0;
+
+      // Use first sheet's headers for column detection
+      const pH = parsed2[0].headers;
       const pColProcesso = findCol(pH, "processo", "cnj");
       const pColDossie = findCol(pH, "dossie", "dossiê");
       const pColDataJulg = findCol(pH, "julgamento", "data do julgamento", "data julgamento");
@@ -284,18 +288,17 @@ export default function CargaBenner() {
       const pColMemoriais = findCol(pH, "memoria", "memoriais", "memórias");
       const pColResultado = findCol(pH, "resultado");
 
-      // Build lookup maps
-      const pautaByProcesso = new Map<string, Record<string, any>>();
-      const pautaByDossie = new Map<string, Record<string, any>>();
-
-      for (const row of pautaSheet.rows) {
-        if (pColProcesso) {
-          const key = normalizeCNJ(String(row[pColProcesso] ?? ""));
-          if (key.length >= 10) pautaByProcesso.set(key, row);
-        }
-        if (pColDossie) {
-          const key = String(row[pColDossie] ?? "").trim();
-          if (key) pautaByDossie.set(key.toLowerCase(), row);
+      for (const pautaSheet of parsed2) {
+        totalInput2Rows += pautaSheet.rows.length;
+        for (const row of pautaSheet.rows) {
+          if (pColProcesso) {
+            const key = normalizeCNJ(String(row[pColProcesso] ?? ""));
+            if (key.length >= 10) pautaByProcesso.set(key, row);
+          }
+          if (pColDossie) {
+            const key = String(row[pColDossie] ?? "").trim();
+            if (key) pautaByDossie.set(key.toLowerCase(), row);
+          }
         }
       }
 
@@ -517,7 +520,7 @@ export default function CargaBenner() {
       setRejectedData(rejected);
       setStats({
         totalInput1: allInput1Rows.length,
-        totalInput2: pautaSheet.rows.length,
+        totalInput2: totalInput2Rows,
         matched,
         unmatched: output.length - matched,
         rejected: rejected.length,
