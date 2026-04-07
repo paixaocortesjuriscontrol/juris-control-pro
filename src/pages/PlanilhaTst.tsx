@@ -1889,11 +1889,15 @@ export default function PlanilhaTst() {
   };
 
   const baixarPlanilha = async () => {
-    if (results.length === 0) return;
+    if (results.length === 0) {
+      toast.error("Nenhum resultado para exportar.");
+      return;
+    }
 
     if (originalFileBuffer && input1Meta.length > 0) {
       try {
-        const zip = await JSZip.loadAsync(originalFileBuffer);
+        const bufferCopy = originalFileBuffer.slice(0);
+        const zip = await JSZip.loadAsync(bufferCopy);
         const parser = new DOMParser();
         const serializer = new XMLSerializer();
         const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
@@ -2359,7 +2363,14 @@ export default function PlanilhaTst() {
       } catch (err) {
         console.error("Erro ao exportar:", err);
         toast.error("Erro ao exportar planilha. Tentando método alternativo...");
-        exportFallback();
+        try {
+          exportFallback();
+          toast.success("Planilha baixada (método alternativo)!");
+        } catch (err2) {
+          console.error("Erro no fallback:", err2);
+          toast.error("Falha ao exportar planilha.");
+        }
+        return;
       }
     } else {
       exportFallback();
