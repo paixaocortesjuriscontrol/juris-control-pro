@@ -52,7 +52,7 @@ export function usePautasTst() {
     const { data, error } = await supabase
       .from("pautas_tst" as any)
       .select("*")
-      .order("data_julgamento", { ascending: false })
+      .order("data_julgamento", { ascending: false, nullsFirst: false })
       .limit(500);
     if (error) {
       toast.error("Erro ao carregar pautas: " + error.message);
