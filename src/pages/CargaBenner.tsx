@@ -345,8 +345,17 @@ export default function CargaBenner() {
         if (turmaRaw.includes(" - ")) turmaRaw = turmaRaw.split(" - ")[0].trim();
         if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
 
+        // Check if relator can resolve turma before rejecting
+        const relatorCheckVal = colRelator ? normalizeText(String(row[colRelator] ?? "")) : "";
+        const canResolveTurmaFromRelator = !turmaRaw && relatorCheckVal && [
+          "scheuermann","dezena","amaury","delaide","delaíde","liana chaib","silvestrin",
+          "lelio","lélio","godinho delgado","balazeiro","ives gandra","peduzzi","alexandre luiz ramos",
+          "douglas alencar","breno medeiros","morgana","katia","kátia","augusto c","fabricio","fabrício",
+          "agra belmonte","mascarenhas brand","camargo rodrigues","mallmann","valadao","valadão","sergio pinto","sérgio pinto"
+        ].some(frag => relatorCheckVal.includes(frag));
+
         let motivoRejeicao = getMotivoRejeicaoDossie(dossie, numProcesso);
-        if (!motivoRejeicao && !turmaRaw) {
+        if (!motivoRejeicao && !turmaRaw && !canResolveTurmaFromRelator) {
           motivoRejeicao = "Turma não preenchida";
         }
         if (motivoRejeicao) {
