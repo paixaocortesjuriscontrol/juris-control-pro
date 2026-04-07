@@ -340,22 +340,35 @@ export default function CargaBenner() {
         const dossie = colDossie1 ? String(row[colDossie1] ?? "").trim() : "";
         const cnj = normalizeCNJ(numProcesso);
 
-        // Check turma
-        let turmaRaw = colTurma ? String(row[colTurma] ?? "").trim() : "";
-        if (turmaRaw.includes(" - ")) turmaRaw = turmaRaw.split(" - ")[0].trim();
-        if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
-
-        // Check if relator can resolve turma before rejecting
+        // Resolve turma from relator (always overrides if minister is known)
         const relatorCheckVal = colRelator ? normalizeText(String(row[colRelator] ?? "")) : "";
-        const canResolveTurmaFromRelator = !turmaRaw && relatorCheckVal && [
-          "scheuermann","dezena","amaury","delaide","delaíde","liana chaib","silvestrin",
-          "lelio","lélio","godinho delgado","balazeiro","ives gandra","peduzzi","alexandre luiz ramos",
-          "douglas alencar","breno medeiros","morgana","katia","kátia","augusto c","fabricio","fabrício",
-          "agra belmonte","mascarenhas brand","camargo rodrigues","mallmann","valadao","valadão","sergio pinto","sérgio pinto"
-        ].some(frag => relatorCheckVal.includes(frag));
+        const ministroTurmaCheck: Record<string, string> = {
+          "scheuermann": "1ª Turma", "dezena": "1ª Turma", "amaury": "1ª Turma",
+          "delaide": "2ª Turma", "delaíde": "2ª Turma", "liana chaib": "2ª Turma", "silvestrin": "2ª Turma",
+          "lelio": "3ª Turma", "lélio": "3ª Turma", "godinho delgado": "3ª Turma", "balazeiro": "3ª Turma",
+          "ives gandra": "4ª Turma", "peduzzi": "4ª Turma", "alexandre luiz ramos": "4ª Turma",
+          "douglas alencar": "5ª Turma", "breno medeiros": "5ª Turma", "morgana": "5ª Turma",
+          "katia magalhaes": "6ª Turma", "kátia magalhães": "6ª Turma", "augusto cesar": "6ª Turma", "augusto césar": "6ª Turma", "fabricio de matos": "6ª Turma", "fabrício de matos": "6ª Turma",
+          "agra belmonte": "7ª Turma", "mascarenhas brandao": "7ª Turma", "mascarenhas brandão": "7ª Turma", "camargo rodrigues": "7ª Turma",
+          "mallmann": "8ª Turma", "valadao": "8ª Turma", "valadão": "8ª Turma", "sergio pinto": "8ª Turma", "sérgio pinto": "8ª Turma",
+        };
+        let turmaFromRelator = "";
+        if (relatorCheckVal) {
+          for (const [frag, turma] of Object.entries(ministroTurmaCheck)) {
+            if (relatorCheckVal.includes(frag)) { turmaFromRelator = turma; break; }
+          }
+        }
+
+        // Use relator-based turma if found, otherwise fall back to raw turma
+        let turmaRaw = turmaFromRelator;
+        if (!turmaRaw) {
+          turmaRaw = colTurma ? String(row[colTurma] ?? "").trim() : "";
+          if (turmaRaw.includes(" - ")) turmaRaw = turmaRaw.split(" - ")[0].trim();
+          if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
+        }
 
         let motivoRejeicao = getMotivoRejeicaoDossie(dossie, numProcesso);
-        if (!motivoRejeicao && !turmaRaw && !canResolveTurmaFromRelator) {
+        if (!motivoRejeicao && !turmaRaw) {
           motivoRejeicao = "Turma não preenchida";
         }
         if (motivoRejeicao) {
