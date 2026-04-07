@@ -64,7 +64,7 @@ export default function DadosBenner() {
     const prontos = dados.filter(d => d.status === "pronto_envio");
     if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
     setGerando(true);
-    const filename = gerarPlanilha(prontos);
+    const filename = await gerarPlanilha(prontos);
     await updateStatus(prontos.map(d => d.id), "planilhado");
     setGerando(false);
     toast.success(`Planilha "${filename}" gerada com ${prontos.length} registros!`);
@@ -75,14 +75,14 @@ export default function DadosBenner() {
     if (periodoInicio) filtrados = filtrados.filter(d => d.created_at >= periodoInicio);
     if (periodoFim) filtrados = filtrados.filter(d => d.created_at <= periodoFim + "T23:59:59");
     if (!filtrados.length) { toast.warning("Nenhum registro planilhado no período"); return; }
-    gerarPlanilha(filtrados);
+    await gerarPlanilha(filtrados);
     toast.success(`Planilha regerada com ${filtrados.length} registros!`);
   };
 
-  const handleRegerarProntos = () => {
+  const handleRegerarProntos = async () => {
     const prontos = dados.filter(d => d.status === "pronto_envio");
     if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
-    gerarPlanilha(prontos);
+    await gerarPlanilha(prontos);
     toast.success(`Planilha gerada com ${prontos.length} registros prontos!`);
   };
 
