@@ -131,24 +131,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso (Colunas A-Q)" color="bg-blue-600 text-white" />
         <div className="p-4 space-y-4">
-          {/* Dossiê + Buscar */}
-          <div className="space-y-2">
-            <Label>Dossiê (A)</Label>
-            <div className="flex gap-2">
-              <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" className="flex-1" />
-              <Button variant="outline" onClick={handleBuscarDossie} disabled={buscando}>
-                {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Buscar
-              </Button>
-            </div>
-            {resultadosBusca.length > 0 && (
-              <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
-                <p className="text-xs text-muted-foreground font-medium">Resultados encontrados:</p>
-                {resultadosBusca.map(p => (
-                  <button key={p.id} onClick={() => selecionarProcesso(p)}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm">
-                    <span className="font-medium">{p.numero}</span>
-                    {p.dossie_tst && <span className="text-muted-foreground"> - Dossiê: {p.dossie_tst}</span>}
           {/* Dossiê */}
           <div className="space-y-2">
             <Label>Dossiê (A)</Label>
@@ -187,7 +169,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               </div>
             )}
           </div>
-            {/* Tribunal (B) */}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Tribunal (B)</Label>
               <Select value={form.tribunal || ""} onValueChange={v => set("tribunal", v)}>
