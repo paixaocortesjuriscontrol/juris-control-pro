@@ -131,12 +131,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso (Colunas A-Q)" color="bg-blue-600 text-white" />
         <div className="p-4 space-y-4">
-          {/* Dossiê */}
-          <div className="space-y-2">
-            <Label>Dossiê (A)</Label>
-            <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
-          </div>
-
           {/* Contrato + Buscar */}
           <div className="space-y-2">
             <Label>Contrato</Label>
@@ -168,6 +162,12 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Dossiê */}
+          <div className="space-y-2">
+            <Label>Dossiê (A)</Label>
+            <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
