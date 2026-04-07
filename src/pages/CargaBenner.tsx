@@ -747,6 +747,7 @@ export default function CargaBenner() {
 
         {/* Stats Dashboard */}
         {stats && (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
@@ -775,7 +776,7 @@ export default function CargaBenner() {
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-destructive">{stats.rejected.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">Rejeições por dossiê</p>
+                <p className="text-xs text-muted-foreground mt-1">Rejeições</p>
               </CardContent>
             </Card>
             <Card>
@@ -785,6 +786,31 @@ export default function CargaBenner() {
               </CardContent>
             </Card>
           </div>
+
+          {rejectedData.length > 0 && (() => {
+            const countByMotivo: Record<string, number> = {};
+            for (const r of rejectedData) {
+              const motivo = r["Motivo"] || "Desconhecido";
+              countByMotivo[motivo] = (countByMotivo[motivo] || 0) + 1;
+            }
+            const sorted = Object.entries(countByMotivo).sort((a, b) => b[1] - a[1]);
+            return (
+              <Card className="mt-4">
+                <CardContent className="pt-4">
+                  <p className="text-sm font-semibold text-foreground mb-3">Rejeições por tipo de erro</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {sorted.map(([motivo, count]) => (
+                      <div key={motivo} className="flex items-center justify-between rounded-md border px-3 py-2">
+                        <span className="text-xs text-muted-foreground truncate mr-2">{motivo}</span>
+                        <span className="text-sm font-bold text-destructive">{count.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+          </>
         )}
 
         {/* Download */}
