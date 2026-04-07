@@ -196,6 +196,8 @@ export default function DadosBenner() {
           <Button variant="outline" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
             <Send className="w-4 h-4 mr-2" /> Marcar como Enviado
           </Button>
+
+          <div className="flex items-end gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Início</Label>
               <Input type="date" value={periodoInicio} onChange={e => setPeriodoInicio(e.target.value)} className="w-[150px]" />
