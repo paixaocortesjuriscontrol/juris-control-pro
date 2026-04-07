@@ -375,17 +375,17 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
         outRow[LAYOUT_COLS[2]] = tipoRecurso; // Tipo de Recurso
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
-        // Turma: garantir que sempre tenha a palavra "Turma"
+        // Turma: extrair somente a turma, removendo "Gabinete do Ministro..."
         let turmaVal = colTurma ? String(row[colTurma] ?? "").trim() : "";
+        // Se contém " - Gabinete", pegar só a parte antes do traço
+        if (turmaVal.includes(" - ")) {
+          turmaVal = turmaVal.split(" - ")[0].trim();
+        }
         const turmaLower = normalizeText(turmaVal);
-        if (turmaVal && !turmaLower.includes("turma") && !turmaLower.includes("presidencia") && !turmaLower.includes("gabinete") && !turmaLower.includes("pleno")) {
+        if (turmaLower.includes("presidencia") || turmaLower.includes("presidência")) {
+          turmaVal = "Presidência";
+        } else if (turmaVal && !turmaLower.includes("turma") && !turmaLower.includes("pleno")) {
           turmaVal = turmaVal + " Turma";
-        }
-        if (turmaVal === "PRESIDÊNCIA" || turmaVal === "PRESIDENCIA") {
-          turmaVal = "Presidência";
-        }
-        if (turmaLower.includes("gabinete") && turmaLower.includes("presidencia")) {
-          turmaVal = "Presidência";
         }
         outRow[LAYOUT_COLS[4]] = turmaVal; // Turma
         outRow[LAYOUT_COLS[5]] = colRelator ? String(row[colRelator] ?? "") : ""; // Relator
