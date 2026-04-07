@@ -62,6 +62,7 @@ import PlanilhaTst from "./pages/PlanilhaTst";
 import CargaBenner from "./pages/CargaBenner";
 import DadosBenner from "./pages/DadosBenner";
 import DistribuicaoTst from "./pages/DistribuicaoTst";
+import PautasTst from "./pages/PautasTst";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -146,6 +147,7 @@ function App() {
               <Route path="/carga-benner" element={<ProtectedRoute><CargaBenner /></ProtectedRoute>} />
               <Route path="/dados-benner" element={<ProtectedRoute><DadosBenner /></ProtectedRoute>} />
               <Route path="/distribuicao-tst" element={<ProtectedRoute><DistribuicaoTst /></ProtectedRoute>} />
+              <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
