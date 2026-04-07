@@ -262,7 +262,7 @@ export default function CargaBenner() {
 
       const [parsed1, parsed2] = await Promise.all([
         parseFile(file1, true, "input1"),
-        parseFile(file2, false, "input2"),
+        parseFile(file2, true, "input2"),
       ]);
 
       setSheets1(parsed1);
