@@ -40,6 +40,8 @@ export default function DadosBenner() {
   const [filterContrato, setFilterContrato] = useState("");
   const [filterTurma, setFilterTurma] = useState("");
   const [filterTipoRecurso, setFilterTipoRecurso] = useState("");
+  const [filterTemPauta, setFilterTemPauta] = useState(false);
+  const [filterTemDistribuicao, setFilterTemDistribuicao] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<DadosBennerFilters>({ status: "todos" });
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DadoBenner | null>(null);
@@ -59,6 +61,8 @@ export default function DadosBenner() {
       contrato: filterContrato.trim() || undefined,
       turma: filterTurma.trim() || undefined,
       tipo_recurso: filterTipoRecurso.trim() || undefined,
+      tem_pauta: filterTemPauta || undefined,
+      tem_distribuicao: filterTemDistribuicao || undefined,
     });
   };
 
@@ -69,6 +73,8 @@ export default function DadosBenner() {
     setFilterContrato("");
     setFilterTurma("");
     setFilterTipoRecurso("");
+    setFilterTemPauta(false);
+    setFilterTemDistribuicao(false);
     setAppliedFilters({ status: "todos" });
   };
 
@@ -232,10 +238,18 @@ export default function DadosBenner() {
             <Label className="text-xs">Tipo Recurso</Label>
             <Input placeholder="Buscar tipo..." value={filterTipoRecurso} onChange={e => setFilterTipoRecurso(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
           </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Checkbox id="filter-pauta" checked={filterTemPauta} onCheckedChange={(v) => setFilterTemPauta(!!v)} />
+            <Label htmlFor="filter-pauta" className="text-xs cursor-pointer">Tem Pauta</Label>
+          </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Checkbox id="filter-dist" checked={filterTemDistribuicao} onCheckedChange={(v) => setFilterTemDistribuicao(!!v)} />
+            <Label htmlFor="filter-dist" className="text-xs cursor-pointer">Tem Distribuição</Label>
+          </div>
           <Button variant="outline" size="sm" onClick={applyFilters}>
             <Search className="w-4 h-4 mr-1" /> Filtrar
           </Button>
-          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso) && (
+          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao) && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
           )}
         </div>
