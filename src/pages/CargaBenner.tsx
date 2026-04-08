@@ -460,18 +460,32 @@ export default function CargaBenner() {
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie; // Dossiê
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
-        // Abreviar tipo de recurso: extrair somente siglas entre parênteses
-        // e remover prefixos "_____ - " (underscores seguidos de hífen)
+        // Expandir siglas de tipo de recurso para nomes completos
+        const SIGLA_TO_FULL: Record<string, string> = {
+          "RR": "RECURSO DE REVISTA",
+          "AIRR": "AGRAVO DE INSTRUMENTO EM RECURSO DE REVISTA",
+          "RRAG": "RECURSO DE REVISTA",
+          "ROT": "RECURSO ORDINÁRIO",
+          "RCL": "RECLAMAÇÃO",
+        };
         const tipoRecursoParts = tipoRecurso
           .split(" - ")
           .map(part => {
-            const siglaMatch = part.match(/\(([^)]+)\)/);
-            let val = siglaMatch ? siglaMatch[1].trim() : part.trim();
-            if (/^recurso\s+de\s+revista$/i.test(val)) val = "RR";
-            return val;
+            let val = part.trim();
+            // Remove "- NÃO TEM" suffix
+            if (/^n[aã]o\s+tem$/i.test(val)) return "";
+            // Extract content inside parentheses if present
+            const siglaMatch = val.match(/\(([^)]+)\)/);
+            if (siglaMatch) val = siglaMatch[1].trim();
+            // Remove underscore-only prefixes
+            if (/^[_\s]+$/.test(val)) return "";
+            const upper = val.toUpperCase();
+            // Expand known abbreviations
+            if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
+            return upper;
           })
-          .filter(v => v && !/^[_\s]+$/.test(v));
-        const tipoRecursoDedup = [...new Set(tipoRecursoParts.map(v => v.toUpperCase()))];
+          .filter(Boolean);
+        const tipoRecursoDedup = [...new Set(tipoRecursoParts)];
         outRow[LAYOUT_COLS[2]] = tipoRecursoDedup.join(" - "); // Tipo de Recurso
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? row[colDataDist] : ""); // Data distribuição
         // Turma: use already-resolved turmaRaw (from relator mapping or cleaned column)
