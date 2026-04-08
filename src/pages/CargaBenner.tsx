@@ -23,6 +23,11 @@ interface ParsedSheet {
   sheetIndex: number;
 }
 
+interface SheetCount {
+  name: string;
+  count: number;
+}
+
 interface Stats {
   totalInput1: number;
   totalInput2: number;
@@ -30,6 +35,8 @@ interface Stats {
   unmatched: number;
   rejected: number;
   outputRows: number;
+  sheetsInput1: SheetCount[];
+  sheetsInput2: SheetCount[];
 }
 
 interface RejeicaoCargaRow {
@@ -320,8 +327,10 @@ export default function CargaBenner() {
       const pColMemoriais = findCol(pH, "memoria", "memoriais", "memórias");
       const pColResultado = findCol(pH, "resultado");
 
+      const sheetsInput2: SheetCount[] = [];
       for (const pautaSheet of parsed2) {
         totalInput2Rows += pautaSheet.rows.length;
+        sheetsInput2.push({ name: pautaSheet.sheetName, count: pautaSheet.rows.length });
         for (const row of pautaSheet.rows) {
           if (pColProcesso) {
             const key = normalizeCNJ(String(row[pColProcesso] ?? ""));
@@ -341,15 +350,19 @@ export default function CargaBenner() {
 
       // Collect all rows from input1 that have a valid process number
       const allInput1Rows: Record<string, any>[] = [];
+      const sheetsInput1: SheetCount[] = [];
       const h1Temp = parsed1[0]?.headers || [];
       const colProcessoTemp = findCol(h1Temp, "processo", "cnj");
       for (const sheet of parsed1) {
+        let sheetCount = 0;
         for (const row of sheet.rows) {
           const proc = colProcessoTemp ? String(row[colProcessoTemp] ?? "").trim() : "";
           if (proc.length >= 7) {
             allInput1Rows.push(row);
+            sheetCount++;
           }
         }
+        sheetsInput1.push({ name: sheet.sheetName, count: sheetCount });
       }
 
       const h1 = parsed1[0]?.headers || [];
@@ -554,6 +567,8 @@ export default function CargaBenner() {
         unmatched: output.length - matched,
         rejected: rejected.length,
         outputRows: output.length,
+        sheetsInput1,
+        sheetsInput2,
       });
 
       setPhase("Concluído!");
@@ -815,6 +830,36 @@ export default function CargaBenner() {
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-primary">{stats.outputRows.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">Linhas no Layout</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per-sheet breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-semibold text-foreground mb-2">Linhas por aba — Input 1 (Distribuições)</p>
+                <div className="space-y-1">
+                  {stats.sheetsInput1.map((s) => (
+                    <div key={s.name} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{s.name}</span>
+                      <span className="font-mono font-medium text-foreground">{s.count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-semibold text-foreground mb-2">Linhas por aba — Input 2 (Pautas)</p>
+                <div className="space-y-1">
+                  {stats.sheetsInput2.map((s) => (
+                    <div key={s.name} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{s.name}</span>
+                      <span className="font-mono font-medium text-foreground">{s.count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>
