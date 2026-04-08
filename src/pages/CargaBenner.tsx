@@ -143,10 +143,25 @@ const LAYOUT_COLS = [
   "Com chances de êxito",                                           // AH
 ];
 
-// Formata data para DD/MM/YYYY
-function formatDateDDMMYYYY(val: string): string {
-  if (!val) return "";
+// Formata data para DD/MM/YYYY — aceita Date, serial number do Excel ou string
+function formatDateDDMMYYYY(val: unknown): string {
+  if (val == null) return "";
+  // Se já é um Date object (xlsx parser retorna Date para células de data)
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const dd = String(val.getUTCDate()).padStart(2, "0");
+    const mm = String(val.getUTCMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${val.getUTCFullYear()}`;
+  }
+  // Se é número, pode ser serial date do Excel (dias desde 1900-01-01)
+  if (typeof val === "number" && val > 30000 && val < 60000) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(excelEpoch.getTime() + val * 86400000);
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+  }
   const s = String(val).trim();
+  if (!s) return "";
   // Already DD/MM/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
   // YYYY-MM-DD or YYYY/MM/DD
@@ -155,13 +170,9 @@ function formatDateDDMMYYYY(val: string): string {
   // D/M/YYYY → pad
   const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (brMatch) return `${brMatch[1].padStart(2, "0")}/${brMatch[2].padStart(2, "0")}/${brMatch[3]}`;
-  // MM/DD/YYYY heuristic or other — try Date parse
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const dd = String(d.getUTCDate()).padStart(2, "0");
-    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-    return `${dd}/${mm}/${d.getUTCFullYear()}`;
-  }
+  // ISO string from Date.toString() — extract via regex
+  const isoFromStr = s.match(/(\d{4})-(\d{2})-(\d{2})T/);
+  if (isoFromStr) return `${isoFromStr[3]}/${isoFromStr[2]}/${isoFromStr[1]}`;
   return s;
 }
 
