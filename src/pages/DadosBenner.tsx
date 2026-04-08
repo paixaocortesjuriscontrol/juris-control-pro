@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner, DadosBennerFilters } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
+import { DadosBennerDetail } from "@/components/benner/DadosBennerDetail";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { gerarPlanilhaBenner, ResultadoGeracaoBenner } from "@/utils/gerarPlanilhaBenner";
@@ -149,14 +150,28 @@ export default function DadosBenner() {
     }
   };
 
-  if (showForm || editando) {
+  if (editando) {
+    return (
+      <MainLayout title="Dados Benner">
+        <div className="max-w-5xl mx-auto">
+          <DadosBennerDetail
+            dado={editando}
+            onSave={saveDado}
+            onCancel={() => setEditando(null)}
+          />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (showForm) {
     return (
       <MainLayout title="Dados Benner">
         <div className="max-w-4xl mx-auto">
           <DadosBennerForm
-            dado={editando}
+            dado={null}
             onSave={saveDado}
-            onCancel={() => { setShowForm(false); setEditando(null); }}
+            onCancel={() => setShowForm(false)}
           />
         </div>
       </MainLayout>
