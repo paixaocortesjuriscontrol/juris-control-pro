@@ -280,6 +280,7 @@ export default function DadosBenner() {
                 <TableHead>Dossiê</TableHead>
                 <TableHead>Nº Processo</TableHead>
                 <TableHead>Tribunal</TableHead>
+                <TableHead>Tipo Recurso</TableHead>
                 <TableHead>Turma</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Status</TableHead>
