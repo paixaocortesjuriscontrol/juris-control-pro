@@ -444,7 +444,7 @@ export default function CargaBenner() {
           .filter(v => v && !/^[_\s]+$/.test(v));
         const tipoRecursoDedup = [...new Set(tipoRecursoParts.map(v => v.toUpperCase()))];
         outRow[LAYOUT_COLS[2]] = tipoRecursoDedup.join(" - "); // Tipo de Recurso
-        outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
+        outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? row[colDataDist] : ""); // Data distribuição
         // Turma: use already-resolved turmaRaw (from relator mapping or cleaned column)
         let turmaVal = turmaRaw;
         const turmaLower = normalizeText(turmaVal);
