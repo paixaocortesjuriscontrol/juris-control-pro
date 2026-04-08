@@ -481,7 +481,7 @@ export default function CargaBenner() {
         const hasProvaDigital = colUVal.includes("prova digital") || colUVal.includes("provas digitais") || colQVal.includes("prova digital") || colQVal.includes("provas digitais");
         outRow[LAYOUT_COLS[9]] = hasProvaDigital ? "S" : "N"; // Provas digitais
         outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N"; // Temos data julgamento
-        const dataJulgVal = hasJulg && pColDataJulg ? formatDateDDMMYYYY(String(pauta![pColDataJulg] ?? "")) : "";
+        const dataJulgVal = hasJulg && pColDataJulg ? formatDateDDMMYYYY(pauta![pColDataJulg]) : "";
         outRow[LAYOUT_COLS[11]] = dataJulgVal; // Data julgamento
         outRow[LAYOUT_COLS[12]] = hasJulg && pColHorario ? String(pauta![pColHorario] ?? "") : ""; // Horário
         outRow[LAYOUT_COLS[13]] = hasJulg && pColTipo ? String(pauta![pColTipo] ?? "") : ""; // Tipo julgamento
