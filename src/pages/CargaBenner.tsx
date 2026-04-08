@@ -993,7 +993,7 @@ export default function CargaBenner() {
         {/* Stats Dashboard */}
         {stats && (
           <>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-foreground">{stats.totalInput1.toLocaleString()}</p>
@@ -1020,6 +1020,12 @@ export default function CargaBenner() {
             </Card>
             <Card>
               <CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-orange-500">{stats.transitoJulgado.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">Trânsito em Julgado</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-destructive">{stats.rejected.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">Rejeições</p>
               </CardContent>
@@ -1028,6 +1034,8 @@ export default function CargaBenner() {
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-primary">{stats.outputRows.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">Linhas no Layout</p>
+              </CardContent>
+            </Card>
               </CardContent>
             </Card>
           </div>
