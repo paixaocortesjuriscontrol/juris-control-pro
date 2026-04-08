@@ -462,13 +462,16 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
         // Expandir siglas de tipo de recurso para nomes completos
         const SIGLA_TO_FULL: Record<string, string> = {
-          "RR": "RECURSO DE REVISTA",
-          "AIRR": "AGRAVO DE INSTRUMENTO EM RECURSO DE REVISTA",
-          "RRAG": "RECURSO DE REVISTA",
-          "ROT": "RECURSO ORDINÁRIO",
-          "RCL": "RECLAMAÇÃO",
-          "AG": "AGRAVO",
-          "EMB": "EMBARGOS DE DECLARAÇÃO",
+          "RR": "Recurso de Revista",
+          "AIRR": "Agravo de Instrumento",
+          "RRAG": "Recurso de Revista",
+          "ROT": "Recurso Ordinário",
+          "RCL": "Reclamação",
+          "AG": "Agravo",
+          "EMB": "Embargos de Declaração",
+          "AGRAVO INTERNO": "Agravo Interno",
+          "EMB-AG-RRAG": "Embargos SDI",
+          "AIAP": "Agravo de Instrumento",
         };
         const tipoRecursoParts = tipoRecurso
           .split(" - ")
@@ -481,10 +484,11 @@ export default function CargaBenner() {
             if (siglaMatch) val = siglaMatch[1].trim();
             // Remove underscore-only prefixes
             if (/^[_\s]+$/.test(val)) return "";
-            const upper = val.toUpperCase();
+            const upper = val.toUpperCase().replace(/[-–]/g, "-");
             // Expand known abbreviations
             if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
-            return upper;
+            // Title case fallback: first letter of each word uppercase
+            return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
           })
           .filter(Boolean);
         const tipoRecursoDedup = [...new Set(tipoRecursoParts)];
