@@ -48,15 +48,39 @@ export interface DadoBenner {
 
 export type DadoBennerInsert = Omit<DadoBenner, "id" | "created_at" | "updated_at">;
 
-export function useDadosBenner(statusFilter?: string) {
+export interface DadosBennerFilters {
+  status?: string;
+  relator?: string;
+  dossie?: string;
+  contrato?: string;
+  turma?: string;
+  tipo_recurso?: string;
+}
+
+export function useDadosBenner(filters?: DadosBennerFilters) {
   const [dados, setDados] = useState<DadoBenner[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDados = useCallback(async () => {
     setLoading(true);
     let query = supabase.from("dados_benner" as any).select("*").order("created_at", { ascending: false });
-    if (statusFilter && statusFilter !== "todos") {
-      query = query.eq("status", statusFilter);
+    if (filters?.status && filters.status !== "todos") {
+      query = query.eq("status", filters.status);
+    }
+    if (filters?.relator) {
+      query = query.ilike("relator", `%${filters.relator}%`);
+    }
+    if (filters?.dossie) {
+      query = query.ilike("dossie", `%${filters.dossie}%`);
+    }
+    if (filters?.contrato) {
+      query = query.ilike("contrato", `%${filters.contrato}%`);
+    }
+    if (filters?.turma) {
+      query = query.ilike("turma", `%${filters.turma}%`);
+    }
+    if (filters?.tipo_recurso) {
+      query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
     }
     const { data, error } = await query;
     if (error) {
@@ -65,7 +89,7 @@ export function useDadosBenner(statusFilter?: string) {
       setDados((data as any[]) || []);
     }
     setLoading(false);
-  }, [statusFilter]);
+  }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
 
   useEffect(() => { fetchDados(); }, [fetchDados]);
 
