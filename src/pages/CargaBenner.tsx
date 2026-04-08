@@ -1036,8 +1036,6 @@ export default function CargaBenner() {
                 <p className="text-xs text-muted-foreground mt-1">Linhas no Layout</p>
               </CardContent>
             </Card>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Per-sheet breakdown */}
