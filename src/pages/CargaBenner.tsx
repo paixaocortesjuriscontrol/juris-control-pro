@@ -541,10 +541,12 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[31]] = aparelhamentoVal === "Bem aparelhado" ? "X" : ""; // AF
         outRow[LAYOUT_COLS[32]] = aparelhamentoVal === "Mal aparelhado" ? "X" : ""; // AG
         outRow[LAYOUT_COLS[33]] = chanceExito; // AH - Chance de êxito
+        outRow["__numProcesso"] = numProcesso; // hidden field for conferência
 
         // Sanitize: remove dash-only values from all columns
         const dashOnlyRegex = /^[-–—\s]+$/;
         for (const key of Object.keys(outRow)) {
+          if (key.startsWith("__")) continue;
           if (typeof outRow[key] === "string" && dashOnlyRegex.test(outRow[key])) {
             outRow[key] = "";
           }
@@ -582,7 +584,7 @@ export default function CargaBenner() {
     }
   };
 
-  const downloadXlsx = async (fullMode: boolean) => {
+  const downloadXlsx = async (fullMode: "full" | "aq" | "ag") => {
     if (!outputData) return;
     try {
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
@@ -620,7 +622,7 @@ export default function CargaBenner() {
         return s;
       }
 
-      const maxCol = fullMode ? LAYOUT_COLS.length : 17; // até Q (índice 16, 17 colunas)
+      const maxCol = fullMode === "full" ? LAYOUT_COLS.length : fullMode === "ag" ? 7 : 17; // A-AH, A-G, or A-Q
 
       // Read existing styles to find/create centered style
       let stylesXml = await zip.file("xl/styles.xml")!.async("string");
@@ -676,7 +678,7 @@ export default function CargaBenner() {
       const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
       zip.file("xl/sharedStrings.xml", newSst);
 
-      const suffix = fullMode ? "" : "_ate_recurso";
+      const suffix = fullMode === "full" ? "" : fullMode === "ag" ? "_ate_analise" : "_ate_recurso";
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -707,6 +709,24 @@ export default function CargaBenner() {
     XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
     XLSX.writeFile(wb, `Rejeicoes_Carga_Benner_${getTimestampForFileName()}.xlsx`);
     toast.success("Arquivo de rejeições baixado!");
+  };
+
+  const downloadConferenciaXlsx = () => {
+    if (!outputData) return;
+    const rows = outputData.map((row) => {
+      const newRow: Record<string, string> = {};
+      newRow["Dossiê"] = String(row[LAYOUT_COLS[0]] ?? "");
+      newRow["Nº Processo"] = String(row["__numProcesso"] ?? "");
+      for (let i = 1; i < LAYOUT_COLS.length; i++) {
+        newRow[LAYOUT_COLS[i]] = String(row[LAYOUT_COLS[i]] ?? "");
+      }
+      return newRow;
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Conferência");
+    XLSX.writeFile(wb, `Conferencia_Carga_Benner_${getTimestampForFileName()}.xlsx`);
+    toast.success("Planilha de conferência baixada!");
   };
 
   return (
@@ -904,20 +924,28 @@ export default function CargaBenner() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {rejectedData.length > 0 && (
                     <Button variant="outline" onClick={downloadRejectedXlsx}>
                       <AlertCircle className="w-4 h-4 mr-2" />
                       Baixar Rejeições
                     </Button>
                   )}
-                  <Button onClick={() => downloadXlsx(true)}>
+                  <Button onClick={() => downloadXlsx("full")}>
                     <Download className="w-4 h-4 mr-2" />
                     Completa (A-AH)
                   </Button>
-                  <Button variant="outline" onClick={() => downloadXlsx(false)}>
+                  <Button variant="outline" onClick={() => downloadXlsx("aq")}>
                     <Download className="w-4 h-4 mr-2" />
                     Até Recurso (A-Q)
+                  </Button>
+                  <Button variant="outline" onClick={() => downloadXlsx("ag")}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Até Análise quarteirizado (A-G)
+                  </Button>
+                  <Button variant="secondary" onClick={downloadConferenciaXlsx}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Planilha de Conferência
                   </Button>
                 </div>
               </div>
