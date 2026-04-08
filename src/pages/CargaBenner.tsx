@@ -468,27 +468,30 @@ export default function CargaBenner() {
           "ROT": "Recurso Ordinário",
           "RCL": "Reclamação",
           "AG": "Agravo",
+          "AR": "Agravo Regimental",
           "EMB": "Embargos de Declaração",
           "AGRAVO INTERNO": "Agravo Interno",
           "EMB-AG-RRAG": "Embargos SDI",
           "AIAP": "Agravo de Instrumento",
+          "AIR": "Agravo de Instrumento",
         };
-        const tipoRecursoParts = tipoRecurso
-          .split(" - ")
-          .map(part => {
-            let val = part.trim();
-            // Remove "- NÃO TEM" suffix
-            if (/^n[aã]o\s+tem$/i.test(val)) return "";
-            // Extract content inside parentheses if present
+        const expandSigla = (val: string): string => {
+            if (!val.trim()) return "";
+            if (/^n[aã]o\s+tem$/i.test(val.trim())) return "";
             const siglaMatch = val.match(/\(([^)]+)\)/);
             if (siglaMatch) val = siglaMatch[1].trim();
-            // Remove underscore-only prefixes
             if (/^[_\s]+$/.test(val)) return "";
-            const upper = val.toUpperCase().replace(/[-–]/g, "-");
-            // Expand known abbreviations
+            const upper = val.trim().toUpperCase().replace(/[-–]/g, "-");
+            // Try whole string first
             if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
-            // Title case fallback: first letter of each word uppercase
+            // Split compound abbreviations by "-" and expand each part
+            if (upper.includes("-")) {
+              const parts = upper.split("-").map(p => SIGLA_TO_FULL[p] || p.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
+              const unique = parts.filter((v, i, a) => v && a.indexOf(v) === i);
+              if (unique.length > 0) return unique.join(" - ");
+            }
             return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+        };
           })
           .filter(Boolean);
         const tipoRecursoDedup = [...new Set(tipoRecursoParts)];
