@@ -834,6 +834,36 @@ export default function CargaBenner() {
             </Card>
           </div>
 
+          {/* Per-sheet breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-semibold text-foreground mb-2">Linhas por aba — Input 1 (Distribuições)</p>
+                <div className="space-y-1">
+                  {stats.sheetsInput1.map((s) => (
+                    <div key={s.name} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{s.name}</span>
+                      <span className="font-mono font-medium text-foreground">{s.count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-semibold text-foreground mb-2">Linhas por aba — Input 2 (Pautas)</p>
+                <div className="space-y-1">
+                  {stats.sheetsInput2.map((s) => (
+                    <div key={s.name} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{s.name}</span>
+                      <span className="font-mono font-medium text-foreground">{s.count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {rejectedData.length > 0 && (() => {
             const countByMotivo: Record<string, number> = {};
             for (const r of rejectedData) {
