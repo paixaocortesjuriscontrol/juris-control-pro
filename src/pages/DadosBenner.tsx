@@ -181,12 +181,12 @@ export default function DadosBenner() {
           </div>
         </div>
 
-        {/* Filtros e Ações */}
+        {/* Filtros */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="space-y-1">
             <Label className="text-xs">Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setAppliedFilters(prev => ({ ...prev, status: v })); }}>
+              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="rascunho">Rascunho</SelectItem>
@@ -196,7 +196,36 @@ export default function DadosBenner() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Dossiê</Label>
+            <Input placeholder="Buscar dossiê..." value={filterDossie} onChange={e => setFilterDossie(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Nº Processo</Label>
+            <Input placeholder="Buscar processo..." value={filterContrato} onChange={e => setFilterContrato(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Relator</Label>
+            <Input placeholder="Buscar relator..." value={filterRelator} onChange={e => setFilterRelator(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Turma</Label>
+            <Input placeholder="Buscar turma..." value={filterTurma} onChange={e => setFilterTurma(e.target.value)} className="w-[120px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Tipo Recurso</Label>
+            <Input placeholder="Buscar tipo..." value={filterTipoRecurso} onChange={e => setFilterTipoRecurso(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <Button variant="outline" size="sm" onClick={applyFilters}>
+            <Search className="w-4 h-4 mr-1" /> Filtrar
+          </Button>
+          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso) && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
+          )}
+        </div>
 
+        {/* Ações */}
+        <div className="flex flex-wrap gap-3 items-end">
           <Button variant="outline" onClick={handleGerarPlanilha} disabled={gerando}>
             {gerando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
             Gerar Planilha (Prontos)
