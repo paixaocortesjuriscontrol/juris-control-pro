@@ -49,7 +49,7 @@ export default function DadosBenner() {
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
-  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados } = useDadosBenner(appliedFilters);
+  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount } = useDadosBenner(appliedFilters);
 
   const applyFilters = () => {
     setAppliedFilters({
