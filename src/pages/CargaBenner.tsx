@@ -782,8 +782,7 @@ export default function CargaBenner() {
         zip.file("xl/styles.xml", stylesXml);
       }
 
-      // --- Inject header for "Nº Processo" in row 2, column B ---
-      // We need to modify existing header rows to shift columns B+ to C+ and insert B
+      // --- Inject header for "Processo" in row 2, column B ---
       let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
       const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
       let headerRows = "";
@@ -792,14 +791,6 @@ export default function CargaBenner() {
         const row1Match = allContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
         const row2Match = allContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
 
-        // Shift columns in header rows: for each cell ref, if col >= B, shift right by 1
-        function shiftHeaderRow(rowXml: string): string {
-          return rowXml.replace(/ r="([A-Z]+)(\d+)"/g, (_match, col: string, row: string) => {
-            const colIdx = colLetterToIndex(col);
-            if (colIdx >= 1) return ` r="${c2l(colIdx + 1)}${row}"`;
-            return ` r="${col}${row}"`;
-          });
-        }
         function colLetterToIndex(letters: string): number {
           let idx = 0;
           for (let i = 0; i < letters.length; i++) {
@@ -808,16 +799,35 @@ export default function CargaBenner() {
           return idx - 1;
         }
 
+        // Parse cells from a row, shift col >= B right by 1, insert new B cell, re-sort
+        function shiftAndInsertRow(rowXml: string, rowNum: number, insertCell?: string): string {
+          const cells: Array<{col: number; xml: string}> = [];
+          const cellRegex = /<c\s[^>]*r="([A-Z]+)\d+"[^>]*>[\s\S]*?<\/c>|<c\s[^>]*r="([A-Z]+)\d+"[^\/]*\/>/g;
+          let cm: RegExpExecArray | null;
+          while ((cm = cellRegex.exec(rowXml)) !== null) {
+            const colLetter = cm[1] || cm[2];
+            const colIdx = colLetterToIndex(colLetter);
+            // Shift: col >= 1 (B) moves right by 1
+            const newColIdx = colIdx >= 1 ? colIdx + 1 : colIdx;
+            const newRef = c2l(newColIdx) + rowNum;
+            const shifted = cm[0].replace(/ r="[A-Z]+\d+"/, ` r="${newRef}"`);
+            cells.push({col: newColIdx, xml: shifted});
+          }
+          if (insertCell) {
+            cells.push({col: 1, xml: insertCell});
+          }
+          // Sort by column index (Excel requires ascending order)
+          cells.sort((a, b) => a.col - b.col);
+          const rowTag = rowXml.match(/<row [^>]*>/)?.[0] || `<row r="${rowNum}">`;
+          return rowTag + cells.map(c => c.xml).join("") + "</row>";
+        }
+
         let h1 = row1Match?.[0] ?? "";
         let h2 = row2Match?.[0] ?? "";
-        h1 = shiftHeaderRow(h1);
-        h2 = shiftHeaderRow(h2);
-
-        // Insert "Nº Processo" header cell in row 2 col B
+        h1 = shiftAndInsertRow(h1, 1);
         const npIdx = getStrIdx("Processo");
         const npCell = `<c r="B2" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${npIdx}</v></c>`;
-        // Insert before </row> in h2
-        h2 = h2.replace(/<\/row>$/, npCell + "</row>");
+        h2 = shiftAndInsertRow(h2, 2, npCell);
 
         headerRows = h1 + h2;
       }
