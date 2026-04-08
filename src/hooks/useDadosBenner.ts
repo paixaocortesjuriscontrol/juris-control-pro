@@ -184,11 +184,20 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
   };
 
   const updateStatus = async (ids: string[], newStatus: string) => {
-    const { error } = await supabase.from("dados_benner" as any).update({ status: newStatus } as any).in("id", ids);
-    if (error) { toast.error("Erro ao atualizar status: " + error.message); return false; }
-    toast.success(`${ids.length} registro(s) atualizado(s) para "${newStatus}"!`);
-    fetchDados();
-    return true;
+    const BATCH_SIZE = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batch = ids.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from("dados_benner" as any).update({ status: newStatus } as any).in("id", batch);
+        if (error) { toast.error("Erro ao atualizar status: " + error.message); return false; }
+      }
+      toast.success(`${ids.length} registro(s) atualizado(s) para "${newStatus}"!`);
+      fetchDados();
+      return true;
+    } catch (err: any) {
+      toast.error("Erro ao atualizar status: " + (err?.message || "Erro desconhecido"));
+      return false;
+    }
   };
 
   const buscarDossie = async (termo: string) => {
@@ -238,9 +247,19 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       if (filters?.tipo_recurso) query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
       if (allowedContratos) query = query.in("contrato", allowedContratos);
 
-      const { data, error } = await query;
-      if (error) { toast.error("Erro ao buscar IDs: " + error.message); return []; }
-      return (data as any[] || []).map((d: any) => d.id);
+      // Paginate to get all IDs (Supabase limits to 1000 per query)
+      let allIds: string[] = [];
+      let offset = 0;
+      const FETCH_SIZE = 1000;
+      while (true) {
+        const { data, error } = await query.range(offset, offset + FETCH_SIZE - 1);
+        if (error) { toast.error("Erro ao buscar IDs: " + error.message); return []; }
+        const ids = (data as any[] || []).map((d: any) => d.id);
+        allIds = allIds.concat(ids);
+        if (ids.length < FETCH_SIZE) break;
+        offset += FETCH_SIZE;
+      }
+      return allIds;
     } catch {
       return [];
     }
