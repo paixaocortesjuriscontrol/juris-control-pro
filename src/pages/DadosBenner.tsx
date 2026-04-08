@@ -290,9 +290,9 @@ export default function DadosBenner() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
@@ -301,6 +301,7 @@ export default function DadosBenner() {
                   <TableCell className="font-medium">{d.dossie || "-"}</TableCell>
                   <TableCell>{d.contrato || "-"}</TableCell>
                   <TableCell>{d.tribunal || "-"}</TableCell>
+                  <TableCell className="text-xs">{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>
                   <TableCell>{d.relator || "-"}</TableCell>
                   <TableCell>
