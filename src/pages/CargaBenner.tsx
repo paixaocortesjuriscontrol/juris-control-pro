@@ -567,6 +567,8 @@ export default function CargaBenner() {
         unmatched: output.length - matched,
         rejected: rejected.length,
         outputRows: output.length,
+        sheetsInput1,
+        sheetsInput2,
       });
 
       setPhase("Concluído!");
