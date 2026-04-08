@@ -238,10 +238,18 @@ export default function DadosBenner() {
             <Label className="text-xs">Tipo Recurso</Label>
             <Input placeholder="Buscar tipo..." value={filterTipoRecurso} onChange={e => setFilterTipoRecurso(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
           </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Checkbox id="filter-pauta" checked={filterTemPauta} onCheckedChange={(v) => setFilterTemPauta(!!v)} />
+            <Label htmlFor="filter-pauta" className="text-xs cursor-pointer">Tem Pauta</Label>
+          </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Checkbox id="filter-dist" checked={filterTemDistribuicao} onCheckedChange={(v) => setFilterTemDistribuicao(!!v)} />
+            <Label htmlFor="filter-dist" className="text-xs cursor-pointer">Tem Distribuição</Label>
+          </div>
           <Button variant="outline" size="sm" onClick={applyFilters}>
             <Search className="w-4 h-4 mr-1" /> Filtrar
           </Button>
-          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso) && (
+          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao) && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
           )}
         </div>
