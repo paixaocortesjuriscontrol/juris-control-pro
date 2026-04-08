@@ -107,7 +107,7 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<Resultad
     values.forEach((val, colIdx) => {
       if (!val) return;
       const ref = `${colLetters[colIdx]}${rowNum}`;
-      const style = colIdx <= 5 ? ' s="5"' : "";
+      const style = ' s="5"';
       const strIdx = getStringIndex(escapeXml(val));
       cellsXml += `<c r="${ref}"${style} t="s"><v>${strIdx}</v></c>`;
     });
