@@ -711,22 +711,152 @@ export default function CargaBenner() {
     toast.success("Arquivo de rejeições baixado!");
   };
 
-  const downloadConferenciaXlsx = () => {
+  const downloadConferenciaXlsx = async () => {
     if (!outputData) return;
-    const rows = outputData.map((row) => {
-      const newRow: Record<string, string> = {};
-      newRow["Dossiê"] = String(row[LAYOUT_COLS[0]] ?? "");
-      newRow["Nº Processo"] = String(row["__numProcesso"] ?? "");
-      for (let i = 1; i < LAYOUT_COLS.length; i++) {
-        newRow[LAYOUT_COLS[i]] = String(row[LAYOUT_COLS[i]] ?? "");
+    try {
+      const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
+      if (!resp.ok) throw new Error("Template não encontrado");
+      const templateBuf = await resp.arrayBuffer();
+      const zip = await JSZip.loadAsync(templateBuf);
+
+      // --- shared strings ---
+      const sstXml = await zip.file("xl/sharedStrings.xml")!.async("string");
+      const existingStrings: string[] = [];
+      const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
+      let m: RegExpExecArray | null;
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      const stringMap = new Map<string, number>();
+      existingStrings.forEach((s, i) => stringMap.set(s, i));
+      const newStrings = [...existingStrings];
+      function getStrIdx(val: string): number {
+        if (stringMap.has(val)) return stringMap.get(val)!;
+        const idx = newStrings.length;
+        newStrings.push(val);
+        stringMap.set(val, idx);
+        return idx;
       }
-      return newRow;
-    });
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, "Conferência");
-    XLSX.writeFile(wb, `Conferencia_Carga_Benner_${getTimestampForFileName()}.xlsx`);
-    toast.success("Planilha de conferência baixada!");
+      function c2l(c: number): string {
+        let s = "", n = c;
+        while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
+        return s;
+      }
+
+      // Total cols = LAYOUT_COLS.length + 1 (extra "Nº Processo" after Dossiê)
+      const totalCols = LAYOUT_COLS.length + 1;
+
+      // --- styles: add centered style ---
+      let stylesXml = await zip.file("xl/styles.xml")!.async("string");
+      const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
+      let centeredStyleId = 0;
+      if (cellXfsMatch) {
+        const cnt = parseInt(cellXfsMatch[1]);
+        const centeredXf = `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
+        stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + `</cellXfs>`);
+        stylesXml = stylesXml.replace(`<cellXfs count="${cnt}">`, `<cellXfs count="${cnt + 1}">`);
+        centeredStyleId = cnt;
+        zip.file("xl/styles.xml", stylesXml);
+      }
+
+      // --- Inject header for "Nº Processo" in row 2, column B ---
+      // We need to modify existing header rows to shift columns B+ to C+ and insert B
+      let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+      const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
+      let headerRows = "";
+      if (sheetDataMatch) {
+        const allContent = sheetDataMatch[1];
+        const row1Match = allContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
+        const row2Match = allContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
+
+        // Shift columns in header rows: for each cell ref, if col >= B, shift right by 1
+        function shiftHeaderRow(rowXml: string): string {
+          return rowXml.replace(/ r="([A-Z]+)(\d+)"/g, (_match, col: string, row: string) => {
+            const colIdx = colLetterToIndex(col);
+            if (colIdx >= 1) return ` r="${c2l(colIdx + 1)}${row}"`;
+            return ` r="${col}${row}"`;
+          });
+        }
+        function colLetterToIndex(letters: string): number {
+          let idx = 0;
+          for (let i = 0; i < letters.length; i++) {
+            idx = idx * 26 + (letters.charCodeAt(i) - 64);
+          }
+          return idx - 1;
+        }
+
+        let h1 = row1Match?.[0] ?? "";
+        let h2 = row2Match?.[0] ?? "";
+        h1 = shiftHeaderRow(h1);
+        h2 = shiftHeaderRow(h2);
+
+        // Insert "Nº Processo" header cell in row 2 col B
+        const npIdx = getStrIdx("Nº Processo");
+        const npCell = `<c r="B2" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${npIdx}</v></c>`;
+        // Insert before </row> in h2
+        h2 = h2.replace(/<\/row>$/, npCell + "</row>");
+
+        headerRows = h1 + h2;
+      }
+
+      // --- data rows ---
+      let dataRowsXml = "";
+      for (let i = 0; i < outputData.length; i++) {
+        const row = outputData[i];
+        const rowNum = i + 3;
+        let cellsXml = "";
+
+        // Col A = Dossiê (LAYOUT_COLS[0])
+        const dossieVal = String(row[LAYOUT_COLS[0]] ?? "");
+        if (dossieVal) {
+          const ref = `A${rowNum}`;
+          cellsXml += `<c r="${ref}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(dossieVal)}</v></c>`;
+        }
+
+        // Col B = Nº Processo
+        const procVal = String(row["__numProcesso"] ?? "");
+        if (procVal) {
+          const ref = `B${rowNum}`;
+          cellsXml += `<c r="${ref}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(procVal)}</v></c>`;
+        }
+
+        // Cols C onwards = LAYOUT_COLS[1..end] (shifted by +1)
+        for (let c = 1; c < LAYOUT_COLS.length; c++) {
+          const val = String(row[LAYOUT_COLS[c]] ?? "");
+          if (!val) continue;
+          const ref = c2l(c + 1) + rowNum; // c+1 because of inserted column
+          if (c + 1 <= 6 && centeredStyleId > 0) {
+            cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+          } else {
+            cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
+          }
+        }
+        dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
+      }
+
+      // --- rebuild sheet ---
+      const lastRow = outputData.length + 2;
+      const lastColLetter = c2l(totalCols - 1);
+      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${lastColLetter}${lastRow}"/>`);
+      sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
+      zip.file("xl/worksheets/sheet1.xml", sheetXml);
+
+      // --- rebuild shared strings ---
+      const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const newSstEntries = newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("");
+      const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
+      zip.file("xl/sharedStrings.xml", newSst);
+
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Conferencia_Carga_Benner_${getTimestampForFileName()}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Planilha de conferência baixada!");
+    } catch (err: any) {
+      toast.error("Erro ao gerar conferência: " + (err?.message || String(err)));
+      console.error("[CargaBenner] Conferência error:", err);
+    }
   };
 
   return (
