@@ -44,6 +44,7 @@ function formatDate(val: any): string {
     const y = val.getUTCFullYear();
     return `${d}/${m}/${y}`;
   }
+  if (typeof val === "number") return String(val);
   return String(val ?? "");
 }
 
@@ -58,7 +59,7 @@ async function parseWorkbook(data: ArrayBuffer, allSheets: boolean, keys: string
 
   for (let si = 0; si < sheetNames.length; si++) {
     const ws = wb.Sheets[sheetNames[si]];
-    const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, rawNumbers: false, defval: "", blankrows: true }) as any[][];
+    const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "", blankrows: true }) as any[][];
 
     const hiddenRows = hiddenRowsMap[sheetNames[si]] || new Set<number>();
 

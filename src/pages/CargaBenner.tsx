@@ -143,36 +143,57 @@ const LAYOUT_COLS = [
   "Com chances de êxito",                                           // AH
 ];
 
-// Formata data para DD/MM/YYYY — aceita Date, serial number do Excel ou string
+// Formata data para DD/MM/YYYY — aceita Date, serial do Excel ou strings variadas
 function formatDateDDMMYYYY(val: unknown): string {
   if (val == null) return "";
-  // Se já é um Date object (xlsx parser retorna Date para células de data)
+
+  const formatParts = (day: number, month: number, year: number) => {
+    if (!day || !month || !year) return "";
+    return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+  };
+
   if (val instanceof Date && !isNaN(val.getTime())) {
-    const dd = String(val.getUTCDate()).padStart(2, "0");
-    const mm = String(val.getUTCMonth() + 1).padStart(2, "0");
-    return `${dd}/${mm}/${val.getUTCFullYear()}`;
+    return formatParts(val.getUTCDate(), val.getUTCMonth() + 1, val.getUTCFullYear());
   }
-  // Se é número, pode ser serial date do Excel (dias desde 1900-01-01)
-  if (typeof val === "number" && val > 30000 && val < 60000) {
+
+  if (typeof val === "number" && val > 0) {
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const d = new Date(excelEpoch.getTime() + val * 86400000);
-    const dd = String(d.getUTCDate()).padStart(2, "0");
-    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+    return formatParts(d.getUTCDate(), d.getUTCMonth() + 1, d.getUTCFullYear());
   }
+
   const s = String(val).trim();
   if (!s) return "";
-  // Already DD/MM/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-  // YYYY-MM-DD or YYYY/MM/DD
-  const isoMatch = s.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
-  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-  // D/M/YYYY → pad
-  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (brMatch) return `${brMatch[1].padStart(2, "0")}/${brMatch[2].padStart(2, "0")}/${brMatch[3]}`;
-  // ISO string from Date.toString() — extract via regex
+
+  const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) return formatParts(Number(isoMatch[3]), Number(isoMatch[2]), Number(isoMatch[1]));
+
+  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) return formatParts(Number(brMatch[1]), Number(brMatch[2]), Number(brMatch[3]));
+
+  const shortMonthMatch = s.match(/^(\d{1,2})[\/\-]([A-Za-z]{3,})$/);
+  if (shortMonthMatch) {
+    const monthMap: Record<string, number> = {
+      jan: 1, january: 1, fev: 2, feb: 2, february: 2, mar: 3, march: 3, abr: 4, apr: 4, april: 4,
+      mai: 5, may: 5, jun: 6, june: 6, jul: 7, july: 7, ago: 8, aug: 8, august: 8, set: 9, sep: 9, sept: 9, september: 9,
+      out: 10, oct: 10, october: 10, nov: 11, november: 11, dez: 12, dec: 12, december: 12,
+    };
+    const month = monthMap[normalizeText(shortMonthMatch[2])];
+    if (month) {
+      const currentYear = new Date().getFullYear();
+      return formatParts(Number(shortMonthMatch[1]), month, currentYear);
+    }
+  }
+
   const isoFromStr = s.match(/(\d{4})-(\d{2})-(\d{2})T/);
-  if (isoFromStr) return `${isoFromStr[3]}/${isoFromStr[2]}/${isoFromStr[1]}`;
+  if (isoFromStr) return formatParts(Number(isoFromStr[3]), Number(isoFromStr[2]), Number(isoFromStr[1]));
+
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    return formatParts(parsed.getUTCDate(), parsed.getUTCMonth() + 1, parsed.getUTCFullYear());
+  }
+
   return s;
 }
 
@@ -389,19 +410,7 @@ export default function CargaBenner() {
           rejected.push({
             "Dossiê": dossie,
             "Número do Processo": numProcesso,
-            "Data Distribuição": (() => {
-              const raw = colDataDist ? String(row[colDataDist] ?? "") : "";
-              if (!raw) return "";
-              const d = new Date(raw);
-              if (!isNaN(d.getTime())) {
-                const dd = String(d.getDate()).padStart(2, "0");
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                return `${dd}/${mm}/${d.getFullYear()}`;
-              }
-              const m = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
-              if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-              return raw;
-            })(),
+            "Data Distribuição": formatDateDDMMYYYY(colDataDist ? row[colDataDist] : ""),
             "Turma": colTurma ? String(row[colTurma] ?? "") : "",
             "Relator": colRelator ? String(row[colRelator] ?? "") : "",
             "Motivo": motivoRejeicao,
