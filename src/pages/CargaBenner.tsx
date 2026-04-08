@@ -789,7 +789,7 @@ export default function CargaBenner() {
         h2 = shiftHeaderRow(h2);
 
         // Insert "Nº Processo" header cell in row 2 col B
-        const npIdx = getStrIdx("Nº Processo");
+        const npIdx = getStrIdx("Processo");
         const npCell = `<c r="B2" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${npIdx}</v></c>`;
         // Insert before </row> in h2
         h2 = h2.replace(/<\/row>$/, npCell + "</row>");
