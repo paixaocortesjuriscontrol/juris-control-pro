@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
-import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
+import { useDadosBenner, DadoBenner, DadosBennerFilters } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -33,6 +33,12 @@ const statusColors: Record<string, string> = {
 
 export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [filterRelator, setFilterRelator] = useState("");
+  const [filterDossie, setFilterDossie] = useState("");
+  const [filterContrato, setFilterContrato] = useState("");
+  const [filterTurma, setFilterTurma] = useState("");
+  const [filterTipoRecurso, setFilterTipoRecurso] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<DadosBennerFilters>({ status: "todos" });
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DadoBenner | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -41,7 +47,28 @@ export default function DadosBenner() {
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
-  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados } = useDadosBenner(statusFilter);
+  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados } = useDadosBenner(appliedFilters);
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      relator: filterRelator.trim() || undefined,
+      dossie: filterDossie.trim() || undefined,
+      contrato: filterContrato.trim() || undefined,
+      turma: filterTurma.trim() || undefined,
+      tipo_recurso: filterTipoRecurso.trim() || undefined,
+    });
+  };
+
+  const clearFilters = () => {
+    setStatusFilter("todos");
+    setFilterRelator("");
+    setFilterDossie("");
+    setFilterContrato("");
+    setFilterTurma("");
+    setFilterTipoRecurso("");
+    setAppliedFilters({ status: "todos" });
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
