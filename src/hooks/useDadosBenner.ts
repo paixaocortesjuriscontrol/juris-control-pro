@@ -92,19 +92,68 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
 
   const fetchDados = useCallback(async () => {
     setLoading(true);
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-    const { data, error, count } = await buildQuery().range(from, to);
-    if (error) {
-      toast.error("Erro ao carregar dados: " + error.message);
-    } else {
-      setDados((data as any[]) || []);
-      setTotalCount(count ?? 0);
-    }
-    setLoading(false);
-  }, [buildQuery, page]);
+    try {
+      // If tem_pauta or tem_distribuicao filters are active, first get matching process numbers
+      let pautaContratos: string[] | null = null;
+      let distContratos: string[] | null = null;
 
-  useEffect(() => { fetchDados(); }, [fetchDados]);
+      if (filters?.tem_pauta) {
+        const { data } = await supabase.from("pautas_tst").select("processo_numero");
+        pautaContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        if (pautaContratos.length === 0) {
+          setDados([]);
+          setTotalCount(0);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (filters?.tem_distribuicao) {
+        const { data } = await supabase.from("distribuicoes_tst").select("processo_numero");
+        distContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        if (distContratos.length === 0) {
+          setDados([]);
+          setTotalCount(0);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Combine: if both filters active, intersect
+      let allowedContratos: string[] | null = null;
+      if (pautaContratos && distContratos) {
+        const distSet = new Set(distContratos);
+        allowedContratos = pautaContratos.filter(c => distSet.has(c));
+        if (allowedContratos.length === 0) {
+          setDados([]);
+          setTotalCount(0);
+          setLoading(false);
+          return;
+        }
+      } else if (pautaContratos) {
+        allowedContratos = pautaContratos;
+      } else if (distContratos) {
+        allowedContratos = distContratos;
+      }
+
+      let query = buildQuery();
+      if (allowedContratos) {
+        query = query.in("contrato", allowedContratos);
+      }
+
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error, count } = await query.range(from, to);
+      if (error) {
+        toast.error("Erro ao carregar dados: " + error.message);
+      } else {
+        setDados((data as any[]) || []);
+        setTotalCount(count ?? 0);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [buildQuery, page, filters?.tem_pauta, filters?.tem_distribuicao]);
 
   // Reset page when filters change
   useEffect(() => { setPage(0); }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
