@@ -34,6 +34,7 @@ interface Stats {
   matched: number;
   unmatched: number;
   rejected: number;
+  transitoJulgado: number;
   outputRows: number;
   sheetsInput1: SheetCount[];
   sheetsInput2: SheetCount[];
@@ -585,22 +586,34 @@ export default function CargaBenner() {
       }
 
       setProgress(95);
-      setOutputData(output);
+
+      // Filter out "Trânsito em Julgado" from column G (Análise quarteirizado)
+      const transitoFiltered = output.filter(row => {
+        const colG = normalizeText(row[LAYOUT_COLS[6]]);
+        return colG.includes("transito em julgado") || colG.includes("trânsito em julgado") || colG === "transito julgado";
+      });
+      const outputFinal = output.filter(row => {
+        const colG = normalizeText(row[LAYOUT_COLS[6]]);
+        return !(colG.includes("transito em julgado") || colG.includes("trânsito em julgado") || colG === "transito julgado");
+      });
+
+      setOutputData(outputFinal);
       setRejectedData(rejected);
       setStats({
         totalInput1: allInput1Rows.length,
         totalInput2: totalInput2Rows,
         matched,
-        unmatched: output.length - matched,
+        unmatched: outputFinal.length - matched,
         rejected: rejected.length,
-        outputRows: output.length,
+        transitoJulgado: transitoFiltered.length,
+        outputRows: outputFinal.length,
         sheetsInput1,
         sheetsInput2,
       });
 
       setPhase("Concluído!");
       setProgress(100);
-      toast.success(`Layout gerado com ${output.length} linhas e ${rejected.length} rejeições.`);
+      toast.success(`Layout gerado com ${outputFinal.length} linhas, ${transitoFiltered.length} trânsito em julgado removidos e ${rejected.length} rejeições.`);
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
       console.error("[CargaBenner] Error:", err);
@@ -980,7 +993,7 @@ export default function CargaBenner() {
         {/* Stats Dashboard */}
         {stats && (
           <>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-foreground">{stats.totalInput1.toLocaleString()}</p>
@@ -1003,6 +1016,12 @@ export default function CargaBenner() {
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-amber-500">{stats.unmatched.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">Sem Julgamento</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-orange-500">{stats.transitoJulgado.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">Trânsito em Julgado</p>
               </CardContent>
             </Card>
             <Card>
