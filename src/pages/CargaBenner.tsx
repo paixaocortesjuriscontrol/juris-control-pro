@@ -350,15 +350,19 @@ export default function CargaBenner() {
 
       // Collect all rows from input1 that have a valid process number
       const allInput1Rows: Record<string, any>[] = [];
+      const sheetsInput1: SheetCount[] = [];
       const h1Temp = parsed1[0]?.headers || [];
       const colProcessoTemp = findCol(h1Temp, "processo", "cnj");
       for (const sheet of parsed1) {
+        let sheetCount = 0;
         for (const row of sheet.rows) {
           const proc = colProcessoTemp ? String(row[colProcessoTemp] ?? "").trim() : "";
           if (proc.length >= 7) {
             allInput1Rows.push(row);
+            sheetCount++;
           }
         }
+        sheetsInput1.push({ name: sheet.sheetName, count: sheetCount });
       }
 
       const h1 = parsed1[0]?.headers || [];
