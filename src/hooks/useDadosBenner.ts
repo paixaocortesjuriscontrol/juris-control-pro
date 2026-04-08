@@ -201,5 +201,50 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     return data || [];
   };
 
-  return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie, page, setPage, totalPages, totalCount };
+  const fetchAllIds = useCallback(async (): Promise<string[]> => {
+    try {
+      let pautaContratos: string[] | null = null;
+      let distContratos: string[] | null = null;
+
+      if (filters?.tem_pauta) {
+        const { data } = await supabase.from("pautas_tst").select("processo_numero");
+        pautaContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        if (pautaContratos.length === 0) return [];
+      }
+
+      if (filters?.tem_distribuicao) {
+        const { data } = await supabase.from("distribuicoes_tst").select("processo_numero");
+        distContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        if (distContratos.length === 0) return [];
+      }
+
+      let allowedContratos: string[] | null = null;
+      if (pautaContratos && distContratos) {
+        const distSet = new Set(distContratos);
+        allowedContratos = pautaContratos.filter(c => distSet.has(c));
+        if (allowedContratos.length === 0) return [];
+      } else if (pautaContratos) {
+        allowedContratos = pautaContratos;
+      } else if (distContratos) {
+        allowedContratos = distContratos;
+      }
+
+      let query = supabase.from("dados_benner" as any).select("id").order("created_at", { ascending: false });
+      if (filters?.status && filters.status !== "todos") query = query.eq("status", filters.status);
+      if (filters?.relator) query = query.ilike("relator", `%${filters.relator}%`);
+      if (filters?.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
+      if (filters?.contrato) query = query.ilike("contrato", `%${filters.contrato}%`);
+      if (filters?.turma) query = query.ilike("turma", `%${filters.turma}%`);
+      if (filters?.tipo_recurso) query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
+      if (allowedContratos) query = query.in("contrato", allowedContratos);
+
+      const { data, error } = await query;
+      if (error) { toast.error("Erro ao buscar IDs: " + error.message); return []; }
+      return (data as any[] || []).map((d: any) => d.id);
+    } catch {
+      return [];
+    }
+  }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
+
+  return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie, page, setPage, totalPages, totalCount, fetchAllIds };
 }
