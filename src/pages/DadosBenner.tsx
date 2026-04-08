@@ -51,7 +51,7 @@ export default function DadosBenner() {
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
-  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount } = useDadosBenner(appliedFilters);
+  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds } = useDadosBenner(appliedFilters);
 
   const applyFilters = () => {
     setAppliedFilters({
@@ -86,11 +86,19 @@ export default function DadosBenner() {
     });
   };
 
-  const toggleAll = () => {
-    if (selectedIds.size === dados.length) {
+  const [loadingSelectAll, setLoadingSelectAll] = useState(false);
+
+  const toggleAll = async () => {
+    if (selectedIds.size === totalCount && totalCount > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(dados.map(d => d.id)));
+      setLoadingSelectAll(true);
+      try {
+        const allIds = await fetchAllIds();
+        setSelectedIds(new Set(allIds));
+      } finally {
+        setLoadingSelectAll(false);
+      }
     }
   };
 
@@ -305,7 +313,7 @@ export default function DadosBenner() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
-                  <Checkbox checked={dados.length > 0 && selectedIds.size === dados.length} onCheckedChange={toggleAll} />
+                  <Checkbox checked={totalCount > 0 && selectedIds.size === totalCount} onCheckedChange={toggleAll} disabled={loadingSelectAll} />
                 </TableHead>
                 <TableHead>Dossiê</TableHead>
                 <TableHead>Nº Processo</TableHead>
