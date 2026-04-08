@@ -327,8 +327,10 @@ export default function CargaBenner() {
       const pColMemoriais = findCol(pH, "memoria", "memoriais", "memórias");
       const pColResultado = findCol(pH, "resultado");
 
+      const sheetsInput2: SheetCount[] = [];
       for (const pautaSheet of parsed2) {
         totalInput2Rows += pautaSheet.rows.length;
+        sheetsInput2.push({ name: pautaSheet.sheetName, count: pautaSheet.rows.length });
         for (const row of pautaSheet.rows) {
           if (pColProcesso) {
             const key = normalizeCNJ(String(row[pColProcesso] ?? ""));
