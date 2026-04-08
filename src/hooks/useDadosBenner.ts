@@ -184,11 +184,20 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
   };
 
   const updateStatus = async (ids: string[], newStatus: string) => {
-    const { error } = await supabase.from("dados_benner" as any).update({ status: newStatus } as any).in("id", ids);
-    if (error) { toast.error("Erro ao atualizar status: " + error.message); return false; }
-    toast.success(`${ids.length} registro(s) atualizado(s) para "${newStatus}"!`);
-    fetchDados();
-    return true;
+    const BATCH_SIZE = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batch = ids.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from("dados_benner" as any).update({ status: newStatus } as any).in("id", batch);
+        if (error) { toast.error("Erro ao atualizar status: " + error.message); return false; }
+      }
+      toast.success(`${ids.length} registro(s) atualizado(s) para "${newStatus}"!`);
+      fetchDados();
+      return true;
+    } catch (err: any) {
+      toast.error("Erro ao atualizar status: " + (err?.message || "Erro desconhecido"));
+      return false;
+    }
   };
 
   const buscarDossie = async (termo: string) => {
