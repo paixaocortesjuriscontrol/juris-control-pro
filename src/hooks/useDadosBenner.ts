@@ -155,8 +155,10 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     }
   }, [buildQuery, page, filters?.tem_pauta, filters?.tem_distribuicao]);
 
+  useEffect(() => { fetchDados(); }, [fetchDados]);
+
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
+  useEffect(() => { setPage(0); }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
