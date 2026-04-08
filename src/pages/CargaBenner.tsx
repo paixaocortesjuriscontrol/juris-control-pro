@@ -467,6 +467,8 @@ export default function CargaBenner() {
           "RRAG": "RECURSO DE REVISTA",
           "ROT": "RECURSO ORDINÁRIO",
           "RCL": "RECLAMAÇÃO",
+          "AG": "AGRAVO",
+          "EMB": "EMBARGOS DE DECLARAÇÃO",
         };
         const tipoRecursoParts = tipoRecurso
           .split(" - ")
