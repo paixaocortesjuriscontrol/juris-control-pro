@@ -263,6 +263,9 @@ export default function DadosBenner() {
         </div>
 
         {/* Ações */}
+        {selectedIds.size > 0 && (
+          <p className="text-sm text-muted-foreground">{selectedIds.size} registro(s) selecionado(s) de {totalCount}</p>
+        )}
         <div className="flex flex-wrap gap-3 items-end">
           <Button variant="outline" onClick={handleGerarPlanilha} disabled={gerando}>
             {gerando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
