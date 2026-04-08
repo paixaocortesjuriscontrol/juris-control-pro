@@ -8,10 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
-import { useDadosBenner, DadoBenner } from "@/hooks/useDadosBenner";
+import { useDadosBenner, DadoBenner, DadosBennerFilters } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -33,6 +33,12 @@ const statusColors: Record<string, string> = {
 
 export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [filterRelator, setFilterRelator] = useState("");
+  const [filterDossie, setFilterDossie] = useState("");
+  const [filterContrato, setFilterContrato] = useState("");
+  const [filterTurma, setFilterTurma] = useState("");
+  const [filterTipoRecurso, setFilterTipoRecurso] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<DadosBennerFilters>({ status: "todos" });
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DadoBenner | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -41,7 +47,28 @@ export default function DadosBenner() {
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
-  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados } = useDadosBenner(statusFilter);
+  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados } = useDadosBenner(appliedFilters);
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      relator: filterRelator.trim() || undefined,
+      dossie: filterDossie.trim() || undefined,
+      contrato: filterContrato.trim() || undefined,
+      turma: filterTurma.trim() || undefined,
+      tipo_recurso: filterTipoRecurso.trim() || undefined,
+    });
+  };
+
+  const clearFilters = () => {
+    setStatusFilter("todos");
+    setFilterRelator("");
+    setFilterDossie("");
+    setFilterContrato("");
+    setFilterTurma("");
+    setFilterTipoRecurso("");
+    setAppliedFilters({ status: "todos" });
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -154,12 +181,12 @@ export default function DadosBenner() {
           </div>
         </div>
 
-        {/* Filtros e Ações */}
+        {/* Filtros */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="space-y-1">
             <Label className="text-xs">Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setAppliedFilters(prev => ({ ...prev, status: v })); }}>
+              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="rascunho">Rascunho</SelectItem>
@@ -169,7 +196,36 @@ export default function DadosBenner() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Dossiê</Label>
+            <Input placeholder="Buscar dossiê..." value={filterDossie} onChange={e => setFilterDossie(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Nº Processo</Label>
+            <Input placeholder="Buscar processo..." value={filterContrato} onChange={e => setFilterContrato(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Relator</Label>
+            <Input placeholder="Buscar relator..." value={filterRelator} onChange={e => setFilterRelator(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Turma</Label>
+            <Input placeholder="Buscar turma..." value={filterTurma} onChange={e => setFilterTurma(e.target.value)} className="w-[120px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Tipo Recurso</Label>
+            <Input placeholder="Buscar tipo..." value={filterTipoRecurso} onChange={e => setFilterTipoRecurso(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+          </div>
+          <Button variant="outline" size="sm" onClick={applyFilters}>
+            <Search className="w-4 h-4 mr-1" /> Filtrar
+          </Button>
+          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso) && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
+          )}
+        </div>
 
+        {/* Ações */}
+        <div className="flex flex-wrap gap-3 items-end">
           <Button variant="outline" onClick={handleGerarPlanilha} disabled={gerando}>
             {gerando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
             Gerar Planilha (Prontos)
@@ -224,6 +280,7 @@ export default function DadosBenner() {
                 <TableHead>Dossiê</TableHead>
                 <TableHead>Nº Processo</TableHead>
                 <TableHead>Tribunal</TableHead>
+                <TableHead>Tipo Recurso</TableHead>
                 <TableHead>Turma</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Status</TableHead>
@@ -233,9 +290,9 @@ export default function DadosBenner() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
@@ -244,6 +301,7 @@ export default function DadosBenner() {
                   <TableCell className="font-medium">{d.dossie || "-"}</TableCell>
                   <TableCell>{d.contrato || "-"}</TableCell>
                   <TableCell>{d.tribunal || "-"}</TableCell>
+                  <TableCell className="text-xs">{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>
                   <TableCell>{d.relator || "-"}</TableCell>
                   <TableCell>
