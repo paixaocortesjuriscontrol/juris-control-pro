@@ -422,15 +422,17 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[1]] = "TST"; // Tribunal
         // Abreviar tipo de recurso: extrair somente siglas entre parênteses
         // e remover prefixos "_____ - " (underscores seguidos de hífen)
-        const tipoRecursoAbreviado = tipoRecurso
+        const tipoRecursoParts = tipoRecurso
           .split(" - ")
           .map(part => {
             const siglaMatch = part.match(/\(([^)]+)\)/);
-            return siglaMatch ? siglaMatch[1].trim() : part.trim();
+            let val = siglaMatch ? siglaMatch[1].trim() : part.trim();
+            if (/^recurso\s+de\s+revista$/i.test(val)) val = "RR";
+            return val;
           })
-          .filter(v => v && !/^[_\s]+$/.test(v))
-          .join(" - ");
-        outRow[LAYOUT_COLS[2]] = tipoRecursoAbreviado; // Tipo de Recurso
+          .filter(v => v && !/^[_\s]+$/.test(v));
+        const tipoRecursoDedup = [...new Set(tipoRecursoParts.map(v => v.toUpperCase()))];
+        outRow[LAYOUT_COLS[2]] = tipoRecursoDedup.join(" - "); // Tipo de Recurso
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(colDataDist ? String(row[colDataDist] ?? "") : ""); // Data distribuição
         // Turma: use already-resolved turmaRaw (from relator mapping or cleaned column)
         let turmaVal = turmaRaw;
