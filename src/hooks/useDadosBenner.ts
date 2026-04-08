@@ -55,6 +55,8 @@ export interface DadosBennerFilters {
   contrato?: string;
   turma?: string;
   tipo_recurso?: string;
+  tem_pauta?: boolean;
+  tem_distribuicao?: boolean;
 }
 
 const PAGE_SIZE = 50;
