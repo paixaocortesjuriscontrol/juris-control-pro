@@ -127,11 +127,6 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
           <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
           <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Distribuição" : "Nova Distribuição"}</h2>
         </div>
-        {dadoBennerId && (
-          <Link to="/dados-benner" className="flex items-center gap-1 text-sm text-primary hover:underline">
-            <ExternalLink className="w-4 h-4" /> Ver no Dados Benner
-          </Link>
-        )}
       </div>
 
       {/* SEÇÃO 1 - Rosa (#782170): Dados Básicos */}
