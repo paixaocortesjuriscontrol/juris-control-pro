@@ -541,10 +541,12 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[31]] = aparelhamentoVal === "Bem aparelhado" ? "X" : ""; // AF
         outRow[LAYOUT_COLS[32]] = aparelhamentoVal === "Mal aparelhado" ? "X" : ""; // AG
         outRow[LAYOUT_COLS[33]] = chanceExito; // AH - Chance de êxito
+        outRow["__numProcesso"] = numProcesso; // hidden field for conferência
 
         // Sanitize: remove dash-only values from all columns
         const dashOnlyRegex = /^[-–—\s]+$/;
         for (const key of Object.keys(outRow)) {
+          if (key.startsWith("__")) continue;
           if (typeof outRow[key] === "string" && dashOnlyRegex.test(outRow[key])) {
             outRow[key] = "";
           }
@@ -582,7 +584,7 @@ export default function CargaBenner() {
     }
   };
 
-  const downloadXlsx = async (fullMode: boolean) => {
+  const downloadXlsx = async (fullMode: "full" | "aq" | "ag") => {
     if (!outputData) return;
     try {
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
@@ -620,7 +622,7 @@ export default function CargaBenner() {
         return s;
       }
 
-      const maxCol = fullMode ? LAYOUT_COLS.length : 17; // até Q (índice 16, 17 colunas)
+      const maxCol = fullMode === "full" ? LAYOUT_COLS.length : fullMode === "ag" ? 7 : 17; // A-AH, A-G, or A-Q
 
       // Read existing styles to find/create centered style
       let stylesXml = await zip.file("xl/styles.xml")!.async("string");
@@ -676,7 +678,7 @@ export default function CargaBenner() {
       const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
       zip.file("xl/sharedStrings.xml", newSst);
 
-      const suffix = fullMode ? "" : "_ate_recurso";
+      const suffix = fullMode === "full" ? "" : fullMode === "ag" ? "_ate_analise" : "_ate_recurso";
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
