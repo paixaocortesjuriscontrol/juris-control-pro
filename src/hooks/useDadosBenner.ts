@@ -57,13 +57,16 @@ export interface DadosBennerFilters {
   tipo_recurso?: string;
 }
 
+const PAGE_SIZE = 50;
+
 export function useDadosBenner(filters?: DadosBennerFilters) {
   const [dados, setDados] = useState<DadoBenner[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const fetchDados = useCallback(async () => {
-    setLoading(true);
-    let query = supabase.from("dados_benner" as any).select("*").order("created_at", { ascending: false });
+  const buildQuery = useCallback(() => {
+    let query = supabase.from("dados_benner" as any).select("*", { count: "exact" }).order("created_at", { ascending: false });
     if (filters?.status && filters.status !== "todos") {
       query = query.eq("status", filters.status);
     }
@@ -82,16 +85,29 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     if (filters?.tipo_recurso) {
       query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
     }
-    const { data, error } = await query;
+    return query;
+  }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
+
+  const fetchDados = useCallback(async () => {
+    setLoading(true);
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data, error, count } = await buildQuery().range(from, to);
     if (error) {
       toast.error("Erro ao carregar dados: " + error.message);
     } else {
       setDados((data as any[]) || []);
+      setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
+  }, [buildQuery, page]);
 
   useEffect(() => { fetchDados(); }, [fetchDados]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(0); }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const saveDado = async (dado: DadoBennerInsert, id?: string) => {
     if (id) {
@@ -132,5 +148,5 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     return data || [];
   };
 
-  return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie };
+  return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie, page, setPage, totalPages, totalCount };
 }
