@@ -711,6 +711,24 @@ export default function CargaBenner() {
     toast.success("Arquivo de rejeições baixado!");
   };
 
+  const downloadConferenciaXlsx = () => {
+    if (!outputData) return;
+    const rows = outputData.map((row) => {
+      const newRow: Record<string, string> = {};
+      newRow["Dossiê"] = String(row[LAYOUT_COLS[0]] ?? "");
+      newRow["Nº Processo"] = String(row["__numProcesso"] ?? "");
+      for (let i = 1; i < LAYOUT_COLS.length; i++) {
+        newRow[LAYOUT_COLS[i]] = String(row[LAYOUT_COLS[i]] ?? "");
+      }
+      return newRow;
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Conferência");
+    XLSX.writeFile(wb, `Conferencia_Carga_Benner_${getTimestampForFileName()}.xlsx`);
+    toast.success("Planilha de conferência baixada!");
+  };
+
   return (
     <MainLayout title="Carga Benner - Módulo TST">
       <div className="space-y-6">
