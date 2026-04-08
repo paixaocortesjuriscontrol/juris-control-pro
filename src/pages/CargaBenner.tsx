@@ -489,6 +489,9 @@ export default function CargaBenner() {
               const parts = upper.split("-").map(p => SIGLA_TO_FULL[p] || p.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
               const unique = parts.filter((v, i, a) => v && a.indexOf(v) === i);
               if (unique.length > 0) return unique.join(" - ");
+            }
+            return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+        };
         const tipoRecursoParts = tipoRecurso
           .split(" - ")
           .map(part => expandSigla(part))
