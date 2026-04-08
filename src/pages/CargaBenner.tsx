@@ -23,6 +23,11 @@ interface ParsedSheet {
   sheetIndex: number;
 }
 
+interface SheetCount {
+  name: string;
+  count: number;
+}
+
 interface Stats {
   totalInput1: number;
   totalInput2: number;
@@ -30,6 +35,8 @@ interface Stats {
   unmatched: number;
   rejected: number;
   outputRows: number;
+  sheetsInput1: SheetCount[];
+  sheetsInput2: SheetCount[];
 }
 
 interface RejeicaoCargaRow {
