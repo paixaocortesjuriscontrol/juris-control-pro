@@ -906,20 +906,28 @@ export default function CargaBenner() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {rejectedData.length > 0 && (
                     <Button variant="outline" onClick={downloadRejectedXlsx}>
                       <AlertCircle className="w-4 h-4 mr-2" />
                       Baixar Rejeições
                     </Button>
                   )}
-                  <Button onClick={() => downloadXlsx(true)}>
+                  <Button onClick={() => downloadXlsx("full")}>
                     <Download className="w-4 h-4 mr-2" />
                     Completa (A-AH)
                   </Button>
-                  <Button variant="outline" onClick={() => downloadXlsx(false)}>
+                  <Button variant="outline" onClick={() => downloadXlsx("aq")}>
                     <Download className="w-4 h-4 mr-2" />
                     Até Recurso (A-Q)
+                  </Button>
+                  <Button variant="outline" onClick={() => downloadXlsx("ag")}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Até Análise quarteirizado (A-G)
+                  </Button>
+                  <Button variant="secondary" onClick={downloadConferenciaXlsx}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Planilha de Conferência
                   </Button>
                 </div>
               </div>
