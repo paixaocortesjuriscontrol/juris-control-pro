@@ -3,8 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Upload, FileText, FileCheck, AlertTriangle, CheckCircle2, XCircle, ArrowRightLeft } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Upload, FileText, FileCheck, AlertTriangle, CheckCircle2, XCircle, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 import * as mammoth from "mammoth";
 
@@ -16,12 +15,58 @@ interface ComparisonResult {
   somente_pdf: string[];
 }
 
+// Regex para número de processo CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO
+const CNJ_REGEX = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g;
+
+function extrairProcessos(texto: string): string[] {
+  const matches = texto.match(CNJ_REGEX) || [];
+  // Deduplica
+  return [...new Set(matches)];
+}
+
+function compararListas(processosDoc: string[], processosPdf: string[]): ComparisonResult {
+  const normalize = (p: string) => p.replace(/\D/g, "");
+  
+  const setDoc = new Set(processosDoc.map(normalize));
+  const setPdf = new Set(processosPdf.map(normalize));
+  
+  const docMap = new Map<string, string>();
+  processosDoc.forEach(p => docMap.set(normalize(p), p));
+  const pdfMap = new Map<string, string>();
+  processosPdf.forEach(p => pdfMap.set(normalize(p), p));
+
+  const comuns: string[] = [];
+  const somente_doc: string[] = [];
+  const somente_pdf: string[] = [];
+
+  for (const [norm, orig] of docMap) {
+    if (setPdf.has(norm)) {
+      comuns.push(orig);
+    } else {
+      somente_doc.push(orig);
+    }
+  }
+
+  for (const [norm, orig] of pdfMap) {
+    if (!setDoc.has(norm)) {
+      somente_pdf.push(orig);
+    }
+  }
+
+  return {
+    processos_doc: processosDoc,
+    processos_pdf: processosPdf,
+    comuns,
+    somente_doc,
+    somente_pdf,
+  };
+}
+
 export default function CompararDjSantander() {
   const [docFile, setDocFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [docText, setDocText] = useState("");
-  const [pdfText, setPdfText] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [docProcessos, setDocProcessos] = useState<string[]>([]);
+  const [pdfProcessos, setPdfProcessos] = useState<string[]>([]);
   const [result, setResult] = useState<ComparisonResult | null>(null);
 
   const handleDocUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,8 +78,9 @@ export default function CompararDjSantander() {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const { value } = await mammoth.extractRawText({ arrayBuffer });
-      setDocText(value);
-      toast.success(`DOC carregado: ${file.name}`);
+      const processos = extrairProcessos(value);
+      setDocProcessos(processos);
+      toast.success(`DOC carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler DOC:", err);
       toast.error("Erro ao ler arquivo DOC/DOCX");
@@ -59,39 +105,23 @@ export default function CompararDjSantander() {
         const content = await page.getTextContent();
         text += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
-      setPdfText(text);
-      toast.success(`PDF carregado: ${file.name}`);
+      const processos = extrairProcessos(text);
+      setPdfProcessos(processos);
+      toast.success(`PDF carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler PDF:", err);
       toast.error("Erro ao ler arquivo PDF");
     }
   }, []);
 
-  const handleComparar = async () => {
-    if (!docText || !pdfText) {
+  const handleComparar = () => {
+    if (docProcessos.length === 0 || pdfProcessos.length === 0) {
       toast.error("Carregue ambos os arquivos antes de comparar");
       return;
     }
-
-    setLoading(true);
-    const toastId = toast.loading("Analisando documentos com IA...");
-
-    try {
-      const { data, error } = await supabase.functions.invoke("comparar-dj-santander", {
-        body: { textoDoc: docText, textoPdf: pdfText },
-      });
-
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      setResult(data);
-      toast.success("Comparação concluída!", { id: toastId });
-    } catch (err: any) {
-      console.error("Erro na comparação:", err);
-      toast.error(err.message || "Erro ao comparar documentos", { id: toastId });
-    } finally {
-      setLoading(false);
-    }
+    const res = compararListas(docProcessos, pdfProcessos);
+    setResult(res);
+    toast.success("Comparação concluída!");
   };
 
   return (
@@ -113,7 +143,7 @@ export default function CompararDjSantander() {
                   <>
                     <FileCheck className="w-8 h-8 mb-2 text-green-500" />
                     <p className="text-sm font-medium">{docFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{docText.length.toLocaleString()} caracteres extraídos</p>
+                    <p className="text-xs text-muted-foreground">{docProcessos.length} processos encontrados</p>
                   </>
                 ) : (
                   <>
@@ -142,7 +172,7 @@ export default function CompararDjSantander() {
                   <>
                     <FileCheck className="w-8 h-8 mb-2 text-green-500" />
                     <p className="text-sm font-medium">{pdfFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{pdfText.length.toLocaleString()} caracteres extraídos</p>
+                    <p className="text-xs text-muted-foreground">{pdfProcessos.length} processos encontrados</p>
                   </>
                 ) : (
                   <>
@@ -162,18 +192,17 @@ export default function CompararDjSantander() {
         <Button
           size="lg"
           onClick={handleComparar}
-          disabled={!docText || !pdfText || loading}
+          disabled={docProcessos.length === 0 || pdfProcessos.length === 0}
           className="gap-2"
         >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRightLeft className="w-5 h-5" />}
-          {loading ? "Comparando com IA..." : "Comparar Documentos"}
+          <ArrowRightLeft className="w-5 h-5" />
+          Comparar Documentos
         </Button>
       </div>
 
       {/* Results */}
       {result && (
         <div className="space-y-6">
-          {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
@@ -207,9 +236,7 @@ export default function CompararDjSantander() {
             </Card>
           </div>
 
-          {/* Detail Lists */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Common */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -234,7 +261,6 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
 
-            {/* Only in DOC */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -259,7 +285,6 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
 
-            {/* Only in PDF */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
