@@ -166,7 +166,7 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
   let allHits: any[] = [];
   let lastError: string | null = null;
 
-  // Query all relevant endpoints (TRT + TST)
+  // Query TST only
   for (const ep of endpoints) {
     const result = await queryEndpoint(ep.endpoint, digits);
     if (result.hits.length > 0) {
@@ -195,9 +195,9 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
     const classe = source?.classe?.nome || "";
 
     const result = checkTransitoInMovimentos(movimentos);
-    if (result.found) {
+    if (result.found && !result.invalidated) {
       const dateStr = result.date ? result.date.substring(0, 10) : null;
-      console.log(`  Trânsito encontrado em ${grau} (${classe}): ${dateStr}`);
+      console.log(`  Trânsito CONFIRMADO em ${grau} (${classe}): ${dateStr}`);
       return {
         numero,
         situacao: "Trânsito em Julgado",
@@ -205,6 +205,10 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
         grau: `${grau} - ${classe}`,
         erro: null,
       };
+    } else if (result.found && result.invalidated) {
+      const dateStr = result.date ? result.date.substring(0, 10) : null;
+      console.log(`  Trânsito INVALIDADO em ${grau} (${classe}): ${dateStr} - movimentação posterior encontrada`);
+      // Continue checking other hits, but if none valid, mark as Ativo
     }
   }
 
