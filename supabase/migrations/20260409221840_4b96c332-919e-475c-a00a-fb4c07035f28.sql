@@ -1,0 +1,1 @@
+ALTER TABLE public.dados_benner RENAME COLUMN contrato TO processo;

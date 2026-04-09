@@ -48,7 +48,7 @@ export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [filterRelator, setFilterRelator] = useState("");
   const [filterDossie, setFilterDossie] = useState("");
-  const [filterContrato, setFilterContrato] = useState("");
+  const [filterProcesso, setFilterProcesso] = useState("");
   const [filterTurma, setFilterTurma] = useState("");
   const [filterTipoRecurso, setFilterTipoRecurso] = useState("");
   const [filterTemPauta, setFilterTemPauta] = useState(false);
@@ -69,7 +69,7 @@ export default function DadosBenner() {
       status: statusFilter,
       relator: filterRelator.trim() || undefined,
       dossie: filterDossie.trim() || undefined,
-      contrato: filterContrato.trim() || undefined,
+      processo: filterProcesso.trim() || undefined,
       turma: filterTurma.trim() || undefined,
       tipo_recurso: filterTipoRecurso.trim() || undefined,
       tem_pauta: filterTemPauta || undefined,
@@ -81,7 +81,7 @@ export default function DadosBenner() {
     setStatusFilter("todos");
     setFilterRelator("");
     setFilterDossie("");
-    setFilterContrato("");
+    setFilterProcesso("");
     setFilterTurma("");
     setFilterTipoRecurso("");
     setFilterTemPauta(false);
@@ -195,7 +195,7 @@ export default function DadosBenner() {
     try {
       // Fetch all IDs + contrato from selected or all filtered records
       const useSelected = selectedIds.size > 0;
-      let allRecords: { id: string; contrato: string }[] = [];
+      let allRecords: { id: string; processo: string }[] = [];
 
       if (useSelected) {
         // Fetch contrato for all selected IDs in batches
@@ -204,7 +204,7 @@ export default function DadosBenner() {
           const batch = selectedArr.slice(i, i + 200);
           const { data } = await supabase
             .from("dados_benner" as any)
-            .select("id, contrato")
+            .select("id, processo")
             .in("id", batch);
           if (data) allRecords.push(...(data as any[]));
         }
@@ -212,11 +212,11 @@ export default function DadosBenner() {
         // Fetch all filtered records
         let offset = 0;
         while (true) {
-          let query = supabase.from("dados_benner" as any).select("id, contrato").order("created_at", { ascending: false });
+          let query = supabase.from("dados_benner" as any).select("id, processo").order("created_at", { ascending: false });
           if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
           if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
           if (appliedFilters.dossie) query = query.ilike("dossie", `%${appliedFilters.dossie}%`);
-          if (appliedFilters.contrato) query = query.ilike("contrato", `%${appliedFilters.contrato}%`);
+          if (appliedFilters.processo) query = query.ilike("processo", `%${appliedFilters.processo}%`);
           if (appliedFilters.turma) query = query.ilike("turma", `%${appliedFilters.turma}%`);
           if (appliedFilters.tipo_recurso) query = query.ilike("tipo_recurso", `%${appliedFilters.tipo_recurso}%`);
           const { data, error } = await query.range(offset, offset + 999);
@@ -229,7 +229,7 @@ export default function DadosBenner() {
 
       // Filter only records with valid process numbers
       const validRecords = allRecords.filter(r => {
-        const num = (r.contrato || "").replace(/[^0-9]/g, "");
+        const num = (r.processo || "").replace(/[^0-9]/g, "");
         return num.length >= 10;
       });
 
@@ -253,7 +253,7 @@ export default function DadosBenner() {
         }
 
         const batch = validRecords.slice(i, i + BATCH_SIZE);
-        const processos = batch.map(r => r.contrato!);
+        const processos = batch.map(r => r.processo!);
         const idsBenner = batch.map(r => r.id);
 
         try {
@@ -264,7 +264,7 @@ export default function DadosBenner() {
           if (error) {
             // Add error results for this batch
             batch.forEach(b => allResults.push({
-              numero: b.contrato!, situacao: "Erro", data_transito: null, grau: null, erro: error.message,
+              numero: b.processo!, situacao: "Erro", data_transito: null, grau: null, erro: error.message,
             }));
           } else {
             const resultados: TransitoResult[] = data?.resultados || [];
@@ -272,7 +272,7 @@ export default function DadosBenner() {
           }
         } catch (err: any) {
           batch.forEach(b => allResults.push({
-            numero: b.contrato!, situacao: "Erro", data_transito: null, grau: null, erro: err?.message || "Erro",
+            numero: b.processo!, situacao: "Erro", data_transito: null, grau: null, erro: err?.message || "Erro",
           }));
         }
 
@@ -367,7 +367,7 @@ export default function DadosBenner() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Nº Processo</Label>
-            <Input placeholder="Buscar processo..." value={filterContrato} onChange={e => setFilterContrato(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
+            <Input placeholder="Buscar processo..." value={filterProcesso} onChange={e => setFilterProcesso(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Relator</Label>
@@ -392,7 +392,7 @@ export default function DadosBenner() {
           <Button variant="outline" size="sm" onClick={applyFilters}>
             <Search className="w-4 h-4 mr-1" /> Filtrar
           </Button>
-          {(filterRelator || filterDossie || filterContrato || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao) && (
+          {(filterRelator || filterDossie || filterProcesso || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao) && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
           )}
         </div>
@@ -485,7 +485,7 @@ export default function DadosBenner() {
                     <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleSelect(d.id)} />
                   </TableCell>
                   <TableCell className="font-medium">{d.dossie || "-"}</TableCell>
-                  <TableCell>{d.contrato || "-"}</TableCell>
+                  <TableCell>{d.processo || "-"}</TableCell>
                   <TableCell>{d.tribunal || "-"}</TableCell>
                   <TableCell className="text-xs">{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>

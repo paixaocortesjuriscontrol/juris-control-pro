@@ -77,15 +77,15 @@ export function DadosBennerImport({ onImported }: Props) {
         if (!dossie) continue; // skip rows without dossiê
 
         // Column B: extract only the process number (digits, dots, dashes), ignore observations
-        const rawContrato = normalizeText(r[1]);
-        const contratoMatch = rawContrato.match(/[\d][\d.\-\/]+/);
-        const contrato = contratoMatch ? contratoMatch[0] : "";
+        const rawProcesso = normalizeText(r[1]);
+        const processoMatch = rawProcesso.match(/[\d][\d.\-\/]+/);
+        const processo = processoMatch ? processoMatch[0] : "";
 
         records.push({
           user_id: userId,
           status: "rascunho",
           dossie: dossie,
-          contrato: contrato,
+          processo: processo,
           tribunal: normalizeText(r[2]),
           tipo_recurso: normalizeText(r[3]),
           data_distribuicao: parseDateBR(r[4]),
