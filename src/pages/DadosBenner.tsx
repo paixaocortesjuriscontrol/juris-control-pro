@@ -9,12 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search, Scale } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
 import { useDadosBenner, DadoBenner, DadosBennerFilters } from "@/hooks/useDadosBenner";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadosBennerDetail } from "@/components/benner/DadosBennerDetail";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { gerarPlanilhaBenner, ResultadoGeracaoBenner } from "@/utils/gerarPlanilhaBenner";
@@ -33,6 +35,13 @@ const statusColors: Record<string, string> = {
   enviado: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
 };
 
+interface TransitoResult {
+  numero: string;
+  situacao: string;
+  data_transito: string | null;
+  erro: string | null;
+}
+
 export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [filterRelator, setFilterRelator] = useState("");
@@ -50,6 +59,12 @@ export default function DadosBenner() {
   const [periodoFim, setPeriodoFim] = useState("");
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
+
+  // Transito em julgado state
+  const [verificandoTransito, setVerificandoTransito] = useState(false);
+  const [transitoResults, setTransitoResults] = useState<TransitoResult[]>([]);
+  const [showTransitoDialog, setShowTransitoDialog] = useState(false);
+  const [transitoProgress, setTransitoProgress] = useState("");
 
   const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds } = useDadosBenner(appliedFilters);
 
@@ -162,6 +177,64 @@ export default function DadosBenner() {
   const handleDelete = async (id: string) => {
     if (confirm("Excluir este registro?")) {
       await deleteDado(id);
+    }
+  };
+
+  const handleVerificarTransito = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para verificar"); return; }
+
+    // Get process numbers from selected records
+    const selecionados = dados.filter(d => selectedIds.has(d.id));
+    const processos: string[] = [];
+    const idsBenner: string[] = [];
+    
+    for (const d of selecionados) {
+      const numero = d.contrato || "";
+      if (numero.replace(/[^0-9]/g, "").length >= 10) {
+        processos.push(numero);
+        idsBenner.push(d.id);
+      }
+    }
+
+    if (!processos.length) {
+      toast.warning("Nenhum dos registros selecionados possui número de processo válido");
+      return;
+    }
+
+    setVerificandoTransito(true);
+    setTransitoResults([]);
+    setShowTransitoDialog(true);
+    setTransitoProgress(`Verificando ${processos.length} processo(s)...`);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("verificar-transito-julgado", {
+        body: { processos, ids_benner: idsBenner },
+      });
+
+      if (error) {
+        toast.error("Erro ao verificar: " + error.message);
+        setShowTransitoDialog(false);
+        return;
+      }
+
+      const resultados: TransitoResult[] = data?.resultados || [];
+      setTransitoResults(resultados);
+      setTransitoProgress("");
+
+      const transitos = resultados.filter(r => r.situacao === "Trânsito em Julgado").length;
+      const ativos = resultados.filter(r => r.situacao === "Ativo").length;
+      const erros = resultados.filter(r => r.situacao === "Erro" || r.situacao === "Não encontrado").length;
+
+      toast.success(`Verificação concluída: ${transitos} em trânsito, ${ativos} ativo(s), ${erros} erro(s)/não encontrado(s)`);
+      
+      // Refresh data to show updated situacao_processo
+      fetchDados();
+    } catch (err: any) {
+      toast.error("Erro ao verificar: " + (err?.message || "Erro desconhecido"));
+      setShowTransitoDialog(false);
+    } finally {
+      setVerificandoTransito(false);
     }
   };
 
@@ -280,6 +353,15 @@ export default function DadosBenner() {
             <Send className="w-4 h-4 mr-2" /> Marcar como Enviado
           </Button>
 
+          <Button
+            variant="outline"
+            onClick={handleVerificarTransito}
+            disabled={selectedIds.size === 0 || verificandoTransito}
+          >
+            {verificandoTransito ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Scale className="w-4 h-4 mr-2" />}
+            Verificar Trânsito em Julgado
+          </Button>
+
           <div className="flex items-end gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Início</Label>
@@ -324,6 +406,7 @@ export default function DadosBenner() {
                 <TableHead>Tipo Recurso</TableHead>
                 <TableHead>Turma</TableHead>
                 <TableHead>Relator</TableHead>
+                <TableHead>Situação</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Criado em</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
@@ -331,9 +414,9 @@ export default function DadosBenner() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
@@ -345,6 +428,15 @@ export default function DadosBenner() {
                   <TableCell className="text-xs">{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>
                   <TableCell>{d.relator || "-"}</TableCell>
+                  <TableCell>
+                    {(d as any).situacao_processo ? (
+                      <Badge variant={(d as any).situacao_processo?.includes("Trânsito") ? "destructive" : "outline"} className="text-xs">
+                        {(d as any).situacao_processo}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge className={statusColors[d.status] || ""}>{statusLabels[d.status] || d.status}</Badge>
                   </TableCell>
@@ -378,6 +470,72 @@ export default function DadosBenner() {
             </div>
           </div>
         )}
+
+        {/* Dialog Transito em Julgado */}
+        <Dialog open={showTransitoDialog} onOpenChange={setShowTransitoDialog}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Scale className="w-5 h-5" />
+                Verificação de Trânsito em Julgado
+              </DialogTitle>
+            </DialogHeader>
+
+            {verificandoTransito && (
+              <div className="flex items-center gap-3 py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">{transitoProgress}</span>
+              </div>
+            )}
+
+            {transitoResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex gap-4 text-sm">
+                  <Badge variant="destructive">
+                    {transitoResults.filter(r => r.situacao === "Trânsito em Julgado").length} Trânsito em Julgado
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
+                    {transitoResults.filter(r => r.situacao === "Ativo").length} Ativo(s)
+                  </Badge>
+                  <Badge variant="secondary">
+                    {transitoResults.filter(r => r.situacao === "Erro" || r.situacao === "Não encontrado").length} Erro/Não encontrado
+                  </Badge>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº Processo</TableHead>
+                      <TableHead>Situação</TableHead>
+                      <TableHead>Data Trânsito</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transitoResults.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-sm">{r.numero}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              r.situacao === "Trânsito em Julgado" ? "destructive" :
+                              r.situacao === "Ativo" ? "outline" : "secondary"
+                            }
+                            className={r.situacao === "Ativo" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" : ""}
+                          >
+                            {r.situacao}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{r.data_transito || "-"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.erro || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
