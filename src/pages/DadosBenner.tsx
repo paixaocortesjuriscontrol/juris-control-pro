@@ -509,6 +509,7 @@ export default function DadosBenner() {
                       <TableHead>Nº Processo</TableHead>
                       <TableHead>Situação</TableHead>
                       <TableHead>Data Trânsito</TableHead>
+                      <TableHead>Grau/Instância</TableHead>
                       <TableHead>Observação</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -528,6 +529,7 @@ export default function DadosBenner() {
                           </Badge>
                         </TableCell>
                         <TableCell>{r.data_transito || "-"}</TableCell>
+                        <TableCell className="text-xs">{r.grau || "-"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.erro || "-"}</TableCell>
                       </TableRow>
                     ))}
