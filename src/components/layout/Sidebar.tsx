@@ -30,6 +30,7 @@ import {
   BookOpen,
   LayoutPanelTop,
   Table2,
+  ArrowRightLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -55,6 +56,7 @@ const menuItemsPublicos = [
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
+  { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
