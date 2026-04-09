@@ -158,3 +158,6 @@ verify_jwt = true
 
 [functions.enviar-convite-cliente]
 verify_jwt = true
+
+[functions.comparar-dj-santander]
+verify_jwt = false
