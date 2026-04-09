@@ -188,9 +188,24 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           {/* Dossiê */}
-          <div className="space-y-2">
-            <Label>Dossiê (A)</Label>
-            <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Dossiê (A)</Label>
+              <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
+            </div>
+            <div className="space-y-2">
+              <Label>Situação do Processo</Label>
+              <Select value={form.situacao_processo || ""} onValueChange={v => set("situacao_processo", v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione a situação" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Trânsito em Julgado">Trânsito em Julgado</SelectItem>
+                  <SelectItem value="Arquivado">Arquivado</SelectItem>
+                  <SelectItem value="Suspenso">Suspenso</SelectItem>
+                  <SelectItem value="Baixado">Baixado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
