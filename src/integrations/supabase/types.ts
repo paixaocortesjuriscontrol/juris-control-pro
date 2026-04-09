@@ -1373,6 +1373,7 @@ export type Database = {
           resultado_sem_transcendencia: boolean | null
           risco_descricao: string | null
           risco_midia: string | null
+          situacao_processo: string | null
           status: string
           sustentacao_oral: string | null
           tem_data_julgamento: string | null
@@ -1416,6 +1417,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          situacao_processo?: string | null
           status?: string
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
@@ -1459,6 +1461,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          situacao_processo?: string | null
           status?: string
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null

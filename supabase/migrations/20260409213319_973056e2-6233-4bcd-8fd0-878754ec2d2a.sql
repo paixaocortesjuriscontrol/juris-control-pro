@@ -1,0 +1,1 @@
+ALTER TABLE public.dados_benner ADD COLUMN situacao_processo TEXT;
