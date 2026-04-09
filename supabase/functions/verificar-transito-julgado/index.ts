@@ -246,8 +246,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Process in batches of 3 (each process now queries multiple endpoints)
-    const BATCH_SIZE = 3;
+    // Process in batches of 5 (each process queries multiple endpoints)
+    const BATCH_SIZE = 5;
     const resultados: ResultadoProcesso[] = [];
 
     for (let i = 0; i < processos.length; i += BATCH_SIZE) {
