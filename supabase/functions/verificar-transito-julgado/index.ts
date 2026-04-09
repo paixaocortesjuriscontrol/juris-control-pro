@@ -99,13 +99,8 @@ function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: s
     }
   }
 
-  // Search for code 22 (Baixa Definitiva) or 246 (Arquivamento Definitivo) as secondary indicators
-  for (const mov of movimentos) {
-    const codigo = mov?.codigo ?? mov?.movimentoNacional?.codigoNacional;
-    if (codigo === 22 || codigo === "22") {
-      return { found: true, date: mov?.dataHora || mov?.data || null };
-    }
-  }
+  // Note: code 22 (Baixa Definitiva) was removed as indicator because it often just means
+  // records were returned to a lower court after an appeal, not actual trânsito em julgado.
 
   return { found: false, date: null };
 }
