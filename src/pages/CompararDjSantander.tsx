@@ -16,10 +16,15 @@ interface ComparisonResult {
   somente_pdf: string[];
 }
 
-const CNJ_REGEX = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g;
+const COMUNICACAO_PJE_REGEX = /COMUNICA[CÇ][AÃ]O\s+PJE\s+#?\s*(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/gi;
 
 function extrairProcessos(texto: string): string[] {
-  const matches = texto.match(CNJ_REGEX) || [];
+  const matches: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = COMUNICACAO_PJE_REGEX.exec(texto)) !== null) {
+    matches.push(match[1]);
+  }
+  COMUNICACAO_PJE_REGEX.lastIndex = 0;
   return [...new Set(matches)];
 }
 
