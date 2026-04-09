@@ -42,29 +42,9 @@ function limparNumero(num: string): string {
   return num.replace(/[^0-9]/g, "");
 }
 
-function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
-  const digits = limparNumero(numero);
-  const endpoints: { endpoint: string; nome: string }[] = [];
-
-  if (digits.length >= 16) {
-    const j = digits[13]; // Justice segment
-    const tt = digits.substring(14, 16);
-    const ttNum = parseInt(tt, 10);
-
-    if (j === "5") {
-      // TRT origin endpoint (where process was filed)
-      const trt = TRIBUNAIS_MAP["5"]?.[String(ttNum)];
-      if (trt) endpoints.push(trt);
-      // Also search TST (superior court)
-      if (ttNum !== 0) endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
-    }
-  }
-
-  if (endpoints.length === 0) {
-    endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
-  }
-
-  return endpoints;
+function getEndpoints(_numero: string): { endpoint: string; nome: string }[] {
+  // Only query TST - superior court has the definitive trânsito em julgado status
+  return [{ endpoint: "api_publica_tst", nome: "TST" }];
 }
 
 interface ResultadoProcesso {
@@ -75,34 +55,63 @@ interface ResultadoProcesso {
   erro: string | null;
 }
 
-function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: string | null } {
-  // Search for movement code 848 (Trânsito em Julgado)
+// Codes that indicate the process was reopened/continued after trânsito
+const REOPEN_CODES = new Set([26, 36, 132, 981]); // Distribuição, Redistribuição, Recebimento
+
+function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: string | null; invalidated: boolean } {
+  let transitoDate: string | null = null;
+  let transitoFound = false;
+
+  // First pass: find trânsito em julgado (code 848)
   for (const mov of movimentos) {
-    const codigo = mov?.codigo ?? mov?.movimentoNacional?.codigoNacional;
-    if (codigo === 848 || codigo === "848") {
-      return { found: true, date: mov?.dataHora || mov?.data || null };
+    const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
+    if (codigo === 848) {
+      transitoFound = true;
+      transitoDate = mov?.dataHora || mov?.data || null;
+      break;
     }
-    // Check complementos
     const complementos = mov?.complementosTabelados || [];
     for (const comp of complementos) {
-      if (comp?.codigo === 848 || comp?.codigo === "848") {
-        return { found: true, date: mov?.dataHora || mov?.data || null };
+      if (Number(comp?.codigo) === 848) {
+        transitoFound = true;
+        transitoDate = mov?.dataHora || mov?.data || null;
+        break;
+      }
+    }
+    if (transitoFound) break;
+  }
+
+  // Fallback: search by name
+  if (!transitoFound) {
+    for (const mov of movimentos) {
+      const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
+      if (nome.includes("trânsito em julgado") || nome.includes("transito em julgado")) {
+        transitoFound = true;
+        transitoDate = mov?.dataHora || mov?.data || null;
+        break;
       }
     }
   }
 
-  // Search by movement name
-  for (const mov of movimentos) {
-    const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
-    if (nome.includes("trânsito em julgado") || nome.includes("transito em julgado")) {
-      return { found: true, date: mov?.dataHora || mov?.data || null };
+  if (!transitoFound) return { found: false, date: null, invalidated: false };
+
+  // Second pass: check if there are substantive movements AFTER the trânsito date
+  // (redistribution, new distribution, etc.) which invalidate the trânsito
+  if (transitoDate) {
+    const transitoTs = new Date(transitoDate).getTime();
+    for (const mov of movimentos) {
+      const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
+      const movDate = mov?.dataHora || mov?.data || "";
+      const movTs = new Date(movDate).getTime();
+
+      if (REOPEN_CODES.has(codigo) && movTs > transitoTs) {
+        console.log(`  Trânsito invalidado: código ${codigo} em ${movDate.substring(0, 10)} é posterior ao trânsito em ${transitoDate.substring(0, 10)}`);
+        return { found: true, date: transitoDate, invalidated: true };
+      }
     }
   }
 
-  // Note: code 22 (Baixa Definitiva) was removed as indicator because it often just means
-  // records were returned to a lower court after an appeal, not actual trânsito em julgado.
-
-  return { found: false, date: null };
+  return { found: true, date: transitoDate, invalidated: false };
 }
 
 async function queryEndpoint(
@@ -157,7 +166,7 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
   let allHits: any[] = [];
   let lastError: string | null = null;
 
-  // Query all relevant endpoints (TRT + TST)
+  // Query TST only
   for (const ep of endpoints) {
     const result = await queryEndpoint(ep.endpoint, digits);
     if (result.hits.length > 0) {
@@ -186,9 +195,9 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
     const classe = source?.classe?.nome || "";
 
     const result = checkTransitoInMovimentos(movimentos);
-    if (result.found) {
+    if (result.found && !result.invalidated) {
       const dateStr = result.date ? result.date.substring(0, 10) : null;
-      console.log(`  Trânsito encontrado em ${grau} (${classe}): ${dateStr}`);
+      console.log(`  Trânsito CONFIRMADO em ${grau} (${classe}): ${dateStr}`);
       return {
         numero,
         situacao: "Trânsito em Julgado",
@@ -196,6 +205,10 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
         grau: `${grau} - ${classe}`,
         erro: null,
       };
+    } else if (result.found && result.invalidated) {
+      const dateStr = result.date ? result.date.substring(0, 10) : null;
+      console.log(`  Trânsito INVALIDADO em ${grau} (${classe}): ${dateStr} - movimentação posterior encontrada`);
+      // Continue checking other hits, but if none valid, mark as Ativo
     }
   }
 
