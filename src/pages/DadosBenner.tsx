@@ -543,10 +543,24 @@ export default function DadosBenner() {
               </DialogTitle>
             </DialogHeader>
 
-            {verificandoTransito && (
-              <div className="flex items-center gap-3 py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">{transitoProgress}</span>
+            {(verificandoTransito || transitoProgressText) && (
+              <div className="space-y-3 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">{transitoProgressText}</span>
+                  </div>
+                  {verificandoTransito && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => { cancelTransitoRef.current = true; }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+                <Progress value={transitoProgressPct} className="h-2" />
               </div>
             )}
 
