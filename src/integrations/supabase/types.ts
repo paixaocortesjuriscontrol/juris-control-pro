@@ -1343,7 +1343,6 @@ export type Database = {
         Row: {
           analise_quarteirizado: string | null
           chance_exito: string | null
-          contrato: string | null
           coordenacao_id: string | null
           created_at: string
           data_distribuicao: string | null
@@ -1360,6 +1359,7 @@ export type Database = {
           posicao_relator_favoravel: boolean | null
           posicao_turma_desfavoravel: boolean | null
           posicao_turma_favoravel: boolean | null
+          processo: string | null
           processo_baixado: string | null
           provas_digitais: string | null
           recorrente: string | null
@@ -1387,7 +1387,6 @@ export type Database = {
         Insert: {
           analise_quarteirizado?: string | null
           chance_exito?: string | null
-          contrato?: string | null
           coordenacao_id?: string | null
           created_at?: string
           data_distribuicao?: string | null
@@ -1404,6 +1403,7 @@ export type Database = {
           posicao_relator_favoravel?: boolean | null
           posicao_turma_desfavoravel?: boolean | null
           posicao_turma_favoravel?: boolean | null
+          processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
           recorrente?: string | null
@@ -1431,7 +1431,6 @@ export type Database = {
         Update: {
           analise_quarteirizado?: string | null
           chance_exito?: string | null
-          contrato?: string | null
           coordenacao_id?: string | null
           created_at?: string
           data_distribuicao?: string | null
@@ -1448,6 +1447,7 @@ export type Database = {
           posicao_relator_favoravel?: boolean | null
           posicao_turma_desfavoravel?: boolean | null
           posicao_turma_favoravel?: boolean | null
+          processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
           recorrente?: string | null
