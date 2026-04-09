@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
 import ClienteDetalhes from "./pages/ClienteDetalhes";
+import CompararDjSantander from "./pages/CompararDjSantander";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MonitoramentoDjen from "./pages/MonitoramentoDjen";
@@ -148,6 +149,7 @@ function App() {
               <Route path="/dados-benner" element={<ProtectedRoute><DadosBenner /></ProtectedRoute>} />
               <Route path="/distribuicao-tst" element={<ProtectedRoute><DistribuicaoTst /></ProtectedRoute>} />
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
+              <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
