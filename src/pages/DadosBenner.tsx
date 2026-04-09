@@ -39,6 +39,7 @@ interface TransitoResult {
   numero: string;
   situacao: string;
   data_transito: string | null;
+  grau: string | null;
   erro: string | null;
 }
 
