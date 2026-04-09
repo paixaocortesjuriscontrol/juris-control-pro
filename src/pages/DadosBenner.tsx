@@ -418,10 +418,10 @@ export default function DadosBenner() {
           <Button
             variant="outline"
             onClick={handleVerificarTransito}
-            disabled={selectedIds.size === 0 || verificandoTransito}
+            disabled={verificandoTransito}
           >
             {verificandoTransito ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Scale className="w-4 h-4 mr-2" />}
-            Verificar Trânsito em Julgado
+            Verificar Trânsito em Julgado {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
           <div className="flex items-end gap-2">
