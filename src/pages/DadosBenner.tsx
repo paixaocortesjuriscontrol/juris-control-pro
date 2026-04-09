@@ -62,7 +62,120 @@ export default function DadosBenner() {
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
-  // Transito em julgado state
+  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds } = useDadosBenner(appliedFilters);
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      status: statusFilter,
+      relator: filterRelator.trim() || undefined,
+      dossie: filterDossie.trim() || undefined,
+      contrato: filterContrato.trim() || undefined,
+      turma: filterTurma.trim() || undefined,
+      tipo_recurso: filterTipoRecurso.trim() || undefined,
+      tem_pauta: filterTemPauta || undefined,
+      tem_distribuicao: filterTemDistribuicao || undefined,
+    });
+  };
+
+  const clearFilters = () => {
+    setStatusFilter("todos");
+    setFilterRelator("");
+    setFilterDossie("");
+    setFilterContrato("");
+    setFilterTurma("");
+    setFilterTipoRecurso("");
+    setFilterTemPauta(false);
+    setFilterTemDistribuicao(false);
+    setAppliedFilters({ status: "todos" });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const [loadingSelectAll, setLoadingSelectAll] = useState(false);
+
+  const toggleAll = async () => {
+    if (selectedIds.size === totalCount && totalCount > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setLoadingSelectAll(true);
+      try {
+        const allIds = await fetchAllIds();
+        setSelectedIds(new Set(allIds));
+      } finally {
+        setLoadingSelectAll(false);
+      }
+    }
+  };
+
+  const handleGerarComResultado = async (registros: DadoBenner[], atualizarStatus?: string) => {
+    setGerando(true);
+    setUltimoResultado(null);
+    try {
+      const resultado = await gerarPlanilhaBenner(registros);
+      setUltimoResultado(resultado);
+      if (atualizarStatus && resultado.totalValidos > 0) {
+        const idsValidos = registros.filter(d => !resultado.rejeitados.some(r => r.id === d.id)).map(d => d.id);
+        if (idsValidos.length) await updateStatus(idsValidos, atualizarStatus);
+      }
+      if (resultado.totalRejeitados > 0) {
+        toast.warning(`${resultado.totalRejeitados} registro(s) rejeitado(s) por dossiê inválido`);
+      }
+      if (resultado.totalValidos > 0) {
+        toast.success(`Planilha gerada com ${resultado.totalValidos} registros válidos!`);
+      } else {
+        toast.error("Nenhum registro válido para gerar planilha. Todos possuem dossiê inválido.");
+      }
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const handleGerarPlanilha = async () => {
+    const prontos = dados.filter(d => d.status === "pronto_envio");
+    if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
+    await handleGerarComResultado(prontos, "planilhado");
+  };
+
+  const handleRegerarPlanilhados = async () => {
+    let filtrados = dados.filter(d => d.status === "planilhado");
+    if (periodoInicio) filtrados = filtrados.filter(d => d.created_at >= periodoInicio);
+    if (periodoFim) filtrados = filtrados.filter(d => d.created_at <= periodoFim + "T23:59:59");
+    if (!filtrados.length) { toast.warning("Nenhum registro planilhado no período"); return; }
+    await handleGerarComResultado(filtrados);
+  };
+
+  const handleRegerarProntos = async () => {
+    const prontos = dados.filter(d => d.status === "pronto_envio");
+    if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
+    await handleGerarComResultado(prontos);
+  };
+
+  const handleMarcarPronto = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
+    await updateStatus(ids, "pronto_envio");
+    setSelectedIds(new Set());
+  };
+
+  const handleMarcarEnviado = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como enviado"); return; }
+    await updateStatus(ids, "enviado");
+    setSelectedIds(new Set());
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Excluir este registro?")) {
+      await deleteDado(id);
+    }
+  };
+
   const [verificandoTransito, setVerificandoTransito] = useState(false);
   const [transitoResults, setTransitoResults] = useState<TransitoResult[]>([]);
   const [showTransitoDialog, setShowTransitoDialog] = useState(false);
