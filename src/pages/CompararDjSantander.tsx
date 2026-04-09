@@ -3,9 +3,10 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, FileCheck, AlertTriangle, CheckCircle2, XCircle, ArrowRightLeft } from "lucide-react";
+import { Upload, FileText, FileCheck, AlertTriangle, CheckCircle2, XCircle, ArrowRightLeft, Download } from "lucide-react";
 import { toast } from "sonner";
 import * as mammoth from "mammoth";
+import jsPDF from "jspdf";
 
 interface ComparisonResult {
   processos_doc: string[];
@@ -15,21 +16,17 @@ interface ComparisonResult {
   somente_pdf: string[];
 }
 
-// Regex para número de processo CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO
 const CNJ_REGEX = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g;
 
 function extrairProcessos(texto: string): string[] {
   const matches = texto.match(CNJ_REGEX) || [];
-  // Deduplica
   return [...new Set(matches)];
 }
 
 function compararListas(processosDoc: string[], processosPdf: string[]): ComparisonResult {
   const normalize = (p: string) => p.replace(/\D/g, "");
-  
   const setDoc = new Set(processosDoc.map(normalize));
   const setPdf = new Set(processosPdf.map(normalize));
-  
   const docMap = new Map<string, string>();
   processosDoc.forEach(p => docMap.set(normalize(p), p));
   const pdfMap = new Map<string, string>();
@@ -40,26 +37,73 @@ function compararListas(processosDoc: string[], processosPdf: string[]): Compari
   const somente_pdf: string[] = [];
 
   for (const [norm, orig] of docMap) {
-    if (setPdf.has(norm)) {
-      comuns.push(orig);
-    } else {
-      somente_doc.push(orig);
-    }
+    if (setPdf.has(norm)) comuns.push(orig);
+    else somente_doc.push(orig);
   }
-
   for (const [norm, orig] of pdfMap) {
-    if (!setDoc.has(norm)) {
-      somente_pdf.push(orig);
-    }
+    if (!setDoc.has(norm)) somente_pdf.push(orig);
   }
 
-  return {
-    processos_doc: processosDoc,
-    processos_pdf: processosPdf,
-    comuns,
-    somente_doc,
-    somente_pdf,
+  return { processos_doc: processosDoc, processos_pdf: processosPdf, comuns, somente_doc, somente_pdf };
+}
+
+function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName: string) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let y = 20;
+
+  const checkPage = (needed: number) => {
+    if (y + needed > 280) { doc.addPage(); y = 20; }
   };
+
+  // Title
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("Relatório - Comparar DJ Santander", pageWidth / 2, y, { align: "center" });
+  y += 10;
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR")}`, pageWidth / 2, y, { align: "center" });
+  y += 6;
+  doc.text(`DOC: ${docFileName}  |  PDF: ${pdfFileName}`, pageWidth / 2, y, { align: "center" });
+  y += 12;
+
+  // Summary
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("Resumo", 14, y); y += 7;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Processos no DOC: ${result.processos_doc.length}`, 14, y); y += 5;
+  doc.text(`Processos no PDF: ${result.processos_pdf.length}`, 14, y); y += 5;
+  doc.text(`Em Comum: ${result.comuns.length}`, 14, y); y += 5;
+  doc.text(`Somente no DOC: ${result.somente_doc.length}`, 14, y); y += 5;
+  doc.text(`Somente no PDF: ${result.somente_pdf.length}`, 14, y); y += 12;
+
+  const printList = (title: string, items: string[]) => {
+    checkPage(15);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${title} (${items.length})`, 14, y); y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    if (items.length === 0) {
+      doc.text("Nenhum processo", 14, y); y += 6;
+    } else {
+      for (const p of items) {
+        checkPage(6);
+        doc.text(p, 14, y); y += 5;
+      }
+    }
+    y += 6;
+  };
+
+  printList("Processos em Comum", result.comuns);
+  printList("Somente no DOC Advogado", result.somente_doc);
+  printList("Somente no PDF Resumo", result.somente_pdf);
+
+  doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export default function CompararDjSantander() {
@@ -74,7 +118,6 @@ export default function CompararDjSantander() {
     if (!file) return;
     setDocFile(file);
     setResult(null);
-
     try {
       const arrayBuffer = await file.arrayBuffer();
       const { value } = await mammoth.extractRawText({ arrayBuffer });
@@ -92,12 +135,10 @@ export default function CompararDjSantander() {
     if (!file) return;
     setPdfFile(file);
     setResult(null);
-
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdfjsLib = await import("pdfjs-dist");
       pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let text = "";
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -126,7 +167,6 @@ export default function CompararDjSantander() {
 
   return (
     <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo gerado pela Análise DJEN">
-      {/* Upload Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card>
           <CardHeader className="pb-3">
@@ -187,8 +227,8 @@ export default function CompararDjSantander() {
         </Card>
       </div>
 
-      {/* Compare Button */}
-      <div className="flex justify-center mb-6">
+      {/* Buttons */}
+      <div className="flex justify-center gap-3 mb-6">
         <Button
           size="lg"
           onClick={handleComparar}
@@ -198,6 +238,17 @@ export default function CompararDjSantander() {
           <ArrowRightLeft className="w-5 h-5" />
           Comparar Documentos
         </Button>
+        {result && (
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => exportarPdf(result, docFile?.name || "DOC", pdfFile?.name || "PDF")}
+            className="gap-2"
+          >
+            <Download className="w-5 h-5" />
+            Exportar PDF
+          </Button>
+        )}
       </div>
 
       {/* Results */}
@@ -245,7 +296,7 @@ export default function CompararDjSantander() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                <div className="space-y-1">
                   {result.comuns.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic">Nenhum processo em comum</p>
                   ) : (
@@ -269,7 +320,7 @@ export default function CompararDjSantander() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                <div className="space-y-1">
                   {result.somente_doc.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
                   ) : (
@@ -293,7 +344,7 @@ export default function CompararDjSantander() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                <div className="space-y-1">
                   {result.somente_pdf.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
                   ) : (
