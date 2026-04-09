@@ -1,44 +1,29 @@
 
 
-## Plano Atualizado: Tela "Dados Benner"
+# Adicionar coluna "situacao_processo" na tabela dados_benner
 
-### Alteracoes em relacao ao plano anterior
+## O que será feito
 
-Dois itens faltantes foram identificados e serao adicionados:
+Criar uma nova coluna `situacao_processo` (TEXT, nullable) na tabela `dados_benner` para armazenar a situação do processo (ex: "Trânsito em Julgado", "Ativo", "Arquivado", etc.).
 
-**1. Campo "Contrato" (novo campo separado do Dossie)**
-- Adicionar coluna `contrato` (TEXT) na tabela `dados_benner`
-- No formulario, posicionar o campo "Contrato" logo apos o campo "Dossie" (coluna A), antes de "Tribunal"
-- Campo de texto livre para o numero do contrato do cliente com o Santander
+## Etapas
 
-**2. Botao "Buscar Dossie" ao lado do campo Dossie**
-- Ao lado do campo "Dossie" no formulario, adicionar um botao com icone de busca
-- Ao clicar, busca na tabela `processos` pelo campo `dossie_tst` (ou `numero`) que contenha o valor digitado
-- Se encontrar, preenche automaticamente campos disponiveis (tribunal, turma, relator, etc.) vindos do processo cadastrado
-- Exibe feedback visual: resultado encontrado ou "Nenhum processo encontrado"
+### 1. Migration SQL
+```sql
+ALTER TABLE dados_benner ADD COLUMN situacao_processo TEXT;
+```
 
-### Resumo da implementacao completa
+### 2. Atualizar o tipo TypeScript `DadoBenner` em `src/hooks/useDadosBenner.ts`
+- Adicionar `situacao_processo: string | null` na interface
 
-1. **Migration SQL**: Criar tabela `dados_benner` com todas as 34 colunas (A-AH) + campo extra `contrato` + `status` (rascunho/pronto_envio/planilhado/enviado) + `user_id`, `created_at`, `updated_at`, `coordenacao_id`. RLS para usuarios autenticados.
+### 3. Atualizar o formulário `DadosBennerForm.tsx`
+- Adicionar campo "Situação do Processo" no formulário (campo texto ou select com opções predefinidas)
 
-2. **Pagina `src/pages/DadosBenner.tsx`**: Listagem com filtros por status, botoes de acao (Novo, Gerar Planilha, Regerar, Marcar Enviado).
+### 4. Atualizar a listagem (se desejado)
+- Exibir a coluna na tabela da tela Dados Benner
+- Permitir filtro por situação do processo
 
-3. **Formulario `src/components/benner/DadosBennerForm.tsx`**: Todos os campos organizados por secao colorida:
-   - Campo Dossie (A) com **botao "Buscar"** que consulta `processos` por `dossie_tst` ou `numero`
-   - Campo **Contrato** (novo, apos Dossie)
-   - Campos B-AH conforme planilha
-   - Toggle "Pronto para Enviar"
-
-4. **Geracao XLSX**: Reutiliza logica do CargaBenner para exportar registros prontos, atualizar status para "planilhado".
-
-5. **Sidebar + Rota**: Item "Dados Benner" no menu, rota `/dados-benner`.
-
-### Campos do formulario (ordem final)
-
-| # | Campo | Tipo |
-|---|-------|------|
-| A | Dossie + Botao Buscar | texto + botao |
-| - | **Contrato** | texto |
-| B | Tribunal | select (TST/STF/STJ) |
-| C-AH | (demais campos conforme plano anterior) | varios |
+## Detalhes técnicos
+- Coluna TEXT sem restrição para flexibilidade
+- Pode ser preenchida manualmente ou automaticamente pela funcionalidade "Verificar Trânsito em Julgado" (quando implementada)
 
