@@ -161,7 +161,7 @@ function gerarPlanilhaRejeicoes(rejeitados: DadoBenner[]) {
   const wb = XLSX.utils.book_new();
   const rows = rejeitados.map(d => ({
     "Dossiê": d.dossie || "",
-    "Nº Processo": d.contrato || "",
+    "Nº Processo": d.processo || "",
     "Tribunal": d.tribunal || "",
     "Turma": d.turma || "",
     "Relator": d.relator || "",
