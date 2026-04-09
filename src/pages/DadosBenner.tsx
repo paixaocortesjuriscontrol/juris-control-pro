@@ -243,7 +243,7 @@ export default function DadosBenner() {
       setTransitoProgressText(`0 de ${validRecords.length} verificados...`);
 
       // 2. Process in batches of 10, calling edge function for each batch
-      const BATCH_SIZE = 10;
+      const BATCH_SIZE = 30;
       const allResults: TransitoResult[] = [];
 
       for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
