@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function DadosBennerDetail({ dado, onSave, onCancel }: Props) {
-  const processoNumero = dado.contrato || "";
+  const processoNumero = dado.processo || "";
 
   return (
     <div className="space-y-4">

@@ -21,7 +21,7 @@ interface Props {
 
 const emptyForm: DadoBennerInsert = {
   user_id: null, coordenacao_id: null, status: "rascunho",
-  dossie: "", contrato: "", tribunal: "", tipo_recurso: "", data_distribuicao: null,
+  dossie: "", processo: "", tribunal: "", tipo_recurso: "", data_distribuicao: null,
   turma: "", relator: "", analise_quarteirizado: "", risco_midia: "",
   risco_descricao: "", provas_digitais: "", tem_data_julgamento: "",
   data_julgamento: null, horario_julgamento: "", tipo_julgamento: "",
@@ -59,29 +59,29 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleBuscarContrato = async () => {
-    if (!form.contrato?.trim()) { toast.warning("Digite o número do processo"); return; }
+  const handleBuscarProcesso = async () => {
+    if (!form.processo?.trim()) { toast.warning("Digite o número do processo"); return; }
     setBuscando(true);
     
     // Busca na tabela distribuicoes_tst pelo número do processo para obter dossiê
     const { data: distTst } = await supabase
       .from("distribuicoes_tst" as any)
       .select("processo_numero, dossie, turma, relator, equipe, relator_favorabilidade, turma_favorabilidade")
-      .ilike("processo_numero" as any, `%${form.contrato}%`)
+      .ilike("processo_numero" as any, `%${form.processo}%`)
       .limit(5);
 
     // Busca na própria tabela dados_benner
     const { data: dadosBenner } = await supabase
       .from("dados_benner" as any)
-      .select("dossie, contrato, turma, relator, tribunal, coordenacao_id")
-      .ilike("contrato" as any, `%${form.contrato}%`)
+      .select("dossie, processo, turma, relator, tribunal, coordenacao_id")
+      .ilike("processo" as any, `%${form.processo}%`)
       .limit(5);
     
     // Busca na tabela processos
     const { data: processos } = await supabase
       .from("processos")
       .select("id, numero, dossie_tst, turma_tst, relator_tst, coordenacao_id")
-      .or(`numero.ilike.%${form.contrato}%,dossie_tst.ilike.%${form.contrato}%`)
+      .or(`numero.ilike.%${form.processo}%,dossie_tst.ilike.%${form.processo}%`)
       .limit(5);
     
     setBuscando(false);
@@ -94,7 +94,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     }
     if (dadosBenner && (dadosBenner as any[]).length > 0) {
       (dadosBenner as any[]).forEach((d: any) => {
-        resultados.push({ tipo: "benner", contrato: d.contrato, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
+        resultados.push({ tipo: "benner", processo: d.processo, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
       });
     }
     if (processos && processos.length > 0) {
@@ -150,8 +150,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           <div className="space-y-2">
             <Label>Número do Processo</Label>
             <div className="flex gap-2">
-              <Input value={form.contrato || ""} onChange={e => set("contrato", e.target.value)} placeholder="Número do processo" className="flex-1" />
-              <Button variant="outline" onClick={handleBuscarContrato} disabled={buscando}>
+              <Input value={form.processo || ""} onChange={e => set("processo", e.target.value)} placeholder="Número do processo" className="flex-1" />
+              <Button variant="outline" onClick={handleBuscarProcesso} disabled={buscando}>
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Buscar
               </Button>
@@ -170,7 +170,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                       </>
                     ) : r.tipo === "benner" ? (
                       <>
-                        <span className="font-medium">Processo: {r.contrato}</span>
+                        <span className="font-medium">Processo: {r.processo}</span>
                         {r.dossie && <span className="text-muted-foreground"> - Dossiê: {r.dossie}</span>}
                         <Badge variant="outline" className="ml-2 text-xs">Dados Benner</Badge>
                       </>

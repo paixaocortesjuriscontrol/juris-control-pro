@@ -8,7 +8,7 @@ export interface DadoBenner {
   coordenacao_id: string | null;
   status: string;
   dossie: string | null;
-  contrato: string | null;
+  processo: string | null;
   tribunal: string | null;
   tipo_recurso: string | null;
   data_distribuicao: string | null;
@@ -53,7 +53,7 @@ export interface DadosBennerFilters {
   status?: string;
   relator?: string;
   dossie?: string;
-  contrato?: string;
+  processo?: string;
   turma?: string;
   tipo_recurso?: string;
   tem_pauta?: boolean;
@@ -79,8 +79,8 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     if (filters?.dossie) {
       query = query.ilike("dossie", `%${filters.dossie}%`);
     }
-    if (filters?.contrato) {
-      query = query.ilike("contrato", `%${filters.contrato}%`);
+    if (filters?.processo) {
+      query = query.ilike("processo", `%${filters.processo}%`);
     }
     if (filters?.turma) {
       query = query.ilike("turma", `%${filters.turma}%`);
@@ -89,7 +89,7 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
     }
     return query;
-  }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso]);
+  }, [filters?.status, filters?.relator, filters?.dossie, filters?.processo, filters?.turma, filters?.tipo_recurso]);
 
   const fetchDados = useCallback(async () => {
     setLoading(true);
@@ -139,7 +139,7 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
 
       let query = buildQuery();
       if (allowedContratos) {
-        query = query.in("contrato", allowedContratos);
+        query = query.in("processo", allowedContratos);
       }
 
       const from = page * PAGE_SIZE;
@@ -159,7 +159,7 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
   useEffect(() => { fetchDados(); }, [fetchDados]);
 
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
+  useEffect(() => { setPage(0); }, [filters?.status, filters?.relator, filters?.dossie, filters?.processo, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -243,10 +243,10 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       if (filters?.status && filters.status !== "todos") query = query.eq("status", filters.status);
       if (filters?.relator) query = query.ilike("relator", `%${filters.relator}%`);
       if (filters?.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
-      if (filters?.contrato) query = query.ilike("contrato", `%${filters.contrato}%`);
+      if (filters?.processo) query = query.ilike("processo", `%${filters.processo}%`);
       if (filters?.turma) query = query.ilike("turma", `%${filters.turma}%`);
       if (filters?.tipo_recurso) query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
-      if (allowedContratos) query = query.in("contrato", allowedContratos);
+      if (allowedContratos) query = query.in("processo", allowedContratos);
 
       // Paginate to get all IDs (Supabase limits to 1000 per query)
       let allIds: string[] = [];
@@ -264,7 +264,7 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     } catch {
       return [];
     }
-  }, [filters?.status, filters?.relator, filters?.dossie, filters?.contrato, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
+  }, [filters?.status, filters?.relator, filters?.dossie, filters?.processo, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
 
   return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie, page, setPage, totalPages, totalCount, fetchAllIds };
 }
