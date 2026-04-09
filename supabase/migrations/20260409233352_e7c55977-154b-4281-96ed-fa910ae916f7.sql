@@ -1,0 +1,1 @@
+UPDATE dados_benner SET situacao_processo = NULL WHERE situacao_processo IS NOT NULL;
