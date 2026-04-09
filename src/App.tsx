@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
 import ClienteDetalhes from "./pages/ClienteDetalhes";
+import CompararDjSantander from "./pages/CompararDjSantander";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MonitoramentoDjen from "./pages/MonitoramentoDjen";
