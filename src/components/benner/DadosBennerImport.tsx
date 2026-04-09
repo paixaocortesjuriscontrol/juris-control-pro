@@ -128,34 +128,6 @@ export function DadosBennerImport({ onImported }: Props) {
         return;
       }
 
-      // Buscar contrato (número do processo) pelo dossiê
-      const dossies = [...new Set(records.map(r => r.dossie).filter(Boolean))];
-      const dossieToContrato: Record<string, string> = {};
-      // Query in batches of 50 dossiês
-      for (let i = 0; i < dossies.length; i += 50) {
-        const batch = dossies.slice(i, i + 50);
-        const { data } = await supabase
-          .from("processos")
-          .select("numero, dossie_tst")
-          .in("dossie_tst", batch);
-        if (data) {
-          for (const p of data) {
-            if (p.dossie_tst) dossieToContrato[p.dossie_tst] = p.numero;
-          }
-        }
-      }
-      // Preencher contrato nos registros
-      let encontrados = 0;
-      for (const rec of records) {
-        if (rec.dossie && dossieToContrato[rec.dossie]) {
-          rec.contrato = dossieToContrato[rec.dossie];
-          encontrados++;
-        }
-      }
-      if (encontrados > 0) {
-        toast.info(`${encontrados} de ${records.length} registros tiveram o Nº Processo encontrado pelo dossiê`);
-      }
-
       console.log(`[DadosBennerImport] ${records.length} registros parseados. Primeiro:`, JSON.stringify(records[0]));
 
       // Insert in batches of 100
