@@ -72,48 +72,53 @@ export function DadosBennerImport({ onImported }: Props) {
         const r = json[i];
         if (!r || r.every(c => !String(c ?? "").trim())) continue;
 
-        // Map positional columns (A=0 through AH=33)
+        // Map positional columns: A=0 (Dossiê), B=1 (Processo), C=2..AI=34
         const dossie = normalizeText(r[0]);
         if (!dossie) continue; // skip rows without dossiê
+
+        // Column B: extract only the process number (digits, dots, dashes), ignore observations
+        const rawContrato = normalizeText(r[1]);
+        const contratoMatch = rawContrato.match(/[\d][\d.\-\/]+/);
+        const contrato = contratoMatch ? contratoMatch[0] : "";
 
         records.push({
           user_id: userId,
           status: "rascunho",
           dossie: dossie,
-          contrato: "", // not in the source spreadsheet
-          tribunal: normalizeText(r[1]),
-          tipo_recurso: normalizeText(r[2]),
-          data_distribuicao: parseDateBR(r[3]),
-          turma: normalizeText(r[4]),
-          relator: normalizeText(r[5]),
-          analise_quarteirizado: normalizeText(r[6]),
-          risco_midia: normalizeText(r[7]) || null,
-          risco_descricao: normalizeText(r[8]) || null,
-          provas_digitais: normalizeText(r[9]) || null,
-          tem_data_julgamento: normalizeText(r[10]) || null,
-          data_julgamento: parseDateBR(r[11]),
-          horario_julgamento: normalizeText(r[12]) || null,
-          tipo_julgamento: normalizeText(r[13]) || null,
-          materia_honra: normalizeText(r[14]) || null,
-          entrega_memoriais: normalizeText(r[15]) || null,
-          sustentacao_oral: normalizeText(r[16]) || null,
-          resultado_sem_transcendencia: isXCell(r[17]),
-          resultado_nao_conhecido: isXCell(r[18]),
-          resultado_conhecido_provido: isXCell(r[19]),
-          resultado_conhecido_nao_provido: isXCell(r[20]),
-          resultado_outra: normalizeText(r[21]) || null,
-          observacoes: normalizeText(r[22]) || null,
-          ganhamos: isXCell(r[23]),
-          perdemos: isXCell(r[24]),
-          processo_baixado: isBoolS(r[25]) ? "S" : (String(r[25] ?? "").trim().toUpperCase() === "N" || String(r[25] ?? "").trim().toUpperCase() === "NÃO" ? "N" : normalizeText(r[25]) || null),
-          recorrente: normalizeText(r[26]) || null,
-          posicao_turma_favoravel: isXCell(r[27]),
-          posicao_turma_desfavoravel: isXCell(r[28]),
-          posicao_relator_favoravel: isXCell(r[29]),
-          posicao_relator_desfavoravel: isXCell(r[30]),
-          recurso_bem_aparelhado: isXCell(r[31]),
-          recurso_mal_aparelhado: isXCell(r[32]),
-          chance_exito: normalizeText(r[33]) || null,
+          contrato: contrato,
+          tribunal: normalizeText(r[2]),
+          tipo_recurso: normalizeText(r[3]),
+          data_distribuicao: parseDateBR(r[4]),
+          turma: normalizeText(r[5]),
+          relator: normalizeText(r[6]),
+          analise_quarteirizado: normalizeText(r[7]),
+          risco_midia: normalizeText(r[8]) || null,
+          risco_descricao: normalizeText(r[9]) || null,
+          provas_digitais: normalizeText(r[10]) || null,
+          tem_data_julgamento: normalizeText(r[11]) || null,
+          data_julgamento: parseDateBR(r[12]),
+          horario_julgamento: normalizeText(r[13]) || null,
+          tipo_julgamento: normalizeText(r[14]) || null,
+          materia_honra: normalizeText(r[15]) || null,
+          entrega_memoriais: normalizeText(r[16]) || null,
+          sustentacao_oral: normalizeText(r[17]) || null,
+          resultado_sem_transcendencia: isXCell(r[18]),
+          resultado_nao_conhecido: isXCell(r[19]),
+          resultado_conhecido_provido: isXCell(r[20]),
+          resultado_conhecido_nao_provido: isXCell(r[21]),
+          resultado_outra: normalizeText(r[22]) || null,
+          observacoes: normalizeText(r[23]) || null,
+          ganhamos: isXCell(r[24]),
+          perdemos: isXCell(r[25]),
+          processo_baixado: isBoolS(r[26]) ? "S" : (String(r[26] ?? "").trim().toUpperCase() === "N" || String(r[26] ?? "").trim().toUpperCase() === "NÃO" ? "N" : normalizeText(r[26]) || null),
+          recorrente: normalizeText(r[27]) || null,
+          posicao_turma_favoravel: isXCell(r[28]),
+          posicao_turma_desfavoravel: isXCell(r[29]),
+          posicao_relator_favoravel: isXCell(r[30]),
+          posicao_relator_desfavoravel: isXCell(r[31]),
+          recurso_bem_aparelhado: isXCell(r[32]),
+          recurso_mal_aparelhado: isXCell(r[33]),
+          chance_exito: normalizeText(r[34]) || null,
         });
       }
 
