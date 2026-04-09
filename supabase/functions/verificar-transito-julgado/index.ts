@@ -6,11 +6,11 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_TIMEOUT_MS = 15_000;
+const DATAJUD_TIMEOUT_MS = 20_000;
 
-// Mapa de tribunais baseado na numeração única
-const TRIBUNAIS_MAP: Record<string, { endpoint: string; nome: string }> = {
+const TRIBUNAIS_MAP: Record<string, Record<string, { endpoint: string; nome: string }>> = {
   "5": {
+    "0": { endpoint: "api_publica_tst", nome: "TST" },
     "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
     "2": { endpoint: "api_publica_trt2", nome: "TRT2" },
     "3": { endpoint: "api_publica_trt3", nome: "TRT3" },
@@ -42,42 +42,78 @@ function limparNumero(num: string): string {
   return num.replace(/[^0-9]/g, "");
 }
 
-function getEndpoint(numero: string): string | null {
+function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
   const digits = limparNumero(numero);
-  // TST processes: segment J=5, tribunal=00 or specific pattern
-  // Format: NNNNNNN-DD.AAAA.J.TT.OOOO (20 digits without punctuation)
-  if (digits.length >= 14) {
-    const j = digits[13]; // Justice segment (position 14, 0-indexed 13)
+  const endpoints: { endpoint: string; nome: string }[] = [];
+
+  if (digits.length >= 16) {
+    const j = digits[13]; // Justice segment
+    const tt = digits.substring(14, 16);
+    const ttNum = parseInt(tt, 10);
+
     if (j === "5") {
-      const tt = digits.substring(14, 16); // tribunal code
-      const ttNum = parseInt(tt, 10);
-      if (ttNum === 0) return "api_publica_tst";
+      // TRT origin endpoint (where process was filed)
       const trt = TRIBUNAIS_MAP["5"]?.[String(ttNum)];
-      if (trt) return trt.endpoint;
+      if (trt) endpoints.push(trt);
+      // Also search TST (superior court)
+      if (ttNum !== 0) endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
     }
   }
-  // Default to TST for most cases
-  return "api_publica_tst";
+
+  if (endpoints.length === 0) {
+    endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
+  }
+
+  return endpoints;
 }
 
 interface ResultadoProcesso {
   numero: string;
   situacao: string;
   data_transito: string | null;
+  grau: string | null;
   erro: string | null;
 }
 
-async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
-  const digits = limparNumero(numero);
-  if (digits.length < 10) {
-    return { numero, situacao: "Erro", data_transito: null, erro: "Número inválido" };
+function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: string | null } {
+  // Search for movement code 848 (Trânsito em Julgado)
+  for (const mov of movimentos) {
+    const codigo = mov?.codigo ?? mov?.movimentoNacional?.codigoNacional;
+    if (codigo === 848 || codigo === "848") {
+      return { found: true, date: mov?.dataHora || mov?.data || null };
+    }
+    // Check complementos
+    const complementos = mov?.complementosTabelados || [];
+    for (const comp of complementos) {
+      if (comp?.codigo === 848 || comp?.codigo === "848") {
+        return { found: true, date: mov?.dataHora || mov?.data || null };
+      }
+    }
   }
 
-  const endpoint = getEndpoint(numero);
-  if (!endpoint) {
-    return { numero, situacao: "Erro", data_transito: null, erro: "Tribunal não identificado" };
+  // Search by movement name
+  for (const mov of movimentos) {
+    const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
+    if (nome.includes("trânsito em julgado") || nome.includes("transito em julgado")) {
+      return { found: true, date: mov?.dataHora || mov?.data || null };
+    }
   }
 
+  // Search for code 22 (Baixa Definitiva) or 246 (Arquivamento Definitivo) as secondary indicators
+  for (const mov of movimentos) {
+    const codigo = mov?.codigo ?? mov?.movimentoNacional?.codigoNacional;
+    if (codigo === 22 || codigo === "22") {
+      return { found: true, date: mov?.dataHora || mov?.data || null };
+    }
+  }
+
+  return { found: false, date: null };
+}
+
+async function queryEndpoint(
+  endpoint: string,
+  digits: string
+): Promise<{ hits: any[]; error?: string }> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
 
   try {
@@ -91,11 +127,9 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: {
-          match: { numeroProcesso: digits },
-        },
-        size: 1,
-        _source: ["numeroProcesso", "movimentos", "classe", "dataAjuizamento", "grau"],
+        query: { match: { numeroProcesso: digits } },
+        size: 10, // Get ALL graus/instances
+        _source: ["numeroProcesso", "movimentos", "classe", "grau"],
       }),
       signal: controller.signal,
     });
@@ -105,65 +139,76 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
     if (!response.ok) {
       const text = await response.text();
       console.error(`Erro API ${endpoint}:`, response.status, text);
-      return { numero, situacao: "Erro", data_transito: null, erro: `API retornou ${response.status}` };
+      return { hits: [], error: `API retornou ${response.status}` };
     }
 
     const data = await response.json();
-    const hits = data?.hits?.hits || [];
-
-    if (hits.length === 0) {
-      return { numero, situacao: "Não encontrado", data_transito: null, erro: null };
+    return { hits: data?.hits?.hits || [] };
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      return { hits: [], error: "Timeout na API" };
     }
+    return { hits: [], error: err.message || "Erro desconhecido" };
+  }
+}
 
-    const source = hits[0]._source;
+async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
+  const digits = limparNumero(numero);
+  if (digits.length < 10) {
+    return { numero, situacao: "Erro", data_transito: null, grau: null, erro: "Número inválido" };
+  }
+
+  const endpoints = getEndpoints(numero);
+  let allHits: any[] = [];
+  let lastError: string | null = null;
+
+  // Query all relevant endpoints (TRT + TST)
+  for (const ep of endpoints) {
+    const result = await queryEndpoint(ep.endpoint, digits);
+    if (result.hits.length > 0) {
+      allHits.push(...result.hits);
+    }
+    if (result.error) lastError = result.error;
+  }
+
+  if (allHits.length === 0) {
+    return {
+      numero,
+      situacao: lastError ? "Erro" : "Não encontrado",
+      data_transito: null,
+      grau: null,
+      erro: lastError,
+    };
+  }
+
+  console.log(`Processo ${numero}: ${allHits.length} instância(s) encontrada(s) em ${endpoints.map(e => e.nome).join(", ")}`);
+
+  // Check each instance/grau for Trânsito em Julgado
+  for (const hit of allHits) {
+    const source = hit._source;
     const movimentos = source?.movimentos || [];
+    const grau = source?.grau || "?";
+    const classe = source?.classe?.nome || "";
 
-    // Search for movement code 848 (Trânsito em Julgado)
-    let transitoDate: string | null = null;
-    for (const mov of movimentos) {
-      const codigo = mov?.codigo ?? mov?.movimentoNacional?.codigoNacional;
-      if (codigo === 848 || codigo === "848") {
-        transitoDate = mov?.dataHora || mov?.data || null;
-        break;
-      }
-      // Also check complementos and nested codes
-      const complementos = mov?.complementosTabelados || [];
-      for (const comp of complementos) {
-        if (comp?.codigo === 848 || comp?.codigo === "848") {
-          transitoDate = mov?.dataHora || mov?.data || null;
-          break;
-        }
-      }
-      if (transitoDate) break;
-    }
-
-    // Also check if "Trânsito em Julgado" appears in movement names
-    if (!transitoDate) {
-      for (const mov of movimentos) {
-        const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
-        if (nome.includes("trânsito em julgado") || nome.includes("transito em julgado")) {
-          transitoDate = mov?.dataHora || mov?.data || null;
-          break;
-        }
-      }
-    }
-
-    if (transitoDate) {
+    const result = checkTransitoInMovimentos(movimentos);
+    if (result.found) {
+      const dateStr = result.date ? result.date.substring(0, 10) : null;
+      console.log(`  Trânsito encontrado em ${grau} (${classe}): ${dateStr}`);
       return {
         numero,
         situacao: "Trânsito em Julgado",
-        data_transito: transitoDate.substring(0, 10),
+        data_transito: dateStr,
+        grau: `${grau} - ${classe}`,
         erro: null,
       };
     }
-
-    return { numero, situacao: "Ativo", data_transito: null, erro: null };
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      return { numero, situacao: "Erro", data_transito: null, erro: "Timeout na API" };
-    }
-    return { numero, situacao: "Erro", data_transito: null, erro: err.message || "Erro desconhecido" };
   }
+
+  // List graus found for debugging
+  const graus = allHits.map(h => `${h._source?.grau || "?"} (${h._source?.classe?.nome || ""})`).join(", ");
+  console.log(`  Nenhum trânsito encontrado. Graus: ${graus}`);
+
+  return { numero, situacao: "Ativo", data_transito: null, grau: graus, erro: null };
 }
 
 Deno.serve(async (req) => {
@@ -172,7 +217,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Auth check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), {
@@ -185,7 +229,6 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validate user
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -208,8 +251,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Process in batches of 5 to respect rate limits
-    const BATCH_SIZE = 5;
+    // Process in batches of 3 (each process now queries multiple endpoints)
+    const BATCH_SIZE = 3;
     const resultados: ResultadoProcesso[] = [];
 
     for (let i = 0; i < processos.length; i += BATCH_SIZE) {
@@ -217,13 +260,12 @@ Deno.serve(async (req) => {
       const batchResults = await Promise.all(batch.map((p) => verificarProcesso(p)));
       resultados.push(...batchResults);
 
-      // Small delay between batches
       if (i + BATCH_SIZE < processos.length) {
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise((r) => setTimeout(r, 800));
       }
     }
 
-    // Update dados_benner situacao_processo for matching records
+    // Update dados_benner situacao_processo
     if (ids_benner.length > 0) {
       for (let i = 0; i < ids_benner.length; i++) {
         const id = ids_benner[i];
