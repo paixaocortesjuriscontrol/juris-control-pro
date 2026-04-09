@@ -56,7 +56,7 @@ interface ResultadoProcesso {
 }
 
 // Codes that indicate the process was reopened/continued after trânsito
-const REOPEN_CODES = new Set([26, 36, 123, 132, 981]); // 26=Distribuição, 36=Redistribuição, 123=Remessa, 132=Recebimento, 981=Recebimento
+const REOPEN_CODES = new Set([26, 36, 132, 981]); // 26=Distribuição, 36=Redistribuição, 132=Recebimento, 981=Recebimento
 
 function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: string | null; invalidated: boolean } {
   let transitoDate: string | null = null;
