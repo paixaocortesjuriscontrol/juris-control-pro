@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -60,12 +61,6 @@ export default function DadosBenner() {
   const [periodoFim, setPeriodoFim] = useState("");
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
-
-  // Transito em julgado state
-  const [verificandoTransito, setVerificandoTransito] = useState(false);
-  const [transitoResults, setTransitoResults] = useState<TransitoResult[]>([]);
-  const [showTransitoDialog, setShowTransitoDialog] = useState(false);
-  const [transitoProgress, setTransitoProgress] = useState("");
 
   const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds } = useDadosBenner(appliedFilters);
 
@@ -181,55 +176,121 @@ export default function DadosBenner() {
     }
   };
 
+  const [verificandoTransito, setVerificandoTransito] = useState(false);
+  const [transitoResults, setTransitoResults] = useState<TransitoResult[]>([]);
+  const [showTransitoDialog, setShowTransitoDialog] = useState(false);
+  const [transitoProgressText, setTransitoProgressText] = useState("");
+  const [transitoProgressPct, setTransitoProgressPct] = useState(0);
+  const cancelTransitoRef = useRef(false);
+
   const handleVerificarTransito = async () => {
-    const ids = Array.from(selectedIds);
-    if (!ids.length) { toast.warning("Selecione registros para verificar"); return; }
-
-    // Get process numbers from selected records
-    const selecionados = dados.filter(d => selectedIds.has(d.id));
-    const processos: string[] = [];
-    const idsBenner: string[] = [];
-    
-    for (const d of selecionados) {
-      const numero = d.contrato || "";
-      if (numero.replace(/[^0-9]/g, "").length >= 10) {
-        processos.push(numero);
-        idsBenner.push(d.id);
-      }
-    }
-
-    if (!processos.length) {
-      toast.warning("Nenhum dos registros selecionados possui número de processo válido");
-      return;
-    }
-
+    // 1. Fetch ALL filtered records with contrato (not just current page)
     setVerificandoTransito(true);
     setTransitoResults([]);
     setShowTransitoDialog(true);
-    setTransitoProgress(`Verificando ${processos.length} processo(s)...`);
+    setTransitoProgressText("Buscando todos os registros filtrados...");
+    setTransitoProgressPct(0);
+    cancelTransitoRef.current = false;
 
     try {
-      const { data, error } = await supabase.functions.invoke("verificar-transito-julgado", {
-        body: { processos, ids_benner: idsBenner },
+      // Fetch all IDs + contrato from selected or all filtered records
+      const useSelected = selectedIds.size > 0;
+      let allRecords: { id: string; contrato: string }[] = [];
+
+      if (useSelected) {
+        // Fetch contrato for all selected IDs in batches
+        const selectedArr = Array.from(selectedIds);
+        for (let i = 0; i < selectedArr.length; i += 200) {
+          const batch = selectedArr.slice(i, i + 200);
+          const { data } = await supabase
+            .from("dados_benner" as any)
+            .select("id, contrato")
+            .in("id", batch);
+          if (data) allRecords.push(...(data as any[]));
+        }
+      } else {
+        // Fetch all filtered records
+        let offset = 0;
+        while (true) {
+          let query = supabase.from("dados_benner" as any).select("id, contrato").order("created_at", { ascending: false });
+          if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
+          if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
+          if (appliedFilters.dossie) query = query.ilike("dossie", `%${appliedFilters.dossie}%`);
+          if (appliedFilters.contrato) query = query.ilike("contrato", `%${appliedFilters.contrato}%`);
+          if (appliedFilters.turma) query = query.ilike("turma", `%${appliedFilters.turma}%`);
+          if (appliedFilters.tipo_recurso) query = query.ilike("tipo_recurso", `%${appliedFilters.tipo_recurso}%`);
+          const { data, error } = await query.range(offset, offset + 999);
+          if (error || !data?.length) break;
+          allRecords.push(...(data as any[]));
+          if (data.length < 1000) break;
+          offset += 1000;
+        }
+      }
+
+      // Filter only records with valid process numbers
+      const validRecords = allRecords.filter(r => {
+        const num = (r.contrato || "").replace(/[^0-9]/g, "");
+        return num.length >= 10;
       });
 
-      if (error) {
-        toast.error("Erro ao verificar: " + error.message);
+      if (!validRecords.length) {
+        toast.warning("Nenhum registro com número de processo válido encontrado");
         setShowTransitoDialog(false);
+        setVerificandoTransito(false);
         return;
       }
 
-      const resultados: TransitoResult[] = data?.resultados || [];
-      setTransitoResults(resultados);
-      setTransitoProgress("");
+      setTransitoProgressText(`0 de ${validRecords.length} verificados...`);
 
-      const transitos = resultados.filter(r => r.situacao === "Trânsito em Julgado").length;
-      const ativos = resultados.filter(r => r.situacao === "Ativo").length;
-      const erros = resultados.filter(r => r.situacao === "Erro" || r.situacao === "Não encontrado").length;
+      // 2. Process in batches of 10, calling edge function for each batch
+      const BATCH_SIZE = 10;
+      const allResults: TransitoResult[] = [];
 
-      toast.success(`Verificação concluída: ${transitos} em trânsito, ${ativos} ativo(s), ${erros} erro(s)/não encontrado(s)`);
-      
-      // Refresh data to show updated situacao_processo
+      for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
+        if (cancelTransitoRef.current) {
+          toast.info(`Verificação cancelada. ${allResults.length} processo(s) já verificados.`);
+          break;
+        }
+
+        const batch = validRecords.slice(i, i + BATCH_SIZE);
+        const processos = batch.map(r => r.contrato!);
+        const idsBenner = batch.map(r => r.id);
+
+        try {
+          const { data, error } = await supabase.functions.invoke("verificar-transito-julgado", {
+            body: { processos, ids_benner: idsBenner },
+          });
+
+          if (error) {
+            // Add error results for this batch
+            batch.forEach(b => allResults.push({
+              numero: b.contrato!, situacao: "Erro", data_transito: null, grau: null, erro: error.message,
+            }));
+          } else {
+            const resultados: TransitoResult[] = data?.resultados || [];
+            allResults.push(...resultados);
+          }
+        } catch (err: any) {
+          batch.forEach(b => allResults.push({
+            numero: b.contrato!, situacao: "Erro", data_transito: null, grau: null, erro: err?.message || "Erro",
+          }));
+        }
+
+        setTransitoResults([...allResults]);
+        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
+        const pct = Math.round((processed / validRecords.length) * 100);
+        setTransitoProgressPct(pct);
+        setTransitoProgressText(`${processed} de ${validRecords.length} verificados...`);
+      }
+
+      if (!cancelTransitoRef.current) {
+        const transitos = allResults.filter(r => r.situacao === "Trânsito em Julgado").length;
+        const ativos = allResults.filter(r => r.situacao === "Ativo").length;
+        const erros = allResults.filter(r => r.situacao === "Erro" || r.situacao === "Não encontrado").length;
+        toast.success(`Verificação concluída: ${transitos} em trânsito, ${ativos} ativo(s), ${erros} erro(s)/não encontrado(s)`);
+      }
+
+      setTransitoProgressText("");
       fetchDados();
     } catch (err: any) {
       toast.error("Erro ao verificar: " + (err?.message || "Erro desconhecido"));
@@ -357,10 +418,10 @@ export default function DadosBenner() {
           <Button
             variant="outline"
             onClick={handleVerificarTransito}
-            disabled={selectedIds.size === 0 || verificandoTransito}
+            disabled={verificandoTransito}
           >
             {verificandoTransito ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Scale className="w-4 h-4 mr-2" />}
-            Verificar Trânsito em Julgado
+            Verificar Trânsito em Julgado {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
           <div className="flex items-end gap-2">
@@ -482,10 +543,24 @@ export default function DadosBenner() {
               </DialogTitle>
             </DialogHeader>
 
-            {verificandoTransito && (
-              <div className="flex items-center gap-3 py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">{transitoProgress}</span>
+            {(verificandoTransito || transitoProgressText) && (
+              <div className="space-y-3 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">{transitoProgressText}</span>
+                  </div>
+                  {verificandoTransito && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => { cancelTransitoRef.current = true; }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+                <Progress value={transitoProgressPct} className="h-2" />
               </div>
             )}
 
