@@ -42,6 +42,7 @@ export interface DadoBenner {
   recurso_bem_aparelhado: boolean;
   recurso_mal_aparelhado: boolean;
   chance_exito: string | null;
+  situacao_processo: string | null;
   created_at: string;
   updated_at: string;
 }
