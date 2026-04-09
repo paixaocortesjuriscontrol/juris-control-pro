@@ -86,27 +86,40 @@ function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName:
   doc.text(`Somente no DOC: ${result.somente_doc.length}`, 14, y); y += 5;
   doc.text(`Somente no PDF: ${result.somente_pdf.length}`, 14, y); y += 12;
 
-  const printList = (title: string, items: string[]) => {
-    checkPage(15);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${title} (${items.length})`, 14, y); y += 7;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    if (items.length === 0) {
-      doc.text("Nenhum processo", 14, y); y += 6;
-    } else {
-      for (const p of items) {
-        checkPage(6);
-        doc.text(p, 14, y); y += 5;
-      }
-    }
-    y += 6;
-  };
+  // 3-column layout
+  const columns = [
+    { title: "Em Comum", items: result.comuns },
+    { title: "Somente no DOC", items: result.somente_doc },
+    { title: "Somente no PDF", items: result.somente_pdf },
+  ];
+  const colWidth = (pageWidth - 28) / 3;
+  const colX = [14, 14 + colWidth, 14 + colWidth * 2];
+  const maxRows = Math.max(...columns.map(c => c.items.length));
 
-  printList("Processos em Comum", result.comuns);
-  printList("Somente no DOC Advogado", result.somente_doc);
-  printList("Somente no PDF Resumo", result.somente_pdf);
+  // Column headers
+  checkPage(12);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  columns.forEach((col, i) => {
+    doc.text(`${col.title} (${col.items.length})`, colX[i], y);
+  });
+  y += 6;
+  doc.setDrawColor(180);
+  doc.line(14, y, pageWidth - 14, y);
+  y += 4;
+
+  // Column rows
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  for (let row = 0; row < maxRows; row++) {
+    checkPage(5);
+    columns.forEach((col, i) => {
+      if (row < col.items.length) {
+        doc.text(col.items[row], colX[i], y);
+      }
+    });
+    y += 4.5;
+  }
 
   doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
