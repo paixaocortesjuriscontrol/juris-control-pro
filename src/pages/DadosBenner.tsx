@@ -410,8 +410,30 @@ export default function DadosBenner() {
       let offset = 0;
       while (true) {
         let query = supabase.from("dados_benner" as any)
-          .select("id, processo")
-          .or("tipo_recurso.is.null,tipo_recurso.eq.")
+          .select("id, processo, tipo_recurso")
+          .is("tipo_recurso", null)
+          .order("created_at", { ascending: false });
+        if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
+        if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
+        if (appliedFilters.dossie) query = query.ilike("dossie", `%${appliedFilters.dossie}%`);
+        if (appliedFilters.processo) query = query.ilike("processo", `%${appliedFilters.processo}%`);
+        if (appliedFilters.turma) query = query.ilike("turma", `%${appliedFilters.turma}%`);
+        if (appliedFilters.tipo_recurso) query = query.ilike("tipo_recurso", `%${appliedFilters.tipo_recurso}%`);
+        const { data, error } = await query.range(offset, offset + 999);
+        console.log(`[TipoRecurso] offset=${offset}, data=${data?.length}, error=`, error);
+        if (error) { toast.error("Erro ao buscar registros: " + error.message); break; }
+        if (!data?.length) break;
+        allRecords.push(...(data as any[]).filter((r: any) => !r.tipo_recurso || r.tipo_recurso.trim() === ""));
+        if (data.length < 1000) break;
+        offset += 1000;
+      }
+
+      // Also fetch empty strings separately  
+      offset = 0;
+      while (true) {
+        let query = supabase.from("dados_benner" as any)
+          .select("id, processo, tipo_recurso")
+          .eq("tipo_recurso", "")
           .order("created_at", { ascending: false });
         if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
         if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
@@ -421,7 +443,10 @@ export default function DadosBenner() {
         if (appliedFilters.tipo_recurso) query = query.ilike("tipo_recurso", `%${appliedFilters.tipo_recurso}%`);
         const { data, error } = await query.range(offset, offset + 999);
         if (error || !data?.length) break;
-        allRecords.push(...(data as any[]));
+        // Deduplicate by id
+        const existingIds = new Set(allRecords.map(r => r.id));
+        const newRecords = (data as any[]).filter((r: any) => !existingIds.has(r.id));
+        allRecords.push(...newRecords);
         if (data.length < 1000) break;
         offset += 1000;
       }
