@@ -23,22 +23,34 @@ function getProcesso(row: JsonRecord) {
   return String(row.processo || "").trim();
 }
 
-function dedupeRowsByProcesso(rows: JsonRecord[]) {
+function getDossie(row: JsonRecord) {
+  return String(row.dossie || "").trim();
+}
+
+function getCompositeKey(row: JsonRecord) {
+  const processo = getProcesso(row);
+  const dossie = getDossie(row);
+  return processo && dossie ? `${processo}::${dossie}` : "";
+}
+
+function dedupeRowsByCompositeKey(rows: JsonRecord[]) {
   const uniqueRows = new Map<string, JsonRecord>();
 
   for (const row of rows) {
     const processo = getProcesso(row);
-    if (!processo) continue;
+    const dossie = getDossie(row);
+    const key = getCompositeKey(row);
+    if (!key) continue;
 
-    const previous = uniqueRows.get(processo) || {};
-    const merged: JsonRecord = { ...previous, processo };
+    const previous = uniqueRows.get(key) || {};
+    const merged: JsonRecord = { ...previous, processo, dossie };
 
     for (const [key, value] of Object.entries(row)) {
       if (value === null || value === undefined || value === "") continue;
       merged[key] = value;
     }
 
-    uniqueRows.set(processo, merged);
+    uniqueRows.set(key, merged);
   }
 
   return Array.from(uniqueRows.values());
@@ -152,22 +164,22 @@ Deno.serve(async (req) => {
       return respond({ ok: false, error: "Usuário inválido", failed: rows.length, diagnostics: { stage: "user_id_mismatch" } });
     }
 
-    const normalizedRows = dedupeRowsByProcesso(rows);
+    const normalizedRows = dedupeRowsByCompositeKey(rows);
     const deduplicated = rows.length - normalizedRows.length;
 
     if (deduplicated > 0) {
-      console.warn(`[importar-dados-benner] ${deduplicated} linha(s) duplicada(s) por processo consolidadas antes da persistência`);
+      console.warn(`[importar-dados-benner] ${deduplicated} linha(s) duplicada(s) por processo+dossie consolidadas antes da persistência`);
     }
 
     const processos = [...new Set(normalizedRows.map(getProcesso).filter(Boolean))];
-    const existingMap = new Map<string, string>();
+    const existingMap = new Map<string, { id: string; updated_at?: string | null }>();
     const failures: Failure[] = [];
 
     for (let i = 0; i < processos.length; i += 500) {
       const batch = processos.slice(i, i + 500);
       const { data, error } = await serviceClient
         .from("dados_benner")
-        .select("id, processo")
+        .select("id, processo, dossie, updated_at")
         .in("processo", batch);
 
       if (error) {
@@ -181,7 +193,13 @@ Deno.serve(async (req) => {
       }
 
       for (const item of data || []) {
-        if (item.processo) existingMap.set(item.processo, item.id);
+        const key = getCompositeKey(item as JsonRecord);
+        if (!key) continue;
+
+        const current = existingMap.get(key);
+        if (!current || (item.updated_at && (!current.updated_at || item.updated_at > current.updated_at))) {
+          existingMap.set(key, { id: item.id, updated_at: item.updated_at });
+        }
       }
     }
 
@@ -190,12 +208,14 @@ Deno.serve(async (req) => {
 
     for (const originalRow of normalizedRows) {
       const processo = getProcesso(originalRow);
-      if (!processo) continue;
+      const dossie = getDossie(originalRow);
+      const compositeKey = getCompositeKey(originalRow);
+      if (!processo || !dossie || !compositeKey) continue;
 
       const row: JsonRecord = { ...originalRow, user_id: effectiveUserId };
 
-      if (existingMap.has(processo)) {
-        const updateRow: JsonRecord = { id: existingMap.get(processo)! };
+      if (existingMap.has(compositeKey)) {
+        const updateRow: JsonRecord = { id: existingMap.get(compositeKey)!.id };
         for (const [key, value] of Object.entries(row)) {
           if (key === "id" || preserveFields.includes(key)) continue;
           // Skip empty/null values to avoid overwriting existing data
