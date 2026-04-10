@@ -816,6 +816,75 @@ export default function DadosBenner() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Dialog Tipo Recurso */}
+        <Dialog open={showTipoRecursoDialog} onOpenChange={setShowTipoRecursoDialog}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Atualizar Tipo de Recurso via DataJud
+              </DialogTitle>
+            </DialogHeader>
+
+            {(verificandoTipoRecurso || tipoRecursoProgressText) && (
+              <div className="space-y-3 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">{tipoRecursoProgressText}</span>
+                  </div>
+                  {verificandoTipoRecurso && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => { cancelTipoRecursoRef.current = true; }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+                <Progress value={tipoRecursoProgressPct} className="h-2" />
+              </div>
+            )}
+
+            {tipoRecursoResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex gap-4 text-sm">
+                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                    {tipoRecursoResults.filter(r => r.tipo_recurso).length} Encontrado(s)
+                  </Badge>
+                  <Badge variant="secondary">
+                    {tipoRecursoResults.filter(r => !r.tipo_recurso).length} Não encontrado(s)
+                  </Badge>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº Processo</TableHead>
+                      <TableHead>Tipo Recurso</TableHead>
+                      <TableHead>Fonte</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tipoRecursoResults.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-sm">{r.numero}</TableCell>
+                        <TableCell className={r.tipo_recurso ? "bg-yellow-100 dark:bg-yellow-900/30 font-medium" : ""}>
+                          {r.tipo_recurso || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs">{r.fonte || "-"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.erro || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
