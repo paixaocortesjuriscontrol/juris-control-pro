@@ -340,11 +340,16 @@ export default function DadosBenner() {
             };
             allResults.push(result);
 
-            // Update dados_benner.situacao_processo
+            // Update dados_benner.situacao_processo + confianca + data_transito
             const dbSituacao = statusMap[data?.status] || null;
             if (dbSituacao) {
+              const updatePayload: any = {
+                situacao_processo: dbSituacao,
+                confianca_transito: data?.confianca ?? null,
+                data_transito_julgado: data?.dataTransito ? new Date(data.dataTransito).toISOString().split("T")[0] : null,
+              };
               await supabase.from("dados_benner" as any)
-                .update({ situacao_processo: dbSituacao } as any)
+                .update(updatePayload)
                 .eq("id", record.id);
             }
           }
@@ -703,6 +708,8 @@ export default function DadosBenner() {
                 <TableHead>Turma</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead>Confiança</TableHead>
+                <TableHead>Data Trânsito</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Criado em</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
@@ -710,9 +717,9 @@ export default function DadosBenner() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
@@ -732,6 +739,20 @@ export default function DadosBenner() {
                     ) : (
                       <span className="text-muted-foreground text-xs">-</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {(d as any).confianca_transito != null ? (
+                      <Badge variant="outline" className="text-xs">
+                        {(d as any).confianca_transito}%
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {(d as any).data_transito_julgado
+                      ? new Date((d as any).data_transito_julgado + "T12:00:00").toLocaleDateString("pt-BR")
+                      : "-"}
                   </TableCell>
                   <TableCell>
                     <Badge className={statusColors[d.status] || ""}>{statusLabels[d.status] || d.status}</Badge>

@@ -1343,10 +1343,12 @@ export type Database = {
         Row: {
           analise_quarteirizado: string | null
           chance_exito: string | null
+          confianca_transito: number | null
           coordenacao_id: string | null
           created_at: string
           data_distribuicao: string | null
           data_julgamento: string | null
+          data_transito_julgado: string | null
           dossie: string | null
           entrega_memoriais: string | null
           ganhamos: boolean | null
@@ -1388,10 +1390,12 @@ export type Database = {
         Insert: {
           analise_quarteirizado?: string | null
           chance_exito?: string | null
+          confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
           data_distribuicao?: string | null
           data_julgamento?: string | null
+          data_transito_julgado?: string | null
           dossie?: string | null
           entrega_memoriais?: string | null
           ganhamos?: boolean | null
@@ -1433,10 +1437,12 @@ export type Database = {
         Update: {
           analise_quarteirizado?: string | null
           chance_exito?: string | null
+          confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
           data_distribuicao?: string | null
           data_julgamento?: string | null
+          data_transito_julgado?: string | null
           dossie?: string | null
           entrega_memoriais?: string | null
           ganhamos?: boolean | null

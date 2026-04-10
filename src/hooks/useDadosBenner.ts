@@ -44,6 +44,8 @@ export interface DadoBenner {
   chance_exito: string | null;
   tipo_recurso_auto: boolean;
   situacao_processo: string | null;
+  confianca_transito: number | null;
+  data_transito_julgado: string | null;
   created_at: string;
   updated_at: string;
 }
