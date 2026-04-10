@@ -175,16 +175,31 @@ export async function gerarPlanilhaBenner(
     return idx;
   }
 
-  // Read styles to create centered style
+  // Read styles to create centered style + yellow fill style
   let stylesXml = await zip.file("xl/styles.xml")!.async("string");
+
+  // Add yellow fill to fills section
+  const fillsMatch = stylesXml.match(/<fills count="(\d+)">/);
+  let yellowFillId = 0;
+  if (fillsMatch) {
+    const fillCount = parseInt(fillsMatch[1]);
+    yellowFillId = fillCount;
+    const yellowFill = `<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>`;
+    stylesXml = stylesXml.replace(/<\/fills>/, yellowFill + `</fills>`);
+    stylesXml = stylesXml.replace(`<fills count="${fillCount}">`, `<fills count="${fillCount + 1}">`);
+  }
+
   const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
   let centeredStyleId = 0;
+  let yellowStyleId = 0;
   if (cellXfsMatch) {
     const currentCount = parseInt(cellXfsMatch[1]);
     const centeredXf = `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
-    stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + `</cellXfs>`);
-    stylesXml = stylesXml.replace(`<cellXfs count="${currentCount}">`, `<cellXfs count="${currentCount + 1}">`);
+    const yellowXf = `<xf numFmtId="0" fontId="0" fillId="${yellowFillId}" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
+    stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + yellowXf + `</cellXfs>`);
+    stylesXml = stylesXml.replace(`<cellXfs count="${currentCount}">`, `<cellXfs count="${currentCount + 2}">`);
     centeredStyleId = currentCount;
+    yellowStyleId = currentCount + 1;
     zip.file("xl/styles.xml", stylesXml);
   }
 
