@@ -612,6 +612,15 @@ export default function DadosBenner() {
             Verificar Trânsito {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
+          <Button
+            variant="outline"
+            onClick={handleAtualizarTipoRecurso}
+            disabled={verificandoTipoRecurso}
+          >
+            {verificandoTipoRecurso ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+            Atualizar Tipo Recurso
+          </Button>
+
           <Button variant="outline" onClick={handleGerarPdf} disabled={gerandoPdf}>
             {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
             Gerar PDF
