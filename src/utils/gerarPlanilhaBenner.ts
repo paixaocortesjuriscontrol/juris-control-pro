@@ -356,7 +356,7 @@ function shiftAndInsertHeader(
 ): string {
   function shiftRow(rowXml: string, rowNum: number, insertCells?: { col: number; xml: string }[]): string {
     if (!rowXml) return "";
-    const cellRegex = /<c r="([A-Z]+)\d+"[^>]*(?:\/>|>[\s\S]*?<\/c>)/g;
+    const cellRegex = /<c r="([A-Z]+)\d+"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g;
     const cells: { col: number; xml: string }[] = [];
     let cm: RegExpExecArray | null;
     while ((cm = cellRegex.exec(rowXml)) !== null) {
