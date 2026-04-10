@@ -744,9 +744,21 @@ export default function DadosBenner() {
                   </TableCell>
                   <TableCell>
                     {(d as any).confianca_transito != null ? (
-                      <Badge variant="outline" className="text-xs">
-                        {(d as any).confianca_transito}%
-                      </Badge>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Badge variant="outline" className={`text-xs ${(d as any).confianca_transito >= 90 ? "border-green-500 text-green-700" : (d as any).confianca_transito >= 70 ? "border-yellow-500 text-yellow-700" : "border-orange-500 text-orange-700"}`}>
+                            {(d as any).confianca_transito}%
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          <p className="font-medium mb-1">Fonte: DataJud/CNJ</p>
+                          {(d as any).confianca_transito >= 90
+                            ? "Alta confiança (código CNJ 848). Pode não ser visível no PJE público."
+                            : (d as any).confianca_transito >= 70
+                            ? "Confiança moderada. Confirmação manual recomendada."
+                            : "Baixa confiança. Confirmação manual fortemente recomendada."}
+                        </TooltipContent>
+                      </Tooltip>
                     ) : (
                       <span className="text-muted-foreground text-xs">-</span>
                     )}
