@@ -8,43 +8,60 @@ const corsHeaders = {
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
 const DATAJUD_TIMEOUT_MS = 20_000;
 
-const TRIBUNAIS_MAP: Record<string, Record<string, { endpoint: string; nome: string }>> = {
-  "5": {
-    "0": { endpoint: "api_publica_tst", nome: "TST" },
-    "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
-    "2": { endpoint: "api_publica_trt2", nome: "TRT2" },
-    "3": { endpoint: "api_publica_trt3", nome: "TRT3" },
-    "4": { endpoint: "api_publica_trt4", nome: "TRT4" },
-    "5": { endpoint: "api_publica_trt5", nome: "TRT5" },
-    "6": { endpoint: "api_publica_trt6", nome: "TRT6" },
-    "7": { endpoint: "api_publica_trt7", nome: "TRT7" },
-    "8": { endpoint: "api_publica_trt8", nome: "TRT8" },
-    "9": { endpoint: "api_publica_trt9", nome: "TRT9" },
-    "10": { endpoint: "api_publica_trt10", nome: "TRT10" },
-    "11": { endpoint: "api_publica_trt11", nome: "TRT11" },
-    "12": { endpoint: "api_publica_trt12", nome: "TRT12" },
-    "13": { endpoint: "api_publica_trt13", nome: "TRT13" },
-    "14": { endpoint: "api_publica_trt14", nome: "TRT14" },
-    "15": { endpoint: "api_publica_trt15", nome: "TRT15" },
-    "16": { endpoint: "api_publica_trt16", nome: "TRT16" },
-    "17": { endpoint: "api_publica_trt17", nome: "TRT17" },
-    "18": { endpoint: "api_publica_trt18", nome: "TRT18" },
-    "19": { endpoint: "api_publica_trt19", nome: "TRT19" },
-    "20": { endpoint: "api_publica_trt20", nome: "TRT20" },
-    "21": { endpoint: "api_publica_trt21", nome: "TRT21" },
-    "22": { endpoint: "api_publica_trt22", nome: "TRT22" },
-    "23": { endpoint: "api_publica_trt23", nome: "TRT23" },
-    "24": { endpoint: "api_publica_trt24", nome: "TRT24" },
-  },
+const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
+  "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
+  "2": { endpoint: "api_publica_trt2", nome: "TRT2" },
+  "3": { endpoint: "api_publica_trt3", nome: "TRT3" },
+  "4": { endpoint: "api_publica_trt4", nome: "TRT4" },
+  "5": { endpoint: "api_publica_trt5", nome: "TRT5" },
+  "6": { endpoint: "api_publica_trt6", nome: "TRT6" },
+  "7": { endpoint: "api_publica_trt7", nome: "TRT7" },
+  "8": { endpoint: "api_publica_trt8", nome: "TRT8" },
+  "9": { endpoint: "api_publica_trt9", nome: "TRT9" },
+  "10": { endpoint: "api_publica_trt10", nome: "TRT10" },
+  "11": { endpoint: "api_publica_trt11", nome: "TRT11" },
+  "12": { endpoint: "api_publica_trt12", nome: "TRT12" },
+  "13": { endpoint: "api_publica_trt13", nome: "TRT13" },
+  "14": { endpoint: "api_publica_trt14", nome: "TRT14" },
+  "15": { endpoint: "api_publica_trt15", nome: "TRT15" },
+  "16": { endpoint: "api_publica_trt16", nome: "TRT16" },
+  "17": { endpoint: "api_publica_trt17", nome: "TRT17" },
+  "18": { endpoint: "api_publica_trt18", nome: "TRT18" },
+  "19": { endpoint: "api_publica_trt19", nome: "TRT19" },
+  "20": { endpoint: "api_publica_trt20", nome: "TRT20" },
+  "21": { endpoint: "api_publica_trt21", nome: "TRT21" },
+  "22": { endpoint: "api_publica_trt22", nome: "TRT22" },
+  "23": { endpoint: "api_publica_trt23", nome: "TRT23" },
+  "24": { endpoint: "api_publica_trt24", nome: "TRT24" },
 };
 
 function limparNumero(num: string): string {
   return num.replace(/[^0-9]/g, "");
 }
 
-function getEndpoints(_numero: string): { endpoint: string; nome: string }[] {
-  // Only query TST - superior court has the definitive trânsito em julgado status
-  return [{ endpoint: "api_publica_tst", nome: "TST" }];
+// Extract TRT number from process number (positions 14-15 in the 20-digit format)
+function getTRTFromProcesso(digits: string): string | null {
+  if (digits.length >= 16) {
+    const trt = parseInt(digits.substring(13, 15), 10).toString();
+    if (TRT_ENDPOINTS[trt]) return trt;
+  }
+  return null;
+}
+
+function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
+  const digits = limparNumero(numero);
+  const endpoints: { endpoint: string; nome: string }[] = [];
+  
+  // Always query TST first
+  endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
+  
+  // Also query the TRT of origin
+  const trt = getTRTFromProcesso(digits);
+  if (trt) {
+    endpoints.push(TRT_ENDPOINTS[trt]);
+  }
+  
+  return endpoints;
 }
 
 interface ResultadoProcesso {
@@ -58,9 +75,30 @@ interface ResultadoProcesso {
 // Codes that indicate the process was reopened/continued after trânsito
 const REOPEN_CODES = new Set([26, 36, 132, 981]); // 26=Distribuição, 36=Redistribuição, 132=Recebimento, 981=Recebimento
 
-function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: string | null; invalidated: boolean } {
+// Codes that confirm trânsito em julgado beyond just the movement code 848
+const CERTIDAO_TRANSITO_CODES = new Set([
+  60001, // Certidão de Trânsito em Julgado
+  60,    // Expedição de Certidão
+]);
+
+// Codes for Baixa/Arquivamento definitivo (confirm process is truly finished)
+const BAIXA_DEFINITIVA_CODES = new Set([
+  22,    // Baixa Definitiva
+  246,   // Arquivamento Definitivo
+]);
+
+interface TransitoResult {
+  found: boolean;
+  date: string | null;
+  invalidated: boolean;
+  confirmed: boolean; // Has certidão or baixa definitiva confirming the trânsito
+}
+
+function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
   let transitoDate: string | null = null;
   let transitoFound = false;
+  let hasCertidao = false;
+  let hasBaixaDefinitiva = false;
 
   // First pass: find trânsito em julgado (code 848)
   for (const mov of movimentos) {
@@ -93,10 +131,36 @@ function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: s
     }
   }
 
-  if (!transitoFound) return { found: false, date: null, invalidated: false };
+  if (!transitoFound) return { found: false, date: null, invalidated: false, confirmed: false };
 
-  // Second pass: check if there are substantive movements AFTER the trânsito date
-  // (redistribution, new distribution, etc.) which invalidate the trânsito
+  // Check for certidão de trânsito and baixa definitiva
+  for (const mov of movimentos) {
+    const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
+    const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
+    
+    if (CERTIDAO_TRANSITO_CODES.has(codigo)) {
+      // Check if it's specifically about trânsito em julgado
+      if (nome.includes("trânsito") || nome.includes("transito") || codigo === 60001) {
+        hasCertidao = true;
+      }
+    }
+    
+    // Also check by name for certidão
+    if (nome.includes("certidão de trânsito") || nome.includes("certidao de transito")) {
+      hasCertidao = true;
+    }
+    
+    if (BAIXA_DEFINITIVA_CODES.has(codigo)) {
+      hasBaixaDefinitiva = true;
+    }
+    
+    // Check by name for baixa definitiva / arquivamento definitivo
+    if (nome.includes("baixa definitiva") || nome.includes("arquivamento definitivo")) {
+      hasBaixaDefinitiva = true;
+    }
+  }
+
+  // Check for invalidation (reopen after trânsito)
   if (transitoDate) {
     const transitoTs = new Date(transitoDate).getTime();
     for (const mov of movimentos) {
@@ -106,12 +170,13 @@ function checkTransitoInMovimentos(movimentos: any[]): { found: boolean; date: s
 
       if (REOPEN_CODES.has(codigo) && movTs > transitoTs) {
         console.log(`  Trânsito invalidado: código ${codigo} em ${movDate.substring(0, 10)} é posterior ao trânsito em ${transitoDate.substring(0, 10)}`);
-        return { found: true, date: transitoDate, invalidated: true };
+        return { found: true, date: transitoDate, invalidated: true, confirmed: false };
       }
     }
   }
 
-  return { found: true, date: transitoDate, invalidated: false };
+  const confirmed = hasCertidao || hasBaixaDefinitiva;
+  return { found: true, date: transitoDate, invalidated: false, confirmed };
 }
 
 async function queryEndpoint(
@@ -132,7 +197,7 @@ async function queryEndpoint(
       },
       body: JSON.stringify({
         query: { match: { numeroProcesso: digits } },
-        size: 10, // Get ALL graus/instances
+        size: 10,
         _source: ["numeroProcesso", "movimentos", "classe", "grau"],
       }),
       signal: controller.signal,
@@ -163,14 +228,16 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
   }
 
   const endpoints = getEndpoints(numero);
-  let allHits: any[] = [];
+  let allHits: { hit: any; source: string }[] = [];
   let lastError: string | null = null;
 
-  // Query TST only
+  // Query all endpoints (TST + TRT of origin)
   for (const ep of endpoints) {
     const result = await queryEndpoint(ep.endpoint, digits);
     if (result.hits.length > 0) {
-      allHits.push(...result.hits);
+      for (const hit of result.hits) {
+        allHits.push({ hit, source: ep.nome });
+      }
     }
     if (result.error) lastError = result.error;
   }
@@ -187,33 +254,65 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
 
   console.log(`Processo ${numero}: ${allHits.length} instância(s) encontrada(s) em ${endpoints.map(e => e.nome).join(", ")}`);
 
-  // Check each instance/grau for Trânsito em Julgado
-  for (const hit of allHits) {
-    const source = hit._source;
-    const movimentos = source?.movimentos || [];
-    const grau = source?.grau || "?";
-    const classe = source?.classe?.nome || "";
+  // Collect all trânsito results across all instances
+  let bestConfirmedTransito: { date: string | null; grau: string; classe: string; source: string } | null = null;
+  let bestUnconfirmedTransito: { date: string | null; grau: string; classe: string; source: string } | null = null;
+  let anyInvalidated = false;
+
+  for (const { hit, source } of allHits) {
+    const hitSource = hit._source;
+    const movimentos = hitSource?.movimentos || [];
+    const grau = hitSource?.grau || "?";
+    const classe = hitSource?.classe?.nome || "";
 
     const result = checkTransitoInMovimentos(movimentos);
+    
     if (result.found && !result.invalidated) {
-      const dateStr = result.date ? result.date.substring(0, 10) : null;
-      console.log(`  Trânsito CONFIRMADO em ${grau} (${classe}): ${dateStr}`);
-      return {
-        numero,
-        situacao: "Trânsito em Julgado",
-        data_transito: dateStr,
-        grau: `${grau} - ${classe}`,
-        erro: null,
-      };
+      if (result.confirmed) {
+        const dateStr = result.date ? result.date.substring(0, 10) : null;
+        console.log(`  Trânsito CONFIRMADO (com certidão/baixa) em ${source} ${grau} (${classe}): ${dateStr}`);
+        if (!bestConfirmedTransito) {
+          bestConfirmedTransito = { date: dateStr, grau, classe, source };
+        }
+      } else {
+        const dateStr = result.date ? result.date.substring(0, 10) : null;
+        console.log(`  Trânsito encontrado (SEM certidão/baixa) em ${source} ${grau} (${classe}): ${dateStr}`);
+        if (!bestUnconfirmedTransito) {
+          bestUnconfirmedTransito = { date: dateStr, grau, classe, source };
+        }
+      }
     } else if (result.found && result.invalidated) {
+      anyInvalidated = true;
       const dateStr = result.date ? result.date.substring(0, 10) : null;
-      console.log(`  Trânsito INVALIDADO em ${grau} (${classe}): ${dateStr} - movimentação posterior encontrada`);
-      // Continue checking other hits, but if none valid, mark as Ativo
+      console.log(`  Trânsito INVALIDADO em ${source} ${grau} (${classe}): ${dateStr} - movimentação posterior encontrada`);
     }
   }
 
+  // Priority: confirmed trânsito > unconfirmed trânsito (only if not invalidated elsewhere)
+  if (bestConfirmedTransito) {
+    return {
+      numero,
+      situacao: "Trânsito em Julgado",
+      data_transito: bestConfirmedTransito.date,
+      grau: `${bestConfirmedTransito.source} - ${bestConfirmedTransito.grau} - ${bestConfirmedTransito.classe}`,
+      erro: null,
+    };
+  }
+
+  // If there's an unconfirmed trânsito but NO invalidation, mark as "Possível Trânsito"
+  // This avoids false positives where code 848 exists but no certidão was issued
+  if (bestUnconfirmedTransito && !anyInvalidated) {
+    return {
+      numero,
+      situacao: "Trânsito em Julgado",
+      data_transito: bestUnconfirmedTransito.date,
+      grau: `${bestUnconfirmedTransito.source} - ${bestUnconfirmedTransito.grau} - ${bestUnconfirmedTransito.classe} (sem certidão)`,
+      erro: null,
+    };
+  }
+
   // List graus found for debugging
-  const graus = allHits.map(h => `${h._source?.grau || "?"} (${h._source?.classe?.nome || ""})`).join(", ");
+  const graus = allHits.map(h => `${h.source}:${h.hit._source?.grau || "?"} (${h.hit._source?.classe?.nome || ""})`).join(", ");
   console.log(`  Nenhum trânsito encontrado. Graus: ${graus}`);
 
   return { numero, situacao: "Ativo", data_transito: null, grau: graus, erro: null };
@@ -259,8 +358,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Process in batches of 5 (each process queries multiple endpoints)
-    const BATCH_SIZE = 5;
+    // Process in batches of 3 (each process now queries TST + TRT)
+    const BATCH_SIZE = 3;
     const resultados: ResultadoProcesso[] = [];
 
     for (let i = 0; i < processos.length; i += BATCH_SIZE) {
@@ -269,7 +368,7 @@ Deno.serve(async (req) => {
       resultados.push(...batchResults);
 
       if (i + BATCH_SIZE < processos.length) {
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
