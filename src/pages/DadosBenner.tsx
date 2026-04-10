@@ -53,6 +53,7 @@ export default function DadosBenner() {
   const [filterTipoRecurso, setFilterTipoRecurso] = useState("");
   const [filterTemPauta, setFilterTemPauta] = useState(false);
   const [filterTemDistribuicao, setFilterTemDistribuicao] = useState(false);
+  const [filterSituacao, setFilterSituacao] = useState("todos");
   const [appliedFilters, setAppliedFilters] = useState<DadosBennerFilters>({ status: "todos" });
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DadoBenner | null>(null);
@@ -76,6 +77,7 @@ export default function DadosBenner() {
       tipo_recurso: filterTipoRecurso.trim() || undefined,
       tem_pauta: filterTemPauta || undefined,
       tem_distribuicao: filterTemDistribuicao || undefined,
+      situacao_processo: filterSituacao !== "todos" ? filterSituacao : undefined,
     });
   };
 
@@ -88,6 +90,7 @@ export default function DadosBenner() {
     setFilterTipoRecurso("");
     setFilterTemPauta(false);
     setFilterTemDistribuicao(false);
+    setFilterSituacao("todos");
     setAppliedFilters({ status: "todos" });
   };
 
