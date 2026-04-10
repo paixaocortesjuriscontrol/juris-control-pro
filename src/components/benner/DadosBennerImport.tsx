@@ -12,10 +12,8 @@ function normalizeText(val: unknown): string {
 function parseDateBR(val: unknown): string | null {
   const t = String(val ?? "").trim();
   if (!t) return null;
-  // DD/MM/YYYY -> YYYY-MM-DD
   const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
   return t;
 }
@@ -49,7 +47,6 @@ export function DadosBennerImport({ onImported }: Props) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
 
-      // Find header row (look for "Dossiê" or "dossie" in first 10 rows)
       let headerIdx = -1;
       for (let i = 0; i < Math.min(json.length, 10); i++) {
         const row = json[i];
@@ -72,11 +69,9 @@ export function DadosBennerImport({ onImported }: Props) {
         const r = json[i];
         if (!r || r.every(c => !String(c ?? "").trim())) continue;
 
-        // Map positional columns: A=0 (Dossiê), B=1 (Processo), C=2..AI=34
         const dossie = normalizeText(r[0]);
-        if (!dossie) continue; // skip rows without dossiê
+        if (!dossie) continue;
 
-        // Column B: extract only the process number (digits, dots, dashes), ignore observations
         const rawProcesso = normalizeText(r[1]);
         const processoMatch = rawProcesso.match(/[\d][\d.\-\/]+/);
         const processo = processoMatch ? processoMatch[0] : "";
@@ -130,14 +125,49 @@ export function DadosBennerImport({ onImported }: Props) {
 
       console.log(`[DadosBennerImport] ${records.length} registros parseados. Primeiro:`, JSON.stringify(records[0]));
 
-      // Insert in batches of 100
+      // Collect all process numbers to check for existing records
+      const processos = records.map(r => r.processo).filter(Boolean);
+      const existingMap = new Map<string, string>(); // processo -> id
+
+      // Fetch existing records in batches of 200
+      for (let i = 0; i < processos.length; i += 200) {
+        const batch = processos.slice(i, i + 200);
+        const { data } = await supabase
+          .from("dados_benner" as any)
+          .select("id, processo")
+          .in("processo", batch);
+        if (data) {
+          for (const row of data as any[]) {
+            if (row.processo) existingMap.set(row.processo, row.id);
+          }
+        }
+      }
+
       let inserted = 0;
+      let updated = 0;
       let lastError: string | null = null;
-      for (let i = 0; i < records.length; i += 100) {
-        const batch = records.slice(i, i + 100);
+
+      // Separate into new records and existing records to update
+      const toInsert: any[] = [];
+      const toUpdate: { id: string; data: any }[] = [];
+
+      for (const rec of records) {
+        if (rec.processo && existingMap.has(rec.processo)) {
+          const existingId = existingMap.get(rec.processo)!;
+          // Update all fields except situacao_processo and status
+          const { status, user_id, ...updateFields } = rec;
+          toUpdate.push({ id: existingId, data: updateFields });
+        } else {
+          toInsert.push(rec);
+        }
+      }
+
+      // Insert new records in batches
+      for (let i = 0; i < toInsert.length; i += 100) {
+        const batch = toInsert.slice(i, i + 100);
         const { error, data } = await supabase.from("dados_benner" as any).insert(batch as any).select("id");
         if (error) {
-          console.error(`[DadosBennerImport] Erro lote ${Math.floor(i / 100) + 1}:`, error);
+          console.error(`[DadosBennerImport] Erro lote insert ${Math.floor(i / 100) + 1}:`, error);
           lastError = error.message;
           toast.error(`Erro ao importar lote ${Math.floor(i / 100) + 1}: ${error.message}`);
           break;
@@ -145,11 +175,28 @@ export function DadosBennerImport({ onImported }: Props) {
         inserted += (data as any[])?.length ?? batch.length;
       }
 
-      if (inserted > 0) {
-        toast.success(`${inserted} registros importados com sucesso!`);
+      // Update existing records one by one (to preserve situacao_processo)
+      for (const item of toUpdate) {
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update(item.data as any)
+          .eq("id", item.id);
+        if (error) {
+          console.error(`[DadosBennerImport] Erro update ${item.id}:`, error);
+          lastError = error.message;
+        } else {
+          updated++;
+        }
+      }
+
+      if (inserted > 0 || updated > 0) {
+        const parts: string[] = [];
+        if (inserted > 0) parts.push(`${inserted} inserido(s)`);
+        if (updated > 0) parts.push(`${updated} atualizado(s)`);
+        toast.success(`${parts.join(", ")} com sucesso!`);
         onImported();
       } else if (!lastError) {
-        toast.warning("Nenhum registro foi inserido. Verifique se você está logado.");
+        toast.warning("Nenhum registro foi inserido ou atualizado. Verifique se você está logado.");
       }
     } catch (err: any) {
       toast.error("Erro ao processar planilha: " + (err?.message || String(err)));

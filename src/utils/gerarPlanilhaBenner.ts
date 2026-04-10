@@ -15,6 +15,8 @@ export function isDossieInvalido(dossie: string | null | undefined): boolean {
   return DOSSIE_INVALIDO_PATTERNS.some(p => p.test(dossie));
 }
 
+export type ExportModeBenner = "full" | "aq" | "ag" | "conferencia";
+
 export interface ResultadoGeracaoBenner {
   filename: string;
   totalValidos: number;
@@ -22,130 +24,216 @@ export interface ResultadoGeracaoBenner {
   rejeitados: DadoBenner[];
 }
 
+const colLetters = [
+  "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q",
+  "R","S","T","U","V","W","X","Y","Z","AA","AB","AC","AD","AE","AF","AG","AH",
+  "AI",
+];
+
+function colToLetter(c: number): string {
+  if (c < colLetters.length) return colLetters[c];
+  let s = "";
+  let n = c;
+  while (n >= 0) {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  }
+  return s;
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function getValuesFromDado(d: DadoBenner): string[] {
+  return [
+    d.dossie || "",
+    d.tribunal || "",
+    d.tipo_recurso || "",
+    d.data_distribuicao || "",
+    d.turma || "",
+    d.relator || "",
+    d.analise_quarteirizado || "",
+    d.risco_midia || "",
+    d.risco_descricao || "",
+    d.provas_digitais || "",
+    d.tem_data_julgamento || "",
+    d.data_julgamento || "",
+    d.horario_julgamento || "",
+    d.tipo_julgamento || "",
+    d.materia_honra || "",
+    d.entrega_memoriais || "",
+    d.sustentacao_oral || "",
+    d.resultado_sem_transcendencia ? "X" : "",
+    d.resultado_nao_conhecido ? "X" : "",
+    d.resultado_conhecido_provido ? "X" : "",
+    d.resultado_conhecido_nao_provido ? "X" : "",
+    d.resultado_outra || "",
+    d.observacoes || "",
+    d.ganhamos ? "X" : "",
+    d.perdemos ? "X" : "",
+    d.processo_baixado || "",
+    d.recorrente || "",
+    d.posicao_turma_favoravel ? "X" : "",
+    d.posicao_turma_desfavoravel ? "X" : "",
+    d.posicao_relator_favoravel ? "X" : "",
+    d.posicao_relator_desfavoravel ? "X" : "",
+    d.recurso_bem_aparelhado ? "X" : "",
+    d.recurso_mal_aparelhado ? "X" : "",
+    d.chance_exito || "",
+  ];
+}
+
 /**
- * Generates an XLSX file from Dados Benner records using the original template
- * to preserve exact formatting, fonts, colors, alignments and headers.
- * Records with invalid dossiê are excluded and returned separately.
+ * Generates an XLSX file from Dados Benner records using the original template.
+ * Supports multiple export modes:
+ * - full: Complete (A-AH) - all 34 columns
+ * - aq: Até Recurso (A-Q) - first 17 columns
+ * - ag: Até Análise quarteirizado (A-G) - first 7 columns
+ * - conferencia: Planilha de Conferência - inserts Processo after Dossiê
  */
-export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<ResultadoGeracaoBenner> {
+export async function gerarPlanilhaBenner(
+  dados: DadoBenner[],
+  mode: ExportModeBenner = "full"
+): Promise<ResultadoGeracaoBenner> {
   const validos = dados.filter(d => !isDossieInvalido(d.dossie));
   const rejeitados = dados.filter(d => isDossieInvalido(d.dossie));
 
-  // Generate rejections file if any
   if (rejeitados.length > 0) {
     gerarPlanilhaRejeicoes(rejeitados);
   }
 
-  // Fetch template
   const response = await fetch("/templates/layout_carga_benner_template.xlsx");
   const templateBuffer = await response.arrayBuffer();
   const zip = await JSZip.loadAsync(templateBuffer);
 
   // Read shared strings
   const ssXml = await zip.file("xl/sharedStrings.xml")!.async("string");
-  const ssMatch = ssXml.match(/<sst[^>]*>([\s\S]*)<\/sst>/);
-  const existingSiBlocks = ssMatch ? ssMatch[1] : "";
-  const existingCount = (existingSiBlocks.match(/<si>/g) || []).length;
+  const existingStrings: string[] = [];
+  const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
+  let siMatch: RegExpExecArray | null;
+  while ((siMatch = siRegex.exec(ssXml)) !== null) {
+    existingStrings.push(siMatch[1]);
+  }
 
-  const newStrings: string[] = [];
-  const stringIndexMap = new Map<string, number>();
+  const stringMap = new Map<string, number>();
+  existingStrings.forEach((s, i) => stringMap.set(s, i));
+  const newStrings = [...existingStrings];
 
-  function getStringIndex(val: string): number {
-    if (stringIndexMap.has(val)) return stringIndexMap.get(val)!;
-    const idx = existingCount + newStrings.length;
-    newStrings.push(val);
-    stringIndexMap.set(val, idx);
+  function getStrIdx(val: string): number {
+    const escaped = escapeXml(val);
+    if (stringMap.has(escaped)) return stringMap.get(escaped)!;
+    const idx = newStrings.length;
+    newStrings.push(escaped);
+    stringMap.set(escaped, idx);
     return idx;
   }
 
-  const colLetters = [
-    "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q",
-    "R","S","T","U","V","W","X","Y","Z","AA","AB","AC","AD","AE","AF","AG","AH"
-  ];
-
-  let dataRowsXml = "";
-  validos.forEach((d, idx) => {
-    const rowNum = idx + 3;
-    const values = [
-      d.dossie || "",
-      d.tribunal || "",
-      d.tipo_recurso || "",
-      d.data_distribuicao || "",
-      d.turma || "",
-      d.relator || "",
-      d.analise_quarteirizado || "",
-      d.risco_midia || "",
-      d.risco_descricao || "",
-      d.provas_digitais || "",
-      d.tem_data_julgamento || "",
-      d.data_julgamento || "",
-      d.horario_julgamento || "",
-      d.tipo_julgamento || "",
-      d.materia_honra || "",
-      d.entrega_memoriais || "",
-      d.sustentacao_oral || "",
-      d.resultado_sem_transcendencia ? "X" : "",
-      d.resultado_nao_conhecido ? "X" : "",
-      d.resultado_conhecido_provido ? "X" : "",
-      d.resultado_conhecido_nao_provido ? "X" : "",
-      d.resultado_outra || "",
-      d.observacoes || "",
-      d.ganhamos ? "X" : "",
-      d.perdemos ? "X" : "",
-      d.processo_baixado || "",
-      d.recorrente || "",
-      d.posicao_turma_favoravel ? "X" : "",
-      d.posicao_turma_desfavoravel ? "X" : "",
-      d.posicao_relator_favoravel ? "X" : "",
-      d.posicao_relator_desfavoravel ? "X" : "",
-      d.recurso_bem_aparelhado ? "X" : "",
-      d.recurso_mal_aparelhado ? "X" : "",
-      d.chance_exito || "",
-    ];
-
-    let cellsXml = "";
-    values.forEach((val, colIdx) => {
-      if (!val) return;
-      const ref = `${colLetters[colIdx]}${rowNum}`;
-      const style = ' s="5"';
-      const strIdx = getStringIndex(escapeXml(val));
-      cellsXml += `<c r="${ref}"${style} t="s"><v>${strIdx}</v></c>`;
-    });
-
-    dataRowsXml += `<row r="${rowNum}">${cellsXml}</row>`;
-  });
-
-  // Update shared strings XML
-  let newSiXml = "";
-  for (const s of newStrings) {
-    newSiXml += `<si><t>${s}</t></si>`;
+  // Read styles to create centered style
+  let stylesXml = await zip.file("xl/styles.xml")!.async("string");
+  const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
+  let centeredStyleId = 0;
+  if (cellXfsMatch) {
+    const currentCount = parseInt(cellXfsMatch[1]);
+    const centeredXf = `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
+    stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + `</cellXfs>`);
+    stylesXml = stylesXml.replace(`<cellXfs count="${currentCount}">`, `<cellXfs count="${currentCount + 1}">`);
+    centeredStyleId = currentCount;
+    zip.file("xl/styles.xml", stylesXml);
   }
-  const totalCount = existingCount + newStrings.length;
-  const updatedSsXml = ssXml
-    .replace(/<sst[^>]*>/, `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${totalCount}" uniqueCount="${totalCount}">`)
-    .replace(/<\/sst>/, `${newSiXml}</sst>`);
 
-  zip.file("xl/sharedStrings.xml", updatedSsXml);
+  const isConferencia = mode === "conferencia";
+  const maxCol = mode === "full" || isConferencia ? 34 : mode === "ag" ? 7 : 17;
+  const totalCols = isConferencia ? maxCol + 1 : maxCol; // +1 for inserted Processo column
 
   let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
   const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
+  
+  let headerRows = "";
   if (sheetDataMatch) {
     const allRowsContent = sheetDataMatch[1];
     const row1Match = allRowsContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
     const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
-    const headerRows = (row1Match ? row1Match[0] : "") + (row2Match ? row2Match[0] : "");
-    sheetXml = sheetXml.replace(
-      /<sheetData>[\s\S]*?<\/sheetData>/,
-      `<sheetData>${headerRows}${dataRowsXml}</sheetData>`
-    );
+
+    if (isConferencia) {
+      // For conferência, shift columns right by 1 to insert "Processo" at column B
+      headerRows = shiftAndInsertHeader(row1Match?.[0] ?? "", row2Match?.[0] ?? "", getStrIdx, centeredStyleId);
+    } else {
+      headerRows = (row1Match?.[0] ?? "") + (row2Match?.[0] ?? "");
+    }
   }
 
+  // Build data rows
+  let dataRowsXml = "";
+  validos.forEach((d, idx) => {
+    const rowNum = idx + 3;
+    const values = getValuesFromDado(d);
+    let cellsXml = "";
+
+    if (isConferencia) {
+      // Col A = Dossiê
+      const dossieVal = values[0];
+      if (dossieVal) {
+        cellsXml += `<c r="A${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(dossieVal)}</v></c>`;
+      }
+      // Col B = Nº Processo
+      const procVal = d.processo || "";
+      if (procVal) {
+        cellsXml += `<c r="B${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(procVal)}</v></c>`;
+      }
+      // Cols C onwards = original cols 1..end (shifted +1)
+      for (let c = 1; c < maxCol; c++) {
+        const val = values[c];
+        if (!val) continue;
+        const ref = colToLetter(c + 1) + rowNum;
+        if (c + 1 <= 6 && centeredStyleId > 0) {
+          cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+        } else {
+          cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
+        }
+      }
+    } else {
+      // Standard mode
+      for (let c = 0; c < maxCol; c++) {
+        const val = values[c];
+        if (!val) continue;
+        const ref = colToLetter(c) + rowNum;
+        if (c <= 5 && centeredStyleId > 0) {
+          cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+        } else {
+          cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
+        }
+      }
+    }
+
+    dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
+  });
+
   const lastRow = validos.length + 2;
-  sheetXml = sheetXml.replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:AH${lastRow}"`);
+  const lastColLetter = colToLetter(totalCols - 1);
+  sheetXml = sheetXml.replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:${lastColLetter}${lastRow}"`);
+  sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
   zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-  const blob = await zip.generateAsync({ type: "blob" });
-  const filename = `Layout_Carga_Benner_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
+  // Rebuild shared strings
+  const newSstEntries = newStrings.map(s => `<si><t>${s}</t></si>`).join("");
+  const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
+  zip.file("xl/sharedStrings.xml", newSst);
+
+  const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+  const suffixMap: Record<ExportModeBenner, string> = {
+    full: "",
+    aq: "_ate_recurso",
+    ag: "_ate_analise",
+    conferencia: "_conferencia",
+  };
+  const filename = `Layout_Carga_Benner${suffixMap[mode]}_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -155,6 +243,52 @@ export async function gerarPlanilhaBenner(dados: DadoBenner[]): Promise<Resultad
   URL.revokeObjectURL(url);
 
   return { filename, totalValidos: validos.length, totalRejeitados: rejeitados.length, rejeitados };
+}
+
+/**
+ * For conferência mode: shift header columns right by 1 and insert "Processo" at B
+ */
+function shiftAndInsertHeader(
+  row1Xml: string,
+  row2Xml: string,
+  getStrIdx: (val: string) => number,
+  centeredStyleId: number
+): string {
+  function shiftRow(rowXml: string, rowNum: number, insertCell?: string): string {
+    if (!rowXml) return "";
+    const cellRegex = /<c r="([A-Z]+)\d+"[^>]*>[\s\S]*?<\/c>/g;
+    const cells: { col: number; xml: string }[] = [];
+    let cm: RegExpExecArray | null;
+    while ((cm = cellRegex.exec(rowXml)) !== null) {
+      const letter = cm[1];
+      const colIdx = letterToCol(letter);
+      const newColIdx = colIdx + 1; // shift right
+      const newLetter = colToLetter(newColIdx);
+      const newXml = cm[0].replace(/r="[A-Z]+\d+"/, `r="${newLetter}${rowNum}"`);
+      cells.push({ col: newColIdx, xml: newXml });
+    }
+    if (insertCell) {
+      cells.push({ col: 1, xml: insertCell });
+    }
+    cells.sort((a, b) => a.col - b.col);
+    const rowTag = rowXml.match(/<row [^>]*>/)?.[0] || `<row r="${rowNum}">`;
+    return rowTag + cells.map(c => c.xml).join("") + "</row>";
+  }
+
+  const h1 = shiftRow(row1Xml, 1);
+  const npIdx = getStrIdx("Processo");
+  const npCell = `<c r="B2" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${npIdx}</v></c>`;
+  const h2 = shiftRow(row2Xml, 2, npCell);
+
+  return h1 + h2;
+}
+
+function letterToCol(letter: string): number {
+  let col = 0;
+  for (let i = 0; i < letter.length; i++) {
+    col = col * 26 + (letter.charCodeAt(i) - 64);
+  }
+  return col - 1;
 }
 
 function gerarPlanilhaRejeicoes(rejeitados: DadoBenner[]) {
@@ -178,13 +312,4 @@ function gerarPlanilhaRejeicoes(rejeitados: DadoBenner[]) {
   a.download = `Rejeicoes_Benner_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }

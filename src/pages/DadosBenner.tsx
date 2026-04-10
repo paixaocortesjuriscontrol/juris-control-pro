@@ -20,7 +20,7 @@ import { DadosBennerDetail } from "@/components/benner/DadosBennerDetail";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { gerarPlanilhaBenner, ResultadoGeracaoBenner } from "@/utils/gerarPlanilhaBenner";
+import { gerarPlanilhaBenner, ResultadoGeracaoBenner, ExportModeBenner } from "@/utils/gerarPlanilhaBenner";
 import { gerarPdfBenner } from "@/utils/gerarPdfBenner";
 
 const statusLabels: Record<string, string> = {
@@ -65,6 +65,7 @@ export default function DadosBenner() {
   const [periodoFim, setPeriodoFim] = useState("");
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
+  const [exportMode, setExportMode] = useState<ExportModeBenner>("full");
 
   const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds, fetchAllData } = useDadosBenner(appliedFilters);
   const [gerandoPdf, setGerandoPdf] = useState(false);
@@ -120,11 +121,11 @@ export default function DadosBenner() {
     }
   };
 
-  const handleGerarComResultado = async (registros: DadoBenner[], atualizarStatus?: string) => {
+  const handleGerarComResultado = async (registros: DadoBenner[], atualizarStatus?: string, mode?: ExportModeBenner) => {
     setGerando(true);
     setUltimoResultado(null);
     try {
-      const resultado = await gerarPlanilhaBenner(registros);
+      const resultado = await gerarPlanilhaBenner(registros, mode || exportMode);
       setUltimoResultado(resultado);
       if (atualizarStatus && resultado.totalValidos > 0) {
         const idsValidos = registros.filter(d => !resultado.rejeitados.some(r => r.id === d.id)).map(d => d.id);
@@ -139,6 +140,22 @@ export default function DadosBenner() {
         toast.error("Nenhum registro válido para gerar planilha. Todos possuem dossiê inválido.");
       }
     } finally {
+      setGerando(false);
+    }
+  };
+
+  const handleGerarPlanilhaFiltrada = async (mode?: ExportModeBenner) => {
+    setGerando(true);
+    try {
+      const allData = await fetchAllData();
+      if (!allData.length) {
+        toast.warning("Nenhum registro encontrado com os filtros aplicados");
+        setGerando(false);
+        return;
+      }
+      await handleGerarComResultado(allData, undefined, mode);
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha: " + (err?.message || "Erro desconhecido"));
       setGerando(false);
     }
   };
@@ -445,6 +462,26 @@ export default function DadosBenner() {
             Gerar Planilha (Prontos)
           </Button>
 
+          <Button onClick={() => handleGerarPlanilhaFiltrada("full")} disabled={gerando}>
+            {gerando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+            Completa (A-AH)
+          </Button>
+
+          <Button variant="outline" onClick={() => handleGerarPlanilhaFiltrada("aq")} disabled={gerando}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Até Recurso (A-Q)
+          </Button>
+
+          <Button variant="outline" onClick={() => handleGerarPlanilhaFiltrada("ag")} disabled={gerando}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Até Análise (A-G)
+          </Button>
+
+          <Button variant="secondary" onClick={() => handleGerarPlanilhaFiltrada("conferencia")} disabled={gerando}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Conferência
+          </Button>
+
           <Button variant="outline" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
             <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pronto
           </Button>
@@ -459,7 +496,7 @@ export default function DadosBenner() {
             disabled={verificandoTransito}
           >
             {verificandoTransito ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Scale className="w-4 h-4 mr-2" />}
-            Verificar Trânsito em Julgado {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
+            Verificar Trânsito {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
           <Button variant="outline" onClick={handleGerarPdf} disabled={gerandoPdf}>
