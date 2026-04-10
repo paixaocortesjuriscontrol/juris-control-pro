@@ -689,7 +689,7 @@ export default function DadosBenner() {
                   <TableCell className="font-medium">{d.dossie || "-"}</TableCell>
                   <TableCell>{d.processo || "-"}</TableCell>
                   <TableCell>{d.tribunal || "-"}</TableCell>
-                  <TableCell className="text-xs">{d.tipo_recurso || "-"}</TableCell>
+                  <TableCell className={`text-xs ${(d as any).tipo_recurso_auto ? "bg-yellow-100 dark:bg-yellow-900/30" : ""}`}>{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>
                   <TableCell>{d.relator || "-"}</TableCell>
                   <TableCell>
