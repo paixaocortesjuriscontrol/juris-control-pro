@@ -57,6 +57,8 @@ export default function DadosBenner() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DadoBenner | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
   const [gerando, setGerando] = useState(false);
