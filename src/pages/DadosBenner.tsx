@@ -40,8 +40,9 @@ const statusColors: Record<string, string> = {
 interface TransitoResult {
   numero: string;
   situacao: string;
+  confianca: number;
   data_transito: string | null;
-  grau: string | null;
+  reconciliacao: string | null;
   erro: string | null;
 }
 
@@ -241,7 +242,6 @@ export default function DadosBenner() {
   const cancelTipoRecursoRef = useRef(false);
 
   const handleVerificarTransito = async () => {
-    // 1. Fetch ALL filtered records with contrato (not just current page)
     setVerificandoTransito(true);
     setTransitoResults([]);
     setShowTransitoDialog(true);
@@ -250,13 +250,11 @@ export default function DadosBenner() {
     cancelTransitoRef.current = false;
 
     try {
-      // Fetch all IDs + contrato from selected or all filtered records
       const currentSelected = new Set(selectedIdsRef.current);
       const useSelected = currentSelected.size > 0;
       let allRecords: { id: string; processo: string }[] = [];
 
       if (useSelected) {
-        // Fetch contrato for all selected IDs in batches
         const selectedArr = Array.from(currentSelected);
         for (let i = 0; i < selectedArr.length; i += 200) {
           const batch = selectedArr.slice(i, i + 200);
@@ -267,7 +265,6 @@ export default function DadosBenner() {
           if (data) allRecords.push(...(data as any[]));
         }
       } else {
-        // Fetch all filtered records
         let offset = 0;
         while (true) {
           let query = supabase.from("dados_benner" as any).select("id, processo").order("created_at", { ascending: false });
@@ -285,7 +282,6 @@ export default function DadosBenner() {
         }
       }
 
-      // Filter only records with valid process numbers
       const validRecords = allRecords.filter(r => {
         const num = (r.processo || "").replace(/[^0-9]/g, "");
         return num.length >= 10;
@@ -300,52 +296,88 @@ export default function DadosBenner() {
 
       setTransitoProgressText(`0 de ${validRecords.length} verificados...`);
 
-      // 2. Process in small batches to avoid edge timeout/rate limit on DataJud
-      const BATCH_SIZE = 5;
+      // Process with controlled parallelism of 2
+      const CONCURRENCY = 2;
       const allResults: TransitoResult[] = [];
+      let completed = 0;
 
-      for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
+      const statusMap: Record<string, string> = {
+        transitado: "Trânsito em Julgado",
+        transitado_execucao: "Trânsito em Julgado (Execução)",
+        ativo: "Ativo",
+        inconclusivo: "Inconclusivo",
+      };
+
+      const situacaoMap: Record<string, string> = {
+        transitado: "Trânsito em Julgado",
+        transitado_execucao: "Trânsito em Julgado (Execução)",
+        ativo: "Ativo",
+        inconclusivo: "Inconclusivo",
+      };
+
+      const processRecord = async (record: { id: string; processo: string }) => {
+        if (cancelTransitoRef.current) return;
+
+        try {
+          const { data, error } = await supabase.functions.invoke("check-transito", {
+            body: { numeroProcesso: record.processo },
+          });
+
+          if (error) {
+            allResults.push({
+              numero: record.processo, situacao: "Erro", confianca: 0,
+              data_transito: null, reconciliacao: null, erro: error.message,
+            });
+          } else {
+            const situacao = situacaoMap[data?.status] || data?.status || "Erro";
+            const result: TransitoResult = {
+              numero: record.processo,
+              situacao,
+              confianca: data?.confianca ?? 0,
+              data_transito: data?.dataTransito ? new Date(data.dataTransito).toLocaleDateString("pt-BR") : null,
+              reconciliacao: data?.detalhes?.reconciliacao || null,
+              erro: null,
+            };
+            allResults.push(result);
+
+            // Update dados_benner.situacao_processo
+            const dbSituacao = statusMap[data?.status] || null;
+            if (dbSituacao) {
+              await supabase.from("dados_benner" as any)
+                .update({ situacao_processo: dbSituacao } as any)
+                .eq("id", record.id);
+            }
+          }
+        } catch (err: any) {
+          allResults.push({
+            numero: record.processo, situacao: "Erro", confianca: 0,
+            data_transito: null, reconciliacao: null, erro: err?.message || "Erro",
+          });
+        }
+
+        completed++;
+        setTransitoResults([...allResults]);
+        const pct = Math.round((completed / validRecords.length) * 100);
+        setTransitoProgressPct(pct);
+        setTransitoProgressText(`${completed} de ${validRecords.length} verificados...`);
+      };
+
+      // Execute with parallelism of CONCURRENCY
+      for (let i = 0; i < validRecords.length; i += CONCURRENCY) {
         if (cancelTransitoRef.current) {
           toast.info(`Verificação cancelada. ${allResults.length} processo(s) já verificados.`);
           break;
         }
-
-        const batch = validRecords.slice(i, i + BATCH_SIZE);
-        const processos = batch.map(r => r.processo!);
-        const idsBenner = batch.map(r => r.id);
-
-        try {
-          const { data, error } = await supabase.functions.invoke("verificar-transito-julgado", {
-            body: { processos, ids_benner: idsBenner },
-          });
-
-          if (error) {
-            // Add error results for this batch
-            batch.forEach(b => allResults.push({
-              numero: b.processo!, situacao: "Erro", data_transito: null, grau: null, erro: error.message,
-            }));
-          } else {
-            const resultados: TransitoResult[] = data?.resultados || [];
-            allResults.push(...resultados);
-          }
-        } catch (err: any) {
-          batch.forEach(b => allResults.push({
-            numero: b.processo!, situacao: "Erro", data_transito: null, grau: null, erro: err?.message || "Erro",
-          }));
-        }
-
-        setTransitoResults([...allResults]);
-        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
-        const pct = Math.round((processed / validRecords.length) * 100);
-        setTransitoProgressPct(pct);
-        setTransitoProgressText(`${processed} de ${validRecords.length} verificados...`);
+        const batch = validRecords.slice(i, i + CONCURRENCY);
+        await Promise.allSettled(batch.map(processRecord));
       }
 
       if (!cancelTransitoRef.current) {
-        const transitos = allResults.filter(r => r.situacao === "Trânsito em Julgado").length;
+        const transitos = allResults.filter(r => r.situacao.startsWith("Trânsito")).length;
         const ativos = allResults.filter(r => r.situacao === "Ativo").length;
-        const erros = allResults.filter(r => r.situacao === "Erro" || r.situacao === "Não encontrado").length;
-        toast.success(`Verificação concluída: ${transitos} em trânsito, ${ativos} ativo(s), ${erros} erro(s)/não encontrado(s)`);
+        const inconclusivos = allResults.filter(r => r.situacao === "Inconclusivo").length;
+        const erros = allResults.filter(r => r.situacao === "Erro").length;
+        toast.success(`Verificação concluída: ${transitos} trânsito(s), ${ativos} ativo(s), ${inconclusivos} inconclusivo(s), ${erros} erro(s)`);
       }
 
       setTransitoProgressText("");
