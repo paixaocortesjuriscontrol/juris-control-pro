@@ -462,6 +462,26 @@ export default function DadosBenner() {
             Gerar Planilha (Prontos)
           </Button>
 
+          <Button onClick={() => handleGerarPlanilhaFiltrada("full")} disabled={gerando}>
+            {gerando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+            Completa (A-AH)
+          </Button>
+
+          <Button variant="outline" onClick={() => handleGerarPlanilhaFiltrada("aq")} disabled={gerando}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Até Recurso (A-Q)
+          </Button>
+
+          <Button variant="outline" onClick={() => handleGerarPlanilhaFiltrada("ag")} disabled={gerando}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Até Análise (A-G)
+          </Button>
+
+          <Button variant="secondary" onClick={() => handleGerarPlanilhaFiltrada("conferencia")} disabled={gerando}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Conferência
+          </Button>
+
           <Button variant="outline" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
             <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pronto
           </Button>
@@ -476,7 +496,7 @@ export default function DadosBenner() {
             disabled={verificandoTransito}
           >
             {verificandoTransito ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Scale className="w-4 h-4 mr-2" />}
-            Verificar Trânsito em Julgado {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
+            Verificar Trânsito {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
           <Button variant="outline" onClick={handleGerarPdf} disabled={gerandoPdf}>
