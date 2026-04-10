@@ -712,6 +712,7 @@ export default function DadosBenner() {
                 <TableHead>Situação</TableHead>
                 <TableHead>Confiança</TableHead>
                 <TableHead>Data Trânsito</TableHead>
+                <TableHead>Notas</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Criado em</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
@@ -719,9 +720,9 @@ export default function DadosBenner() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={13} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={15} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={15} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
@@ -767,6 +768,9 @@ export default function DadosBenner() {
                     {(d as any).data_transito_julgado
                       ? new Date((d as any).data_transito_julgado + "T12:00:00").toLocaleDateString("pt-BR")
                       : "-"}
+                  </TableCell>
+                  <TableCell className="text-xs max-w-[200px] truncate" title={(d as any).notas || ""}>
+                    {(d as any).notas || "-"}
                   </TableCell>
                   <TableCell>
                     <Badge className={statusColors[d.status] || ""}>{statusLabels[d.status] || d.status}</Badge>

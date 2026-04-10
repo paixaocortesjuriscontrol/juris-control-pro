@@ -46,6 +46,7 @@ export interface DadoBenner {
   situacao_processo: string | null;
   confianca_transito: number | null;
   data_transito_julgado: string | null;
+  notas: string | null;
   created_at: string;
   updated_at: string;
 }

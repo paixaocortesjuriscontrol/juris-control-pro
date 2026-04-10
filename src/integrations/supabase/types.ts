@@ -1355,6 +1355,7 @@ export type Database = {
           horario_julgamento: string | null
           id: string
           materia_honra: string | null
+          notas: string | null
           observacoes: string | null
           perdemos: boolean | null
           posicao_relator_desfavoravel: boolean | null
@@ -1402,6 +1403,7 @@ export type Database = {
           horario_julgamento?: string | null
           id?: string
           materia_honra?: string | null
+          notas?: string | null
           observacoes?: string | null
           perdemos?: boolean | null
           posicao_relator_desfavoravel?: boolean | null
@@ -1449,6 +1451,7 @@ export type Database = {
           horario_julgamento?: string | null
           id?: string
           materia_honra?: string | null
+          notas?: string | null
           observacoes?: string | null
           perdemos?: boolean | null
           posicao_relator_desfavoravel?: boolean | null

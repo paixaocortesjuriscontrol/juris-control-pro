@@ -38,6 +38,7 @@ const emptyForm: DadoBennerInsert = {
   situacao_processo: "",
   confianca_transito: null,
   data_transito_julgado: null,
+  notas: "",
 };
 
 export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
@@ -370,6 +371,10 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           <div className="space-y-2">
             <Label>Observações (W)</Label>
             <Textarea value={form.observacoes || ""} onChange={e => set("observacoes", e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-2">
+            <Label>Notas</Label>
+            <Textarea value={form.notas || ""} onChange={e => set("notas", e.target.value)} rows={3} placeholder="Anotações livres sobre este registro..." />
           </div>
         </div>
       </div>
