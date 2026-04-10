@@ -81,6 +81,21 @@ function respond(payload: FunctionResponse) {
   });
 }
 
+// Códigos de movimentação que NÃO invalidam o trânsito em julgado
+// (são meros atos administrativos pós-trânsito)
+const CODIGOS_IGNORAR_POS_TRANSITO = new Set([
+  123,  // Remessa (devolução dos autos ao tribunal de origem)
+  132,  // Remessa ao tribunal de origem
+  22,   // Baixa definitiva
+  246,  // Arquivamento definitivo
+  268,  // Desentranhamento
+  1037, // Certidão de trânsito em julgado
+  11009, // Expedição de certidão
+  11010, // Juntada de certidão
+  60,   // Expedição de documento
+  581,  // Recebimento
+]);
+
 function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
   const sorted = [...movimentos].sort((a, b) => {
     const dateA = new Date(a?.dataHora || a?.data || "1900-01-01").getTime();
@@ -139,7 +154,20 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
       if (movTs > transitoTs) {
         const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
         const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
-        console.log(`  Movimentação posterior ao trânsito: código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
+
+        // Ignorar movimentações administrativas pós-trânsito
+        if (CODIGOS_IGNORAR_POS_TRANSITO.has(codigo)) {
+          console.log(`  Movimentação pós-trânsito IGNORADA (administrativa): código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
+          continue;
+        }
+
+        // Ignorar movimentações que são claramente administrativas pelo nome
+        if (nome.includes("remessa") || nome.includes("baixa") || nome.includes("arquiv") || nome.includes("certidão") || nome.includes("certidao")) {
+          console.log(`  Movimentação pós-trânsito IGNORADA (nome administrativo): código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
+          continue;
+        }
+
+        console.log(`  Movimentação posterior ao trânsito RELEVANTE: código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
         hasMovimentacaoPosterior = true;
         break;
       }
