@@ -49,6 +49,11 @@ function getTRTFromProcesso(digits: string): string | null {
 
 function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
   const endpoints: { endpoint: string; nome: string }[] = [];
+  const digits = limparNumero(numero);
+  const trt = getTRTFromProcesso(digits);
+  if (trt && TRT_ENDPOINTS[trt]) {
+    endpoints.push(TRT_ENDPOINTS[trt]);
+  }
   endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
   return endpoints;
 }
@@ -335,7 +340,7 @@ Deno.serve(async (req) => {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    const BATCH_SIZE = 3;
+    const BATCH_SIZE = 2;
     const resultados: ResultadoProcesso[] = [];
 
     for (let i = 0; i < processos.length; i += BATCH_SIZE) {
