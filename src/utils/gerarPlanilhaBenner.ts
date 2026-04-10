@@ -236,8 +236,7 @@ export async function gerarPlanilhaBenner(
     const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
 
     if (isConferencia) {
-      // For conferência, shift columns right by 1 to insert "Processo" at column B
-      headerRows = shiftAndInsertHeader(row1Match?.[0] ?? "", row2Match?.[0] ?? "", getStrIdx, centeredStyleId);
+      headerRows = shiftAndInsertHeader(row1Match?.[0] ?? "", row2Match?.[0] ?? "", getStrIdx, centeredStyleId, totalCols);
     } else {
       headerRows = (row1Match?.[0] ?? "") + (row2Match?.[0] ?? "");
     }
@@ -305,12 +304,14 @@ export async function gerarPlanilhaBenner(
   sheetXml = sheetXml.replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:${lastColLetter}${lastRow}"`);
   sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
 
-  // For conferência mode, shift merge cell references right by 1 column
+  // For conferência mode, insert columns after A: keep A refs, shift B+ refs by 2
   if (isConferencia) {
     sheetXml = sheetXml.replace(/<mergeCells[\s\S]*?<\/mergeCells>/, (mergeCellsBlock) => {
       return mergeCellsBlock.replace(/ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (_m, startCol, startRow, endCol, endRow) => {
-        const newStart = colToLetter(letterToCol(startCol) + 2);
-        const newEnd = colToLetter(letterToCol(endCol) + 2);
+        const startIdx = letterToCol(startCol);
+        const endIdx = letterToCol(endCol);
+        const newStart = colToLetter(startIdx === 0 ? startIdx : startIdx + 2);
+        const newEnd = colToLetter(endIdx === 0 ? endIdx : endIdx + 2);
         return `ref="${newStart}${startRow}:${newEnd}${endRow}"`;
       });
     });
@@ -350,7 +351,8 @@ function shiftAndInsertHeader(
   row1Xml: string,
   row2Xml: string,
   getStrIdx: (val: string) => number,
-  centeredStyleId: number
+  centeredStyleId: number,
+  totalCols: number
 ): string {
   function shiftRow(rowXml: string, rowNum: number, insertCells?: { col: number; xml: string }[]): string {
     if (!rowXml) return "";
@@ -360,16 +362,15 @@ function shiftAndInsertHeader(
     while ((cm = cellRegex.exec(rowXml)) !== null) {
       const letter = cm[1];
       const colIdx = letterToCol(letter);
-      const newColIdx = colIdx + 2; // shift right by 2
+      const newColIdx = colIdx === 0 ? 0 : colIdx + 2;
       const newLetter = colToLetter(newColIdx);
       const newXml = cm[0].replace(/r="[A-Z]+\d+"/, `r="${newLetter}${rowNum}"`);
       cells.push({ col: newColIdx, xml: newXml });
     }
-    if (insertCells) {
-      cells.push(...insertCells);
-    }
+    if (insertCells) cells.push(...insertCells);
     cells.sort((a, b) => a.col - b.col);
-    const rowTag = rowXml.match(/<row [^>]*>/)?.[0] || `<row r="${rowNum}">`;
+    let rowTag = rowXml.match(/<row [^>]*>/)?.[0] || `<row r="${rowNum}">`;
+    rowTag = rowTag.replace(/spans="[^"]*"/, `spans="1:${totalCols}"`);
     return rowTag + cells.map(c => c.xml).join("") + "</row>";
   }
 
