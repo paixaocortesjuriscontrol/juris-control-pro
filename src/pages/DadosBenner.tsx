@@ -409,7 +409,7 @@ export default function DadosBenner() {
           <Button variant="outline" size="sm" onClick={applyFilters}>
             <Search className="w-4 h-4 mr-1" /> Filtrar
           </Button>
-          {(filterRelator || filterDossie || filterProcesso || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao) && (
+          {(filterRelator || filterDossie || filterProcesso || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao || filterSituacao !== "todos") && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
           )}
         </div>
