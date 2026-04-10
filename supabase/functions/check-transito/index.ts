@@ -76,6 +76,27 @@ function selecionarDataTransito(
   return new Date(Math.min(...datas.map((d) => d.getTime())));
 }
 
+function gerarNota(status: StatusTransito, confianca: number, reconciliacao: string): string {
+  const fonte = "Dados obtidos via API Pública do DataJud (CNJ), que reflete registros internos dos tribunais. " +
+    "Estes registros podem incluir eventos administrativos não visíveis na consulta pública do PJE.";
+  
+  if (status === "transitado" || status === "transitado_execucao") {
+    if (confianca >= 90) {
+      return `${fonte} Trânsito detectado com alta confiança (código CNJ 848). A consulta pública do PJE pode não exibir este evento.`;
+    }
+    if (confianca >= 70) {
+      return `${fonte} Trânsito detectado com confiança moderada. Recomenda-se confirmação manual no PJE ou via certidão.`;
+    }
+    return `${fonte} Trânsito detectado por análise textual. Confirmação manual fortemente recomendada.`;
+  }
+  
+  if (status === "inconclusivo") {
+    return `${fonte} Não foi possível determinar o trânsito em julgado com os dados disponíveis. Verifique diretamente no PJE.`;
+  }
+  
+  return `${fonte} Processo aparenta estar ativo com base nas movimentações recentes registradas no DataJud.`;
+}
+
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -127,6 +148,8 @@ serve(async (req: Request): Promise<Response> => {
     status,
     confianca,
     dataTransito: dataTransito?.toISOString(),
+    fonteDados: "API Pública DataJud/CNJ",
+    nota: gerarNota(status, confianca, reconciliacao),
     detalhes: {
       tst: analiseTST ?? undefined,
       trt: analiseTRT ?? undefined,

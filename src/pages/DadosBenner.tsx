@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search, Scale, FileText } from "lucide-react";
@@ -743,9 +744,21 @@ export default function DadosBenner() {
                   </TableCell>
                   <TableCell>
                     {(d as any).confianca_transito != null ? (
-                      <Badge variant="outline" className="text-xs">
-                        {(d as any).confianca_transito}%
-                      </Badge>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Badge variant="outline" className={`text-xs ${(d as any).confianca_transito >= 90 ? "border-green-500 text-green-700" : (d as any).confianca_transito >= 70 ? "border-yellow-500 text-yellow-700" : "border-orange-500 text-orange-700"}`}>
+                            {(d as any).confianca_transito}%
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          <p className="font-medium mb-1">Fonte: DataJud/CNJ</p>
+                          {(d as any).confianca_transito >= 90
+                            ? "Alta confiança (código CNJ 848). Pode não ser visível no PJE público."
+                            : (d as any).confianca_transito >= 70
+                            ? "Confiança moderada. Confirmação manual recomendada."
+                            : "Baixa confiança. Confirmação manual fortemente recomendada."}
+                        </TooltipContent>
+                      </Tooltip>
                     ) : (
                       <span className="text-muted-foreground text-xs">-</span>
                     )}
@@ -822,6 +835,10 @@ export default function DadosBenner() {
 
             {transitoResults.length > 0 && (
               <div className="space-y-4">
+                <div className="rounded-md bg-muted/50 border p-3 text-xs text-muted-foreground">
+                  <strong>Fonte:</strong> API Pública DataJud/CNJ — Os dados refletem registros internos dos tribunais e podem incluir eventos administrativos não visíveis na consulta pública do PJE. Em caso de divergência, recomenda-se confirmação manual via PJE ou certidão.
+                </div>
+
                 <div className="flex gap-4 text-sm">
                   <Badge variant="destructive">
                     {transitoResults.filter(r => r.situacao.startsWith("Trânsito")).length} Trânsito em Julgado
@@ -865,9 +882,20 @@ export default function DadosBenner() {
                         </TableCell>
                         <TableCell>
                           {r.confianca > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              {r.confianca}%
-                            </Badge>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="outline" className={`text-xs ${r.confianca >= 90 ? "border-green-500 text-green-700" : r.confianca >= 70 ? "border-yellow-500 text-yellow-700" : "border-orange-500 text-orange-700"}`}>
+                                  {r.confianca}%
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs">
+                                {r.confianca >= 90
+                                  ? "Alta confiança — Código CNJ 848 detectado. Pode não ser visível no PJE público."
+                                  : r.confianca >= 70
+                                  ? "Confiança moderada — Confirmação manual recomendada via PJE ou certidão."
+                                  : "Baixa confiança — Detecção por análise textual. Confirmação manual fortemente recomendada."}
+                              </TooltipContent>
+                            </Tooltip>
                           )}
                         </TableCell>
                         <TableCell>{r.data_transito || "-"}</TableCell>
