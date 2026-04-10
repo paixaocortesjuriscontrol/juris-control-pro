@@ -76,25 +76,61 @@ function selecionarDataTransito(
   return new Date(Math.min(...datas.map((d) => d.getTime())));
 }
 
-function gerarNota(status: StatusTransito, confianca: number, reconciliacao: string): string {
-  const fonte = "Dados obtidos via API Pública do DataJud (CNJ), que reflete registros internos dos tribunais. " +
-    "Estes registros podem incluir eventos administrativos não visíveis na consulta pública do PJE.";
-  
+function gerarNota(
+  status: StatusTransito,
+  confianca: number,
+  reconciliacao: string,
+  tst: ResultadoTribunal | null,
+  trt: ResultadoTribunal | null,
+): string {
+  const linhas: string[] = [];
+  const agora = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  linhas.push(`[Verificação automática em ${agora}]`);
+  linhas.push(`Fonte: API Pública DataJud (CNJ)`);
+  linhas.push(`Resultado: ${status.toUpperCase()} | Confiança: ${confianca}%`);
+  linhas.push(`Reconciliação: ${reconciliacao}`);
+
+  const descreverTribunal = (label: string, r: ResultadoTribunal | null) => {
+    if (!r) {
+      linhas.push(`\n${label}: Sem dados retornados`);
+      return;
+    }
+    linhas.push(`\n${label}: ${r.status} (confiança ${r.confianca}%)`);
+    if (r.dataTransito) {
+      linhas.push(`  Data trânsito detectada: ${new Date(r.dataTransito).toLocaleDateString("pt-BR")}`);
+    }
+    if (r.analisePos) {
+      const { temRecursoPosterior, temExecucaoAtiva, movimentacoesClassificadas } = r.analisePos;
+      if (temRecursoPosterior) linhas.push(`  ⚠ Recurso posterior detectado (processo pode estar ativo)`);
+      if (temExecucaoAtiva) linhas.push(`  📌 Fase de execução em andamento`);
+      const cats = movimentacoesClassificadas.reduce((acc, c) => {
+        acc[c.categoria] = (acc[c.categoria] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      if (Object.keys(cats).length > 0) {
+        linhas.push(`  Movimentações pós-trânsito: ${Object.entries(cats).map(([k, v]) => `${k}(${v})`).join(", ")}`);
+      }
+    }
+  };
+
+  descreverTribunal("TST", tst);
+  descreverTribunal("TRT", trt);
+
   if (status === "transitado" || status === "transitado_execucao") {
     if (confianca >= 90) {
-      return `${fonte} Trânsito detectado com alta confiança (código CNJ 848). A consulta pública do PJE pode não exibir este evento.`;
+      linhas.push("\nMétodo: Código CNJ 848 (trânsito em julgado direto). Alta confiabilidade.");
+    } else if (confianca >= 70) {
+      linhas.push("\nMétodo: Códigos CNJ 22/246 com confirmação textual. Recomenda-se confirmação manual.");
+    } else {
+      linhas.push("\nMétodo: Análise textual das movimentações. Confirmação manual fortemente recomendada.");
     }
-    if (confianca >= 70) {
-      return `${fonte} Trânsito detectado com confiança moderada. Recomenda-se confirmação manual no PJE ou via certidão.`;
-    }
-    return `${fonte} Trânsito detectado por análise textual. Confirmação manual fortemente recomendada.`;
+  } else if (status === "inconclusivo") {
+    linhas.push("\nNão foi possível determinar o trânsito com os dados disponíveis. Verifique diretamente no PJE.");
+  } else {
+    linhas.push("\nProcesso aparenta estar ativo com base nas movimentações recentes.");
   }
-  
-  if (status === "inconclusivo") {
-    return `${fonte} Não foi possível determinar o trânsito em julgado com os dados disponíveis. Verifique diretamente no PJE.`;
-  }
-  
-  return `${fonte} Processo aparenta estar ativo com base nas movimentações recentes registradas no DataJud.`;
+
+  return linhas.join("\n");
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -149,7 +185,7 @@ serve(async (req: Request): Promise<Response> => {
     confianca,
     dataTransito: dataTransito?.toISOString(),
     fonteDados: "API Pública DataJud/CNJ",
-    nota: gerarNota(status, confianca, reconciliacao),
+    nota: gerarNota(status, confianca, reconciliacao, analiseTST, analiseTRT),
     detalhes: {
       tst: analiseTST ?? undefined,
       trt: analiseTRT ?? undefined,
