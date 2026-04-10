@@ -9,11 +9,13 @@ function endpoint(tribunal: TribunalCode): string {
 }
 
 function buildQuery(numeroProcesso: string): Record<string, unknown> {
+  // DataJud indexes numeroProcesso as digits only (no punctuation)
+  const digits = numeroProcesso.replace(/\D/g, "");
   return {
     size: 1,
-    _source: ["movimentos", "numeroProcesso"],
+    _source: ["movimentos", "numeroProcesso", "classe", "grau"],
     query: {
-      term: { "numeroProcesso.keyword": numeroProcesso },
+      match: { numeroProcesso: digits },
     },
   };
 }
