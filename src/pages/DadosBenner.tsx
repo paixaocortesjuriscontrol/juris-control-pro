@@ -232,6 +232,14 @@ export default function DadosBenner() {
   const [transitoProgressPct, setTransitoProgressPct] = useState(0);
   const cancelTransitoRef = useRef(false);
 
+  // Tipo Recurso states
+  const [verificandoTipoRecurso, setVerificandoTipoRecurso] = useState(false);
+  const [tipoRecursoResults, setTipoRecursoResults] = useState<TipoRecursoResult[]>([]);
+  const [showTipoRecursoDialog, setShowTipoRecursoDialog] = useState(false);
+  const [tipoRecursoProgressText, setTipoRecursoProgressText] = useState("");
+  const [tipoRecursoProgressPct, setTipoRecursoProgressPct] = useState(0);
+  const cancelTipoRecursoRef = useRef(false);
+
   const handleVerificarTransito = async () => {
     // 1. Fetch ALL filtered records with contrato (not just current page)
     setVerificandoTransito(true);
