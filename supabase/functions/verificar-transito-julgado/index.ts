@@ -48,16 +48,8 @@ function getTRTFromProcesso(digits: string): string | null {
 }
 
 function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
-  const digits = limparNumero(numero);
   const endpoints: { endpoint: string; nome: string }[] = [];
-
   endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
-
-  const trt = getTRTFromProcesso(digits);
-  if (trt) {
-    endpoints.push(TRT_ENDPOINTS[trt]);
-  }
-
   return endpoints;
 }
 
