@@ -20,7 +20,7 @@ import { DadosBennerDetail } from "@/components/benner/DadosBennerDetail";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { gerarPlanilhaBenner, ResultadoGeracaoBenner } from "@/utils/gerarPlanilhaBenner";
+import { gerarPlanilhaBenner, ResultadoGeracaoBenner, ExportModeBenner } from "@/utils/gerarPlanilhaBenner";
 import { gerarPdfBenner } from "@/utils/gerarPdfBenner";
 
 const statusLabels: Record<string, string> = {
