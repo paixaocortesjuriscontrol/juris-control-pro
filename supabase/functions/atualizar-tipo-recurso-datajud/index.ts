@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_TIMEOUT_MS = 10_000;
+const DATAJUD_TIMEOUT_MS = 5_000;
 
 const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
   "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
@@ -47,17 +47,6 @@ function getTRTFromProcesso(digits: string): string | null {
   return null;
 }
 
-function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
-  const digits = limparNumero(numero);
-  const trt = getTRTFromProcesso(digits);
-
-  if (trt && TRT_ENDPOINTS[trt]) {
-    return [TRT_ENDPOINTS[trt], { endpoint: "api_publica_tst", nome: "TST" }];
-  }
-
-  return [{ endpoint: "api_publica_tst", nome: "TST" }];
-}
-
 interface ResultadoTipoRecurso {
   numero: string;
   tipo_recurso: string | null;
@@ -72,7 +61,7 @@ function respond(payload: { ok: boolean; resultados: ResultadoTipoRecurso[]; err
   });
 }
 
-async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: any[]; error?: string }> {
+async function queryEndpoint(endpoint: string, digits: string): Promise<{ classe: string | null; fonte: string; error?: string }> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
 
   try {
@@ -87,8 +76,8 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: 
       },
       body: JSON.stringify({
         query: { match: { numeroProcesso: digits } },
-        size: 5,
-        _source: ["numeroProcesso", "classe", "grau"],
+        size: 1,
+        _source: ["numeroProcesso", "classe"],
       }),
       signal: controller.signal,
     });
@@ -96,18 +85,21 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const text = await response.text();
-      console.error(`Erro API ${endpoint}:`, response.status, text);
-      return { hits: [], error: `API retornou ${response.status}` };
+      await response.text();
+      return { classe: null, fonte: endpoint, error: `API ${response.status}` };
     }
 
     const data = await response.json();
-    return { hits: data?.hits?.hits || [] };
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      return { hits: [], error: "Timeout na API" };
+    const hits = data?.hits?.hits || [];
+    for (const hit of hits) {
+      const classeNome = hit._source?.classe?.nome;
+      if (classeNome) {
+        return { classe: classeNome, fonte: endpoint };
+      }
     }
-    return { hits: [], error: err.message || "Erro desconhecido" };
+    return { classe: null, fonte: endpoint };
+  } catch (err: any) {
+    return { classe: null, fonte: endpoint, error: err.name === "AbortError" ? "Timeout" : (err.message || "Erro") };
   }
 }
 
@@ -117,36 +109,27 @@ async function buscarTipoRecurso(numero: string): Promise<ResultadoTipoRecurso> 
     return { numero, tipo_recurso: null, fonte: null, erro: "Número inválido" };
   }
 
-  const endpoints = getEndpoints(numero);
-  let bestClasse: string | null = null;
-  let bestFonte: string | null = null;
-  let lastError: string | null = null;
+  const trt = getTRTFromProcesso(digits);
 
-  for (const ep of endpoints) {
-    const result = await queryEndpoint(ep.endpoint, digits);
-    if (result.error) lastError = result.error;
+  // Query TRT and TST in PARALLEL
+  const trtPromise = trt && TRT_ENDPOINTS[trt]
+    ? queryEndpoint(TRT_ENDPOINTS[trt].endpoint, digits)
+    : Promise.resolve(null);
+  const tstPromise = queryEndpoint("api_publica_tst", digits);
 
-    for (const hit of result.hits) {
-      const classeNome = hit._source?.classe?.nome;
-      if (classeNome) {
-        // TST takes priority, so keep overwriting
-        bestClasse = classeNome;
-        bestFonte = ep.nome;
-      }
-    }
+  const [trtResult, tstResult] = await Promise.all([trtPromise, tstPromise]);
+
+  // TST takes priority over TRT
+  if (tstResult.classe) {
+    return { numero, tipo_recurso: tstResult.classe, fonte: "TST", erro: null };
+  }
+  if (trtResult?.classe) {
+    const trtNome = TRT_ENDPOINTS[trt!]?.nome || `TRT${trt}`;
+    return { numero, tipo_recurso: trtResult.classe, fonte: trtNome, erro: null };
   }
 
-  if (!bestClasse) {
-    return {
-      numero,
-      tipo_recurso: null,
-      fonte: null,
-      erro: lastError || "Classe não encontrada",
-    };
-  }
-
-  console.log(`Processo ${numero}: classe="${bestClasse}" fonte=${bestFonte}`);
-  return { numero, tipo_recurso: bestClasse, fonte: bestFonte, erro: null };
+  const lastError = tstResult.error || trtResult?.error || "Classe não encontrada";
+  return { numero, tipo_recurso: null, fonte: null, erro: lastError };
 }
 
 Deno.serve(async (req) => {
@@ -186,34 +169,26 @@ Deno.serve(async (req) => {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    const BATCH_SIZE = 2;
-    const resultados: ResultadoTipoRecurso[] = [];
-
-    for (let i = 0; i < processos.length; i += BATCH_SIZE) {
-      const batch = processos.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(batch.map((p) => buscarTipoRecurso(p)));
-      resultados.push(...batchResults);
-
-      if (i + BATCH_SIZE < processos.length) {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    }
+    // Process ALL in parallel (no sub-batching, no delays)
+    const resultados = await Promise.all(processos.map((p) => buscarTipoRecurso(p)));
 
     // Update dados_benner with found tipo_recurso
-    if (ids_benner.length > 0) {
-      for (let i = 0; i < ids_benner.length; i++) {
-        const id = ids_benner[i];
-        const resultado = resultados[i];
-        if (resultado && resultado.tipo_recurso) {
-          await supabase
+    const updates = ids_benner
+      .map((id, i) => ({ id, resultado: resultados[i] }))
+      .filter(({ resultado }) => resultado?.tipo_recurso);
+
+    if (updates.length > 0) {
+      await Promise.all(
+        updates.map(({ id, resultado }) =>
+          supabase
             .from("dados_benner")
             .update({
               tipo_recurso: resultado.tipo_recurso,
               tipo_recurso_auto: true,
             } as any)
-            .eq("id", id);
-        }
-      }
+            .eq("id", id)
+        )
+      );
     }
 
     return respond({ ok: true, resultados });
