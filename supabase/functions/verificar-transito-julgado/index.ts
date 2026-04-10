@@ -41,7 +41,7 @@ function limparNumero(num: string): string {
 
 function getTRTFromProcesso(digits: string): string | null {
   if (digits.length >= 16) {
-    const trt = parseInt(digits.substring(13, 15), 10).toString();
+    const trt = parseInt(digits.substring(14, 16), 10).toString();
     if (TRT_ENDPOINTS[trt]) return trt;
   }
   return null;
@@ -50,14 +50,14 @@ function getTRTFromProcesso(digits: string): string | null {
 function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
   const digits = limparNumero(numero);
   const endpoints: { endpoint: string; nome: string }[] = [];
-  
+
   endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
-  
+
   const trt = getTRTFromProcesso(digits);
   if (trt) {
     endpoints.push(TRT_ENDPOINTS[trt]);
   }
-  
+
   return endpoints;
 }
 
@@ -75,8 +75,21 @@ interface TransitoResult {
   hasMovimentacaoPosterior: boolean;
 }
 
+interface FunctionResponse {
+  ok: boolean;
+  resultados: ResultadoProcesso[];
+  error?: string;
+  fallback?: boolean;
+}
+
+function respond(payload: FunctionResponse) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
-  // Sort movements by date (oldest first) to find the 848 and check what comes after
   const sorted = [...movimentos].sort((a, b) => {
     const dateA = new Date(a?.dataHora || a?.data || "1900-01-01").getTime();
     const dateB = new Date(b?.dataHora || b?.data || "1900-01-01").getTime();
@@ -87,7 +100,6 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
   let transitoFound = false;
   let transitoIndex = -1;
 
-  // Find code 848
   for (let i = 0; i < sorted.length; i++) {
     const mov = sorted[i];
     const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
@@ -97,7 +109,7 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
       transitoIndex = i;
       break;
     }
-    // Check complementos
+
     const complementos = mov?.complementosTabelados || [];
     for (const comp of complementos) {
       if (Number(comp?.codigo) === 848) {
@@ -110,7 +122,6 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
     if (transitoFound) break;
   }
 
-  // Fallback: search by name
   if (!transitoFound) {
     for (let i = 0; i < sorted.length; i++) {
       const mov = sorted[i];
@@ -126,7 +137,6 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
 
   if (!transitoFound) return { found: false, date: null, hasMovimentacaoPosterior: false };
 
-  // Check if there's ANY movement after the trânsito date
   let hasMovimentacaoPosterior = false;
   if (transitoDate) {
     const transitoTs = new Date(transitoDate).getTime();
@@ -147,10 +157,7 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
   return { found: true, date: transitoDate, hasMovimentacaoPosterior };
 }
 
-async function queryEndpoint(
-  endpoint: string,
-  digits: string
-): Promise<{ hits: any[]; error?: string }> {
+async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: any[]; error?: string }> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
 
   try {
@@ -219,9 +226,8 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
     };
   }
 
-  console.log(`Processo ${numero}: ${allHits.length} instância(s) encontrada(s) em ${endpoints.map(e => e.nome).join(", ")}`);
+  console.log(`Processo ${numero}: ${allHits.length} instância(s) encontrada(s) em ${endpoints.map((e) => e.nome).join(", ")}`);
 
-  // Check all instances - if ANY has trânsito WITHOUT posterior movement, it's transitado
   let bestTransito: { date: string | null; grau: string; classe: string; source: string; hasMovPosterior: boolean } | null = null;
 
   for (const { hit, source } of allHits) {
@@ -231,7 +237,7 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
     const classe = hitSource?.classe?.nome || "";
 
     const result = checkTransitoInMovimentos(movimentos);
-    
+
     if (result.found) {
       const dateStr = result.date ? result.date.substring(0, 10) : null;
       if (result.hasMovimentacaoPosterior) {
@@ -239,8 +245,7 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
       } else {
         console.log(`  Trânsito em ${source} ${grau} (${classe}): ${dateStr} - SEM movimentação posterior ✓`);
       }
-      
-      // Prefer trânsito without posterior movement
+
       if (!bestTransito || (!result.hasMovimentacaoPosterior && bestTransito.hasMovPosterior)) {
         bestTransito = { date: dateStr, grau, classe, source, hasMovPosterior: result.hasMovimentacaoPosterior };
       }
@@ -267,7 +272,7 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
     };
   }
 
-  const graus = allHits.map(h => `${h.source}:${h.hit._source?.grau || "?"} (${h.hit._source?.classe?.nome || ""})`).join(", ");
+  const graus = allHits.map((h) => `${h.source}:${h.hit._source?.grau || "?"} (${h.hit._source?.classe?.nome || ""})`).join(", ");
   console.log(`  Nenhum trânsito encontrado. Graus: ${graus}`);
 
   return { numero, situacao: "Ativo", data_transito: null, grau: graus, erro: null };
@@ -278,13 +283,12 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let processos: string[] = [];
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ ok: false, resultados: [], error: "Não autorizado" });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -294,23 +298,21 @@ Deno.serve(async (req) => {
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await anonClient.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await anonClient.auth.getUser();
+
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ ok: false, resultados: [], error: "Não autorizado" });
     }
 
     const body = await req.json();
-    const processos: string[] = body?.processos || [];
+    processos = body?.processos || [];
     const ids_benner: string[] = body?.ids_benner || [];
 
     if (!processos.length) {
-      return new Response(JSON.stringify({ error: "Nenhum processo informado" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
     const BATCH_SIZE = 3;
@@ -334,22 +336,25 @@ Deno.serve(async (req) => {
           const situacaoTexto = resultado.data_transito
             ? `${resultado.situacao} (${resultado.data_transito})`
             : resultado.situacao;
-          await supabase
-            .from("dados_benner")
-            .update({ situacao_processo: situacaoTexto } as any)
-            .eq("id", id);
+          await supabase.from("dados_benner").update({ situacao_processo: situacaoTexto } as any).eq("id", id);
         }
       }
     }
 
-    return new Response(JSON.stringify({ resultados }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return respond({ ok: true, resultados });
   } catch (err: any) {
     console.error("Erro:", err);
-    return new Response(JSON.stringify({ error: err.message || "Erro interno" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return respond({
+      ok: false,
+      fallback: true,
+      error: err.message || "Erro interno",
+      resultados: processos.map((numero) => ({
+        numero,
+        situacao: "Erro",
+        data_transito: null,
+        grau: null,
+        erro: err.message || "Erro interno",
+      })),
     });
   }
 });
