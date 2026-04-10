@@ -30,11 +30,15 @@ function dedupeRowsByProcesso(rows: JsonRecord[]) {
     const processo = getProcesso(row);
     if (!processo) continue;
 
-    uniqueRows.set(processo, {
-      ...(uniqueRows.get(processo) || {}),
-      ...row,
-      processo,
-    });
+    const previous = uniqueRows.get(processo) || {};
+    const merged: JsonRecord = { ...previous, processo };
+
+    for (const [key, value] of Object.entries(row)) {
+      if (value === null || value === undefined || value === "") continue;
+      merged[key] = value;
+    }
+
+    uniqueRows.set(processo, merged);
   }
 
   return Array.from(uniqueRows.values());
