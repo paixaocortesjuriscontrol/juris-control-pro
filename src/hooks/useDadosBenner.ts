@@ -172,8 +172,10 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const saveDado = async (dado: DadoBennerInsert, id?: string) => {
+    console.log("[saveDado] notas:", dado.notas, "| id:", id, "| keys:", Object.keys(dado).filter(k => k.includes("nota")));
     if (id) {
-      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id);
+      const { error, data } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id).select();
+      console.log("[saveDado] update result:", { error, data });
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
     } else {
       const { error } = await supabase.from("dados_benner" as any).insert(dado as any);
