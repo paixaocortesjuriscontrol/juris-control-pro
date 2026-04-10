@@ -247,8 +247,11 @@ export async function gerarPlanilhaBenner(
         const val = values[c];
         if (!val) continue;
         const ref = colToLetter(c + 1) + rowNum;
-        if (c + 1 <= 6 && centeredStyleId > 0) {
-          cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+        // c==2 is tipo_recurso (original index 2, shifted to col D)
+        const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
+        const styleId = isYellow ? yellowStyleId : (c + 1 <= 6 && centeredStyleId > 0 ? centeredStyleId : 0);
+        if (styleId > 0) {
+          cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
           cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
         }
@@ -259,8 +262,11 @@ export async function gerarPlanilhaBenner(
         const val = values[c];
         if (!val) continue;
         const ref = colToLetter(c) + rowNum;
-        if (c <= 5 && centeredStyleId > 0) {
-          cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+        // c==2 is tipo_recurso column
+        const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
+        const styleId = isYellow ? yellowStyleId : (c <= 5 && centeredStyleId > 0 ? centeredStyleId : 0);
+        if (styleId > 0) {
+          cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
           cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
         }
