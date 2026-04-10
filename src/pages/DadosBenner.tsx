@@ -411,7 +411,8 @@ export default function DadosBenner() {
       while (true) {
         let query = supabase.from("dados_benner" as any)
           .select("id, processo")
-          .or("tipo_recurso.is.null,tipo_recurso.eq.")
+          .or("tipo_recurso.is.null,tipo_recurso.eq.%00")
+          // Also catch empty strings by re-filtering in JS below
           .order("created_at", { ascending: false });
         if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
         if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
