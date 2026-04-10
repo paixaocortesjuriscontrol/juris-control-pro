@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_TIMEOUT_MS = 5_000;
+const DATAJUD_TIMEOUT_MS = 10_000;
 
 const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
   "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
@@ -85,21 +85,25 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ classe
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      await response.text();
+      const errorText = await response.text();
+      console.error(`[DataJud] ${endpoint} HTTP ${response.status} for ${digits}: ${errorText.substring(0, 200)}`);
       return { classe: null, fonte: endpoint, error: `API ${response.status}` };
     }
 
     const data = await response.json();
     const hits = data?.hits?.hits || [];
-    for (const hit of hits) {
-      const classeNome = hit._source?.classe?.nome;
+
+    if (hits.length > 0) {
+      const classeNome = hits[0]._source?.classe?.nome;
       if (classeNome) {
+        console.log(`[DataJud] FOUND ${endpoint} | ${digits} => ${classeNome}`);
         return { classe: classeNome, fonte: endpoint };
       }
     }
     return { classe: null, fonte: endpoint };
   } catch (err: any) {
-    return { classe: null, fonte: endpoint, error: err.name === "AbortError" ? "Timeout" : (err.message || "Erro") };
+    const errMsg = err.name === "AbortError" ? "Timeout" : (err.message || "Erro");
+    return { classe: null, fonte: endpoint, error: errMsg };
   }
 }
 
@@ -111,25 +115,21 @@ async function buscarTipoRecurso(numero: string): Promise<ResultadoTipoRecurso> 
 
   const trt = getTRTFromProcesso(digits);
 
-  // Query TRT and TST in PARALLEL
-  const trtPromise = trt && TRT_ENDPOINTS[trt]
-    ? queryEndpoint(TRT_ENDPOINTS[trt].endpoint, digits)
-    : Promise.resolve(null);
-  const tstPromise = queryEndpoint("api_publica_tst", digits);
+  // Query TRT first (more likely to have data), then TST
+  if (trt && TRT_ENDPOINTS[trt]) {
+    const trtResult = await queryEndpoint(TRT_ENDPOINTS[trt].endpoint, digits);
+    if (trtResult.classe) {
+      return { numero, tipo_recurso: trtResult.classe, fonte: TRT_ENDPOINTS[trt].nome, erro: null };
+    }
+  }
 
-  const [trtResult, tstResult] = await Promise.all([trtPromise, tstPromise]);
-
-  // TST takes priority over TRT
+  // Try TST
+  const tstResult = await queryEndpoint("api_publica_tst", digits);
   if (tstResult.classe) {
     return { numero, tipo_recurso: tstResult.classe, fonte: "TST", erro: null };
   }
-  if (trtResult?.classe) {
-    const trtNome = TRT_ENDPOINTS[trt!]?.nome || `TRT${trt}`;
-    return { numero, tipo_recurso: trtResult.classe, fonte: trtNome, erro: null };
-  }
 
-  const lastError = tstResult.error || trtResult?.error || "Classe não encontrada";
-  return { numero, tipo_recurso: null, fonte: null, erro: lastError };
+  return { numero, tipo_recurso: null, fonte: null, erro: tstResult.error || "Classe não encontrada" };
 }
 
 Deno.serve(async (req) => {
@@ -169,8 +169,17 @@ Deno.serve(async (req) => {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    // Process ALL in parallel (no sub-batching, no delays)
-    const resultados = await Promise.all(processos.map((p) => buscarTipoRecurso(p)));
+    console.log(`[DataJud] Processando ${processos.length} processos SEQUENCIALMENTE`);
+
+    // Process SEQUENTIALLY to avoid DataJud rate limiting / timeouts
+    const resultados: ResultadoTipoRecurso[] = [];
+    for (const p of processos) {
+      const r = await buscarTipoRecurso(p);
+      resultados.push(r);
+    }
+
+    const encontrados = resultados.filter(r => r.tipo_recurso).length;
+    console.log(`[DataJud] Resultado: ${encontrados}/${processos.length} encontrados`);
 
     // Update dados_benner with found tipo_recurso
     const updates = ids_benner
