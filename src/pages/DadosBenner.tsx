@@ -121,11 +121,11 @@ export default function DadosBenner() {
     }
   };
 
-  const handleGerarComResultado = async (registros: DadoBenner[], atualizarStatus?: string) => {
+  const handleGerarComResultado = async (registros: DadoBenner[], atualizarStatus?: string, mode?: ExportModeBenner) => {
     setGerando(true);
     setUltimoResultado(null);
     try {
-      const resultado = await gerarPlanilhaBenner(registros);
+      const resultado = await gerarPlanilhaBenner(registros, mode || exportMode);
       setUltimoResultado(resultado);
       if (atualizarStatus && resultado.totalValidos > 0) {
         const idsValidos = registros.filter(d => !resultado.rejeitados.some(r => r.id === d.id)).map(d => d.id);
@@ -140,6 +140,22 @@ export default function DadosBenner() {
         toast.error("Nenhum registro válido para gerar planilha. Todos possuem dossiê inválido.");
       }
     } finally {
+      setGerando(false);
+    }
+  };
+
+  const handleGerarPlanilhaFiltrada = async (mode?: ExportModeBenner) => {
+    setGerando(true);
+    try {
+      const allData = await fetchAllData();
+      if (!allData.length) {
+        toast.warning("Nenhum registro encontrado com os filtros aplicados");
+        setGerando(false);
+        return;
+      }
+      await handleGerarComResultado(allData, undefined, mode);
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha: " + (err?.message || "Erro desconhecido"));
       setGerando(false);
     }
   };
