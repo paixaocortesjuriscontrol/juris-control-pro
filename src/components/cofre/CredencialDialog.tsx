@@ -93,6 +93,10 @@ const TRIBUNAIS = [
   { value: "TRT22", label: "TRT22 - Piauí" },
   { value: "TRT23", label: "TRT23 - Mato Grosso" },
   { value: "TRT24", label: "TRT24 - Mato Grosso do Sul" },
+  // Superiores
+  { value: "TST", label: "TST - Tribunal Superior do Trabalho" },
+  { value: "STJ", label: "STJ - Superior Tribunal de Justiça" },
+  { value: "STF", label: "STF - Supremo Tribunal Federal" },
 ];
 
 export function CredencialDialog({ open, onOpenChange, credencial, onSave, saving }: CredencialDialogProps) {
