@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_TIMEOUT_MS = 20_000;
+const DATAJUD_TIMEOUT_MS = 10_000;
 
 const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
   "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
