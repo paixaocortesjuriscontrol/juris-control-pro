@@ -163,6 +163,24 @@ export default function DadosBenner() {
     await handleGerarComResultado(prontos);
   };
 
+  const handleGerarPdf = async () => {
+    setGerandoPdf(true);
+    try {
+      const allData = await fetchAllData();
+      if (!allData.length) {
+        toast.warning("Nenhum registro encontrado para gerar PDF");
+        return;
+      }
+      const filtroLabel = appliedFilters.situacao_processo || "Todos";
+      gerarPdfBenner(allData, filtroLabel);
+      toast.success(`PDF gerado com ${allData.length} registro(s)`);
+    } catch (err: any) {
+      toast.error("Erro ao gerar PDF: " + (err?.message || "Erro desconhecido"));
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
+
   const handleMarcarPronto = async () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
