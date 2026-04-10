@@ -148,6 +148,8 @@ serve(async (req: Request): Promise<Response> => {
     status,
     confianca,
     dataTransito: dataTransito?.toISOString(),
+    fonteDados: "API Pública DataJud/CNJ",
+    nota: gerarNota(status, confianca, reconciliacao),
     detalhes: {
       tst: analiseTST ?? undefined,
       trt: analiseTRT ?? undefined,
