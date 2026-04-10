@@ -2,10 +2,82 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 type JsonRecord = Record<string, unknown>;
+type Failure = {
+  processo: string;
+  operation: "insert" | "update" | "lookup" | "auth" | "request";
+  error: string;
+};
+
+function respond(payload: Record<string, unknown>) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function getProcesso(row: JsonRecord) {
+  return String(row.processo || "").trim();
+}
+
+async function insertBatchWithFallback(serviceClient: ReturnType<typeof createClient>, batch: JsonRecord[]) {
+  const failures: Failure[] = [];
+  let inserted = 0;
+
+  const { error } = await serviceClient.from("dados_benner").insert(batch);
+  if (!error) {
+    return { inserted: batch.length, failures };
+  }
+
+  console.error("[importar-dados-benner] batch insert failed, retrying row-by-row:", error.message);
+
+  for (const row of batch) {
+    const processo = getProcesso(row);
+    const { error: rowError } = await serviceClient.from("dados_benner").insert(row);
+    if (rowError) {
+      failures.push({
+        processo,
+        operation: "insert",
+        error: rowError.message,
+      });
+    } else {
+      inserted += 1;
+    }
+  }
+
+  return { inserted, failures };
+}
+
+async function updateBatchWithFallback(serviceClient: ReturnType<typeof createClient>, batch: JsonRecord[]) {
+  const failures: Failure[] = [];
+  let updated = 0;
+
+  const { error } = await serviceClient.from("dados_benner").upsert(batch, { onConflict: "id" });
+  if (!error) {
+    return { updated: batch.length, failures };
+  }
+
+  console.error("[importar-dados-benner] batch update failed, retrying row-by-row:", error.message);
+
+  for (const row of batch) {
+    const processo = getProcesso(row);
+    const { error: rowError } = await serviceClient.from("dados_benner").upsert(row, { onConflict: "id" });
+    if (rowError) {
+      failures.push({
+        processo,
+        operation: "update",
+        error: rowError.message,
+      });
+    } else {
+      updated += 1;
+    }
+  }
+
+  return { updated, failures };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,13 +86,11 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!authHeader?.startsWith("Bearer ")) {
+      return respond({ ok: false, error: "Unauthorized", failed: 0, diagnostics: { stage: "auth_header" } });
     }
 
+    const token = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -30,38 +100,41 @@ Deno.serve(async (req) => {
     });
     const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-    const {
-      rows = [],
-      userId,
-      preserveFields = ["situacao_processo", "status"],
-    } = await req.json();
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+    const effectiveUserId = claimsData?.claims?.sub;
 
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return new Response(JSON.stringify({ ok: false, error: "Nenhum registro enviado" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (claimsError || !effectiveUserId) {
+      return respond({
+        ok: false,
+        error: "Usuário não autenticado",
+        failed: 0,
+        diagnostics: { stage: "claims", details: claimsError?.message || null },
       });
     }
 
-    const { data: authData, error: authError } = await authClient.auth.getUser();
-    if (authError || !authData.user) {
-      return new Response(JSON.stringify({ ok: false, error: "Usuário não autenticado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let body: { rows?: JsonRecord[]; userId?: string; preserveFields?: string[] };
+    try {
+      body = await req.json();
+    } catch {
+      return respond({ ok: false, error: "Payload inválido", failed: 0, diagnostics: { stage: "json" } });
     }
 
-    if (userId && userId !== authData.user.id) {
-      return new Response(JSON.stringify({ ok: false, error: "Usuário inválido" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const userId = body.userId;
+    const preserveFields = Array.isArray(body.preserveFields) ? body.preserveFields : ["situacao_processo", "status"];
+
+    if (!rows.length) {
+      return respond({ ok: false, error: "Nenhum registro enviado", failed: 0, diagnostics: { stage: "validation" } });
     }
 
-    const effectiveUserId = authData.user.id;
-    const processos = [...new Set(rows.map((row: JsonRecord) => String(row.processo || "").trim()).filter(Boolean))];
+    if (userId && userId !== effectiveUserId) {
+      return respond({ ok: false, error: "Usuário inválido", failed: rows.length, diagnostics: { stage: "user_id_mismatch" } });
+    }
 
+    const processos = [...new Set(rows.map(getProcesso).filter(Boolean))];
     const existingMap = new Map<string, string>();
+    const failures: Failure[] = [];
+
     for (let i = 0; i < processos.length; i += 500) {
       const batch = processos.slice(i, i + 500);
       const { data, error } = await serviceClient
@@ -70,7 +143,13 @@ Deno.serve(async (req) => {
         .in("processo", batch);
 
       if (error) {
-        throw new Error(`Erro ao buscar registros existentes: ${error.message}`);
+        console.error("[importar-dados-benner] lookup error:", error.message);
+        return respond({
+          ok: false,
+          error: `Erro ao buscar registros existentes: ${error.message}`,
+          failed: rows.length,
+          diagnostics: { stage: "lookup", sampleFailures: [{ processo: "", operation: "lookup", error: error.message }] },
+        });
       }
 
       for (const item of data || []) {
@@ -81,8 +160,8 @@ Deno.serve(async (req) => {
     const toInsert: JsonRecord[] = [];
     const toUpdate: JsonRecord[] = [];
 
-    for (const originalRow of rows as JsonRecord[]) {
-      const processo = String(originalRow.processo || "").trim();
+    for (const originalRow of rows) {
+      const processo = getProcesso(originalRow);
       if (!processo) continue;
 
       const row: JsonRecord = { ...originalRow, user_id: effectiveUserId };
@@ -104,32 +183,39 @@ Deno.serve(async (req) => {
 
     for (let i = 0; i < toInsert.length; i += 500) {
       const batch = toInsert.slice(i, i + 500);
-      const { error } = await serviceClient.from("dados_benner").insert(batch);
-      if (error) {
-        throw new Error(`Erro ao inserir lote ${Math.floor(i / 500) + 1}: ${error.message}`);
-      }
-      inserted += batch.length;
+      const result = await insertBatchWithFallback(serviceClient, batch);
+      inserted += result.inserted;
+      failures.push(...result.failures);
     }
 
     for (let i = 0; i < toUpdate.length; i += 500) {
       const batch = toUpdate.slice(i, i + 500);
-      const { error } = await serviceClient
-        .from("dados_benner")
-        .upsert(batch, { onConflict: "id" });
-      if (error) {
-        throw new Error(`Erro ao atualizar lote ${Math.floor(i / 500) + 1}: ${error.message}`);
-      }
-      updated += batch.length;
+      const result = await updateBatchWithFallback(serviceClient, batch);
+      updated += result.updated;
+      failures.push(...result.failures);
     }
 
-    return new Response(JSON.stringify({ ok: true, inserted, updated, total: inserted + updated }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (failures.length > 0) {
+      console.error("[importar-dados-benner] partial failures:", JSON.stringify(failures.slice(0, 5)));
+    }
+
+    return respond({
+      ok: failures.length === 0,
+      inserted,
+      updated,
+      failed: failures.length,
+      total: inserted + updated,
+      error: failures.length ? `Falha em ${failures.length} registro(s)` : null,
+      diagnostics: failures.length
+        ? {
+            stage: "persist",
+            sampleFailures: failures.slice(0, 10),
+          }
+        : null,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
-    return new Response(JSON.stringify({ ok: false, error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[importar-dados-benner] unexpected error:", message);
+    return respond({ ok: false, error: message, failed: 0, diagnostics: { stage: "catch" } });
   }
 });
