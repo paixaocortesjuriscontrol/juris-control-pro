@@ -178,15 +178,34 @@ export async function gerarPlanilhaBenner(
   // Read styles to create centered style + yellow fill style
   let stylesXml = await zip.file("xl/styles.xml")!.async("string");
 
-  // Add yellow fill to fills section
-  const fillsMatch = stylesXml.match(/<fills count="(\d+)">/);
+  // Find existing yellow fill index (FFFFFF00) in template
   let yellowFillId = 0;
-  if (fillsMatch) {
-    const fillCount = parseInt(fillsMatch[1]);
-    yellowFillId = fillCount;
-    const yellowFill = `<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>`;
-    stylesXml = stylesXml.replace(/<\/fills>/, yellowFill + `</fills>`);
-    stylesXml = stylesXml.replace(`<fills count="${fillCount}">`, `<fills count="${fillCount + 1}">`);
+  const fillRegex = /<fill>/g;
+  let fillIdx = 0;
+  let fillMatch: RegExpExecArray | null;
+  const fillsSection = stylesXml.match(/<fills[^>]*>([\s\S]*?)<\/fills>/);
+  if (fillsSection) {
+    const singleFillRegex = /<fill>[\s\S]*?<\/fill>/g;
+    let fm: RegExpExecArray | null;
+    let fi = 0;
+    while ((fm = singleFillRegex.exec(fillsSection[1])) !== null) {
+      if (fm[0].includes("FFFFFF00")) {
+        yellowFillId = fi;
+        break;
+      }
+      fi++;
+    }
+    if (yellowFillId === 0) {
+      // No yellow fill found, add one
+      const fillsCountMatch = stylesXml.match(/<fills count="(\d+)">/);
+      if (fillsCountMatch) {
+        const fillCount = parseInt(fillsCountMatch[1]);
+        yellowFillId = fillCount;
+        const yellowFill = `<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>`;
+        stylesXml = stylesXml.replace(/<\/fills>/, yellowFill + `</fills>`);
+        stylesXml = stylesXml.replace(`<fills count="${fillCount}">`, `<fills count="${fillCount + 1}">`);
+      }
+    }
   }
 
   const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
