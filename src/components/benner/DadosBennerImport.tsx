@@ -175,17 +175,21 @@ export function DadosBennerImport({ onImported }: Props) {
         inserted += (data as any[])?.length ?? batch.length;
       }
 
-      // Update existing records one by one (to preserve situacao_processo)
-      for (const item of toUpdate) {
+      // Update existing records in batches using upsert
+      for (let i = 0; i < toUpdate.length; i += 100) {
+        const batch = toUpdate.slice(i, i + 100);
+        const upsertBatch = batch.map(item => ({
+          id: item.id,
+          ...item.data,
+        }));
         const { error } = await supabase
           .from("dados_benner" as any)
-          .update(item.data as any)
-          .eq("id", item.id);
+          .upsert(upsertBatch as any, { onConflict: "id" });
         if (error) {
-          console.error(`[DadosBennerImport] Erro update ${item.id}:`, error);
+          console.error(`[DadosBennerImport] Erro update lote ${Math.floor(i / 100) + 1}:`, error);
           lastError = error.message;
         } else {
-          updated++;
+          updated += batch.length;
         }
       }
 
