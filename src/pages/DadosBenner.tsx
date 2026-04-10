@@ -196,12 +196,13 @@ export default function DadosBenner() {
 
     try {
       // Fetch all IDs + contrato from selected or all filtered records
-      const useSelected = selectedIds.size > 0;
+      const currentSelected = new Set(selectedIdsRef.current);
+      const useSelected = currentSelected.size > 0;
       let allRecords: { id: string; processo: string }[] = [];
 
       if (useSelected) {
         // Fetch contrato for all selected IDs in batches
-        const selectedArr = Array.from(selectedIds);
+        const selectedArr = Array.from(currentSelected);
         for (let i = 0; i < selectedArr.length; i += 200) {
           const batch = selectedArr.slice(i, i + 200);
           const { data } = await supabase
