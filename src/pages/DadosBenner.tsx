@@ -53,6 +53,7 @@ export default function DadosBenner() {
   const [filterTipoRecurso, setFilterTipoRecurso] = useState("");
   const [filterTemPauta, setFilterTemPauta] = useState(false);
   const [filterTemDistribuicao, setFilterTemDistribuicao] = useState(false);
+  const [filterSituacao, setFilterSituacao] = useState("todos");
   const [appliedFilters, setAppliedFilters] = useState<DadosBennerFilters>({ status: "todos" });
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DadoBenner | null>(null);
@@ -76,6 +77,7 @@ export default function DadosBenner() {
       tipo_recurso: filterTipoRecurso.trim() || undefined,
       tem_pauta: filterTemPauta || undefined,
       tem_distribuicao: filterTemDistribuicao || undefined,
+      situacao_processo: filterSituacao !== "todos" ? filterSituacao : undefined,
     });
   };
 
@@ -88,6 +90,7 @@ export default function DadosBenner() {
     setFilterTipoRecurso("");
     setFilterTemPauta(false);
     setFilterTemDistribuicao(false);
+    setFilterSituacao("todos");
     setAppliedFilters({ status: "todos" });
   };
 
@@ -365,6 +368,17 @@ export default function DadosBenner() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label className="text-xs">Situação</Label>
+            <Select value={filterSituacao} onValueChange={(v) => { setFilterSituacao(v); setAppliedFilters(prev => ({ ...prev, situacao_processo: v !== "todos" ? v : undefined })); }}>
+              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="Ativo">Ativo</SelectItem>
+                <SelectItem value="Trânsito em Julgado">Trânsito em Julgado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs">Dossiê</Label>
             <Input placeholder="Buscar dossiê..." value={filterDossie} onChange={e => setFilterDossie(e.target.value)} className="w-[140px]" onKeyDown={e => e.key === "Enter" && applyFilters()} />
           </div>
@@ -395,7 +409,7 @@ export default function DadosBenner() {
           <Button variant="outline" size="sm" onClick={applyFilters}>
             <Search className="w-4 h-4 mr-1" /> Filtrar
           </Button>
-          {(filterRelator || filterDossie || filterProcesso || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao) && (
+          {(filterRelator || filterDossie || filterProcesso || filterTurma || filterTipoRecurso || filterTemPauta || filterTemDistribuicao || filterSituacao !== "todos") && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar</Button>
           )}
         </div>
