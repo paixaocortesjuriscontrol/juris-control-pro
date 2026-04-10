@@ -161,3 +161,6 @@ verify_jwt = true
 
 [functions.comparar-dj-santander]
 verify_jwt = false
+
+[functions.check-transito]
+verify_jwt = false
