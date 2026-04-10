@@ -194,6 +194,14 @@ export function analisarPosTransito(
     (c) => c.categoria === "execucao",
   );
 
+  // Log recursos for debugging
+  const recursos = classificadas.filter(c => c.categoria === "recurso_novo");
+  if (recursos.length > 0) {
+    console.log(`[check-transito] ${recursos.length} recurso_novo pós-trânsito:`,
+      recursos.map(d => ({ codigo: d.movimentacao.codigo, nome: d.movimentacao.nome, data: d.movimentacao.dataHora }))
+    );
+  }
+
   return {
     temRecursoPosterior,
     temExecucaoAtiva,
