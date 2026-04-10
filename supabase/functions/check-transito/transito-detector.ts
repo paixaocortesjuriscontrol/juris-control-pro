@@ -188,6 +188,7 @@ export function analisarPosTransito(
     console.log(`[check-transito] ${desconhecidas.length} movimentações desconhecidas pós-trânsito:`,
       desconhecidas.map(d => ({ codigo: d.movimentacao.codigo, nome: d.movimentacao.nome }))
     );
+  }
 
   const temExecucaoAtiva = classificadas.some(
     (c) => c.categoria === "execucao",
