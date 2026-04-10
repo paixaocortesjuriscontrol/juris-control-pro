@@ -769,6 +769,9 @@ export default function DadosBenner() {
                       ? new Date((d as any).data_transito_julgado + "T12:00:00").toLocaleDateString("pt-BR")
                       : "-"}
                   </TableCell>
+                  <TableCell className="text-xs max-w-[200px] truncate" title={(d as any).notas || ""}>
+                    {(d as any).notas || "-"}
+                  </TableCell>
                   <TableCell>
                     <Badge className={statusColors[d.status] || ""}>{statusLabels[d.status] || d.status}</Badge>
                   </TableCell>
