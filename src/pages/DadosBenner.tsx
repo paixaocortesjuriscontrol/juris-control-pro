@@ -462,6 +462,11 @@ export default function DadosBenner() {
             Verificar Trânsito em Julgado {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
+          <Button variant="outline" onClick={handleGerarPdf} disabled={gerandoPdf}>
+            {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+            Gerar PDF
+          </Button>
+
           <div className="flex items-end gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Início</Label>
