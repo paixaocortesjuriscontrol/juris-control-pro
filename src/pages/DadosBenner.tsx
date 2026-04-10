@@ -413,7 +413,6 @@ export default function DadosBenner() {
           .select("id, processo, tipo_recurso")
           .or("tipo_recurso.is.null,tipo_recurso.eq.")
           .order("created_at", { ascending: false });
-          .order("created_at", { ascending: false });
         if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
         if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
         if (appliedFilters.dossie) query = query.ilike("dossie", `%${appliedFilters.dossie}%`);
