@@ -1,0 +1,1 @@
+TRUNCATE public.dados_benner;
