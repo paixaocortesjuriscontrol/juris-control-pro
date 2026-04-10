@@ -194,6 +194,9 @@ Deno.serve(async (req) => {
         const updateRow: JsonRecord = { id: existingMap.get(processo)! };
         for (const [key, value] of Object.entries(row)) {
           if (key === "id" || preserveFields.includes(key)) continue;
+          // Skip empty/null values to avoid overwriting existing data
+          if (value === null || value === undefined || value === "") continue;
+          // Keep boolean false values (they are intentional)
           updateRow[key] = value;
         }
         toUpdate.push(updateRow);
