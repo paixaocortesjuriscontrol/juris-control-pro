@@ -172,6 +172,7 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
     if (transitoFound) break;
   }
 
+  // 2nd pass: text-based detection in nome/descricao
   if (!transitoFound) {
     for (let i = 0; i < sorted.length; i++) {
       const mov = sorted[i];
@@ -181,6 +182,47 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
         transitoDate = mov?.dataHora || mov?.data || null;
         transitoIndex = i;
         break;
+      }
+      // Check complementosTabelados text
+      const complementos = mov?.complementosTabelados || [];
+      for (const comp of complementos) {
+        const compNome = (comp?.nome || comp?.descricao || "").toLowerCase();
+        if (compNome.includes("trânsito em julgado") || compNome.includes("transito em julgado")) {
+          transitoFound = true;
+          transitoDate = mov?.dataHora || mov?.data || null;
+          transitoIndex = i;
+          break;
+        }
+      }
+      if (transitoFound) break;
+    }
+  }
+
+  // 3rd pass: secondary codes (22=Baixa Definitiva, 246=Arquivamento) combined with
+  // being the LAST significant movement (strong indicator of encerramento)
+  if (!transitoFound) {
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const mov = sorted[i];
+      const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
+      if (codigo === 22 || codigo === 246) {
+        // Check if there's no substantive movement after this one
+        let hasSubstantiveAfter = false;
+        for (let j = i + 1; j < sorted.length; j++) {
+          const laterMov = sorted[j];
+          const laterCodigo = Number(laterMov?.codigo ?? laterMov?.movimentoNacional?.codigoNacional);
+          const laterNome = (laterMov?.nome || laterMov?.descricao || "").toLowerCase();
+          if (!CODIGOS_IGNORAR_POS_TRANSITO.has(laterCodigo) && !NOMES_IGNORAR_POS_TRANSITO.some(n => laterNome.includes(n))) {
+            hasSubstantiveAfter = true;
+            break;
+          }
+        }
+        if (!hasSubstantiveAfter) {
+          transitoFound = true;
+          transitoDate = mov?.dataHora || mov?.data || null;
+          transitoIndex = i;
+          console.log(`  Trânsito detectado via código secundário ${codigo} (última mov significativa)`);
+          break;
+        }
       }
     }
   }
@@ -198,15 +240,13 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
         const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
         const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
 
-        // Ignorar movimentações administrativas pós-trânsito
+        // Ignorar movimentações administrativas pós-trânsito por código
         if (CODIGOS_IGNORAR_POS_TRANSITO.has(codigo)) {
-          console.log(`  Movimentação pós-trânsito IGNORADA (administrativa): código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
           continue;
         }
 
         // Ignorar movimentações que são claramente administrativas pelo nome
-        if (nome.includes("remessa") || nome.includes("baixa") || nome.includes("arquiv") || nome.includes("certidão") || nome.includes("certidao")) {
-          console.log(`  Movimentação pós-trânsito IGNORADA (nome administrativo): código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
+        if (NOMES_IGNORAR_POS_TRANSITO.some(n => nome.includes(n))) {
           continue;
         }
 
