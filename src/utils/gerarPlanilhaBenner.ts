@@ -175,16 +175,31 @@ export async function gerarPlanilhaBenner(
     return idx;
   }
 
-  // Read styles to create centered style
+  // Read styles to create centered style + yellow fill style
   let stylesXml = await zip.file("xl/styles.xml")!.async("string");
+
+  // Add yellow fill to fills section
+  const fillsMatch = stylesXml.match(/<fills count="(\d+)">/);
+  let yellowFillId = 0;
+  if (fillsMatch) {
+    const fillCount = parseInt(fillsMatch[1]);
+    yellowFillId = fillCount;
+    const yellowFill = `<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>`;
+    stylesXml = stylesXml.replace(/<\/fills>/, yellowFill + `</fills>`);
+    stylesXml = stylesXml.replace(`<fills count="${fillCount}">`, `<fills count="${fillCount + 1}">`);
+  }
+
   const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
   let centeredStyleId = 0;
+  let yellowStyleId = 0;
   if (cellXfsMatch) {
     const currentCount = parseInt(cellXfsMatch[1]);
     const centeredXf = `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
-    stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + `</cellXfs>`);
-    stylesXml = stylesXml.replace(`<cellXfs count="${currentCount}">`, `<cellXfs count="${currentCount + 1}">`);
+    const yellowXf = `<xf numFmtId="0" fontId="0" fillId="${yellowFillId}" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
+    stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + yellowXf + `</cellXfs>`);
+    stylesXml = stylesXml.replace(`<cellXfs count="${currentCount}">`, `<cellXfs count="${currentCount + 2}">`);
     centeredStyleId = currentCount;
+    yellowStyleId = currentCount + 1;
     zip.file("xl/styles.xml", stylesXml);
   }
 
@@ -232,8 +247,11 @@ export async function gerarPlanilhaBenner(
         const val = values[c];
         if (!val) continue;
         const ref = colToLetter(c + 1) + rowNum;
-        if (c + 1 <= 6 && centeredStyleId > 0) {
-          cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+        // c==2 is tipo_recurso (original index 2, shifted to col D)
+        const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
+        const styleId = isYellow ? yellowStyleId : (c + 1 <= 6 && centeredStyleId > 0 ? centeredStyleId : 0);
+        if (styleId > 0) {
+          cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
           cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
         }
@@ -244,8 +262,11 @@ export async function gerarPlanilhaBenner(
         const val = values[c];
         if (!val) continue;
         const ref = colToLetter(c) + rowNum;
-        if (c <= 5 && centeredStyleId > 0) {
-          cellsXml += `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`;
+        // c==2 is tipo_recurso column
+        const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
+        const styleId = isYellow ? yellowStyleId : (c <= 5 && centeredStyleId > 0 ? centeredStyleId : 0);
+        if (styleId > 0) {
+          cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
           cellsXml += `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
         }
