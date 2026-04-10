@@ -1,29 +1,26 @@
 
 
-# Adicionar coluna "situacao_processo" na tabela dados_benner
+# Corrigir verificação de Trânsito em Julgado - Consultar TRTs
 
-## O que será feito
+## Problema
+A função `verificar-transito-julgado` consulta **apenas o TST**. Dos 2.108 processos, a maioria pertence a TRTs regionais (TRT2: 546, TRT15: 492, TRT4: 227...) e nunca chegam ao TST. Resultado: apenas 21 detectados como trânsito.
 
-Criar uma nova coluna `situacao_processo` (TEXT, nullable) na tabela `dados_benner` para armazenar a situação do processo (ex: "Trânsito em Julgado", "Ativo", "Arquivado", etc.).
+## Solução
 
-## Etapas
+### 1. Alterar `getEndpoints()` para incluir o TRT de origem
+Extrair o número do TRT das posições 15-16 do número do processo (já existe a função `getTRTFromProcesso` no código mas não é usada) e consultar **TST + TRT regional**. Isso cobrirá processos que transitaram na instância regional.
 
-### 1. Migration SQL
-```sql
-ALTER TABLE dados_benner ADD COLUMN situacao_processo TEXT;
-```
+### 2. Manter a lógica de detecção atual + reforçar busca textual
+- Código 848 como indicador (quando acompanhado de texto "trânsito")
+- Busca textual por "trânsito em julgado" nos campos `nome`, `descricao` e `complementosTabelados`
+- Códigos 22 (Baixa Definitiva) e 246 (Arquivamento) como indicadores secundários quando combinados com texto relevante
 
-### 2. Atualizar o tipo TypeScript `DadoBenner` em `src/hooks/useDadosBenner.ts`
-- Adicionar `situacao_processo: string | null` na interface
+### 3. Reduzir batch para evitar timeouts
+Com 2 endpoints por processo (TST + TRT), reduzir o batch de 3 para 2 processos simultâneos, e adicionar delay entre requests.
 
-### 3. Atualizar o formulário `DadosBennerForm.tsx`
-- Adicionar campo "Situação do Processo" no formulário (campo texto ou select com opções predefinidas)
+## Arquivo alterado
+- `supabase/functions/verificar-transito-julgado/index.ts`: alterar `getEndpoints()` para usar `getTRTFromProcesso()` e retornar `[TST, TRT{N}]`
 
-### 4. Atualizar a listagem (se desejado)
-- Exibir a coluna na tabela da tela Dados Benner
-- Permitir filtro por situação do processo
-
-## Detalhes técnicos
-- Coluna TEXT sem restrição para flexibilidade
-- Pode ser preenchida manualmente ou automaticamente pela funcionalidade "Verificar Trânsito em Julgado" (quando implementada)
+## Impacto esperado
+A cobertura deve subir significativamente, pois a maioria dos trânsitos em julgado ocorre no TRT, não no TST.
 
