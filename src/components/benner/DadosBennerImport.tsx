@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
+const IMPORT_BATCH_SIZE = 500;
+
 function normalizeText(val: unknown): string {
   return String(val ?? "").trim();
 }
@@ -34,6 +36,7 @@ interface Props {
 
 export function DadosBennerImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
+  const [progressText, setProgressText] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,7 +44,15 @@ export function DadosBennerImport({ onImported }: Props) {
     if (!file) return;
 
     setImporting(true);
+    setProgressText("Lendo planilha...");
+
     try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user?.id) {
+        throw new Error("Faça login para importar a planilha");
+      }
+      const userId = userData.user.id;
+
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
@@ -55,14 +66,10 @@ export function DadosBennerImport({ onImported }: Props) {
           break;
         }
       }
-      if (headerIdx === -1) {
-        toast.error("Cabeçalho não encontrado na planilha");
-        setImporting(false);
-        return;
-      }
 
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id || null;
+      if (headerIdx === -1) {
+        throw new Error("Cabeçalho não encontrado na planilha");
+      }
 
       const records: any[] = [];
       for (let i = headerIdx + 1; i < json.length; i++) {
@@ -75,12 +82,13 @@ export function DadosBennerImport({ onImported }: Props) {
         const rawProcesso = normalizeText(r[1]);
         const processoMatch = rawProcesso.match(/[\d][\d.\-\/]+/);
         const processo = processoMatch ? processoMatch[0] : "";
+        if (!processo) continue;
 
         records.push({
           user_id: userId,
           status: "rascunho",
-          dossie: dossie,
-          processo: processo,
+          dossie,
+          processo,
           tribunal: normalizeText(r[2]),
           tipo_recurso: normalizeText(r[3]),
           data_distribuicao: parseDateBR(r[4]),
@@ -105,7 +113,11 @@ export function DadosBennerImport({ onImported }: Props) {
           observacoes: normalizeText(r[23]) || null,
           ganhamos: isXCell(r[24]),
           perdemos: isXCell(r[25]),
-          processo_baixado: isBoolS(r[26]) ? "S" : (String(r[26] ?? "").trim().toUpperCase() === "N" || String(r[26] ?? "").trim().toUpperCase() === "NÃO" ? "N" : normalizeText(r[26]) || null),
+          processo_baixado: isBoolS(r[26])
+            ? "S"
+            : String(r[26] ?? "").trim().toUpperCase() === "N" || String(r[26] ?? "").trim().toUpperCase() === "NÃO"
+              ? "N"
+              : normalizeText(r[26]) || null,
           recorrente: normalizeText(r[27]) || null,
           posicao_turma_favoravel: isXCell(r[28]),
           posicao_turma_desfavoravel: isXCell(r[29]),
@@ -119,93 +131,50 @@ export function DadosBennerImport({ onImported }: Props) {
 
       if (!records.length) {
         toast.warning("Nenhum registro válido encontrado na planilha");
-        setImporting(false);
         return;
       }
 
       console.log(`[DadosBennerImport] ${records.length} registros parseados. Primeiro:`, JSON.stringify(records[0]));
 
-      // Collect all process numbers to check for existing records
-      const processos = records.map(r => r.processo).filter(Boolean);
-      const existingMap = new Map<string, string>(); // processo -> id
-
-      // Fetch existing records in batches of 200
-      for (let i = 0; i < processos.length; i += 200) {
-        const batch = processos.slice(i, i + 200);
-        const { data } = await supabase
-          .from("dados_benner" as any)
-          .select("id, processo")
-          .in("processo", batch);
-        if (data) {
-          for (const row of data as any[]) {
-            if (row.processo) existingMap.set(row.processo, row.id);
-          }
-        }
-      }
-
       let inserted = 0;
       let updated = 0;
-      let lastError: string | null = null;
+      const totalBatches = Math.ceil(records.length / IMPORT_BATCH_SIZE);
 
-      // Separate into new records and existing records to update
-      const toInsert: any[] = [];
-      const toUpdate: { id: string; data: any }[] = [];
+      for (let i = 0; i < records.length; i += IMPORT_BATCH_SIZE) {
+        const batch = records.slice(i, i + IMPORT_BATCH_SIZE);
+        const batchNumber = Math.floor(i / IMPORT_BATCH_SIZE) + 1;
+        setProgressText(`Importando lote ${batchNumber}/${totalBatches}...`);
 
-      for (const rec of records) {
-        if (rec.processo && existingMap.has(rec.processo)) {
-          const existingId = existingMap.get(rec.processo)!;
-          // Update all fields except situacao_processo and status
-          const { status, user_id, ...updateFields } = rec;
-          toUpdate.push({ id: existingId, data: updateFields });
-        } else {
-          toInsert.push(rec);
-        }
-      }
+        const { data, error } = await supabase.functions.invoke("importar-dados-benner", {
+          body: {
+            userId,
+            rows: batch,
+            preserveFields: ["situacao_processo", "status"],
+          },
+        });
 
-      // Insert new records in batches
-      for (let i = 0; i < toInsert.length; i += 100) {
-        const batch = toInsert.slice(i, i + 100);
-        const { error, data } = await supabase.from("dados_benner" as any).insert(batch as any).select("id");
         if (error) {
-          console.error(`[DadosBennerImport] Erro lote insert ${Math.floor(i / 100) + 1}:`, error);
-          lastError = error.message;
-          toast.error(`Erro ao importar lote ${Math.floor(i / 100) + 1}: ${error.message}`);
-          break;
+          throw new Error(error.message || `Erro no lote ${batchNumber}`);
         }
-        inserted += (data as any[])?.length ?? batch.length;
+
+        if (!data?.ok) {
+          throw new Error(data?.error || `Erro no lote ${batchNumber}`);
+        }
+
+        inserted += Number(data.inserted || 0);
+        updated += Number(data.updated || 0);
       }
 
-      // Update existing records in batches using upsert
-      for (let i = 0; i < toUpdate.length; i += 100) {
-        const batch = toUpdate.slice(i, i + 100);
-        const upsertBatch = batch.map(item => ({
-          id: item.id,
-          ...item.data,
-        }));
-        const { error } = await supabase
-          .from("dados_benner" as any)
-          .upsert(upsertBatch as any, { onConflict: "id" });
-        if (error) {
-          console.error(`[DadosBennerImport] Erro update lote ${Math.floor(i / 100) + 1}:`, error);
-          lastError = error.message;
-        } else {
-          updated += batch.length;
-        }
-      }
-
-      if (inserted > 0 || updated > 0) {
-        const parts: string[] = [];
-        if (inserted > 0) parts.push(`${inserted} inserido(s)`);
-        if (updated > 0) parts.push(`${updated} atualizado(s)`);
-        toast.success(`${parts.join(", ")} com sucesso!`);
-        onImported();
-      } else if (!lastError) {
-        toast.warning("Nenhum registro foi inserido ou atualizado. Verifique se você está logado.");
-      }
+      const parts: string[] = [];
+      if (inserted > 0) parts.push(`${inserted} inserido(s)`);
+      if (updated > 0) parts.push(`${updated} atualizado(s)`);
+      toast.success(parts.length ? `${parts.join(", ")} com sucesso!` : "Importação concluída");
+      onImported();
     } catch (err: any) {
       toast.error("Erro ao processar planilha: " + (err?.message || String(err)));
     } finally {
       setImporting(false);
+      setProgressText(null);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
@@ -225,7 +194,7 @@ export function DadosBennerImport({ onImported }: Props) {
         disabled={importing}
       >
         {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-        Importar Planilha
+        {progressText || "Importar Planilha"}
       </Button>
     </>
   );
