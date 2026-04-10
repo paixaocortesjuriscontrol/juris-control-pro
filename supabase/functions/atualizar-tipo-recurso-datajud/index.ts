@@ -47,16 +47,9 @@ function getTRTFromProcesso(digits: string): string | null {
   return null;
 }
 
-function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
-  const endpoints: { endpoint: string; nome: string }[] = [];
-  const digits = limparNumero(numero);
-  const trt = getTRTFromProcesso(digits);
-  if (trt && TRT_ENDPOINTS[trt]) {
-    endpoints.push(TRT_ENDPOINTS[trt]);
-  }
-  // TST has priority - add last so it's queried after TRT
-  endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
-  return endpoints;
+function getEndpoints(_numero: string): { endpoint: string; nome: string }[] {
+  // Busca apenas no TST para maior velocidade
+  return [{ endpoint: "api_publica_tst", nome: "TST" }];
 }
 
 interface ResultadoTipoRecurso {
