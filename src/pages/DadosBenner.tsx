@@ -45,6 +45,13 @@ interface TransitoResult {
   erro: string | null;
 }
 
+interface TipoRecursoResult {
+  numero: string;
+  tipo_recurso: string | null;
+  fonte: string | null;
+  erro: string | null;
+}
+
 export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [filterRelator, setFilterRelator] = useState("");
