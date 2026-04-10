@@ -299,6 +299,18 @@ export async function gerarPlanilhaBenner(
   const lastColLetter = colToLetter(totalCols - 1);
   sheetXml = sheetXml.replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:${lastColLetter}${lastRow}"`);
   sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
+
+  // For conferência mode, shift merge cell references right by 1 column
+  if (isConferencia) {
+    sheetXml = sheetXml.replace(/<mergeCells[\s\S]*?<\/mergeCells>/, (mergeCellsBlock) => {
+      return mergeCellsBlock.replace(/ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (_m, startCol, startRow, endCol, endRow) => {
+        const newStart = colToLetter(letterToCol(startCol) + 1);
+        const newEnd = colToLetter(letterToCol(endCol) + 1);
+        return `ref="${newStart}${startRow}:${newEnd}${endRow}"`;
+      });
+    });
+  }
+
   zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
   // Rebuild shared strings
