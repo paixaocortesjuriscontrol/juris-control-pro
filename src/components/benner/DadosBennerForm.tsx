@@ -36,6 +36,8 @@ const emptyForm: DadoBennerInsert = {
   chance_exito: "",
   tipo_recurso_auto: false,
   situacao_processo: "",
+  confianca_transito: null,
+  data_transito_julgado: null,
 };
 
 export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
