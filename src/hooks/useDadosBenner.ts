@@ -268,7 +268,53 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     } catch {
       return [];
     }
-  }, [filters?.status, filters?.relator, filters?.dossie, filters?.processo, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao]);
+  }, [filters?.status, filters?.relator, filters?.dossie, filters?.processo, filters?.turma, filters?.tipo_recurso, filters?.tem_pauta, filters?.tem_distribuicao, filters?.situacao_processo]);
 
-  return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie, page, setPage, totalPages, totalCount, fetchAllIds };
+  const fetchAllData = useCallback(async (): Promise<DadoBenner[]> => {
+    try {
+      let pautaContratos: string[] | null = null;
+      let distContratos: string[] | null = null;
+
+      if (filters?.tem_pauta) {
+        const { data } = await supabase.from("pautas_tst").select("processo_numero");
+        pautaContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        if (pautaContratos.length === 0) return [];
+      }
+
+      if (filters?.tem_distribuicao) {
+        const { data } = await supabase.from("distribuicoes_tst").select("processo_numero");
+        distContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        if (distContratos.length === 0) return [];
+      }
+
+      let allowedContratos: string[] | null = null;
+      if (pautaContratos && distContratos) {
+        const distSet = new Set(distContratos);
+        allowedContratos = pautaContratos.filter(c => distSet.has(c));
+        if (allowedContratos.length === 0) return [];
+      } else if (pautaContratos) {
+        allowedContratos = pautaContratos;
+      } else if (distContratos) {
+        allowedContratos = distContratos;
+      }
+
+      let allData: DadoBenner[] = [];
+      let offset = 0;
+      const FETCH_SIZE = 1000;
+      while (true) {
+        let query = buildQuery().range(offset, offset + FETCH_SIZE - 1);
+        if (allowedContratos) query = query.in("processo", allowedContratos);
+        const { data, error } = await query;
+        if (error) { toast.error("Erro ao buscar dados: " + error.message); return []; }
+        allData = allData.concat((data as any[]) || []);
+        if (!data || data.length < FETCH_SIZE) break;
+        offset += FETCH_SIZE;
+      }
+      return allData;
+    } catch {
+      return [];
+    }
+  }, [buildQuery, filters?.tem_pauta, filters?.tem_distribuicao]);
+
+  return { dados, loading, fetchDados, saveDado, deleteDado, updateStatus, buscarDossie, page, setPage, totalPages, totalCount, fetchAllIds, fetchAllData };
 }
