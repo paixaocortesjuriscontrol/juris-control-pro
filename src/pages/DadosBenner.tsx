@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search, Scale } from "lucide-react";
+import { Plus, FileSpreadsheet, Send, RefreshCw, Loader2, Trash2, CheckCircle, ExternalLink, AlertTriangle, Search, Scale, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DadosBennerImport } from "@/components/benner/DadosBennerImport";
@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { gerarPlanilhaBenner, ResultadoGeracaoBenner } from "@/utils/gerarPlanilhaBenner";
+import { gerarPdfBenner } from "@/utils/gerarPdfBenner";
 
 const statusLabels: Record<string, string> = {
   rascunho: "Rascunho",
@@ -65,7 +66,8 @@ export default function DadosBenner() {
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
 
-  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds } = useDadosBenner(appliedFilters);
+  const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds, fetchAllData } = useDadosBenner(appliedFilters);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
 
   const applyFilters = () => {
     setAppliedFilters({
@@ -159,6 +161,24 @@ export default function DadosBenner() {
     const prontos = dados.filter(d => d.status === "pronto_envio");
     if (!prontos.length) { toast.warning("Nenhum registro pronto para enviar"); return; }
     await handleGerarComResultado(prontos);
+  };
+
+  const handleGerarPdf = async () => {
+    setGerandoPdf(true);
+    try {
+      const allData = await fetchAllData();
+      if (!allData.length) {
+        toast.warning("Nenhum registro encontrado para gerar PDF");
+        return;
+      }
+      const filtroLabel = appliedFilters.situacao_processo || "Todos";
+      gerarPdfBenner(allData, filtroLabel);
+      toast.success(`PDF gerado com ${allData.length} registro(s)`);
+    } catch (err: any) {
+      toast.error("Erro ao gerar PDF: " + (err?.message || "Erro desconhecido"));
+    } finally {
+      setGerandoPdf(false);
+    }
   };
 
   const handleMarcarPronto = async () => {
@@ -440,6 +460,11 @@ export default function DadosBenner() {
           >
             {verificandoTransito ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Scale className="w-4 h-4 mr-2" />}
             Verificar Trânsito em Julgado {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
+          </Button>
+
+          <Button variant="outline" onClick={handleGerarPdf} disabled={gerandoPdf}>
+            {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+            Gerar PDF
           </Button>
 
           <div className="flex items-end gap-2">
