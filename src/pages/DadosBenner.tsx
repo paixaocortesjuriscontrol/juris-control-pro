@@ -358,6 +358,104 @@ export default function DadosBenner() {
     }
   };
 
+  const handleAtualizarTipoRecurso = async () => {
+    setVerificandoTipoRecurso(true);
+    setTipoRecursoResults([]);
+    setShowTipoRecursoDialog(true);
+    setTipoRecursoProgressText("Buscando registros sem tipo de recurso...");
+    setTipoRecursoProgressPct(0);
+    cancelTipoRecursoRef.current = false;
+
+    try {
+      let allRecords: { id: string; processo: string }[] = [];
+      let offset = 0;
+      while (true) {
+        let query = supabase.from("dados_benner" as any)
+          .select("id, processo")
+          .or("tipo_recurso.is.null,tipo_recurso.eq.")
+          .order("created_at", { ascending: false });
+        if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
+        if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
+        if (appliedFilters.dossie) query = query.ilike("dossie", `%${appliedFilters.dossie}%`);
+        if (appliedFilters.processo) query = query.ilike("processo", `%${appliedFilters.processo}%`);
+        if (appliedFilters.turma) query = query.ilike("turma", `%${appliedFilters.turma}%`);
+        if (appliedFilters.tipo_recurso) query = query.ilike("tipo_recurso", `%${appliedFilters.tipo_recurso}%`);
+        const { data, error } = await query.range(offset, offset + 999);
+        if (error || !data?.length) break;
+        allRecords.push(...(data as any[]));
+        if (data.length < 1000) break;
+        offset += 1000;
+      }
+
+      const validRecords = allRecords.filter(r => {
+        const num = (r.processo || "").replace(/[^0-9]/g, "");
+        return num.length >= 10;
+      });
+
+      if (!validRecords.length) {
+        toast.warning("Nenhum registro sem tipo de recurso com número de processo válido");
+        setShowTipoRecursoDialog(false);
+        setVerificandoTipoRecurso(false);
+        return;
+      }
+
+      setTipoRecursoProgressText(`0 de ${validRecords.length} verificados...`);
+
+      const BATCH_SIZE = 5;
+      const allResults: TipoRecursoResult[] = [];
+
+      for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
+        if (cancelTipoRecursoRef.current) {
+          toast.info(`Busca cancelada. ${allResults.length} processo(s) já verificados.`);
+          break;
+        }
+
+        const batch = validRecords.slice(i, i + BATCH_SIZE);
+        const processos = batch.map(r => r.processo!);
+        const idsBenner = batch.map(r => r.id);
+
+        try {
+          const { data, error } = await supabase.functions.invoke("atualizar-tipo-recurso-datajud", {
+            body: { processos, ids_benner: idsBenner },
+          });
+
+          if (error) {
+            batch.forEach(b => allResults.push({
+              numero: b.processo!, tipo_recurso: null, fonte: null, erro: error.message,
+            }));
+          } else {
+            const resultados: TipoRecursoResult[] = data?.resultados || [];
+            allResults.push(...resultados);
+          }
+        } catch (err: any) {
+          batch.forEach(b => allResults.push({
+            numero: b.processo!, tipo_recurso: null, fonte: null, erro: err?.message || "Erro",
+          }));
+        }
+
+        setTipoRecursoResults([...allResults]);
+        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
+        const pct = Math.round((processed / validRecords.length) * 100);
+        setTipoRecursoProgressPct(pct);
+        setTipoRecursoProgressText(`${processed} de ${validRecords.length} verificados...`);
+      }
+
+      if (!cancelTipoRecursoRef.current) {
+        const encontrados = allResults.filter(r => r.tipo_recurso).length;
+        const erros = allResults.filter(r => !r.tipo_recurso).length;
+        toast.success(`Concluído: ${encontrados} tipo(s) encontrado(s), ${erros} sem resultado`);
+      }
+
+      setTipoRecursoProgressText("");
+      fetchDados();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "Erro desconhecido"));
+      setShowTipoRecursoDialog(false);
+    } finally {
+      setVerificandoTipoRecurso(false);
+    }
+  };
+
   if (editando) {
     return (
       <MainLayout title="Dados Benner">
