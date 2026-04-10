@@ -729,8 +729,34 @@ export default function DadosBenner() {
                   <TableCell onClick={e => e.stopPropagation()}>
                     <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleSelect(d.id)} />
                   </TableCell>
-                  <TableCell className="font-medium">{d.dossie || "-"}</TableCell>
-                  <TableCell>{d.processo || "-"}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1">
+                      {d.dossie || "-"}
+                      {d.dossie && (
+                        <button
+                          onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(d.dossie!); toast.success("Dossiê copiado!"); }}
+                          className="opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          title="Copiar dossiê"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      )}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-1">
+                      {d.processo || "-"}
+                      {d.processo && (
+                        <button
+                          onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(d.processo!); toast.success("Processo copiado!"); }}
+                          className="opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          title="Copiar processo"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell>{d.tribunal || "-"}</TableCell>
                   <TableCell className={`text-xs ${(d as any).tipo_recurso_auto ? "bg-yellow-100 dark:bg-yellow-900/30" : ""}`}>{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>
