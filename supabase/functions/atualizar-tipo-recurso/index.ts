@@ -32,11 +32,10 @@ Deno.serve(async (req) => {
     for (let i = 0; i < entries.length; i += 50) {
       const batch = entries.slice(i, i + 50);
       for (const [processo, tipo] of batch) {
-        const { error, count } = await supabase
+        const { error } = await supabase
           .from("dados_benner")
           .update({ tipo_recurso: tipo })
-          .eq("processo", processo)
-          .or("tipo_recurso.is.null,tipo_recurso.eq.");
+          .eq("processo", processo);
 
         if (error) {
           console.error(`Error updating ${processo}:`, error.message);
