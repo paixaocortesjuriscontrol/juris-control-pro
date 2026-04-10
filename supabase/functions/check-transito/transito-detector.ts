@@ -179,8 +179,15 @@ export function analisarPosTransito(
   }));
 
   const temRecursoPosterior = classificadas.some(
-    (c) => c.categoria === "recurso_novo" || c.categoria === "desconhecida",
+    (c) => c.categoria === "recurso_novo",
   );
+
+  // Log desconhecidas for debugging (temporary)
+  const desconhecidas = classificadas.filter(c => c.categoria === "desconhecida");
+  if (desconhecidas.length > 0) {
+    console.log(`[check-transito] ${desconhecidas.length} movimentações desconhecidas pós-trânsito:`,
+      desconhecidas.map(d => ({ codigo: d.movimentacao.codigo, nome: d.movimentacao.nome }))
+    );
 
   const temExecucaoAtiva = classificadas.some(
     (c) => c.categoria === "execucao",
