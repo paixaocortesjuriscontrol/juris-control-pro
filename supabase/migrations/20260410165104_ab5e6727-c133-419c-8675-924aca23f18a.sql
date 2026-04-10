@@ -1,0 +1,1 @@
+UPDATE public.dados_benner SET situacao_processo = NULL, confianca_transito = NULL, data_transito_julgado = NULL, notas = NULL;
