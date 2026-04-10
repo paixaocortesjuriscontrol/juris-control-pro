@@ -31,6 +31,7 @@ import {
   LayoutPanelTop,
   Table2,
   ArrowRightLeft,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -68,7 +69,7 @@ const menuItemsPublicos = [
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar PJE", path: "/buscar-pje" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
-  { icon: ShieldCheck, label: "Cofre de Senhas", path: "/cofre-senhas" },
+  { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
