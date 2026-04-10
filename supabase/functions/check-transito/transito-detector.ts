@@ -89,15 +89,26 @@ export function detectarTransito(
 // ─── Classificação de movimentações pós-trânsito ──────────────────────────────
 
 const CODIGOS_ADMIN = new Set([
-  11, 12, 22, 26, 36, 51, 60, 67, 85, 123, 132,
-  246, 581, 848, 981, 1037, 11009, 11010,
+  3, 4, 11, 12, 14, 22, 26, 36, 50, 51, 60, 61, 67, 85, 123, 132,
+  192, 193, 194, 246, 268, 581, 848, 852, 981, 1037,
+  10001, 10003, 10004, 10005, 10006, 10044, 10045, 11009, 11010,
 ]);
 
 const PALAVRAS_ADMIN = [
   "remessa", "baixa", "arquiv", "certidão", "certidao",
   "distribuição", "distribuicao", "juntada", "conclusão", "conclusao",
   "publicação", "publicacao", "expedição", "expedicao",
-  "intimação", "intimacao",
+  "intimação", "intimacao", "notificação", "notificacao",
+  "despacho", "ato ordinat", "vista", "recebimento",
+  "autuação", "autuacao", "autos eletrôn", "autos eletron",
+  "desentranhamento", "petição", "peticao", "mandado",
+  "levantamento", "numeração", "numeracao", "redistribu",
+  "anotação", "anotacao", "cancelamento", "retificação", "retificacao",
+  "complementação", "complementacao", "cumprimento",
+  "encaminhamento", "devolução", "devoluçao", "devolucao",
+  "protocolo", "trânsito em julgado", "transito em julgado",
+  "citação", "citacao", "encerramento", "reabertura",
+  "sigilo", "desarchiv",
 ];
 
 const PALAVRAS_EXECUCAO = [
