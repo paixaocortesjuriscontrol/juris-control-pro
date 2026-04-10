@@ -50,12 +50,53 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+function formatDateForSpreadsheet(value: string | null | undefined): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const dmy = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    const yearNum = Number(y.length === 2 ? `20${y}` : y);
+    const monthNum = Number(m);
+    const dayNum = Number(d);
+    const result = new Date(Date.UTC(yearNum, monthNum - 1, dayNum));
+
+    if (
+      result.getUTCFullYear() === yearNum &&
+      result.getUTCMonth() === monthNum - 1 &&
+      result.getUTCDate() === dayNum
+    ) {
+      return `${String(dayNum).padStart(2, "0")}/${String(monthNum).padStart(2, "0")}/${yearNum}`;
+    }
+  }
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    const yearNum = Number(y);
+    const monthNum = Number(m);
+    const dayNum = Number(d);
+    const result = new Date(Date.UTC(yearNum, monthNum - 1, dayNum));
+
+    if (
+      result.getUTCFullYear() === yearNum &&
+      result.getUTCMonth() === monthNum - 1 &&
+      result.getUTCDate() === dayNum
+    ) {
+      return `${d}/${m}/${y}`;
+    }
+  }
+
+  return raw;
+}
+
 function getValuesFromDado(d: DadoBenner): string[] {
   return [
     d.dossie || "",
     d.tribunal || "",
     d.tipo_recurso || "",
-    d.data_distribuicao || "",
+    formatDateForSpreadsheet(d.data_distribuicao),
     d.turma || "",
     d.relator || "",
     d.analise_quarteirizado || "",
