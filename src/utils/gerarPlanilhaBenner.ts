@@ -309,8 +309,8 @@ export async function gerarPlanilhaBenner(
   if (isConferencia) {
     sheetXml = sheetXml.replace(/<mergeCells[\s\S]*?<\/mergeCells>/, (mergeCellsBlock) => {
       return mergeCellsBlock.replace(/ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (_m, startCol, startRow, endCol, endRow) => {
-        const newStart = colToLetter(letterToCol(startCol) + 1);
-        const newEnd = colToLetter(letterToCol(endCol) + 1);
+        const newStart = colToLetter(letterToCol(startCol) + 2);
+        const newEnd = colToLetter(letterToCol(endCol) + 2);
         return `ref="${newStart}${startRow}:${newEnd}${endRow}"`;
       });
     });
