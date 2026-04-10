@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_TIMEOUT_MS = 5_000;
+const DATAJUD_TIMEOUT_MS = 8_000;
 
 const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
   "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
@@ -68,38 +68,49 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ classe
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS);
 
+    const reqBody = {
+      query: { match: { numeroProcesso: digits } },
+      size: 1,
+      _source: ["numeroProcesso", "classe"],
+    };
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `APIKey ${DATAJUD_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        query: { match: { numeroProcesso: digits } },
-        size: 1,
-        _source: ["numeroProcesso", "classe"],
-      }),
+      body: JSON.stringify(reqBody),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      await response.text();
+      const errorText = await response.text();
+      console.error(`[DataJud] ${endpoint} HTTP ${response.status} for ${digits}: ${errorText.substring(0, 200)}`);
       return { classe: null, fonte: endpoint, error: `API ${response.status}` };
     }
 
     const data = await response.json();
+    const totalHits = data?.hits?.total?.value ?? data?.hits?.total ?? 0;
     const hits = data?.hits?.hits || [];
-    for (const hit of hits) {
-      const classeNome = hit._source?.classe?.nome;
+    
+    console.log(`[DataJud] ${endpoint} | processo=${digits} | totalHits=${totalHits} | hits=${hits.length}`);
+    
+    if (hits.length > 0) {
+      const source = hits[0]._source;
+      console.log(`[DataJud] ${endpoint} | _source=${JSON.stringify(source)}`);
+      const classeNome = source?.classe?.nome;
       if (classeNome) {
         return { classe: classeNome, fonte: endpoint };
       }
     }
     return { classe: null, fonte: endpoint };
   } catch (err: any) {
-    return { classe: null, fonte: endpoint, error: err.name === "AbortError" ? "Timeout" : (err.message || "Erro") };
+    const errMsg = err.name === "AbortError" ? "Timeout" : (err.message || "Erro");
+    console.error(`[DataJud] ${endpoint} | processo=${digits} | error=${errMsg}`);
+    return { classe: null, fonte: endpoint, error: errMsg };
   }
 }
 
@@ -169,8 +180,14 @@ Deno.serve(async (req) => {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
+    console.log(`[DataJud] Recebidos ${processos.length} processos. Primeiros: ${processos.slice(0, 3).join(", ")}`);
+
     // Process ALL in parallel (no sub-batching, no delays)
     const resultados = await Promise.all(processos.map((p) => buscarTipoRecurso(p)));
+
+    const encontrados = resultados.filter(r => r.tipo_recurso).length;
+    const erros = resultados.filter(r => r.erro).length;
+    console.log(`[DataJud] Resultados: ${encontrados} encontrados, ${erros} erros de ${processos.length} total`);
 
     // Update dados_benner with found tipo_recurso
     const updates = ids_benner
