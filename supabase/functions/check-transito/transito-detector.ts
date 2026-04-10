@@ -182,25 +182,9 @@ export function analisarPosTransito(
     (c) => c.categoria === "recurso_novo",
   );
 
-  // Log desconhecidas for debugging (temporary)
-  const desconhecidas = classificadas.filter(c => c.categoria === "desconhecida");
-  if (desconhecidas.length > 0) {
-    console.log(`[check-transito] ${desconhecidas.length} movimentações desconhecidas pós-trânsito:`,
-      desconhecidas.map(d => ({ codigo: d.movimentacao.codigo, nome: d.movimentacao.nome }))
-    );
-  }
-
   const temExecucaoAtiva = classificadas.some(
     (c) => c.categoria === "execucao",
   );
-
-  // Log recursos for debugging
-  const recursos = classificadas.filter(c => c.categoria === "recurso_novo");
-  if (recursos.length > 0) {
-    console.log(`[check-transito] ${recursos.length} recurso_novo pós-trânsito:`,
-      recursos.map(d => ({ codigo: d.movimentacao.codigo, nome: d.movimentacao.nome, data: d.movimentacao.dataHora }))
-    );
-  }
 
   return {
     temRecursoPosterior,
@@ -210,9 +194,7 @@ export function analisarPosTransito(
 }
 
 export function analisarConsulta(consulta: ConsultaProcesso): ResultadoTribunal {
-  console.log(`[check-transito] ${consulta.tribunal}: ${consulta.movimentacoes.length} movimentações`);
   const deteccao = detectarTransito(consulta.movimentacoes);
-  console.log(`[check-transito] ${consulta.tribunal}: detectado=${deteccao.detectado}, confiança=${deteccao.confianca}, método=${deteccao.metodo}`);
 
   if (!deteccao.detectado || !deteccao.dataTransito) {
     return {
