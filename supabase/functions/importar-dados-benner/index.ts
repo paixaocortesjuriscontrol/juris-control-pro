@@ -23,6 +23,23 @@ function getProcesso(row: JsonRecord) {
   return String(row.processo || "").trim();
 }
 
+function dedupeRowsByProcesso(rows: JsonRecord[]) {
+  const uniqueRows = new Map<string, JsonRecord>();
+
+  for (const row of rows) {
+    const processo = getProcesso(row);
+    if (!processo) continue;
+
+    uniqueRows.set(processo, {
+      ...(uniqueRows.get(processo) || {}),
+      ...row,
+      processo,
+    });
+  }
+
+  return Array.from(uniqueRows.values());
+}
+
 async function insertBatchWithFallback(serviceClient: ReturnType<typeof createClient>, batch: JsonRecord[]) {
   const failures: Failure[] = [];
   let inserted = 0;
@@ -131,7 +148,14 @@ Deno.serve(async (req) => {
       return respond({ ok: false, error: "Usuário inválido", failed: rows.length, diagnostics: { stage: "user_id_mismatch" } });
     }
 
-    const processos = [...new Set(rows.map(getProcesso).filter(Boolean))];
+    const normalizedRows = dedupeRowsByProcesso(rows);
+    const deduplicated = rows.length - normalizedRows.length;
+
+    if (deduplicated > 0) {
+      console.warn(`[importar-dados-benner] ${deduplicated} linha(s) duplicada(s) por processo consolidadas antes da persistência`);
+    }
+
+    const processos = [...new Set(normalizedRows.map(getProcesso).filter(Boolean))];
     const existingMap = new Map<string, string>();
     const failures: Failure[] = [];
 
@@ -160,7 +184,7 @@ Deno.serve(async (req) => {
     const toInsert: JsonRecord[] = [];
     const toUpdate: JsonRecord[] = [];
 
-    for (const originalRow of rows) {
+    for (const originalRow of normalizedRows) {
       const processo = getProcesso(originalRow);
       if (!processo) continue;
 
@@ -205,6 +229,7 @@ Deno.serve(async (req) => {
       updated,
       failed: failures.length,
       total: inserted + updated,
+      deduplicated,
       error: failures.length ? `Falha em ${failures.length} registro(s)` : null,
       diagnostics: failures.length
         ? {
