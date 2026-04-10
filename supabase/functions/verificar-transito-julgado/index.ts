@@ -99,7 +99,45 @@ const CODIGOS_IGNORAR_POS_TRANSITO = new Set([
   11010, // Juntada de certidão
   60,   // Expedição de documento
   581,  // Recebimento
+  12,   // Juntada de documento
+  36,   // Distribuição
+  51,   // Publicação
+  85,   // Conclusão
+  848,  // Próprio trânsito em julgado (duplicado)
+  26,   // Juntada de petição
+  67,   // Vista ao Ministério Público
+  11,   // Juntada
+  981,  // Ato ordinatório
+  10044, // Recebimento de petição
+  10045, // Recebimento de documento
+  61,   // Expedição de mandado
+  14,   // Despacho
+  193,  // Intimação
+  194,  // Notificação
+  3,    // Encerramento
+  4,    // Reabertura (pode ser administrativa)
+  10001, // Vista
+  10003, // Recebimento
+  10004, // Devolução
+  10005, // Conclusão ao juiz
+  10006, // Conclusão ao relator
+  852,  // Levantamento de sigilo
+  192,  // Citação
+  50,   // Publicação no DJE
 ]);
+
+// Palavras-chave administrativas que não invalidam trânsito
+const NOMES_IGNORAR_POS_TRANSITO = [
+  "remessa", "baixa", "arquiv", "certid", "distribui",
+  "juntada", "conclus", "publica", "expedi", "recebimento",
+  "vista", "intima", "notifica", "despacho", "ato ordinat",
+  "trânsito em julgado", "transito em julgado",
+  "autos eletrônicos", "autuação", "desentranhamento",
+  "petição", "mandado", "levantamento", "desarchiv",
+  "numeração", "redistribui", "anotação", "cancelamento",
+  "retificação", "complementação", "cumprimento",
+  "encaminhamento", "devolução", "protocolo",
+];
 
 function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
   const sorted = [...movimentos].sort((a, b) => {
