@@ -39,7 +39,6 @@ function limparNumero(num: string): string {
   return num.replace(/[^0-9]/g, "");
 }
 
-// Extract TRT number from process number (positions 14-15 in the 20-digit format)
 function getTRTFromProcesso(digits: string): string | null {
   if (digits.length >= 16) {
     const trt = parseInt(digits.substring(13, 15), 10).toString();
@@ -52,10 +51,8 @@ function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
   const digits = limparNumero(numero);
   const endpoints: { endpoint: string; nome: string }[] = [];
   
-  // Always query TST first
   endpoints.push({ endpoint: "api_publica_tst", nome: "TST" });
   
-  // Also query the TRT of origin
   const trt = getTRTFromProcesso(digits);
   if (trt) {
     endpoints.push(TRT_ENDPOINTS[trt]);
@@ -72,47 +69,41 @@ interface ResultadoProcesso {
   erro: string | null;
 }
 
-// Codes that indicate the process was reopened/continued after trânsito
-const REOPEN_CODES = new Set([26, 36, 132, 981]); // 26=Distribuição, 36=Redistribuição, 132=Recebimento, 981=Recebimento
-
-// Codes that confirm trânsito em julgado beyond just the movement code 848
-const CERTIDAO_TRANSITO_CODES = new Set([
-  60001, // Certidão de Trânsito em Julgado
-  60,    // Expedição de Certidão
-]);
-
-// Codes for Baixa/Arquivamento definitivo (confirm process is truly finished)
-const BAIXA_DEFINITIVA_CODES = new Set([
-  22,    // Baixa Definitiva
-  246,   // Arquivamento Definitivo
-]);
-
 interface TransitoResult {
   found: boolean;
   date: string | null;
-  invalidated: boolean;
-  confirmed: boolean; // Has certidão or baixa definitiva confirming the trânsito
+  hasMovimentacaoPosterior: boolean;
 }
 
 function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
+  // Sort movements by date (oldest first) to find the 848 and check what comes after
+  const sorted = [...movimentos].sort((a, b) => {
+    const dateA = new Date(a?.dataHora || a?.data || "1900-01-01").getTime();
+    const dateB = new Date(b?.dataHora || b?.data || "1900-01-01").getTime();
+    return dateA - dateB;
+  });
+
   let transitoDate: string | null = null;
   let transitoFound = false;
-  let hasCertidao = false;
-  let hasBaixaDefinitiva = false;
+  let transitoIndex = -1;
 
-  // First pass: find trânsito em julgado (code 848)
-  for (const mov of movimentos) {
+  // Find code 848
+  for (let i = 0; i < sorted.length; i++) {
+    const mov = sorted[i];
     const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
     if (codigo === 848) {
       transitoFound = true;
       transitoDate = mov?.dataHora || mov?.data || null;
+      transitoIndex = i;
       break;
     }
+    // Check complementos
     const complementos = mov?.complementosTabelados || [];
     for (const comp of complementos) {
       if (Number(comp?.codigo) === 848) {
         transitoFound = true;
         transitoDate = mov?.dataHora || mov?.data || null;
+        transitoIndex = i;
         break;
       }
     }
@@ -121,62 +112,39 @@ function checkTransitoInMovimentos(movimentos: any[]): TransitoResult {
 
   // Fallback: search by name
   if (!transitoFound) {
-    for (const mov of movimentos) {
+    for (let i = 0; i < sorted.length; i++) {
+      const mov = sorted[i];
       const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
       if (nome.includes("trânsito em julgado") || nome.includes("transito em julgado")) {
         transitoFound = true;
         transitoDate = mov?.dataHora || mov?.data || null;
+        transitoIndex = i;
         break;
       }
     }
   }
 
-  if (!transitoFound) return { found: false, date: null, invalidated: false, confirmed: false };
+  if (!transitoFound) return { found: false, date: null, hasMovimentacaoPosterior: false };
 
-  // Check for certidão de trânsito and baixa definitiva
-  for (const mov of movimentos) {
-    const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
-    const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
-    
-    if (CERTIDAO_TRANSITO_CODES.has(codigo)) {
-      // Check if it's specifically about trânsito em julgado
-      if (nome.includes("trânsito") || nome.includes("transito") || codigo === 60001) {
-        hasCertidao = true;
-      }
-    }
-    
-    // Also check by name for certidão
-    if (nome.includes("certidão de trânsito") || nome.includes("certidao de transito")) {
-      hasCertidao = true;
-    }
-    
-    if (BAIXA_DEFINITIVA_CODES.has(codigo)) {
-      hasBaixaDefinitiva = true;
-    }
-    
-    // Check by name for baixa definitiva / arquivamento definitivo
-    if (nome.includes("baixa definitiva") || nome.includes("arquivamento definitivo")) {
-      hasBaixaDefinitiva = true;
-    }
-  }
-
-  // Check for invalidation (reopen after trânsito)
+  // Check if there's ANY movement after the trânsito date
+  let hasMovimentacaoPosterior = false;
   if (transitoDate) {
     const transitoTs = new Date(transitoDate).getTime();
-    for (const mov of movimentos) {
-      const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
+    for (let i = transitoIndex + 1; i < sorted.length; i++) {
+      const mov = sorted[i];
       const movDate = mov?.dataHora || mov?.data || "";
       const movTs = new Date(movDate).getTime();
-
-      if (REOPEN_CODES.has(codigo) && movTs > transitoTs) {
-        console.log(`  Trânsito invalidado: código ${codigo} em ${movDate.substring(0, 10)} é posterior ao trânsito em ${transitoDate.substring(0, 10)}`);
-        return { found: true, date: transitoDate, invalidated: true, confirmed: false };
+      if (movTs > transitoTs) {
+        const codigo = Number(mov?.codigo ?? mov?.movimentoNacional?.codigoNacional);
+        const nome = (mov?.nome || mov?.descricao || "").toLowerCase();
+        console.log(`  Movimentação posterior ao trânsito: código ${codigo}, nome "${nome}", data ${movDate.substring(0, 10)}`);
+        hasMovimentacaoPosterior = true;
+        break;
       }
     }
   }
 
-  const confirmed = hasCertidao || hasBaixaDefinitiva;
-  return { found: true, date: transitoDate, invalidated: false, confirmed };
+  return { found: true, date: transitoDate, hasMovimentacaoPosterior };
 }
 
 async function queryEndpoint(
@@ -231,7 +199,6 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
   let allHits: { hit: any; source: string }[] = [];
   let lastError: string | null = null;
 
-  // Query all endpoints (TST + TRT of origin)
   for (const ep of endpoints) {
     const result = await queryEndpoint(ep.endpoint, digits);
     if (result.hits.length > 0) {
@@ -254,10 +221,8 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
 
   console.log(`Processo ${numero}: ${allHits.length} instância(s) encontrada(s) em ${endpoints.map(e => e.nome).join(", ")}`);
 
-  // Collect all trânsito results across all instances
-  let bestConfirmedTransito: { date: string | null; grau: string; classe: string; source: string } | null = null;
-  let bestUnconfirmedTransito: { date: string | null; grau: string; classe: string; source: string } | null = null;
-  let anyInvalidated = false;
+  // Check all instances - if ANY has trânsito WITHOUT posterior movement, it's transitado
+  let bestTransito: { date: string | null; grau: string; classe: string; source: string; hasMovPosterior: boolean } | null = null;
 
   for (const { hit, source } of allHits) {
     const hitSource = hit._source;
@@ -267,51 +232,41 @@ async function verificarProcesso(numero: string): Promise<ResultadoProcesso> {
 
     const result = checkTransitoInMovimentos(movimentos);
     
-    if (result.found && !result.invalidated) {
-      if (result.confirmed) {
-        const dateStr = result.date ? result.date.substring(0, 10) : null;
-        console.log(`  Trânsito CONFIRMADO (com certidão/baixa) em ${source} ${grau} (${classe}): ${dateStr}`);
-        if (!bestConfirmedTransito) {
-          bestConfirmedTransito = { date: dateStr, grau, classe, source };
-        }
-      } else {
-        const dateStr = result.date ? result.date.substring(0, 10) : null;
-        console.log(`  Trânsito encontrado (SEM certidão/baixa) em ${source} ${grau} (${classe}): ${dateStr}`);
-        if (!bestUnconfirmedTransito) {
-          bestUnconfirmedTransito = { date: dateStr, grau, classe, source };
-        }
-      }
-    } else if (result.found && result.invalidated) {
-      anyInvalidated = true;
+    if (result.found) {
       const dateStr = result.date ? result.date.substring(0, 10) : null;
-      console.log(`  Trânsito INVALIDADO em ${source} ${grau} (${classe}): ${dateStr} - movimentação posterior encontrada`);
+      if (result.hasMovimentacaoPosterior) {
+        console.log(`  Trânsito em ${source} ${grau} (${classe}): ${dateStr} - MAS há movimentação posterior`);
+      } else {
+        console.log(`  Trânsito em ${source} ${grau} (${classe}): ${dateStr} - SEM movimentação posterior ✓`);
+      }
+      
+      // Prefer trânsito without posterior movement
+      if (!bestTransito || (!result.hasMovimentacaoPosterior && bestTransito.hasMovPosterior)) {
+        bestTransito = { date: dateStr, grau, classe, source, hasMovPosterior: result.hasMovimentacaoPosterior };
+      }
     }
   }
 
-  // Priority: confirmed trânsito > unconfirmed trânsito (only if not invalidated elsewhere)
-  if (bestConfirmedTransito) {
+  if (bestTransito && !bestTransito.hasMovPosterior) {
     return {
       numero,
       situacao: "Trânsito em Julgado",
-      data_transito: bestConfirmedTransito.date,
-      grau: `${bestConfirmedTransito.source} - ${bestConfirmedTransito.grau} - ${bestConfirmedTransito.classe}`,
+      data_transito: bestTransito.date,
+      grau: `${bestTransito.source} - ${bestTransito.grau} - ${bestTransito.classe}`,
       erro: null,
     };
   }
 
-  // If there's an unconfirmed trânsito but NO invalidation, mark as "Possível Trânsito"
-  // This avoids false positives where code 848 exists but no certidão was issued
-  if (bestUnconfirmedTransito && !anyInvalidated) {
+  if (bestTransito && bestTransito.hasMovPosterior) {
     return {
       numero,
-      situacao: "Trânsito em Julgado",
-      data_transito: bestUnconfirmedTransito.date,
-      grau: `${bestUnconfirmedTransito.source} - ${bestUnconfirmedTransito.grau} - ${bestUnconfirmedTransito.classe} (sem certidão)`,
+      situacao: "Ativo",
+      data_transito: null,
+      grau: `${bestTransito.source} - ${bestTransito.grau} - ${bestTransito.classe} (trânsito invalidado por movimentação posterior)`,
       erro: null,
     };
   }
 
-  // List graus found for debugging
   const graus = allHits.map(h => `${h.source}:${h.hit._source?.grau || "?"} (${h.hit._source?.classe?.nome || ""})`).join(", ");
   console.log(`  Nenhum trânsito encontrado. Graus: ${graus}`);
 
@@ -358,7 +313,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Process in batches of 3 (each process now queries TST + TRT)
     const BATCH_SIZE = 3;
     const resultados: ResultadoProcesso[] = [];
 
@@ -372,7 +326,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update dados_benner situacao_processo
     if (ids_benner.length > 0) {
       for (let i = 0; i < ids_benner.length; i++) {
         const id = ids_benner[i];
