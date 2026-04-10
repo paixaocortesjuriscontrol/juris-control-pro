@@ -47,8 +47,14 @@ function getTRTFromProcesso(digits: string): string | null {
   return null;
 }
 
-function getEndpoints(_numero: string): { endpoint: string; nome: string }[] {
-  // Busca apenas no TST para maior velocidade
+function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
+  const digits = limparNumero(numero);
+  const trt = getTRTFromProcesso(digits);
+
+  if (trt && TRT_ENDPOINTS[trt]) {
+    return [TRT_ENDPOINTS[trt], { endpoint: "api_publica_tst", nome: "TST" }];
+  }
+
   return [{ endpoint: "api_publica_tst", nome: "TST" }];
 }
 
