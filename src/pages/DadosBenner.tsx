@@ -375,6 +375,7 @@ export default function DadosBenner() {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="Ativo">Ativo</SelectItem>
                 <SelectItem value="Trânsito em Julgado">Trânsito em Julgado</SelectItem>
+                <SelectItem value="Erro">Erro</SelectItem>
               </SelectContent>
             </Select>
           </div>
