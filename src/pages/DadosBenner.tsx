@@ -410,9 +410,9 @@ export default function DadosBenner() {
       let offset = 0;
       while (true) {
         let query = supabase.from("dados_benner" as any)
-          .select("id, processo")
-          .or("tipo_recurso.is.null,tipo_recurso.eq.%00")
-          // Also catch empty strings by re-filtering in JS below
+          .select("id, processo, tipo_recurso")
+          .or("tipo_recurso.is.null,tipo_recurso.eq.")
+          .order("created_at", { ascending: false });
           .order("created_at", { ascending: false });
         if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
         if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
