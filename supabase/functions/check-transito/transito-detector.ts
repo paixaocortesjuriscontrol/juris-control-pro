@@ -210,7 +210,9 @@ export function analisarPosTransito(
 }
 
 export function analisarConsulta(consulta: ConsultaProcesso): ResultadoTribunal {
+  console.log(`[check-transito] ${consulta.tribunal}: ${consulta.movimentacoes.length} movimentações`);
   const deteccao = detectarTransito(consulta.movimentacoes);
+  console.log(`[check-transito] ${consulta.tribunal}: detectado=${deteccao.detectado}, confiança=${deteccao.confianca}, método=${deteccao.metodo}`);
 
   if (!deteccao.detectado || !deteccao.dataTransito) {
     return {
