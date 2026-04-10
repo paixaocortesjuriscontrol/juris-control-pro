@@ -217,8 +217,8 @@ export function analisarConsulta(consulta: ConsultaProcesso): ResultadoTribunal 
   if (!deteccao.detectado || !deteccao.dataTransito) {
     return {
       tribunal: consulta.tribunal,
-      status: "ativo",
-      confianca: 85,
+      status: "inconclusivo",
+      confianca: 30,
     };
   }
 
