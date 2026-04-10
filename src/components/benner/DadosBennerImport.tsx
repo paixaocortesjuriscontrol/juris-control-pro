@@ -138,6 +138,8 @@ export function DadosBennerImport({ onImported }: Props) {
 
       let inserted = 0;
       let updated = 0;
+      let failed = 0;
+      let firstFailureMessage = "";
       const totalBatches = Math.ceil(records.length / IMPORT_BATCH_SIZE);
 
       for (let i = 0; i < records.length; i += IMPORT_BATCH_SIZE) {
@@ -157,18 +159,31 @@ export function DadosBennerImport({ onImported }: Props) {
           throw new Error(error.message || `Erro no lote ${batchNumber}`);
         }
 
-        if (!data?.ok) {
-          throw new Error(data?.error || `Erro no lote ${batchNumber}`);
-        }
+        inserted += Number(data?.inserted || 0);
+        updated += Number(data?.updated || 0);
+        failed += Number(data?.failed || 0);
 
-        inserted += Number(data.inserted || 0);
-        updated += Number(data.updated || 0);
+        if (!data?.ok && !firstFailureMessage) {
+          const firstFailure = data?.diagnostics?.sampleFailures?.[0];
+          firstFailureMessage = firstFailure
+            ? `${firstFailure.operation} ${firstFailure.processo || "sem processo"}: ${firstFailure.error}`
+            : data?.error || `Erro no lote ${batchNumber}`;
+        }
       }
 
       const parts: string[] = [];
       if (inserted > 0) parts.push(`${inserted} inserido(s)`);
       if (updated > 0) parts.push(`${updated} atualizado(s)`);
-      toast.success(parts.length ? `${parts.join(", ")} com sucesso!` : "Importação concluída");
+      if (failed > 0) parts.push(`${failed} com erro`);
+
+      if (failed > 0 && inserted + updated > 0) {
+        toast.warning(`${parts.join(", ")}. ${firstFailureMessage}`);
+      } else if (failed > 0) {
+        throw new Error(firstFailureMessage || "Falha ao importar registros");
+      } else {
+        toast.success(parts.length ? `${parts.join(", ")} com sucesso!` : "Importação concluída");
+      }
+
       onImported();
     } catch (err: any) {
       toast.error("Erro ao processar planilha: " + (err?.message || String(err)));
