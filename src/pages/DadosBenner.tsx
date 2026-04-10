@@ -45,6 +45,13 @@ interface TransitoResult {
   erro: string | null;
 }
 
+interface TipoRecursoResult {
+  numero: string;
+  tipo_recurso: string | null;
+  fonte: string | null;
+  erro: string | null;
+}
+
 export default function DadosBenner() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [filterRelator, setFilterRelator] = useState("");
@@ -225,6 +232,14 @@ export default function DadosBenner() {
   const [transitoProgressPct, setTransitoProgressPct] = useState(0);
   const cancelTransitoRef = useRef(false);
 
+  // Tipo Recurso states
+  const [verificandoTipoRecurso, setVerificandoTipoRecurso] = useState(false);
+  const [tipoRecursoResults, setTipoRecursoResults] = useState<TipoRecursoResult[]>([]);
+  const [showTipoRecursoDialog, setShowTipoRecursoDialog] = useState(false);
+  const [tipoRecursoProgressText, setTipoRecursoProgressText] = useState("");
+  const [tipoRecursoProgressPct, setTipoRecursoProgressPct] = useState(0);
+  const cancelTipoRecursoRef = useRef(false);
+
   const handleVerificarTransito = async () => {
     // 1. Fetch ALL filtered records with contrato (not just current page)
     setVerificandoTransito(true);
@@ -340,6 +355,104 @@ export default function DadosBenner() {
       setShowTransitoDialog(false);
     } finally {
       setVerificandoTransito(false);
+    }
+  };
+
+  const handleAtualizarTipoRecurso = async () => {
+    setVerificandoTipoRecurso(true);
+    setTipoRecursoResults([]);
+    setShowTipoRecursoDialog(true);
+    setTipoRecursoProgressText("Buscando registros sem tipo de recurso...");
+    setTipoRecursoProgressPct(0);
+    cancelTipoRecursoRef.current = false;
+
+    try {
+      let allRecords: { id: string; processo: string }[] = [];
+      let offset = 0;
+      while (true) {
+        let query = supabase.from("dados_benner" as any)
+          .select("id, processo")
+          .or("tipo_recurso.is.null,tipo_recurso.eq.")
+          .order("created_at", { ascending: false });
+        if (appliedFilters.status && appliedFilters.status !== "todos") query = query.eq("status", appliedFilters.status);
+        if (appliedFilters.relator) query = query.ilike("relator", `%${appliedFilters.relator}%`);
+        if (appliedFilters.dossie) query = query.ilike("dossie", `%${appliedFilters.dossie}%`);
+        if (appliedFilters.processo) query = query.ilike("processo", `%${appliedFilters.processo}%`);
+        if (appliedFilters.turma) query = query.ilike("turma", `%${appliedFilters.turma}%`);
+        if (appliedFilters.tipo_recurso) query = query.ilike("tipo_recurso", `%${appliedFilters.tipo_recurso}%`);
+        const { data, error } = await query.range(offset, offset + 999);
+        if (error || !data?.length) break;
+        allRecords.push(...(data as any[]));
+        if (data.length < 1000) break;
+        offset += 1000;
+      }
+
+      const validRecords = allRecords.filter(r => {
+        const num = (r.processo || "").replace(/[^0-9]/g, "");
+        return num.length >= 10;
+      });
+
+      if (!validRecords.length) {
+        toast.warning("Nenhum registro sem tipo de recurso com número de processo válido");
+        setShowTipoRecursoDialog(false);
+        setVerificandoTipoRecurso(false);
+        return;
+      }
+
+      setTipoRecursoProgressText(`0 de ${validRecords.length} verificados...`);
+
+      const BATCH_SIZE = 5;
+      const allResults: TipoRecursoResult[] = [];
+
+      for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
+        if (cancelTipoRecursoRef.current) {
+          toast.info(`Busca cancelada. ${allResults.length} processo(s) já verificados.`);
+          break;
+        }
+
+        const batch = validRecords.slice(i, i + BATCH_SIZE);
+        const processos = batch.map(r => r.processo!);
+        const idsBenner = batch.map(r => r.id);
+
+        try {
+          const { data, error } = await supabase.functions.invoke("atualizar-tipo-recurso-datajud", {
+            body: { processos, ids_benner: idsBenner },
+          });
+
+          if (error) {
+            batch.forEach(b => allResults.push({
+              numero: b.processo!, tipo_recurso: null, fonte: null, erro: error.message,
+            }));
+          } else {
+            const resultados: TipoRecursoResult[] = data?.resultados || [];
+            allResults.push(...resultados);
+          }
+        } catch (err: any) {
+          batch.forEach(b => allResults.push({
+            numero: b.processo!, tipo_recurso: null, fonte: null, erro: err?.message || "Erro",
+          }));
+        }
+
+        setTipoRecursoResults([...allResults]);
+        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
+        const pct = Math.round((processed / validRecords.length) * 100);
+        setTipoRecursoProgressPct(pct);
+        setTipoRecursoProgressText(`${processed} de ${validRecords.length} verificados...`);
+      }
+
+      if (!cancelTipoRecursoRef.current) {
+        const encontrados = allResults.filter(r => r.tipo_recurso).length;
+        const erros = allResults.filter(r => !r.tipo_recurso).length;
+        toast.success(`Concluído: ${encontrados} tipo(s) encontrado(s), ${erros} sem resultado`);
+      }
+
+      setTipoRecursoProgressText("");
+      fetchDados();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "Erro desconhecido"));
+      setShowTipoRecursoDialog(false);
+    } finally {
+      setVerificandoTipoRecurso(false);
     }
   };
 
@@ -499,6 +612,15 @@ export default function DadosBenner() {
             Verificar Trânsito {selectedIds.size > 0 ? `(${selectedIds.size})` : "(Todos)"}
           </Button>
 
+          <Button
+            variant="outline"
+            onClick={handleAtualizarTipoRecurso}
+            disabled={verificandoTipoRecurso}
+          >
+            {verificandoTipoRecurso ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+            Atualizar Tipo Recurso
+          </Button>
+
           <Button variant="outline" onClick={handleGerarPdf} disabled={gerandoPdf}>
             {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
             Gerar PDF
@@ -567,7 +689,7 @@ export default function DadosBenner() {
                   <TableCell className="font-medium">{d.dossie || "-"}</TableCell>
                   <TableCell>{d.processo || "-"}</TableCell>
                   <TableCell>{d.tribunal || "-"}</TableCell>
-                  <TableCell className="text-xs">{d.tipo_recurso || "-"}</TableCell>
+                  <TableCell className={`text-xs ${(d as any).tipo_recurso_auto ? "bg-yellow-100 dark:bg-yellow-900/30" : ""}`}>{d.tipo_recurso || "-"}</TableCell>
                   <TableCell>{d.turma || "-"}</TableCell>
                   <TableCell>{d.relator || "-"}</TableCell>
                   <TableCell>
@@ -685,6 +807,75 @@ export default function DadosBenner() {
                         </TableCell>
                         <TableCell>{r.data_transito || "-"}</TableCell>
                         <TableCell className="text-xs">{r.grau || "-"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.erro || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Tipo Recurso */}
+        <Dialog open={showTipoRecursoDialog} onOpenChange={setShowTipoRecursoDialog}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Atualizar Tipo de Recurso via DataJud
+              </DialogTitle>
+            </DialogHeader>
+
+            {(verificandoTipoRecurso || tipoRecursoProgressText) && (
+              <div className="space-y-3 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">{tipoRecursoProgressText}</span>
+                  </div>
+                  {verificandoTipoRecurso && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => { cancelTipoRecursoRef.current = true; }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+                <Progress value={tipoRecursoProgressPct} className="h-2" />
+              </div>
+            )}
+
+            {tipoRecursoResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex gap-4 text-sm">
+                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                    {tipoRecursoResults.filter(r => r.tipo_recurso).length} Encontrado(s)
+                  </Badge>
+                  <Badge variant="secondary">
+                    {tipoRecursoResults.filter(r => !r.tipo_recurso).length} Não encontrado(s)
+                  </Badge>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº Processo</TableHead>
+                      <TableHead>Tipo Recurso</TableHead>
+                      <TableHead>Fonte</TableHead>
+                      <TableHead>Observação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tipoRecursoResults.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-sm">{r.numero}</TableCell>
+                        <TableCell className={r.tipo_recurso ? "bg-yellow-100 dark:bg-yellow-900/30 font-medium" : ""}>
+                          {r.tipo_recurso || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs">{r.fonte || "-"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.erro || "-"}</TableCell>
                       </TableRow>
                     ))}

@@ -34,6 +34,7 @@ const emptyForm: DadoBennerInsert = {
   posicao_relator_favoravel: false, posicao_relator_desfavoravel: false,
   recurso_bem_aparelhado: false, recurso_mal_aparelhado: false,
   chance_exito: "",
+  tipo_recurso_auto: false,
   situacao_processo: "",
 };
 

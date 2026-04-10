@@ -1379,6 +1379,7 @@ export type Database = {
           tem_data_julgamento: string | null
           tipo_julgamento: string | null
           tipo_recurso: string | null
+          tipo_recurso_auto: boolean | null
           tribunal: string | null
           turma: string | null
           updated_at: string
@@ -1423,6 +1424,7 @@ export type Database = {
           tem_data_julgamento?: string | null
           tipo_julgamento?: string | null
           tipo_recurso?: string | null
+          tipo_recurso_auto?: boolean | null
           tribunal?: string | null
           turma?: string | null
           updated_at?: string
@@ -1467,6 +1469,7 @@ export type Database = {
           tem_data_julgamento?: string | null
           tipo_julgamento?: string | null
           tipo_recurso?: string | null
+          tipo_recurso_auto?: boolean | null
           tribunal?: string | null
           turma?: string | null
           updated_at?: string
