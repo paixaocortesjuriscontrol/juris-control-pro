@@ -463,9 +463,10 @@ export default function DadosBenner() {
         return;
       }
 
-      setTipoRecursoProgressText(`0 de ${validRecords.length} verificados...`);
+      setTipoRecursoProgressText(`Encontrados ${validRecords.length} processos sem tipo de recurso. Iniciando consulta ao DataJud...`);
+      setTipoRecursoProgressPct(1); // Show minimal progress to indicate activity
 
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 3;
       const allResults: TipoRecursoResult[] = [];
 
       for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
@@ -477,6 +478,12 @@ export default function DadosBenner() {
         const batch = validRecords.slice(i, i + BATCH_SIZE);
         const processos = batch.map(r => r.processo!);
         const idsBenner = batch.map(r => r.id);
+
+        // Update progress BEFORE the call so user sees activity
+        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
+        const pct = Math.max(1, Math.round((i / validRecords.length) * 100));
+        setTipoRecursoProgressPct(pct);
+        setTipoRecursoProgressText(`Consultando DataJud: ${i} de ${validRecords.length} (lote ${Math.floor(i / BATCH_SIZE) + 1})...`);
 
         try {
           const { data, error } = await supabase.functions.invoke("atualizar-tipo-recurso-datajud", {
@@ -498,9 +505,8 @@ export default function DadosBenner() {
         }
 
         setTipoRecursoResults([...allResults]);
-        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
-        const pct = Math.round((processed / validRecords.length) * 100);
-        setTipoRecursoProgressPct(pct);
+        const finalPct = Math.round((processed / validRecords.length) * 100);
+        setTipoRecursoProgressPct(finalPct);
         setTipoRecursoProgressText(`${processed} de ${validRecords.length} verificados...`);
       }
 
