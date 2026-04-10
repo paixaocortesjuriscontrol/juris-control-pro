@@ -65,6 +65,7 @@ export default function DadosBenner() {
   const [periodoFim, setPeriodoFim] = useState("");
   const [gerando, setGerando] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoGeracaoBenner | null>(null);
+  const [exportMode, setExportMode] = useState<ExportModeBenner>("full");
 
   const { dados, loading, saveDado, deleteDado, updateStatus, fetchDados, page, setPage, totalPages, totalCount, fetchAllIds, fetchAllData } = useDadosBenner(appliedFilters);
   const [gerandoPdf, setGerandoPdf] = useState(false);
