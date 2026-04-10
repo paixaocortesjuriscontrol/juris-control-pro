@@ -802,13 +802,16 @@ export default function DadosBenner() {
               <div className="space-y-4">
                 <div className="flex gap-4 text-sm">
                   <Badge variant="destructive">
-                    {transitoResults.filter(r => r.situacao === "Trânsito em Julgado").length} Trânsito em Julgado
+                    {transitoResults.filter(r => r.situacao.startsWith("Trânsito")).length} Trânsito em Julgado
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
                     {transitoResults.filter(r => r.situacao === "Ativo").length} Ativo(s)
                   </Badge>
                   <Badge variant="secondary">
-                    {transitoResults.filter(r => r.situacao === "Erro" || r.situacao === "Não encontrado").length} Erro/Não encontrado
+                    {transitoResults.filter(r => r.situacao === "Inconclusivo").length} Inconclusivo(s)
+                  </Badge>
+                  <Badge variant="secondary">
+                    {transitoResults.filter(r => r.situacao === "Erro").length} Erro(s)
                   </Badge>
                 </div>
 
@@ -817,9 +820,9 @@ export default function DadosBenner() {
                     <TableRow>
                       <TableHead>Nº Processo</TableHead>
                       <TableHead>Situação</TableHead>
+                      <TableHead>Confiança</TableHead>
                       <TableHead>Data Trânsito</TableHead>
-                      <TableHead>Grau/Instância</TableHead>
-                      <TableHead>Observação</TableHead>
+                      <TableHead>Reconciliação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -829,17 +832,24 @@ export default function DadosBenner() {
                         <TableCell>
                           <Badge
                             variant={
-                              r.situacao === "Trânsito em Julgado" ? "destructive" :
-                              r.situacao === "Ativo" ? "outline" : "secondary"
+                              r.situacao.startsWith("Trânsito") ? "destructive" :
+                              r.situacao === "Ativo" ? "outline" :
+                              r.situacao === "Inconclusivo" ? "secondary" : "secondary"
                             }
                             className={r.situacao === "Ativo" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" : ""}
                           >
                             {r.situacao}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          {r.confianca > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {r.confianca}%
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>{r.data_transito || "-"}</TableCell>
-                        <TableCell className="text-xs">{r.grau || "-"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{r.erro || "-"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.reconciliacao || r.erro || "-"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
