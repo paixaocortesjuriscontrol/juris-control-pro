@@ -90,7 +90,7 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       query = query.ilike("tipo_recurso", `%${filters.tipo_recurso}%`);
     }
     if (filters?.situacao_processo && filters.situacao_processo !== "todos") {
-      query = query.eq("situacao_processo", filters.situacao_processo);
+      query = query.ilike("situacao_processo", `${filters.situacao_processo}%`);
     }
     return query;
   }, [filters?.status, filters?.relator, filters?.dossie, filters?.processo, filters?.turma, filters?.tipo_recurso, filters?.situacao_processo]);
