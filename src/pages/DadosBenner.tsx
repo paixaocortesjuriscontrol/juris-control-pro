@@ -348,6 +348,7 @@ export default function DadosBenner() {
                 situacao_processo: dbSituacao,
                 confianca_transito: data?.confianca ?? null,
                 data_transito_julgado: data?.dataTransito ? new Date(data.dataTransito).toISOString().split("T")[0] : null,
+                notas: data?.nota || null,
               };
               await supabase.from("dados_benner" as any)
                 .update(updatePayload)
