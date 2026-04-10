@@ -725,7 +725,7 @@ export default function DadosBenner() {
               ) : dados.length === 0 ? (
                 <TableRow><TableCell colSpan={15} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
               ) : dados.map(d => (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
+                <TableRow key={d.id} className="group cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
                     <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleSelect(d.id)} />
                   </TableCell>
