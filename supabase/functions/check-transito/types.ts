@@ -62,6 +62,8 @@ export interface ResultadoFinal {
   status: StatusTransito;
   confianca: number;
   dataTransito?: string;
+  fonteDados: string;
+  nota: string;
   detalhes: {
     tst?: ResultadoTribunal;
     trt?: ResultadoTribunal;
