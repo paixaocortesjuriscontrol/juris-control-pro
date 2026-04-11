@@ -8,54 +8,8 @@ const corsHeaders = {
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
 const DATAJUD_TIMEOUT_MS = 10_000;
 
-const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
-  "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
-  "2": { endpoint: "api_publica_trt2", nome: "TRT2" },
-  "3": { endpoint: "api_publica_trt3", nome: "TRT3" },
-  "4": { endpoint: "api_publica_trt4", nome: "TRT4" },
-  "5": { endpoint: "api_publica_trt5", nome: "TRT5" },
-  "6": { endpoint: "api_publica_trt6", nome: "TRT6" },
-  "7": { endpoint: "api_publica_trt7", nome: "TRT7" },
-  "8": { endpoint: "api_publica_trt8", nome: "TRT8" },
-  "9": { endpoint: "api_publica_trt9", nome: "TRT9" },
-  "10": { endpoint: "api_publica_trt10", nome: "TRT10" },
-  "11": { endpoint: "api_publica_trt11", nome: "TRT11" },
-  "12": { endpoint: "api_publica_trt12", nome: "TRT12" },
-  "13": { endpoint: "api_publica_trt13", nome: "TRT13" },
-  "14": { endpoint: "api_publica_trt14", nome: "TRT14" },
-  "15": { endpoint: "api_publica_trt15", nome: "TRT15" },
-  "16": { endpoint: "api_publica_trt16", nome: "TRT16" },
-  "17": { endpoint: "api_publica_trt17", nome: "TRT17" },
-  "18": { endpoint: "api_publica_trt18", nome: "TRT18" },
-  "19": { endpoint: "api_publica_trt19", nome: "TRT19" },
-  "20": { endpoint: "api_publica_trt20", nome: "TRT20" },
-  "21": { endpoint: "api_publica_trt21", nome: "TRT21" },
-  "22": { endpoint: "api_publica_trt22", nome: "TRT22" },
-  "23": { endpoint: "api_publica_trt23", nome: "TRT23" },
-  "24": { endpoint: "api_publica_trt24", nome: "TRT24" },
-};
-
 function limparNumero(num: string): string {
   return num.replace(/[^0-9]/g, "");
-}
-
-function getTRTFromProcesso(digits: string): string | null {
-  if (digits.length >= 16) {
-    const trt = parseInt(digits.substring(14, 16), 10).toString();
-    if (TRT_ENDPOINTS[trt]) return trt;
-  }
-  return null;
-}
-
-function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
-  const digits = limparNumero(numero);
-  const trt = getTRTFromProcesso(digits);
-
-  if (trt && TRT_ENDPOINTS[trt]) {
-    return [TRT_ENDPOINTS[trt], { endpoint: "api_publica_tst", nome: "TST" }];
-  }
-
-  return [{ endpoint: "api_publica_tst", nome: "TST" }];
 }
 
 interface ResultadoTipoRecurso {
@@ -133,29 +87,19 @@ async function buscarTipoRecurso(numero: string, requestSignal?: AbortSignal): P
     return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
   }
 
-  const endpoints = getEndpoints(numero);
   let bestClasse: string | null = null;
-  let bestFonte: string | null = null;
   let lastError: string | null = null;
 
-  for (const ep of endpoints) {
-    if (requestSignal?.aborted) {
-      return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
-    }
+  const result = await queryEndpoint("api_publica_tst", digits, requestSignal);
+  if (result.error === "Cancelado") {
+    return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
+  }
+  if (result.error) lastError = result.error;
 
-    const result = await queryEndpoint(ep.endpoint, digits, requestSignal);
-    if (result.error === "Cancelado") {
-      return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
-    }
-    if (result.error) lastError = result.error;
-
-    for (const hit of result.hits) {
-      const classeNome = hit._source?.classe?.nome;
-      if (classeNome) {
-        // TST takes priority, so keep overwriting
-        bestClasse = classeNome;
-        bestFonte = ep.nome;
-      }
+  for (const hit of result.hits) {
+    const classeNome = hit._source?.classe?.nome;
+    if (classeNome) {
+      bestClasse = classeNome;
     }
   }
 
@@ -168,8 +112,8 @@ async function buscarTipoRecurso(numero: string, requestSignal?: AbortSignal): P
     };
   }
 
-  console.log(`Processo ${numero}: classe="${bestClasse}" fonte=${bestFonte}`);
-  return { numero, tipo_recurso: bestClasse, fonte: bestFonte, erro: null };
+  console.log(`Processo ${numero}: classe="${bestClasse}" fonte=TST`);
+  return { numero, tipo_recurso: bestClasse, fonte: "TST", erro: null };
 }
 
 Deno.serve(async (req) => {
