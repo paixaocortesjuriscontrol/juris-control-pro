@@ -241,6 +241,47 @@ export default function DadosBenner() {
   const [tipoRecursoProgressText, setTipoRecursoProgressText] = useState("");
   const [tipoRecursoProgressPct, setTipoRecursoProgressPct] = useState(0);
   const cancelTipoRecursoRef = useRef(false);
+  const currentTipoRecursoAbortRef = useRef<AbortController | null>(null);
+
+  const invokeTipoRecursoBatch = async (processos: string[], idsBenner: string[]) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
+    if (!accessToken) {
+      throw new Error("Sessão expirada. Faça login novamente.");
+    }
+
+    const controller = new AbortController();
+    currentTipoRecursoAbortRef.current = controller;
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/atualizar-tipo-recurso-datajud`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ processos, ids_benner: idsBenner }),
+          signal: controller.signal,
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error || `Erro HTTP ${response.status}`);
+      }
+
+      return payload;
+    } finally {
+      if (currentTipoRecursoAbortRef.current === controller) {
+        currentTipoRecursoAbortRef.current = null;
+      }
+    }
+  };
 
   const handleVerificarTransito = async () => {
     setVerificandoTransito(true);
@@ -409,6 +450,7 @@ export default function DadosBenner() {
       let allRecords: { id: string; processo: string }[] = [];
       let offset = 0;
       while (true) {
+        if (cancelTipoRecursoRef.current) break;
         let query = supabase.from("dados_benner" as any)
           .select("id, processo, tipo_recurso")
           .is("tipo_recurso", null)
@@ -431,6 +473,7 @@ export default function DadosBenner() {
       // Also fetch empty strings separately  
       offset = 0;
       while (true) {
+        if (cancelTipoRecursoRef.current) break;
         let query = supabase.from("dados_benner" as any)
           .select("id, processo, tipo_recurso")
           .eq("tipo_recurso", "")
@@ -468,9 +511,11 @@ export default function DadosBenner() {
 
       const BATCH_SIZE = 5;
       const allResults: TipoRecursoResult[] = [];
+      let cancelled = false;
 
       for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
         if (cancelTipoRecursoRef.current) {
+          cancelled = true;
           toast.info(`Busca cancelada. ${allResults.length} processo(s) já verificados.`);
           break;
         }
@@ -486,22 +531,21 @@ export default function DadosBenner() {
         setTipoRecursoProgressText(`Consultando DataJud: ${i} de ${validRecords.length} (lote ${Math.floor(i / BATCH_SIZE) + 1})...`);
 
         try {
-          const { data, error } = await supabase.functions.invoke("atualizar-tipo-recurso-datajud", {
-            body: { processos, ids_benner: idsBenner },
-          });
-
-          if (error) {
-            batch.forEach(b => allResults.push({
-              numero: b.processo!, tipo_recurso: null, fonte: null, erro: error.message,
-            }));
-          } else {
-            const resultados: TipoRecursoResult[] = data?.resultados || [];
-            allResults.push(...resultados);
-          }
+          const data = await invokeTipoRecursoBatch(processos, idsBenner);
+          const resultados: TipoRecursoResult[] = data?.resultados || [];
+          allResults.push(...resultados);
         } catch (err: any) {
-          batch.forEach(b => allResults.push({
-            numero: b.processo!, tipo_recurso: null, fonte: null, erro: err?.message || "Erro",
-          }));
+          const abortado = err?.name === "AbortError" || cancelTipoRecursoRef.current;
+
+          if (abortado) {
+            cancelled = true;
+            setTipoRecursoProgressText(`Cancelado após ${allResults.length} processo(s) verificados.`);
+            break;
+          } else {
+            batch.forEach(b => allResults.push({
+              numero: b.processo!, tipo_recurso: null, fonte: null, erro: err?.message || "Erro",
+            }));
+          }
         }
 
         setTipoRecursoResults([...allResults]);
@@ -510,18 +554,23 @@ export default function DadosBenner() {
         setTipoRecursoProgressText(`${processed} de ${validRecords.length} verificados...`);
       }
 
-      if (!cancelTipoRecursoRef.current) {
+      if (!cancelled && !cancelTipoRecursoRef.current) {
         const encontrados = allResults.filter(r => r.tipo_recurso).length;
         const erros = allResults.filter(r => !r.tipo_recurso).length;
         toast.success(`Concluído: ${encontrados} tipo(s) encontrado(s), ${erros} sem resultado`);
       }
 
-      setTipoRecursoProgressText("");
+      if (!cancelled) {
+        setTipoRecursoProgressText("");
+      }
       fetchDados();
     } catch (err: any) {
-      toast.error("Erro: " + (err?.message || "Erro desconhecido"));
-      setShowTipoRecursoDialog(false);
+      if (err?.name !== "AbortError") {
+        toast.error("Erro: " + (err?.message || "Erro desconhecido"));
+        setShowTipoRecursoDialog(false);
+      }
     } finally {
+      currentTipoRecursoAbortRef.current = null;
       setVerificandoTipoRecurso(false);
     }
   };
@@ -992,7 +1041,11 @@ export default function DadosBenner() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => { cancelTipoRecursoRef.current = true; }}
+                      onClick={() => {
+                        cancelTipoRecursoRef.current = true;
+                        currentTipoRecursoAbortRef.current?.abort();
+                        setTipoRecursoProgressText("Cancelando consulta atual...");
+                      }}
                     >
                       Cancelar
                     </Button>
