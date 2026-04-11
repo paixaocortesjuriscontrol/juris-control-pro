@@ -61,11 +61,17 @@ function respond(payload: { ok: boolean; resultados: ResultadoTipoRecurso[]; err
   });
 }
 
-async function queryEndpoint(endpoint: string, digits: string): Promise<{ classe: string | null; fonte: string; error?: string }> {
+async function queryEndpoint(
+  endpoint: string,
+  digits: string,
+  requestSignal?: AbortSignal,
+): Promise<{ classe: string | null; fonte: string; error?: string }> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
 
   try {
     const controller = new AbortController();
+    const abortFromClient = () => controller.abort("client-aborted");
+    requestSignal?.addEventListener("abort", abortFromClient, { once: true });
     const timeoutId = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS);
 
     const response = await fetch(url, {
@@ -83,6 +89,7 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ classe
     });
 
     clearTimeout(timeoutId);
+    requestSignal?.removeEventListener("abort", abortFromClient);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -102,29 +109,38 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ classe
     }
     return { classe: null, fonte: endpoint };
   } catch (err: any) {
-    const errMsg = err.name === "AbortError" ? "Timeout" : (err.message || "Erro");
+    const errMsg = err.name === "AbortError"
+      ? (requestSignal?.aborted ? "Cancelado" : "Timeout")
+      : (err.message || "Erro");
     return { classe: null, fonte: endpoint, error: errMsg };
   }
 }
 
-async function buscarTipoRecurso(numero: string): Promise<ResultadoTipoRecurso> {
+async function buscarTipoRecurso(numero: string, requestSignal?: AbortSignal): Promise<ResultadoTipoRecurso> {
   const digits = limparNumero(numero);
   if (digits.length < 10) {
     return { numero, tipo_recurso: null, fonte: null, erro: "Número inválido" };
+  }
+
+  if (requestSignal?.aborted) {
+    return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
   }
 
   const trt = getTRTFromProcesso(digits);
 
   // Query TRT first (more likely to have data), then TST
   if (trt && TRT_ENDPOINTS[trt]) {
-    const trtResult = await queryEndpoint(TRT_ENDPOINTS[trt].endpoint, digits);
+    const trtResult = await queryEndpoint(TRT_ENDPOINTS[trt].endpoint, digits, requestSignal);
     if (trtResult.classe) {
       return { numero, tipo_recurso: trtResult.classe, fonte: TRT_ENDPOINTS[trt].nome, erro: null };
+    }
+    if (trtResult.error === "Cancelado") {
+      return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
     }
   }
 
   // Try TST
-  const tstResult = await queryEndpoint("api_publica_tst", digits);
+  const tstResult = await queryEndpoint("api_publica_tst", digits, requestSignal);
   if (tstResult.classe) {
     return { numero, tipo_recurso: tstResult.classe, fonte: "TST", erro: null };
   }
@@ -164,6 +180,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     processos = body?.processos || [];
     const ids_benner: string[] = body?.ids_benner || [];
+    const requestSignal = req.signal;
 
     if (!processos.length) {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
@@ -174,7 +191,16 @@ Deno.serve(async (req) => {
     // Process SEQUENTIALLY to avoid DataJud rate limiting / timeouts
     const resultados: ResultadoTipoRecurso[] = [];
     for (const p of processos) {
-      const r = await buscarTipoRecurso(p);
+      if (requestSignal.aborted) {
+        console.log("[DataJud] Requisição cancelada pelo cliente, interrompendo lote");
+        break;
+      }
+
+      const r = await buscarTipoRecurso(p, requestSignal);
+      if (r.erro === "Cancelado") {
+        console.log(`[DataJud] Cancelado durante processamento de ${p}`);
+        break;
+      }
       resultados.push(r);
     }
 
