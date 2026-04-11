@@ -47,6 +47,17 @@ function getTRTFromProcesso(digits: string): string | null {
   return null;
 }
 
+function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
+  const digits = limparNumero(numero);
+  const trt = getTRTFromProcesso(digits);
+
+  if (trt && TRT_ENDPOINTS[trt]) {
+    return [TRT_ENDPOINTS[trt], { endpoint: "api_publica_tst", nome: "TST" }];
+  }
+
+  return [{ endpoint: "api_publica_tst", nome: "TST" }];
+}
+
 interface ResultadoTipoRecurso {
   numero: string;
   tipo_recurso: string | null;
@@ -65,12 +76,14 @@ async function queryEndpoint(
   endpoint: string,
   digits: string,
   requestSignal?: AbortSignal,
-): Promise<{ classe: string | null; fonte: string; error?: string }> {
+): Promise<{ hits: any[]; error?: string }> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
+
+  let abortFromClient: (() => void) | undefined;
 
   try {
     const controller = new AbortController();
-    const abortFromClient = () => controller.abort("client-aborted");
+    abortFromClient = () => controller.abort("client-aborted");
     requestSignal?.addEventListener("abort", abortFromClient, { once: true });
     const timeoutId = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS);
 
@@ -82,37 +95,31 @@ async function queryEndpoint(
       },
       body: JSON.stringify({
         query: { match: { numeroProcesso: digits } },
-        size: 1,
-        _source: ["numeroProcesso", "classe"],
+        size: 5,
+        _source: ["numeroProcesso", "classe", "grau"],
       }),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
-    requestSignal?.removeEventListener("abort", abortFromClient);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[DataJud] ${endpoint} HTTP ${response.status} for ${digits}: ${errorText.substring(0, 200)}`);
-      return { classe: null, fonte: endpoint, error: `API ${response.status}` };
+      return { hits: [], error: `API ${response.status}` };
     }
 
     const data = await response.json();
-    const hits = data?.hits?.hits || [];
-
-    if (hits.length > 0) {
-      const classeNome = hits[0]._source?.classe?.nome;
-      if (classeNome) {
-        console.log(`[DataJud] FOUND ${endpoint} | ${digits} => ${classeNome}`);
-        return { classe: classeNome, fonte: endpoint };
-      }
-    }
-    return { classe: null, fonte: endpoint };
+    return { hits: data?.hits?.hits || [] };
   } catch (err: any) {
     const errMsg = err.name === "AbortError"
       ? (requestSignal?.aborted ? "Cancelado" : "Timeout")
       : (err.message || "Erro");
-    return { classe: null, fonte: endpoint, error: errMsg };
+    return { hits: [], error: errMsg };
+  } finally {
+    if (abortFromClient) {
+      requestSignal?.removeEventListener("abort", abortFromClient);
+    }
   }
 }
 
@@ -126,26 +133,41 @@ async function buscarTipoRecurso(numero: string, requestSignal?: AbortSignal): P
     return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
   }
 
-  const trt = getTRTFromProcesso(digits);
+  const endpoints = getEndpoints(numero);
+  let bestClasse: string | null = null;
+  let bestFonte: string | null = null;
+  let lastError: string | null = null;
 
-  // Query TRT first (more likely to have data), then TST
-  if (trt && TRT_ENDPOINTS[trt]) {
-    const trtResult = await queryEndpoint(TRT_ENDPOINTS[trt].endpoint, digits, requestSignal);
-    if (trtResult.classe) {
-      return { numero, tipo_recurso: trtResult.classe, fonte: TRT_ENDPOINTS[trt].nome, erro: null };
-    }
-    if (trtResult.error === "Cancelado") {
+  for (const ep of endpoints) {
+    if (requestSignal?.aborted) {
       return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
     }
+
+    const result = await queryEndpoint(ep.endpoint, digits, requestSignal);
+
+    if (result.error === "Cancelado") {
+      return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
+    }
+
+    if (result.error) {
+      lastError = result.error;
+    }
+
+    for (const hit of result.hits) {
+      const classeNome = hit?._source?.classe?.nome;
+      if (classeNome) {
+        bestClasse = classeNome;
+        bestFonte = ep.nome;
+      }
+    }
   }
 
-  // Try TST
-  const tstResult = await queryEndpoint("api_publica_tst", digits, requestSignal);
-  if (tstResult.classe) {
-    return { numero, tipo_recurso: tstResult.classe, fonte: "TST", erro: null };
+  if (bestClasse) {
+    console.log(`[DataJud] FOUND ${digits} => ${bestClasse} (${bestFonte})`);
+    return { numero, tipo_recurso: bestClasse, fonte: bestFonte, erro: null };
   }
 
-  return { numero, tipo_recurso: null, fonte: null, erro: tstResult.error || "Classe não encontrada" };
+  return { numero, tipo_recurso: null, fonte: null, erro: lastError || "Classe não encontrada" };
 }
 
 Deno.serve(async (req) => {
@@ -186,22 +208,30 @@ Deno.serve(async (req) => {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    console.log(`[DataJud] Processando ${processos.length} processos SEQUENCIALMENTE`);
+    console.log(`[DataJud] Processando ${processos.length} processos em lotes pequenos`);
 
-    // Process SEQUENTIALLY to avoid DataJud rate limiting / timeouts
     const resultados: ResultadoTipoRecurso[] = [];
-    for (const p of processos) {
+    const BATCH_SIZE = 2;
+
+    for (let i = 0; i < processos.length; i += BATCH_SIZE) {
       if (requestSignal.aborted) {
-        console.log("[DataJud] Requisição cancelada pelo cliente, interrompendo lote");
+        console.log("[DataJud] Requisição cancelada pelo cliente, interrompendo processamento");
         break;
       }
 
-      const r = await buscarTipoRecurso(p, requestSignal);
-      if (r.erro === "Cancelado") {
-        console.log(`[DataJud] Cancelado durante processamento de ${p}`);
+      const batch = processos.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map((p) => buscarTipoRecurso(p, requestSignal)));
+
+      if (batchResults.some((r) => r.erro === "Cancelado")) {
+        console.log("[DataJud] Cancelado durante execução do lote atual");
         break;
       }
-      resultados.push(r);
+
+      resultados.push(...batchResults);
+
+      if (i + BATCH_SIZE < processos.length) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
 
     const encontrados = resultados.filter(r => r.tipo_recurso).length;
