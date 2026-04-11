@@ -509,7 +509,7 @@ export default function DadosBenner() {
       setTipoRecursoProgressText(`Encontrados ${validRecords.length} processos sem tipo de recurso. Iniciando consulta ao DataJud...`);
       setTipoRecursoProgressPct(1); // Show minimal progress to indicate activity
 
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 3;
       const allResults: TipoRecursoResult[] = [];
       let cancelled = false;
 
