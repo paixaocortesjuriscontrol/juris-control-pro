@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_TIMEOUT_MS = 10_000;
+const DATAJUD_TIMEOUT_MS = 20_000;
 
 const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
   "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
@@ -208,30 +208,24 @@ Deno.serve(async (req) => {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    console.log(`[DataJud] Processando ${processos.length} processos em lotes pequenos`);
+    console.log(`[DataJud] Processando ${processos.length} processos individualmente`);
 
     const resultados: ResultadoTipoRecurso[] = [];
-    const BATCH_SIZE = 2;
 
-    for (let i = 0; i < processos.length; i += BATCH_SIZE) {
+    for (const processo of processos) {
       if (requestSignal.aborted) {
         console.log("[DataJud] Requisição cancelada pelo cliente, interrompendo processamento");
         break;
       }
 
-      const batch = processos.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(batch.map((p) => buscarTipoRecurso(p, requestSignal)));
+      const resultado = await buscarTipoRecurso(processo, requestSignal);
 
-      if (batchResults.some((r) => r.erro === "Cancelado")) {
-        console.log("[DataJud] Cancelado durante execução do lote atual");
+      if (resultado.erro === "Cancelado") {
+        console.log("[DataJud] Cancelado durante consulta individual");
         break;
       }
 
-      resultados.push(...batchResults);
-
-      if (i + BATCH_SIZE < processos.length) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
+      resultados.push(resultado);
     }
 
     const encontrados = resultados.filter(r => r.tipo_recurso).length;
