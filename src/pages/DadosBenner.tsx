@@ -241,47 +241,6 @@ export default function DadosBenner() {
   const [tipoRecursoProgressText, setTipoRecursoProgressText] = useState("");
   const [tipoRecursoProgressPct, setTipoRecursoProgressPct] = useState(0);
   const cancelTipoRecursoRef = useRef(false);
-  const currentTipoRecursoAbortRef = useRef<AbortController | null>(null);
-
-  const invokeTipoRecursoRequest = async (processo: string, idBenner: string) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-
-    if (!accessToken) {
-      throw new Error("Sessão expirada. Faça login novamente.");
-    }
-
-    const controller = new AbortController();
-    currentTipoRecursoAbortRef.current = controller;
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/atualizar-tipo-recurso-datajud`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ processos: [processo], ids_benner: [idBenner] }),
-          signal: controller.signal,
-        }
-      );
-
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.error || `Erro HTTP ${response.status}`);
-      }
-
-      return payload;
-    } finally {
-      if (currentTipoRecursoAbortRef.current === controller) {
-        currentTipoRecursoAbortRef.current = null;
-      }
-    }
-  };
 
   const handleVerificarTransito = async () => {
     setVerificandoTransito(true);
@@ -450,7 +409,6 @@ export default function DadosBenner() {
       let allRecords: { id: string; processo: string }[] = [];
       let offset = 0;
       while (true) {
-        if (cancelTipoRecursoRef.current) break;
         let query = supabase.from("dados_benner" as any)
           .select("id, processo, tipo_recurso")
           .is("tipo_recurso", null)
@@ -473,7 +431,6 @@ export default function DadosBenner() {
       // Also fetch empty strings separately  
       offset = 0;
       while (true) {
-        if (cancelTipoRecursoRef.current) break;
         let query = supabase.from("dados_benner" as any)
           .select("id, processo, tipo_recurso")
           .eq("tipo_recurso", "")
@@ -506,47 +463,45 @@ export default function DadosBenner() {
         return;
       }
 
-      setTipoRecursoProgressText(`0 de ${validRecords.length} verificados...`);
-      const allResults: TipoRecursoResult[] = [];
-      let cancelled = false;
+      setTipoRecursoProgressText(`Encontrados ${validRecords.length} processos sem tipo de recurso. Iniciando consulta ao DataJud...`);
+      setTipoRecursoProgressPct(1); // Show minimal progress to indicate activity
 
-      for (let i = 0; i < validRecords.length; i++) {
+      const BATCH_SIZE = 3;
+      const allResults: TipoRecursoResult[] = [];
+
+      for (let i = 0; i < validRecords.length; i += BATCH_SIZE) {
         if (cancelTipoRecursoRef.current) {
-          cancelled = true;
           toast.info(`Busca cancelada. ${allResults.length} processo(s) já verificados.`);
           break;
         }
 
-        const record = validRecords[i];
-        const processed = i + 1;
+        const batch = validRecords.slice(i, i + BATCH_SIZE);
+        const processos = batch.map(r => r.processo!);
+        const idsBenner = batch.map(r => r.id);
+
+        // Update progress BEFORE the call so user sees activity
+        const processed = Math.min(i + BATCH_SIZE, validRecords.length);
         const pct = Math.max(1, Math.round((i / validRecords.length) * 100));
         setTipoRecursoProgressPct(pct);
-        setTipoRecursoProgressText(`Consultando DataJud: ${processed} de ${validRecords.length}...`);
+        setTipoRecursoProgressText(`Consultando DataJud: ${i} de ${validRecords.length} (lote ${Math.floor(i / BATCH_SIZE) + 1})...`);
 
         try {
-          const data = await invokeTipoRecursoRequest(record.processo!, record.id);
-          const resultado: TipoRecursoResult = data?.resultados?.[0] || {
-            numero: record.processo!,
-            tipo_recurso: null,
-            fonte: null,
-            erro: "Sem resposta",
-          };
-          allResults.push(resultado);
-        } catch (err: any) {
-          const abortado = err?.name === "AbortError" || cancelTipoRecursoRef.current;
+          const { data, error } = await supabase.functions.invoke("atualizar-tipo-recurso-datajud", {
+            body: { processos, ids_benner: idsBenner },
+          });
 
-          if (abortado) {
-            cancelled = true;
-            setTipoRecursoProgressText(`Cancelado após ${allResults.length} processo(s) verificados.`);
-            break;
+          if (error) {
+            batch.forEach(b => allResults.push({
+              numero: b.processo!, tipo_recurso: null, fonte: null, erro: error.message,
+            }));
           } else {
-            allResults.push({
-              numero: record.processo!,
-              tipo_recurso: null,
-              fonte: null,
-              erro: err?.message || "Erro",
-            });
+            const resultados: TipoRecursoResult[] = data?.resultados || [];
+            allResults.push(...resultados);
           }
+        } catch (err: any) {
+          batch.forEach(b => allResults.push({
+            numero: b.processo!, tipo_recurso: null, fonte: null, erro: err?.message || "Erro",
+          }));
         }
 
         setTipoRecursoResults([...allResults]);
@@ -555,23 +510,18 @@ export default function DadosBenner() {
         setTipoRecursoProgressText(`${processed} de ${validRecords.length} verificados...`);
       }
 
-      if (!cancelled && !cancelTipoRecursoRef.current) {
+      if (!cancelTipoRecursoRef.current) {
         const encontrados = allResults.filter(r => r.tipo_recurso).length;
         const erros = allResults.filter(r => !r.tipo_recurso).length;
         toast.success(`Concluído: ${encontrados} tipo(s) encontrado(s), ${erros} sem resultado`);
       }
 
-      if (!cancelled) {
-        setTipoRecursoProgressText("");
-      }
+      setTipoRecursoProgressText("");
       fetchDados();
     } catch (err: any) {
-      if (err?.name !== "AbortError") {
-        toast.error("Erro: " + (err?.message || "Erro desconhecido"));
-        setShowTipoRecursoDialog(false);
-      }
+      toast.error("Erro: " + (err?.message || "Erro desconhecido"));
+      setShowTipoRecursoDialog(false);
     } finally {
-      currentTipoRecursoAbortRef.current = null;
       setVerificandoTipoRecurso(false);
     }
   };
@@ -1042,11 +992,7 @@ export default function DadosBenner() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
-                        cancelTipoRecursoRef.current = true;
-                        currentTipoRecursoAbortRef.current?.abort();
-                        setTipoRecursoProgressText("Cancelando consulta atual...");
-                      }}
+                      onClick={() => { cancelTipoRecursoRef.current = true; }}
                     >
                       Cancelar
                     </Button>
