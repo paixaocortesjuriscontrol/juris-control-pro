@@ -72,11 +72,19 @@ function respond(payload: { ok: boolean; resultados: ResultadoTipoRecurso[]; err
   });
 }
 
-async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: any[]; error?: string }> {
+async function queryEndpoint(
+  endpoint: string,
+  digits: string,
+  requestSignal?: AbortSignal,
+): Promise<{ hits: any[]; error?: string }> {
   const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
+
+  let abortFromClient: (() => void) | undefined;
 
   try {
     const controller = new AbortController();
+    abortFromClient = () => controller.abort("client-aborted");
+    requestSignal?.addEventListener("abort", abortFromClient, { once: true });
     const timeoutId = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS);
 
     const response = await fetch(url, {
@@ -105,16 +113,24 @@ async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: 
     return { hits: data?.hits?.hits || [] };
   } catch (err: any) {
     if (err.name === "AbortError") {
-      return { hits: [], error: "Timeout na API" };
+      return { hits: [], error: requestSignal?.aborted ? "Cancelado" : "Timeout na API" };
     }
     return { hits: [], error: err.message || "Erro desconhecido" };
+  } finally {
+    if (abortFromClient) {
+      requestSignal?.removeEventListener("abort", abortFromClient);
+    }
   }
 }
 
-async function buscarTipoRecurso(numero: string): Promise<ResultadoTipoRecurso> {
+async function buscarTipoRecurso(numero: string, requestSignal?: AbortSignal): Promise<ResultadoTipoRecurso> {
   const digits = limparNumero(numero);
   if (digits.length < 10) {
     return { numero, tipo_recurso: null, fonte: null, erro: "Número inválido" };
+  }
+
+  if (requestSignal?.aborted) {
+    return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
   }
 
   const endpoints = getEndpoints(numero);
@@ -123,7 +139,14 @@ async function buscarTipoRecurso(numero: string): Promise<ResultadoTipoRecurso> 
   let lastError: string | null = null;
 
   for (const ep of endpoints) {
-    const result = await queryEndpoint(ep.endpoint, digits);
+    if (requestSignal?.aborted) {
+      return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
+    }
+
+    const result = await queryEndpoint(ep.endpoint, digits, requestSignal);
+    if (result.error === "Cancelado") {
+      return { numero, tipo_recurso: null, fonte: null, erro: "Cancelado" };
+    }
     if (result.error) lastError = result.error;
 
     for (const hit of result.hits) {
@@ -181,22 +204,25 @@ Deno.serve(async (req) => {
     const body = await req.json();
     processos = body?.processos || [];
     const ids_benner: string[] = body?.ids_benner || [];
+    const requestSignal = req.signal;
 
     if (!processos.length) {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    const BATCH_SIZE = 2;
     const resultados: ResultadoTipoRecurso[] = [];
 
-    for (let i = 0; i < processos.length; i += BATCH_SIZE) {
-      const batch = processos.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(batch.map((p) => buscarTipoRecurso(p)));
-      resultados.push(...batchResults);
-
-      if (i + BATCH_SIZE < processos.length) {
-        await new Promise((r) => setTimeout(r, 1000));
+    for (let i = 0; i < processos.length; i++) {
+      if (requestSignal.aborted) {
+        break;
       }
+
+      const resultado = await buscarTipoRecurso(processos[i], requestSignal);
+      if (resultado.erro === "Cancelado") {
+        break;
+      }
+
+      resultados.push(resultado);
     }
 
     // Update dados_benner with found tipo_recurso
