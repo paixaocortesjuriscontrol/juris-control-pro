@@ -6,18 +6,56 @@ const corsHeaders = {
 };
 
 const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
-const DATAJUD_BASE = "https://api-publica.datajud.cnj.jus.br";
-const TIMEOUT_MS = 12_000;
+const DATAJUD_TIMEOUT_MS = 10_000;
+
+const TRT_ENDPOINTS: Record<string, { endpoint: string; nome: string }> = {
+  "1": { endpoint: "api_publica_trt1", nome: "TRT1" },
+  "2": { endpoint: "api_publica_trt2", nome: "TRT2" },
+  "3": { endpoint: "api_publica_trt3", nome: "TRT3" },
+  "4": { endpoint: "api_publica_trt4", nome: "TRT4" },
+  "5": { endpoint: "api_publica_trt5", nome: "TRT5" },
+  "6": { endpoint: "api_publica_trt6", nome: "TRT6" },
+  "7": { endpoint: "api_publica_trt7", nome: "TRT7" },
+  "8": { endpoint: "api_publica_trt8", nome: "TRT8" },
+  "9": { endpoint: "api_publica_trt9", nome: "TRT9" },
+  "10": { endpoint: "api_publica_trt10", nome: "TRT10" },
+  "11": { endpoint: "api_publica_trt11", nome: "TRT11" },
+  "12": { endpoint: "api_publica_trt12", nome: "TRT12" },
+  "13": { endpoint: "api_publica_trt13", nome: "TRT13" },
+  "14": { endpoint: "api_publica_trt14", nome: "TRT14" },
+  "15": { endpoint: "api_publica_trt15", nome: "TRT15" },
+  "16": { endpoint: "api_publica_trt16", nome: "TRT16" },
+  "17": { endpoint: "api_publica_trt17", nome: "TRT17" },
+  "18": { endpoint: "api_publica_trt18", nome: "TRT18" },
+  "19": { endpoint: "api_publica_trt19", nome: "TRT19" },
+  "20": { endpoint: "api_publica_trt20", nome: "TRT20" },
+  "21": { endpoint: "api_publica_trt21", nome: "TRT21" },
+  "22": { endpoint: "api_publica_trt22", nome: "TRT22" },
+  "23": { endpoint: "api_publica_trt23", nome: "TRT23" },
+  "24": { endpoint: "api_publica_trt24", nome: "TRT24" },
+};
 
 function limparNumero(num: string): string {
   return num.replace(/[^0-9]/g, "");
 }
 
-function extrairTRT(numeroProcesso: string): string {
-  const digits = limparNumero(numeroProcesso);
-  const trtNum = parseInt(digits.slice(14, 16), 10);
-  if (Number.isNaN(trtNum) || trtNum < 1 || trtNum > 24) return "trt1";
-  return `trt${trtNum}`;
+function getTRTFromProcesso(digits: string): string | null {
+  if (digits.length >= 16) {
+    const trt = parseInt(digits.substring(14, 16), 10).toString();
+    if (TRT_ENDPOINTS[trt]) return trt;
+  }
+  return null;
+}
+
+function getEndpoints(numero: string): { endpoint: string; nome: string }[] {
+  const digits = limparNumero(numero);
+  const trt = getTRTFromProcesso(digits);
+
+  if (trt && TRT_ENDPOINTS[trt]) {
+    return [TRT_ENDPOINTS[trt], { endpoint: "api_publica_tst", nome: "TST" }];
+  }
+
+  return [{ endpoint: "api_publica_tst", nome: "TST" }];
 }
 
 interface ResultadoTipoRecurso {
@@ -27,73 +65,88 @@ interface ResultadoTipoRecurso {
   erro: string | null;
 }
 
-// Same pattern as check-transito: simple fetch with AbortSignal.timeout
-async function consultarTribunal(
-  tribunal: string,
-  digits: string,
-): Promise<string | null> {
-  const url = `${DATAJUD_BASE}/api_publica_${tribunal}/_search`;
+function respond(payload: { ok: boolean; resultados: ResultadoTipoRecurso[]; error?: string }) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function queryEndpoint(endpoint: string, digits: string): Promise<{ hits: any[]; error?: string }> {
+  const url = `https://api-publica.datajud.cnj.jus.br/${endpoint}/_search`;
+
   try {
-    const res = await fetch(url, {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS);
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `ApiKey ${DATAJUD_API_KEY}`,
+        Authorization: `APIKey ${DATAJUD_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        size: 1,
-        _source: ["numeroProcesso", "classe", "grau"],
         query: { match: { numeroProcesso: digits } },
+        size: 5,
+        _source: ["numeroProcesso", "classe", "grau"],
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: controller.signal,
     });
-    if (!res.ok) return null;
-    const data = await res.json() as { hits?: { hits?: Array<{ _source?: Record<string, unknown> }> } };
-    const source = data?.hits?.hits?.[0]?._source;
-    if (!source) return null;
-    const classeNome = (source as any)?.classe?.nome;
-    return classeNome ? String(classeNome) : null;
-  } catch {
-    return null;
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`Erro API ${endpoint}:`, response.status, text);
+      return { hits: [], error: `API retornou ${response.status}` };
+    }
+
+    const data = await response.json();
+    return { hits: data?.hits?.hits || [] };
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      return { hits: [], error: "Timeout na API" };
+    }
+    return { hits: [], error: err.message || "Erro desconhecido" };
   }
 }
 
-// Same pattern as check-transito: Promise.allSettled for TRT + TST in parallel
 async function buscarTipoRecurso(numero: string): Promise<ResultadoTipoRecurso> {
   const digits = limparNumero(numero);
   if (digits.length < 10) {
     return { numero, tipo_recurso: null, fonte: null, erro: "Número inválido" };
   }
 
-  const trtCode = extrairTRT(numero);
+  const endpoints = getEndpoints(numero);
+  let bestClasse: string | null = null;
+  let bestFonte: string | null = null;
+  let lastError: string | null = null;
 
-  // Parallel query to TRT + TST, exactly like check-transito
-  const [resultTRT, resultTST] = await Promise.allSettled([
-    consultarTribunal(trtCode, digits),
-    consultarTribunal("tst", digits),
-  ]);
+  for (const ep of endpoints) {
+    const result = await queryEndpoint(ep.endpoint, digits);
+    if (result.error) lastError = result.error;
 
-  const classeTRT = resultTRT.status === "fulfilled" ? resultTRT.value : null;
-  const classeTST = resultTST.status === "fulfilled" ? resultTST.value : null;
-
-  // TRT first (origin), then TST
-  if (classeTRT) {
-    console.log(`[DataJud] FOUND ${digits} => ${classeTRT} (${trtCode.toUpperCase()})`);
-    return { numero, tipo_recurso: classeTRT, fonte: trtCode.toUpperCase(), erro: null };
-  }
-  if (classeTST) {
-    console.log(`[DataJud] FOUND ${digits} => ${classeTST} (TST)`);
-    return { numero, tipo_recurso: classeTST, fonte: "TST", erro: null };
+    for (const hit of result.hits) {
+      const classeNome = hit._source?.classe?.nome;
+      if (classeNome) {
+        // TST takes priority, so keep overwriting
+        bestClasse = classeNome;
+        bestFonte = ep.nome;
+      }
+    }
   }
 
-  return { numero, tipo_recurso: null, fonte: null, erro: "Classe não encontrada" };
-}
+  if (!bestClasse) {
+    return {
+      numero,
+      tipo_recurso: null,
+      fonte: null,
+      erro: lastError || "Classe não encontrada",
+    };
+  }
 
-function respond(payload: { ok: boolean; resultados: ResultadoTipoRecurso[]; error?: string }) {
-  return new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  console.log(`Processo ${numero}: classe="${bestClasse}" fonte=${bestFonte}`);
+  return { numero, tipo_recurso: bestClasse, fonte: bestFonte, erro: null };
 }
 
 Deno.serve(async (req) => {
@@ -128,41 +181,39 @@ Deno.serve(async (req) => {
     const body = await req.json();
     processos = body?.processos || [];
     const ids_benner: string[] = body?.ids_benner || [];
-    const requestSignal = req.signal;
 
     if (!processos.length) {
       return respond({ ok: false, resultados: [], error: "Nenhum processo informado" });
     }
 
-    console.log(`[DataJud] Processando ${processos.length} processos (1 por vez, TRT+TST em paralelo)`);
-
+    const BATCH_SIZE = 2;
     const resultados: ResultadoTipoRecurso[] = [];
 
-    for (const processo of processos) {
-      const resultado = await buscarTipoRecurso(processo);
-      resultados.push(resultado);
+    for (let i = 0; i < processos.length; i += BATCH_SIZE) {
+      const batch = processos.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map((p) => buscarTipoRecurso(p)));
+      resultados.push(...batchResults);
+
+      if (i + BATCH_SIZE < processos.length) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
     }
 
-    const encontrados = resultados.filter(r => r.tipo_recurso).length;
-    console.log(`[DataJud] Resultado: ${encontrados}/${processos.length} encontrados`);
-
     // Update dados_benner with found tipo_recurso
-    const updates = ids_benner
-      .map((id, i) => ({ id, resultado: resultados[i] }))
-      .filter(({ resultado }) => resultado?.tipo_recurso);
-
-    if (updates.length > 0) {
-      await Promise.all(
-        updates.map(({ id, resultado }) =>
-          supabase
+    if (ids_benner.length > 0) {
+      for (let i = 0; i < ids_benner.length; i++) {
+        const id = ids_benner[i];
+        const resultado = resultados[i];
+        if (resultado && resultado.tipo_recurso) {
+          await supabase
             .from("dados_benner")
             .update({
               tipo_recurso: resultado.tipo_recurso,
               tipo_recurso_auto: true,
             } as any)
-            .eq("id", id)
-        )
-      );
+            .eq("id", id);
+        }
+      }
     }
 
     return respond({ ok: true, resultados });
