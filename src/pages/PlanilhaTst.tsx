@@ -2394,6 +2394,21 @@ export default function PlanilhaTst() {
     "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
   ];
 
+  // Layout for "Não localizados" template: Col A = Processo, Col B = Dossiê status, Col C+ = rest
+  const LAYOUT_COLS_NAO_LOC = [
+    "Processo", "Dossiê", "Tribunal (TST, STF ou STJ)", "Tipo de Recurso",
+    "Data da distribuição no TST/STF", "Turma", "Relator",
+    "Análise do quarteirizado", "Há risco de mídia negativa? (S/N)", "Risco",
+    "Há discussão sobre provas digitais? (S/N)", "Temos data de julgamento? (S/N)",
+    "Data Julgamento", "Horário", "Julgamento (Virtual, Telepresencial, Híbrido ou Presencial)",
+    "Matéria de Honra (S/N)", "Entrega de Memoriais (S/N)", "Sustentação Oral (S/N/ Não cabe)",
+    "Sem transcendência", "Recurso não conhecido", "Recurso conhecido e provido",
+    "Recurso conhecido e não provido", "Outra", "Observações", "Ganhamos", "Perdemos",
+    "Processo baixado do TST/STF (S/N)", "Recorrente", "Favorável",
+    "Desfavorável", "Favorável", "Desfavorável",
+    "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
+  ];
+
   function processRowToCargaBenner(pr: ProcessRow): Record<string, any> {
     const row: Record<string, any> = {};
     row[LAYOUT_COLS_CARGA[0]] = pr.dossie; // Dossiê
@@ -2418,6 +2433,146 @@ export default function PlanilhaTst() {
     row[LAYOUT_COLS_CARGA[33]] = ""; // Chance êxito
     row["__numProcesso"] = pr.numero_processo;
     return row;
+  }
+
+  function processRowToNaoLocalizado(pr: ProcessRow, dossieStatus: string): Record<string, any> {
+    const row: Record<string, any> = {};
+    row["Processo"] = pr.numero_processo;
+    row["Dossiê"] = dossieStatus;
+    row["Tribunal (TST, STF ou STJ)"] = "TST";
+    row["Tipo de Recurso"] = "";
+    row["Data da distribuição no TST/STF"] = pr.data_distribuicao;
+    row["Turma"] = pr.turma_relator || "";
+    row["Relator"] = pr.relator;
+    const ct = pr.classificacao_turma;
+    row["Favorável_turma"] = ct === "POSITIVA" ? "X" : "";
+    row["Desfavorável_turma"] = ct === "NEGATIVA" ? "X" : "";
+    const cr = pr.classificacao_relator;
+    row["Favorável_relator"] = cr === "POSITIVO" ? "X" : "";
+    row["Desfavorável_relator"] = cr === "NEGATIVO" ? "X" : "";
+    return row;
+  }
+
+  async function exportNaoLocalizadosFormat(rows: ProcessRow[], fileName: string, dossieStatus: string) {
+    if (rows.length === 0) {
+      toast.error("Nenhum registro para exportar.");
+      return;
+    }
+    try {
+      const resp = await fetch("/templates/layout_carga_nao_localizados_template.xlsx");
+      if (!resp.ok) throw new Error("Template não encontrado");
+      const templateBuf = await resp.arrayBuffer();
+      const zip = await JSZip.loadAsync(templateBuf);
+
+      const sstXml = await zip.file("xl/sharedStrings.xml")!.async("string");
+      const existingStrings: string[] = [];
+      const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
+      let m: RegExpExecArray | null;
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      const stringMap = new Map<string, number>();
+      existingStrings.forEach((s, i) => stringMap.set(s, i));
+      const newStrings = [...existingStrings];
+      function getStrIdx(val: string): number {
+        if (stringMap.has(val)) return stringMap.get(val)!;
+        const idx = newStrings.length;
+        newStrings.push(val);
+        stringMap.set(val, idx);
+        return idx;
+      }
+      function c2l(c: number): string {
+        let s = "", n = c;
+        while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
+        return s;
+      }
+
+      const totalCols = LAYOUT_COLS_NAO_LOC.length;
+
+      let dataRowsXml = "";
+      for (let i = 0; i < rows.length; i++) {
+        const pr = rows[i];
+        const rowData = processRowToNaoLocalizado(pr, dossieStatus);
+        const rowNum = i + 3; // row 1 = merged header, row 2 = column headers
+        let cellsXml = "";
+
+        // Col A = Processo
+        const procVal = String(rowData["Processo"] ?? "");
+        if (procVal) cellsXml += `<c r="A${rowNum}" t="s"><v>${getStrIdx(procVal)}</v></c>`;
+
+        // Col B = Dossiê status
+        const dossVal = String(rowData["Dossiê"] ?? "");
+        if (dossVal) cellsXml += `<c r="B${rowNum}" t="s"><v>${getStrIdx(dossVal)}</v></c>`;
+
+        // Col C = Tribunal
+        cellsXml += `<c r="C${rowNum}" t="s"><v>${getStrIdx("TST")}</v></c>`;
+
+        // Col E = Data distribuição
+        const dataVal = String(rowData["Data da distribuição no TST/STF"] ?? "");
+        if (dataVal) cellsXml += `<c r="E${rowNum}" t="s"><v>${getStrIdx(dataVal)}</v></c>`;
+
+        // Col F = Turma
+        const turmaVal = String(rowData["Turma"] ?? "");
+        if (turmaVal) cellsXml += `<c r="F${rowNum}" t="s"><v>${getStrIdx(turmaVal)}</v></c>`;
+
+        // Col G = Relator
+        const relVal = String(rowData["Relator"] ?? "");
+        if (relVal) cellsXml += `<c r="G${rowNum}" t="s"><v>${getStrIdx(relVal)}</v></c>`;
+
+        // Col K = Provas digitais = N
+        cellsXml += `<c r="K${rowNum}" t="s"><v>${getStrIdx("N")}</v></c>`;
+
+        // Col L = Tem data julgamento = N
+        cellsXml += `<c r="L${rowNum}" t="s"><v>${getStrIdx("N")}</v></c>`;
+
+        // Col AC = Favorável (turma)
+        const favT = rowData["Favorável_turma"];
+        if (favT) cellsXml += `<c r="AC${rowNum}" t="s"><v>${getStrIdx(favT)}</v></c>`;
+
+        // Col AD = Desfavorável (turma)
+        const desfT = rowData["Desfavorável_turma"];
+        if (desfT) cellsXml += `<c r="AD${rowNum}" t="s"><v>${getStrIdx(desfT)}</v></c>`;
+
+        // Col AE = Favorável (relator)
+        const favR = rowData["Favorável_relator"];
+        if (favR) cellsXml += `<c r="AE${rowNum}" t="s"><v>${getStrIdx(favR)}</v></c>`;
+
+        // Col AF = Desfavorável (relator)
+        const desfR = rowData["Desfavorável_relator"];
+        if (desfR) cellsXml += `<c r="AF${rowNum}" t="s"><v>${getStrIdx(desfR)}</v></c>`;
+
+        dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
+      }
+
+      let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+      const lastRow = rows.length + 2;
+      const lastColLetter = c2l(totalCols - 1);
+      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${lastColLetter}${lastRow}"/>`);
+      const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
+      if (sheetDataMatch) {
+        const allRowsContent = sheetDataMatch[1];
+        const row1Match = allRowsContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
+        const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
+        const headerRows = `${row1Match?.[0] ?? ""}${row2Match?.[0] ?? ""}`;
+        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
+      }
+      zip.file("xl/worksheets/sheet1.xml", sheetXml);
+
+      const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const newSstEntries = newStrings.map(s => `<si><t>${escapeXml(s)}</t></si>`).join("");
+      const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
+      zip.file("xl/sharedStrings.xml", newSst);
+
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${rows.length} registros exportados!`);
+    } catch (err: any) {
+      toast.error("Erro ao exportar: " + (err?.message || String(err)));
+      console.error("[PlanilhaTST] Export Não Localizados error:", err);
+    }
   }
 
   async function exportCargaBennerFormat(rows: ProcessRow[], fileName: string) {
@@ -2532,7 +2687,7 @@ export default function PlanilhaTst() {
 
   const baixarDossiesNaoLocalizados = () => {
     const filtered = results.filter(pr => isEmpty(pr.dossie));
-    exportCargaBennerFormat(filtered, `Dossies_Nao_Localizados_${input1FileName || "TST"}.xlsx`);
+    exportNaoLocalizadosFormat(filtered, `Dossies_Nao_Localizados_${input1FileName || "TST"}.xlsx`, "Não localizado");
   };
 
   const baixarBennerAtualizadoSim = () => {
@@ -2540,7 +2695,7 @@ export default function PlanilhaTst() {
       const val = String((pr.originalData as any)?.__colAA || "").trim().toUpperCase();
       return val === "SIM";
     });
-    exportCargaBennerFormat(filtered, `Benner_Atualizado_SIM_${input1FileName || "TST"}.xlsx`);
+    exportNaoLocalizadosFormat(filtered, `Benner_Atualizado_SIM_${input1FileName || "TST"}.xlsx`, "Já enviado");
   };
 
   const exportFallback = () => {
