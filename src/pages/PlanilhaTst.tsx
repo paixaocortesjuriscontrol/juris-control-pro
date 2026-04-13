@@ -3327,9 +3327,13 @@ export default function PlanilhaTst() {
         {/* Download */}
         {results.length > 0 && (
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
+            <Button onClick={() => baixarPlanilha()} variant="outline" className="gap-2">
               <Download className="w-4 h-4" />
               Baixar Planilha Complementada
+            </Button>
+            <Button onClick={() => baixarPlanilha({ excludeBennerSim: true })} variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950">
+              <Download className="w-4 h-4" />
+              Complementada sem Benner SIM ({stats.bennerAtualizadoSim ? results.length - stats.bennerAtualizadoSim : results.length})
             </Button>
             <Button onClick={gerarRelatorioPDF} variant="outline" className="gap-2">
               <FileSpreadsheet className="w-4 h-4" />
