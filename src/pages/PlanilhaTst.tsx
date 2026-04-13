@@ -2441,16 +2441,26 @@ export default function PlanilhaTst() {
     row["Dossiê"] = dossieStatus;
     row["Tribunal (TST, STF ou STJ)"] = "TST";
     row["Tipo de Recurso"] = "";
-    // Garantir formato DD/MM/YYYY
+    // Garantir formato DD/MM/YYYY com 2 dígitos dia, 2 mês, 4 ano
     let dataFmt = pr.data_distribuicao || "";
     if (dataFmt) {
-      // Se vier como YYYY-MM-DD ou YYYY/MM/DD, converter para DD/MM/YYYY
-      const isoMatch = dataFmt.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
-      if (isoMatch) {
-        dataFmt = `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      // Tentar parsear como Date para cobrir qualquer formato
+      const parsed = new Date(dataFmt);
+      if (!isNaN(parsed.getTime())) {
+        dataFmt = `${pad(parsed.getUTCDate())}/${pad(parsed.getUTCMonth() + 1)}/${parsed.getUTCFullYear()}`;
+      } else {
+        // Fallback: se vier como D/M/YY ou DD/MM/YY etc
+        const parts = dataFmt.split(/[-/]/);
+        if (parts.length === 3) {
+          let [a, b, c] = parts.map(Number);
+          // Se primeiro > 31, é YYYY-MM-DD
+          if (a > 31) { [a, b, c] = [c, b, a]; }
+          // Se ano < 100, expandir
+          if (c < 100) c += 2000;
+          dataFmt = `${pad(a)}/${pad(b)}/${c}`;
+        }
       }
-      // Se vier como MM/DD/YYYY com mês > 12, já está DD/MM/YYYY
-      // Se já está DD/MM/YYYY, manter
     }
     row["Data da distribuição no TST/STF"] = dataFmt;
     row["Turma"] = pr.turma_relator || "";
