@@ -704,13 +704,21 @@ function isEmpty(val: string): boolean {
   );
 }
 
-/** Returns true if the value looks like a CNJ process number (20 digits or very close) */
+/** Returns true if the value looks like a CNJ process number, NOT a dossiê number.
+ *  Dossiê format: XX.XX.XXX.XXXXXXXXXX/XX (contains "/" separator) — always valid.
+ *  CNJ format: NNNNNNN-DD.AAAA.J.TT.OOOO (contains "-" separator, 20 digits) — rejected as dossiê.
+ */
 function looksLikeProcessNumber(val: string): boolean {
   if (!val) return false;
-  const digits = val.replace(/\D/g, "");
-  // CNJ numbers have exactly 20 digits; dossiê numbers are typically 4-10 digits
-  // Only reject if it clearly looks like a full CNJ number (18+ digits)
-  return digits.length >= 18;
+  const trimmed = val.trim();
+  // Dossiê numbers contain "/" (e.g., "07.02.033.0003894561/24") — never reject these
+  if (trimmed.includes("/")) return false;
+  // CNJ process numbers contain "-" and match the pattern NNNNNNN-DD.AAAA.J.TT.OOOO
+  const cnjPattern = /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/;
+  if (cnjPattern.test(trimmed)) return true;
+  // Also reject pure digit strings that are clearly process numbers (20 digits)
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length === 20;
 }
 
 /** Sanitize dossie: if it looks like a process number, return NOT_FOUND */
