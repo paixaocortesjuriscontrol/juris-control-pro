@@ -1984,7 +1984,7 @@ export default function PlanilhaTst() {
 
         // --- VALUE PASS: process each sheet ---
         for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
-          const sheetResults = results.filter(r => r.sheetIndex === sheetIdx);
+          const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
           if (sheetResults.length === 0) continue;
           const meta = input1Meta[sheetIdx];
           if (!meta) continue;
@@ -2288,7 +2288,7 @@ export default function PlanilhaTst() {
             };
 
             for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
-              const sheetResults = results.filter(r => r.sheetIndex === sheetIdx);
+              const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
               if (sheetResults.length === 0) continue;
               const meta = input1Meta[sheetIdx];
               if (!meta) continue;
@@ -2362,7 +2362,7 @@ export default function PlanilhaTst() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${input1FileName || "Distribuicoes_TST"} complementada.xlsx`;
+        a.download = `${input1FileName || "Distribuicoes_TST"}${fileSuffix}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
       } catch (err) {
