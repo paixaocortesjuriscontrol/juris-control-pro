@@ -516,9 +516,43 @@ function parseFileInWorker(file: File, allSheets: boolean): Promise<any[]> {
 }
 
 async function readSheetData(file: File): Promise<SheetData> {
-  const sheets = await parseFileInWorker(file, false);
-  const s = sheets[0];
-  return { headers: s.headers, rows: s.rows, headerRowIndex: s.headerRowIndex };
+  const sheets = await parseFileInWorker(file, true); // read ALL sheets
+  if (sheets.length === 1) {
+    const s = sheets[0];
+    return { headers: s.headers, rows: s.rows, headerRowIndex: s.headerRowIndex };
+  }
+  // Merge all sheets: use headers from first sheet, then merge rows from all sheets
+  // For each subsequent sheet, remap its headers to the first sheet's headers
+  const baseHeaders = sheets[0].headers as string[];
+  const allRows: Record<string, any>[] = [...(sheets[0].rows as Record<string, any>[])];
+
+  for (let si = 1; si < sheets.length; si++) {
+    const s = sheets[si];
+    const sHeaders = s.headers as string[];
+    const sRows = s.rows as Record<string, any>[];
+
+    // Build a mapping from this sheet's headers to base headers
+    const headerMap = new Map<string, string>();
+    for (const sh of sHeaders) {
+      const shNorm = normalizeText(sh);
+      // Find matching base header
+      const match = baseHeaders.find(bh => normalizeText(bh) === shNorm);
+      if (match) headerMap.set(sh, match);
+      else headerMap.set(sh, sh); // keep original if no match
+    }
+
+    for (const row of sRows) {
+      const remapped: Record<string, any> = {};
+      for (const [key, val] of Object.entries(row)) {
+        const mappedKey = headerMap.get(key) || key;
+        remapped[mappedKey] = val;
+      }
+      allRows.push(remapped);
+    }
+  }
+
+  console.log(`[PlanilhaTST] readSheetData merged ${sheets.length} sheets → ${allRows.length} rows`);
+  return { headers: baseHeaders, rows: allRows, headerRowIndex: sheets[0].headerRowIndex };
 }
 
 function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
@@ -655,11 +689,13 @@ function isEmpty(val: string): boolean {
   );
 }
 
-/** Returns true if the value looks like a CNJ process number (7+ digits in sequence) */
+/** Returns true if the value looks like a CNJ process number (20 digits or very close) */
 function looksLikeProcessNumber(val: string): boolean {
   if (!val) return false;
   const digits = val.replace(/\D/g, "");
-  return digits.length >= 13; // CNJ numbers have 20 digits; dossie numbers are typically short
+  // CNJ numbers have exactly 20 digits; dossiê numbers are typically 4-10 digits
+  // Only reject if it clearly looks like a full CNJ number (18+ digits)
+  return digits.length >= 18;
 }
 
 /** Sanitize dossie: if it looks like a process number, return NOT_FOUND */
