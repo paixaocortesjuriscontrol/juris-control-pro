@@ -2205,7 +2205,6 @@ export default function PlanilhaTst() {
               excelRow = remapped;
             }
             const tryWrite = (colIdx: number, value: string, origemKey: string) => {
-            const tryWrite = (colIdx: number, value: string, origemKey: string) => {
               if (colIdx < 0 || isEmpty(value)) return;
               if (!(pr as any)[origemKey]) return;
               upsertCellValue(excelRow, colIdx, value);
