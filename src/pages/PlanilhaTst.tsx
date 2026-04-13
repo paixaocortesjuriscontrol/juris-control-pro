@@ -873,7 +873,8 @@ export default function PlanilhaTst() {
       const buildLookupWithProgress = async (
         input: SheetData | null,
         startPct: number,
-        endPct: number
+        endPct: number,
+        colIndex?: number
       ) => {
         if (!input) return new Map<string, Record<string, any>>();
         let lastProgress = -1;
@@ -883,7 +884,7 @@ export default function PlanilhaTst() {
             const pct = startPct + (endPct - startPct) * progress;
             await tick(pct);
           }
-        });
+        }, colIndex);
       };
 
       const lookup2 = await buildLookupWithProgress(input2, 13.1, 13.7);
