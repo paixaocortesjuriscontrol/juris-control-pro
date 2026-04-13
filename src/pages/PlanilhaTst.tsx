@@ -745,13 +745,26 @@ function extractCnjCore(digits: string): string {
 async function buildAllLookups(
   rows: Record<string, any>[],
   headers: string[],
-  onProgress?: (progress: number) => Promise<void> | void
+  onProgress?: (progress: number) => Promise<void> | void,
+  colIndex?: number
 ): Promise<Map<string, Record<string, any>>> {
   const map = new Map<string, Record<string, any>>();
-  let extractor = processoExtractorCache.get(headers);
-  if (!extractor) {
-    extractor = buildProcessoExtractor(headers);
-    processoExtractorCache.set(headers, extractor);
+  let extractor: ProcessoExtractor;
+  if (colIndex !== undefined) {
+    // Use a fixed column index as the lookup key
+    const colHeader = headers[colIndex] || "";
+    extractor = (row: Record<string, any>) => {
+      const val = colHeader ? String(row[colHeader] ?? "").trim() : "";
+      if (val && val.replace(/\D/g, "").length >= 7) return val;
+      return "";
+    };
+  } else {
+    let cached = processoExtractorCache.get(headers);
+    if (!cached) {
+      cached = buildProcessoExtractor(headers);
+      processoExtractorCache.set(headers, cached);
+    }
+    extractor = cached;
   }
   const total = rows.length;
   for (let i = 0; i < total; i++) {
