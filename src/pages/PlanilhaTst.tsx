@@ -3125,6 +3125,7 @@ export default function PlanilhaTst() {
               <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
                 <div className="text-xs text-muted-foreground">Dossiês Não Localizados</div>
+                <div className="text-xs text-muted-foreground">(únicos: {stats.dossiesNaoLocalizadosUnicos})</div>
               </CardContent>
             </Card>
             <Card>
@@ -3286,6 +3287,7 @@ export default function PlanilhaTst() {
                     <div className="text-sm font-medium mb-1">Dossiês Não Localizados</div>
                     <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
                     <div className="text-xs text-muted-foreground">de {stats.totalLinhas} processos ({stats.totalLinhas > 0 ? Math.round((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100) : 0}%)</div>
+                    <div className="text-xs font-medium text-orange-400 mt-1">Únicos (sem duplicatas): {stats.dossiesNaoLocalizadosUnicos}</div>
                   </div>
                   <div className="border rounded-md p-3">
                     <div className="text-sm font-medium mb-1">Dossiês Cinza (original)</div>
@@ -3548,7 +3550,7 @@ export default function PlanilhaTst() {
             </Button>
             <Button onClick={baixarDossiesNaoLocalizados} variant="outline" className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950">
               <Download className="w-4 h-4" />
-              Dossiês Não Localizados ({stats.dossiesNaoLocalizados})
+              Dossiês Não Localizados ({stats.dossiesNaoLocalizadosUnicos} únicos)
             </Button>
             <Button onClick={baixarBennerAtualizadoSim} variant="outline" className="gap-2 border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950">
               <Download className="w-4 h-4" />
