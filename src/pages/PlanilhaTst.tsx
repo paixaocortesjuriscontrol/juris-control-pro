@@ -1888,11 +1888,16 @@ export default function PlanilhaTst() {
     toast.success("Relatório PDF gerado com sucesso!");
   };
 
-  const baixarPlanilha = async () => {
-    if (results.length === 0) {
+  const baixarPlanilha = async (opts?: { excludeBennerSim?: boolean }) => {
+    const excludeBenner = opts?.excludeBennerSim || false;
+    const activeResults = excludeBenner
+      ? results.filter(pr => String((pr.originalData as any)?.__colAA || "").trim().toUpperCase() !== "SIM")
+      : results;
+    if (activeResults.length === 0) {
       toast.error("Nenhum resultado para exportar.");
       return;
     }
+    const fileSuffix = excludeBenner ? " complementada (sem Benner SIM)" : " complementada";
 
     if (originalFileBuffer && input1Meta.length > 0) {
       try {
@@ -1979,8 +1984,7 @@ export default function PlanilhaTst() {
 
         // --- VALUE PASS: process each sheet ---
         for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
-          const sheetResults = results.filter(r => r.sheetIndex === sheetIdx);
-          if (sheetResults.length === 0) continue;
+          const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
           const meta = input1Meta[sheetIdx];
           if (!meta) continue;
 
@@ -1994,6 +1998,27 @@ export default function PlanilhaTst() {
 
           const headers = meta.headers;
           const dataStartRow = meta.headerRowIndex + 2;
+
+          // Remove excluded rows from XML (Benner SIM)
+          if (excludeBenner) {
+            const excludedResults = results.filter(r =>
+              r.sheetIndex === sheetIdx &&
+              String((r.originalData as any)?.__colAA || "").trim().toUpperCase() === "SIM"
+            );
+            const excludedExcelRows = new Set(excludedResults.map(r => dataStartRow + r.originalIndex));
+            const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
+            for (const rowEl of allRows) {
+              const rn = Number(rowEl.getAttribute("r"));
+              if (excludedExcelRows.has(rn)) {
+                sheetDataEl.removeChild(rowEl);
+              }
+            }
+          }
+
+          if (sheetResults.length === 0) {
+            zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
+            continue;
+          }
 
           const getColIdx = (terms: string[]): number => findColumnIndex(headers, ...terms);
           const colDossie = getColIdx(["dossi", "dossie", "dossiê"]);
@@ -2283,7 +2308,7 @@ export default function PlanilhaTst() {
             };
 
             for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
-              const sheetResults = results.filter(r => r.sheetIndex === sheetIdx);
+              const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
               if (sheetResults.length === 0) continue;
               const meta = input1Meta[sheetIdx];
               if (!meta) continue;
@@ -2357,7 +2382,7 @@ export default function PlanilhaTst() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${input1FileName || "Distribuicoes_TST"} complementada.xlsx`;
+        a.download = `${input1FileName || "Distribuicoes_TST"}${fileSuffix}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
       } catch (err) {
@@ -3322,9 +3347,13 @@ export default function PlanilhaTst() {
         {/* Download */}
         {results.length > 0 && (
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
+            <Button onClick={() => baixarPlanilha()} variant="outline" className="gap-2">
               <Download className="w-4 h-4" />
               Baixar Planilha Complementada
+            </Button>
+            <Button onClick={() => baixarPlanilha({ excludeBennerSim: true })} variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950">
+              <Download className="w-4 h-4" />
+              Complementada sem Benner SIM ({stats.bennerAtualizadoSim ? results.length - stats.bennerAtualizadoSim : results.length})
             </Button>
             <Button onClick={gerarRelatorioPDF} variant="outline" className="gap-2">
               <FileSpreadsheet className="w-4 h-4" />
