@@ -443,6 +443,7 @@ interface Stats {
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
   dossiesNaoLocalizados: number;
+  dossiesNaoLocalizadosUnicos: number;
   dossiesCinza: number;
   bennerAtualizadoSim: number;
   linhasPreenchidas: number;
@@ -798,7 +799,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {}, estatisticasPorMes: {} });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesNaoLocalizadosUnicos: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {}, estatisticasPorMes: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -1379,6 +1380,12 @@ export default function PlanilhaTst() {
       ).length;
 
       const dossiesNaoLocalizados = rowsParaTotalizadores.filter(pr => isEmpty(pr.dossie)).length;
+      const seenNaoLoc = new Set<string>();
+      rowsParaTotalizadores.filter(pr => isEmpty(pr.dossie)).forEach(pr => {
+        const key = (pr.numero_processo || "").replace(/\D/g, "");
+        if (key) seenNaoLoc.add(key);
+      });
+      const dossiesNaoLocalizadosUnicos = seenNaoLoc.size;
 
       // Linhas preenchidas = linhas que têm ao menos 1 campo preenchido pelo sistema
       const linhasPreenchidas = rowsParaTotalizadores.filter(pr =>
@@ -1572,6 +1579,7 @@ export default function PlanilhaTst() {
         fieldFills,
         unmatchedSamples,
         dossiesNaoLocalizados,
+        dossiesNaoLocalizadosUnicos,
         dossiesCinza,
         bennerAtualizadoSim,
         linhasPreenchidas,
@@ -3117,6 +3125,7 @@ export default function PlanilhaTst() {
               <CardContent className="pt-4 text-center">
                 <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
                 <div className="text-xs text-muted-foreground">Dossiês Não Localizados</div>
+                <div className="text-xs text-muted-foreground">(únicos: {stats.dossiesNaoLocalizadosUnicos})</div>
               </CardContent>
             </Card>
             <Card>
@@ -3278,6 +3287,7 @@ export default function PlanilhaTst() {
                     <div className="text-sm font-medium mb-1">Dossiês Não Localizados</div>
                     <div className="text-2xl font-bold text-orange-500">{stats.dossiesNaoLocalizados}</div>
                     <div className="text-xs text-muted-foreground">de {stats.totalLinhas} processos ({stats.totalLinhas > 0 ? Math.round((stats.dossiesNaoLocalizados / stats.totalLinhas) * 100) : 0}%)</div>
+                    <div className="text-xs font-medium text-orange-400 mt-1">Únicos (sem duplicatas): {stats.dossiesNaoLocalizadosUnicos}</div>
                   </div>
                   <div className="border rounded-md p-3">
                     <div className="text-sm font-medium mb-1">Dossiês Cinza (original)</div>
@@ -3540,7 +3550,7 @@ export default function PlanilhaTst() {
             </Button>
             <Button onClick={baixarDossiesNaoLocalizados} variant="outline" className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950">
               <Download className="w-4 h-4" />
-              Dossiês Não Localizados ({stats.dossiesNaoLocalizados})
+              Dossiês Não Localizados ({stats.dossiesNaoLocalizadosUnicos} únicos)
             </Button>
             <Button onClick={baixarBennerAtualizadoSim} variant="outline" className="gap-2 border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950">
               <Download className="w-4 h-4" />
