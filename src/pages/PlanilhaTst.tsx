@@ -1073,6 +1073,8 @@ export default function PlanilhaTst() {
       await advanceStep(40);
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
+      // Input 4 layout: column B (index 1) = Dossiê, column K (index 10) = Processo (used as lookup key)
+      const input4DossieHeader = input4 ? (input4.headers[1] || "") : "";
       for (let pi = 0; pi < processRows.length; pi++) {
         if (pi % 20 === 0) await tick(40 + Math.round((pi / processRows.length) * 15));
         const pr = processRows[pi];
@@ -1081,8 +1083,21 @@ export default function PlanilhaTst() {
         if (!row4 || !input4) continue;
 
         let complemented2 = false;
+
+        // Dossier: always from column B (index 1) of Input 4
+        if (forceOverwrite || isEmpty(pr.dossie)) {
+          const dossieVal = input4DossieHeader ? String(row4[input4DossieHeader] ?? "").trim() : "";
+          if (!isEmpty(dossieVal)) {
+            pr.dossie = sanitizeDossie(dossieVal, pr.numero_processo);
+            if (!isEmpty(pr.dossie)) {
+              pr.origem_dossie = "input4";
+              complemented2 = true;
+            }
+          }
+        }
+
+        // Other fields: use header matching
         const fields2: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
           { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"] },
           { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"] },
           { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
@@ -1092,7 +1107,7 @@ export default function PlanilhaTst() {
           if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             const val = getFieldFromRow(row4, input4.headers, ...f.terms);
             if (!isEmpty(val)) {
-              (pr as any)[f.key] = f.key === "dossie" ? sanitizeDossie(val, pr.numero_processo) : val;
+              (pr as any)[f.key] = val;
               if (!isEmpty((pr as any)[f.key])) {
                 (pr as any)[`origem_${f.key}`] = "input4";
                 complemented2 = true;
