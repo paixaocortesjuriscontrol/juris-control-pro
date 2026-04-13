@@ -1983,6 +1983,7 @@ export default function PlanilhaTst() {
         }
 
         // --- VALUE PASS: process each sheet ---
+        const allSheetRemaps = new Map<number, Map<number, number>>();
         for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
           const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
           const meta = input1Meta[sheetIdx];
@@ -1999,20 +2000,45 @@ export default function PlanilhaTst() {
           const headers = meta.headers;
           const dataStartRow = meta.headerRowIndex + 2;
 
-          // Remove excluded rows from XML (Benner SIM) and renumber
+          // Helper to read a cell value from a row element (needed before exclusion)
+          const readCellValueInline = (rowEl: Element, colIdx: number, rowNumber: number): string => {
+            const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+            const cellInRow = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c"))
+              .filter(c => c.parentNode === rowEl)
+              .find(c => c.getAttribute("r") === cellRef);
+            if (!cellInRow) return "";
+            const cellType = cellInRow.getAttribute("t");
+            if (cellType === "inlineStr") {
+              const tEls = cellInRow.getElementsByTagNameNS(sheetNs, "t");
+              return tEls.length > 0 ? tEls[0].textContent || "" : "";
+            }
+            if (cellType === "s") {
+              const vEl = cellInRow.getElementsByTagNameNS(sheetNs, "v")[0];
+              const idx = parseInt(vEl?.textContent || "0", 10);
+              return sharedStrings[idx] || "";
+            }
+            const tEls = cellInRow.getElementsByTagNameNS(sheetNs, "t");
+            if (tEls.length > 0) return tEls[0].textContent || "";
+            const vEl = cellInRow.getElementsByTagNameNS(sheetNs, "v")[0];
+            return vEl?.textContent || "";
+          };
+
+          // Remove excluded rows from XML (Benner SIM) — reads column AA directly from XML for ALL rows
+          const rowRemapForSheet = new Map<number, number>();
           if (excludeBenner) {
-            const excludedResults = results.filter(r =>
-              r.sheetIndex === sheetIdx &&
-              String((r.originalData as any)?.__colAA || "").trim().toUpperCase() === "SIM"
-            );
-            const excludedExcelRows = new Set(excludedResults.map(r => dataStartRow + r.originalIndex));
+            const colAAIndex = 26; // Column AA = index 26
             const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
-            // Remove excluded rows
+            const rowsToRemove: Element[] = [];
             for (const rowEl of allRows) {
               const rn = Number(rowEl.getAttribute("r"));
-              if (excludedExcelRows.has(rn)) {
-                sheetDataEl.removeChild(rowEl);
+              if (rn < dataStartRow) continue; // skip header rows
+              const colAAVal = readCellValueInline(rowEl, colAAIndex, rn).trim().toUpperCase();
+              if (colAAVal === "SIM") {
+                rowsToRemove.push(rowEl);
               }
+            }
+            for (const rowEl of rowsToRemove) {
+              sheetDataEl.removeChild(rowEl);
             }
             // Renumber remaining rows sequentially to eliminate blank gaps
             const remainingRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row"))
@@ -2020,10 +2046,10 @@ export default function PlanilhaTst() {
               .sort((a, b) => Number(a.getAttribute("r")) - Number(b.getAttribute("r")));
             let newRowNum = 1;
             for (const rowEl of remainingRows) {
-              const oldRowNum = rowEl.getAttribute("r")!;
-              if (oldRowNum !== String(newRowNum)) {
+              const oldRowNum = Number(rowEl.getAttribute("r")!);
+              rowRemapForSheet.set(oldRowNum, newRowNum);
+              if (oldRowNum !== newRowNum) {
                 rowEl.setAttribute("r", String(newRowNum));
-                // Update cell references within this row
                 const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
                 for (const cell of cells) {
                   const ref = cell.getAttribute("r") || "";
@@ -2042,6 +2068,9 @@ export default function PlanilhaTst() {
                 dimEl.setAttribute("ref", `${dimMatch[1]}1:${dimMatch[2]}${newRowNum - 1}`);
               }
             }
+          }
+          if (rowRemapForSheet.size > 0) {
+            allSheetRemaps.set(sheetIdx, new Map(rowRemapForSheet));
           }
 
           if (sheetResults.length === 0) {
@@ -2169,7 +2198,13 @@ export default function PlanilhaTst() {
 
           // Write cell values
           for (const pr of sheetResults) {
-            const excelRow = dataStartRow + pr.originalIndex;
+            let excelRow = dataStartRow + pr.originalIndex;
+            if (excludeBenner && rowRemapForSheet.size > 0) {
+              const remapped = rowRemapForSheet.get(excelRow);
+              if (remapped === undefined) continue; // row was removed
+              excelRow = remapped;
+            }
+            const tryWrite = (colIdx: number, value: string, origemKey: string) => {
             const tryWrite = (colIdx: number, value: string, origemKey: string) => {
               if (colIdx < 0 || isEmpty(value)) return;
               if (!(pr as any)[origemKey]) return;
@@ -2379,7 +2414,13 @@ export default function PlanilhaTst() {
               };
 
               for (const pr of sheetResults) {
-                const excelRow = dataStartRow + pr.originalIndex;
+                let excelRow = dataStartRow + pr.originalIndex;
+                const sheetRemap = allSheetRemaps.get(sheetIdx);
+                if (sheetRemap && sheetRemap.size > 0) {
+                  const remapped = sheetRemap.get(excelRow);
+                  if (remapped === undefined) continue;
+                  excelRow = remapped;
+                }
                 const rowEl = updatedRowMap.get(excelRow);
                 if (!rowEl) continue;
 
