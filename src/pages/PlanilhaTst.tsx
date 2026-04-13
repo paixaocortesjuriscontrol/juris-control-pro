@@ -2023,6 +2023,7 @@ export default function PlanilhaTst() {
           };
 
           // Remove excluded rows from XML (Benner SIM) — reads column AA directly from XML for ALL rows
+          const rowRemapForSheet = new Map<number, number>();
           if (excludeBenner) {
             const colAAIndex = 26; // Column AA = index 26
             const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
@@ -2044,8 +2045,9 @@ export default function PlanilhaTst() {
               .sort((a, b) => Number(a.getAttribute("r")) - Number(b.getAttribute("r")));
             let newRowNum = 1;
             for (const rowEl of remainingRows) {
-              const oldRowNum = rowEl.getAttribute("r")!;
-              if (oldRowNum !== String(newRowNum)) {
+              const oldRowNum = Number(rowEl.getAttribute("r")!);
+              rowRemapForSheet.set(oldRowNum, newRowNum);
+              if (oldRowNum !== newRowNum) {
                 rowEl.setAttribute("r", String(newRowNum));
                 const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
                 for (const cell of cells) {
