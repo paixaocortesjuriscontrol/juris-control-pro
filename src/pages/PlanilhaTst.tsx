@@ -1999,20 +1999,44 @@ export default function PlanilhaTst() {
           const headers = meta.headers;
           const dataStartRow = meta.headerRowIndex + 2;
 
-          // Remove excluded rows from XML (Benner SIM) and renumber
+          // Helper to read a cell value from a row element (needed before exclusion)
+          const readCellValueInline = (rowEl: Element, colIdx: number, rowNumber: number): string => {
+            const cellRef = XLSX.utils.encode_cell({ r: rowNumber - 1, c: colIdx });
+            const cellInRow = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c"))
+              .filter(c => c.parentNode === rowEl)
+              .find(c => c.getAttribute("r") === cellRef);
+            if (!cellInRow) return "";
+            const cellType = cellInRow.getAttribute("t");
+            if (cellType === "inlineStr") {
+              const tEls = cellInRow.getElementsByTagNameNS(sheetNs, "t");
+              return tEls.length > 0 ? tEls[0].textContent || "" : "";
+            }
+            if (cellType === "s") {
+              const vEl = cellInRow.getElementsByTagNameNS(sheetNs, "v")[0];
+              const idx = parseInt(vEl?.textContent || "0", 10);
+              return sharedStrings[idx] || "";
+            }
+            const tEls = cellInRow.getElementsByTagNameNS(sheetNs, "t");
+            if (tEls.length > 0) return tEls[0].textContent || "";
+            const vEl = cellInRow.getElementsByTagNameNS(sheetNs, "v")[0];
+            return vEl?.textContent || "";
+          };
+
+          // Remove excluded rows from XML (Benner SIM) — reads column AA directly from XML for ALL rows
           if (excludeBenner) {
-            const excludedResults = results.filter(r =>
-              r.sheetIndex === sheetIdx &&
-              String((r.originalData as any)?.__colAA || "").trim().toUpperCase() === "SIM"
-            );
-            const excludedExcelRows = new Set(excludedResults.map(r => dataStartRow + r.originalIndex));
+            const colAAIndex = 26; // Column AA = index 26
             const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
-            // Remove excluded rows
+            const rowsToRemove: Element[] = [];
             for (const rowEl of allRows) {
               const rn = Number(rowEl.getAttribute("r"));
-              if (excludedExcelRows.has(rn)) {
-                sheetDataEl.removeChild(rowEl);
+              if (rn < dataStartRow) continue; // skip header rows
+              const colAAVal = readCellValueInline(rowEl, colAAIndex, rn).trim().toUpperCase();
+              if (colAAVal === "SIM") {
+                rowsToRemove.push(rowEl);
               }
+            }
+            for (const rowEl of rowsToRemove) {
+              sheetDataEl.removeChild(rowEl);
             }
             // Renumber remaining rows sequentially to eliminate blank gaps
             const remainingRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row"))
@@ -2023,7 +2047,6 @@ export default function PlanilhaTst() {
               const oldRowNum = rowEl.getAttribute("r")!;
               if (oldRowNum !== String(newRowNum)) {
                 rowEl.setAttribute("r", String(newRowNum));
-                // Update cell references within this row
                 const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
                 for (const cell of cells) {
                   const ref = cell.getAttribute("r") || "";
