@@ -2451,7 +2451,7 @@ export default function PlanilhaTst() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${input1FileName || "Distribuicoes_TST"}${fileSuffix}.xlsx`;
+        a.download = `${input1FileName || "Distribuicoes_TST"}${fileSuffix}_${fileTimestamp()}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
       } catch (err) {
@@ -2819,7 +2819,7 @@ export default function PlanilhaTst() {
 
   const baixarDossiesNaoLocalizados = () => {
     const filtered = results.filter(pr => isEmpty(pr.dossie));
-    exportNaoLocalizadosFormat(filtered, `Dossies_Nao_Localizados_${input1FileName || "TST"}.xlsx`, "Não localizado");
+    exportNaoLocalizadosFormat(filtered, `Dossies_Nao_Localizados_${input1FileName || "TST"}_${fileTimestamp()}.xlsx`, "Não localizado");
   };
 
   const baixarBennerAtualizadoSim = () => {
@@ -2827,7 +2827,7 @@ export default function PlanilhaTst() {
       const val = String((pr.originalData as any)?.__colAA || "").trim().toUpperCase();
       return val === "SIM";
     });
-    exportNaoLocalizadosFormat(filtered, `Benner_Atualizado_SIM_${input1FileName || "TST"}.xlsx`, "Já enviado");
+    exportNaoLocalizadosFormat(filtered, `Benner_Atualizado_SIM_${input1FileName || "TST"}_${fileTimestamp()}.xlsx`, "Já enviado");
   };
 
   const exportFallback = () => {
@@ -2852,7 +2852,7 @@ export default function PlanilhaTst() {
     const ws = XLSX.utils.json_to_sheet(output);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Distribuições Complementadas");
-    XLSX.writeFile(wb, `${input1FileName || "Distribuicoes_TST"} complementada.xlsx`);
+    XLSX.writeFile(wb, `${input1FileName || "Distribuicoes_TST"} complementada_${fileTimestamp()}.xlsx`);
   };
 
   const origemBadge = (origem?: string) => {
