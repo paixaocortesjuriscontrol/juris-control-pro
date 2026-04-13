@@ -567,38 +567,53 @@ function readOriginalFileBuffer(file: File): Promise<ArrayBuffer> {
 type ProcessoExtractor = (row: Record<string, any>) => string;
 const processoExtractorCache = new WeakMap<string[], ProcessoExtractor>();
 
+function scoreProcessHeader(header: string): number {
+  const normalized = normalizeText(header);
+  if (!normalized) return -1;
+  if (normalized.includes("dossie") || normalized.includes("dossie") || normalized.includes("dossiê")) return -1;
+  if (normalized.includes("numero do processo") || normalized.includes("número do processo")) return 100;
+  if (normalized.includes("num processo") || normalized.includes("numero processo") || normalized.includes("número processo")) return 95;
+  if (normalized.includes("processo")) return 90;
+  if (normalized.includes("cnj") || normalized.includes("npu")) return 85;
+  if (normalized.includes("numero unico") || normalized.includes("número único") || normalized.includes("num unico") || normalized.includes("num único")) return 80;
+  if (normalized === "numero" || normalized === "número" || normalized === "nº" || normalized === "no") return 70;
+  return -1;
+}
+
+function extractProcessValue(value: unknown): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return text.replace(/\D/g, "").length >= 7 ? text : "";
+}
+
 function buildProcessoExtractor(headers: string[]): ProcessoExtractor {
-  const normalizedHeaders = headers.map((header) => ({
-    raw: header,
-    normalized: normalizeText(header),
-  }));
-
-  const explicitProcessHeader = normalizedHeaders.find(({ normalized }) =>
-    normalized.includes("numero do processo") ||
-    normalized.includes("número do processo") ||
-    normalized.includes("num processo") ||
-    normalized.includes("processo") ||
-    normalized.includes("cnj")
-  )?.raw;
-
-  const genericNumberHeader = normalizedHeaders.find(({ normalized }) =>
-    (normalized === "numero" || normalized === "número" || normalized === "nº" || normalized === "no") &&
-    !normalized.includes("dossie") &&
-    !normalized.includes("dossiê")
-  )?.raw;
+  const rankedHeaders = headers
+    .map((header) => ({ raw: header, score: scoreProcessHeader(header) }))
+    .filter(({ score }) => score >= 0)
+    .sort((a, b) => b.score - a.score);
 
   return (row: Record<string, any>) => {
-    if (explicitProcessHeader) {
-      const val = String(row[explicitProcessHeader] ?? "").trim();
-      if (val && val.replace(/\D/g, "").length >= 7) return val;
+    for (const { raw } of rankedHeaders) {
+      const val = extractProcessValue(row[raw]);
+      if (val) return val;
     }
 
-    if (genericNumberHeader) {
-      const val = String(row[genericNumberHeader] ?? "").trim();
-      if (val && val.replace(/\D/g, "").length >= 7) return val;
+    let bestDynamicMatch = "";
+    let bestDynamicScore = -1;
+
+    for (const [key, value] of Object.entries(row)) {
+      if (key.startsWith("__")) continue;
+      const score = scoreProcessHeader(key);
+      if (score < 0) continue;
+      const extracted = extractProcessValue(value);
+      if (!extracted) continue;
+      if (score > bestDynamicScore) {
+        bestDynamicScore = score;
+        bestDynamicMatch = extracted;
+      }
     }
 
-    return "";
+    return bestDynamicMatch;
   };
 }
 
