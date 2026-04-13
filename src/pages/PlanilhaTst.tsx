@@ -2414,7 +2414,13 @@ export default function PlanilhaTst() {
               };
 
               for (const pr of sheetResults) {
-                const excelRow = dataStartRow + pr.originalIndex;
+                let excelRow = dataStartRow + pr.originalIndex;
+                const sheetRemap = allSheetRemaps.get(sheetIdx);
+                if (sheetRemap && sheetRemap.size > 0) {
+                  const remapped = sheetRemap.get(excelRow);
+                  if (remapped === undefined) continue;
+                  excelRow = remapped;
+                }
                 const rowEl = updatedRowMap.get(excelRow);
                 if (!rowEl) continue;
 
