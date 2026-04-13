@@ -1999,7 +1999,7 @@ export default function PlanilhaTst() {
           const headers = meta.headers;
           const dataStartRow = meta.headerRowIndex + 2;
 
-          // Remove excluded rows from XML (Benner SIM)
+          // Remove excluded rows from XML (Benner SIM) and renumber
           if (excludeBenner) {
             const excludedResults = results.filter(r =>
               r.sheetIndex === sheetIdx &&
@@ -2007,10 +2007,39 @@ export default function PlanilhaTst() {
             );
             const excludedExcelRows = new Set(excludedResults.map(r => dataStartRow + r.originalIndex));
             const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
+            // Remove excluded rows
             for (const rowEl of allRows) {
               const rn = Number(rowEl.getAttribute("r"));
               if (excludedExcelRows.has(rn)) {
                 sheetDataEl.removeChild(rowEl);
+              }
+            }
+            // Renumber remaining rows sequentially to eliminate blank gaps
+            const remainingRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row"))
+              .filter(r => r.parentNode === sheetDataEl)
+              .sort((a, b) => Number(a.getAttribute("r")) - Number(b.getAttribute("r")));
+            let newRowNum = 1;
+            for (const rowEl of remainingRows) {
+              const oldRowNum = rowEl.getAttribute("r")!;
+              if (oldRowNum !== String(newRowNum)) {
+                rowEl.setAttribute("r", String(newRowNum));
+                // Update cell references within this row
+                const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+                for (const cell of cells) {
+                  const ref = cell.getAttribute("r") || "";
+                  const colLetters = ref.replace(/\d+/g, "");
+                  cell.setAttribute("r", colLetters + newRowNum);
+                }
+              }
+              newRowNum++;
+            }
+            // Update dimension
+            const dimEl = sheetDoc.getElementsByTagNameNS(sheetNs, "dimension")[0];
+            if (dimEl) {
+              const dimRef = dimEl.getAttribute("ref") || "";
+              const dimMatch = dimRef.match(/^([A-Z]+)\d+:([A-Z]+)\d+$/);
+              if (dimMatch) {
+                dimEl.setAttribute("ref", `${dimMatch[1]}1:${dimMatch[2]}${newRowNum - 1}`);
               }
             }
           }
