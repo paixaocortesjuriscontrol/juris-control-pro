@@ -2909,7 +2909,15 @@ export default function PlanilhaTst() {
 
   const baixarDossiesNaoLocalizados = () => {
     const filtered = results.filter(pr => isEmpty(pr.dossie));
-    exportNaoLocalizadosFormat(filtered, `Dossies_Nao_Localizados_${input1FileName || "TST"}_${fileTimestamp()}.xlsx`, "Não localizado");
+    // Remove duplicados pelo número do processo
+    const seen = new Set<string>();
+    const unique = filtered.filter(pr => {
+      const key = (pr.numero_processo || "").replace(/\D/g, "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    exportNaoLocalizadosFormat(unique, `Dossies_Nao_Localizados_${input1FileName || "TST"}_${fileTimestamp()}.xlsx`, "Não localizado");
   };
 
   const baixarBennerAtualizadoSim = () => {
