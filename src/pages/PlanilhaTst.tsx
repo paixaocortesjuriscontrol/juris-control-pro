@@ -2468,7 +2468,6 @@ export default function PlanilhaTst() {
     row["Tribunal (TST, STF ou STJ)"] = "TST";
     row["Tipo de Recurso"] = "";
     row["Data da distribuição no TST/STF"] = formatDateDDMMYYYY(pr.data_distribuicao);
-    row["Data da distribuição no TST/STF"] = dataFmt;
     row["Turma"] = pr.turma_relator || "";
     row["Relator"] = pr.relator;
     const ct = pr.classificacao_turma;
