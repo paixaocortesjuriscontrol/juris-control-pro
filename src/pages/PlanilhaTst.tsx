@@ -3140,7 +3140,7 @@ export default function PlanilhaTst() {
 
         {/* Download */}
         {results.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
               <Download className="w-4 h-4" />
               Baixar Planilha Complementada
@@ -3148,6 +3148,14 @@ export default function PlanilhaTst() {
             <Button onClick={gerarRelatorioPDF} variant="outline" className="gap-2">
               <FileSpreadsheet className="w-4 h-4" />
               Baixar Relatório PDF
+            </Button>
+            <Button onClick={baixarDossiesNaoLocalizados} variant="outline" className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950">
+              <Download className="w-4 h-4" />
+              Dossiês Não Localizados ({stats.dossiesNaoLocalizados})
+            </Button>
+            <Button onClick={baixarBennerAtualizadoSim} variant="outline" className="gap-2 border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950">
+              <Download className="w-4 h-4" />
+              Benner Atualizado SIM ({stats.bennerAtualizadoSim})
             </Button>
           </div>
         )}
