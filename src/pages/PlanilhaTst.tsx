@@ -2467,27 +2467,7 @@ export default function PlanilhaTst() {
     row["Dossiê"] = dossieStatus;
     row["Tribunal (TST, STF ou STJ)"] = "TST";
     row["Tipo de Recurso"] = "";
-    // Garantir formato DD/MM/YYYY com 2 dígitos dia, 2 mês, 4 ano
-    let dataFmt = pr.data_distribuicao || "";
-    if (dataFmt) {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      // Tentar parsear como Date para cobrir qualquer formato
-      const parsed = new Date(dataFmt);
-      if (!isNaN(parsed.getTime())) {
-        dataFmt = `${pad(parsed.getUTCDate())}/${pad(parsed.getUTCMonth() + 1)}/${parsed.getUTCFullYear()}`;
-      } else {
-        // Fallback: se vier como D/M/YY ou DD/MM/YY etc
-        const parts = dataFmt.split(/[-/]/);
-        if (parts.length === 3) {
-          let [a, b, c] = parts.map(Number);
-          // Se primeiro > 31, é YYYY-MM-DD
-          if (a > 31) { [a, b, c] = [c, b, a]; }
-          // Se ano < 100, expandir
-          if (c < 100) c += 2000;
-          dataFmt = `${pad(a)}/${pad(b)}/${c}`;
-        }
-      }
-    }
+    row["Data da distribuição no TST/STF"] = formatDateDDMMYYYY(pr.data_distribuicao);
     row["Data da distribuição no TST/STF"] = dataFmt;
     row["Turma"] = pr.turma_relator || "";
     row["Relator"] = pr.relator;
