@@ -2503,6 +2503,13 @@ export default function PlanilhaTst() {
     "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
   ];
 
+  /** Gera timestamp para nome de arquivo: DD-MM-YYYY_HHhMM */
+  function fileTimestamp(): string {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}_${pad(now.getHours())}h${pad(now.getMinutes())}`;
+  }
+
   /** Formata qualquer valor de data para DD/MM/YYYY */
   function formatDateDDMMYYYY(val: string | number | null | undefined): string {
     if (!val) return "";
