@@ -2379,6 +2379,170 @@ export default function PlanilhaTst() {
     toast.success("Planilha baixada com sucesso!");
   };
 
+  // --- Export helpers: Carga Benner format ---
+  const LAYOUT_COLS_CARGA = [
+    "Dossiê", "Tribunal (TST, STF ou STJ)", "Tipo de Recurso",
+    "Data da distribuição no TST/STF", "Turma", "Relator",
+    "Análise do quarteirizado", "Há risco de mídia negativa? (S/N)", "Risco",
+    "Há discussão sobre provas digitais? (S/N)", "Temos data de julgamento? (S/N)",
+    "Data Julgamento", "Horário", "Julgamento (Virtual, Telepresencial, Híbrido ou Presencial)",
+    "Matéria de Honra (S/N)", "Entrega de Memoriais (S/N)", "Sustentação Oral (S/N/ Não cabe)",
+    "Sem transcendência", "Recurso não conhecido", "Recurso conhecido e provido",
+    "Recurso conhecido e não provido", "Outra", "Observações", "Ganhamos", "Perdemos",
+    "Processo baixado do TST/STF (S/N)", "Recorrente", "Favorável (turma)",
+    "Desfavorável (turma)", "Favorável (relator)", "Desfavorável (relator)",
+    "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
+  ];
+
+  function processRowToCargaBenner(pr: ProcessRow): Record<string, any> {
+    const row: Record<string, any> = {};
+    row[LAYOUT_COLS_CARGA[0]] = pr.dossie; // Dossiê
+    row[LAYOUT_COLS_CARGA[1]] = "TST"; // Tribunal
+    row[LAYOUT_COLS_CARGA[2]] = ""; // Tipo de Recurso (not available in cruzamento)
+    row[LAYOUT_COLS_CARGA[3]] = pr.data_distribuicao; // Data distribuição
+    row[LAYOUT_COLS_CARGA[4]] = pr.turma_relator || ""; // Turma
+    row[LAYOUT_COLS_CARGA[5]] = pr.relator; // Relator
+    row[LAYOUT_COLS_CARGA[6]] = ""; // Análise quarteirizado
+    for (let i = 7; i <= 25; i++) row[LAYOUT_COLS_CARGA[i]] = "";
+    row[LAYOUT_COLS_CARGA[26]] = ""; // Recorrente
+    // Turma favorável/desfavorável
+    const ct = pr.classificacao_turma;
+    row[LAYOUT_COLS_CARGA[27]] = ct === "POSITIVA" ? "X" : "";
+    row[LAYOUT_COLS_CARGA[28]] = ct === "NEGATIVA" ? "X" : "";
+    // Relator favorável/desfavorável
+    const cr = pr.classificacao_relator;
+    row[LAYOUT_COLS_CARGA[29]] = cr === "POSITIVO" ? "X" : "";
+    row[LAYOUT_COLS_CARGA[30]] = cr === "NEGATIVO" ? "X" : "";
+    row[LAYOUT_COLS_CARGA[31]] = ""; // Bem aparelhado
+    row[LAYOUT_COLS_CARGA[32]] = ""; // Mal aparelhado
+    row[LAYOUT_COLS_CARGA[33]] = ""; // Chance êxito
+    row["__numProcesso"] = pr.numero_processo;
+    return row;
+  }
+
+  async function exportCargaBennerFormat(rows: ProcessRow[], fileName: string) {
+    if (rows.length === 0) {
+      toast.error("Nenhum registro para exportar.");
+      return;
+    }
+    try {
+      const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
+      if (!resp.ok) throw new Error("Template não encontrado");
+      const templateBuf = await resp.arrayBuffer();
+      const zip = await JSZip.loadAsync(templateBuf);
+
+      const sstXml = await zip.file("xl/sharedStrings.xml")!.async("string");
+      const existingStrings: string[] = [];
+      const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
+      let m: RegExpExecArray | null;
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      const stringMap = new Map<string, number>();
+      existingStrings.forEach((s, i) => stringMap.set(s, i));
+      const newStrings = [...existingStrings];
+      function getStrIdx(val: string): number {
+        if (stringMap.has(val)) return stringMap.get(val)!;
+        const idx = newStrings.length;
+        newStrings.push(val);
+        stringMap.set(val, idx);
+        return idx;
+      }
+      function c2l(c: number): string {
+        let s = "", n = c;
+        while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
+        return s;
+      }
+
+      // Add "Nº Processo" column (like conferência)
+      const totalCols = LAYOUT_COLS_CARGA.length + 1;
+
+      let stylesXml = await zip.file("xl/styles.xml")!.async("string");
+      const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
+      let centeredStyleId = 0;
+      if (cellXfsMatch) {
+        const cnt = parseInt(cellXfsMatch[1]);
+        const centeredXf = `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`;
+        stylesXml = stylesXml.replace(/<\/cellXfs>/, centeredXf + `</cellXfs>`);
+        stylesXml = stylesXml.replace(`<cellXfs count="${cnt}">`, `<cellXfs count="${cnt + 1}">`);
+        centeredStyleId = cnt;
+        zip.file("xl/styles.xml", stylesXml);
+      }
+
+      const outputData = rows.map(pr => processRowToCargaBenner(pr));
+
+      let dataRowsXml = "";
+      for (let i = 0; i < outputData.length; i++) {
+        const row = outputData[i];
+        const rowNum = i + 3;
+        let cellsXml = "";
+        // Col A = Dossiê
+        const dossieVal = String(row[LAYOUT_COLS_CARGA[0]] ?? "");
+        if (dossieVal) {
+          const ref = "A" + rowNum;
+          cellsXml += `<c r="${ref}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(dossieVal)}</v></c>`;
+        }
+        // Col B = Nº Processo
+        const procVal = String(row["__numProcesso"] ?? "");
+        if (procVal) {
+          const ref = "B" + rowNum;
+          cellsXml += `<c r="${ref}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(procVal)}</v></c>`;
+        }
+        // Col C onward = LAYOUT_COLS_CARGA[1..] shifted by +1
+        for (let c = 1; c < LAYOUT_COLS_CARGA.length; c++) {
+          const val = String(row[LAYOUT_COLS_CARGA[c]] ?? "");
+          if (!val) continue;
+          const ref = c2l(c + 1) + rowNum; // +1 for Processo column shift
+          const styleAttr = c + 1 <= 5 && centeredStyleId > 0 ? ` s="${centeredStyleId}"` : "";
+          cellsXml += `<c r="${ref}" t="s"${styleAttr}><v>${getStrIdx(val)}</v></c>`;
+        }
+        dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
+      }
+
+      let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+      const lastRow = outputData.length + 2;
+      const lastColLetter = c2l(totalCols - 1);
+      sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${lastColLetter}${lastRow}"/>`);
+      const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
+      if (sheetDataMatch) {
+        const allRowsContent = sheetDataMatch[1];
+        const row1Match = allRowsContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
+        const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
+        const headerRows = `${row1Match?.[0] ?? ""}${row2Match?.[0] ?? ""}`;
+        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
+      }
+      zip.file("xl/worksheets/sheet1.xml", sheetXml);
+
+      const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const newSstEntries = newStrings.map(s => `<si><t>${escapeXml(s)}</t></si>`).join("");
+      const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
+      zip.file("xl/sharedStrings.xml", newSst);
+
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${rows.length} registros exportados!`);
+    } catch (err: any) {
+      toast.error("Erro ao exportar: " + (err?.message || String(err)));
+      console.error("[PlanilhaTST] Export error:", err);
+    }
+  }
+
+  const baixarDossiesNaoLocalizados = () => {
+    const filtered = results.filter(pr => isEmpty(pr.dossie));
+    exportCargaBennerFormat(filtered, `Dossies_Nao_Localizados_${input1FileName || "TST"}.xlsx`);
+  };
+
+  const baixarBennerAtualizadoSim = () => {
+    const filtered = results.filter(pr => {
+      const val = String((pr.originalData as any)?.__colAA || "").trim().toUpperCase();
+      return val === "SIM";
+    });
+    exportCargaBennerFormat(filtered, `Benner_Atualizado_SIM_${input1FileName || "TST"}.xlsx`);
+  };
+
   const exportFallback = () => {
     const output = results.map(pr => {
       const row = { ...pr.originalData };
@@ -2976,7 +3140,7 @@ export default function PlanilhaTst() {
 
         {/* Download */}
         {results.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={baixarPlanilha} variant="outline" className="gap-2">
               <Download className="w-4 h-4" />
               Baixar Planilha Complementada
@@ -2984,6 +3148,14 @@ export default function PlanilhaTst() {
             <Button onClick={gerarRelatorioPDF} variant="outline" className="gap-2">
               <FileSpreadsheet className="w-4 h-4" />
               Baixar Relatório PDF
+            </Button>
+            <Button onClick={baixarDossiesNaoLocalizados} variant="outline" className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950">
+              <Download className="w-4 h-4" />
+              Dossiês Não Localizados ({stats.dossiesNaoLocalizados})
+            </Button>
+            <Button onClick={baixarBennerAtualizadoSim} variant="outline" className="gap-2 border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950">
+              <Download className="w-4 h-4" />
+              Benner Atualizado SIM ({stats.bennerAtualizadoSim})
             </Button>
           </div>
         )}
