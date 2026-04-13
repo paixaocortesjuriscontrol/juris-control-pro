@@ -2194,7 +2194,13 @@ export default function PlanilhaTst() {
 
           // Write cell values
           for (const pr of sheetResults) {
-            const excelRow = dataStartRow + pr.originalIndex;
+            let excelRow = dataStartRow + pr.originalIndex;
+            if (excludeBenner && rowRemapForSheet.size > 0) {
+              const remapped = rowRemapForSheet.get(excelRow);
+              if (remapped === undefined) continue; // row was removed
+              excelRow = remapped;
+            }
+            const tryWrite = (colIdx: number, value: string, origemKey: string) => {
             const tryWrite = (colIdx: number, value: string, origemKey: string) => {
               if (colIdx < 0 || isEmpty(value)) return;
               if (!(pr as any)[origemKey]) return;
