@@ -888,7 +888,9 @@ export default function PlanilhaTst() {
 
       const lookup2 = await buildLookupWithProgress(input2, 13.1, 13.7);
       const lookup3 = await buildLookupWithProgress(input3, 13.7, 14.1);
-      const lookup4 = await buildLookupWithProgress(input4, 14.1, 15);
+      // Input 4: lookup by column K (index 10 = processo), dossier is in column B (index 1)
+      const input4ColK = 10; // Column K = index 10
+      const lookup4 = await buildLookupWithProgress(input4, 14.1, 15, input4ColK);
 
       for (const sheet of allInput1Sheets.sheets) {
         console.log(`[PlanilhaTST] Input1 Aba "${sheet.sheetName}" (${sheet.sheetIndex}):`, sheet.rows.length, "rows | Headers:", sheet.headers.join(", "));
