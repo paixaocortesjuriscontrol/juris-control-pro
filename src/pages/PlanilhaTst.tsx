@@ -2409,12 +2409,38 @@ export default function PlanilhaTst() {
     "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
   ];
 
+  /** Formata qualquer valor de data para DD/MM/YYYY */
+  function formatDateDDMMYYYY(val: string | number | null | undefined): string {
+    if (!val) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    // Número serial do Excel (dias desde 1/1/1900)
+    if (typeof val === "number" || /^\d{4,5}(\.\d+)?$/.test(String(val).trim())) {
+      const serial = typeof val === "number" ? val : parseFloat(String(val));
+      const epoch = new Date(Date.UTC(1899, 11, 30));
+      const d = new Date(epoch.getTime() + serial * 86400000);
+      return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+    }
+    const s = String(val).trim();
+    // ISO: YYYY-MM-DD
+    const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (iso) return `${pad(+iso[3])}/${pad(+iso[2])}/${iso[1]}`;
+    // Formato M/D/YY ou D/M/YY ou DD/MM/YYYY etc
+    const parts = s.split(/[-/]/);
+    if (parts.length === 3) {
+      let [a, b, c] = parts.map(Number);
+      if (isNaN(a) || isNaN(b) || isNaN(c)) return s;
+      if (c < 100) c += 2000;
+      return `${pad(a)}/${pad(b)}/${c}`;
+    }
+    return s;
+  }
+
   function processRowToCargaBenner(pr: ProcessRow): Record<string, any> {
     const row: Record<string, any> = {};
     row[LAYOUT_COLS_CARGA[0]] = pr.dossie; // Dossiê
     row[LAYOUT_COLS_CARGA[1]] = "TST"; // Tribunal
     row[LAYOUT_COLS_CARGA[2]] = ""; // Tipo de Recurso (not available in cruzamento)
-    row[LAYOUT_COLS_CARGA[3]] = pr.data_distribuicao; // Data distribuição
+    row[LAYOUT_COLS_CARGA[3]] = formatDateDDMMYYYY(pr.data_distribuicao); // Data distribuição
     row[LAYOUT_COLS_CARGA[4]] = pr.turma_relator || ""; // Turma
     row[LAYOUT_COLS_CARGA[5]] = pr.relator; // Relator
     row[LAYOUT_COLS_CARGA[6]] = ""; // Análise quarteirizado
