@@ -2069,6 +2069,9 @@ export default function PlanilhaTst() {
               }
             }
           }
+          if (rowRemapForSheet.size > 0) {
+            allSheetRemaps.set(sheetIdx, new Map(rowRemapForSheet));
+          }
 
           if (sheetResults.length === 0) {
             zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
