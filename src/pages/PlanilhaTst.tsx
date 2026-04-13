@@ -2558,6 +2558,7 @@ export default function PlanilhaTst() {
   function processRowToNaoLocalizado(pr: ProcessRow, dossieStatus: string): Record<string, any> {
     const row: Record<string, any> = {};
     row["Processo"] = pr.numero_processo;
+    row["Reclamante"] = pr.reclamante && pr.reclamante !== NOT_FOUND ? pr.reclamante : "";
     row["Dossiê"] = dossieStatus;
     row["Tribunal (TST, STF ou STJ)"] = "TST";
     row["Tipo de Recurso"] = "";
@@ -2618,46 +2619,50 @@ export default function PlanilhaTst() {
         const procVal = String(rowData["Processo"] ?? "");
         if (procVal) cellsXml += `<c r="A${rowNum}" t="s"><v>${getStrIdx(procVal)}</v></c>`;
 
-        // Col B = Dossiê status
+        // Col B = Reclamante
+        const reclVal = String(rowData["Reclamante"] ?? "");
+        if (reclVal) cellsXml += `<c r="B${rowNum}" t="s"><v>${getStrIdx(reclVal)}</v></c>`;
+
+        // Col C = Dossiê status
         const dossVal = String(rowData["Dossiê"] ?? "");
-        if (dossVal) cellsXml += `<c r="B${rowNum}" t="s"><v>${getStrIdx(dossVal)}</v></c>`;
+        if (dossVal) cellsXml += `<c r="C${rowNum}" t="s"><v>${getStrIdx(dossVal)}</v></c>`;
 
-        // Col C = Tribunal
-        cellsXml += `<c r="C${rowNum}" t="s"><v>${getStrIdx("TST")}</v></c>`;
+        // Col D = Tribunal
+        cellsXml += `<c r="D${rowNum}" t="s"><v>${getStrIdx("TST")}</v></c>`;
 
-        // Col E = Data distribuição
+        // Col F = Data distribuição
         const dataVal = String(rowData["Data da distribuição no TST/STF"] ?? "");
-        if (dataVal) cellsXml += `<c r="E${rowNum}" t="s"><v>${getStrIdx(dataVal)}</v></c>`;
+        if (dataVal) cellsXml += `<c r="F${rowNum}" t="s"><v>${getStrIdx(dataVal)}</v></c>`;
 
-        // Col F = Turma
+        // Col G = Turma
         const turmaVal = String(rowData["Turma"] ?? "");
-        if (turmaVal) cellsXml += `<c r="F${rowNum}" t="s"><v>${getStrIdx(turmaVal)}</v></c>`;
+        if (turmaVal) cellsXml += `<c r="G${rowNum}" t="s"><v>${getStrIdx(turmaVal)}</v></c>`;
 
-        // Col G = Relator
+        // Col H = Relator
         const relVal = String(rowData["Relator"] ?? "");
-        if (relVal) cellsXml += `<c r="G${rowNum}" t="s"><v>${getStrIdx(relVal)}</v></c>`;
+        if (relVal) cellsXml += `<c r="H${rowNum}" t="s"><v>${getStrIdx(relVal)}</v></c>`;
 
-        // Col K = Provas digitais = N
-        cellsXml += `<c r="K${rowNum}" t="s"><v>${getStrIdx("N")}</v></c>`;
-
-        // Col L = Tem data julgamento = N
+        // Col L = Provas digitais = N
         cellsXml += `<c r="L${rowNum}" t="s"><v>${getStrIdx("N")}</v></c>`;
 
-        // Col AC = Favorável (turma)
+        // Col M = Tem data julgamento = N
+        cellsXml += `<c r="M${rowNum}" t="s"><v>${getStrIdx("N")}</v></c>`;
+
+        // Col AD = Favorável (turma)
         const favT = rowData["Favorável_turma"];
-        if (favT) cellsXml += `<c r="AC${rowNum}" t="s"><v>${getStrIdx(favT)}</v></c>`;
+        if (favT) cellsXml += `<c r="AD${rowNum}" t="s"><v>${getStrIdx(favT)}</v></c>`;
 
-        // Col AD = Desfavorável (turma)
+        // Col AE = Desfavorável (turma)
         const desfT = rowData["Desfavorável_turma"];
-        if (desfT) cellsXml += `<c r="AD${rowNum}" t="s"><v>${getStrIdx(desfT)}</v></c>`;
+        if (desfT) cellsXml += `<c r="AE${rowNum}" t="s"><v>${getStrIdx(desfT)}</v></c>`;
 
-        // Col AE = Favorável (relator)
+        // Col AF = Favorável (relator)
         const favR = rowData["Favorável_relator"];
-        if (favR) cellsXml += `<c r="AE${rowNum}" t="s"><v>${getStrIdx(favR)}</v></c>`;
+        if (favR) cellsXml += `<c r="AF${rowNum}" t="s"><v>${getStrIdx(favR)}</v></c>`;
 
-        // Col AF = Desfavorável (relator)
+        // Col AG = Desfavorável (relator)
         const desfR = rowData["Desfavorável_relator"];
-        if (desfR) cellsXml += `<c r="AF${rowNum}" t="s"><v>${getStrIdx(desfR)}</v></c>`;
+        if (desfR) cellsXml += `<c r="AG${rowNum}" t="s"><v>${getStrIdx(desfR)}</v></c>`;
 
         dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
       }
