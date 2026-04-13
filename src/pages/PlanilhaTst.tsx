@@ -443,6 +443,7 @@ interface Stats {
   fieldFills: Record<string, FieldFillDetail>;
   unmatchedSamples: string[];
   dossiesNaoLocalizados: number;
+  dossiesNaoLocalizadosUnicos: number;
   dossiesCinza: number;
   bennerAtualizadoSim: number;
   linhasPreenchidas: number;
@@ -798,7 +799,7 @@ function lookupProcess(procNorm: string, lookup: Map<string, Record<string, any>
 export default function PlanilhaTst() {
   const [files, setFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [results, setResults] = useState<ProcessRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {}, estatisticasPorMes: {} });
+  const [stats, setStats] = useState<Stats>({ total: 0, passo1: 0, passo2: 0, ia: 0, naoEncontrados: 0, matchInput2: 0, matchInput3: 0, matchInput4: 0, totalUnicosInput1: 0, fieldFills: {}, unmatchedSamples: [], dossiesNaoLocalizados: 0, dossiesNaoLocalizadosUnicos: 0, dossiesCinza: 0, bennerAtualizadoSim: 0, linhasPreenchidas: 0, totalLinhas: 0, preenchimentoPorColuna: {}, classificacaoPorRelator: {}, classificacaoPorTurma: {}, estatisticasPorMes: {} });
   const [processing, setProcessing] = useState(false);
   type StepStatus = "pending" | "active" | "done";
   const [progressSteps, setProgressSteps] = useState<{ label: string; status: StepStatus }[]>([]);
@@ -1379,6 +1380,12 @@ export default function PlanilhaTst() {
       ).length;
 
       const dossiesNaoLocalizados = rowsParaTotalizadores.filter(pr => isEmpty(pr.dossie)).length;
+      const seenNaoLoc = new Set<string>();
+      rowsParaTotalizadores.filter(pr => isEmpty(pr.dossie)).forEach(pr => {
+        const key = (pr.numero_processo || "").replace(/\D/g, "");
+        if (key) seenNaoLoc.add(key);
+      });
+      const dossiesNaoLocalizadosUnicos = seenNaoLoc.size;
 
       // Linhas preenchidas = linhas que têm ao menos 1 campo preenchido pelo sistema
       const linhasPreenchidas = rowsParaTotalizadores.filter(pr =>
@@ -1572,6 +1579,7 @@ export default function PlanilhaTst() {
         fieldFills,
         unmatchedSamples,
         dossiesNaoLocalizados,
+        dossiesNaoLocalizadosUnicos,
         dossiesCinza,
         bennerAtualizadoSim,
         linhasPreenchidas,
