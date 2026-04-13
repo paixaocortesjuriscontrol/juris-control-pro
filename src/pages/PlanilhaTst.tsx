@@ -1983,6 +1983,7 @@ export default function PlanilhaTst() {
         }
 
         // --- VALUE PASS: process each sheet ---
+        const allSheetRemaps = new Map<number, Map<number, number>>();
         for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
           const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
           const meta = input1Meta[sheetIdx];
