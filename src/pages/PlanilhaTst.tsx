@@ -1985,7 +1985,6 @@ export default function PlanilhaTst() {
         // --- VALUE PASS: process each sheet ---
         for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
           const sheetResults = activeResults.filter(r => r.sheetIndex === sheetIdx);
-          if (sheetResults.length === 0) continue;
           const meta = input1Meta[sheetIdx];
           if (!meta) continue;
 
@@ -1999,6 +1998,27 @@ export default function PlanilhaTst() {
 
           const headers = meta.headers;
           const dataStartRow = meta.headerRowIndex + 2;
+
+          // Remove excluded rows from XML (Benner SIM)
+          if (excludeBenner) {
+            const excludedResults = results.filter(r =>
+              r.sheetIndex === sheetIdx &&
+              String((r.originalData as any)?.__colAA || "").trim().toUpperCase() === "SIM"
+            );
+            const excludedExcelRows = new Set(excludedResults.map(r => dataStartRow + r.originalIndex));
+            const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
+            for (const rowEl of allRows) {
+              const rn = Number(rowEl.getAttribute("r"));
+              if (excludedExcelRows.has(rn)) {
+                sheetDataEl.removeChild(rowEl);
+              }
+            }
+          }
+
+          if (sheetResults.length === 0) {
+            zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
+            continue;
+          }
 
           const getColIdx = (terms: string[]): number => findColumnIndex(headers, ...terms);
           const colDossie = getColIdx(["dossi", "dossie", "dossiê"]);
