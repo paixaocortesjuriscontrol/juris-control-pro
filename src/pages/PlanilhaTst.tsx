@@ -1888,11 +1888,16 @@ export default function PlanilhaTst() {
     toast.success("Relatório PDF gerado com sucesso!");
   };
 
-  const baixarPlanilha = async () => {
-    if (results.length === 0) {
+  const baixarPlanilha = async (opts?: { excludeBennerSim?: boolean }) => {
+    const excludeBenner = opts?.excludeBennerSim || false;
+    const activeResults = excludeBenner
+      ? results.filter(pr => String((pr.originalData as any)?.__colAA || "").trim().toUpperCase() !== "SIM")
+      : results;
+    if (activeResults.length === 0) {
       toast.error("Nenhum resultado para exportar.");
       return;
     }
+    const fileSuffix = excludeBenner ? " complementada (sem Benner SIM)" : " complementada";
 
     if (originalFileBuffer && input1Meta.length > 0) {
       try {
