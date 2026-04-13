@@ -745,13 +745,26 @@ function extractCnjCore(digits: string): string {
 async function buildAllLookups(
   rows: Record<string, any>[],
   headers: string[],
-  onProgress?: (progress: number) => Promise<void> | void
+  onProgress?: (progress: number) => Promise<void> | void,
+  colIndex?: number
 ): Promise<Map<string, Record<string, any>>> {
   const map = new Map<string, Record<string, any>>();
-  let extractor = processoExtractorCache.get(headers);
-  if (!extractor) {
-    extractor = buildProcessoExtractor(headers);
-    processoExtractorCache.set(headers, extractor);
+  let extractor: ProcessoExtractor;
+  if (colIndex !== undefined) {
+    // Use a fixed column index as the lookup key
+    const colHeader = headers[colIndex] || "";
+    extractor = (row: Record<string, any>) => {
+      const val = colHeader ? String(row[colHeader] ?? "").trim() : "";
+      if (val && val.replace(/\D/g, "").length >= 7) return val;
+      return "";
+    };
+  } else {
+    let cached = processoExtractorCache.get(headers);
+    if (!cached) {
+      cached = buildProcessoExtractor(headers);
+      processoExtractorCache.set(headers, cached);
+    }
+    extractor = cached;
   }
   const total = rows.length;
   for (let i = 0; i < total; i++) {
@@ -860,7 +873,8 @@ export default function PlanilhaTst() {
       const buildLookupWithProgress = async (
         input: SheetData | null,
         startPct: number,
-        endPct: number
+        endPct: number,
+        colIndex?: number
       ) => {
         if (!input) return new Map<string, Record<string, any>>();
         let lastProgress = -1;
@@ -870,12 +884,14 @@ export default function PlanilhaTst() {
             const pct = startPct + (endPct - startPct) * progress;
             await tick(pct);
           }
-        });
+        }, colIndex);
       };
 
       const lookup2 = await buildLookupWithProgress(input2, 13.1, 13.7);
       const lookup3 = await buildLookupWithProgress(input3, 13.7, 14.1);
-      const lookup4 = await buildLookupWithProgress(input4, 14.1, 15);
+      // Input 4: lookup by column K (index 10 = processo), dossier is in column B (index 1)
+      const input4ColK = 10; // Column K = index 10
+      const lookup4 = await buildLookupWithProgress(input4, 14.1, 15, input4ColK);
 
       for (const sheet of allInput1Sheets.sheets) {
         console.log(`[PlanilhaTST] Input1 Aba "${sheet.sheetName}" (${sheet.sheetIndex}):`, sheet.rows.length, "rows | Headers:", sheet.headers.join(", "));
@@ -1057,6 +1073,8 @@ export default function PlanilhaTst() {
       await advanceStep(40);
 
       // Passo 1.2: Input 4 for remaining empty fields (except RELATOR)
+      // Input 4 layout: column B (index 1) = Dossiê, column K (index 10) = Processo (used as lookup key)
+      const input4DossieHeader = input4 ? (input4.headers[1] || "") : "";
       for (let pi = 0; pi < processRows.length; pi++) {
         if (pi % 20 === 0) await tick(40 + Math.round((pi / processRows.length) * 15));
         const pr = processRows[pi];
@@ -1065,8 +1083,21 @@ export default function PlanilhaTst() {
         if (!row4 || !input4) continue;
 
         let complemented2 = false;
+
+        // Dossier: always from column B (index 1) of Input 4
+        if (forceOverwrite || isEmpty(pr.dossie)) {
+          const dossieVal = input4DossieHeader ? String(row4[input4DossieHeader] ?? "").trim() : "";
+          if (!isEmpty(dossieVal)) {
+            pr.dossie = sanitizeDossie(dossieVal, pr.numero_processo);
+            if (!isEmpty(pr.dossie)) {
+              pr.origem_dossie = "input4";
+              complemented2 = true;
+            }
+          }
+        }
+
+        // Other fields: use header matching
         const fields2: Array<{ key: keyof ProcessRow; terms: string[] }> = [
-          { key: "dossie", terms: ["dossi", "dossie", "dossiê"] },
           { key: "equipe", terms: ["equipe", "nucleo", "núcleo", "coordenação", "coordenacao"] },
           { key: "reclamante", terms: ["reclamante", "autor", "polo ativo", "requerente"] },
           { key: "reclamada", terms: ["reclamada", "reu", "réu", "polo passivo", "requerido", "empresa", "cliente"] },
@@ -1076,7 +1107,7 @@ export default function PlanilhaTst() {
           if (forceOverwrite || isEmpty(pr[f.key] as string)) {
             const val = getFieldFromRow(row4, input4.headers, ...f.terms);
             if (!isEmpty(val)) {
-              (pr as any)[f.key] = f.key === "dossie" ? sanitizeDossie(val, pr.numero_processo) : val;
+              (pr as any)[f.key] = val;
               if (!isEmpty((pr as any)[f.key])) {
                 (pr as any)[`origem_${f.key}`] = "input4";
                 complemented2 = true;
