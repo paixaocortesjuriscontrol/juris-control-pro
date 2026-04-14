@@ -318,7 +318,7 @@ serve(async (req) => {
         .join(",")}`,
     );
 
-    const rd = selecionarInstancia(pageData);
+    const rd = selecionarInstancia(pageData, tribunalHint);
     if (!rd) {
       return json(
         {
