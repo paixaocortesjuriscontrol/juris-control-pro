@@ -483,9 +483,9 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               ["resultado_conhecido_provido", "Conhecido e Provido (T)"],
               ["resultado_conhecido_nao_provido", "Conhecido e Não Provido (U)"],
             ] as const).map(([field, label]) => (
-              <div key={field} className="flex items-center gap-2">
+              <div key={field} className={cn("flex items-center gap-2 p-2 -m-2 rounded-md", juditHighlight(field))}>
                 <Checkbox checked={!!form[field]} onCheckedChange={v => set(field, !!v)} id={field} />
-                <Label htmlFor={field} className="text-sm cursor-pointer">{label}</Label>
+                <JuditLabel field={field}><Label htmlFor={field} className="text-sm cursor-pointer">{label}</Label></JuditLabel>
               </div>
             ))}
           </div>
@@ -517,8 +517,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Checkbox checked={!!form.perdemos} onCheckedChange={v => set("perdemos", !!v)} id="perdemos" />
               <Label htmlFor="perdemos" className="cursor-pointer">Perdemos (Y)</Label>
             </div>
-            <div className="space-y-2">
-              <Label>Processo Baixado (Z)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("processo_baixado"))}>
+              <JuditLabel field="processo_baixado"><Label>Processo Baixado (Z)</Label></JuditLabel>
               <Select value={form.processo_baixado || ""} onValueChange={v => set("processo_baixado", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
