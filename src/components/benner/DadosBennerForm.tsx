@@ -219,6 +219,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
       // Track which fields were filled by Judit
       const filled = new Set<string>();
+      if (data.dossie) filled.add("dossie");
       if (data.tipo_recurso) filled.add("tipo_recurso");
       if (data.data_distribuicao) filled.add("data_distribuicao");
       if (data.relator) filled.add("relator");
