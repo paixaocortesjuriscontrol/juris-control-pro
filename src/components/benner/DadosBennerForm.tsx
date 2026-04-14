@@ -46,6 +46,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
+  const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
 
   useEffect(() => {
