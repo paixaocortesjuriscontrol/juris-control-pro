@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { extrairOrgaoJulgador, derivarTurmaDoRelator } from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,6 +136,25 @@ serve(async (req) => {
     }
     if (typeof courts === 'string' && !turma && /turma|sdi|subse|seção|câmara/i.test(courts)) {
       turma = courts;
+    }
+
+    // === FALLBACK: Extrair relator/turma dos MOVIMENTOS (steps) ===
+    // Mesma lógica usada na importação de planilhas (Carga Benner / Planilha TST)
+    if (!relator || !turma) {
+      const orgaoJulgador = extrairOrgaoJulgador(steps);
+      console.log("Órgão julgador extraído dos movimentos:", JSON.stringify(orgaoJulgador));
+      if (!relator && orgaoJulgador.relator) {
+        relator = orgaoJulgador.relator;
+      }
+      if (!turma && orgaoJulgador.turma) {
+        turma = orgaoJulgador.turma;
+      }
+    }
+
+    // Fallback final: relator → turma via mapeamento TST
+    if (relator && !turma) {
+      turma = derivarTurmaDoRelator(relator);
+      if (turma) console.log(`Turma derivada do relator via mapeamento: ${turma}`);
     }
 
     // === TRIBUNAL ===
