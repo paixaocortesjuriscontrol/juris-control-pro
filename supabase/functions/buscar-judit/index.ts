@@ -29,7 +29,7 @@ const JUDIT_BASE = "https://requests.prod.judit.io";
 const REQUESTS_URL = `${JUDIT_BASE}/requests`;
 const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 110_000;   // edge functions do Supabase limitam ~150s
 const CACHE_TTL_DAYS = 7;
 
@@ -114,6 +114,22 @@ function sleep(ms: number) {
 
 // ---------- seleção de instância ------------------------------------------
 
+function temIndicioTST(rd: any): boolean {
+  const courts = Array.isArray(rd.courts) ? rd.courts : [];
+  for (const c of courts) {
+    const nome = (c?.name || "").toString();
+    if (/ministro|min\./i.test(nome)) return true;
+    if (/\bTST\b/i.test(nome)) return true;
+  }
+  // classifications com "RR", "AIRR", "Ag-AIRR" etc indicam TST
+  const classes = Array.isArray(rd.classifications) ? rd.classifications : [];
+  for (const cl of classes) {
+    const n = (cl?.name || "").toUpperCase();
+    if (/^(RR|AIRR|AG-AIRR|ARR|ED-RR|ED-AIRR|RO|ROAG)$/.test(n)) return true;
+  }
+  return false;
+}
+
 function selecionarInstancia(pageData: any[]): any | null {
   if (!pageData?.length) return null;
 
@@ -123,14 +139,18 @@ function selecionarInstancia(pageData: any[]): any | null {
 
   if (!rds.length) return null;
 
-  // 1) TST explícito
+  // 1) TST/STF/STJ explícito por acronym
   const tst = rds.find((rd) => {
     const t = (rd.tribunal_acronym || "").toUpperCase();
     return t === "TST" || t === "STF" || t === "STJ";
   });
   if (tst) return tst;
 
-  // 2) maior instance
+  // 2) Detectar TST por indícios (Gabinete de Ministro, classificação AIRR etc)
+  const tstIndicio = rds.find((rd) => temIndicioTST(rd));
+  if (tstIndicio) return tstIndicio;
+
+  // 3) maior instance
   return rds.reduce((a, b) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
 }
 
@@ -205,8 +225,18 @@ function extrairRelator(rd: any): string | null {
   if (typeof j === "string" && j.trim()) return j.trim();
   if (j && typeof j === "object" && j.name) return j.name;
 
+  // Extrair de courts: "Gabinete do Ministro Sergio Pinto Martins"
+  const courts = Array.isArray(rd.courts) ? rd.courts : [];
+  for (const c of courts) {
+    const nome = (c?.name || "").toString();
+    const mGab = nome.match(/(?:Gabinete\s+d[oa]\s+)?(?:Ministro|Ministra|Min\.?)\s+(.+)/i);
+    if (mGab) {
+      const cand = mGab[1].trim().replace(/[.,;()\-]+$/, "");
+      if (cand.split(/\s+/).length >= 2) return cand;
+    }
+  }
+
   // Ministros do TST aparecem como "parties" com person_type específico
-  // apenas em alguns crawlers. Tentamos também steps[].content.
   if (Array.isArray(rd.parties)) {
     const mag = rd.parties.find((p: any) => {
       const t = (p?.person_type || "").toUpperCase();
@@ -293,6 +323,7 @@ serve(async (req) => {
     if (tribunalAcronimo?.includes("TST")) tribunal = "TST";
     else if (tribunalAcronimo?.includes("STF")) tribunal = "STF";
     else if (tribunalAcronimo?.includes("STJ")) tribunal = "STJ";
+    else if (temIndicioTST(rd)) tribunal = "TST";
     else tribunal = tribunalAcronimo;
 
     const classificacao = extrairClassificacao(rd);
