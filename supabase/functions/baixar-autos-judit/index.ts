@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      console.log(`[baixar-autos-judit] Request ID: ${requestId}. Polling...`);
+      console.log(`[baixar-autos-judit] Request ID: ${requestId}. Polling... mode=${crawlerMode}`);
 
       // Poll for completion (max ~90s)
       const maxPolls = 18;
@@ -193,6 +193,7 @@ Deno.serve(async (req) => {
 
         if (status === "completed" || status === "done") {
           completed = true;
+          console.log(`[baixar-autos-judit] Poll concluído com mode=${crawlerMode}`);
           break;
         }
         if (status === "failed" || status === "error") {
@@ -232,8 +233,10 @@ Deno.serve(async (req) => {
           attachments = refetchData.attachments;
           instance = refetchData.instance || 1;
         }
+        console.log(`[baixar-autos-judit] Refetch após crawler (${crawlerMode}): ${attachments.length} attachment(s), instance=${instance}`);
       } else {
-        await refetchRes.text();
+        const refetchErr = await refetchRes.text();
+        console.error(`[baixar-autos-judit] Refetch falhou: ${refetchRes.status} ${refetchErr.substring(0, 200)}`);
       }
     }
 
