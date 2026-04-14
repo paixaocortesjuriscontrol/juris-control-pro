@@ -158,6 +158,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
+        turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
         situacao_processo: data.situacao_processo || f.situacao_processo,
@@ -168,6 +169,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.tipo_recurso) filled.add("tipo_recurso");
       if (data.data_distribuicao) filled.add("data_distribuicao");
       if (data.relator) filled.add("relator");
+      if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
       if (data.situacao_processo) filled.add("situacao_processo");
@@ -177,6 +179,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.tipo_recurso && "Tipo Recurso",
         data.data_distribuicao && "Data Distribuição",
         data.relator && "Relator",
+        data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
         data.situacao_processo && "Situação",
@@ -333,8 +336,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Turma (E)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("turma"))}>
+              <JuditLabel field="turma"><Label>Turma (E)</Label></JuditLabel>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", juditHighlight("relator"))}>
