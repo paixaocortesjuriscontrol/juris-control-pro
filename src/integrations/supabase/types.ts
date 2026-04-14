@@ -674,6 +674,62 @@ export type Database = {
         }
         Relationships: []
       }
+      baixar_autos_jobs: {
+        Row: {
+          created_at: string
+          documentos_baixados: number | null
+          documentos_erro: number | null
+          documentos_existentes: number | null
+          documentos_total: number | null
+          erro: string | null
+          etapa: string
+          id: string
+          mensagem: string | null
+          processo_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          documentos_baixados?: number | null
+          documentos_erro?: number | null
+          documentos_existentes?: number | null
+          documentos_total?: number | null
+          erro?: string | null
+          etapa?: string
+          id?: string
+          mensagem?: string | null
+          processo_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          documentos_baixados?: number | null
+          documentos_erro?: number | null
+          documentos_existentes?: number | null
+          documentos_total?: number | null
+          erro?: string | null
+          etapa?: string
+          id?: string
+          mensagem?: string | null
+          processo_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baixar_autos_jobs_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       capturas_intimacoes: {
         Row: {
           ativo: boolean
