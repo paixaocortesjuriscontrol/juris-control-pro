@@ -368,76 +368,53 @@ export default function CorrigirPlanilha() {
           if (removeSet.has(Number(rowEl.getAttribute("r")))) sheetDataEl.removeChild(rowEl);
         }
 
-        // Clean column B (processo) — remove *, "a", comments from cell values
         const remainingRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row"))
           .filter(r => r.parentNode === sheetDataEl)
           .sort((a, b) => Number(a.getAttribute("r")) - Number(b.getAttribute("r")));
 
+        // Helper: column letters to 0-based index
+        const colToIdx = (letters: string): number => {
+          let v = 0;
+          for (const ch of letters) v = v * 26 + (ch.charCodeAt(0) - 64);
+          return v - 1;
+        };
+        // Helper: 0-based index to column letters
+        const idxToCol = (idx: number): string => {
+          let s = "";
+          let n = idx + 1;
+          while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+          return s;
+        };
+
+        // For data rows (row >= 3): remove col B (processo), shift C-G → B-F, remove H onward
         for (const rowEl of remainingRows) {
           const rn = Number(rowEl.getAttribute("r"));
-          if (rn <= 1) continue; // skip header
+          if (rn <= 2) continue; // preserve header rows 1-2
+
           const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+          const toRemove: Element[] = [];
+          const toShift: { cell: Element; oldIdx: number }[] = [];
+
           for (const cell of cells) {
             const ref = cell.getAttribute("r") || "";
             const colLetters = ref.replace(/\d+/g, "");
-            if (colLetters !== "B") continue;
+            const colIdx = colToIdx(colLetters);
 
-            const cellType = cell.getAttribute("t");
-            if (cellType === "s") {
-              // Shared string — clean it (modifying shared string in-place)
-              const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
-              if (vEl) {
-                const idx = parseInt(vEl.textContent || "0", 10);
-                const original = sharedStrings[idx] || "";
-                const cleaned = cleanProcesso(original);
-                if (cleaned !== original && sstDoc) {
-                  sharedStringsDirty.add(idx);
-                  sharedStrings[idx] = cleaned;
-                  // Update SST DOM
-                  const siEls = Array.from(sstDoc.getElementsByTagNameNS(sstNs, "si"));
-                  if (siEls[idx]) {
-                    const tEls = siEls[idx].getElementsByTagNameNS(sstNs, "t");
-                    if (tEls.length > 0) {
-                      tEls[0].textContent = cleaned;
-                    }
-                  }
-                }
-              }
-            } else if (cellType === "inlineStr") {
-              const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
-              if (tEls.length > 0) {
-                const original = tEls[0].textContent || "";
-                const cleaned = cleanProcesso(original);
-                if (cleaned !== original) tEls[0].textContent = cleaned;
-              }
-            } else {
-              // Direct value or formula — clean <v> text
-              const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
-              if (vEl) {
-                const original = vEl.textContent || "";
-                const cleaned = cleanProcesso(original);
-                if (cleaned !== original) vEl.textContent = cleaned;
-              }
+            if (colIdx === 1) {
+              // Col B (processo) — remove
+              toRemove.push(cell);
+            } else if (colIdx >= 2 && colIdx <= 6) {
+              // Cols C-G → shift left by 1 (become B-F)
+              toShift.push({ cell, oldIdx: colIdx });
+            } else if (colIdx > 6) {
+              // Col H onward — remove
+              toRemove.push(cell);
             }
           }
-        }
 
-        // Remove cells after column G (H onward) for data rows (row >= 3, skip headers in rows 1-2)
-        const colGIndex = 6; // A=0, B=1, ... G=6
-        for (const rowEl of remainingRows) {
-          const rn = Number(rowEl.getAttribute("r"));
-          if (rn <= 2) continue; // preserve header rows 1 and 2
-          const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
-          for (const cell of cells) {
-            const ref = cell.getAttribute("r") || "";
-            const colLetters = ref.replace(/\d+/g, "");
-            // Convert column letters to index
-            let colIdx = 0;
-            for (const ch of colLetters) colIdx = colIdx * 26 + (ch.charCodeAt(0) - 64);
-            colIdx -= 1; // 0-based
-            if (colIdx > colGIndex) {
-              rowEl.removeChild(cell);
-            }
+          for (const cell of toRemove) rowEl.removeChild(cell);
+          for (const { cell, oldIdx } of toShift) {
+            cell.setAttribute("r", idxToCol(oldIdx - 1) + rn);
           }
         }
 
