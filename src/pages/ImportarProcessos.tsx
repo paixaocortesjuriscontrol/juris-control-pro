@@ -5905,7 +5905,7 @@ export default function ImportarProcessos() {
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-11 max-w-7xl">
+          <TabsList className="grid w-full grid-cols-12 max-w-7xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
