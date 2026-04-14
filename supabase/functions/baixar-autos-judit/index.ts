@@ -91,16 +91,22 @@ Deno.serve(async (req) => {
     if (attachments.length === 0) {
       console.log("[baixar-autos-judit] Nenhum attachment. Solicitando crawler...");
 
+      const crawlerBody = {
+        search: {
+          search_type: "lawsuit_cnj",
+          search_key: cnj,
+          response_type: "attachments",
+          search_params: {
+            lawsuit_instance: instance,
+          },
+        },
+      };
+      console.log(`[baixar-autos-judit] Crawler request body: ${JSON.stringify(crawlerBody)}`);
+
       const crawlerRes = await fetch(`${JUDIT_REQUESTS}/requests`, {
         method: "POST",
         headers: juditHeaders,
-        body: JSON.stringify({
-          search: {
-            search_type: "lawsuit_cnj",
-            search_key: cnj,
-            response_type: "attachments",
-          },
-        }),
+        body: JSON.stringify(crawlerBody),
       });
 
       if (!crawlerRes.ok) {
