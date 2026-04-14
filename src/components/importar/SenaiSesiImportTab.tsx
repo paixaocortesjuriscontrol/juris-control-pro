@@ -87,7 +87,6 @@ const parseDate = (dateValue: any): string | null => {
   if (typeof dateValue === "string") {
     const t = dateValue.trim();
     if (!t) return null;
-    // Try ISO-like from Excel: "2024-03-12 00:00:00"
     const isoMatch = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (isoMatch) return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
     const brMatch = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -124,6 +123,10 @@ const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgen
   return "ativo";
 };
 
+const yieldToUI = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+const TABLE_PAGE_SIZE = 50;
+
 export function SenaiSesiImportTab({
   coordenacoes,
   clientes,
@@ -138,8 +141,11 @@ export function SenaiSesiImportTab({
   const [file, setFile] = useState<File | null>(null);
   const [processos, setProcessos] = useState<ProcessoImport[]>([]);
   const [importing, setImporting] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressMsg, setProgressMsg] = useState("");
   const [buscarAndamentos, setBuscarAndamentos] = useState(true);
+  const [visibleRows, setVisibleRows] = useState(TABLE_PAGE_SIZE);
   const cancelledRef = useRef(false);
   const { toast } = useToast();
   const { startImport, endImport } = useImport();
@@ -148,19 +154,33 @@ export function SenaiSesiImportTab({
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
+      setProcessos([]);
+      setVisibleRows(TABLE_PAGE_SIZE);
       parseExcel(selectedFile);
     }
   }, []);
 
   const parseExcel = async (file: File) => {
+    setParsing(true);
+    setProgress(0);
+    setProgressMsg("Lendo arquivo...");
+
     try {
+      await yieldToUI();
+
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { cellDates: false });
 
+      const totalSheets = workbook.SheetNames.length;
       const allParsed: ProcessoImport[] = [];
       let globalLine = 2;
 
-      for (const sheetName of workbook.SheetNames) {
+      for (let si = 0; si < totalSheets; si++) {
+        const sheetName = workbook.SheetNames[si];
+        setProgressMsg(`Processando aba "${sheetName}" (${si + 1}/${totalSheets})...`);
+        setProgress(((si) / totalSheets) * 100);
+        await yieldToUI();
+
         const sheet = workbook.Sheets[sheetName];
         const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
           header: 1,
@@ -181,7 +201,6 @@ export function SenaiSesiImportTab({
             const idx = headerRow.findIndex(h => normalizeKey(h) === nk);
             if (idx >= 0) return idx;
           }
-          // Partial match
           for (const k of keys) {
             const nk = normalizeKey(k);
             const idx = headerRow.findIndex(h => normalizeKey(h).includes(nk));
@@ -195,7 +214,14 @@ export function SenaiSesiImportTab({
           return idx >= 0 ? row[idx] : null;
         };
 
+        const BATCH_YIELD = 100;
+
         for (let i = 1; i < aoa.length; i++) {
+          if (i % BATCH_YIELD === 0) {
+            setProgress(((si + (i / aoa.length)) / totalSheets) * 100);
+            await yieldToUI();
+          }
+
           const row = aoa[i];
           if (!row || row.every((c: any) => c === null || c === undefined || String(c).trim() === "")) continue;
 
@@ -215,11 +241,9 @@ export function SenaiSesiImportTab({
           }
 
           const partesProcesso = String(get(row, ["Partes do Processo"]) ?? "").trim();
-          // Try to split "PARTE1(RÉU), PARTE2(AUTOR)" into polo_ativo/passivo
           let poloAtivo: string | null = null;
           let poloPassivo: string | null = null;
           if (partesProcesso) {
-            // Simple heuristic: first entry is often the client
             const clientePrincipal = String(get(row, ["Cliente Principal"]) ?? "").trim();
             const adverso = String(get(row, ["Adverso Principal"]) ?? "").trim();
             if (clientePrincipal || adverso) {
@@ -268,7 +292,6 @@ export function SenaiSesiImportTab({
             },
           };
 
-          // For "Garantias não Liberadas" sheet, mark differently
           if (sheetName.toLowerCase().includes("garantia")) {
             const garantiaTipo = String(get(row, ["Garantia"]) ?? "").trim();
             const liberada = String(get(row, ["Liberada"]) ?? "").trim();
@@ -283,9 +306,11 @@ export function SenaiSesiImportTab({
           globalLine++;
         }
 
-        globalLine++; // gap between sheets
+        globalLine++;
       }
 
+      setProgress(100);
+      setProgressMsg("");
       setProcessos(allParsed);
 
       const validCount = allParsed.filter(p => p.status === "valido").length;
@@ -293,7 +318,7 @@ export function SenaiSesiImportTab({
 
       toast({
         title: "Planilha carregada",
-        description: `${allParsed.length} registro(s) de ${workbook.SheetNames.length} aba(s): ${validCount} importável(is), ${invalidCount} rejeitado(s).`,
+        description: `${allParsed.length} registro(s) de ${totalSheets} aba(s): ${validCount} importável(is), ${invalidCount} rejeitado(s).`,
         variant: invalidCount > 0 ? "destructive" : "default",
       });
     } catch (error) {
@@ -303,6 +328,8 @@ export function SenaiSesiImportTab({
         description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
         variant: "destructive",
       });
+    } finally {
+      setParsing(false);
     }
   };
 
@@ -317,6 +344,7 @@ export function SenaiSesiImportTab({
     cancelledRef.current = false;
     startImport("Importando SENAI/SESI");
     setProgress(0);
+    setProgressMsg("Iniciando importação...");
 
     const updated = [...processos];
     let successCount = 0;
@@ -325,11 +353,13 @@ export function SenaiSesiImportTab({
     let rejectedCount = 0;
 
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
+    const STATE_UPDATE_INTERVAL = 10;
 
     for (let i = 0; i < updated.length; i++) {
       if (cancelledRef.current) {
         toast({ title: "Importação cancelada", description: `Cancelada após ${i} de ${updated.length} registros.` });
         setImporting(false);
+        setProgressMsg("");
         endImport();
         return;
       }
@@ -337,8 +367,11 @@ export function SenaiSesiImportTab({
       const processo = updated[i];
       if (processo.status === "invalido") {
         rejectedCount++;
-        setProgress(((i + 1) / updated.length) * 100);
-        setProcessos([...updated]);
+        if (i % STATE_UPDATE_INTERVAL === 0) {
+          setProgress(((i + 1) / updated.length) * 100);
+          setProgressMsg(`Processando ${i + 1}/${updated.length} — ${successCount} novos, ${updateCount} atualizados`);
+          await yieldToUI();
+        }
         continue;
       }
 
@@ -353,7 +386,6 @@ export function SenaiSesiImportTab({
 
         const areaSlug = normalizeAreaToSlug(processo.area);
 
-        // Determine cliente from entidade
         let clienteIdToUse = selectedCliente || null;
         const entidade = sd.entidade?.trim();
         if (entidade) {
@@ -399,7 +431,6 @@ export function SenaiSesiImportTab({
           provisionamento_provavel: sd.valorPerdaProvavel,
           natureza: sd.naturezaFinanceira === "PASSIVO" ? "passivo" : sd.naturezaFinanceira?.toLowerCase() || null,
           categoria_importacao: "senai_sesi",
-          // New columns
           objeto: sd.objeto,
           natureza_financeira: sd.naturezaFinanceira,
           entidade: sd.entidade,
@@ -452,11 +483,17 @@ export function SenaiSesiImportTab({
         errorCount++;
       }
 
-      setProgress(((i + 1) / updated.length) * 100);
-      setProcessos([...updated]);
+      if (i % STATE_UPDATE_INTERVAL === 0 || i === updated.length - 1) {
+        setProgress(((i + 1) / updated.length) * 100);
+        setProgressMsg(`Processando ${i + 1}/${updated.length} — ${successCount} novos, ${updateCount} atualizados`);
+        setProcessos([...updated]);
+        await yieldToUI();
+      }
     }
 
+    setProcessos([...updated]);
     setImporting(false);
+    setProgressMsg("");
     endImport();
 
     toast({
@@ -492,6 +529,9 @@ export function SenaiSesiImportTab({
   const errorCount = processos.filter(p => p.status === "erro").length;
   const totalProblemas = invalidCount + errorCount;
 
+  const displayedProcessos = processos.slice(0, visibleRows);
+  const hasMore = visibleRows < processos.length;
+
   return (
     <div className="space-y-6">
       <Card>
@@ -516,15 +556,26 @@ export function SenaiSesiImportTab({
                 accept=".xlsx,.xls"
                 onChange={handleFileChange}
                 className="max-w-xs"
-                disabled={importing}
+                disabled={importing || parsing}
               />
-              {file && (
-                <Button variant="outline" onClick={() => { setFile(null); setProcessos([]); setProgress(0); }} disabled={importing}>
+              {file && !parsing && (
+                <Button variant="outline" onClick={() => { setFile(null); setProcessos([]); setProgress(0); setProgressMsg(""); }} disabled={importing}>
                   Limpar
                 </Button>
               )}
             </div>
           </div>
+
+          {/* Progress bar during parsing */}
+          {parsing && (
+            <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="text-sm font-medium">{progressMsg || "Processando..."}</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+          )}
 
           {/* Coordenação Selection */}
           <div className="space-y-2 pt-4 border-t">
@@ -535,7 +586,7 @@ export function SenaiSesiImportTab({
             <Select
               value={selectedCoordenacao}
               onValueChange={(v) => { setSelectedCoordenacao(v); setSelectedMembro(""); }}
-              disabled={importing}
+              disabled={importing || parsing}
             >
               <SelectTrigger className="max-w-md">
                 <SelectValue placeholder="Selecione a coordenação (opcional)" />
@@ -556,7 +607,7 @@ export function SenaiSesiImportTab({
               <Label className="flex items-center gap-2">
                 Advogado Responsável (opcional)
               </Label>
-              <Select value={selectedMembro} onValueChange={setSelectedMembro} disabled={importing}>
+              <Select value={selectedMembro} onValueChange={setSelectedMembro} disabled={importing || parsing}>
                 <SelectTrigger className="max-w-md">
                   <SelectValue placeholder="Selecione o advogado responsável" />
                 </SelectTrigger>
@@ -575,7 +626,7 @@ export function SenaiSesiImportTab({
               <Users className="h-4 w-4" />
               Cliente (opcional — será detectado da coluna "Entidade")
             </Label>
-            <Select value={selectedCliente} onValueChange={setSelectedCliente} disabled={importing}>
+            <Select value={selectedCliente} onValueChange={setSelectedCliente} disabled={importing || parsing}>
               <SelectTrigger className="max-w-md">
                 <SelectValue placeholder="Selecione o cliente (ou deixe vazio para usar a planilha)" />
               </SelectTrigger>
@@ -602,7 +653,7 @@ export function SenaiSesiImportTab({
                   : "Os andamentos NÃO serão buscados."}
               </p>
             </div>
-            <Switch checked={buscarAndamentos} onCheckedChange={setBuscarAndamentos} disabled={importing} />
+            <Switch checked={buscarAndamentos} onCheckedChange={setBuscarAndamentos} disabled={importing || parsing} />
           </div>
 
           <Alert>
@@ -615,7 +666,7 @@ export function SenaiSesiImportTab({
       </Card>
 
       {/* Preview */}
-      {file && (
+      {file && !parsing && processos.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -626,26 +677,24 @@ export function SenaiSesiImportTab({
                 </CardDescription>
               </div>
               <div className="flex items-center gap-4 flex-wrap">
-                {processos.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm flex-wrap">
-                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
-                      {validCount} importáveis
+                <div className="flex items-center gap-2 text-sm flex-wrap">
+                  <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
+                    {validCount} importáveis
+                  </Badge>
+                  <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
+                    {invalidCount} rejeitados
+                  </Badge>
+                  {successCount > 0 && (
+                    <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
+                      {successCount} importados
                     </Badge>
-                    <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">
-                      {invalidCount} rejeitados
+                  )}
+                  {errorCount > 0 && (
+                    <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
+                      {errorCount} erros
                     </Badge>
-                    {successCount > 0 && (
-                      <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">
-                        {successCount} importados
-                      </Badge>
-                    )}
-                    {errorCount > 0 && (
-                      <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
-                        {errorCount} erros
-                      </Badge>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
                 <div className="flex gap-2">
                   {importing ? (
                     <Button variant="destructive" onClick={() => { cancelledRef.current = true; }}>
@@ -653,7 +702,7 @@ export function SenaiSesiImportTab({
                       Cancelar
                     </Button>
                   ) : (
-                    <Button variant="outline" onClick={() => { setFile(null); setProcessos([]); setProgress(0); }}>
+                    <Button variant="outline" onClick={() => { setFile(null); setProcessos([]); setProgress(0); setProgressMsg(""); }}>
                       <XCircle className="h-4 w-4 mr-2" />
                       Limpar
                     </Button>
@@ -674,65 +723,85 @@ export function SenaiSesiImportTab({
                 </div>
               </div>
             </div>
-            {importing && <Progress value={progress} className="mt-4" />}
-          </CardHeader>
-          <CardContent>
-            {processos.length === 0 ? (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Nenhum processo encontrado na planilha.</AlertDescription>
-              </Alert>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <div className="max-h-[500px] overflow-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background">
-                      <TableRow>
-                        <TableHead className="w-[60px]">Linha</TableHead>
-                        <TableHead className="w-[60px]">Status</TableHead>
-                        <TableHead>Aba</TableHead>
-                        <TableHead>Número</TableHead>
-                        <TableHead>Entidade</TableHead>
-                        <TableHead>Partes</TableHead>
-                        <TableHead>Prognóstico</TableHead>
-                        <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {processos.map((p, idx) => (
-                        <TableRow key={idx} className={
-                          p.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" :
-                          p.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""
-                        }>
-                          <TableCell className="text-muted-foreground">{p.linhaOriginal}</TableCell>
-                          <TableCell>
-                            {p.status === "valido" && <div className="w-3 h-3 rounded-full bg-green-500" />}
-                            {p.status === "invalido" && <XCircle className="h-4 w-4 text-red-500" />}
-                            {p.status === "sucesso" && <CheckCircle2 className="h-4 w-4 text-blue-500" />}
-                            {p.status === "erro" && <XCircle className="h-4 w-4 text-orange-500" />}
-                          </TableCell>
-                          <TableCell className="text-xs">{p.abaOrigem || "-"}</TableCell>
-                          <TableCell className="font-mono text-sm">{p.numero || <span className="text-red-500 italic">vazio</span>}</TableCell>
-                          <TableCell>{p.senaiData?.entidade || "-"}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{p.partePassiva || p.parteAtiva || "-"}</TableCell>
-                          <TableCell>{p.senaiData?.prognostico || "-"}</TableCell>
-                          <TableCell className="text-sm">
-                            {p.status === "invalido" && p.erros.length > 0 && (
-                              <div className="text-red-600 space-y-1">
-                                {p.erros.map((e, j) => <div key={j}>• {e.campo}: {e.mensagem}</div>)}
-                              </div>
-                            )}
-                            {p.erroImport && <div className="text-orange-600">• {p.erroImport}</div>}
-                            {p.status === "valido" && p.erros.length === 0 && "-"}
-                            {p.status === "sucesso" && !p.erroImport && <span className="text-blue-600">Importado com sucesso</span>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+            {(importing || progress > 0) && (
+              <div className="mt-4 space-y-1">
+                <Progress value={progress} className="h-2" />
+                {progressMsg && <p className="text-xs text-muted-foreground">{progressMsg}</p>}
               </div>
             )}
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
+              <div className="max-h-[500px] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      <TableHead className="w-[60px]">Linha</TableHead>
+                      <TableHead className="w-[60px]">Status</TableHead>
+                      <TableHead>Aba</TableHead>
+                      <TableHead>Número</TableHead>
+                      <TableHead>Entidade</TableHead>
+                      <TableHead>Partes</TableHead>
+                      <TableHead>Prognóstico</TableHead>
+                      <TableHead className="min-w-[300px]">Avisos/Erros</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {displayedProcessos.map((p, idx) => (
+                      <TableRow key={idx} className={
+                        p.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" :
+                        p.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""
+                      }>
+                        <TableCell className="text-muted-foreground">{p.linhaOriginal}</TableCell>
+                        <TableCell>
+                          {p.status === "valido" && <div className="w-3 h-3 rounded-full bg-green-500" />}
+                          {p.status === "invalido" && <XCircle className="h-4 w-4 text-red-500" />}
+                          {p.status === "sucesso" && <CheckCircle2 className="h-4 w-4 text-blue-500" />}
+                          {p.status === "erro" && <XCircle className="h-4 w-4 text-orange-500" />}
+                        </TableCell>
+                        <TableCell className="text-xs">{p.abaOrigem || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm">{p.numero || <span className="text-red-500 italic">vazio</span>}</TableCell>
+                        <TableCell>{p.senaiData?.entidade || "-"}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{p.partePassiva || p.parteAtiva || "-"}</TableCell>
+                        <TableCell>{p.senaiData?.prognostico || "-"}</TableCell>
+                        <TableCell className="text-sm">
+                          {p.status === "invalido" && p.erros.length > 0 && (
+                            <div className="text-red-600 space-y-1">
+                              {p.erros.map((e, j) => <div key={j}>• {e.campo}: {e.mensagem}</div>)}
+                            </div>
+                          )}
+                          {p.erroImport && <div className="text-orange-600">• {p.erroImport}</div>}
+                          {p.status === "valido" && p.erros.length === 0 && "-"}
+                          {p.status === "sucesso" && !p.erroImport && <span className="text-blue-600">Importado com sucesso</span>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {hasMore && (
+                <div className="p-3 border-t text-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setVisibleRows(prev => prev + TABLE_PAGE_SIZE)}
+                  >
+                    Mostrar mais ({processos.length - visibleRows} restantes)
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {file && !parsing && processos.length === 0 && (
+        <Card>
+          <CardContent className="py-8">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Nenhum processo encontrado na planilha.</AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
       )}
