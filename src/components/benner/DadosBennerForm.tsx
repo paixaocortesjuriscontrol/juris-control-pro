@@ -209,6 +209,23 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     </div>
   );
 
+  // Highlight wrapper for fields filled by Judit
+  const juditHighlight = (field: string) =>
+    camposJudit.has(field)
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500"
+      : "";
+
+  const JuditLabel = ({ field, children }: { field: string; children: React.ReactNode }) => (
+    <div className="flex items-center gap-1.5">
+      {children}
+      {camposJudit.has(field) && (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-normal">
+          Judit
+        </Badge>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
