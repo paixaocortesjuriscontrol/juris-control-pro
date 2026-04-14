@@ -268,6 +268,36 @@ export default function CorrigirPlanilha() {
       const parser = new DOMParser();
       const serializer = new XMLSerializer();
 
+      // Parse shared strings for cleaning processo column
+      const sstPath = "xl/sharedStrings.xml";
+      const sstXml = await zip.file(sstPath)?.async("string");
+      let sstDoc: Document | null = null;
+      let sstNs = "";
+      const sharedStrings: string[] = [];
+      const sharedStringsDirty = new Set<number>(); // indices that were cleaned
+
+      if (sstXml) {
+        sstDoc = parser.parseFromString(sstXml, "application/xml");
+        sstNs = sstDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const siEls = Array.from(sstDoc.getElementsByTagNameNS(sstNs, "si"));
+        for (let idx = 0; idx < siEls.length; idx++) {
+          const tEls = siEls[idx].getElementsByTagNameNS(sstNs, "t");
+          const text = tEls.length > 0 ? Array.from(tEls).map(t => t.textContent || "").join("") : "";
+          sharedStrings.push(text);
+        }
+      }
+
+      // Function to clean processo value: remove *, "a", comments, annotations
+      const cleanProcesso = (val: string): string => {
+        let cleaned = val.replace(/\*/g, "").replace(/\ba\b/gi, "").trim();
+        // Remove trailing/leading non-process characters
+        cleaned = cleaned.replace(/^[^0-9]+/, "").replace(/[^0-9]+$/, (m) => {
+          // Keep dots, dashes, slashes that are part of process numbers
+          return /^[.\-\/]+$/.test(m) ? m : "";
+        });
+        return cleaned.trim();
+      };
+
       const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
       const workbookRelsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
       const sheetPaths: { index: number; path: string }[] = [];
@@ -290,8 +320,7 @@ export default function CorrigirPlanilha() {
       if (sheetPaths.length === 0) sheetPaths.push({ index: 0, path: "xl/worksheets/sheet1.xml" });
 
       for (const { index: sheetIdx, path: worksheetPath } of sheetPaths) {
-        const removeSet = rowsToRemovePerSheet.get(sheetIdx);
-        if (!removeSet || removeSet.size === 0) continue;
+        const removeSet = rowsToRemovePerSheet.get(sheetIdx) || new Set<number>();
 
         const sheetXml = await zip.file(worksheetPath)?.async("string");
         if (!sheetXml) continue;
@@ -302,14 +331,67 @@ export default function CorrigirPlanilha() {
         if (!sheetDataEl) continue;
 
         const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
+
+        // Remove flagged rows
         for (const rowEl of allRows) {
           if (removeSet.has(Number(rowEl.getAttribute("r")))) sheetDataEl.removeChild(rowEl);
         }
 
+        // Clean column B (processo) — remove *, "a", comments from cell values
         const remainingRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row"))
           .filter(r => r.parentNode === sheetDataEl)
           .sort((a, b) => Number(a.getAttribute("r")) - Number(b.getAttribute("r")));
 
+        for (const rowEl of remainingRows) {
+          const rn = Number(rowEl.getAttribute("r"));
+          if (rn <= 1) continue; // skip header
+          const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+          for (const cell of cells) {
+            const ref = cell.getAttribute("r") || "";
+            const colLetters = ref.replace(/\d+/g, "");
+            if (colLetters !== "B") continue;
+
+            const cellType = cell.getAttribute("t");
+            if (cellType === "s") {
+              // Shared string — clean it (modifying shared string in-place)
+              const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
+              if (vEl) {
+                const idx = parseInt(vEl.textContent || "0", 10);
+                const original = sharedStrings[idx] || "";
+                const cleaned = cleanProcesso(original);
+                if (cleaned !== original && sstDoc) {
+                  sharedStringsDirty.add(idx);
+                  sharedStrings[idx] = cleaned;
+                  // Update SST DOM
+                  const siEls = Array.from(sstDoc.getElementsByTagNameNS(sstNs, "si"));
+                  if (siEls[idx]) {
+                    const tEls = siEls[idx].getElementsByTagNameNS(sstNs, "t");
+                    if (tEls.length > 0) {
+                      tEls[0].textContent = cleaned;
+                    }
+                  }
+                }
+              }
+            } else if (cellType === "inlineStr") {
+              const tEls = cell.getElementsByTagNameNS(sheetNs, "t");
+              if (tEls.length > 0) {
+                const original = tEls[0].textContent || "";
+                const cleaned = cleanProcesso(original);
+                if (cleaned !== original) tEls[0].textContent = cleaned;
+              }
+            } else {
+              // Direct value or formula — clean <v> text
+              const vEl = cell.getElementsByTagNameNS(sheetNs, "v")[0];
+              if (vEl) {
+                const original = vEl.textContent || "";
+                const cleaned = cleanProcesso(original);
+                if (cleaned !== original) vEl.textContent = cleaned;
+              }
+            }
+          }
+        }
+
+        // Renumber rows sequentially
         let newRowNum = 1;
         for (const rowEl of remainingRows) {
           const oldRowNum = Number(rowEl.getAttribute("r")!);
@@ -332,7 +414,7 @@ export default function CorrigirPlanilha() {
         }
 
         const mergeCellsEl = sheetDoc.getElementsByTagNameNS(sheetNs, "mergeCells")[0];
-        if (mergeCellsEl) {
+        if (mergeCellsEl && removeSet.size > 0) {
           const merges = Array.from(mergeCellsEl.getElementsByTagNameNS(sheetNs, "mergeCell"));
           for (const m of merges) {
             const rowNums = (m.getAttribute("ref") || "").match(/\d+/g)?.map(Number) || [];
@@ -344,6 +426,11 @@ export default function CorrigirPlanilha() {
         }
 
         zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
+      }
+
+      // Save updated shared strings if any were cleaned
+      if (sstDoc && sharedStringsDirty.size > 0) {
+        zip.file(sstPath, serializer.serializeToString(sstDoc));
       }
 
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
