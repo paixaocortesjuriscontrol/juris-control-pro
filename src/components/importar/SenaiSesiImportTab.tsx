@@ -123,9 +123,109 @@ const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgen
   return "ativo";
 };
 
-const yieldToUI = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+const yieldToUI = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 const TABLE_PAGE_SIZE = 50;
+
+type SenaiSesiWorkerProgressMessage = {
+  id: number;
+  type: "progress";
+  progress: number;
+  message: string;
+};
+
+type SenaiSesiWorkerResultMessage = {
+  id: number;
+  type: "result";
+  totalSheets: number;
+  processos: ProcessoImport[];
+};
+
+type SenaiSesiWorkerErrorMessage = {
+  id: number;
+  type: "error";
+  error: string;
+};
+
+let senaiSesiWorker: Worker | null = null;
+let senaiSesiWorkerIdCounter = 0;
+
+function getSenaiSesiWorker() {
+  if (!senaiSesiWorker) {
+    senaiSesiWorker = new Worker(
+      new URL("../../workers/senaiSesiReader.worker.ts", import.meta.url),
+      { type: "module" }
+    );
+  }
+
+  return senaiSesiWorker;
+}
+
+function parseExcelInWorker(
+  file: File,
+  onProgress: (progress: number, message: string) => void
+): Promise<{ processos: ProcessoImport[]; totalSheets: number }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const worker = getSenaiSesiWorker();
+    const requestId = ++senaiSesiWorkerIdCounter;
+
+    const cleanup = () => {
+      worker.removeEventListener("message", handleMessage);
+      reader.onload = null;
+      reader.onerror = null;
+      reader.onprogress = null;
+    };
+
+    const handleMessage = (event: MessageEvent<SenaiSesiWorkerProgressMessage | SenaiSesiWorkerResultMessage | SenaiSesiWorkerErrorMessage>) => {
+      if (event.data.id !== requestId) return;
+
+      if (event.data.type === "progress") {
+        onProgress(event.data.progress, event.data.message);
+        return;
+      }
+
+      cleanup();
+
+      if (event.data.type === "error") {
+        reject(new Error(event.data.error));
+        return;
+      }
+
+      resolve({
+        processos: event.data.processos,
+        totalSheets: event.data.totalSheets,
+      });
+    };
+
+    worker.addEventListener("message", handleMessage);
+
+    reader.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const fileProgress = Math.max(1, Math.min(8, (event.loaded / event.total) * 8));
+      onProgress(fileProgress, "Lendo arquivo...");
+    };
+
+    reader.onerror = () => {
+      cleanup();
+      reject(reader.error ?? new Error("Falha ao ler o arquivo selecionado."));
+    };
+
+    reader.onload = (event) => {
+      const buffer = event.target?.result;
+      if (!(buffer instanceof ArrayBuffer)) {
+        cleanup();
+        reject(new Error("Não foi possível carregar a planilha."));
+        return;
+      }
+
+      onProgress(10, "Enviando planilha para processamento...");
+      worker.postMessage({ type: "parse", buffer, id: requestId }, [buffer]);
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 export function SenaiSesiImportTab({
   coordenacoes,
@@ -150,188 +250,58 @@ export function SenaiSesiImportTab({
   const { toast } = useToast();
   const { startImport, endImport } = useImport();
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setProcessos([]);
-      setVisibleRows(TABLE_PAGE_SIZE);
-      parseExcel(selectedFile);
-    }
-  }, []);
-
-  const parseExcel = async (file: File) => {
+  const parseExcel = useCallback(async (selectedFile: File) => {
     setParsing(true);
+    setProcessos([]);
+    setVisibleRows(TABLE_PAGE_SIZE);
     setProgress(0);
-    setProgressMsg("Lendo arquivo...");
+    setProgressMsg("Preparando leitura...");
 
     try {
-      await yieldToUI();
-
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { cellDates: false });
-
-      const totalSheets = workbook.SheetNames.length;
-      const allParsed: ProcessoImport[] = [];
-      let globalLine = 2;
-
-      for (let si = 0; si < totalSheets; si++) {
-        const sheetName = workbook.SheetNames[si];
-        setProgressMsg(`Processando aba "${sheetName}" (${si + 1}/${totalSheets})...`);
-        setProgress(((si) / totalSheets) * 100);
-        await yieldToUI();
-
-        const sheet = workbook.Sheets[sheetName];
-        const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, {
-          header: 1,
-          defval: null,
-          blankrows: true,
-        }) as any[][];
-
-        if (!aoa.length) continue;
-
-        const headerRow = (aoa[0] || []).map((h: any) => String(h ?? "").trim());
-
-        const normalizeKey = (value: string) =>
-          value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
-
-        const colIndex = (keys: string[]): number => {
-          for (const k of keys) {
-            const nk = normalizeKey(k);
-            const idx = headerRow.findIndex(h => normalizeKey(h) === nk);
-            if (idx >= 0) return idx;
-          }
-          for (const k of keys) {
-            const nk = normalizeKey(k);
-            const idx = headerRow.findIndex(h => normalizeKey(h).includes(nk));
-            if (idx >= 0) return idx;
-          }
-          return -1;
-        };
-
-        const get = (row: any[], keys: string[]): any => {
-          const idx = colIndex(keys);
-          return idx >= 0 ? row[idx] : null;
-        };
-
-        const BATCH_YIELD = 100;
-
-        for (let i = 1; i < aoa.length; i++) {
-          if (i % BATCH_YIELD === 0) {
-            setProgress(((si + (i / aoa.length)) / totalSheets) * 100);
-            await yieldToUI();
-          }
-
-          const row = aoa[i];
-          if (!row || row.every((c: any) => c === null || c === undefined || String(c).trim() === "")) continue;
-
-          const numeroRaw = String(get(row, ["Numero atual do processo", "Numero do processo", "Processo"]) ?? "").trim();
-          if (!numeroRaw || numeroRaw.length < 5) {
-            allParsed.push({
-              numero: numeroRaw,
-              assunto: null, situacao: null, responsavel: null, parteAtiva: null, partePassiva: null,
-              area: null, valorAcao: null, dataDistribuicao: null, orgaoJulgador: null,
-              status: "invalido",
-              erros: [{ campo: "numero", mensagem: !numeroRaw ? "Número do processo vazio" : `Número muito curto (${numeroRaw.length} chars)` }],
-              linhaOriginal: globalLine,
-              abaOrigem: sheetName,
-            });
-            globalLine++;
-            continue;
-          }
-
-          const partesProcesso = String(get(row, ["Partes do Processo"]) ?? "").trim();
-          let poloAtivo: string | null = null;
-          let poloPassivo: string | null = null;
-          if (partesProcesso) {
-            const clientePrincipal = String(get(row, ["Cliente Principal"]) ?? "").trim();
-            const adverso = String(get(row, ["Adverso Principal"]) ?? "").trim();
-            if (clientePrincipal || adverso) {
-              poloPassivo = clientePrincipal || null;
-              poloAtivo = adverso || null;
-            } else {
-              poloPassivo = partesProcesso;
-            }
-          }
-
-          const processo: ProcessoImport = {
-            numero: numeroRaw,
-            assunto: String(get(row, ["Objeto"]) ?? "").trim() || null,
-            situacao: String(get(row, ["status"]) ?? "").trim() || null,
-            responsavel: String(get(row, ["Advogado do Cliente", "Advogado principal do Cliente"]) ?? "").trim() || null,
-            parteAtiva: poloAtivo,
-            partePassiva: poloPassivo,
-            area: String(get(row, ["Natureza"]) ?? "").trim() || "trabalhista",
-            valorAcao: parseNumber(get(row, ["Valor Pedido", "Valor da Garantia"])),
-            dataDistribuicao: parseDate(get(row, ["Data de Início", "Data de Inclusão"])),
-            orgaoJulgador: String(get(row, ["Jurisdição Atual", "Jurisdicao Atual"]) ?? "").trim() || null,
-            status: "valido",
-            erros: [],
-            linhaOriginal: globalLine,
-            abaOrigem: sheetName,
-            senaiData: {
-              pasta: String(get(row, ["Pasta"]) ?? "").trim() || null,
-              jurisdicaoAtual: String(get(row, ["Jurisdição Atual", "Jurisdicao Atual"]) ?? "").trim() || null,
-              tipoProcesso: String(get(row, ["Tipo de Processo"]) ?? "").trim() || null,
-              calculoValidado: String(get(row, ["CALCULO VALIDADO"]) ?? "").trim() || null,
-              partesProcesso: partesProcesso || null,
-              faseAtual: String(get(row, ["Fase Atual"]) ?? "").trim() || null,
-              objeto: String(get(row, ["Objeto"]) ?? "").trim() || null,
-              valorPedido: parseNumber(get(row, ["Valor Pedido"])),
-              prognostico: String(get(row, ["Prognóstico", "Prognostico"]) ?? "").trim() || null,
-              dataCalculo: parseDate(get(row, ["Data Cálculo", "Data Calculo"])) || String(get(row, ["Data Cálculo", "Data Calculo"]) ?? "").trim() || null,
-              naturezaFinanceira: String(get(row, ["Natureza Financeira"]) ?? "").trim() || null,
-              entidade: String(get(row, ["Entidade"]) ?? "").trim() || null,
-              valorPerdaRemota: parseNumber(get(row, ["Valor Perda Remota Corrigido"])),
-              valorPerdaPossivel: parseNumber(get(row, ["Valor Perda Possível Objeto Corrigido", "Valor Perda Possivel Objeto Corrigido"])),
-              valorPerdaProvavel: parseNumber(get(row, ["Valor Perda Provável Objeto Corrigido", "Valor Perda Provavel Objeto Corrigido"])),
-              rateio: String(get(row, ["Rateio"]) ?? "").trim() || null,
-              observacoes: String(get(row, ["Observações", "Observacoes", "Detalhes"]) ?? "").trim() || null,
-              entidade2: null,
-              advogadoCliente: String(get(row, ["Advogado do Cliente", "Advogado principal do Cliente"]) ?? "").trim() || null,
-            },
-          };
-
-          if (sheetName.toLowerCase().includes("garantia")) {
-            const garantiaTipo = String(get(row, ["Garantia"]) ?? "").trim();
-            const liberada = String(get(row, ["Liberada"]) ?? "").trim();
-            processo.senaiData!.observacoes = [
-              garantiaTipo ? `Garantia: ${garantiaTipo}` : null,
-              liberada ? `Liberada: ${liberada}` : null,
-              processo.senaiData!.observacoes,
-            ].filter(Boolean).join(" | ");
-          }
-
-          allParsed.push(processo);
-          globalLine++;
+      const { processos: parsedProcessos, totalSheets } = await parseExcelInWorker(
+        selectedFile,
+        (nextProgress, nextMessage) => {
+          setProgress(nextProgress);
+          setProgressMsg(nextMessage);
         }
-
-        globalLine++;
-      }
+      );
 
       setProgress(100);
+      setProgressMsg("Finalizando pré-visualização...");
+      await yieldToUI();
+      setProcessos(parsedProcessos);
+      await yieldToUI();
       setProgressMsg("");
-      setProcessos(allParsed);
 
-      const validCount = allParsed.filter(p => p.status === "valido").length;
-      const invalidCount = allParsed.filter(p => p.status === "invalido").length;
+      const validCount = parsedProcessos.filter((p) => p.status === "valido").length;
+      const invalidCount = parsedProcessos.filter((p) => p.status === "invalido").length;
 
       toast({
         title: "Planilha carregada",
-        description: `${allParsed.length} registro(s) de ${totalSheets} aba(s): ${validCount} importável(is), ${invalidCount} rejeitado(s).`,
+        description: `${parsedProcessos.length} registro(s) de ${totalSheets} aba(s): ${validCount} importável(is), ${invalidCount} rejeitado(s).`,
         variant: invalidCount > 0 ? "destructive" : "default",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao ler planilha SENAI/SESI:", error);
       toast({
         title: "Erro ao ler planilha",
-        description: "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
+        description: error?.message || "Verifique se o arquivo está no formato correto (.xlsx ou .xls).",
         variant: "destructive",
       });
     } finally {
       setParsing(false);
     }
-  };
+  }, [toast]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    e.target.value = "";
+
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+    void parseExcel(selectedFile);
+  }, [parseExcel]);
 
   const handleImport = async () => {
     const validProcessos = processos.filter(p => p.status === "valido");
