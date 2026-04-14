@@ -74,9 +74,16 @@ serve(async (req) => {
     const rd = data.response_data || data;
     
     // Extrair classificação/tipo de recurso
-    const classificacao = rd.classification?.name 
-      || (rd.classifications && rd.classifications.length > 0 ? rd.classifications[0] : null)
-      || null;
+    const rawClassification = rd.classification;
+    let classificacao: string | null = null;
+    if (typeof rawClassification === 'string') {
+      classificacao = rawClassification;
+    } else if (rawClassification?.name) {
+      classificacao = rawClassification.name;
+    } else if (rd.classifications && rd.classifications.length > 0) {
+      const first = rd.classifications[0];
+      classificacao = typeof first === 'string' ? first : first?.name || null;
+    }
 
     // Extrair data de distribuição
     const dataDistribuicao = rd.distribution_date 
