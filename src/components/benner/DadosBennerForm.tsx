@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Search, Save, ArrowLeft, Loader2 } from "lucide-react";
+import { Search, Save, ArrowLeft, Loader2, Download } from "lucide-react";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -46,6 +46,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
+  const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
 
   useEffect(() => {
@@ -124,6 +125,64 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     toast.success("Dados preenchidos automaticamente!");
   };
 
+  const handleBuscarJudit = async () => {
+    if (!form.processo?.trim()) {
+      toast.warning("Digite o número do processo primeiro");
+      return;
+    }
+    setBuscandoJudit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+        body: { numero_processo: form.processo.trim() },
+      });
+
+      if (error) {
+        console.error("Erro Judit:", error);
+        toast.error("Erro ao buscar na Judit: " + (error.message || "Erro desconhecido"));
+        setBuscandoJudit(false);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        setBuscandoJudit(false);
+        return;
+      }
+
+      const tribunaisAceitos = ["TST", "STF", "STJ"];
+      const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
+
+      setForm(f => ({
+        ...f,
+        tipo_recurso: data.tipo_recurso || f.tipo_recurso,
+        data_distribuicao: data.data_distribuicao || f.data_distribuicao,
+        relator: data.relator || f.relator,
+        tribunal: tribunalMapeado || f.tribunal,
+        recorrente: data.recorrente || f.recorrente,
+        situacao_processo: data.situacao_processo || f.situacao_processo,
+      }));
+
+      const camposPreenchidos = [
+        data.tipo_recurso && "Tipo Recurso",
+        data.data_distribuicao && "Data Distribuição",
+        data.relator && "Relator",
+        data.tribunal && "Tribunal",
+        data.recorrente && "Recorrente",
+        data.situacao_processo && "Situação",
+      ].filter(Boolean);
+
+      if (camposPreenchidos.length > 0) {
+        toast.success(`Judit: ${camposPreenchidos.length} campo(s) preenchidos — ${camposPreenchidos.join(", ")}`);
+      } else {
+        toast.info("Judit: processo encontrado, mas sem dados adicionais para preencher");
+      }
+    } catch (err: any) {
+      console.error("Erro ao buscar Judit:", err);
+      toast.error("Erro de conexão com a Judit");
+    }
+    setBuscandoJudit(false);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
@@ -158,6 +217,15 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Button variant="outline" onClick={handleBuscarProcesso} disabled={buscando}>
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Buscar
+              </Button>
+              <Button 
+                variant="default" 
+                onClick={handleBuscarJudit} 
+                disabled={buscandoJudit || !form.processo?.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Judit
               </Button>
             </div>
             {resultadosBusca.length > 0 && (
