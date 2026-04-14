@@ -149,12 +149,15 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         return;
       }
 
+      const tribunaisAceitos = ["TST", "STF", "STJ"];
+      const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
+
       setForm(f => ({
         ...f,
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
-        tribunal: data.tribunal || f.tribunal,
+        tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
         situacao_processo: data.situacao_processo || f.situacao_processo,
       }));
