@@ -222,8 +222,9 @@ function extrairTurma(rd: any): string | null {
 
 function extrairRelator(rd: any): string | null {
   const j = rd.judge;
-  if (typeof j === "string" && j.trim()) return j.trim();
-  if (j && typeof j === "object" && j.name) return j.name;
+  const INVALIDOS = ["NÃO INFORMADO", "NAO INFORMADO", "N/A", "DESCONHECIDO", ""];
+  if (typeof j === "string" && j.trim() && !INVALIDOS.includes(j.trim().toUpperCase())) return j.trim();
+  if (j && typeof j === "object" && j.name && !INVALIDOS.includes((j.name || "").toUpperCase())) return j.name;
 
   // Extrair de courts: "Gabinete do Ministro Sergio Pinto Martins"
   const courts = Array.isArray(rd.courts) ? rd.courts : [];
