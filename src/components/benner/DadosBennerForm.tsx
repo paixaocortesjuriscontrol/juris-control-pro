@@ -161,7 +161,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
-        situacao_processo: data.situacao_processo || f.situacao_processo,
+        // Não preenche situacao_processo pela Judit — o status do PJE ("Ativo") não reflete
+        // o trânsito em julgado, que é calculado pelo sistema de verificação de movimentações
       }));
 
       // Track which fields were filled by Judit
@@ -172,7 +173,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
-      if (data.situacao_processo) filled.add("situacao_processo");
       setCamposJudit(filled);
 
       const camposPreenchidos = [
@@ -182,7 +182,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
-        data.situacao_processo && "Situação",
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
