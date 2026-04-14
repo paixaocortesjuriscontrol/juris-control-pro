@@ -379,6 +379,16 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Judit
               </Button>
+              <Button 
+                variant="default" 
+                onClick={handleBaixarAutos} 
+                disabled={baixandoAutos || !form.processo?.trim() || !dado?.id}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                title="Baixar documentos do processo via Judit"
+              >
+                {baixandoAutos ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                Autos
+              </Button>
             </div>
             {resultadosBusca.length > 0 && (
               <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
