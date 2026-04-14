@@ -445,7 +445,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   };
 
   // Combined highlight: Judit takes priority, then DataJud
-  const fieldHighlight = (field: string) => fieldHighlight(field) || datajudHighlight(field);
+  const fieldHighlight = (field: string) => juditHighlight(field) || datajudHighlight(field);
 
   const JuditLabel = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <div className="flex items-center gap-1.5">
