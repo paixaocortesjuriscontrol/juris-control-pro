@@ -281,6 +281,43 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     setBuscandoJudit(false);
   };
 
+  const handleBaixarAutos = async () => {
+    if (!form.processo?.trim()) {
+      toast.warning("Digite o número do processo primeiro");
+      return;
+    }
+    setBaixandoAutos(true);
+    try {
+      toast.info("Solicitando documentos à Judit... Isso pode levar até 2 minutos.");
+      const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
+        body: { processo_id: dado?.id, processo_numero: form.processo.trim() },
+      });
+
+      if (error) {
+        toast.error("Erro ao baixar autos: " + (error.message || "Erro desconhecido"));
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.documentos_baixados > 0) {
+        toast.success(data.mensagem || `${data.documentos_baixados} documento(s) baixado(s)`);
+      } else if (data?.documentos_existentes > 0) {
+        toast.info(data.mensagem || "Documentos já baixados anteriormente");
+      } else {
+        toast.info(data?.mensagem || "Nenhum documento encontrado");
+      }
+    } catch (err: any) {
+      console.error("Erro ao baixar autos:", err);
+      toast.error("Erro de conexão ao baixar autos");
+    } finally {
+      setBaixandoAutos(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
