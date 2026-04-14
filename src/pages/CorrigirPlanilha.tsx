@@ -13,7 +13,7 @@ interface Stats {
   totalCarga: number;
   duplicatasRemovidas: number;
   cejuscRemovidas: number;
-  bennerSimRemovidas: number;
+  bennerSimEncontrados: number;
   totalFinal: number;
   dossieIgualProcesso: number;
 }
@@ -40,6 +40,13 @@ export default function CorrigirPlanilha() {
   const normalizeForCompare = (val: unknown): string =>
     String(val ?? "").trim().replace(/\s+/g, "").toUpperCase();
 
+  const normalizeBennerKey = (val: unknown): string => {
+    const raw = String(val ?? "").trim().toUpperCase();
+    if (!raw) return "";
+    const digits = raw.replace(/\D/g, "");
+    return digits.length >= 7 ? digits : raw.replace(/\s+/g, "");
+  };
+
   const processar = useCallback(async () => {
     if (!distFile || !cargaFile) {
       toast.error("Selecione ambas as planilhas");
@@ -56,6 +63,7 @@ export default function CorrigirPlanilha() {
       // === DISTRIBUTION: read with XLSX for Benner SIM and build dossier set ===
       const distWb = XLSX.read(new Uint8Array(distBuf), { type: "array" });
       const bennerSimContracts = new Set<string>();
+      let bennerSimEncontrados = 0;
 
       for (const sheetName of distWb.SheetNames) {
         const ws = distWb.Sheets[sheetName];
@@ -65,7 +73,8 @@ export default function CorrigirPlanilha() {
           if (!row) continue;
           const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
-            const dossie = normalize(row[2]); // col C = dossiê
+            bennerSimEncontrados++;
+            const dossie = normalizeBennerKey(row[2]); // col C = dossiê
             if (dossie) bennerSimContracts.add(dossie);
           }
         }
@@ -251,35 +260,39 @@ export default function CorrigirPlanilha() {
       const rowsToRemovePerSheet: Map<number, Set<number>> = new Map();
       let duplicatasRemovidas = 0;
       let cejuscRemovidas = 0;
-      let bennerSimRemovidas = 0;
+      let bennerSimRemovidasNaCarga = 0;
       let totalCarga = 0;
+
+      const CARGA_HEADER_ROWS = 2;
+      const CARGA_DATA_START_ROW = CARGA_HEADER_ROWS + 1;
+      const LAST_ALLOWED_DATA_COL_IDX = 6; // G
 
       for (let si = 0; si < cargaWb.SheetNames.length; si++) {
         const ws = cargaWb.Sheets[cargaWb.SheetNames[si]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" }) as any[][];
-        if (rows.length < 2) continue;
+        if (rows.length < CARGA_DATA_START_ROW) continue;
 
-        const dataRows = rows.slice(1);
+        const dataRows = rows.slice(CARGA_HEADER_ROWS);
         totalCarga += dataRows.length;
         const removeSet = new Set<number>();
 
         for (let i = 0; i < dataRows.length; i++) {
           const colF = normalize(dataRows[i][5]);
-          if (colF.includes("CEJUSC")) { cejuscRemovidas++; removeSet.add(i + 2); }
+          if (colF.includes("CEJUSC")) { cejuscRemovidas++; removeSet.add(i + CARGA_DATA_START_ROW); }
         }
 
         for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + 2;
+          const excelRow = i + CARGA_DATA_START_ROW;
           if (removeSet.has(excelRow)) continue;
-          const dossie = normalize(dataRows[i][0]);
+          const dossie = normalizeBennerKey(dataRows[i][0]);
           if (dossie && bennerSimContracts.has(dossie)) {
-            bennerSimRemovidas++; removeSet.add(excelRow);
+            bennerSimRemovidasNaCarga++; removeSet.add(excelRow);
           }
         }
 
         const seen = new Set<string>();
         for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + 2;
+          const excelRow = i + CARGA_DATA_START_ROW;
           if (removeSet.has(excelRow)) continue;
           const key = `${normalize(dataRows[i][0])}|${normalize(dataRows[i][1])}`;
           if (seen.has(key)) { duplicatasRemovidas++; removeSet.add(excelRow); }
@@ -289,42 +302,12 @@ export default function CorrigirPlanilha() {
         if (removeSet.size > 0) rowsToRemovePerSheet.set(si, removeSet);
       }
 
-      const totalFinal = totalCarga - duplicatasRemovidas - cejuscRemovidas - bennerSimRemovidas;
+      const totalFinal = totalCarga - duplicatasRemovidas - cejuscRemovidas - bennerSimRemovidasNaCarga;
 
       // JSZip manipulation for carga
       const zip = await JSZip.loadAsync(cargaBuf);
       const parser = new DOMParser();
       const serializer = new XMLSerializer();
-
-      // Parse shared strings for cleaning processo column
-      const sstPath = "xl/sharedStrings.xml";
-      const sstXml = await zip.file(sstPath)?.async("string");
-      let sstDoc: Document | null = null;
-      let sstNs = "";
-      const sharedStrings: string[] = [];
-      const sharedStringsDirty = new Set<number>(); // indices that were cleaned
-
-      if (sstXml) {
-        sstDoc = parser.parseFromString(sstXml, "application/xml");
-        sstNs = sstDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        const siEls = Array.from(sstDoc.getElementsByTagNameNS(sstNs, "si"));
-        for (let idx = 0; idx < siEls.length; idx++) {
-          const tEls = siEls[idx].getElementsByTagNameNS(sstNs, "t");
-          const text = tEls.length > 0 ? Array.from(tEls).map(t => t.textContent || "").join("") : "";
-          sharedStrings.push(text);
-        }
-      }
-
-      // Function to clean processo value: remove *, "a", comments, annotations
-      const cleanProcesso = (val: string): string => {
-        let cleaned = val.replace(/\*/g, "").replace(/\ba\b/gi, "").trim();
-        // Remove trailing/leading non-process characters
-        cleaned = cleaned.replace(/^[^0-9]+/, "").replace(/[^0-9]+$/, (m) => {
-          // Keep dots, dashes, slashes that are part of process numbers
-          return /^[.\-\/]+$/.test(m) ? m : "";
-        });
-        return cleaned.trim();
-      };
 
       const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
       const workbookRelsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
@@ -383,6 +366,23 @@ export default function CorrigirPlanilha() {
           return s;
         };
 
+        const sortRowCells = (rowEl: Element) => {
+          const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c"))
+            .filter(c => c.parentNode === rowEl)
+            .sort((a, b) => {
+              const aRef = (a.getAttribute("r") || "").replace(/\d+/g, "");
+              const bRef = (b.getAttribute("r") || "").replace(/\d+/g, "");
+              return colToIdx(aRef) - colToIdx(bRef);
+            });
+
+          for (const cell of cells) rowEl.appendChild(cell);
+        };
+
+        const clearCellContent = (cell: Element) => {
+          cell.removeAttribute("t");
+          while (cell.firstChild) cell.removeChild(cell.firstChild);
+        };
+
         // Remove col B (processo) in the whole sheet and shift all subsequent cols left by 1
         for (const rowEl of remainingRows) {
           const rn = Number(rowEl.getAttribute("r"));
@@ -406,6 +406,8 @@ export default function CorrigirPlanilha() {
           for (const { cell, oldIdx } of toShift) {
             cell.setAttribute("r", idxToCol(oldIdx - 1) + rn);
           }
+
+          sortRowCells(rowEl);
         }
 
         // Renumber rows sequentially
@@ -420,6 +422,19 @@ export default function CorrigirPlanilha() {
               cell.setAttribute("r", ref.replace(/\d+/g, "") + newRowNum);
             }
           }
+
+          if (newRowNum >= CARGA_DATA_START_ROW) {
+            const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+            for (const cell of cells) {
+              const ref = cell.getAttribute("r") || "";
+              const colIdx = colToIdx(ref.replace(/\d+/g, ""));
+              if (colIdx > LAST_ALLOWED_DATA_COL_IDX) {
+                clearCellContent(cell);
+              }
+            }
+          }
+
+          sortRowCells(rowEl);
           newRowNum++;
         }
 
@@ -472,14 +487,9 @@ export default function CorrigirPlanilha() {
         zip.file(worksheetPath, serializer.serializeToString(sheetDoc));
       }
 
-      // Save updated shared strings if any were cleaned
-      if (sstDoc && sharedStringsDirty.size > 0) {
-        zip.file(sstPath, serializer.serializeToString(sstDoc));
-      }
-
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       setResultBlob(blob);
-      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimRemovidas, totalFinal, dossieIgualProcesso });
+      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimEncontrados, totalFinal, dossieIgualProcesso });
       toast.success("Planilhas processadas com sucesso!");
     } catch (err: any) {
       toast.error("Erro ao processar: " + (err?.message || String(err)));
@@ -588,9 +598,9 @@ export default function CorrigirPlanilha() {
               <CardContent className="pt-4 text-center">
                 <div className="flex items-center justify-center gap-1 text-yellow-600">
                   <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.bennerSimRemovidas}</p>
+                  <p className="text-2xl font-bold">{stats.bennerSimEncontrados}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">Benner SIM</p>
+                <p className="text-xs text-muted-foreground">Benner SIM (AA)</p>
               </CardContent>
             </Card>
             <Card className="border-green-200">
