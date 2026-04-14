@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { extrairOrgaoJulgador, derivarTurmaDoRelator } from "../_shared/extrair-relator.ts";
+import { extrairOrgaoJulgador, derivarTurmaDoRelator, derivarRelatorDaTurma } from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,22 +216,48 @@ serve(async (req) => {
     let relatorFinal = orgaoJulgador.relator;
     let turmaFinal = orgaoJulgador.turma;
 
-    // Se não encontrou nos movimentos, tentar extrair do campo "courts" da Judit
+    // Fallback 1: campos raiz do payload da Judit (judge, relator, orgao_julgador, court)
+    if (!relatorFinal) {
+      const judgeCandidate = rd.judge || rd.judge_name || rd.relator || rd.relator_name || null;
+      if (judgeCandidate && typeof judgeCandidate === "string" && judgeCandidate.trim().length > 2) {
+        relatorFinal = judgeCandidate.trim();
+        console.log(`[consultar-processo-judit] Relator extraído do payload raiz: ${relatorFinal}`);
+      }
+    }
+
+    if (!turmaFinal) {
+      // Tenta campo orgao_julgador / court no payload raiz
+      const orgaoCandidate = rd.orgao_julgador || rd.orgao_julgador_nome || rd.court || rd.court_name || null;
+      if (orgaoCandidate && typeof orgaoCandidate === "string" && /turma|sbdi|sdi|pleno|especial|se[çc][aã]o/i.test(orgaoCandidate)) {
+        turmaFinal = orgaoCandidate.trim();
+        console.log(`[consultar-processo-judit] Turma extraída do payload raiz: ${turmaFinal}`);
+      }
+    }
+
+    // Fallback 2: array "courts" da Judit
     if (!turmaFinal && rd.courts && Array.isArray(rd.courts)) {
       for (const court of rd.courts) {
         const courtName = court.name || court.description || "";
-        if (/turma|sbdi|sdi|pleno|especial|seção/i.test(courtName)) {
+        if (/turma|sbdi|sdi|pleno|especial|se[çc][aã]o/i.test(courtName)) {
           turmaFinal = courtName;
           break;
         }
       }
     }
 
-    // Se encontrou relator mas não turma, derivar do mapeamento TST
+    // Fallback 3: relator → turma via mapeamento TST
     if (relatorFinal && !turmaFinal) {
       turmaFinal = derivarTurmaDoRelator(relatorFinal);
       if (turmaFinal) {
         console.log(`[consultar-processo-judit] Turma derivada do relator via mapeamento: ${turmaFinal}`);
+      }
+    }
+
+    // Fallback 4 (reverso): turma → relator via mapeamento TST (se turma encontrada mas relator não)
+    if (turmaFinal && !relatorFinal) {
+      relatorFinal = derivarRelatorDaTurma(turmaFinal);
+      if (relatorFinal) {
+        console.log(`[consultar-processo-judit] Relator derivado da turma via mapeamento reverso: ${relatorFinal}`);
       }
     }
 

@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { extrairOrgaoJulgador, type MovimentoBruto } from "./extrair-relator.ts";
+import { extrairOrgaoJulgador, derivarRelatorDaTurma, type MovimentoBruto } from "./extrair-relator.ts";
 
 Deno.test("extrai turma e relator de movimento de distribuição TST", () => {
   const movimentos: MovimentoBruto[] = [
@@ -101,4 +101,10 @@ Deno.test("extrai SBDI do texto", () => {
   const result = extrairOrgaoJulgador(movimentos);
   assertEquals(result.relator, "Lelio Bentes Corrêa");
   assertEquals(result.turma, "SBDI-1");
+});
+
+Deno.test("derivarRelatorDaTurma retorna null para turma com múltiplos relatores", () => {
+  // 1ª Turma tem múltiplos relatores, deve retornar null
+  const result = derivarRelatorDaTurma("1ª Turma");
+  assertEquals(result, null);
 });

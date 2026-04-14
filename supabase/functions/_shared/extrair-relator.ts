@@ -83,6 +83,30 @@ export function derivarTurmaDoRelator(relator: string): string | null {
   return RELATOR_TURMA[key] || null;
 }
 
+/**
+ * Lookup reverso: dado o nome de uma turma, retorna o relator mais provável.
+ * Como pode haver vários relatores por turma, retorna null (ambíguo).
+ * Só retorna se houver exatamente 1 relator ativo naquela turma.
+ * Na prática, para lookup reverso confiável, é melhor usar o campo
+ * judge/relator direto do payload da Judit.
+ */
+export function derivarRelatorDaTurma(turma: string): string | null {
+  const turmaNorm = turma.toLowerCase().replace(/\s+/g, " ").trim();
+  const candidatos: string[] = [];
+  for (const [nome, t] of Object.entries(RELATOR_TURMA)) {
+    if (t.toLowerCase().replace(/\s+/g, " ").trim() === turmaNorm) {
+      candidatos.push(nome);
+    }
+  }
+  // Só retorna se houver exatamente 1 candidato (evita ambiguidade)
+  return candidatos.length === 1
+    ? candidatos[0]
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ")
+    : null;
+}
+
 // Regex para detectar movimentos de distribuição/redistribuição
 const DISTRIBUICAO_REGEX = /distribu[ií]/i;
 const REDISTRIBUICAO_REGEX = /redistribu/i;
