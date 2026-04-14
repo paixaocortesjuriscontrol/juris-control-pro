@@ -432,6 +432,43 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 Autos
               </Button>
             </div>
+            {/* Progress de download de autos */}
+            {autosProgress && (
+              <div className="border border-border rounded-md p-3 space-y-2 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  {autosProgress.status === "concluido" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  ) : autosProgress.status === "erro" || autosProgress.status === "timeout" ? (
+                    <XCircle className="w-4 h-4 text-destructive shrink-0" />
+                  ) : (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                  )}
+                  <span className="text-sm font-medium text-foreground">{autosProgress.etapa}</span>
+                </div>
+                {autosProgress.documentos_total > 0 && (
+                  <>
+                    <Progress
+                      value={((autosProgress.documentos_baixados + autosProgress.documentos_existentes + autosProgress.documentos_erro) / autosProgress.documentos_total) * 100}
+                      className="h-2"
+                    />
+                    <div className="flex gap-3 text-xs text-muted-foreground">
+                      <span>{autosProgress.documentos_baixados} baixado(s)</span>
+                      {autosProgress.documentos_existentes > 0 && <span>{autosProgress.documentos_existentes} já existente(s)</span>}
+                      {autosProgress.documentos_erro > 0 && <span className="text-destructive">{autosProgress.documentos_erro} erro(s)</span>}
+                      <span className="ml-auto">{autosProgress.documentos_baixados + autosProgress.documentos_existentes + autosProgress.documentos_erro}/{autosProgress.documentos_total}</span>
+                    </div>
+                  </>
+                )}
+                {autosProgress.erro && (
+                  <p className="text-xs text-destructive">{autosProgress.erro}</p>
+                )}
+                {autosProgress.status === "concluido" && (
+                  <button onClick={() => setAutosProgress(null)} className="text-xs text-muted-foreground hover:text-foreground underline">
+                    Fechar
+                  </button>
+                )}
+              </div>
+            )}
             {resultadosBusca.length > 0 && (
               <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
                 <p className="text-xs text-muted-foreground font-medium">Resultados encontrados:</p>
