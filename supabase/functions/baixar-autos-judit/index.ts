@@ -27,6 +27,19 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let supabase: ReturnType<typeof createClient> | null = null;
+  let jobId: string | null = null;
+
+  // Helper to update job progress in DB
+  async function updateJob(updates: Record<string, unknown>) {
+    if (!supabase || !jobId) return;
+    try {
+      await supabase.from("baixar_autos_jobs").update(updates).eq("id", jobId);
+    } catch (e) {
+      console.error("[baixar-autos-judit] Erro ao atualizar job:", e);
+    }
+  }
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -41,7 +54,7 @@ Deno.serve(async (req) => {
       return respond({ error: "JUDIT_API_KEY não configurada", sucesso: false, documentos_baixados: 0 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
@@ -56,6 +69,16 @@ Deno.serve(async (req) => {
     const cnj = processo_numero.replace(/[^0-9.-]/g, "").trim();
     console.log(`[baixar-autos-judit] Buscando attachments para CNJ: ${cnj}`);
 
+    // Create job record for progress tracking
+    const { data: jobData } = await supabase.from("baixar_autos_jobs").insert({
+      processo_id,
+      user_id: user.id,
+      status: "iniciado",
+      etapa: "Consultando datalake da Judit...",
+    }).select("id").single();
+
+    jobId = jobData?.id || null;
+
     const juditHeaders = { "api-key": juditApiKey, "Content-Type": "application/json" };
 
     // ── Step 1: Query lawsuits endpoint for existing attachments ──
@@ -68,7 +91,6 @@ Deno.serve(async (req) => {
 
     if (lawsuitRes.ok) {
       const lawsuitData = await lawsuitRes.json();
-      // Response can be an object or array of instances
       if (Array.isArray(lawsuitData)) {
         for (const item of lawsuitData) {
           instance = item.instance || 1;
@@ -89,7 +111,7 @@ Deno.serve(async (req) => {
 
     // ── Step 2: If no attachments, request crawler ──
     if (attachments.length === 0) {
-      console.log("[baixar-autos-judit] Nenhum attachment. Solicitando crawler...");
+      await updateJob({ etapa: "Solicitando crawler da Judit...", status: "crawler" });
 
       const instanceNumber = Number(instance);
       const crawlerAttempts = [
@@ -149,11 +171,13 @@ Deno.serve(async (req) => {
       }
 
       if (!crawlerRes?.ok) {
+        await updateJob({ status: "erro", etapa: "Erro no crawler", erro: "Falha ao solicitar documentos ao crawler da Judit" });
         return respond({
           error: "Falha ao solicitar documentos ao crawler da Judit",
           detalhes: crawlerErrorText.substring(0, 200),
           sucesso: false,
           documentos_baixados: 0,
+          job_id: jobId,
         });
       }
 
@@ -161,11 +185,12 @@ Deno.serve(async (req) => {
       const requestId = crawlerData.request_id || crawlerData.id;
 
       if (!requestId) {
-        console.log("[baixar-autos-judit] Crawler response:", JSON.stringify(crawlerData).substring(0, 500));
+        await updateJob({ status: "erro", etapa: "Sem ID de acompanhamento", erro: "Crawler não retornou request_id" });
         return respond({
           sucesso: false,
           documentos_baixados: 0,
           mensagem: "Pedido enviado à Judit, mas sem ID de acompanhamento. Tente novamente em alguns minutos.",
+          job_id: jobId,
         });
       }
 
@@ -176,6 +201,7 @@ Deno.serve(async (req) => {
       let completed = false;
 
       for (let i = 0; i < maxPolls; i++) {
+        await updateJob({ etapa: `Aguardando crawler... (${i + 1}/${maxPolls})` });
         await new Promise((r) => setTimeout(r, 5000));
 
         const pollRes = await fetch(`${JUDIT_REQUESTS}/requests/${requestId}`, {
@@ -193,26 +219,31 @@ Deno.serve(async (req) => {
 
         if (status === "completed" || status === "done") {
           completed = true;
-          console.log(`[baixar-autos-judit] Poll concluído com mode=${crawlerMode}`);
           break;
         }
         if (status === "failed" || status === "error") {
+          await updateJob({ status: "erro", etapa: "Crawler falhou", erro: "O crawler da Judit falhou" });
           return respond({
             error: "O crawler da Judit falhou ao processar os documentos",
             detalhes: pollData.error || pollData.message || "",
             sucesso: false,
             documentos_baixados: 0,
+            job_id: jobId,
           });
         }
       }
 
       if (!completed) {
+        await updateJob({ status: "timeout", etapa: "Timeout do crawler", mensagem: "Crawler ainda processando" });
         return respond({
           sucesso: false,
           documentos_baixados: 0,
           mensagem: "O crawler ainda está processando. Tente novamente em alguns minutos.",
+          job_id: jobId,
         });
       }
+
+      await updateJob({ etapa: "Re-consultando datalake após crawler..." });
 
       // Re-fetch after crawler
       const refetchRes = await fetch(`${JUDIT_LAWSUITS}/lawsuits/${encodeURIComponent(cnj)}`, {
@@ -233,7 +264,6 @@ Deno.serve(async (req) => {
           attachments = refetchData.attachments;
           instance = refetchData.instance || 1;
         }
-        console.log(`[baixar-autos-judit] Refetch após crawler (${crawlerMode}): ${attachments.length} attachment(s), instance=${instance}`);
       } else {
         const refetchErr = await refetchRes.text();
         console.error(`[baixar-autos-judit] Refetch falhou: ${refetchRes.status} ${refetchErr.substring(0, 200)}`);
@@ -241,26 +271,44 @@ Deno.serve(async (req) => {
     }
 
     if (attachments.length === 0) {
+      await updateJob({ status: "concluido", etapa: "Nenhum documento encontrado", documentos_total: 0 });
       return respond({
         sucesso: true,
         documentos_baixados: 0,
         documentos: [],
         mensagem: "Nenhum documento encontrado para este processo na Judit.",
+        job_id: jobId,
       });
     }
+
+    await updateJob({
+      etapa: `Baixando 0/${attachments.length} documento(s)...`,
+      documentos_total: attachments.length,
+      status: "baixando",
+    });
 
     console.log(`[baixar-autos-judit] ${attachments.length} attachment(s). Baixando...`);
 
     // ── Step 3: Download each attachment ──
     const documentosBaixados: any[] = [];
     let erros = 0;
+    let baixados = 0;
+    let existentes = 0;
 
-    for (const att of attachments) {
+    for (let idx = 0; idx < attachments.length; idx++) {
+      const att = attachments[idx];
       const attachmentId = att.step_id;
       const nomeArquivo = att.attachment_name || `documento_${attachmentId}`;
       const ext = att.extension || "pdf";
       const nomeCompleto = nomeArquivo.endsWith(`.${ext}`) ? nomeArquivo : `${nomeArquivo}.${ext}`;
       const storagePath = `${processo_id}/${nomeCompleto}`;
+
+      await updateJob({
+        etapa: `Baixando ${idx + 1}/${attachments.length}: ${nomeCompleto.substring(0, 40)}...`,
+        documentos_baixados: baixados,
+        documentos_existentes: existentes,
+        documentos_erro: erros,
+      });
 
       // Dedup check
       const { data: existing } = await supabase
@@ -273,6 +321,7 @@ Deno.serve(async (req) => {
       if (existing && existing.length > 0) {
         console.log(`[baixar-autos-judit] Já existe: ${nomeCompleto}`);
         documentosBaixados.push({ nome: nomeCompleto, status: "ja_existente" });
+        existentes++;
         continue;
       }
 
@@ -345,6 +394,7 @@ Deno.serve(async (req) => {
           data_documento: att.attachment_date || null,
         });
 
+        baixados++;
         documentosBaixados.push({ nome: nomeCompleto, status: "baixado", tamanho: fileBytes.byteLength });
         console.log(`[baixar-autos-judit] ✅ ${nomeCompleto} (${fileBytes.byteLength} bytes)`);
       } catch (err) {
@@ -354,29 +404,41 @@ Deno.serve(async (req) => {
       }
     }
 
-    const totalBaixados = documentosBaixados.filter((d) => d.status === "baixado").length;
-    const totalExistentes = documentosBaixados.filter((d) => d.status === "ja_existente").length;
+    const mensagem = baixados > 0
+      ? `${baixados} documento(s) baixado(s)${existentes > 0 ? `, ${existentes} já existiam` : ""}`
+      : existentes > 0
+      ? `Todos os ${existentes} documento(s) já haviam sido baixados`
+      : "Nenhum documento pôde ser baixado";
+
+    await updateJob({
+      status: "concluido",
+      etapa: mensagem,
+      documentos_baixados: baixados,
+      documentos_existentes: existentes,
+      documentos_erro: erros,
+      documentos_total: attachments.length,
+      mensagem,
+    });
 
     return respond({
       sucesso: true,
-      documentos_baixados: totalBaixados,
-      documentos_existentes: totalExistentes,
+      documentos_baixados: baixados,
+      documentos_existentes: existentes,
       documentos_erro: erros,
       documentos_total: attachments.length,
       documentos: documentosBaixados,
-      mensagem: totalBaixados > 0
-        ? `${totalBaixados} documento(s) baixado(s)${totalExistentes > 0 ? `, ${totalExistentes} já existiam` : ""}`
-        : totalExistentes > 0
-        ? `Todos os ${totalExistentes} documento(s) já haviam sido baixados`
-        : "Nenhum documento pôde ser baixado",
+      mensagem,
+      job_id: jobId,
     });
   } catch (err) {
     console.error("[baixar-autos-judit] Erro geral:", err);
     const errorMessage = err instanceof Error ? err.message : "desconhecido";
+    await updateJob({ status: "erro", etapa: "Erro interno", erro: errorMessage });
     return respond({
       error: "Erro interno ao processar documentos: " + errorMessage,
       sucesso: false,
       documentos_baixados: 0,
+      job_id: jobId,
     });
   }
 });

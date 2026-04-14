@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Search, Save, ArrowLeft, Loader2, Download, FileDown } from "lucide-react";
+import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
