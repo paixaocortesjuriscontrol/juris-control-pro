@@ -9292,6 +9292,21 @@ export default function ImportarProcessos() {
               </Card>
             )}
           </TabsContent>
+
+          {/* Tab: SENAI / SESI */}
+          <TabsContent value="senai" className="space-y-6 mt-6">
+            <SenaiSesiImportTab
+              coordenacoes={coordenacoes}
+              clientes={clientes}
+              selectedCoordenacao={selectedCoordenacao}
+              setSelectedCoordenacao={setSelectedCoordenacao}
+              selectedMembro={selectedMembro}
+              setSelectedMembro={setSelectedMembro}
+              selectedCliente={selectedCliente}
+              setSelectedCliente={setSelectedCliente}
+              membrosDisponiveis={membrosDisponiveis}
+            />
+          </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
