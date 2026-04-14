@@ -57,7 +57,7 @@ export function useBaixarAutos(processoId: string) {
     setResultado(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("baixar-autos-pje", {
+      const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
         body: {
           cofre_senha_id: params.cofre_senha_id,
           processo_numero: params.processo_numero,
