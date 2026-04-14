@@ -126,7 +126,7 @@ const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgen
 const yieldToUI = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 const TABLE_PAGE_SIZE = 50;
-const IMPORT_BATCH_SIZE = 20;
+const LOOKUP_BATCH_SIZE = 200;
 
 const normalizeLookupText = (value: string | null | undefined) =>
   String(value ?? "")
@@ -139,12 +139,6 @@ const chunkArray = <T,>(items: T[], size: number) => {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
-};
-
-const buildPastaName = (processo: ProcessoImport) => {
-  const parteAtiva = processo.parteAtiva?.trim() || "Sem Parte Ativa";
-  const partePassiva = processo.partePassiva?.trim() || processo.senaiData?.entidade?.trim() || "Sem Parte Passiva";
-  return `${parteAtiva} x ${partePassiva}`;
 };
 
 const consolidateProcessos = (items: ProcessoImport[]) => {
@@ -385,7 +379,9 @@ export function SenaiSesiImportTab({
   }, [parseExcel]);
 
   const handleImport = async () => {
-    const validProcessos = processos.filter(p => p.status === "valido");
+    // Consolidate duplicates first
+    const { processos: consolidated, duplicateLines } = consolidateProcessos(processos);
+    const validProcessos = consolidated.filter(p => p.status === "valido");
     if (validProcessos.length === 0) {
       toast({ title: "Nenhum processo válido", variant: "destructive" });
       return;
@@ -393,50 +389,88 @@ export function SenaiSesiImportTab({
 
     setImporting(true);
     cancelledRef.current = false;
-    startImport("Importando SENAI/SESI");
+    startImport(`Importando ${validProcessos.length} processos SENAI/SESI`);
     setProgress(0);
-    setProgressMsg("Iniciando importação...");
+    setProgressMsg(`Preparando importação de ${validProcessos.length} processos únicos (${duplicateLines} linhas duplicadas consolidadas)...`);
+    await yieldToUI();
 
-    const updated = [...processos];
     let successCount = 0;
     let updateCount = 0;
     let errorCount = 0;
-    let rejectedCount = 0;
 
     const clientesCache: { id: string; nome: string; tipo: string }[] = [...clientes];
-    const STATE_UPDATE_INTERVAL = 10;
+    const pastaCache = new Map<string, string>();
 
-    for (let i = 0; i < updated.length; i++) {
+    // Phase 1: Batch lookup existing processes
+    setProgressMsg("Verificando processos existentes...");
+    setProgress(5);
+    await yieldToUI();
+
+    const existingMap = new Map<string, string>();
+    const numeros = validProcessos.map(p => p.numero.trim());
+    for (const batch of chunkArray(numeros, LOOKUP_BATCH_SIZE)) {
+      const { data } = await supabase.from("processos").select("id, numero").in("numero", batch);
+      data?.forEach(row => existingMap.set(row.numero, row.id));
+    }
+
+    // Phase 2: Batch create/find pastas
+    setProgressMsg("Criando pastas...");
+    setProgress(15);
+    await yieldToUI();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const allPastaNames = new Set<string>();
+    for (const p of validProcessos) {
+      const parteAtiva = p.parteAtiva?.trim() || "Sem Parte Ativa";
+      const partePassiva = p.partePassiva?.trim() || p.senaiData?.entidade?.trim() || "Sem Parte Passiva";
+      allPastaNames.add(`${parteAtiva} x ${partePassiva}`);
+    }
+
+    const pastaNameArray = [...allPastaNames];
+    for (const batch of chunkArray(pastaNameArray, LOOKUP_BATCH_SIZE)) {
+      const { data: existing } = await supabase.from("pastas").select("id, nome").in("nome", batch);
+      existing?.forEach(p => pastaCache.set(p.nome, p.id));
+    }
+
+    // Create missing pastas
+    const missingPastas = pastaNameArray.filter(n => !pastaCache.has(n));
+    if (missingPastas.length > 0 && user) {
+      for (const batch of chunkArray(missingPastas, 20)) {
+        const inserts = batch.map(nome => ({
+          nome,
+          descricao: "Pasta criada automaticamente na importação SENAI/SESI",
+          cliente_id: selectedCliente || null,
+          coordenacao_id: selectedCoordenacao || null,
+          criado_por: user.id,
+        }));
+        const { data: created } = await supabase.from("pastas").insert(inserts).select("id, nome");
+        created?.forEach(p => pastaCache.set(p.nome, p.id));
+      }
+    }
+
+    // Phase 3: Import processes
+    setProgressMsg("Importando processos...");
+    setProgress(25);
+    await yieldToUI();
+
+    const results = new Map<string, { status: "sucesso" | "erro"; msg?: string }>();
+
+    for (let i = 0; i < validProcessos.length; i++) {
       if (cancelledRef.current) {
-        toast({ title: "Importação cancelada", description: `Cancelada após ${i} de ${updated.length} registros.` });
+        toast({ title: "Importação cancelada", description: `Cancelada após ${i} de ${validProcessos.length} registros.` });
         setImporting(false);
         setProgressMsg("");
         endImport();
         return;
       }
 
-      const processo = updated[i];
-      if (processo.status === "invalido") {
-        rejectedCount++;
-        if (i % STATE_UPDATE_INTERVAL === 0) {
-          setProgress(((i + 1) / updated.length) * 100);
-          setProgressMsg(`Processando ${i + 1}/${updated.length} — ${successCount} novos, ${updateCount} atualizados`);
-          await yieldToUI();
-        }
-        continue;
-      }
-
+      const processo = validProcessos[i];
       try {
         const sd = processo.senaiData || {} as any;
-
-        const { data: existingProcesso } = await supabase
-          .from("processos")
-          .select("id")
-          .eq("numero", processo.numero.trim())
-          .maybeSingle();
-
         const areaSlug = normalizeAreaToSlug(processo.area);
+        const numTrimmed = processo.numero.trim();
 
+        // Resolve cliente
         let clienteIdToUse = selectedCliente || null;
         const entidade = sd.entidade?.trim();
         if (entidade) {
@@ -456,8 +490,14 @@ export function SenaiSesiImportTab({
           }
         }
 
+        // Resolve pasta
+        const parteAtiva = processo.parteAtiva?.trim() || "Sem Parte Ativa";
+        const partePassiva = processo.partePassiva?.trim() || sd.entidade?.trim() || "Sem Parte Passiva";
+        const nomePasta = `${parteAtiva} x ${partePassiva}`;
+        const pastaId = pastaCache.get(nomePasta) || null;
+
         const processoData: any = {
-          numero: processo.numero.trim(),
+          numero: numTrimmed,
           area: areaSlug,
           status: mapStatusToEnum(processo.situacao),
           situacao_original: processo.situacao,
@@ -487,28 +527,24 @@ export function SenaiSesiImportTab({
           entidade: sd.entidade,
           calculo_validado: sd.calculoValidado,
           rateio: sd.rateio,
+          pasta_id: pastaId,
         };
 
-        let isUpdate = false;
+        const existingId = existingMap.get(numTrimmed);
 
-        if (existingProcesso) {
+        if (existingId) {
           const updateData = { ...processoData };
-          const { data: current } = await supabase
-            .from("processos")
-            .select("coordenacao_id, advogado_responsavel_id")
-            .eq("id", existingProcesso.id)
-            .single();
-          if (current) {
-            if (current.coordenacao_id && !selectedCoordenacao) delete updateData.coordenacao_id;
-            if (current.advogado_responsavel_id && !selectedMembro) delete updateData.advogado_responsavel_id;
-          }
-          const { error } = await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
+          delete updateData.numero;
+          if (!selectedCoordenacao) delete updateData.coordenacao_id;
+          if (!selectedMembro) delete updateData.advogado_responsavel_id;
+          const { error } = await supabase.from("processos").update(updateData).eq("id", existingId);
           if (error) {
-            updated[i] = { ...processo, status: "erro", erroImport: error.message };
+            results.set(numTrimmed, { status: "erro", msg: error.message });
             errorCount++;
-            continue;
+          } else {
+            results.set(numTrimmed, { status: "sucesso", msg: "Atualizado (já existia)" });
+            updateCount++;
           }
-          isUpdate = true;
         } else {
           const { data: inserted, error } = await supabase
             .from("processos")
@@ -516,40 +552,45 @@ export function SenaiSesiImportTab({
             .select("id")
             .single();
           if (error) {
-            updated[i] = { ...processo, status: "erro", erroImport: error.message };
+            results.set(numTrimmed, { status: "erro", msg: error.message });
             errorCount++;
-            continue;
-          }
-          if (buscarAndamentos && inserted) {
-            const res = await buscarAndamentosExternos(inserted.id, processo.numero.trim());
-            if (!res.success) console.warn(`Andamentos falhou para ${processo.numero}:`, res.error);
+          } else {
+            results.set(numTrimmed, { status: "sucesso" });
+            successCount++;
+            if (buscarAndamentos && inserted) {
+              buscarAndamentosExternos(inserted.id, numTrimmed).catch(() => {});
+            }
           }
         }
-
-        updated[i] = { ...processo, status: "sucesso", erroImport: isUpdate ? "Atualizado (já existia)" : undefined };
-        if (isUpdate) updateCount++;
-        else successCount++;
       } catch (err: any) {
-        updated[i] = { ...processo, status: "erro", erroImport: err.message };
+        results.set(processo.numero.trim(), { status: "erro", msg: err.message });
         errorCount++;
       }
 
-      if (i % STATE_UPDATE_INTERVAL === 0 || i === updated.length - 1) {
-        setProgress(((i + 1) / updated.length) * 100);
-        setProgressMsg(`Processando ${i + 1}/${updated.length} — ${successCount} novos, ${updateCount} atualizados`);
-        setProcessos([...updated]);
+      if (i % 5 === 0 || i === validProcessos.length - 1) {
+        setProgress(25 + ((i + 1) / validProcessos.length) * 75);
+        setProgressMsg(`Importando ${i + 1}/${validProcessos.length} — ${successCount} novos, ${updateCount} atualizados, ${errorCount} erros`);
         await yieldToUI();
       }
     }
 
-    setProcessos([...updated]);
+    // Update processos state with results
+    const finalProcessos = consolidated.map(p => {
+      const res = results.get(p.numero.trim());
+      if (res) {
+        return { ...p, status: res.status as any, erroImport: res.msg };
+      }
+      return p;
+    });
+    setProcessos(finalProcessos);
     setImporting(false);
     setProgressMsg("");
     endImport();
 
+    const rejectedCount = consolidated.filter(p => p.status === "invalido").length;
     toast({
       title: "Importação SENAI/SESI concluída",
-      description: `${successCount} novo(s), ${updateCount} atualizado(s), ${rejectedCount} rejeitado(s), ${errorCount} erro(s).`,
+      description: `${successCount} novo(s), ${updateCount} atualizado(s), ${rejectedCount} rejeitado(s), ${errorCount} erro(s). ${duplicateLines} linha(s) duplicada(s) consolidada(s).`,
       variant: errorCount > 0 || rejectedCount > 0 ? "destructive" : "default",
     });
   };
@@ -724,7 +765,7 @@ export function SenaiSesiImportTab({
               <div>
                 <CardTitle>Pré-visualização SENAI / SESI</CardTitle>
                 <CardDescription>
-                  {processos.length} registro(s) encontrado(s) em "{file.name}"
+                  {processos.length} registro(s) encontrado(s) em "{file.name}" — Processos únicos serão consolidados na importação
                 </CardDescription>
               </div>
               <div className="flex items-center gap-4 flex-wrap">
