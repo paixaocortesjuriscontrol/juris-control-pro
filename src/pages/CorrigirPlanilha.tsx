@@ -13,7 +13,8 @@ interface Stats {
   totalCarga: number;
   duplicatasRemovidas: number;
   cejuscRemovidas: number;
-  bennerSimEncontrados: number;
+  bennerSimRemovidas: number;
+  processoIgualDossieRemovidas: number;
   totalFinal: number;
   dossieIgualProcesso: number;
 }
@@ -40,12 +41,6 @@ export default function CorrigirPlanilha() {
   const normalizeForCompare = (val: unknown): string =>
     String(val ?? "").trim().replace(/\s+/g, "").toUpperCase();
 
-  const normalizeBennerKey = (val: unknown): string => {
-    const raw = String(val ?? "").trim().toUpperCase();
-    if (!raw) return "";
-    const digits = raw.replace(/\D/g, "");
-    return digits.length >= 7 ? digits : raw.replace(/\s+/g, "");
-  };
 
   const processar = useCallback(async () => {
     if (!distFile || !cargaFile) {
@@ -74,7 +69,7 @@ export default function CorrigirPlanilha() {
           const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
             bennerSimEncontrados++;
-            const dossie = normalizeBennerKey(row[2]); // col C = dossiê
+            const dossie = normalize(row[2]); // col C = dossiê
             if (dossie) bennerSimContracts.add(dossie);
           }
         }
@@ -262,6 +257,7 @@ export default function CorrigirPlanilha() {
       let cejuscRemovidas = 0;
       let bennerSimRemovidasNaCarga = 0;
       let totalCarga = 0;
+      let processoIgualDossieRemovidas = 0;
 
       const CARGA_HEADER_ROWS = 2;
       const CARGA_DATA_START_ROW = CARGA_HEADER_ROWS + 1;
@@ -276,20 +272,13 @@ export default function CorrigirPlanilha() {
         totalCarga += dataRows.length;
         const removeSet = new Set<number>();
 
+        // Step 1: Remove CEJUSC
         for (let i = 0; i < dataRows.length; i++) {
           const colF = normalize(dataRows[i][5]);
           if (colF.includes("CEJUSC")) { cejuscRemovidas++; removeSet.add(i + CARGA_DATA_START_ROW); }
         }
 
-        for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + CARGA_DATA_START_ROW;
-          if (removeSet.has(excelRow)) continue;
-          const dossie = normalizeBennerKey(dataRows[i][0]);
-          if (dossie && bennerSimContracts.has(dossie)) {
-            bennerSimRemovidasNaCarga++; removeSet.add(excelRow);
-          }
-        }
-
+        // Step 2: Remove duplicates FIRST (so Benner SIM doesn't double-count)
         const seen = new Set<string>();
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + CARGA_DATA_START_ROW;
@@ -299,10 +288,31 @@ export default function CorrigirPlanilha() {
           else seen.add(key);
         }
 
+        // Step 3: Remove processo = dossiê
+        for (let i = 0; i < dataRows.length; i++) {
+          const excelRow = i + CARGA_DATA_START_ROW;
+          if (removeSet.has(excelRow)) continue;
+          const dossieVal = normalize(dataRows[i][0]);
+          const processoVal = normalize(dataRows[i][1]);
+          if (dossieVal && processoVal && dossieVal === processoVal) {
+            processoIgualDossieRemovidas++; removeSet.add(excelRow);
+          }
+        }
+
+        // Step 4: Remove Benner SIM (after dedup, so each dossiê counted once)
+        for (let i = 0; i < dataRows.length; i++) {
+          const excelRow = i + CARGA_DATA_START_ROW;
+          if (removeSet.has(excelRow)) continue;
+          const dossie = normalize(dataRows[i][0]);
+          if (dossie && bennerSimContracts.has(dossie)) {
+            bennerSimRemovidasNaCarga++; removeSet.add(excelRow);
+          }
+        }
+
         if (removeSet.size > 0) rowsToRemovePerSheet.set(si, removeSet);
       }
 
-      const totalFinal = totalCarga - duplicatasRemovidas - cejuscRemovidas - bennerSimRemovidasNaCarga;
+      const totalFinal = totalCarga - duplicatasRemovidas - cejuscRemovidas - processoIgualDossieRemovidas - bennerSimRemovidasNaCarga;
 
       // JSZip manipulation for carga
       const zip = await JSZip.loadAsync(cargaBuf);
@@ -489,7 +499,7 @@ export default function CorrigirPlanilha() {
 
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       setResultBlob(blob);
-      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimEncontrados, totalFinal, dossieIgualProcesso });
+      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimRemovidas: bennerSimRemovidasNaCarga, processoIgualDossieRemovidas, totalFinal, dossieIgualProcesso });
       toast.success("Planilhas processadas com sucesso!");
     } catch (err: any) {
       toast.error("Erro ao processar: " + (err?.message || String(err)));
@@ -598,7 +608,7 @@ export default function CorrigirPlanilha() {
               <CardContent className="pt-4 text-center">
                 <div className="flex items-center justify-center gap-1 text-yellow-600">
                   <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.bennerSimEncontrados}</p>
+                  <p className="text-2xl font-bold">{stats.bennerSimRemovidas}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">Benner SIM (AA)</p>
               </CardContent>
@@ -612,15 +622,26 @@ export default function CorrigirPlanilha() {
                 <p className="text-xs text-muted-foreground">Total Final</p>
               </CardContent>
             </Card>
-            <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+            <Card className="border-purple-200">
               <CardContent className="pt-4 text-center">
-                <div className="flex items-center justify-center gap-1 text-red-700">
+                <div className="flex items-center justify-center gap-1 text-purple-600">
                   <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.dossieIgualProcesso}</p>
+                  <p className="text-2xl font-bold">{stats.processoIgualDossieRemovidas}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">Processo = Dossiê</p>
               </CardContent>
             </Card>
+            {stats.dossieIgualProcesso > 0 && (
+              <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+                <CardContent className="pt-4 text-center">
+                  <div className="flex items-center justify-center gap-1 text-red-700">
+                    <AlertTriangle className="w-4 h-4" />
+                    <p className="text-2xl font-bold">{stats.dossieIgualProcesso}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Marcados Distribuição</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>
