@@ -13,6 +13,7 @@ interface Stats {
   totalCarga: number;
   duplicatasRemovidas: number;
   cejuscRemovidas: number;
+  bennerSimDistribuicao: number;
   bennerSimRemovidas: number;
   processoIgualDossie: number;
   totalFinal: number;
@@ -506,7 +507,15 @@ export default function CorrigirPlanilha() {
 
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       setResultBlob(blob);
-      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimRemovidas: bennerSimRemovidasNaCarga, processoIgualDossie: processoIgualDossieRemovidas, totalFinal });
+      setStats({
+        totalCarga,
+        duplicatasRemovidas,
+        cejuscRemovidas,
+        bennerSimDistribuicao: bennerSimEncontrados,
+        bennerSimRemovidas: bennerSimRemovidasNaCarga,
+        processoIgualDossie: processoIgualDossieRemovidas,
+        totalFinal,
+      });
       toast.success("Planilhas processadas com sucesso!");
     } catch (err: any) {
       toast.error("Erro ao processar: " + (err?.message || String(err)));
@@ -586,58 +595,81 @@ export default function CorrigirPlanilha() {
         </div>
 
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <Card>
-              <CardContent className="pt-4 text-center">
-                <p className="text-2xl font-bold">{stats.totalCarga}</p>
-                <p className="text-xs text-muted-foreground">Total Original</p>
-              </CardContent>
-            </Card>
-            <Card className="border-red-200">
-              <CardContent className="pt-4 text-center">
-                <div className="flex items-center justify-center gap-1 text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.duplicatasRemovidas}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Duplicatas</p>
-              </CardContent>
-            </Card>
-            <Card className="border-orange-200">
-              <CardContent className="pt-4 text-center">
-                <div className="flex items-center justify-center gap-1 text-orange-600">
-                  <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.cejuscRemovidas}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">CEJUSC</p>
-              </CardContent>
-            </Card>
-            <Card className="border-yellow-200">
-              <CardContent className="pt-4 text-center">
-                <div className="flex items-center justify-center gap-1 text-yellow-600">
-                  <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.bennerSimRemovidas}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Benner SIM (AA)</p>
-              </CardContent>
-            </Card>
-            <Card className="border-green-200">
-              <CardContent className="pt-4 text-center">
-                <div className="flex items-center justify-center gap-1 text-green-600">
-                  <CheckCircle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.totalFinal}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Total Final</p>
-              </CardContent>
-            </Card>
-            <Card className="border-purple-200">
-              <CardContent className="pt-4 text-center">
-                <div className="flex items-center justify-center gap-1 text-purple-600">
-                  <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.processoIgualDossie}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Processo = Dossiê</p>
-              </CardContent>
-            </Card>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-4 text-center">
+                  <p className="text-2xl font-bold">{stats.totalCarga}</p>
+                  <p className="text-xs text-muted-foreground">Total Original</p>
+                </CardContent>
+              </Card>
+              <Card className="border-orange-200">
+                <CardContent className="pt-4 text-center">
+                  <div className="flex items-center justify-center gap-1 text-orange-600">
+                    <AlertTriangle className="w-4 h-4" />
+                    <p className="text-2xl font-bold">{stats.cejuscRemovidas}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">CEJUSC</p>
+                </CardContent>
+              </Card>
+              <Card className="border-green-200">
+                <CardContent className="pt-4 text-center">
+                  <div className="flex items-center justify-center gap-1 text-green-600">
+                    <CheckCircle className="w-4 h-4" />
+                    <p className="text-2xl font-bold">{stats.totalFinal}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Total Final</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">Fase 1 · Comparação com distribuição</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-yellow-200">
+                  <CardContent className="pt-4 text-center">
+                    <div className="flex items-center justify-center gap-1 text-yellow-600">
+                      <AlertTriangle className="w-4 h-4" />
+                      <p className="text-2xl font-bold">{stats.bennerSimDistribuicao}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">AA = SIM na distribuição</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-amber-200">
+                  <CardContent className="pt-4 text-center">
+                    <div className="flex items-center justify-center gap-1 text-amber-600">
+                      <Trash2 className="w-4 h-4" />
+                      <p className="text-2xl font-bold">{stats.bennerSimRemovidas}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Linhas removidas da carga por comparação</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-purple-200">
+                  <CardContent className="pt-4 text-center">
+                    <div className="flex items-center justify-center gap-1 text-purple-600">
+                      <AlertTriangle className="w-4 h-4" />
+                      <p className="text-2xl font-bold">{stats.processoIgualDossie}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Processo = Dossiê</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">Fase 2 · Remover duplicados no final</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-red-200">
+                  <CardContent className="pt-4 text-center">
+                    <div className="flex items-center justify-center gap-1 text-red-600">
+                      <Trash2 className="w-4 h-4" />
+                      <p className="text-2xl font-bold">{stats.duplicatasRemovidas}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Duplicatas removidas no final</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
         )}
       </div>
