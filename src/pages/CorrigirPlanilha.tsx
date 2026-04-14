@@ -307,14 +307,15 @@ export default function CorrigirPlanilha() {
           }
         }
 
-        // Step 4: Remove duplicates (last step)
+        // Step 4: Remove duplicates by dossiê only (last step)
         const seen = new Set<string>();
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + CARGA_DATA_START_ROW;
           if (removeSet.has(excelRow)) continue;
-          const key = `${normalize(dataRows[i][0])}|${normalize(dataRows[i][1])}`;
-          if (seen.has(key)) { duplicatasRemovidas++; removeSet.add(excelRow); }
-          else seen.add(key);
+          const dossie = normalize(dataRows[i][0]);
+          if (!dossie) continue;
+          if (seen.has(dossie)) { duplicatasRemovidas++; removeSet.add(excelRow); }
+          else seen.add(dossie);
         }
 
         if (removeSet.size > 0) rowsToRemovePerSheet.set(si, removeSet);
@@ -657,7 +658,7 @@ export default function CorrigirPlanilha() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Fase 2 · Remover duplicados no final</p>
+              <p className="text-sm font-semibold text-foreground">Fase 2 · Remover duplicados por dossiê no final</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border-red-200">
                   <CardContent className="pt-4 text-center">
@@ -665,7 +666,7 @@ export default function CorrigirPlanilha() {
                       <Trash2 className="w-4 h-4" />
                       <p className="text-2xl font-bold">{stats.duplicatasRemovidas}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">Duplicatas removidas no final</p>
+                    <p className="text-xs text-muted-foreground">Duplicatas removidas por dossiê</p>
                   </CardContent>
                 </Card>
               </div>
