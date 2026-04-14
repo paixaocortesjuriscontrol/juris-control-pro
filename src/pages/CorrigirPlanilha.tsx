@@ -12,10 +12,8 @@ import JSZip from "jszip";
 interface Stats {
   totalCarga: number;
   duplicatasRemovidas: number;
-  cejuscRemovidas: number;
-  bennerSimDistribuicao: number;
+  totalAposDuplicatas: number;
   bennerSimRemovidas: number;
-  processoIgualDossie: number;
   totalFinal: number;
 }
 
@@ -58,7 +56,6 @@ export default function CorrigirPlanilha() {
       // === DISTRIBUTION: read with XLSX for Benner SIM and build dossier set ===
       const distWb = XLSX.read(new Uint8Array(distBuf), { type: "array" });
       const bennerSimContracts = new Set<string>();
-      let bennerSimEncontrados = 0;
       const processoIgualDossieDossies = new Set<string>();
 
       for (const sheetName of distWb.SheetNames) {
@@ -77,7 +74,6 @@ export default function CorrigirPlanilha() {
           }
           const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
-            bennerSimEncontrados++;
             const dossie = normalize(row[2]); // col C = dossiê
             if (dossie) bennerSimContracts.add(dossie);
           }
@@ -263,10 +259,9 @@ export default function CorrigirPlanilha() {
 
       const rowsToRemovePerSheet: Map<number, Set<number>> = new Map();
       let duplicatasRemovidas = 0;
-      let cejuscRemovidas = 0;
+      let totalAposDuplicatas = 0;
       let bennerSimRemovidasNaCarga = 0;
       let totalCarga = 0;
-      let processoIgualDossieRemovidas = 0;
 
       const CARGA_HEADER_ROWS = 2;
       const CARGA_DATA_START_ROW = CARGA_HEADER_ROWS + 1;
@@ -280,48 +275,42 @@ export default function CorrigirPlanilha() {
         const dataRows = rows.slice(CARGA_HEADER_ROWS);
         totalCarga += dataRows.length;
         const removeSet = new Set<number>();
-
-        // Step 1: Remove CEJUSC
-        for (let i = 0; i < dataRows.length; i++) {
-          const colF = normalize(dataRows[i][5]);
-          if (colF.includes("CEJUSC")) { cejuscRemovidas++; removeSet.add(i + CARGA_DATA_START_ROW); }
-        }
-
-        // Step 2: Remove processo = dossiê (using dossiês identified in distribution)
-        for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + CARGA_DATA_START_ROW;
-          if (removeSet.has(excelRow)) continue;
-          const dossieVal = normalize(dataRows[i][0]);
-          if (dossieVal && processoIgualDossieDossies.has(dossieVal)) {
-            processoIgualDossieRemovidas++; removeSet.add(excelRow);
-          }
-        }
-
-        // Step 3: Remove Benner SIM
-        for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + CARGA_DATA_START_ROW;
-          if (removeSet.has(excelRow)) continue;
-          const dossie = normalize(dataRows[i][0]);
-          if (dossie && bennerSimContracts.has(dossie)) {
-            bennerSimRemovidasNaCarga++; removeSet.add(excelRow);
-          }
-        }
-
-        // Step 4: Remove duplicates by dossiê only (last step)
+        const duplicadosSet = new Set<number>();
         const seen = new Set<string>();
+
+        // Fase 1: remover duplicados por dossiê
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + CARGA_DATA_START_ROW;
-          if (removeSet.has(excelRow)) continue;
           const dossie = normalize(dataRows[i][0]);
           if (!dossie) continue;
-          if (seen.has(dossie)) { duplicatasRemovidas++; removeSet.add(excelRow); }
-          else seen.add(dossie);
+
+          if (seen.has(dossie)) {
+            duplicatasRemovidas++;
+            duplicadosSet.add(excelRow);
+            removeSet.add(excelRow);
+          } else {
+            seen.add(dossie);
+          }
+        }
+
+        totalAposDuplicatas += dataRows.length - duplicadosSet.size;
+
+        // Fase 2: comparar o restante com a distribuição (AA = SIM)
+        for (let i = 0; i < dataRows.length; i++) {
+          const excelRow = i + CARGA_DATA_START_ROW;
+          if (removeSet.has(excelRow)) continue;
+
+          const dossie = normalize(dataRows[i][0]);
+          if (dossie && bennerSimContracts.has(dossie)) {
+            bennerSimRemovidasNaCarga++;
+            removeSet.add(excelRow);
+          }
         }
 
         if (removeSet.size > 0) rowsToRemovePerSheet.set(si, removeSet);
       }
 
-      const totalFinal = totalCarga - duplicatasRemovidas - cejuscRemovidas - processoIgualDossieRemovidas - bennerSimRemovidasNaCarga;
+      const totalFinal = totalAposDuplicatas - bennerSimRemovidasNaCarga;
 
       // JSZip manipulation for carga
       const zip = await JSZip.loadAsync(cargaBuf);
@@ -511,10 +500,8 @@ export default function CorrigirPlanilha() {
       setStats({
         totalCarga,
         duplicatasRemovidas,
-        cejuscRemovidas,
-        bennerSimDistribuicao: bennerSimEncontrados,
+        totalAposDuplicatas,
         bennerSimRemovidas: bennerSimRemovidasNaCarga,
-        processoIgualDossie: processoIgualDossieRemovidas,
         totalFinal,
       });
       toast.success("Planilhas processadas com sucesso!");
@@ -540,7 +527,7 @@ export default function CorrigirPlanilha() {
   };
 
   return (
-    <MainLayout title="Corrigir Planilha" subtitle="Remova duplicatas, linhas CEJUSC e registros já atualizados no Benner">
+    <MainLayout title="Corrigir Planilha" subtitle="Remove duplicados por dossiê e depois cruza o restante com AA = SIM da distribuição">
       <div className="space-y-6 max-w-4xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
@@ -552,7 +539,7 @@ export default function CorrigirPlanilha() {
             </CardHeader>
             <CardContent>
               <Label htmlFor="dist-file" className="text-xs text-muted-foreground mb-2 block">
-                Identifica Benner SIM (col AA) e marca processo = dossiê em vermelho
+                Usada para cruzar AA = SIM e gerar a distribuição verificada com processo = dossiê em vermelho
               </Label>
               <Input id="dist-file" type="file" accept=".xlsx,.xls" onChange={(e) => setDistFile(e.target.files?.[0] || null)} />
               {distFile && <p className="text-xs text-green-600 mt-1">✓ {distFile.name}</p>}
@@ -607,10 +594,10 @@ export default function CorrigirPlanilha() {
               <Card className="border-orange-200">
                 <CardContent className="pt-4 text-center">
                   <div className="flex items-center justify-center gap-1 text-orange-600">
-                    <AlertTriangle className="w-4 h-4" />
-                    <p className="text-2xl font-bold">{stats.cejuscRemovidas}</p>
+                    <Trash2 className="w-4 h-4" />
+                    <p className="text-2xl font-bold">{stats.totalAposDuplicatas}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">CEJUSC</p>
+                  <p className="text-xs text-muted-foreground">Após remover duplicadas</p>
                 </CardContent>
               </Card>
               <Card className="border-green-200">
@@ -625,40 +612,7 @@ export default function CorrigirPlanilha() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Fase 1 · Comparação com distribuição</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-yellow-200">
-                  <CardContent className="pt-4 text-center">
-                    <div className="flex items-center justify-center gap-1 text-yellow-600">
-                      <AlertTriangle className="w-4 h-4" />
-                      <p className="text-2xl font-bold">{stats.bennerSimDistribuicao}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">AA = SIM na distribuição</p>
-                  </CardContent>
-                </Card>
-                <Card className="border-amber-200">
-                  <CardContent className="pt-4 text-center">
-                    <div className="flex items-center justify-center gap-1 text-amber-600">
-                      <Trash2 className="w-4 h-4" />
-                      <p className="text-2xl font-bold">{stats.bennerSimRemovidas}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Linhas removidas da carga por comparação</p>
-                  </CardContent>
-                </Card>
-                <Card className="border-purple-200">
-                  <CardContent className="pt-4 text-center">
-                    <div className="flex items-center justify-center gap-1 text-purple-600">
-                      <AlertTriangle className="w-4 h-4" />
-                      <p className="text-2xl font-bold">{stats.processoIgualDossie}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Processo = Dossiê</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Fase 2 · Remover duplicados por dossiê no final</p>
+              <p className="text-sm font-semibold text-foreground">Fase 1 · Remover duplicadas por dossiê</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border-red-200">
                   <CardContent className="pt-4 text-center">
@@ -666,7 +620,22 @@ export default function CorrigirPlanilha() {
                       <Trash2 className="w-4 h-4" />
                       <p className="text-2xl font-bold">{stats.duplicatasRemovidas}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">Duplicatas removidas por dossiê</p>
+                    <p className="text-xs text-muted-foreground">Total removidas por duplicadas</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">Fase 2 · Comparar o restante com AA = SIM</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-amber-200">
+                  <CardContent className="pt-4 text-center">
+                    <div className="flex items-center justify-center gap-1 text-amber-600">
+                      <Trash2 className="w-4 h-4" />
+                      <p className="text-2xl font-bold">{stats.bennerSimRemovidas}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Total removidas por AA = SIM</p>
                   </CardContent>
                 </Card>
               </div>
