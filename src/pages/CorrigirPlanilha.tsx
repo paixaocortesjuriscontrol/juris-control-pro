@@ -14,9 +14,8 @@ interface Stats {
   duplicatasRemovidas: number;
   cejuscRemovidas: number;
   bennerSimRemovidas: number;
-  processoIgualDossieRemovidas: number;
+  processoIgualDossie: number;
   totalFinal: number;
-  dossieIgualProcesso: number;
 }
 
 export default function CorrigirPlanilha() {
@@ -59,6 +58,7 @@ export default function CorrigirPlanilha() {
       const distWb = XLSX.read(new Uint8Array(distBuf), { type: "array" });
       const bennerSimContracts = new Set<string>();
       let bennerSimEncontrados = 0;
+      const processoIgualDossieDossies = new Set<string>();
 
       for (const sheetName of distWb.SheetNames) {
         const ws = distWb.Sheets[sheetName];
@@ -66,6 +66,14 @@ export default function CorrigirPlanilha() {
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (!row) continue;
+          // Detect processo (col B) = dossiê (col C) in distribution
+          const procDist = normalizeForCompare(row[1]);
+          const dossDist = normalizeForCompare(row[2]);
+          const procDigits = String(row[1] ?? "").replace(/\D/g, "");
+          const dossDigits = String(row[2] ?? "").replace(/\D/g, "");
+          if (procDist && dossDist && (procDist === dossDist || (procDigits.length >= 7 && procDigits === dossDigits))) {
+            processoIgualDossieDossies.add(normalize(row[2]));
+          }
           const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
             bennerSimEncontrados++;
@@ -288,13 +296,12 @@ export default function CorrigirPlanilha() {
           else seen.add(key);
         }
 
-        // Step 3: Remove processo = dossiê
+        // Step 3: Remove processo = dossiê (using dossiês identified in distribution)
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + CARGA_DATA_START_ROW;
           if (removeSet.has(excelRow)) continue;
           const dossieVal = normalize(dataRows[i][0]);
-          const processoVal = normalize(dataRows[i][1]);
-          if (dossieVal && processoVal && dossieVal === processoVal) {
+          if (dossieVal && processoIgualDossieDossies.has(dossieVal)) {
             processoIgualDossieRemovidas++; removeSet.add(excelRow);
           }
         }
@@ -499,7 +506,7 @@ export default function CorrigirPlanilha() {
 
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       setResultBlob(blob);
-      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimRemovidas: bennerSimRemovidasNaCarga, processoIgualDossieRemovidas, totalFinal, dossieIgualProcesso });
+      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimRemovidas: bennerSimRemovidasNaCarga, processoIgualDossie: processoIgualDossieRemovidas, totalFinal });
       toast.success("Planilhas processadas com sucesso!");
     } catch (err: any) {
       toast.error("Erro ao processar: " + (err?.message || String(err)));
@@ -570,10 +577,10 @@ export default function CorrigirPlanilha() {
               Baixar Carga Corrigida
             </Button>
           )}
-          {distResultBlob && stats && stats.dossieIgualProcesso > 0 && (
+          {distResultBlob && (
             <Button variant="outline" onClick={() => downloadBlob(distResultBlob, "Distribuicoes_Verificada")} className="gap-2 border-destructive text-destructive hover:bg-destructive/10">
               <Download className="w-4 h-4" />
-              Baixar Distribuição ({stats.dossieIgualProcesso} com processo = dossiê)
+              Baixar Distribuição (verificada)
             </Button>
           )}
         </div>
@@ -626,22 +633,11 @@ export default function CorrigirPlanilha() {
               <CardContent className="pt-4 text-center">
                 <div className="flex items-center justify-center gap-1 text-purple-600">
                   <AlertTriangle className="w-4 h-4" />
-                  <p className="text-2xl font-bold">{stats.processoIgualDossieRemovidas}</p>
+                  <p className="text-2xl font-bold">{stats.processoIgualDossie}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">Processo = Dossiê</p>
               </CardContent>
             </Card>
-            {stats.dossieIgualProcesso > 0 && (
-              <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
-                <CardContent className="pt-4 text-center">
-                  <div className="flex items-center justify-center gap-1 text-red-700">
-                    <AlertTriangle className="w-4 h-4" />
-                    <p className="text-2xl font-bold">{stats.dossieIgualProcesso}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Marcados Distribuição</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
       </div>
