@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +126,87 @@ const mapStatusToEnum = (situacao: string | null): "ativo" | "pendente" | "urgen
 const yieldToUI = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 const TABLE_PAGE_SIZE = 50;
+const IMPORT_BATCH_SIZE = 20;
+
+const normalizeLookupText = (value: string | null | undefined) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const chunkArray = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+};
+
+const buildPastaName = (processo: ProcessoImport) => {
+  const parteAtiva = processo.parteAtiva?.trim() || "Sem Parte Ativa";
+  const partePassiva = processo.partePassiva?.trim() || processo.senaiData?.entidade?.trim() || "Sem Parte Passiva";
+  return `${parteAtiva} x ${partePassiva}`;
+};
+
+const consolidateProcessos = (items: ProcessoImport[]) => {
+  const validMap = new Map<string, ProcessoImport & { totalLinhas: number }>();
+  const invalid: Array<ProcessoImport & { totalLinhas: number }> = [];
+  let duplicateLines = 0;
+
+  for (const item of items) {
+    const normalized = { ...item, numero: item.numero.trim(), totalLinhas: 1 };
+    if (normalized.status !== "valido" || !normalized.numero) {
+      invalid.push(normalized);
+      continue;
+    }
+
+    const existing = validMap.get(normalized.numero);
+    if (!existing) {
+      validMap.set(normalized.numero, normalized);
+      continue;
+    }
+
+    duplicateLines += 1;
+    validMap.set(normalized.numero, {
+      ...existing,
+      assunto: existing.assunto || normalized.assunto,
+      situacao: existing.situacao || normalized.situacao,
+      responsavel: existing.responsavel || normalized.responsavel,
+      parteAtiva: existing.parteAtiva || normalized.parteAtiva,
+      partePassiva: existing.partePassiva || normalized.partePassiva,
+      area: existing.area || normalized.area,
+      valorAcao: existing.valorAcao ?? normalized.valorAcao,
+      dataDistribuicao: existing.dataDistribuicao || normalized.dataDistribuicao,
+      orgaoJulgador: existing.orgaoJulgador || normalized.orgaoJulgador,
+      senaiData: {
+        pasta: existing.senaiData?.pasta || normalized.senaiData?.pasta || null,
+        jurisdicaoAtual: existing.senaiData?.jurisdicaoAtual || normalized.senaiData?.jurisdicaoAtual || null,
+        tipoProcesso: existing.senaiData?.tipoProcesso || normalized.senaiData?.tipoProcesso || null,
+        calculoValidado: existing.senaiData?.calculoValidado || normalized.senaiData?.calculoValidado || null,
+        partesProcesso: existing.senaiData?.partesProcesso || normalized.senaiData?.partesProcesso || null,
+        faseAtual: existing.senaiData?.faseAtual || normalized.senaiData?.faseAtual || null,
+        objeto: existing.senaiData?.objeto || normalized.senaiData?.objeto || null,
+        valorPedido: existing.senaiData?.valorPedido ?? normalized.senaiData?.valorPedido ?? null,
+        prognostico: existing.senaiData?.prognostico || normalized.senaiData?.prognostico || null,
+        dataCalculo: existing.senaiData?.dataCalculo || normalized.senaiData?.dataCalculo || null,
+        naturezaFinanceira: existing.senaiData?.naturezaFinanceira || normalized.senaiData?.naturezaFinanceira || null,
+        entidade: existing.senaiData?.entidade || normalized.senaiData?.entidade || null,
+        valorPerdaRemota: existing.senaiData?.valorPerdaRemota ?? normalized.senaiData?.valorPerdaRemota ?? null,
+        valorPerdaPossivel: existing.senaiData?.valorPerdaPossivel ?? normalized.senaiData?.valorPerdaPossivel ?? null,
+        valorPerdaProvavel: existing.senaiData?.valorPerdaProvavel ?? normalized.senaiData?.valorPerdaProvavel ?? null,
+        rateio: existing.senaiData?.rateio || normalized.senaiData?.rateio || null,
+        observacoes: existing.senaiData?.observacoes || normalized.senaiData?.observacoes || null,
+        entidade2: existing.senaiData?.entidade2 || normalized.senaiData?.entidade2 || null,
+        advogadoCliente: existing.senaiData?.advogadoCliente || normalized.senaiData?.advogadoCliente || null,
+      },
+      totalLinhas: existing.totalLinhas + 1,
+    });
+  }
+
+  return {
+    processos: [...validMap.values(), ...invalid],
+    duplicateLines,
+  };
+};
 
 type SenaiSesiWorkerProgressMessage = {
   id: number;
