@@ -158,6 +158,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
+        turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
         situacao_processo: data.situacao_processo || f.situacao_processo,
@@ -168,6 +169,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.tipo_recurso) filled.add("tipo_recurso");
       if (data.data_distribuicao) filled.add("data_distribuicao");
       if (data.relator) filled.add("relator");
+      if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
       if (data.situacao_processo) filled.add("situacao_processo");
@@ -177,6 +179,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.tipo_recurso && "Tipo Recurso",
         data.data_distribuicao && "Data Distribuição",
         data.relator && "Relator",
+        data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
         data.situacao_processo && "Situação",
