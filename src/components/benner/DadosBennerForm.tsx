@@ -48,6 +48,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
+  const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (dado) {
@@ -162,11 +163,21 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         situacao_processo: data.situacao_processo || f.situacao_processo,
       }));
 
+      // Track which fields were filled by Judit
+      const filled = new Set<string>();
+      if (data.tipo_recurso) filled.add("tipo_recurso");
+      if (data.data_distribuicao) filled.add("data_distribuicao");
+      if (data.relator) filled.add("relator");
+      if (tribunalMapeado) filled.add("tribunal");
+      if (data.recorrente) filled.add("recorrente");
+      if (data.situacao_processo) filled.add("situacao_processo");
+      setCamposJudit(filled);
+
       const camposPreenchidos = [
         data.tipo_recurso && "Tipo Recurso",
         data.data_distribuicao && "Data Distribuição",
         data.relator && "Relator",
-        data.tribunal && "Tribunal",
+        tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
         data.situacao_processo && "Situação",
       ].filter(Boolean);
@@ -195,6 +206,23 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (
     <div className={cn("px-4 py-2 rounded-t-lg font-semibold text-sm", color)}>
       {title}
+    </div>
+  );
+
+  // Highlight wrapper for fields filled by Judit
+  const juditHighlight = (field: string) =>
+    camposJudit.has(field)
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500"
+      : "";
+
+  const JuditLabel = ({ field, children }: { field: string; children: React.ReactNode }) => (
+    <div className="flex items-center gap-1.5">
+      {children}
+      {camposJudit.has(field) && (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-normal">
+          Judit
+        </Badge>
+      )}
     </div>
   );
 
@@ -265,8 +293,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Label>Dossiê (A)</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
             </div>
-            <div className="space-y-2">
-              <Label>Situação do Processo</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("situacao_processo"))}>
+              <JuditLabel field="situacao_processo"><Label>Situação do Processo</Label></JuditLabel>
               <Select value={form.situacao_processo || ""} onValueChange={v => set("situacao_processo", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a situação" /></SelectTrigger>
                 <SelectContent>
@@ -281,8 +309,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Tribunal (B)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tribunal"))}>
+              <JuditLabel field="tribunal"><Label>Tribunal (B)</Label></JuditLabel>
               <Select value={form.tribunal || ""} onValueChange={v => set("tribunal", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -293,13 +321,13 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               </Select>
             </div>
             {/* Tipo Recurso (C) */}
-            <div className="space-y-2">
-              <Label>Tipo de Recurso (C)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tipo_recurso"))}>
+              <JuditLabel field="tipo_recurso"><Label>Tipo de Recurso (C)</Label></JuditLabel>
               <Input value={form.tipo_recurso || ""} onChange={e => set("tipo_recurso", e.target.value)} />
             </div>
             {/* Data Distribuição (D) */}
-            <div className="space-y-2">
-              <Label>Data Distribuição (D)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("data_distribuicao"))}>
+              <JuditLabel field="data_distribuicao"><Label>Data Distribuição (D)</Label></JuditLabel>
               <Input type="date" value={form.data_distribuicao || ""} onChange={e => set("data_distribuicao", e.target.value)} />
             </div>
           </div>
@@ -309,8 +337,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Label>Turma (E)</Label>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Relator (F)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("relator"))}>
+              <JuditLabel field="relator"><Label>Relator (F)</Label></JuditLabel>
               <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -470,8 +498,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Recorrente (AA)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("recorrente"))}>
+              <JuditLabel field="recorrente"><Label>Recorrente (AA)</Label></JuditLabel>
               <Input value={form.recorrente || ""} onChange={e => set("recorrente", e.target.value)} />
             </div>
           </div>
