@@ -268,6 +268,36 @@ export default function CorrigirPlanilha() {
       const parser = new DOMParser();
       const serializer = new XMLSerializer();
 
+      // Parse shared strings for cleaning processo column
+      const sstPath = "xl/sharedStrings.xml";
+      const sstXml = await zip.file(sstPath)?.async("string");
+      let sstDoc: Document | null = null;
+      let sstNs = "";
+      const sharedStrings: string[] = [];
+      const sharedStringsDirty = new Set<number>(); // indices that were cleaned
+
+      if (sstXml) {
+        sstDoc = parser.parseFromString(sstXml, "application/xml");
+        sstNs = sstDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const siEls = Array.from(sstDoc.getElementsByTagNameNS(sstNs, "si"));
+        for (let idx = 0; idx < siEls.length; idx++) {
+          const tEls = siEls[idx].getElementsByTagNameNS(sstNs, "t");
+          const text = tEls.length > 0 ? Array.from(tEls).map(t => t.textContent || "").join("") : "";
+          sharedStrings.push(text);
+        }
+      }
+
+      // Function to clean processo value: remove *, "a", comments, annotations
+      const cleanProcesso = (val: string): string => {
+        let cleaned = val.replace(/\*/g, "").replace(/\ba\b/gi, "").trim();
+        // Remove trailing/leading non-process characters
+        cleaned = cleaned.replace(/^[^0-9]+/, "").replace(/[^0-9]+$/, (m) => {
+          // Keep dots, dashes, slashes that are part of process numbers
+          return /^[.\-\/]+$/.test(m) ? m : "";
+        });
+        return cleaned.trim();
+      };
+
       const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
       const workbookRelsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
       const sheetPaths: { index: number; path: string }[] = [];
