@@ -138,6 +138,25 @@ serve(async (req) => {
       turma = courts;
     }
 
+    // === FALLBACK: Extrair relator/turma dos MOVIMENTOS (steps) ===
+    // Mesma lógica usada na importação de planilhas (Carga Benner / Planilha TST)
+    if (!relator || !turma) {
+      const orgaoJulgador = extrairOrgaoJulgador(steps);
+      console.log("Órgão julgador extraído dos movimentos:", JSON.stringify(orgaoJulgador));
+      if (!relator && orgaoJulgador.relator) {
+        relator = orgaoJulgador.relator;
+      }
+      if (!turma && orgaoJulgador.turma) {
+        turma = orgaoJulgador.turma;
+      }
+    }
+
+    // Fallback final: relator → turma via mapeamento TST
+    if (relator && !turma) {
+      turma = derivarTurmaDoRelator(relator);
+      if (turma) console.log(`Turma derivada do relator via mapeamento: ${turma}`);
+    }
+
     // === TRIBUNAL ===
     const tribunalAcronimo = rd.tribunal_acronym || null;
     let tribunal = null;
