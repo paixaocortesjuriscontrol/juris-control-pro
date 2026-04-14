@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Search, Save, ArrowLeft, Loader2, Download, FileDown } from "lucide-react";
+import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -48,6 +49,18 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [baixandoAutos, setBaixandoAutos] = useState(false);
+  const [autosJobId, setAutosJobId] = useState<string | null>(null);
+  const [autosProgress, setAutosProgress] = useState<{
+    status: string;
+    etapa: string;
+    documentos_total: number;
+    documentos_baixados: number;
+    documentos_existentes: number;
+    documentos_erro: number;
+    mensagem?: string;
+    erro?: string;
+  } | null>(null);
+  const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
 
@@ -63,6 +76,32 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       });
     }
   }, [dado]);
+
+  // Poll progress for autos download job
+  const startPolling = useCallback((jobId: string) => {
+    if (autosPollingRef.current) clearInterval(autosPollingRef.current);
+    autosPollingRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from("baixar_autos_jobs")
+        .select("status, etapa, documentos_total, documentos_baixados, documentos_existentes, documentos_erro, mensagem, erro")
+        .eq("id", jobId)
+        .single();
+      if (data) {
+        setAutosProgress(data as any);
+        if (["concluido", "erro", "timeout"].includes(data.status)) {
+          if (autosPollingRef.current) clearInterval(autosPollingRef.current);
+          autosPollingRef.current = null;
+          setBaixandoAutos(false);
+        }
+      }
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autosPollingRef.current) clearInterval(autosPollingRef.current);
+    };
+  }, []);
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
@@ -287,34 +326,37 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       return;
     }
     setBaixandoAutos(true);
+    setAutosProgress({ status: "iniciado", etapa: "Iniciando busca...", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0 });
+    setAutosJobId(null);
     try {
-      toast.info("Solicitando documentos à Judit... Isso pode levar até 2 minutos.");
       const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
         body: { processo_id: dado?.id, processo_numero: form.processo.trim() },
       });
 
-      if (error) {
-        toast.error("Erro ao baixar autos: " + (error.message || "Erro desconhecido"));
-        return;
-      }
-
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      if (data?.documentos_baixados > 0) {
-        toast.success(data.mensagem || `${data.documentos_baixados} documento(s) baixado(s)`);
-      } else if (data?.documentos_existentes > 0) {
-        toast.info(data.mensagem || "Documentos já baixados anteriormente");
+      if (data?.job_id) {
+        setAutosJobId(data.job_id);
+        startPolling(data.job_id);
       } else {
-        toast.info(data?.mensagem || "Nenhum documento encontrado");
+        // No job_id returned - show result directly
+        setBaixandoAutos(false);
+        if (error || data?.error) {
+          setAutosProgress({ status: "erro", etapa: "Erro", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0, erro: error?.message || data?.error });
+        } else {
+          setAutosProgress({
+            status: "concluido",
+            etapa: data?.mensagem || "Concluído",
+            documentos_total: data?.documentos_total || 0,
+            documentos_baixados: data?.documentos_baixados || 0,
+            documentos_existentes: data?.documentos_existentes || 0,
+            documentos_erro: data?.documentos_erro || 0,
+            mensagem: data?.mensagem,
+          });
+        }
       }
     } catch (err: any) {
       console.error("Erro ao baixar autos:", err);
-      toast.error("Erro de conexão ao baixar autos");
-    } finally {
       setBaixandoAutos(false);
+      setAutosProgress({ status: "erro", etapa: "Erro de conexão", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0, erro: "Erro de conexão ao baixar autos" });
     }
   };
 
@@ -390,6 +432,43 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 Autos
               </Button>
             </div>
+            {/* Progress de download de autos */}
+            {autosProgress && (
+              <div className="border border-border rounded-md p-3 space-y-2 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  {autosProgress.status === "concluido" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  ) : autosProgress.status === "erro" || autosProgress.status === "timeout" ? (
+                    <XCircle className="w-4 h-4 text-destructive shrink-0" />
+                  ) : (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                  )}
+                  <span className="text-sm font-medium text-foreground">{autosProgress.etapa}</span>
+                </div>
+                {autosProgress.documentos_total > 0 && (
+                  <>
+                    <Progress
+                      value={((autosProgress.documentos_baixados + autosProgress.documentos_existentes + autosProgress.documentos_erro) / autosProgress.documentos_total) * 100}
+                      className="h-2"
+                    />
+                    <div className="flex gap-3 text-xs text-muted-foreground">
+                      <span>{autosProgress.documentos_baixados} baixado(s)</span>
+                      {autosProgress.documentos_existentes > 0 && <span>{autosProgress.documentos_existentes} já existente(s)</span>}
+                      {autosProgress.documentos_erro > 0 && <span className="text-destructive">{autosProgress.documentos_erro} erro(s)</span>}
+                      <span className="ml-auto">{autosProgress.documentos_baixados + autosProgress.documentos_existentes + autosProgress.documentos_erro}/{autosProgress.documentos_total}</span>
+                    </div>
+                  </>
+                )}
+                {autosProgress.erro && (
+                  <p className="text-xs text-destructive">{autosProgress.erro}</p>
+                )}
+                {autosProgress.status === "concluido" && (
+                  <button onClick={() => setAutosProgress(null)} className="text-xs text-muted-foreground hover:text-foreground underline">
+                    Fechar
+                  </button>
+                )}
+              </div>
+            )}
             {resultadosBusca.length > 0 && (
               <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
                 <p className="text-xs text-muted-foreground font-medium">Resultados encontrados:</p>
