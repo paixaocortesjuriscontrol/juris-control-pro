@@ -235,7 +235,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero },
+        body: { numero_processo: processoNumero, tribunal: form.tribunal || undefined },
       });
 
       if (error) {
