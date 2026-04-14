@@ -53,24 +53,16 @@ export default function CorrigirPlanilha() {
     try {
       const [distBuf, cargaBuf] = await Promise.all([readFile(distFile), readFile(cargaFile)]);
 
-      // === DISTRIBUTION: read with XLSX to collect Benner SIM + detect processo=dossie ===
+      // === DISTRIBUTION: read with XLSX for Benner SIM, detect processo=dossie from XML ===
       const distWb = XLSX.read(new Uint8Array(distBuf), { type: "array" });
       const bennerSimContracts = new Set<string>();
-      let dossieIgualProcesso = 0;
 
-      // Collect rows where processo (B) == dossie (C) per sheet — keyed by sheetIndex -> set of 1-based Excel rows
-      const distProblematicRows: Map<number, Set<number>> = new Map();
-
-      for (let si = 0; si < distWb.SheetNames.length; si++) {
-        const ws = distWb.Sheets[distWb.SheetNames[si]];
+      for (const sheetName of distWb.SheetNames) {
+        const ws = distWb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" }) as any[][];
-        const problemRows = new Set<number>();
-
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (!row) continue;
-
-          // Benner Atualizado = col AA (index 26)
           const bennerAtualizado = normalize(row[26]);
           if (bennerAtualizado === "SIM") {
             const dossie = normalize(row[0]);
@@ -78,140 +70,171 @@ export default function CorrigirPlanilha() {
             const processo = normalize(row[1]);
             if (processo) bennerSimContracts.add(processo);
           }
-
-          // Compare Processo (col B = index 1) with Dossiê (col C = index 2)
-          const processoVal = normalizeForCompare(row[1]);
-          const dossieVal = normalizeForCompare(row[2]);
-          if (processoVal && dossieVal && processoVal === dossieVal) {
-            dossieIgualProcesso++;
-            problemRows.add(i + 1); // 1-based Excel row (header is row 1)
-          }
-        }
-
-        if (problemRows.size > 0) {
-          distProblematicRows.set(si, problemRows);
         }
       }
 
-      // === Generate distribution result via JSZip — paint problematic rows red ===
-      if (dossieIgualProcesso > 0) {
-        const distZip = await JSZip.loadAsync(distBuf.slice(0));
-        const parser = new DOMParser();
-        const serializer = new XMLSerializer();
+      // === Generate distribution result via JSZip — detect and paint problematic rows directly from XML ===
+      const distZip = await JSZip.loadAsync(distBuf.slice(0));
+      const distParser = new DOMParser();
+      const distSerializer = new XMLSerializer();
+      let dossieIgualProcesso = 0;
 
-        // Discover sheet paths
-        const wbXml = await distZip.file("xl/workbook.xml")?.async("string");
-        const wbRelsXml = await distZip.file("xl/_rels/workbook.xml.rels")?.async("string");
-        const distSheetPaths: { index: number; path: string }[] = [];
+      // Parse shared strings from distribution file
+      const distSstXml = await distZip.file("xl/sharedStrings.xml")?.async("string");
+      const distSharedStrings: string[] = [];
+      if (distSstXml) {
+        const distSstDoc = distParser.parseFromString(distSstXml, "application/xml");
+        const distSstNs = distSstDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const siEls = Array.from(distSstDoc.getElementsByTagNameNS(distSstNs, "si"));
+        for (const si of siEls) {
+          const tEls = si.getElementsByTagNameNS(distSstNs, "t");
+          distSharedStrings.push(tEls.length > 0 ? Array.from(tEls).map(t => t.textContent || "").join("") : "");
+        }
+      }
 
-        if (wbXml && wbRelsXml) {
-          const wbDoc = parser.parseFromString(wbXml, "application/xml");
-          const relsDoc = parser.parseFromString(wbRelsXml, "application/xml");
-          const wbNs = wbDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-          const relsNs = relsDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/package/2006/relationships";
-          const sheetEls = Array.from(wbDoc.getElementsByTagNameNS(wbNs, "sheet"));
-          for (let si = 0; si < sheetEls.length; si++) {
-            const rId = sheetEls[si].getAttribute("r:id") || sheetEls[si].getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
-            const rel = rId ? Array.from(relsDoc.getElementsByTagNameNS(relsNs, "Relationship")).find(n => n.getAttribute("Id") === rId) : null;
-            const target = rel?.getAttribute("Target");
-            if (target) {
-              distSheetPaths.push({ index: si, path: `xl/${target.replace(/^\/+/, "").replace(/^xl\//, "")}` });
-            }
+      // Helper to read cell value from XML element
+      const readCellValue = (cell: Element, ns: string, strings: string[]): string => {
+        const cellType = cell.getAttribute("t");
+        if (cellType === "s") {
+          const vEl = cell.getElementsByTagNameNS(ns, "v")[0];
+          const idx = parseInt(vEl?.textContent || "0", 10);
+          return strings[idx] || "";
+        }
+        if (cellType === "inlineStr") {
+          const tEls = cell.getElementsByTagNameNS(ns, "t");
+          return tEls.length > 0 ? tEls[0].textContent || "" : "";
+        }
+        const vEl = cell.getElementsByTagNameNS(ns, "v")[0];
+        return vEl?.textContent || "";
+      };
+
+      // Discover dist sheet paths
+      const wbXml = await distZip.file("xl/workbook.xml")?.async("string");
+      const wbRelsXml = await distZip.file("xl/_rels/workbook.xml.rels")?.async("string");
+      const distSheetPaths: { index: number; path: string }[] = [];
+
+      if (wbXml && wbRelsXml) {
+        const wbDoc = distParser.parseFromString(wbXml, "application/xml");
+        const relsDoc = distParser.parseFromString(wbRelsXml, "application/xml");
+        const wbNs = wbDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const relsNs = relsDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/package/2006/relationships";
+        const sheetEls = Array.from(wbDoc.getElementsByTagNameNS(wbNs, "sheet"));
+        for (let si = 0; si < sheetEls.length; si++) {
+          const rId = sheetEls[si].getAttribute("r:id") || sheetEls[si].getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+          const rel = rId ? Array.from(relsDoc.getElementsByTagNameNS(relsNs, "Relationship")).find(n => n.getAttribute("Id") === rId) : null;
+          const target = rel?.getAttribute("Target");
+          if (target) {
+            distSheetPaths.push({ index: si, path: `xl/${target.replace(/^\/+/, "").replace(/^xl\//, "")}` });
           }
         }
-        if (distSheetPaths.length === 0) distSheetPaths.push({ index: 0, path: "xl/worksheets/sheet1.xml" });
+      }
+      if (distSheetPaths.length === 0) distSheetPaths.push({ index: 0, path: "xl/worksheets/sheet1.xml" });
 
-        // Add red fill + black font style to styles.xml
-        const stylesPath = "xl/styles.xml";
-        const stylesXml = await distZip.file(stylesPath)?.async("string");
-        let redStyleIndex = "0";
+      // Add red fill + black font style to styles.xml
+      const stylesPath = "xl/styles.xml";
+      const stylesXml = await distZip.file(stylesPath)?.async("string");
+      let redStyleIndex = "0";
 
-        if (stylesXml) {
-          const stylesDoc = parser.parseFromString(stylesXml, "application/xml");
-          const ns = stylesDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+      if (stylesXml) {
+        const stylesDoc = distParser.parseFromString(stylesXml, "application/xml");
+        const ns = stylesDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-          // Add black font
-          const fonts = stylesDoc.getElementsByTagNameNS(ns, "fonts")[0];
-          const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
-          const newFontIdx = fontCount;
-          if (fonts) {
-            const fontEl = stylesDoc.createElementNS(ns, "font");
-            const szEl = stylesDoc.createElementNS(ns, "sz"); szEl.setAttribute("val", "11");
-            const colorEl = stylesDoc.createElementNS(ns, "color"); colorEl.setAttribute("rgb", "FF000000");
-            const nameEl = stylesDoc.createElementNS(ns, "name"); nameEl.setAttribute("val", "Calibri");
-            fontEl.appendChild(szEl); fontEl.appendChild(colorEl); fontEl.appendChild(nameEl);
-            fonts.appendChild(fontEl);
-            fonts.setAttribute("count", String(fontCount + 1));
-          }
-
-          // Add red fill
-          const fills = stylesDoc.getElementsByTagNameNS(ns, "fills")[0];
-          const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
-          const newFillIdx = fillCount;
-          if (fills) {
-            const fillEl = stylesDoc.createElementNS(ns, "fill");
-            const patternEl = stylesDoc.createElementNS(ns, "patternFill"); patternEl.setAttribute("patternType", "solid");
-            const fgColor = stylesDoc.createElementNS(ns, "fgColor"); fgColor.setAttribute("rgb", "FFFF0000");
-            const bgColor = stylesDoc.createElementNS(ns, "bgColor"); bgColor.setAttribute("indexed", "64");
-            patternEl.appendChild(fgColor); patternEl.appendChild(bgColor);
-            fillEl.appendChild(patternEl);
-            fills.appendChild(fillEl);
-            fills.setAttribute("count", String(fillCount + 1));
-          }
-
-          // Add cellXf combining the new font + fill
-          const cellXfs = stylesDoc.getElementsByTagNameNS(ns, "cellXfs")[0];
-          const xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
-          redStyleIndex = String(xfCount);
-          if (cellXfs) {
-            const xfEl = stylesDoc.createElementNS(ns, "xf");
-            xfEl.setAttribute("fontId", String(newFontIdx));
-            xfEl.setAttribute("fillId", String(newFillIdx));
-            xfEl.setAttribute("borderId", "0");
-            xfEl.setAttribute("numFmtId", "0");
-            xfEl.setAttribute("xfId", "0");
-            xfEl.setAttribute("applyFont", "1");
-            xfEl.setAttribute("applyFill", "1");
-            // Center alignment
-            const alignment = stylesDoc.createElementNS(ns, "alignment");
-            alignment.setAttribute("horizontal", "center");
-            alignment.setAttribute("vertical", "center");
-            xfEl.appendChild(alignment);
-            cellXfs.appendChild(xfEl);
-            cellXfs.setAttribute("count", String(xfCount + 1));
-          }
-
-          distZip.file(stylesPath, serializer.serializeToString(stylesDoc));
+        const fonts = stylesDoc.getElementsByTagNameNS(ns, "fonts")[0];
+        const fontCount = fonts ? Number(fonts.getAttribute("count") || "0") : 0;
+        const newFontIdx = fontCount;
+        if (fonts) {
+          const fontEl = stylesDoc.createElementNS(ns, "font");
+          const szEl = stylesDoc.createElementNS(ns, "sz"); szEl.setAttribute("val", "11");
+          const colorEl = stylesDoc.createElementNS(ns, "color"); colorEl.setAttribute("rgb", "FF000000");
+          const nameEl = stylesDoc.createElementNS(ns, "name"); nameEl.setAttribute("val", "Calibri");
+          fontEl.appendChild(szEl); fontEl.appendChild(colorEl); fontEl.appendChild(nameEl);
+          fonts.appendChild(fontEl);
+          fonts.setAttribute("count", String(fontCount + 1));
         }
 
-        // Apply red style to problematic rows in each sheet
-        for (const { index: sheetIdx, path: worksheetPath } of distSheetPaths) {
-          const problemRows = distProblematicRows.get(sheetIdx);
-          if (!problemRows || problemRows.size === 0) continue;
+        const fills = stylesDoc.getElementsByTagNameNS(ns, "fills")[0];
+        const fillCount = fills ? Number(fills.getAttribute("count") || "0") : 0;
+        const newFillIdx = fillCount;
+        if (fills) {
+          const fillEl = stylesDoc.createElementNS(ns, "fill");
+          const patternEl = stylesDoc.createElementNS(ns, "patternFill"); patternEl.setAttribute("patternType", "solid");
+          const fgColor = stylesDoc.createElementNS(ns, "fgColor"); fgColor.setAttribute("rgb", "FFFF0000");
+          const bgColor = stylesDoc.createElementNS(ns, "bgColor"); bgColor.setAttribute("indexed", "64");
+          patternEl.appendChild(fgColor); patternEl.appendChild(bgColor);
+          fillEl.appendChild(patternEl);
+          fills.appendChild(fillEl);
+          fills.setAttribute("count", String(fillCount + 1));
+        }
 
-          const sheetXml = await distZip.file(worksheetPath)?.async("string");
-          if (!sheetXml) continue;
+        const cellXfs = stylesDoc.getElementsByTagNameNS(ns, "cellXfs")[0];
+        const xfCount = cellXfs ? Number(cellXfs.getAttribute("count") || "0") : 0;
+        redStyleIndex = String(xfCount);
+        if (cellXfs) {
+          const xfEl = stylesDoc.createElementNS(ns, "xf");
+          xfEl.setAttribute("fontId", String(newFontIdx));
+          xfEl.setAttribute("fillId", String(newFillIdx));
+          xfEl.setAttribute("borderId", "0");
+          xfEl.setAttribute("numFmtId", "0");
+          xfEl.setAttribute("xfId", "0");
+          xfEl.setAttribute("applyFont", "1");
+          xfEl.setAttribute("applyFill", "1");
+          const alignment = stylesDoc.createElementNS(ns, "alignment");
+          alignment.setAttribute("horizontal", "center");
+          alignment.setAttribute("vertical", "center");
+          xfEl.appendChild(alignment);
+          cellXfs.appendChild(xfEl);
+          cellXfs.setAttribute("count", String(xfCount + 1));
+        }
 
-          const sheetDoc = parser.parseFromString(sheetXml, "application/xml");
-          const sheetNs = sheetDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-          const sheetDataEl = sheetDoc.getElementsByTagNameNS(sheetNs, "sheetData")[0];
-          if (!sheetDataEl) continue;
+        distZip.file(stylesPath, distSerializer.serializeToString(stylesDoc));
+      }
 
-          const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
-          for (const rowEl of allRows) {
-            const rn = Number(rowEl.getAttribute("r"));
-            if (!problemRows.has(rn)) continue;
+      // Detect and paint problematic rows directly from XML (correct row numbers)
+      for (const { path: worksheetPath } of distSheetPaths) {
+        const sheetXml = await distZip.file(worksheetPath)?.async("string");
+        if (!sheetXml) continue;
 
-            // Set style on all cells in this row
-            const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+        const sheetDoc = distParser.parseFromString(sheetXml, "application/xml");
+        const sheetNs = sheetDoc.documentElement.namespaceURI || "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const sheetDataEl = sheetDoc.getElementsByTagNameNS(sheetNs, "sheetData")[0];
+        if (!sheetDataEl) continue;
+
+        let changed = false;
+        const allRows = Array.from(sheetDataEl.getElementsByTagNameNS(sheetNs, "row")).filter(r => r.parentNode === sheetDataEl);
+
+        for (const rowEl of allRows) {
+          const rn = Number(rowEl.getAttribute("r"));
+          const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+
+          // Find col B and col C cells
+          let colBVal = "";
+          let colCVal = "";
+          for (const cell of cells) {
+            const ref = cell.getAttribute("r") || "";
+            const colLetters = ref.replace(/\d+/g, "");
+            if (colLetters === "B") colBVal = readCellValue(cell, sheetNs, distSharedStrings);
+            else if (colLetters === "C") colCVal = readCellValue(cell, sheetNs, distSharedStrings);
+          }
+
+          const processoNorm = normalizeForCompare(colBVal);
+          const dossieNorm = normalizeForCompare(colCVal);
+
+          if (processoNorm && dossieNorm && processoNorm === dossieNorm) {
+            dossieIgualProcesso++;
+            changed = true;
+            // Paint all cells in this row red
             for (const cell of cells) {
               cell.setAttribute("s", redStyleIndex);
             }
           }
-
-          distZip.file(worksheetPath, serializer.serializeToString(sheetDoc));
         }
 
+        if (changed) {
+          distZip.file(worksheetPath, distSerializer.serializeToString(sheetDoc));
+        }
+      }
+
+      if (dossieIgualProcesso > 0) {
         const distBlob = await distZip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         setDistResultBlob(distBlob);
       }
