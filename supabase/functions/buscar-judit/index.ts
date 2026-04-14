@@ -130,7 +130,7 @@ function temIndicioTST(rd: any): boolean {
   return false;
 }
 
-function selecionarInstancia(pageData: any[]): any | null {
+function selecionarInstancia(pageData: any[], tribunalHint?: string | null): any | null {
   if (!pageData?.length) return null;
 
   const rds = pageData
@@ -138,6 +138,24 @@ function selecionarInstancia(pageData: any[]): any | null {
     .filter((rd) => rd && typeof rd === "object");
 
   if (!rds.length) return null;
+
+  // 0) Se o front informou tribunal, tentar achar exato pelo acronym
+  if (tribunalHint) {
+    const hint = tribunalHint.toUpperCase();
+    const match = rds.find((rd) => (rd.tribunal_acronym || "").toUpperCase() === hint);
+    if (match) {
+      console.log(`[buscar-judit] instância selecionada por hint tribunal=${hint}`);
+      return match;
+    }
+    // Se hint=TST, também aceitar por indícios
+    if (hint === "TST") {
+      const tstInd = rds.find((rd) => temIndicioTST(rd));
+      if (tstInd) {
+        console.log(`[buscar-judit] instância selecionada por indício TST (hint)`);
+        return tstInd;
+      }
+    }
+  }
 
   // 1) TST/STF/STJ explícito por acronym
   const tst = rds.find((rd) => {
@@ -273,11 +291,12 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const numero_processo = body?.numero_processo;
+    const tribunalHint = body?.tribunal || null;
     if (!numero_processo || typeof numero_processo !== "string") {
       return json({ error: "Número do processo é obrigatório" }, 400);
     }
     const cnj = numero_processo.trim();
-    console.log(`[buscar-judit] CNJ=${cnj}`);
+    console.log(`[buscar-judit] CNJ=${cnj} tribunal_hint=${tribunalHint}`);
 
     // 1) cria requisição assíncrona
     const requestId = await juditCriarRequest(JUDIT_API_KEY, cnj);
