@@ -3878,6 +3878,7 @@ export type Database = {
           reclamados: string | null
           reclamante: string | null
           recurso_terceiros_tst: string | null
+          relator: string | null
           relator_favorabilidade: string | null
           relator_tst: string | null
           requerido: string | null
@@ -4060,6 +4061,7 @@ export type Database = {
           reclamados?: string | null
           reclamante?: string | null
           recurso_terceiros_tst?: string | null
+          relator?: string | null
           relator_favorabilidade?: string | null
           relator_tst?: string | null
           requerido?: string | null
@@ -4242,6 +4244,7 @@ export type Database = {
           reclamados?: string | null
           reclamante?: string | null
           recurso_terceiros_tst?: string | null
+          relator?: string | null
           relator_favorabilidade?: string | null
           relator_tst?: string | null
           requerido?: string | null
