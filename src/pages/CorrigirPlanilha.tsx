@@ -295,17 +295,20 @@ export default function CorrigirPlanilha() {
           }
         }
 
-        // Fase 1: remover duplicados por dossiê
+        // Fase 1: remover duplicados por dossiê + contrato
         for (const entry of meaningfulEntries) {
           const dossie = normalize(entry.row[0]);
-          if (!dossie) continue;
+          const contrato = normalize(entry.row[1]);
+          if (!dossie || !contrato) continue;
 
-          if (seen.has(dossie)) {
+          const duplicateKey = `${dossie}__${contrato}`;
+
+          if (seen.has(duplicateKey)) {
             duplicatasRemovidas++;
             duplicadosSet.add(entry.excelRow);
             removeSet.add(entry.excelRow);
           } else {
-            seen.add(dossie);
+            seen.add(duplicateKey);
           }
         }
 
@@ -542,7 +545,7 @@ export default function CorrigirPlanilha() {
   };
 
   return (
-    <MainLayout title="Corrigir Planilha" subtitle="Remove duplicados por dossiê e depois cruza o restante com AA = SIM da distribuição">
+    <MainLayout title="Corrigir Planilha" subtitle="Remove duplicados por dossiê + contrato e depois cruza o restante com AA = SIM da distribuição">
       <div className="space-y-6 max-w-4xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
@@ -627,7 +630,7 @@ export default function CorrigirPlanilha() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Fase 1 · Remover duplicadas por dossiê</p>
+              <p className="text-sm font-semibold text-foreground">Fase 1 · Remover duplicadas por dossiê + contrato</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border-red-200">
                   <CardContent className="pt-4 text-center">
@@ -635,7 +638,7 @@ export default function CorrigirPlanilha() {
                       <Trash2 className="w-4 h-4" />
                       <p className="text-2xl font-bold">{stats.duplicatasRemovidas}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">Total removidas por duplicadas</p>
+                    <p className="text-xs text-muted-foreground">Total removidas por dossiê + contrato</p>
                   </CardContent>
                 </Card>
               </div>
