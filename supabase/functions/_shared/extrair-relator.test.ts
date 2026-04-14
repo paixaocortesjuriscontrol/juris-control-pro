@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { extrairOrgaoJulgador, type MovimentoBruto } from "./extrair-relator.ts";
+import { extrairOrgaoJulgador, derivarRelatorDaTurma, type MovimentoBruto } from "./extrair-relator.ts";
 
 Deno.test("extrai turma e relator de movimento de distribuição TST", () => {
   const movimentos: MovimentoBruto[] = [
