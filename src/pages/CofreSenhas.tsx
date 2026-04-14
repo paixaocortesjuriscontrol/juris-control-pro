@@ -776,6 +776,98 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog de Teste MNI */}
+      <Dialog open={mniDialogOpen} onOpenChange={setMniDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-500" />
+              Teste de Autenticação MNI
+            </DialogTitle>
+            <DialogDescription>
+              Testa o acesso real ao PJE via protocolo MNI (SOAP) usando login e senha do cofre.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {testingMni && !mniResult && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center space-y-3">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="text-sm text-muted-foreground">Autenticando no PJE via MNI...</p>
+                  <p className="text-xs text-muted-foreground">Enviando SOAP consultarAvisosPendentes</p>
+                </div>
+              </div>
+            )}
+
+            {mniResult && (
+              <div className="space-y-4">
+                <div className={`p-4 rounded-lg border ${
+                  mniResult.success 
+                    ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-900" 
+                    : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900"
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {mniResult.success ? (
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {mniResult.success 
+                          ? "Autenticação MNI bem-sucedida!" 
+                          : mniResult.tipo_erro === "credencial_invalida"
+                            ? "Credencial inválida"
+                            : "Erro na conexão MNI"}
+                      </p>
+                      {mniResult.success && mniResult.total_avisos_pendentes !== undefined && (
+                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                          {mniResult.total_avisos_pendentes > 0 
+                            ? `${mniResult.total_avisos_pendentes} aviso(s) pendente(s) encontrado(s)`
+                            : "Nenhum aviso pendente"}
+                        </p>
+                      )}
+                      {mniResult.erro && (
+                        <p className="text-sm text-red-600 mt-1">{mniResult.erro}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-muted-foreground">Tribunal</p>
+                    <p className="font-medium">{mniResult.tribunal || "-"}</p>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-muted-foreground">Tempo de resposta</p>
+                    <p className="font-medium">{mniResult.tempo_ms ? `${mniResult.tempo_ms}ms` : "-"}</p>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-muted-foreground">HTTP Status</p>
+                    <p className="font-medium">{mniResult.http_status || "-"}</p>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-muted-foreground">Endpoint</p>
+                    <p className="font-medium text-xs truncate" title={mniResult.endpoint}>{mniResult.endpoint || "-"}</p>
+                  </div>
+                </div>
+
+                {mniResult.detalhes && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Detalhes da resposta</p>
+                    <ScrollArea className="h-32 rounded border bg-muted/30 p-2">
+                      <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">{mniResult.detalhes}</pre>
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog de Histórico de Capturas */}
       <HistoricoCapturaDialog
         open={historicoDialogOpen}
