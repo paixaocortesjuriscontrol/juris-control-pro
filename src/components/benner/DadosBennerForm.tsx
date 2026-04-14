@@ -445,7 +445,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   };
 
   // Combined highlight: Judit takes priority, then DataJud
-  const fieldHighlight = (field: string) => juditHighlight(field) || datajudHighlight(field);
+  const fieldHighlight = (field: string) => fieldHighlight(field) || datajudHighlight(field);
 
   const JuditLabel = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <div className="flex items-center gap-1.5">
@@ -577,7 +577,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Label>Dossiê (A)</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("situacao_processo"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("situacao_processo"))}>
               <JuditLabel field="situacao_processo"><Label>Situação do Processo</Label></JuditLabel>
               <Select value={form.situacao_processo || ""} onValueChange={v => set("situacao_processo", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a situação" /></SelectTrigger>
@@ -593,7 +593,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tribunal"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tribunal"))}>
               <JuditLabel field="tribunal"><Label>Tribunal (B)</Label></JuditLabel>
               <Select value={form.tribunal || ""} onValueChange={v => set("tribunal", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -605,23 +605,23 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               </Select>
             </div>
             {/* Tipo Recurso (C) */}
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tipo_recurso"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tipo_recurso"))}>
               <JuditLabel field="tipo_recurso"><Label>Tipo de Recurso (C)</Label></JuditLabel>
               <Input value={form.tipo_recurso || ""} onChange={e => set("tipo_recurso", e.target.value)} />
             </div>
             {/* Data Distribuição (D) */}
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("data_distribuicao"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("data_distribuicao"))}>
               <JuditLabel field="data_distribuicao"><Label>Data Distribuição (D)</Label></JuditLabel>
               <Input type="date" value={form.data_distribuicao || ""} onChange={e => set("data_distribuicao", e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("turma"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("turma"))}>
               <JuditLabel field="turma"><Label>Turma (E)</Label></JuditLabel>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("relator"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("relator"))}>
               <JuditLabel field="relator"><Label>Relator (F)</Label></JuditLabel>
               <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
             </div>
@@ -659,7 +659,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tem_data_julgamento"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tem_data_julgamento"))}>
               <JuditLabel field="tem_data_julgamento"><Label>Data Julgamento? (K)</Label></JuditLabel>
               <Select value={form.tem_data_julgamento || ""} onValueChange={v => set("tem_data_julgamento", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -669,15 +669,15 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("data_julgamento"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("data_julgamento"))}>
               <JuditLabel field="data_julgamento"><Label>Data Julgamento (L)</Label></JuditLabel>
               <Input type="date" value={form.data_julgamento || ""} onChange={e => set("data_julgamento", e.target.value)} />
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("horario_julgamento"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("horario_julgamento"))}>
               <JuditLabel field="horario_julgamento"><Label>Horário (M)</Label></JuditLabel>
               <Input type="time" value={form.horario_julgamento || ""} onChange={e => set("horario_julgamento", e.target.value)} />
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tipo_julgamento"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tipo_julgamento"))}>
               <JuditLabel field="tipo_julgamento"><Label>Tipo Julgamento (N)</Label></JuditLabel>
               <Select value={form.tipo_julgamento || ""} onValueChange={v => set("tipo_julgamento", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -738,7 +738,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               ["resultado_conhecido_provido", "Conhecido e Provido (T)"],
               ["resultado_conhecido_nao_provido", "Conhecido e Não Provido (U)"],
             ] as const).map(([field, label]) => (
-              <div key={field} className={cn("flex items-center gap-2 p-2 -m-2 rounded-md", juditHighlight(field))}>
+              <div key={field} className={cn("flex items-center gap-2 p-2 -m-2 rounded-md", fieldHighlight(field))}>
                 <Checkbox checked={!!form[field]} onCheckedChange={v => set(field, !!v)} id={field} />
                 <JuditLabel field={field}><Label htmlFor={field} className="text-sm cursor-pointer">{label}</Label></JuditLabel>
               </div>
@@ -772,7 +772,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Checkbox checked={!!form.perdemos} onCheckedChange={v => set("perdemos", !!v)} id="perdemos" />
               <Label htmlFor="perdemos" className="cursor-pointer">Perdemos (Y)</Label>
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("processo_baixado"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("processo_baixado"))}>
               <JuditLabel field="processo_baixado"><Label>Processo Baixado (Z)</Label></JuditLabel>
               <Select value={form.processo_baixado || ""} onValueChange={v => set("processo_baixado", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -782,7 +782,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("recorrente"))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("recorrente"))}>
               <JuditLabel field="recorrente"><Label>Recorrente (AA)</Label></JuditLabel>
               <Input value={form.recorrente || ""} onChange={e => set("recorrente", e.target.value)} />
             </div>
