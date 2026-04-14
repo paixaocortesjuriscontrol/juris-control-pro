@@ -422,6 +422,25 @@ export default function CorrigirPlanilha() {
           }
         }
 
+        // Remove cells after column G (H onward) for data rows (row >= 3, skip headers in rows 1-2)
+        const colGIndex = 6; // A=0, B=1, ... G=6
+        for (const rowEl of remainingRows) {
+          const rn = Number(rowEl.getAttribute("r"));
+          if (rn <= 2) continue; // preserve header rows 1 and 2
+          const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
+          for (const cell of cells) {
+            const ref = cell.getAttribute("r") || "";
+            const colLetters = ref.replace(/\d+/g, "");
+            // Convert column letters to index
+            let colIdx = 0;
+            for (const ch of colLetters) colIdx = colIdx * 26 + (ch.charCodeAt(0) - 64);
+            colIdx -= 1; // 0-based
+            if (colIdx > colGIndex) {
+              rowEl.removeChild(cell);
+            }
+          }
+        }
+
         // Renumber rows sequentially
         let newRowNum = 1;
         for (const rowEl of remainingRows) {
