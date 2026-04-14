@@ -164,3 +164,6 @@ verify_jwt = false
 
 [functions.check-transito]
 verify_jwt = false
+
+[functions.baixar-autos-judit]
+verify_jwt = true

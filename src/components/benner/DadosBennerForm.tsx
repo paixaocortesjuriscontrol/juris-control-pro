@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Search, Save, ArrowLeft, Loader2, Download } from "lucide-react";
+import { Search, Save, ArrowLeft, Loader2, Download, FileDown } from "lucide-react";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -47,6 +47,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const [baixandoAutos, setBaixandoAutos] = useState(false);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
 
@@ -280,6 +281,43 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     setBuscandoJudit(false);
   };
 
+  const handleBaixarAutos = async () => {
+    if (!form.processo?.trim()) {
+      toast.warning("Digite o número do processo primeiro");
+      return;
+    }
+    setBaixandoAutos(true);
+    try {
+      toast.info("Solicitando documentos à Judit... Isso pode levar até 2 minutos.");
+      const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
+        body: { processo_id: dado?.id, processo_numero: form.processo.trim() },
+      });
+
+      if (error) {
+        toast.error("Erro ao baixar autos: " + (error.message || "Erro desconhecido"));
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.documentos_baixados > 0) {
+        toast.success(data.mensagem || `${data.documentos_baixados} documento(s) baixado(s)`);
+      } else if (data?.documentos_existentes > 0) {
+        toast.info(data.mensagem || "Documentos já baixados anteriormente");
+      } else {
+        toast.info(data?.mensagem || "Nenhum documento encontrado");
+      }
+    } catch (err: any) {
+      console.error("Erro ao baixar autos:", err);
+      toast.error("Erro de conexão ao baixar autos");
+    } finally {
+      setBaixandoAutos(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
@@ -340,6 +378,16 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               >
                 {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Judit
+              </Button>
+              <Button 
+                variant="default" 
+                onClick={handleBaixarAutos} 
+                disabled={baixandoAutos || !form.processo?.trim() || !dado?.id}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                title="Baixar documentos do processo via Judit"
+              >
+                {baixandoAutos ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                Autos
               </Button>
             </div>
             {resultadosBusca.length > 0 && (
