@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { extrairOrgaoJulgador, derivarTurmaDoRelator } from "../_shared/extrair-relator.ts";
+import { extrairOrgaoJulgador, derivarTurmaDoRelator, derivarRelatorDaTurma } from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -194,7 +194,6 @@ serve(async (req) => {
     }
     // Fallback: turma → relator (só se 1:1)
     if (turma && !relator) {
-      const { derivarRelatorDaTurma } = await import("../_shared/extrair-relator.ts");
       const rel = derivarRelatorDaTurma(turma);
       if (rel) {
         relator = rel;
