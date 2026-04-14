@@ -197,6 +197,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
       setForm(f => ({
         ...f,
+        dossie: data.dossie || f.dossie,
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
