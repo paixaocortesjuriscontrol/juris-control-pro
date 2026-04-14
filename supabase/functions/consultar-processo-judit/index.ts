@@ -208,10 +208,26 @@ serve(async (req) => {
       movCount++;
     }
 
-    // ── Atualizar ultima_consulta_judit ──
+    // ── Extrair relator e turma dos movimentos ──
+    const orgaoJulgador = extrairOrgaoJulgador(steps);
+    console.log(`[consultar-processo-judit] Órgão julgador extraído:`, JSON.stringify(orgaoJulgador));
+
+    // ── Atualizar processo com metadados ──
+    const updateData: Record<string, unknown> = {
+      ultima_consulta_judit: new Date().toISOString(),
+    };
+
+    if (orgaoJulgador.relator) {
+      updateData.relator = orgaoJulgador.relator;
+    }
+    if (orgaoJulgador.turma) {
+      // Usa tribunal (ex: "TST") + turma (ex: "6ª Turma") como tribunal_atual
+      updateData.tribunal = orgaoJulgador.turma;
+    }
+
     await supabaseAuth
       .from("processos")
-      .update({ ultima_consulta_judit: new Date().toISOString() })
+      .update(updateData)
       .eq("id", processo_id);
 
     console.log(
