@@ -436,12 +436,28 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500"
       : "";
 
+  // Highlight for fields filled by DataJud (tipo_recurso_auto)
+  const datajudHighlight = (field: string) => {
+    if (field === "tipo_recurso" && form.tipo_recurso_auto && !camposJudit.has(field)) {
+      return "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all duration-500";
+    }
+    return "";
+  };
+
+  // Combined highlight: Judit takes priority, then DataJud
+  const fieldHighlight = (field: string) => juditHighlight(field) || datajudHighlight(field);
+
   const JuditLabel = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <div className="flex items-center gap-1.5">
       {children}
       {camposJudit.has(field) && (
         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-normal">
           Judit
+        </Badge>
+      )}
+      {field === "tipo_recurso" && form.tipo_recurso_auto && !camposJudit.has(field) && (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-sky-500 text-sky-600 dark:text-sky-400 font-normal">
+          DataJud
         </Badge>
       )}
     </div>
