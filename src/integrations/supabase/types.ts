@@ -1200,6 +1200,44 @@ export type Database = {
           },
         ]
       }
+      consultas_judit: {
+        Row: {
+          created_at: string
+          erro: string | null
+          id: string
+          payload_resposta: Json | null
+          processo_id: string
+          requisitada_em: string
+          status_http: number | null
+        }
+        Insert: {
+          created_at?: string
+          erro?: string | null
+          id?: string
+          payload_resposta?: Json | null
+          processo_id: string
+          requisitada_em?: string
+          status_http?: number | null
+        }
+        Update: {
+          created_at?: string
+          erro?: string | null
+          id?: string
+          payload_resposta?: Json | null
+          processo_id?: string
+          requisitada_em?: string
+          status_http?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultas_judit_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       convites_cliente: {
         Row: {
           aceito_em: string | null
@@ -3143,30 +3181,45 @@ export type Database = {
       }
       movimentacoes: {
         Row: {
+          codigo: string | null
           created_at: string
           data_movimentacao: string
           descricao: string
+          eh_certidao_transito: boolean | null
+          eh_decisao_recorrivel: boolean | null
+          eh_recurso_interposto: boolean | null
           fonte: string | null
           id: string
           processo_id: string
+          raw: Json | null
           tipo: string | null
         }
         Insert: {
+          codigo?: string | null
           created_at?: string
           data_movimentacao?: string
           descricao: string
+          eh_certidao_transito?: boolean | null
+          eh_decisao_recorrivel?: boolean | null
+          eh_recurso_interposto?: boolean | null
           fonte?: string | null
           id?: string
           processo_id: string
+          raw?: Json | null
           tipo?: string | null
         }
         Update: {
+          codigo?: string | null
           created_at?: string
           data_movimentacao?: string
           descricao?: string
+          eh_certidao_transito?: boolean | null
+          eh_decisao_recorrivel?: boolean | null
+          eh_recurso_interposto?: boolean | null
           fonte?: string | null
           id?: string
           processo_id?: string
+          raw?: Json | null
           tipo?: string | null
         }
         Relationships: [
@@ -3733,6 +3786,7 @@ export type Database = {
           data_lavratura: string | null
           data_recebimento: string | null
           data_situacao: string | null
+          data_transito_estimada: string | null
           decisao_quarteirizado: string | null
           decisao_tst: string | null
           deposito_judicial: number | null
@@ -3844,6 +3898,7 @@ export type Database = {
           situacao_original: string | null
           status: Database["public"]["Enums"]["status_processo"]
           status_pedido: string | null
+          status_transito: string | null
           status_tst: string | null
           sugestao_providencia_tst: string | null
           tema_tst: string | null
@@ -3860,6 +3915,7 @@ export type Database = {
           turma_favorabilidade: string | null
           turma_tst: string | null
           uf: string | null
+          ultima_consulta_judit: string | null
           ultimo_andamento_mpt: string | null
           unidade_cliente: string | null
           updated_at: string
@@ -3912,6 +3968,7 @@ export type Database = {
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
+          data_transito_estimada?: string | null
           decisao_quarteirizado?: string | null
           decisao_tst?: string | null
           deposito_judicial?: number | null
@@ -4023,6 +4080,7 @@ export type Database = {
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
+          status_transito?: string | null
           status_tst?: string | null
           sugestao_providencia_tst?: string | null
           tema_tst?: string | null
@@ -4039,6 +4097,7 @@ export type Database = {
           turma_favorabilidade?: string | null
           turma_tst?: string | null
           uf?: string | null
+          ultima_consulta_judit?: string | null
           ultimo_andamento_mpt?: string | null
           unidade_cliente?: string | null
           updated_at?: string
@@ -4091,6 +4150,7 @@ export type Database = {
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
+          data_transito_estimada?: string | null
           decisao_quarteirizado?: string | null
           decisao_tst?: string | null
           deposito_judicial?: number | null
@@ -4202,6 +4262,7 @@ export type Database = {
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
+          status_transito?: string | null
           status_tst?: string | null
           sugestao_providencia_tst?: string | null
           tema_tst?: string | null
@@ -4218,6 +4279,7 @@ export type Database = {
           turma_favorabilidade?: string | null
           turma_tst?: string | null
           uf?: string | null
+          ultima_consulta_judit?: string | null
           ultimo_andamento_mpt?: string | null
           unidade_cliente?: string | null
           updated_at?: string
