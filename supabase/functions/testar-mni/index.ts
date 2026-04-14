@@ -42,6 +42,9 @@ async function decryptSafe(value: string | null): Promise<string | null> {
     return value; // plaintext fallback
   }
 }
+
+// Mapa de endpoints MNI por tribunal
+const MNI_ENDPOINTS: Record<string, string> = {
   // TST
   TST: "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao",
   // TRTs
