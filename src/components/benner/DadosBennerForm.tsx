@@ -295,8 +295,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Label>Dossiê (A)</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("situacao_processo"))}>
-              <JuditLabel field="situacao_processo"><Label>Situação do Processo</Label></JuditLabel>
+            <div className="space-y-2">
+              <Label>Situação do Processo</Label>
               <Select value={form.situacao_processo || ""} onValueChange={v => set("situacao_processo", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a situação" /></SelectTrigger>
                 <SelectContent>
