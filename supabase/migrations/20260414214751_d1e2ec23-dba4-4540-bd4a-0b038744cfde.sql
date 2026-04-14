@@ -1,0 +1,1 @@
+UPDATE processos SET monitorar_djen = true, prioridade_djen = true WHERE categoria_importacao = 'senai_sesi';
