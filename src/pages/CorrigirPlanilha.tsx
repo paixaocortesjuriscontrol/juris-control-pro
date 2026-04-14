@@ -63,10 +63,12 @@ export default function CorrigirPlanilha() {
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (!row) continue;
-          const bennerAtualizado = normalize(row[26]);
+          const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
-            const dossie = normalize(row[0]);
+            // col C (index 2) = dossiê in distribution file
+            const dossie = normalize(row[2]);
             if (dossie) bennerSimContracts.add(dossie);
+            // col B (index 1) = processo
             const processo = normalize(row[1]);
             if (processo) bennerSimContracts.add(processo);
           }
@@ -386,7 +388,7 @@ export default function CorrigirPlanilha() {
           return s;
         };
 
-        // For data rows (row >= 3): remove col B (processo), shift C-G → B-F, remove H onward
+        // For data rows (row >= 3): remove col B (processo), shift all subsequent cols left by 1
         for (const rowEl of remainingRows) {
           const rn = Number(rowEl.getAttribute("r"));
           if (rn <= 2) continue; // preserve header rows 1-2
@@ -403,12 +405,9 @@ export default function CorrigirPlanilha() {
             if (colIdx === 1) {
               // Col B (processo) — remove
               toRemove.push(cell);
-            } else if (colIdx >= 2 && colIdx <= 6) {
-              // Cols C-G → shift left by 1 (become B-F)
+            } else if (colIdx >= 2) {
+              // All cols C onward → shift left by 1
               toShift.push({ cell, oldIdx: colIdx });
-            } else if (colIdx > 6) {
-              // Col H onward — remove
-              toRemove.push(cell);
             }
           }
 
