@@ -161,8 +161,17 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
-        // Não preenche situacao_processo pela Judit — o status do PJE ("Ativo") não reflete
-        // o trânsito em julgado, que é calculado pelo sistema de verificação de movimentações
+        // Campos extraídos das movimentações (steps)
+        tem_data_julgamento: data.tem_data_julgamento || f.tem_data_julgamento,
+        data_julgamento: data.data_julgamento || f.data_julgamento,
+        horario_julgamento: data.horario_julgamento || f.horario_julgamento,
+        tipo_julgamento: data.tipo_julgamento || f.tipo_julgamento,
+        resultado_sem_transcendencia: data.resultado_sem_transcendencia || f.resultado_sem_transcendencia,
+        resultado_nao_conhecido: data.resultado_nao_conhecido || f.resultado_nao_conhecido,
+        resultado_conhecido_provido: data.resultado_conhecido_provido || f.resultado_conhecido_provido,
+        resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido || f.resultado_conhecido_nao_provido,
+        resultado_outra: data.resultado_outra || f.resultado_outra,
+        processo_baixado: data.processo_baixado || f.processo_baixado,
       }));
 
       // Track which fields were filled by Judit
@@ -173,6 +182,16 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
+      if (data.tem_data_julgamento && data.tem_data_julgamento !== "N") filled.add("tem_data_julgamento");
+      if (data.data_julgamento) filled.add("data_julgamento");
+      if (data.horario_julgamento) filled.add("horario_julgamento");
+      if (data.tipo_julgamento) filled.add("tipo_julgamento");
+      if (data.resultado_sem_transcendencia) filled.add("resultado_sem_transcendencia");
+      if (data.resultado_nao_conhecido) filled.add("resultado_nao_conhecido");
+      if (data.resultado_conhecido_provido) filled.add("resultado_conhecido_provido");
+      if (data.resultado_conhecido_nao_provido) filled.add("resultado_conhecido_nao_provido");
+      if (data.resultado_outra) filled.add("resultado_outra");
+      if (data.processo_baixado && data.processo_baixado !== "N") filled.add("processo_baixado");
       setCamposJudit(filled);
 
       const camposPreenchidos = [
@@ -182,6 +201,14 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
+        data.data_julgamento && "Data Julgamento",
+        data.horario_julgamento && "Horário",
+        data.tipo_julgamento && "Tipo Julgamento",
+        data.resultado_sem_transcendencia && "Sem Transcendência",
+        data.resultado_nao_conhecido && "Não Conhecido",
+        data.resultado_conhecido_provido && "Conhecido/Provido",
+        data.resultado_conhecido_nao_provido && "Conhecido/Não Provido",
+        (data.processo_baixado === "S") && "Processo Baixado",
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
@@ -377,8 +404,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Data Julgamento? (K)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tem_data_julgamento"))}>
+              <JuditLabel field="tem_data_julgamento"><Label>Data Julgamento? (K)</Label></JuditLabel>
               <Select value={form.tem_data_julgamento || ""} onValueChange={v => set("tem_data_julgamento", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -387,16 +414,16 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Data Julgamento (L)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("data_julgamento"))}>
+              <JuditLabel field="data_julgamento"><Label>Data Julgamento (L)</Label></JuditLabel>
               <Input type="date" value={form.data_julgamento || ""} onChange={e => set("data_julgamento", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Horário (M)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("horario_julgamento"))}>
+              <JuditLabel field="horario_julgamento"><Label>Horário (M)</Label></JuditLabel>
               <Input type="time" value={form.horario_julgamento || ""} onChange={e => set("horario_julgamento", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Tipo Julgamento (N)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tipo_julgamento"))}>
+              <JuditLabel field="tipo_julgamento"><Label>Tipo Julgamento (N)</Label></JuditLabel>
               <Select value={form.tipo_julgamento || ""} onValueChange={v => set("tipo_julgamento", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -456,9 +483,9 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               ["resultado_conhecido_provido", "Conhecido e Provido (T)"],
               ["resultado_conhecido_nao_provido", "Conhecido e Não Provido (U)"],
             ] as const).map(([field, label]) => (
-              <div key={field} className="flex items-center gap-2">
+              <div key={field} className={cn("flex items-center gap-2 p-2 -m-2 rounded-md", juditHighlight(field))}>
                 <Checkbox checked={!!form[field]} onCheckedChange={v => set(field, !!v)} id={field} />
-                <Label htmlFor={field} className="text-sm cursor-pointer">{label}</Label>
+                <JuditLabel field={field}><Label htmlFor={field} className="text-sm cursor-pointer">{label}</Label></JuditLabel>
               </div>
             ))}
           </div>
@@ -490,8 +517,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Checkbox checked={!!form.perdemos} onCheckedChange={v => set("perdemos", !!v)} id="perdemos" />
               <Label htmlFor="perdemos" className="cursor-pointer">Perdemos (Y)</Label>
             </div>
-            <div className="space-y-2">
-              <Label>Processo Baixado (Z)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("processo_baixado"))}>
+              <JuditLabel field="processo_baixado"><Label>Processo Baixado (Z)</Label></JuditLabel>
               <Select value={form.processo_baixado || ""} onValueChange={v => set("processo_baixado", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>

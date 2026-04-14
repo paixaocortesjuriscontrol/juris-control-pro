@@ -27,12 +27,9 @@ serve(async (req) => {
       });
     }
 
-    // Normaliza o número (remove espaços)
     const cnj = numero_processo.trim();
-
     console.log(`Buscando processo na Judit: ${cnj}`);
 
-    // Consulta síncrona no Datalake da Judit
     const response = await fetch(
       `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(cnj)}`,
       {
@@ -70,10 +67,9 @@ serve(async (req) => {
     const data = await response.json();
     console.log("Judit response keys:", Object.keys(data));
 
-    // Extrair dados relevantes do response_data
     const rd = data.response_data || data;
-    
-    // Extrair classificação/tipo de recurso
+
+    // === CLASSIFICAÇÃO / TIPO DE RECURSO ===
     const rawClassification = rd.classification;
     let classificacao: string | null = null;
     if (typeof rawClassification === 'string') {
@@ -85,19 +81,22 @@ serve(async (req) => {
       classificacao = typeof first === 'string' ? first : first?.name || null;
     }
 
-    // Extrair data de distribuição
-    const dataDistribuicao = rd.distribution_date 
-      ? rd.distribution_date.substring(0, 10) 
+    // === DATA DE DISTRIBUIÇÃO ===
+    const dataDistribuicao = rd.distribution_date
+      ? rd.distribution_date.substring(0, 10)
       : null;
 
-    // Extrair relator/juiz
-    const relator = rd.judge || null;
+    // === RELATOR / JUIZ ===
+    // Tentar extrair de cover/judge, judge, ou steps com "relator"
+    let relator = rd.judge || null;
+    if (!relator && rd.cover?.judge) {
+      relator = rd.cover.judge;
+    }
 
-    // Extrair turma do campo courts
+    // === TURMA ===
     let turma: string | null = null;
     const courts = rd.courts || [];
     if (Array.isArray(courts)) {
-      // Procurar por turma nos courts (ex: "1ª Turma", "2ª Turma", "SDI-1")
       for (const court of courts) {
         const name = (court.name || court).toString();
         if (/turma|sdi|subse|seção|câmara|órgão especial/i.test(name)) {
@@ -105,25 +104,22 @@ serve(async (req) => {
           break;
         }
       }
-      // Se não achou turma específica, pegar o primeiro court como vara
-      if (!turma && courts.length > 0) {
-        // Não é turma, é vara/comarca
-      }
     } else if (typeof courts === 'string' && /turma|sdi|subse|seção|câmara/i.test(courts)) {
       turma = courts;
     }
 
-    // Extrair tribunal
+    // === TRIBUNAL ===
     const tribunalAcronimo = rd.tribunal_acronym || null;
     let tribunal = null;
     if (tribunalAcronimo) {
-      if (tribunalAcronimo.toUpperCase().includes("TST")) tribunal = "TST";
-      else if (tribunalAcronimo.toUpperCase().includes("STF")) tribunal = "STF";
-      else if (tribunalAcronimo.toUpperCase().includes("STJ")) tribunal = "STJ";
-      else tribunal = tribunalAcronimo.toUpperCase();
+      const upper = tribunalAcronimo.toUpperCase();
+      if (upper.includes("TST")) tribunal = "TST";
+      else if (upper.includes("STF")) tribunal = "STF";
+      else if (upper.includes("STJ")) tribunal = "STJ";
+      else tribunal = upper;
     }
 
-    // Extrair partes
+    // === PARTES ===
     const parties = data.parties || rd.parties || [];
     const poloAtivo = parties
       .filter((p: any) => p.side?.toUpperCase() === "ACTIVE" && p.person_type?.toUpperCase() !== "ADVOGADO")
@@ -134,7 +130,7 @@ serve(async (req) => {
       .map((p: any) => p.name)
       .join(", ");
 
-    // Situação/status
+    // === SITUAÇÃO ===
     const situacao = rd.status || rd.situation || null;
     let situacaoProcesso = null;
     if (situacao) {
@@ -144,6 +140,86 @@ serve(async (req) => {
       else if (sit.includes("BAIXADO")) situacaoProcesso = "Baixado";
       else if (sit.includes("SUSPENSO")) situacaoProcesso = "Suspenso";
     }
+
+    // === MOVIMENTAÇÕES (steps) - Análise profunda ===
+    const steps = rd.steps || data.steps || [];
+    console.log(`Total de steps encontrados: ${steps.length}`);
+
+    // Padrões regex para detectar eventos nos steps
+    const PAUTA_REGEX = /pauta|sess[aã]o de julgamento|inclu[ií]d[oa] em pauta|designad[oa].*julgamento|julgamento.*designad/i;
+    const RESULTADO_TRANSCENDENCIA_REGEX = /sem transcend[eê]ncia|transcend[eê]ncia n[aã]o reconhecida/i;
+    const RESULTADO_NAO_CONHECIDO_REGEX = /n[aã]o conhec|recurso.*n[aã]o.*conhecid/i;
+    const RESULTADO_CONHECIDO_PROVIDO_REGEX = /conhecid[oa].*provid[oa]|dar provimento|recurso.*provid/i;
+    const RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX = /conhecid[oa].*n[aã]o.*provid|negar provimento|desprovid|improvid/i;
+    const BAIXA_REGEX = /baixa definitiva|remetidos os autos [àa] origem|baixados? os autos|autos.*devolvidos|certid[aã]o de tr[aâ]nsito|tr[aâ]nsito em julgado/i;
+    const JULGAMENTO_TIPO_REGEX = /julgamento virtual|sess[aã]o virtual|julgamento telepresencial|sess[aã]o telepresencial|julgamento presencial/i;
+
+    let dataJulgamento: string | null = null;
+    let horarioJulgamento: string | null = null;
+    let tipoJulgamento: string | null = null;
+    let temDataJulgamento: string | null = null;
+    let resultadoSemTranscendencia = false;
+    let resultadoNaoConhecido = false;
+    let resultadoConhecidoProvido = false;
+    let resultadoConhecidoNaoProvido = false;
+    let resultadoOutra: string | null = null;
+    let processoBaixado: string | null = null;
+
+    // Processar cada step buscando informações
+    for (const step of steps) {
+      const content = (step.content || step.title || step.description || "").toString();
+      const stepDate = step.step_date || step.date || null;
+      const contentLower = content.toLowerCase();
+
+      // --- Pauta / Data de Julgamento ---
+      if (PAUTA_REGEX.test(content) && stepDate && !dataJulgamento) {
+        // Extrair data do conteúdo ou usar step_date
+        const dateMatch = content.match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (dateMatch) {
+          const parts = dateMatch[1].split('/');
+          dataJulgamento = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else if (stepDate) {
+          dataJulgamento = stepDate.substring(0, 10);
+        }
+        temDataJulgamento = "S";
+
+        // Extrair horário
+        const timeMatch = content.match(/(\d{1,2})[h:](\d{2})/);
+        if (timeMatch) {
+          horarioJulgamento = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+        }
+
+        // Tipo de julgamento
+        if (/virtual/i.test(content)) tipoJulgamento = "Virtual";
+        else if (/telepresencial/i.test(content)) tipoJulgamento = "Telepresencial";
+        else if (/h[ií]brid/i.test(content)) tipoJulgamento = "Híbrido";
+        else if (/presencial/i.test(content)) tipoJulgamento = "Presencial";
+      }
+
+      // --- Resultado do julgamento ---
+      if (RESULTADO_TRANSCENDENCIA_REGEX.test(content)) {
+        resultadoSemTranscendencia = true;
+      }
+      // Ordem importa: testar "não provido" antes de "provido"
+      if (RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX.test(content)) {
+        resultadoConhecidoNaoProvido = true;
+      } else if (RESULTADO_CONHECIDO_PROVIDO_REGEX.test(content)) {
+        resultadoConhecidoProvido = true;
+      }
+      if (RESULTADO_NAO_CONHECIDO_REGEX.test(content) && !resultadoConhecidoProvido && !resultadoConhecidoNaoProvido) {
+        resultadoNaoConhecido = true;
+      }
+
+      // --- Baixa definitiva ---
+      if (BAIXA_REGEX.test(content)) {
+        processoBaixado = "S";
+      }
+    }
+
+    // Se não encontrou pauta
+    if (!temDataJulgamento) temDataJulgamento = "N";
+    // Se não encontrou baixa
+    if (!processoBaixado) processoBaixado = "N";
 
     // Comarca/Vara
     const comarca = rd.county || null;
@@ -164,6 +240,17 @@ serve(async (req) => {
       situacao_processo: situacaoProcesso,
       comarca: comarca,
       vara: vara,
+      // Novos campos extraídos das movimentações
+      tem_data_julgamento: temDataJulgamento,
+      data_julgamento: dataJulgamento,
+      horario_julgamento: horarioJulgamento,
+      tipo_julgamento: tipoJulgamento,
+      resultado_sem_transcendencia: resultadoSemTranscendencia,
+      resultado_nao_conhecido: resultadoNaoConhecido,
+      resultado_conhecido_provido: resultadoConhecidoProvido,
+      resultado_conhecido_nao_provido: resultadoConhecidoNaoProvido,
+      resultado_outra: resultadoOutra,
+      processo_baixado: processoBaixado,
       ultimo_andamento: lastStep ? {
         data: lastStep.step_date,
         conteudo: lastStep.content,
@@ -171,6 +258,7 @@ serve(async (req) => {
       raw_status: situacao,
       raw_classification: classificacao,
       raw_courts: courts,
+      total_steps: steps.length,
     };
 
     console.log("Resultado mapeado:", JSON.stringify(result));
