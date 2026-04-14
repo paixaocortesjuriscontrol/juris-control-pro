@@ -218,8 +218,16 @@ export default function CorrigirPlanilha() {
 
           const processoNorm = normalizeForCompare(colBVal);
           const dossieNorm = normalizeForCompare(colCVal);
+          const processoDigits = colBVal.replace(/\D/g, "");
+          const dossieDigits = colCVal.replace(/\D/g, "");
 
-          if (processoNorm && dossieNorm && processoNorm === dossieNorm) {
+          // Match by exact text OR by digits only (covers formatting differences)
+          const isMatch = processoNorm && dossieNorm && (
+            processoNorm === dossieNorm ||
+            (processoDigits.length >= 7 && processoDigits === dossieDigits)
+          );
+
+          if (isMatch) {
             dossieIgualProcesso++;
             changed = true;
             // Paint all cells in this row red
