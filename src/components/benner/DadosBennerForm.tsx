@@ -153,6 +153,9 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       const tribunaisAceitos = ["TST", "STF", "STJ"];
       const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
 
+      // Derivar situação do processo a partir das movimentações
+      const situacaoMapeada = data.situacao_processo || null;
+
       setForm(f => ({
         ...f,
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
@@ -161,6 +164,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
+        situacao_processo: situacaoMapeada || f.situacao_processo,
         // Campos extraídos das movimentações (steps)
         tem_data_julgamento: data.tem_data_julgamento || f.tem_data_julgamento,
         data_julgamento: data.data_julgamento || f.data_julgamento,

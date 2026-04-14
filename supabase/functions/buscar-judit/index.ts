@@ -221,6 +221,21 @@ serve(async (req) => {
     // Se não encontrou baixa
     if (!processoBaixado) processoBaixado = "N";
 
+    // === SITUAÇÃO DO PROCESSO (derivada das movimentações) ===
+    // Prioridade: movimentações > status bruto do PJE
+    if (processoBaixado === "S") {
+      // Se detectou trânsito em julgado ou baixa nas movimentações
+      const TRANSITO_REGEX = /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i;
+      const hasTransito = steps.some((s: any) => TRANSITO_REGEX.test((s.content || s.title || "").toString()));
+      if (hasTransito) {
+        situacaoProcesso = "Trânsito em Julgado";
+      } else {
+        situacaoProcesso = "Baixado";
+      }
+    }
+    // Se tem resultado (julgamento ocorreu) mas não baixou, manter status do PJE ou marcar como ativo
+    // O status bruto do PJE já foi processado acima
+
     // Comarca/Vara
     const comarca = rd.county || null;
     const vara = rd.courts || null;
