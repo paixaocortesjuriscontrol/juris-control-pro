@@ -422,6 +422,19 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                title="Testar acesso MNI (autenticação real)"
+                                onClick={() => handleTestarMni(cred.id)}
+                                disabled={testingMni === cred.id}
+                              >
+                                {testingMni === cred.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Shield className="h-4 w-4 text-blue-500" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 title="Editar"
                                 onClick={() => { setCredencialSelecionada(cred); setCredencialDialogOpen(true); }}
                               >
