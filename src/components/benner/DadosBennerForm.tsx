@@ -336,8 +336,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Turma (E)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("turma"))}>
+              <JuditLabel field="turma"><Label>Turma (E)</Label></JuditLabel>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", juditHighlight("relator"))}>
