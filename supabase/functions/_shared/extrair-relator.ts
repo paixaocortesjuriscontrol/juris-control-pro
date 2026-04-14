@@ -39,7 +39,11 @@ const REDISTRIBUICAO_REGEX = /redistribu/i;
 
 // Regex para extrair relator (precisam ser refinados com dados reais)
 const RELATOR_REGEX =
-  /(?:ministr[ao]|relator[a]?|des(?:embargador)?\.?\s*(?:federal)?|min\.?)\s+(.+?)(?:\s*[-–,.]|\s*$)/i;
+  /(?:ministr[ao]|des(?:embargador)?\.?\s*(?:federal)?|min\.?)\s+(.+?)(?:\s*[-–,.]|\s*$)/i;
+
+// "Relator" seguido de nome (ex: "Relator Mauricio...")
+const RELATOR_TITULO_REGEX =
+  /(?:relator[a]?)\s+(.+?)(?:\s*[-–,.]|\s*$)/i;
 
 // Regex alternativa: "ao Ministro NOME - TURMA" ou "para o Ministro NOME"
 const RELATOR_ALT_REGEX =
