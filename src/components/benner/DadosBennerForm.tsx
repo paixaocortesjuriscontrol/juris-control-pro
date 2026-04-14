@@ -125,6 +125,61 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     toast.success("Dados preenchidos automaticamente!");
   };
 
+  const handleBuscarJudit = async () => {
+    if (!form.processo?.trim()) {
+      toast.warning("Digite o número do processo primeiro");
+      return;
+    }
+    setBuscandoJudit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+        body: { numero_processo: form.processo.trim() },
+      });
+
+      if (error) {
+        console.error("Erro Judit:", error);
+        toast.error("Erro ao buscar na Judit: " + (error.message || "Erro desconhecido"));
+        setBuscandoJudit(false);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        setBuscandoJudit(false);
+        return;
+      }
+
+      setForm(f => ({
+        ...f,
+        tipo_recurso: data.tipo_recurso || f.tipo_recurso,
+        data_distribuicao: data.data_distribuicao || f.data_distribuicao,
+        relator: data.relator || f.relator,
+        tribunal: data.tribunal || f.tribunal,
+        recorrente: data.recorrente || f.recorrente,
+        situacao_processo: data.situacao_processo || f.situacao_processo,
+      }));
+
+      const camposPreenchidos = [
+        data.tipo_recurso && "Tipo Recurso",
+        data.data_distribuicao && "Data Distribuição",
+        data.relator && "Relator",
+        data.tribunal && "Tribunal",
+        data.recorrente && "Recorrente",
+        data.situacao_processo && "Situação",
+      ].filter(Boolean);
+
+      if (camposPreenchidos.length > 0) {
+        toast.success(`Judit: ${camposPreenchidos.length} campo(s) preenchidos — ${camposPreenchidos.join(", ")}`);
+      } else {
+        toast.info("Judit: processo encontrado, mas sem dados adicionais para preencher");
+      }
+    } catch (err: any) {
+      console.error("Erro ao buscar Judit:", err);
+      toast.error("Erro de conexão com a Judit");
+    }
+    setBuscandoJudit(false);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
