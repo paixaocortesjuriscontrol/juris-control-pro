@@ -286,17 +286,7 @@ export default function CorrigirPlanilha() {
           if (colF.includes("CEJUSC")) { cejuscRemovidas++; removeSet.add(i + CARGA_DATA_START_ROW); }
         }
 
-        // Step 2: Remove duplicates FIRST (so Benner SIM doesn't double-count)
-        const seen = new Set<string>();
-        for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + CARGA_DATA_START_ROW;
-          if (removeSet.has(excelRow)) continue;
-          const key = `${normalize(dataRows[i][0])}|${normalize(dataRows[i][1])}`;
-          if (seen.has(key)) { duplicatasRemovidas++; removeSet.add(excelRow); }
-          else seen.add(key);
-        }
-
-        // Step 3: Remove processo = dossiê (using dossiês identified in distribution)
+        // Step 2: Remove processo = dossiê (using dossiês identified in distribution)
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + CARGA_DATA_START_ROW;
           if (removeSet.has(excelRow)) continue;
@@ -306,7 +296,7 @@ export default function CorrigirPlanilha() {
           }
         }
 
-        // Step 4: Remove Benner SIM (after dedup, so each dossiê counted once)
+        // Step 3: Remove Benner SIM
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + CARGA_DATA_START_ROW;
           if (removeSet.has(excelRow)) continue;
@@ -314,6 +304,16 @@ export default function CorrigirPlanilha() {
           if (dossie && bennerSimContracts.has(dossie)) {
             bennerSimRemovidasNaCarga++; removeSet.add(excelRow);
           }
+        }
+
+        // Step 4: Remove duplicates (last step)
+        const seen = new Set<string>();
+        for (let i = 0; i < dataRows.length; i++) {
+          const excelRow = i + CARGA_DATA_START_ROW;
+          if (removeSet.has(excelRow)) continue;
+          const key = `${normalize(dataRows[i][0])}|${normalize(dataRows[i][1])}`;
+          if (seen.has(key)) { duplicatasRemovidas++; removeSet.add(excelRow); }
+          else seen.add(key);
         }
 
         if (removeSet.size > 0) rowsToRemovePerSheet.set(si, removeSet);
