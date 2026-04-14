@@ -325,12 +325,65 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       toast.warning("Digite o número do processo primeiro");
       return;
     }
+
+    if (!dado?.id) {
+      return;
+    }
+
     setBaixandoAutos(true);
-    setAutosProgress({ status: "iniciado", etapa: "Iniciando busca...", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0 });
+    setAutosProgress({ status: "iniciado", etapa: "Verificando autos já disponíveis...", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0 });
     setAutosJobId(null);
+
     try {
+      const [activeJobResult, existingDocsResult] = await Promise.all([
+        supabase
+          .from("baixar_autos_jobs")
+          .select("id, status, etapa, documentos_total, documentos_baixados, documentos_existentes, documentos_erro, mensagem, erro")
+          .eq("processo_id", dado.id)
+          .in("status", ["iniciado", "crawler", "baixando"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("processos_documentos_download")
+          .select("id")
+          .eq("processo_id", dado.id)
+          .eq("status_download", "concluido"),
+      ]);
+
+      if (activeJobResult.data) {
+        setAutosJobId(activeJobResult.data.id);
+        setAutosProgress({
+          status: activeJobResult.data.status,
+          etapa: activeJobResult.data.etapa,
+          documentos_total: activeJobResult.data.documentos_total || 0,
+          documentos_baixados: activeJobResult.data.documentos_baixados || 0,
+          documentos_existentes: activeJobResult.data.documentos_existentes || 0,
+          documentos_erro: activeJobResult.data.documentos_erro || 0,
+          mensagem: activeJobResult.data.mensagem || undefined,
+          erro: activeJobResult.data.erro || undefined,
+        });
+        startPolling(activeJobResult.data.id);
+        return;
+      }
+
+      const existingDocs = existingDocsResult.data || [];
+      if (existingDocs.length > 0) {
+        setBaixandoAutos(false);
+        setAutosProgress({
+          status: "concluido",
+          etapa: `${existingDocs.length} documento(s) já disponíveis`,
+          documentos_total: existingDocs.length,
+          documentos_baixados: 0,
+          documentos_existentes: existingDocs.length,
+          documentos_erro: 0,
+          mensagem: "Nenhuma nova busca foi realizada.",
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
-        body: { processo_id: dado?.id, processo_numero: form.processo.trim() },
+        body: { processo_id: dado.id, processo_numero: form.processo.trim() },
       });
 
       if (data?.job_id) {
