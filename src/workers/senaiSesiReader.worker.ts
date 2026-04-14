@@ -51,7 +51,7 @@ type IncomingMessage = {
   id: number;
 };
 
-const ctx: DedicatedWorkerGlobalScope = self as any;
+const ctx: any = self as any;
 
 function postProgress(id: number, progress: number, message: string) {
   ctx.postMessage({ type: "progress", id, progress: Math.max(0, Math.min(100, progress)), message });
