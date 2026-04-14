@@ -26,6 +26,7 @@ import {
   Scale,
   FileText,
   FileBox,
+  Briefcase,
   Save,
   X,
 } from "lucide-react";

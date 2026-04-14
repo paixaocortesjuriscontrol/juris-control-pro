@@ -38,6 +38,7 @@ import {
   Gavel,
   AlertCircle,
   FileBox,
+  Briefcase,
   Newspaper,
   Shuffle,
   Radar,
