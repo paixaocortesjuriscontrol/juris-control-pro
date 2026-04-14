@@ -161,8 +161,17 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
-        // Não preenche situacao_processo pela Judit — o status do PJE ("Ativo") não reflete
-        // o trânsito em julgado, que é calculado pelo sistema de verificação de movimentações
+        // Campos extraídos das movimentações (steps)
+        tem_data_julgamento: data.tem_data_julgamento || f.tem_data_julgamento,
+        data_julgamento: data.data_julgamento || f.data_julgamento,
+        horario_julgamento: data.horario_julgamento || f.horario_julgamento,
+        tipo_julgamento: data.tipo_julgamento || f.tipo_julgamento,
+        resultado_sem_transcendencia: data.resultado_sem_transcendencia || f.resultado_sem_transcendencia,
+        resultado_nao_conhecido: data.resultado_nao_conhecido || f.resultado_nao_conhecido,
+        resultado_conhecido_provido: data.resultado_conhecido_provido || f.resultado_conhecido_provido,
+        resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido || f.resultado_conhecido_nao_provido,
+        resultado_outra: data.resultado_outra || f.resultado_outra,
+        processo_baixado: data.processo_baixado || f.processo_baixado,
       }));
 
       // Track which fields were filled by Judit
@@ -173,6 +182,16 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
+      if (data.tem_data_julgamento && data.tem_data_julgamento !== "N") filled.add("tem_data_julgamento");
+      if (data.data_julgamento) filled.add("data_julgamento");
+      if (data.horario_julgamento) filled.add("horario_julgamento");
+      if (data.tipo_julgamento) filled.add("tipo_julgamento");
+      if (data.resultado_sem_transcendencia) filled.add("resultado_sem_transcendencia");
+      if (data.resultado_nao_conhecido) filled.add("resultado_nao_conhecido");
+      if (data.resultado_conhecido_provido) filled.add("resultado_conhecido_provido");
+      if (data.resultado_conhecido_nao_provido) filled.add("resultado_conhecido_nao_provido");
+      if (data.resultado_outra) filled.add("resultado_outra");
+      if (data.processo_baixado && data.processo_baixado !== "N") filled.add("processo_baixado");
       setCamposJudit(filled);
 
       const camposPreenchidos = [
@@ -182,6 +201,14 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
+        data.data_julgamento && "Data Julgamento",
+        data.horario_julgamento && "Horário",
+        data.tipo_julgamento && "Tipo Julgamento",
+        data.resultado_sem_transcendencia && "Sem Transcendência",
+        data.resultado_nao_conhecido && "Não Conhecido",
+        data.resultado_conhecido_provido && "Conhecido/Provido",
+        data.resultado_conhecido_nao_provido && "Conhecido/Não Provido",
+        (data.processo_baixado === "S") && "Processo Baixado",
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
