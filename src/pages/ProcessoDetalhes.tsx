@@ -528,6 +528,12 @@ export default function ProcessoDetalhes() {
         motivo_encerramento: processo.motivo_encerramento || "",
         custo_encerramento: processo.custo_encerramento || "",
         categoria_importacao: processo.categoria_importacao || "",
+        // Campos SENAI/SESI
+        objeto: processo.objeto || "",
+        natureza_financeira: processo.natureza_financeira || "",
+        entidade: processo.entidade || "",
+        calculo_validado: processo.calculo_validado || "",
+        rateio: processo.rateio || "",
         // Campos administrativos
         auto_infracao: processo.auto_infracao || "",
         nit_fiscalizado: processo.nit_fiscalizado || "",
@@ -592,6 +598,8 @@ export default function ProcessoDetalhes() {
         "pedido_danos_morais_assedio", "pedido_danos_morais_outros", "pedido_acidente_doenca",
         "pedido_danos_morais_acidente", "pedido_estabilidade", "pedido_multas_clt", "pedido_multas_ccts",
         "status_pedido", "motivo_encerramento", "categoria_importacao",
+        // Campos SENAI/SESI
+        "objeto", "natureza_financeira", "entidade", "calculo_validado", "rateio",
         // Campos administrativos
         "auto_infracao", "nit_fiscalizado", "cnpj_fiscalizado", "fiscal_responsavel",
         "orgao_origem", "data_situacao", "cargo_reconhecimento_vinculo", "tipo_processo"

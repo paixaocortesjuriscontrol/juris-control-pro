@@ -243,7 +243,12 @@ export function ProcessoResumoCard({
                     { label: "Fase", value: processo.fase },
                     { label: "Sistema", value: processo.sistema },
                     { label: "Pasta física", value: processo.pasta_fisica },
-                  ].map(({ label, value }) => (
+                    { label: "Objeto", value: (processo as any).objeto },
+                    { label: "Natureza Financeira", value: (processo as any).natureza_financeira },
+                    { label: "Entidade", value: (processo as any).entidade },
+                    { label: "Cálculo Validado", value: (processo as any).calculo_validado },
+                    { label: "Rateio", value: (processo as any).rateio },
+                  ].filter(({ value }) => value).map(({ label, value }) => (
                     <div key={label} className="flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
                       <span className="text-xs text-foreground font-medium">{value || "—"}</span>
