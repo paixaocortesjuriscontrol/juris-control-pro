@@ -153,6 +153,9 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       const tribunaisAceitos = ["TST", "STF", "STJ"];
       const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
 
+      // Derivar situação do processo a partir das movimentações
+      const situacaoMapeada = data.situacao_processo || null;
+
       setForm(f => ({
         ...f,
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
@@ -161,6 +164,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
+        situacao_processo: situacaoMapeada || f.situacao_processo,
         // Campos extraídos das movimentações (steps)
         tem_data_julgamento: data.tem_data_julgamento || f.tem_data_julgamento,
         data_julgamento: data.data_julgamento || f.data_julgamento,
@@ -182,6 +186,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
+      if (situacaoMapeada) filled.add("situacao_processo");
       if (data.tem_data_julgamento && data.tem_data_julgamento !== "N") filled.add("tem_data_julgamento");
       if (data.data_julgamento) filled.add("data_julgamento");
       if (data.horario_julgamento) filled.add("horario_julgamento");
@@ -201,6 +206,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
+        situacaoMapeada && "Situação",
         data.data_julgamento && "Data Julgamento",
         data.horario_julgamento && "Horário",
         data.tipo_julgamento && "Tipo Julgamento",
@@ -322,8 +328,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
               <Label>Dossiê (A)</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} placeholder="Número do dossiê" />
             </div>
-            <div className="space-y-2">
-              <Label>Situação do Processo</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("situacao_processo"))}>
+              <JuditLabel field="situacao_processo"><Label>Situação do Processo</Label></JuditLabel>
               <Select value={form.situacao_processo || ""} onValueChange={v => set("situacao_processo", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a situação" /></SelectTrigger>
                 <SelectContent>
