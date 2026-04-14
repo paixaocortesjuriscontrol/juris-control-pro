@@ -49,6 +49,18 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [baixandoAutos, setBaixandoAutos] = useState(false);
+  const [autosJobId, setAutosJobId] = useState<string | null>(null);
+  const [autosProgress, setAutosProgress] = useState<{
+    status: string;
+    etapa: string;
+    documentos_total: number;
+    documentos_baixados: number;
+    documentos_existentes: number;
+    documentos_erro: number;
+    mensagem?: string;
+    erro?: string;
+  } | null>(null);
+  const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
 
