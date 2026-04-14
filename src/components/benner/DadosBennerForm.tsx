@@ -77,6 +77,32 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     }
   }, [dado]);
 
+  // Poll progress for autos download job
+  const startPolling = useCallback((jobId: string) => {
+    if (autosPollingRef.current) clearInterval(autosPollingRef.current);
+    autosPollingRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from("baixar_autos_jobs")
+        .select("status, etapa, documentos_total, documentos_baixados, documentos_existentes, documentos_erro, mensagem, erro")
+        .eq("id", jobId)
+        .single();
+      if (data) {
+        setAutosProgress(data as any);
+        if (["concluido", "erro", "timeout"].includes(data.status)) {
+          if (autosPollingRef.current) clearInterval(autosPollingRef.current);
+          autosPollingRef.current = null;
+          setBaixandoAutos(false);
+        }
+      }
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autosPollingRef.current) clearInterval(autosPollingRef.current);
+    };
+  }, []);
+
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
   const handleBuscarProcesso = async () => {
