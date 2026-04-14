@@ -1296,6 +1296,27 @@ export function ProcessoDetalhesCompletos({
                     </CardContent>
                   </Card>
 
+                  {/* SENAI/SESI - Só mostra se tem dados */}
+                  {(processo.objeto || processo.natureza_financeira || processo.entidade || processo.calculo_validado || processo.rateio) && (
+                    <Card className="border-teal-200 dark:border-teal-900/50">
+                      <CardHeader className="py-3 px-4 bg-teal-50 dark:bg-teal-900/20">
+                        <CardTitle className="text-sm flex items-center gap-2 text-teal-700 dark:text-teal-400">
+                          <Briefcase className="w-4 h-4" />
+                          Dados SENAI / SESI
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-3 px-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          <FieldItem label="Objeto" value={processo.objeto} />
+                          <FieldItem label="Natureza Financeira" value={processo.natureza_financeira} />
+                          <FieldItem label="Entidade" value={processo.entidade} />
+                          <FieldItem label="Cálculo Validado" value={processo.calculo_validado} />
+                          <FieldItem label="Rateio" value={processo.rateio} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* ADMINISTRATIVO - Só mostra se tipo_processo = administrativo ou se tem dados */}
                   {(processo.tipo_processo === "administrativo" || processo.auto_infracao || processo.orgao_origem || processo.cnpj_fiscalizado || processo.valor_multa) && (
                     <Card className="border-orange-200 dark:border-orange-900/50">

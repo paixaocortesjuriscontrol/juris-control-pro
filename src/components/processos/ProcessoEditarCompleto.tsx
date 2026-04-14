@@ -472,6 +472,26 @@ export function ProcessoEditarCompleto({
               </Card>
 
               {/* DADOS ADMINISTRATIVOS */}
+              {/* SENAI/SESI */}
+              <Card className="border-teal-200 dark:border-teal-900/50">
+                <CardHeader className="py-3 px-4 bg-teal-50 dark:bg-teal-900/20">
+                  <CardTitle className="text-sm flex items-center gap-2 text-teal-700 dark:text-teal-400">
+                    <Briefcase className="w-4 h-4" />
+                    Dados SENAI / SESI
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-3 px-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <EditableField label="Objeto" field="objeto" />
+                    <EditableField label="Natureza Financeira" field="natureza_financeira" />
+                    <EditableField label="Entidade" field="entidade" />
+                    <EditableField label="Cálculo Validado" field="calculo_validado" />
+                    <EditableField label="Rateio" field="rateio" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ADMINISTRATIVO */}
               <Card className="border-orange-200 dark:border-orange-900/50">
                 <CardHeader className="py-3 px-4 bg-orange-50 dark:bg-orange-900/20">
                   <CardTitle className="text-sm flex items-center gap-2 text-orange-700 dark:text-orange-400">
