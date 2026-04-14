@@ -22,7 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart, Factory } from "lucide-react";
+import { SenaiSesiImportTab } from "@/components/importar/SenaiSesiImportTab";
 import { useRelatorioPedidos, TipoPedido } from "@/hooks/useRelatorioPedidos";
 import { 
   downloadProjurisTemplate, 
