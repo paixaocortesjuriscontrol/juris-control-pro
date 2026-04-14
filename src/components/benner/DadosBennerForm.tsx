@@ -326,34 +326,37 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       return;
     }
     setBaixandoAutos(true);
+    setAutosProgress({ status: "iniciado", etapa: "Iniciando busca...", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0 });
+    setAutosJobId(null);
     try {
-      toast.info("Solicitando documentos à Judit... Isso pode levar até 2 minutos.");
       const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
         body: { processo_id: dado?.id, processo_numero: form.processo.trim() },
       });
 
-      if (error) {
-        toast.error("Erro ao baixar autos: " + (error.message || "Erro desconhecido"));
-        return;
-      }
-
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      if (data?.documentos_baixados > 0) {
-        toast.success(data.mensagem || `${data.documentos_baixados} documento(s) baixado(s)`);
-      } else if (data?.documentos_existentes > 0) {
-        toast.info(data.mensagem || "Documentos já baixados anteriormente");
+      if (data?.job_id) {
+        setAutosJobId(data.job_id);
+        startPolling(data.job_id);
       } else {
-        toast.info(data?.mensagem || "Nenhum documento encontrado");
+        // No job_id returned - show result directly
+        setBaixandoAutos(false);
+        if (error || data?.error) {
+          setAutosProgress({ status: "erro", etapa: "Erro", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0, erro: error?.message || data?.error });
+        } else {
+          setAutosProgress({
+            status: "concluido",
+            etapa: data?.mensagem || "Concluído",
+            documentos_total: data?.documentos_total || 0,
+            documentos_baixados: data?.documentos_baixados || 0,
+            documentos_existentes: data?.documentos_existentes || 0,
+            documentos_erro: data?.documentos_erro || 0,
+            mensagem: data?.mensagem,
+          });
+        }
       }
     } catch (err: any) {
       console.error("Erro ao baixar autos:", err);
-      toast.error("Erro de conexão ao baixar autos");
-    } finally {
       setBaixandoAutos(false);
+      setAutosProgress({ status: "erro", etapa: "Erro de conexão", documentos_total: 0, documentos_baixados: 0, documentos_existentes: 0, documentos_erro: 0, erro: "Erro de conexão ao baixar autos" });
     }
   };
 
