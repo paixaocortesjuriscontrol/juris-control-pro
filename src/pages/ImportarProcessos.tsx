@@ -22,7 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart, Factory } from "lucide-react";
+import { SenaiSesiImportTab } from "@/components/importar/SenaiSesiImportTab";
 import { useRelatorioPedidos, TipoPedido } from "@/hooks/useRelatorioPedidos";
 import { 
   downloadProjurisTemplate, 
@@ -5904,7 +5905,7 @@ export default function ImportarProcessos() {
     <MainLayout title="Importar Processos" subtitle="Importe processos em lote">
       <div className="space-y-6">
         <Tabs defaultValue="lista" className="w-full">
-          <TabsList className="grid w-full grid-cols-11 max-w-7xl">
+          <TabsList className="grid w-full grid-cols-12 max-w-7xl">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -5944,6 +5945,10 @@ export default function ImportarProcessos() {
             <TabsTrigger value="bradesco" className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Bradesco</span>
+            </TabsTrigger>
+            <TabsTrigger value="senai" className="flex items-center gap-2">
+              <Factory className="h-4 w-4" />
+              <span className="hidden sm:inline">SENAI/SESI</span>
             </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -9286,6 +9291,21 @@ export default function ImportarProcessos() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Tab: SENAI / SESI */}
+          <TabsContent value="senai" className="space-y-6 mt-6">
+            <SenaiSesiImportTab
+              coordenacoes={coordenacoes}
+              clientes={clientes}
+              selectedCoordenacao={selectedCoordenacao}
+              setSelectedCoordenacao={setSelectedCoordenacao}
+              selectedMembro={selectedMembro}
+              setSelectedMembro={setSelectedMembro}
+              selectedCliente={selectedCliente}
+              setSelectedCliente={setSelectedCliente}
+              membrosDisponiveis={membrosDisponiveis}
+            />
           </TabsContent>
         </Tabs>
       </div>

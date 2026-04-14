@@ -3817,6 +3817,7 @@ export type Database = {
           auto_infracao: string | null
           autor: string | null
           benner_atualizado: boolean | null
+          calculo_validado: string | null
           cargo_reconhecimento_vinculo: string | null
           categoria_importacao: string | null
           chance_exito_banco: string | null
@@ -3850,6 +3851,7 @@ export type Database = {
           depositos_vinculados: string | null
           descricao: string | null
           dossie_tst: string | null
+          entidade: string | null
           epoca_razao: string | null
           equipe_tst: string | null
           esfera: string | null
@@ -3879,9 +3881,11 @@ export type Database = {
           mudanca_risco: boolean | null
           multa_custas_tst: string | null
           natureza: string | null
+          natureza_financeira: string | null
           nit_fiscalizado: string | null
           nome_cliente_envolvido: string | null
           numero: string
+          objeto: string | null
           observacao_advogado: string | null
           observacao_cobranca: string | null
           observacao_resp_subsidiaria: string | null
@@ -3931,6 +3935,7 @@ export type Database = {
           provisionamento_possivel: number | null
           provisionamento_provavel: number | null
           provisionamento_remoto: number | null
+          rateio: string | null
           reclamados: string | null
           reclamante: string | null
           recurso_terceiros_tst: string | null
@@ -4000,6 +4005,7 @@ export type Database = {
           auto_infracao?: string | null
           autor?: string | null
           benner_atualizado?: boolean | null
+          calculo_validado?: string | null
           cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
           chance_exito_banco?: string | null
@@ -4033,6 +4039,7 @@ export type Database = {
           depositos_vinculados?: string | null
           descricao?: string | null
           dossie_tst?: string | null
+          entidade?: string | null
           epoca_razao?: string | null
           equipe_tst?: string | null
           esfera?: string | null
@@ -4062,9 +4069,11 @@ export type Database = {
           mudanca_risco?: boolean | null
           multa_custas_tst?: string | null
           natureza?: string | null
+          natureza_financeira?: string | null
           nit_fiscalizado?: string | null
           nome_cliente_envolvido?: string | null
           numero: string
+          objeto?: string | null
           observacao_advogado?: string | null
           observacao_cobranca?: string | null
           observacao_resp_subsidiaria?: string | null
@@ -4114,6 +4123,7 @@ export type Database = {
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
           provisionamento_remoto?: number | null
+          rateio?: string | null
           reclamados?: string | null
           reclamante?: string | null
           recurso_terceiros_tst?: string | null
@@ -4183,6 +4193,7 @@ export type Database = {
           auto_infracao?: string | null
           autor?: string | null
           benner_atualizado?: boolean | null
+          calculo_validado?: string | null
           cargo_reconhecimento_vinculo?: string | null
           categoria_importacao?: string | null
           chance_exito_banco?: string | null
@@ -4216,6 +4227,7 @@ export type Database = {
           depositos_vinculados?: string | null
           descricao?: string | null
           dossie_tst?: string | null
+          entidade?: string | null
           epoca_razao?: string | null
           equipe_tst?: string | null
           esfera?: string | null
@@ -4245,9 +4257,11 @@ export type Database = {
           mudanca_risco?: boolean | null
           multa_custas_tst?: string | null
           natureza?: string | null
+          natureza_financeira?: string | null
           nit_fiscalizado?: string | null
           nome_cliente_envolvido?: string | null
           numero?: string
+          objeto?: string | null
           observacao_advogado?: string | null
           observacao_cobranca?: string | null
           observacao_resp_subsidiaria?: string | null
@@ -4297,6 +4311,7 @@ export type Database = {
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
           provisionamento_remoto?: number | null
+          rateio?: string | null
           reclamados?: string | null
           reclamante?: string | null
           recurso_terceiros_tst?: string | null
