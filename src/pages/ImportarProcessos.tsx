@@ -5946,6 +5946,10 @@ export default function ImportarProcessos() {
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Bradesco</span>
             </TabsTrigger>
+            <TabsTrigger value="senai" className="flex items-center gap-2">
+              <Factory className="h-4 w-4" />
+              <span className="hidden sm:inline">SENAI/SESI</span>
+            </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Pedidos</span>
