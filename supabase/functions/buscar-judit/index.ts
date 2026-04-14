@@ -156,6 +156,7 @@ serve(async (req) => {
       tipo_recurso: classificacao,
       data_distribuicao: dataDistribuicao,
       relator: relator,
+      turma: turma,
       tribunal: tribunal,
       tribunal_acronimo: tribunalAcronimo,
       recorrente: poloAtivo || null,
@@ -167,9 +168,9 @@ serve(async (req) => {
         data: lastStep.step_date,
         conteudo: lastStep.content,
       } : null,
-      // Dados brutos para debug
       raw_status: situacao,
       raw_classification: classificacao,
+      raw_courts: courts,
     };
 
     console.log("Resultado mapeado:", JSON.stringify(result));
