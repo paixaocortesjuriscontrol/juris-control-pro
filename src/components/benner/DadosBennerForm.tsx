@@ -166,28 +166,86 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     toast.success("Dados preenchidos automaticamente!");
   };
 
+  const executarAnaliseTransito = useCallback(async (processoNumero: string, filled: Set<string>) => {
+    try {
+      const { data: processoDb } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("numero", processoNumero)
+        .maybeSingle();
+
+      if (!processoDb?.id) return;
+
+      const { data: orqData, error: orqError } = await supabase.functions.invoke(
+        "orquestrador-transito",
+        { body: { processo_id: processoDb.id } }
+      );
+
+      if (!orqError && orqData?.success) {
+        const statusMap: Record<string, string> = {
+          transitado_confirmado: "Trânsito em Julgado",
+          transitado_provavel: "Trânsito em Julgado",
+          em_curso: "Ativo",
+        };
+
+        const situacaoOrq = statusMap[orqData.status_transito] || null;
+        if (situacaoOrq) {
+          setForm(f => ({
+            ...f,
+            situacao_processo: situacaoOrq,
+            confianca_transito: orqData.status_transito === "transitado_confirmado"
+              ? 95
+              : orqData.status_transito === "transitado_provavel"
+                ? 70
+                : null,
+            data_transito_julgado: orqData.data_transito_estimada || f.data_transito_julgado,
+            notas: orqData.justificativa
+              ? `[Orquestrador] ${orqData.justificativa}${f.notas ? '\n' + f.notas : ''}`
+              : f.notas,
+          }));
+          filled.add("situacao_processo");
+          if (orqData.data_transito_estimada) filled.add("data_transito_julgado");
+          if (orqData.status_transito !== "em_curso") filled.add("confianca_transito");
+          setCamposJudit(new Set(filled));
+        }
+
+        const transitoMsg = orqData.status_transito === "transitado_confirmado"
+          ? "✅ Trânsito CONFIRMADO"
+          : orqData.status_transito === "transitado_provavel"
+            ? "⚠️ Trânsito PROVÁVEL (decurso de prazo)"
+            : "📋 Processo em curso";
+        toast.success(`${transitoMsg} | ${orqData.classificadas || 0} movimentações classificadas`);
+      } else if (orqError) {
+        console.warn("Orquestrador erro (não-fatal):", orqError);
+        toast.warning("Dados Judit preenchidos, mas análise de trânsito falhou");
+      }
+    } catch (error) {
+      console.warn("Falha ao executar análise de trânsito em segundo plano:", error);
+    }
+  }, []);
+
   const handleBuscarJudit = async () => {
     if (!form.processo?.trim()) {
       toast.warning("Digite o número do processo primeiro");
       return;
     }
+
+    const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
+
     try {
-      // ── 1. Chamar buscar-judit (preenche campos do formulário) ──
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: form.processo.trim() },
+        body: { numero_processo: processoNumero },
       });
 
       if (error) {
         console.error("Erro Judit:", error);
         toast.error("Erro ao buscar na Judit: " + (error.message || "Erro desconhecido"));
-        setBuscandoJudit(false);
         return;
       }
 
       if (data?.error) {
         toast.error(data.error);
-        setBuscandoJudit(false);
         return;
       }
 
@@ -217,7 +275,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         processo_baixado: data.processo_baixado || f.processo_baixado,
       }));
 
-      // Track which fields were filled by Judit
       const filled = new Set<string>();
       if (data.dossie) filled.add("dossie");
       if (data.tipo_recurso) filled.add("tipo_recurso");
@@ -238,59 +295,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.resultado_outra) filled.add("resultado_outra");
       if (data.processo_baixado && data.processo_baixado !== "N") filled.add("processo_baixado");
 
-      // ── 2. Chamar orquestrador-transito (classifica + calcula trânsito) ──
-      const processoNumero = form.processo.trim();
-      const { data: processoDb } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("numero", processoNumero)
-        .maybeSingle();
-
-      if (processoDb?.id) {
-        toast.info("Analisando trânsito em julgado...");
-        const { data: orqData, error: orqError } = await supabase.functions.invoke(
-          "orquestrador-transito",
-          { body: { processo_id: processoDb.id } }
-        );
-
-        if (!orqError && orqData?.success) {
-          // Mapear status do orquestrador para os campos do formulário
-          const statusMap: Record<string, string> = {
-            transitado_confirmado: "Trânsito em Julgado",
-            transitado_provavel: "Trânsito em Julgado",
-            em_curso: "Ativo",
-          };
-
-          const situacaoOrq = statusMap[orqData.status_transito] || null;
-          if (situacaoOrq) {
-            setForm(f => ({
-              ...f,
-              situacao_processo: situacaoOrq,
-              confianca_transito: orqData.status_transito === "transitado_confirmado" ? 95 
-                : orqData.status_transito === "transitado_provavel" ? 70 : null,
-              data_transito_julgado: orqData.data_transito_estimada || f.data_transito_julgado,
-              notas: orqData.justificativa 
-                ? `[Orquestrador] ${orqData.justificativa}${f.notas ? '\n' + f.notas : ''}`
-                : f.notas,
-            }));
-            filled.add("situacao_processo");
-            if (orqData.data_transito_estimada) filled.add("data_transito_julgado");
-            if (orqData.status_transito !== "em_curso") filled.add("confianca_transito");
-          }
-
-          const transitoMsg = orqData.status_transito === "transitado_confirmado"
-            ? "✅ Trânsito CONFIRMADO"
-            : orqData.status_transito === "transitado_provavel"
-            ? "⚠️ Trânsito PROVÁVEL (decurso de prazo)"
-            : "📋 Processo em curso";
-          toast.success(`${transitoMsg} | ${orqData.classificadas || 0} movimentações classificadas`);
-        } else if (orqError) {
-          console.warn("Orquestrador erro (não-fatal):", orqError);
-          toast.warning("Dados Judit preenchidos, mas análise de trânsito falhou");
-        }
-      }
-
-      setCamposJudit(filled);
+      setCamposJudit(new Set(filled));
 
       const camposPreenchidos = [
         data.tipo_recurso && "Tipo Recurso",
@@ -307,7 +312,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.resultado_nao_conhecido && "Não Conhecido",
         data.resultado_conhecido_provido && "Conhecido/Provido",
         data.resultado_conhecido_nao_provido && "Conhecido/Não Provido",
-        (data.processo_baixado === "S") && "Processo Baixado",
+        data.processo_baixado === "S" && "Processo Baixado",
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
@@ -315,10 +320,15 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       } else {
         toast.info("Judit: processo encontrado, mas sem dados adicionais para preencher");
       }
+
+      setBuscandoJudit(false);
+      void executarAnaliseTransito(processoNumero, filled);
+      return;
     } catch (err: any) {
       console.error("Erro ao buscar Judit:", err);
       toast.error("Erro de conexão com a Judit");
     }
+
     setBuscandoJudit(false);
   };
 
