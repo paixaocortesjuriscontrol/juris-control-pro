@@ -369,8 +369,9 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("[baixar-autos-judit] Erro geral:", err);
+    const errorMessage = err instanceof Error ? err.message : "desconhecido";
     return respond({
-      error: "Erro interno ao processar documentos: " + (err.message || "desconhecido"),
+      error: "Erro interno ao processar documentos: " + errorMessage,
       sucesso: false,
       documentos_baixados: 0,
     });
