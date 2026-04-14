@@ -53,7 +53,7 @@ export default function CorrigirPlanilha() {
     try {
       const [distBuf, cargaBuf] = await Promise.all([readFile(distFile), readFile(cargaFile)]);
 
-      // === DISTRIBUTION: read with XLSX for Benner SIM, detect processo=dossie from XML ===
+      // === DISTRIBUTION: read with XLSX for Benner SIM and build dossier set ===
       const distWb = XLSX.read(new Uint8Array(distBuf), { type: "array" });
       const bennerSimContracts = new Set<string>();
 
@@ -65,12 +65,8 @@ export default function CorrigirPlanilha() {
           if (!row) continue;
           const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
-            // col C (index 2) = dossiê in distribution file
-            const dossie = normalize(row[2]);
+            const dossie = normalize(row[2]); // col C = dossiê
             if (dossie) bennerSimContracts.add(dossie);
-            // col B (index 1) = processo
-            const processo = normalize(row[1]);
-            if (processo) bennerSimContracts.add(processo);
           }
         }
       }
@@ -275,9 +271,8 @@ export default function CorrigirPlanilha() {
         for (let i = 0; i < dataRows.length; i++) {
           const excelRow = i + 2;
           if (removeSet.has(excelRow)) continue;
-          const colA = normalize(dataRows[i][0]);
-          const colB = normalize(dataRows[i][1]);
-          if ((colA && bennerSimContracts.has(colA)) || (colB && bennerSimContracts.has(colB))) {
+          const dossie = normalize(dataRows[i][0]);
+          if (dossie && bennerSimContracts.has(dossie)) {
             bennerSimRemovidas++; removeSet.add(excelRow);
           }
         }
@@ -388,11 +383,9 @@ export default function CorrigirPlanilha() {
           return s;
         };
 
-        // For data rows (row >= 3): remove col B (processo), shift all subsequent cols left by 1
+        // Remove col B (processo) in the whole sheet and shift all subsequent cols left by 1
         for (const rowEl of remainingRows) {
           const rn = Number(rowEl.getAttribute("r"));
-          if (rn <= 2) continue; // preserve header rows 1-2
-
           const cells = Array.from(rowEl.getElementsByTagNameNS(sheetNs, "c")).filter(c => c.parentNode === rowEl);
           const toRemove: Element[] = [];
           const toShift: { cell: Element; oldIdx: number }[] = [];
@@ -403,10 +396,8 @@ export default function CorrigirPlanilha() {
             const colIdx = colToIdx(colLetters);
 
             if (colIdx === 1) {
-              // Col B (processo) — remove
               toRemove.push(cell);
             } else if (colIdx >= 2) {
-              // All cols C onward → shift left by 1
               toShift.push({ cell, oldIdx: colIdx });
             }
           }
@@ -436,15 +427,42 @@ export default function CorrigirPlanilha() {
         if (dimEl) {
           const dimRef = dimEl.getAttribute("ref") || "";
           const dimMatch = dimRef.match(/^([A-Z]+)\d+:([A-Z]+)\d+$/);
-          if (dimMatch) dimEl.setAttribute("ref", `${dimMatch[1]}1:${dimMatch[2]}${newRowNum - 1}`);
+          if (dimMatch) {
+            const startIdx = colToIdx(dimMatch[1]);
+            const endIdx = colToIdx(dimMatch[2]);
+            const newStart = idxToCol(startIdx >= 2 ? startIdx - 1 : startIdx);
+            const newEnd = idxToCol(endIdx >= 2 ? endIdx - 1 : Math.max(endIdx - 1, 0));
+            dimEl.setAttribute("ref", `${newStart}1:${newEnd}${newRowNum - 1}`);
+          }
         }
 
         const mergeCellsEl = sheetDoc.getElementsByTagNameNS(sheetNs, "mergeCells")[0];
-        if (mergeCellsEl && removeSet.size > 0) {
+        if (mergeCellsEl) {
           const merges = Array.from(mergeCellsEl.getElementsByTagNameNS(sheetNs, "mergeCell"));
           for (const m of merges) {
-            const rowNums = (m.getAttribute("ref") || "").match(/\d+/g)?.map(Number) || [];
-            if (rowNums.some(rn => removeSet.has(rn))) mergeCellsEl.removeChild(m);
+            const ref = m.getAttribute("ref") || "";
+            const match = ref.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+            if (!match) continue;
+            const startCol = colToIdx(match[1]);
+            const endCol = colToIdx(match[3]);
+            const rowStart = match[2];
+            const rowEnd = match[4];
+
+            let newStartCol = startCol;
+            let newEndCol = endCol;
+
+            if (startCol === 1 && endCol === 1) {
+              mergeCellsEl.removeChild(m);
+              continue;
+            }
+            if (startCol >= 2) newStartCol -= 1;
+            if (endCol >= 2) newEndCol -= 1;
+            if (newEndCol < newStartCol) {
+              mergeCellsEl.removeChild(m);
+              continue;
+            }
+
+            m.setAttribute("ref", `${idxToCol(newStartCol)}${rowStart}:${idxToCol(newEndCol)}${rowEnd}`);
           }
           const remaining = mergeCellsEl.getElementsByTagNameNS(sheetNs, "mergeCell").length;
           if (remaining === 0) mergeCellsEl.parentNode?.removeChild(mergeCellsEl);
