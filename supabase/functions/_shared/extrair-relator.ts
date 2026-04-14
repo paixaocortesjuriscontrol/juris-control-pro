@@ -82,8 +82,13 @@ function extrairRelatorDoTexto(texto: string): string | null {
   if (match?.[1]) {
     return limparNome(match[1]);
   }
-  // Tenta regex padrão
+  // Tenta regex padrão (Ministro, Desembargador, Min.)
   match = RELATOR_REGEX.exec(texto);
+  if (match?.[1]) {
+    return limparNome(match[1]);
+  }
+  // Tenta "Relator NOME" (pode capturar "Relator" como título)
+  match = RELATOR_TITULO_REGEX.exec(texto);
   if (match?.[1]) {
     return limparNome(match[1]);
   }
