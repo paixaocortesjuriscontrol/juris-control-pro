@@ -7,6 +7,42 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const ENCRYPTION_KEY = Deno.env.get("COFRE_ENCRYPTION_KEY") ?? "";
+
+// Decrypt AES-GCM (same as cofre-senhas)
+async function deriveKey(secret: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  return await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret.padEnd(32, "0").slice(0, 32)),
+    "AES-GCM",
+    false,
+    ["decrypt"]
+  );
+}
+
+async function decrypt(ciphertext: string): Promise<string> {
+  const combined = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const encrypted = combined.slice(12);
+  const key = await deriveKey(ENCRYPTION_KEY);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encrypted
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+async function decryptSafe(value: string | null): Promise<string | null> {
+  if (!value) return null;
+  try {
+    return await decrypt(value);
+  } catch {
+    return value; // plaintext fallback
+  }
+}
+
 // Mapa de endpoints MNI por tribunal
 const MNI_ENDPOINTS: Record<string, string> = {
   // TST
@@ -146,37 +182,16 @@ serve(async (req) => {
       });
     }
 
-    // Get decrypted password via cofre-senhas edge function
-    const cofreResponse = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/cofre-senhas`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "obter_senha",
-          cofre_senha_id,
-        }),
-      }
-    );
-
-    const cofreData = await cofreResponse.json();
-    if (!cofreData.success) {
+    // Decrypt password directly
+    const login = credencial.login;
+    const senha = await decryptSafe(credencial.senha_hash);
+    if (!senha) {
       return new Response(
-        JSON.stringify({
-          error: "Erro ao obter credenciais do cofre",
-          details: cofreData.error,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Senha não encontrada no cofre" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { login, senha } = cofreData.data;
     const tribunal = credencial.tribunal?.toUpperCase().replace(/\s+/g, "");
 
     // Find MNI endpoint
