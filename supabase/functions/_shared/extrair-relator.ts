@@ -102,6 +102,8 @@ function limparNome(nome: string): string {
   limpo = limpo.replace(/[.,;:]+$/, "").trim();
   // Remove "Dr." / "Dra." prefixo redundante
   limpo = limpo.replace(/^(?:dr[a]?\.?\s*)/i, "").trim();
+  // Remove "Relator" / "Relatora" que pode aparecer como título intermediário
+  limpo = limpo.replace(/^(?:relator[a]?\s+)/i, "").trim();
   return limpo || nome.trim();
 }
 
