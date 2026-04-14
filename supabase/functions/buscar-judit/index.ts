@@ -1,10 +1,233 @@
+// supabase/functions/buscar-judit/index.ts
+//
+// Substituição da versão anterior. Mudança principal: usa o fluxo ASSÍNCRONO
+// documentado da Judit (requests.prod.judit.io/requests + polling em /responses)
+// em vez do endpoint legacy lawsuits.production.judit.io/lawsuits/{cnj}.
+//
+// Por que a versão anterior não achava nada do TST:
+//   O endpoint lawsuits/{cnj} é um lookup de cache que retorna 1 instância
+//   (geralmente a 1ª, TRT). Não dispara crawler e não agrega instâncias.
+//   O fluxo /requests aciona os crawlers e devolve TRT1, TRT2 e TST juntos
+//   em page_data[], e aí é só escolher a entrada com tribunal_acronym=TST.
+//
+// Contrato com o front-end preservado: mesma forma do `result` de retorno.
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { extrairOrgaoJulgador, derivarTurmaDoRelator, derivarRelatorDaTurma } from "../_shared/extrair-relator.ts";
+import {
+  extrairOrgaoJulgador,
+  derivarTurmaDoRelator,
+  derivarRelatorDaTurma,
+} from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
+
+const JUDIT_BASE = "https://requests.prod.judit.io";
+const REQUESTS_URL = `${JUDIT_BASE}/requests`;
+const RESPONSES_URL = `${JUDIT_BASE}/responses`;
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 110_000;   // edge functions do Supabase limitam ~150s
+const CACHE_TTL_DAYS = 7;
+
+// ---------- Judit async client --------------------------------------------
+
+async function juditCriarRequest(
+  apiKey: string,
+  cnj: string,
+): Promise<string | null> {
+  const body = {
+    search: {
+      search_type: "lawsuit_cnj",
+      search_key: cnj,
+      response_type: "lawsuit",
+      cache_ttl_in_days: CACHE_TTL_DAYS,
+    },
+  };
+
+  const r = await fetch(REQUESTS_URL, {
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!r.ok) {
+    console.error(`POST /requests ${r.status}: ${await r.text()}`);
+    return null;
+  }
+  const data = await r.json();
+  return data.request_id ?? null;
+}
+
+async function juditPollRespostas(
+  apiKey: string,
+  requestId: string,
+): Promise<any | null> {
+  // CORREÇÃO: request_status fica no NÍVEL RAIZ, não dentro de page_data[i].
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  let ultima: any = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const url = new URL(RESPONSES_URL);
+      url.searchParams.set("request_id", requestId);
+      url.searchParams.set("page_size", "50");
+
+      const r = await fetch(url.toString(), {
+        headers: { "api-key": apiKey },
+      });
+
+      if (r.status === 429) {
+        await sleep(5000);
+        continue;
+      }
+      if (!r.ok) {
+        console.error(`GET /responses ${r.status}: ${await r.text()}`);
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
+      const data = await r.json();
+      ultima = data;
+      const status = data.request_status;
+      console.log(`Polling ${requestId}: status=${status}, instancias=${(data.page_data || []).length}`);
+      if (status === "completed") return data;
+      if (status === "cancelled" || status === "cancelling") return data;
+    } catch (e) {
+      console.error("Polling error:", e);
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  console.warn(`Timeout após ${POLL_TIMEOUT_MS}ms, retornando último parcial`);
+  return ultima; // devolve parcial: o selecionador ainda pode extrair algo
+}
+
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+// ---------- seleção de instância ------------------------------------------
+
+function selecionarInstancia(pageData: any[]): any | null {
+  if (!pageData?.length) return null;
+
+  const rds = pageData
+    .map((item) => item?.response_data)
+    .filter((rd) => rd && typeof rd === "object");
+
+  if (!rds.length) return null;
+
+  // 1) TST explícito
+  const tst = rds.find((rd) => {
+    const t = (rd.tribunal_acronym || "").toUpperCase();
+    return t === "TST" || t === "STF" || t === "STJ";
+  });
+  if (tst) return tst;
+
+  // 2) maior instance
+  return rds.reduce((a, b) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
+}
+
+// ---------- helpers de parsing --------------------------------------------
+
+function toDateBR(iso?: string | null): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+  } catch {
+    return null;
+  }
+}
+
+function toDateISO(iso?: string | null): string | null {
+  if (!iso) return null;
+  try {
+    return iso.substring(0, 10);
+  } catch {
+    return null;
+  }
+}
+
+const MAP_RECURSO: Array<[RegExp, string]> = [
+  [/agravo.*instrumento.*recurso.*revista/i, "Agravo de Instrumento - Recurso de Revista"],
+  [/recurso.*revista.*agravo.*instrumento/i, "Recurso de Revista - Agravo de Instrumento"],
+  [/embargos.*declara/i, "Embargos de Declaração"],
+  [/embargos/i, "Embargos"],
+  [/agravo.*instrumento/i, "Agravo de Instrumento"],
+  [/recurso.*revista/i, "Recurso de Revista"],
+  [/agravo.*regimental/i, "Agravo Regimental"],
+  [/agravo/i, "Agravo"],
+];
+
+function extrairClassificacao(rd: any): string | null {
+  // schema oficial: classifications é array
+  const classes = Array.isArray(rd.classifications) ? rd.classifications : [];
+  const nomes = classes.map((c: any) => c?.name ?? "").join(" | ").toLowerCase();
+
+  for (const [rx, rotulo] of MAP_RECURSO) {
+    if (rx.test(nomes)) return rotulo;
+  }
+  if (classes.length && classes[0]?.name) return classes[0].name;
+
+  // fallbacks defensivos se o schema vier diferente
+  if (typeof rd.classification === "string") return rd.classification;
+  if (rd.classification?.name) return rd.classification.name;
+  return null;
+}
+
+function extrairTurma(rd: any): string | null {
+  const courts = Array.isArray(rd.courts) ? rd.courts : [];
+  for (const c of courts) {
+    const nome = (c?.name || "").toString();
+    const m = nome.match(/(\d+)\s*[ªa]?\s*turma/i);
+    if (m) return `${m[1]}ª Turma`;
+  }
+  // qualquer órgão colegiado reconhecível
+  for (const c of courts) {
+    const nome = (c?.name || "").toString();
+    if (/turma|sdi|subse|seção|câmara|órgão especial/i.test(nome)) return nome;
+  }
+  return null;
+}
+
+function extrairRelator(rd: any): string | null {
+  const j = rd.judge;
+  if (typeof j === "string" && j.trim()) return j.trim();
+  if (j && typeof j === "object" && j.name) return j.name;
+
+  // Ministros do TST aparecem como "parties" com person_type específico
+  // apenas em alguns crawlers. Tentamos também steps[].content.
+  if (Array.isArray(rd.parties)) {
+    const mag = rd.parties.find((p: any) => {
+      const t = (p?.person_type || "").toUpperCase();
+      return ["MAGISTRADO", "JUIZ", "RELATOR", "DESEMBARGADOR", "MINISTRO"].includes(t);
+    });
+    if (mag?.name) return mag.name;
+  }
+
+  const RX_REL = /(?:relator|relatora|min(?:istro|istra)?\.?)[\s:]+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ.\s]{5,60})/i;
+  for (const s of rd.steps || []) {
+    const txt = (s?.content || "").toString();
+    const m = txt.match(RX_REL);
+    if (m) {
+      const cand = m[1].trim().replace(/[.,;]+$/, "");
+      if (cand.split(/\s+/).length >= 2) return cand;
+    }
+  }
+  return null;
+}
+
+// ---------- handler --------------------------------------------------------
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,384 +237,212 @@ serve(async (req) => {
   try {
     const JUDIT_API_KEY = Deno.env.get("JUDIT_API_KEY");
     if (!JUDIT_API_KEY) {
-      return new Response(JSON.stringify({ error: "JUDIT_API_KEY não configurada" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "JUDIT_API_KEY não configurada" }, 500);
     }
 
-    const { numero_processo } = await req.json();
-    if (!numero_processo) {
-      return new Response(JSON.stringify({ error: "Número do processo é obrigatório" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const body = await req.json().catch(() => ({}));
+    const numero_processo = body?.numero_processo;
+    if (!numero_processo || typeof numero_processo !== "string") {
+      return json({ error: "Número do processo é obrigatório" }, 400);
     }
-
     const cnj = numero_processo.trim();
-    console.log(`Buscando processo na Judit: ${cnj}`);
+    console.log(`[buscar-judit] CNJ=${cnj}`);
 
-    const response = await fetch(
-      `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(cnj)}`,
-      {
-        method: "GET",
-        headers: {
-          "api-key": JUDIT_API_KEY,
-          "Content-Type": "application/json",
-        },
-      }
+    // 1) cria requisição assíncrona
+    const requestId = await juditCriarRequest(JUDIT_API_KEY, cnj);
+    if (!requestId) {
+      return json({ error: "Falha ao criar requisição na Judit" }, 502);
+    }
+    console.log(`[buscar-judit] request_id=${requestId}`);
+
+    // 2) polling até completed
+    const envelope = await juditPollRespostas(JUDIT_API_KEY, requestId);
+    if (!envelope) {
+      return json({ error: "Sem resposta da Judit (timeout)" }, 504);
+    }
+
+    const pageData = envelope.page_data ?? [];
+    console.log(
+      `[buscar-judit] status=${envelope.request_status} instancias=${pageData.length} acronimos=${pageData
+        .map((i: any) => i?.response_data?.tribunal_acronym)
+        .join(",")}`,
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Judit API erro ${response.status}: ${errorText}`);
-      
-      if (response.status === 404) {
-        return new Response(JSON.stringify({ error: "Processo não encontrado na base da Judit" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 401 || response.status === 403) {
-        return new Response(JSON.stringify({ error: "API Key da Judit inválida ou sem permissão" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ error: `Erro na API Judit: ${response.status}` }), {
-        status: response.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const rd = selecionarInstancia(pageData);
+    if (!rd) {
+      return json(
+        {
+          error: "Processo não encontrado na Judit",
+          _debug: {
+            request_id: requestId,
+            status_judit: envelope.request_status,
+            instancias_retornadas: pageData.length,
+          },
+        },
+        404,
+      );
     }
 
-    let data = await response.json();
-    console.log("Judit response keys:", Object.keys(data));
-    let rd = data.response_data || data;
+    console.log(
+      `[buscar-judit] selecionado: tribunal=${rd.tribunal_acronym} instance=${rd.instance}`,
+    );
 
-    // ========== AUTO-FOLLOW: Se tribunal não é TST/STF/STJ, buscar related_lawsuits ==========
-    const tribunaisSuperiores = ["TST", "STF", "STJ"];
-    const acronimoInicial = (rd.tribunal_acronym || rd.court_acronym || "").toUpperCase();
-    const ehTribunalSuperior = tribunaisSuperiores.some(t => acronimoInicial.includes(t));
-    
-    if (!ehTribunalSuperior) {
-      console.log(`Tribunal ${acronimoInicial} não é superior. Verificando related_lawsuits...`);
-      const related = rd.related_lawsuits || data.related_lawsuits || [];
-      console.log(`related_lawsuits encontrados: ${JSON.stringify(related)}`);
-      
-      // Tentar buscar cada related_lawsuit que pareça ser de tribunal superior
-      for (const rel of related) {
-        const relCode = typeof rel === 'string' ? rel : (rel.code || rel.numero || rel._id || null);
-        if (!relCode) continue;
-        
-        console.log(`Tentando buscar related_lawsuit: ${relCode}`);
-        try {
-          const relResp = await fetch(
-            `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(relCode)}`,
-            {
-              method: "GET",
-              headers: {
-                "api-key": JUDIT_API_KEY,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-          
-          if (relResp.ok) {
-            const relData = await relResp.json();
-            const relRd = relData.response_data || relData;
-            const relAcronimo = (relRd.tribunal_acronym || "").toUpperCase();
-            
-            if (tribunaisSuperiores.some(t => relAcronimo.includes(t))) {
-              console.log(`✅ Encontrada instância superior: ${relAcronimo} via related_lawsuit ${relCode}`);
-              data = relData;
-              rd = relRd;
-              break;
-            } else {
-              console.log(`related_lawsuit ${relCode} é ${relAcronimo}, ignorando`);
-              await relResp.text(); // consume body
-            }
-          } else {
-            console.log(`related_lawsuit ${relCode} retornou ${relResp.status}`);
-            await relResp.text(); // consume body
-          }
-        } catch (relErr: any) {
-          console.error(`Erro ao buscar related_lawsuit ${relCode}:`, relErr.message);
-        }
-      }
-
-      // Se ainda não é tribunal superior, tentar buscar pelo mesmo número no TST
-      const rdAtual = data.response_data || data;
-      const acronimoAtual = (rdAtual.tribunal_acronym || "").toUpperCase();
-      if (!tribunaisSuperiores.some(t => acronimoAtual.includes(t))) {
-        console.log("Nenhum related_lawsuit superior encontrado. Tentando busca direta no TST...");
-        // A Judit pode ter o mesmo número indexado com instância diferente
-        // Tentar buscar adicionando filtro ou via search endpoint
-        try {
-          const searchResp = await fetch(
-            `https://lawsuits.production.judit.io/lawsuits?code=${encodeURIComponent(cnj)}&tribunal_acronym=TST`,
-            {
-              method: "GET",
-              headers: {
-                "api-key": JUDIT_API_KEY,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-          if (searchResp.ok) {
-            const searchData = await searchResp.json();
-            const results = searchData.results || searchData.data || (Array.isArray(searchData) ? searchData : []);
-            console.log(`Busca TST retornou ${results.length} resultados`);
-            if (results.length > 0) {
-              const tstResult = results[0];
-              const tstRd = tstResult.response_data || tstResult;
-              console.log(`✅ Encontrada instância TST via search: ${JSON.stringify(Object.keys(tstRd))}`);
-              data = tstResult;
-              rd = tstRd;
-            }
-          } else {
-            console.log(`Busca TST retornou ${searchResp.status}`);
-            await searchResp.text();
-          }
-        } catch (searchErr: any) {
-          console.log(`Busca TST falhou: ${searchErr.message}`);
-        }
-      }
-    }
-
-    // ========== MOVIMENTAÇÕES (steps) - EXTRAIR PRIMEIRO ==========
-    const steps = rd.steps || data.steps || [];
-    console.log(`Total de steps encontrados: ${steps.length}`);
-
-    // Log de amostra dos primeiros steps para debug
-    if (steps.length > 0) {
-      console.log("Amostra steps (primeiros 3):", JSON.stringify(steps.slice(0, 3).map((s: any) => ({
-        date: s.step_date || s.date,
-        content: (s.content || s.title || "").toString().substring(0, 200),
-        code: s.code || s.movement_code,
-      }))));
-    }
-
-    // ========== DOSSIÊ ==========
-    // Tentar múltiplas fontes para o dossiê
-    let dossie: string | null = rd.dossie || rd.dossier || rd.folder || rd.case_number || null;
-    // Tentar extrair do campo cover
-    if (!dossie && rd.cover?.dossie) dossie = rd.cover.dossie;
-    if (!dossie && rd.cover?.folder) dossie = rd.cover.folder;
-    if (!dossie && rd.cover?.case_number) dossie = rd.cover.case_number;
-    // Tentar extrair do campo extra_data / metadata
-    if (!dossie && rd.extra_data?.dossie) dossie = rd.extra_data.dossie;
-    if (!dossie && rd.metadata?.dossie) dossie = rd.metadata.dossie;
-    console.log(`Dossiê extraído: ${dossie}`);
-
-    // ========== CLASSIFICAÇÃO / TIPO DE RECURSO ==========
-    const rawClassification = rd.classification;
-    let classificacao: string | null = null;
-    if (typeof rawClassification === 'string') {
-      classificacao = rawClassification;
-    } else if (rawClassification?.name) {
-      classificacao = rawClassification.name;
-    } else if (rd.classifications && rd.classifications.length > 0) {
-      const first = rd.classifications[0];
-      classificacao = typeof first === 'string' ? first : first?.name || null;
-    }
-    // Fallback: type ou lawsuit_type
-    if (!classificacao && rd.type) classificacao = typeof rd.type === 'string' ? rd.type : rd.type?.name || null;
-    if (!classificacao && rd.lawsuit_type) classificacao = typeof rd.lawsuit_type === 'string' ? rd.lawsuit_type : rd.lawsuit_type?.name || null;
-    console.log(`Tipo de recurso/classificação: ${classificacao}`);
-
-    // ========== DATA DE DISTRIBUIÇÃO ==========
-    let dataDistribuicao = rd.distribution_date
-      ? rd.distribution_date.substring(0, 10)
-      : null;
-    console.log(`Data distribuição (payload raiz): ${dataDistribuicao}`);
-
-    // ========== TRIBUNAL ==========
-    const tribunalAcronimo = rd.tribunal_acronym || rd.court_acronym || null;
+    // ---- extração ----
+    const tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
     let tribunal: string | null = null;
-    if (tribunalAcronimo) {
-      const upper = tribunalAcronimo.toUpperCase();
-      if (upper.includes("TST")) tribunal = "TST";
-      else if (upper.includes("STF")) tribunal = "STF";
-      else if (upper.includes("STJ")) tribunal = "STJ";
-      else tribunal = upper;
-    }
-    console.log(`Tribunal: ${tribunal} (acronimo: ${tribunalAcronimo})`);
+    if (tribunalAcronimo?.includes("TST")) tribunal = "TST";
+    else if (tribunalAcronimo?.includes("STF")) tribunal = "STF";
+    else if (tribunalAcronimo?.includes("STJ")) tribunal = "STJ";
+    else tribunal = tribunalAcronimo;
 
-    // ========== RELATOR / JUIZ (múltiplas fontes) ==========
-    let relator: string | null = null;
-    
-    // Fonte 1: campos diretos no payload
-    if (rd.judge) relator = rd.judge;
-    if (!relator && rd.relator) relator = rd.relator;
-    if (!relator && rd.cover?.judge) relator = rd.cover.judge;
-    if (!relator && rd.orgaoJulgador?.magistrado) relator = rd.orgaoJulgador.magistrado;
-    
-    // Fonte 2: parties com tipo magistrado/relator
-    if (!relator && Array.isArray(rd.parties)) {
-      const magistrado = rd.parties.find((p: any) => {
-        const tipo = (p.person_type || "").toUpperCase();
-        return ["MAGISTRADO", "JUIZ", "RELATOR", "DESEMBARGADOR", "MINISTRO"].includes(tipo);
-      });
-      if (magistrado) relator = magistrado.name;
-    }
-    
-    // Fonte 3: county (ex: "1ª TURMA - MIN. FULANO")
-    if (!relator && rd.county) {
-      const relMatch = rd.county.match(/(?:MIN\.|MINISTRO|DES\.|DESEMBARGADOR|RELATOR)[:\s]*([A-ZÁÀÃÉÊÍÓÔÚÇ\s]+)/i);
-      if (relMatch) relator = relMatch[1].trim();
-    }
-    console.log(`Relator (antes dos steps): ${relator}`);
+    const classificacao = extrairClassificacao(rd);
+    const dataDistribuicaoBR = toDateBR(rd.distribution_date);
+    const dataDistribuicaoISO = toDateISO(rd.distribution_date);
 
-    // ========== TURMA (múltiplas fontes) ==========
-    let turma: string | null = null;
-    const courts = rd.courts || [];
-    if (Array.isArray(courts)) {
-      for (const court of courts) {
-        const name = (court.name || court).toString();
-        if (/turma|sdi|subse|seção|câmara|órgão especial/i.test(name)) {
-          turma = name;
-          break;
-        }
+    let relator = extrairRelator(rd);
+    let turma = extrairTurma(rd);
+
+    // fallback: helpers do projeto lendo os steps
+    const steps = Array.isArray(rd.steps) ? rd.steps : [];
+    console.log(`[buscar-judit] total_steps=${steps.length}`);
+    if (steps.length > 0) {
+      console.log(
+        "[buscar-judit] amostra steps:",
+        JSON.stringify(
+          steps.slice(0, 3).map((s: any) => ({
+            date: s.step_date,
+            content: (s.content || "").toString().substring(0, 160),
+          })),
+        ),
+      );
+    }
+
+    if (!relator || !turma) {
+      try {
+        const oj = extrairOrgaoJulgador(steps);
+        if (!relator && oj?.relator) relator = oj.relator;
+        if (!turma && oj?.turma) turma = oj.turma;
+      } catch (e) {
+        console.warn("extrairOrgaoJulgador falhou:", (e as Error).message);
       }
     }
-    if (!turma && rd.county) {
-      const turmaMatch = rd.county.match(/(\d+[ªºa]?\s*turma|sdi[- ]?\d*|subse[çc][aã]o|câmara|órgão especial)/i);
-      if (turmaMatch) turma = turmaMatch[1].trim();
-    }
-    if (!turma && rd.orgaoJulgador?.nome) {
-      turma = rd.orgaoJulgador.nome;
-    }
-    if (typeof courts === 'string' && !turma && /turma|sdi|subse|seção|câmara/i.test(courts)) {
-      turma = courts;
-    }
-    console.log(`Turma (antes dos steps): ${turma}`);
 
-    // ========== FALLBACK: EXTRAIR DOS MOVIMENTOS (steps) ==========
-    // Mesma lógica usada na importação de planilhas (Carga Benner / Planilha TST)
-    if (!relator || !turma || !dataDistribuicao) {
-      const orgaoJulgador = extrairOrgaoJulgador(steps);
-      console.log("Órgão julgador extraído dos movimentos:", JSON.stringify(orgaoJulgador));
-      if (!relator && orgaoJulgador.relator) relator = orgaoJulgador.relator;
-      if (!turma && orgaoJulgador.turma) turma = orgaoJulgador.turma;
-      if (!dataDistribuicao && orgaoJulgador.data_distribuicao) dataDistribuicao = orgaoJulgador.data_distribuicao;
-    }
-
-    // Fallback final: relator → turma via mapeamento TST
+    // relator <-> turma via mapeamento TST (helpers do projeto)
     if (relator && !turma) {
-      turma = derivarTurmaDoRelator(relator);
-      if (turma) console.log(`Turma derivada do relator via mapeamento: ${turma}`);
+      const t = derivarTurmaDoRelator(relator);
+      if (t) turma = t;
     }
-    // Fallback: turma → relator (só se 1:1)
     if (turma && !relator) {
-      const rel = derivarRelatorDaTurma(turma);
-      if (rel) {
-        relator = rel;
-        console.log(`Relator derivado da turma via mapeamento reverso: ${relator}`);
-      }
+      const r = derivarRelatorDaTurma(turma);
+      if (r) relator = r;
     }
 
-    console.log(`RESULTADO FINAL - Relator: ${relator}, Turma: ${turma}, Distribuição: ${dataDistribuicao}`);
-
-    // ========== PARTES ==========
-    const parties = data.parties || rd.parties || [];
+    // partes
+    const parties = Array.isArray(rd.parties) ? rd.parties : [];
     const poloAtivo = parties
-      .filter((p: any) => p.side?.toUpperCase() === "ACTIVE" && p.person_type?.toUpperCase() !== "ADVOGADO")
-      .map((p: any) => p.name)
+      .filter((p: any) =>
+        (p?.side || "").toUpperCase() === "ACTIVE" &&
+        (p?.person_type || "").toUpperCase() !== "ADVOGADO"
+      )
+      .map((p: any) => p?.name)
+      .filter(Boolean)
       .join(", ");
     const poloPassivo = parties
-      .filter((p: any) => p.side?.toUpperCase() === "PASSIVE" && p.person_type?.toUpperCase() !== "ADVOGADO")
-      .map((p: any) => p.name)
+      .filter((p: any) =>
+        (p?.side || "").toUpperCase() === "PASSIVE" &&
+        (p?.person_type || "").toUpperCase() !== "ADVOGADO"
+      )
+      .map((p: any) => p?.name)
+      .filter(Boolean)
       .join(", ");
 
-    // ========== SITUAÇÃO ==========
-    const situacao = rd.status || rd.situation || null;
+    // situação
+    const rawStatus = rd.status || null;
     let situacaoProcesso: string | null = null;
-    if (situacao) {
-      const sit = situacao.toUpperCase();
-      if (sit.includes("ATIVO") || sit === "ATIVA") situacaoProcesso = "Ativo";
-      else if (sit.includes("FINALIZADO") || sit.includes("ARQUIVADO")) situacaoProcesso = "Arquivado";
-      else if (sit.includes("BAIXADO")) situacaoProcesso = "Baixado";
-      else if (sit.includes("SUSPENSO")) situacaoProcesso = "Suspenso";
+    if (rawStatus) {
+      const s = rawStatus.toString().toUpperCase();
+      if (s.includes("ATIVO") || s === "ATIVA") situacaoProcesso = "Ativo";
+      else if (s.includes("FINALIZADO") || s.includes("ARQUIVADO")) situacaoProcesso = "Arquivado";
+      else if (s.includes("BAIXADO")) situacaoProcesso = "Baixado";
+      else if (s.includes("SUSPENSO")) situacaoProcesso = "Suspenso";
     }
 
-    // ========== ANÁLISE DOS STEPS ==========
-    const PAUTA_REGEX = /pauta|sess[aã]o de julgamento|inclu[ií]d[oa] em pauta|designad[oa].*julgamento|julgamento.*designad/i;
-    const RESULTADO_TRANSCENDENCIA_REGEX = /sem transcend[eê]ncia|transcend[eê]ncia n[aã]o reconhecida/i;
-    const RESULTADO_NAO_CONHECIDO_REGEX = /n[aã]o conhec|recurso.*n[aã]o.*conhecid/i;
-    const RESULTADO_CONHECIDO_PROVIDO_REGEX = /conhecid[oa].*provid[oa]|dar provimento|recurso.*provid/i;
-    const RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX = /conhecid[oa].*n[aã]o.*provid|negar provimento|desprovid|improvid/i;
-    const BAIXA_REGEX = /baixa definitiva|remetidos os autos [àa] origem|baixados? os autos|autos.*devolvidos|certid[aã]o de tr[aâ]nsito|tr[aâ]nsito em julgado/i;
+    // análise dos steps
+    const PAUTA = /pauta|sess[aã]o de julgamento|inclu[ií]d[oa] em pauta|designad[oa].*julgamento|julgamento.*designad/i;
+    const SEM_TRANSC = /sem transcend[eê]ncia|transcend[eê]ncia n[aã]o reconhecida/i;
+    const NAO_CONHECIDO = /n[aã]o conhec|recurso.*n[aã]o.*conhecid/i;
+    const CONH_PROV = /conhecid[oa].*provid[oa]|dar provimento|recurso.*provid/i;
+    const CONH_NAO_PROV = /conhecid[oa].*n[aã]o.*provid|negar provimento|desprovid|improvid/i;
+    const BAIXA = /baixa definitiva|remetidos os autos [àa] origem|baixados? os autos|autos.*devolvidos|certid[aã]o de tr[aâ]nsito|tr[aâ]nsito em julgado/i;
 
     let dataJulgamento: string | null = null;
     let horarioJulgamento: string | null = null;
     let tipoJulgamento: string | null = null;
-    let temDataJulgamento: string | null = null;
+    let temDataJulgamento = "N";
     let resultadoSemTranscendencia = false;
     let resultadoNaoConhecido = false;
     let resultadoConhecidoProvido = false;
     let resultadoConhecidoNaoProvido = false;
-    let resultadoOutra: string | null = null;
-    let processoBaixado: string | null = null;
+    let processoBaixado = "N";
 
     for (const step of steps) {
-      const content = (step.content || step.title || step.description || "").toString();
-      const stepDate = step.step_date || step.date || null;
+      const content = (step?.content || step?.title || step?.description || "").toString();
+      const stepDate = step?.step_date || step?.date || null;
 
-      if (PAUTA_REGEX.test(content) && stepDate && !dataJulgamento) {
-        const dateMatch = content.match(/(\d{2}\/\d{2}\/\d{4})/);
-        if (dateMatch) {
-          const parts = dateMatch[1].split('/');
-          dataJulgamento = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      if (PAUTA.test(content) && !dataJulgamento) {
+        const dm = content.match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (dm) {
+          const [d, m, y] = dm[1].split("/");
+          dataJulgamento = `${y}-${m}-${d}`;
         } else if (stepDate) {
           dataJulgamento = stepDate.substring(0, 10);
         }
         temDataJulgamento = "S";
-        const timeMatch = content.match(/(\d{1,2})[h:](\d{2})/);
-        if (timeMatch) {
-          horarioJulgamento = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
-        }
+        const hm = content.match(/(\d{1,2})[h:](\d{2})/);
+        if (hm) horarioJulgamento = `${hm[1].padStart(2, "0")}:${hm[2]}`;
         if (/virtual/i.test(content)) tipoJulgamento = "Virtual";
         else if (/telepresencial/i.test(content)) tipoJulgamento = "Telepresencial";
         else if (/h[ií]brid/i.test(content)) tipoJulgamento = "Híbrido";
         else if (/presencial/i.test(content)) tipoJulgamento = "Presencial";
       }
 
-      if (RESULTADO_TRANSCENDENCIA_REGEX.test(content)) resultadoSemTranscendencia = true;
-      if (RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX.test(content)) resultadoConhecidoNaoProvido = true;
-      else if (RESULTADO_CONHECIDO_PROVIDO_REGEX.test(content)) resultadoConhecidoProvido = true;
-      if (RESULTADO_NAO_CONHECIDO_REGEX.test(content) && !resultadoConhecidoProvido && !resultadoConhecidoNaoProvido) {
+      if (SEM_TRANSC.test(content)) resultadoSemTranscendencia = true;
+      if (CONH_NAO_PROV.test(content)) resultadoConhecidoNaoProvido = true;
+      else if (CONH_PROV.test(content)) resultadoConhecidoProvido = true;
+      if (NAO_CONHECIDO.test(content) && !resultadoConhecidoProvido && !resultadoConhecidoNaoProvido) {
         resultadoNaoConhecido = true;
       }
-      if (BAIXA_REGEX.test(content)) processoBaixado = "S";
+      if (BAIXA.test(content)) processoBaixado = "S";
     }
 
-    if (!temDataJulgamento) temDataJulgamento = "N";
-    if (!processoBaixado) processoBaixado = "N";
-
     if (processoBaixado === "S") {
-      const TRANSITO_REGEX = /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i;
-      const hasTransito = steps.some((s: any) => TRANSITO_REGEX.test((s.content || s.title || "").toString()));
+      const hasTransito = steps.some((s: any) =>
+        /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i.test(
+          (s?.content || "").toString(),
+        )
+      );
       situacaoProcesso = hasTransito ? "Trânsito em Julgado" : "Baixado";
     }
 
+    const lastStep = rd.last_step || null;
     const comarca = rd.county || null;
-    const vara = rd.courts || null;
-    const lastStep = data.last_step || rd.last_step || null;
+    const courts = rd.courts || null;
 
     const result = {
-      dossie: dossie,
+      dossie: null, // Judit não tem dossiê Santander
       tipo_recurso: classificacao,
-      data_distribuicao: dataDistribuicao,
-      relator: relator,
-      turma: turma,
-      tribunal: tribunal,
+      // o cliente Lovable espera yyyy-MM-dd no input de data; mantemos ISO.
+      // Se quiser pt-BR, troque por dataDistribuicaoBR.
+      data_distribuicao: dataDistribuicaoISO,
+      relator,
+      turma,
+      tribunal,
       tribunal_acronimo: tribunalAcronimo,
       recorrente: poloAtivo || null,
       polo_passivo: poloPassivo || null,
       situacao_processo: situacaoProcesso,
-      comarca: comarca,
-      vara: vara,
+      comarca,
+      vara: courts,
       tem_data_julgamento: temDataJulgamento,
       data_julgamento: dataJulgamento,
       horario_julgamento: horarioJulgamento,
@@ -400,28 +451,39 @@ serve(async (req) => {
       resultado_nao_conhecido: resultadoNaoConhecido,
       resultado_conhecido_provido: resultadoConhecidoProvido,
       resultado_conhecido_nao_provido: resultadoConhecidoNaoProvido,
-      resultado_outra: resultadoOutra,
+      resultado_outra: null,
       processo_baixado: processoBaixado,
-      ultimo_andamento: lastStep ? {
-        data: lastStep.step_date,
-        conteudo: lastStep.content,
-      } : null,
-      raw_status: situacao,
+      ultimo_andamento: lastStep
+        ? { data: lastStep.step_date, conteudo: lastStep.content }
+        : null,
+      raw_status: rawStatus,
       raw_classification: classificacao,
       raw_courts: courts,
       total_steps: steps.length,
+      _debug: {
+        request_id: requestId,
+        status_judit: envelope.request_status,
+        instancias_retornadas: pageData.length,
+        acronimos_retornados: pageData.map(
+          (i: any) => i?.response_data?.tribunal_acronym,
+        ),
+        tribunal_selecionado: rd.tribunal_acronym,
+        instance_selecionada: rd.instance,
+        distribution_date_br: dataDistribuicaoBR,
+      },
     };
 
-    console.log("Resultado mapeado:", JSON.stringify(result));
-
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.log("[buscar-judit] resultado:", JSON.stringify(result));
+    return json(result, 200);
   } catch (error) {
-    console.error("Erro buscar-judit:", error);
-    return new Response(JSON.stringify({ error: error.message || "Erro interno" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[buscar-judit] erro:", error);
+    return json({ error: (error as Error).message || "Erro interno" }, 500);
   }
 });
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
