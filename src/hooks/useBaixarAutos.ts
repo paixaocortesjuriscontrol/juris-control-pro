@@ -57,7 +57,7 @@ export function useBaixarAutos(processoId: string) {
     setResultado(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke("baixar-autos-pje", {
+      const { data, error } = await supabase.functions.invoke("baixar-autos-judit", {
         body: {
           cofre_senha_id: params.cofre_senha_id,
           processo_numero: params.processo_numero,
@@ -69,9 +69,10 @@ export function useBaixarAutos(processoId: string) {
 
       if (error) throw error;
 
-      if (data.erro && !data.sucesso) {
-        setErro(data.erro);
-        toast.error(data.erro);
+      if ((data?.error || data?.erro) && !data?.sucesso) {
+        const mensagemErro = data.error || data.erro;
+        setErro(mensagemErro);
+        toast.error(mensagemErro);
       } else {
         setResultado(data);
         queryClient.invalidateQueries({ queryKey: ["processos-documentos-download", processoId] });
