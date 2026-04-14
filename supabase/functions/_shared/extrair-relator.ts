@@ -199,8 +199,13 @@ export function extrairOrgaoJulgador(
     if (!isDist && !isRedist) continue;
 
     const relator = extrairRelatorDoTexto(content);
-    const turma = extrairTurmaDoTexto(content);
+    let turma = extrairTurmaDoTexto(content);
     const data = getStepDate(step)?.substring(0, 10) || null;
+
+    // Fallback: se encontrou relator mas não turma, deriva do mapeamento TST
+    if (relator && !turma) {
+      turma = derivarTurmaDoRelator(relator);
+    }
 
     // Só retorna se encontrou pelo menos relator ou turma
     if (relator || turma) {
