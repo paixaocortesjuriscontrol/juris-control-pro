@@ -30,7 +30,7 @@ const REQUESTS_URL = `${JUDIT_BASE}/requests`;
 const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 110_000;   // edge functions do Supabase limitam ~150s
+const POLL_TIMEOUT_MS = 60_000;    // 60s — evitar timeout do Supabase (~150s)
 const CACHE_TTL_DAYS = 7;
 
 // ---------- Judit async client --------------------------------------------
