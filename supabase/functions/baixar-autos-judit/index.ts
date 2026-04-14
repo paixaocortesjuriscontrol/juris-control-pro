@@ -22,6 +22,8 @@ interface Attachment {
   extension: string | null;
 }
 
+const RECENT_CRAWLER_WINDOW_MS = 30 * 60 * 1000;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -69,6 +71,61 @@ Deno.serve(async (req) => {
     const cnj = processo_numero.replace(/[^0-9.-]/g, "").trim();
     console.log(`[baixar-autos-judit] Buscando attachments para CNJ: ${cnj}`);
 
+    const [activeJobResult, existingDocsResult] = await Promise.all([
+      supabase
+        .from("baixar_autos_jobs")
+        .select("id, status, etapa, documentos_total, documentos_baixados, documentos_existentes, documentos_erro, mensagem, erro, updated_at")
+        .eq("processo_id", processo_id)
+        .in("status", ["iniciado", "crawler", "baixando"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("processos_documentos_download")
+        .select("id, nome_arquivo, tipo_documento, tamanho_bytes")
+        .eq("processo_id", processo_id)
+        .eq("status_download", "concluido")
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const activeJob = activeJobResult.data;
+    if (activeJob) {
+      console.log(`[baixar-autos-judit] Reutilizando job em andamento: ${activeJob.id}`);
+      return respond({
+        sucesso: true,
+        em_andamento: true,
+        documentos_baixados: activeJob.documentos_baixados || 0,
+        documentos_existentes: activeJob.documentos_existentes || 0,
+        documentos_erro: activeJob.documentos_erro || 0,
+        documentos_total: activeJob.documentos_total || 0,
+        documentos: [],
+        mensagem: activeJob.mensagem || activeJob.etapa,
+        erro: activeJob.erro,
+        job_id: activeJob.id,
+      });
+    }
+
+    const existingDocs = existingDocsResult.data || [];
+    if (existingDocs.length > 0) {
+      console.log(`[baixar-autos-judit] ${existingDocs.length} documento(s) já disponíveis no storage. Nenhuma nova busca será feita.`);
+      return respond({
+        sucesso: true,
+        reutilizado: true,
+        documentos_baixados: 0,
+        documentos_existentes: existingDocs.length,
+        documentos_erro: 0,
+        documentos_total: existingDocs.length,
+        documentos: existingDocs.map((doc) => ({
+          id: doc.id,
+          nome: doc.nome_arquivo,
+          tipo: doc.tipo_documento,
+          tamanho: doc.tamanho_bytes,
+          status: "ja_existente",
+        })),
+        mensagem: `${existingDocs.length} documento(s) já estão disponíveis. Nenhuma nova busca foi realizada.`,
+      });
+    }
+
     // Create job record for progress tracking
     const { data: jobData } = await supabase.from("baixar_autos_jobs").insert({
       processo_id,
@@ -111,6 +168,45 @@ Deno.serve(async (req) => {
 
     // ── Step 2: If no attachments, request crawler ──
     if (attachments.length === 0) {
+      const { data: recentCrawlerJob } = await supabase
+        .from("baixar_autos_jobs")
+        .select("id, status, etapa, mensagem, updated_at")
+        .eq("processo_id", processo_id)
+        .neq("id", jobId)
+        .in("status", ["crawler", "timeout"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const recentCrawlerStillFresh = recentCrawlerJob
+        ? Date.now() - new Date(recentCrawlerJob.updated_at).getTime() < RECENT_CRAWLER_WINDOW_MS
+        : false;
+
+      if (recentCrawlerStillFresh) {
+        const mensagem = "Verificação concluída: os arquivos ainda não foram disponibilizados pela Judit. Nenhuma nova solicitação foi enviada.";
+        console.log(`[baixar-autos-judit] Crawler recente já solicitado (${recentCrawlerJob?.id}). Apenas verificando disponibilidade.`);
+        await updateJob({
+          status: "concluido",
+          etapa: "Aguardando disponibilização dos arquivos",
+          documentos_total: 0,
+          documentos_baixados: 0,
+          documentos_existentes: 0,
+          documentos_erro: 0,
+          mensagem,
+        });
+        return respond({
+          sucesso: true,
+          verificacao_apenas: true,
+          documentos_baixados: 0,
+          documentos_existentes: 0,
+          documentos_erro: 0,
+          documentos_total: 0,
+          documentos: [],
+          mensagem,
+          job_id: jobId,
+        });
+      }
+
       await updateJob({ etapa: "Solicitando crawler da Judit...", status: "crawler" });
 
       const instanceNumber = Number(instance);
