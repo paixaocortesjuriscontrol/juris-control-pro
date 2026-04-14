@@ -87,10 +87,29 @@ serve(async (req) => {
       : null;
 
     // === RELATOR / JUIZ ===
-    // Tentar extrair de cover/judge, judge, ou steps com "relator"
+    // Fontes possíveis na Judit: judge, cover.judge, parties com tipo Magistrado/Juiz/Relator
     let relator = rd.judge || null;
     if (!relator && rd.cover?.judge) {
       relator = rd.cover.judge;
+    }
+    // Buscar em orgaoJulgador (se existir)
+    if (!relator && rd.orgaoJulgador?.magistrado) {
+      relator = rd.orgaoJulgador.magistrado;
+    }
+    // Buscar magistrado nas parties
+    if (!relator && Array.isArray(rd.parties)) {
+      const magistrado = rd.parties.find((p: any) => {
+        const tipo = (p.person_type || "").toUpperCase();
+        return tipo === "MAGISTRADO" || tipo === "JUIZ" || tipo === "RELATOR" || tipo === "DESEMBARGADOR" || tipo === "MINISTRO";
+      });
+      if (magistrado) {
+        relator = magistrado.name;
+      }
+    }
+    // Tentar extrair do county (ex: "1ª TURMA - MIN. FULANO")
+    if (!relator && rd.county) {
+      const relMatch = rd.county.match(/(?:MIN\.|MINISTRO|DES\.|DESEMBARGADOR|RELATOR)[:\s]*([A-ZÁÀÃÉÊÍÓÔÚÇ\s]+)/i);
+      if (relMatch) relator = relMatch[1].trim();
     }
 
     // === TURMA ===
@@ -104,7 +123,17 @@ serve(async (req) => {
           break;
         }
       }
-    } else if (typeof courts === 'string' && /turma|sdi|subse|seção|câmara/i.test(courts)) {
+    }
+    // Tentar extrair turma do county (ex: "TST - 3ª TURMA")
+    if (!turma && rd.county) {
+      const turmaMatch = rd.county.match(/(\d+[ªºa]?\s*turma|sdi[- ]?\d*|subse[çc][aã]o|câmara|órgão especial)/i);
+      if (turmaMatch) turma = turmaMatch[1].trim();
+    }
+    // Tentar do orgaoJulgador
+    if (!turma && rd.orgaoJulgador?.nome) {
+      turma = rd.orgaoJulgador.nome;
+    }
+    if (typeof courts === 'string' && !turma && /turma|sdi|subse|seção|câmara/i.test(courts)) {
       turma = courts;
     }
 
