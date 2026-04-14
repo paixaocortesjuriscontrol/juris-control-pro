@@ -47,6 +47,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const [baixandoAutos, setBaixandoAutos] = useState(false);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
 
