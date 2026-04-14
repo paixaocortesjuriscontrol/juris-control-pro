@@ -212,17 +212,39 @@ serve(async (req) => {
     const orgaoJulgador = extrairOrgaoJulgador(steps);
     console.log(`[consultar-processo-judit] Órgão julgador extraído:`, JSON.stringify(orgaoJulgador));
 
+    // ── Fallback: extrair tribunal/court do payload raiz da Judit ──
+    let relatorFinal = orgaoJulgador.relator;
+    let turmaFinal = orgaoJulgador.turma;
+
+    // Se não encontrou nos movimentos, tentar extrair do campo "courts" da Judit
+    if (!turmaFinal && rd.courts && Array.isArray(rd.courts)) {
+      for (const court of rd.courts) {
+        const courtName = court.name || court.description || "";
+        if (/turma|sbdi|sdi|pleno|especial|seção/i.test(courtName)) {
+          turmaFinal = courtName;
+          break;
+        }
+      }
+    }
+
+    // Se encontrou relator mas não turma, derivar do mapeamento TST
+    if (relatorFinal && !turmaFinal) {
+      turmaFinal = derivarTurmaDoRelator(relatorFinal);
+      if (turmaFinal) {
+        console.log(`[consultar-processo-judit] Turma derivada do relator via mapeamento: ${turmaFinal}`);
+      }
+    }
+
     // ── Atualizar processo com metadados ──
     const updateData: Record<string, unknown> = {
       ultima_consulta_judit: new Date().toISOString(),
     };
 
-    if (orgaoJulgador.relator) {
-      updateData.relator = orgaoJulgador.relator;
+    if (relatorFinal) {
+      updateData.relator = relatorFinal;
     }
-    if (orgaoJulgador.turma) {
-      // Usa tribunal (ex: "TST") + turma (ex: "6ª Turma") como tribunal_atual
-      updateData.tribunal = orgaoJulgador.turma;
+    if (turmaFinal) {
+      updateData.tribunal = turmaFinal;
     }
 
     await supabaseAuth
