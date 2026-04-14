@@ -7,8 +7,41 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Mapa de endpoints MNI por tribunal
-const MNI_ENDPOINTS: Record<string, string> = {
+const ENCRYPTION_KEY = Deno.env.get("COFRE_ENCRYPTION_KEY") ?? "";
+
+// Decrypt AES-GCM (same as cofre-senhas)
+async function deriveKey(secret: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  return await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret.padEnd(32, "0").slice(0, 32)),
+    "AES-GCM",
+    false,
+    ["decrypt"]
+  );
+}
+
+async function decrypt(ciphertext: string): Promise<string> {
+  const combined = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const encrypted = combined.slice(12);
+  const key = await deriveKey(ENCRYPTION_KEY);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encrypted
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+async function decryptSafe(value: string | null): Promise<string | null> {
+  if (!value) return null;
+  try {
+    return await decrypt(value);
+  } catch {
+    return value; // plaintext fallback
+  }
+}
   // TST
   TST: "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao",
   // TRTs
