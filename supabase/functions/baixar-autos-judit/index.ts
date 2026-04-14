@@ -91,30 +91,67 @@ Deno.serve(async (req) => {
     if (attachments.length === 0) {
       console.log("[baixar-autos-judit] Nenhum attachment. Solicitando crawler...");
 
-      const crawlerBody = {
-        search: {
-          search_type: "lawsuit_cnj",
-          search_key: cnj,
-          response_type: "attachments",
-          search_params: {
-            lawsuit_instance: instance,
+      const instanceNumber = Number(instance);
+      const crawlerAttempts = [
+        {
+          mode: "attachments",
+          body: {
+            search: {
+              search_type: "lawsuit_cnj",
+              search_key: cnj,
+              response_type: "attachments",
+              ...(Number.isFinite(instanceNumber)
+                ? { search_params: { lawsuit_instance: instanceNumber } }
+                : {}),
+            },
           },
         },
-      };
-      console.log(`[baixar-autos-judit] Crawler request body: ${JSON.stringify(crawlerBody)}`);
+        {
+          mode: "lawsuit",
+          body: {
+            search: {
+              search_type: "lawsuit_cnj",
+              search_key: cnj,
+              response_type: "lawsuit",
+              ...(Number.isFinite(instanceNumber)
+                ? { search_params: { lawsuit_instance: instanceNumber } }
+                : {}),
+            },
+          },
+        },
+      ];
 
-      const crawlerRes = await fetch(`${JUDIT_REQUESTS}/requests`, {
-        method: "POST",
-        headers: juditHeaders,
-        body: JSON.stringify(crawlerBody),
-      });
+      let crawlerRes: Response | null = null;
+      let crawlerErrorText = "";
+      let crawlerMode = "attachments";
 
-      if (!crawlerRes.ok) {
-        const errText = await crawlerRes.text();
-        console.error("[baixar-autos-judit] Crawler request failed:", crawlerRes.status, errText.substring(0, 300));
+      for (const attempt of crawlerAttempts) {
+        crawlerMode = attempt.mode;
+        console.log(`[baixar-autos-judit] Crawler request (${crawlerMode}) body: ${JSON.stringify(attempt.body)}`);
+
+        crawlerRes = await fetch(`${JUDIT_REQUESTS}/requests`, {
+          method: "POST",
+          headers: juditHeaders,
+          body: JSON.stringify(attempt.body),
+        });
+
+        if (crawlerRes.ok) {
+          console.log(`[baixar-autos-judit] Crawler aceito com mode=${crawlerMode}`);
+          break;
+        }
+
+        crawlerErrorText = await crawlerRes.text();
+        console.error(
+          `[baixar-autos-judit] Crawler request failed (${crawlerMode}):`,
+          crawlerRes.status,
+          crawlerErrorText.substring(0, 300),
+        );
+      }
+
+      if (!crawlerRes?.ok) {
         return respond({
           error: "Falha ao solicitar documentos ao crawler da Judit",
-          detalhes: errText.substring(0, 200),
+          detalhes: crawlerErrorText.substring(0, 200),
           sucesso: false,
           documentos_baixados: 0,
         });
