@@ -14,6 +14,7 @@ interface Stats {
   cejuscRemovidas: number;
   bennerSimRemovidas: number;
   totalFinal: number;
+  dossieIgualProcesso: number;
 }
 
 export default function CorrigirPlanilha() {
@@ -22,6 +23,7 @@ export default function CorrigirPlanilha() {
   const [processing, setProcessing] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [resultWb, setResultWb] = useState<XLSX.WorkBook | null>(null);
+  const [distResultWb, setDistResultWb] = useState<XLSX.WorkBook | null>(null);
 
   const readFile = (file: File): Promise<ArrayBuffer> =>
     new Promise((resolve, reject) => {
@@ -34,6 +36,9 @@ export default function CorrigirPlanilha() {
   const normalize = (val: unknown): string =>
     String(val ?? "").trim().toUpperCase();
 
+  const normalizeDigits = (val: unknown): string =>
+    String(val ?? "").replace(/\D/g, "");
+
   const processar = useCallback(async () => {
     if (!distFile || !cargaFile) {
       toast.error("Selecione ambas as planilhas");
@@ -42,35 +47,59 @@ export default function CorrigirPlanilha() {
     setProcessing(true);
     setStats(null);
     setResultWb(null);
+    setDistResultWb(null);
 
     try {
       const [distBuf, cargaBuf] = await Promise.all([readFile(distFile), readFile(cargaFile)]);
 
-      // Read distribution spreadsheet - collect contracts with Benner Atualizado = SIM (col AA = index 26)
+      // Read distribution spreadsheet
       const distWb = XLSX.read(new Uint8Array(distBuf), { type: "array" });
       const bennerSimContracts = new Set<string>();
+      let dossieIgualProcesso = 0;
 
+      // Build distribution result with red rows where dossier == processo
       for (const sheetName of distWb.SheetNames) {
         const ws = distWb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" }) as any[][];
+
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (!row) continue;
+
           const bennerAtualizado = normalize(row[26]); // col AA
           if (bennerAtualizado === "SIM") {
-            // Use dossier (col A = index 0) as contract identifier
             const dossie = normalize(row[0]);
             if (dossie) bennerSimContracts.add(dossie);
-            // Also try col B (processo) as fallback key
             const processo = normalize(row[1]);
             if (processo) bennerSimContracts.add(processo);
+          }
+
+          // Check if dossier (col A) digits == processo (col B) digits
+          const dossieDigits = normalizeDigits(row[0]);
+          const processoDigits = normalizeDigits(row[1]);
+          if (dossieDigits && processoDigits && dossieDigits === processoDigits) {
+            dossieIgualProcesso++;
+            // Paint row red
+            const ref = XLSX.utils.decode_range(ws["!ref"] || "A1");
+            for (let c = ref.s.c; c <= ref.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r: i, c });
+              if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+              if (!ws[addr].s) ws[addr].s = {};
+              ws[addr].s = {
+                fill: { fgColor: { rgb: "FF0000" } },
+                font: { color: { rgb: "FFFFFF" }, bold: true },
+              };
+            }
           }
         }
       }
 
+      // Save dist workbook with styles
+      setDistResultWb(distWb);
+
       // Read carga benner spreadsheet
       const cargaWb = XLSX.read(new Uint8Array(cargaBuf), { type: "array", cellDates: true });
-      
+
       let duplicatasRemovidas = 0;
       let cejuscRemovidas = 0;
       let bennerSimRemovidas = 0;
@@ -85,19 +114,13 @@ export default function CorrigirPlanilha() {
         const dataRows = rows.slice(1);
         totalCarga += dataRows.length;
 
-        // Step 1: Remove CEJUSC in column F (index 5)
         const afterCejusc = dataRows.filter(row => {
           const colF = normalize(row[5]);
-          if (colF.includes("CEJUSC")) {
-            cejuscRemovidas++;
-            return false;
-          }
+          if (colF.includes("CEJUSC")) { cejuscRemovidas++; return false; }
           return true;
         });
 
-        // Step 2: Remove rows where contract/dossier is in bennerSimContracts
         const afterBenner = afterCejusc.filter(row => {
-          // Check col A (dossier) and col B (processo) against bennerSim set
           const colA = normalize(row[0]);
           const colB = normalize(row[1]);
           if ((colA && bennerSimContracts.has(colA)) || (colB && bennerSimContracts.has(colB))) {
@@ -107,19 +130,14 @@ export default function CorrigirPlanilha() {
           return true;
         });
 
-        // Step 3: Remove duplicates by dossier/contract (col A + col B)
         const seen = new Set<string>();
         const afterDedup = afterBenner.filter(row => {
           const key = `${normalize(row[0])}|${normalize(row[1])}`;
-          if (seen.has(key)) {
-            duplicatasRemovidas++;
-            return false;
-          }
+          if (seen.has(key)) { duplicatasRemovidas++; return false; }
           seen.add(key);
           return true;
         });
 
-        // Rebuild sheet
         const newData = [headerRow, ...afterDedup];
         const newWs = XLSX.utils.aoa_to_sheet(newData);
         cargaWb.Sheets[sheetName] = newWs;
@@ -127,15 +145,9 @@ export default function CorrigirPlanilha() {
 
       const totalFinal = totalCarga - duplicatasRemovidas - cejuscRemovidas - bennerSimRemovidas;
 
-      setStats({
-        totalCarga,
-        duplicatasRemovidas,
-        cejuscRemovidas,
-        bennerSimRemovidas,
-        totalFinal,
-      });
+      setStats({ totalCarga, duplicatasRemovidas, cejuscRemovidas, bennerSimRemovidas, totalFinal, dossieIgualProcesso });
       setResultWb(cargaWb);
-      toast.success("Planilha corrigida com sucesso!");
+      toast.success("Planilhas processadas com sucesso!");
     } catch (err: any) {
       toast.error("Erro ao processar: " + (err?.message || String(err)));
     } finally {
@@ -143,19 +155,21 @@ export default function CorrigirPlanilha() {
     }
   }, [distFile, cargaFile]);
 
-  const baixar = useCallback(() => {
-    if (!resultWb) return;
-    const buf = XLSX.write(resultWb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const makeTimeSuffix = () => {
     const now = new Date();
-    const suffix = `${now.getDate().toString().padStart(2, "0")}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getFullYear()}_${now.getHours().toString().padStart(2, "0")}h${now.getMinutes().toString().padStart(2, "0")}`;
+    return `${now.getDate().toString().padStart(2, "0")}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getFullYear()}_${now.getHours().toString().padStart(2, "0")}h${now.getMinutes().toString().padStart(2, "0")}`;
+  };
+
+  const downloadWb = (wb: XLSX.WorkBook, name: string) => {
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Carga_Benner_Corrigida_${suffix}.xlsx`;
+    a.download = `${name}_${makeTimeSuffix()}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [resultWb]);
+  };
 
   return (
     <MainLayout title="Corrigir Planilha" subtitle="Remova duplicatas, linhas CEJUSC e registros já atualizados no Benner">
@@ -171,14 +185,9 @@ export default function CorrigirPlanilha() {
             </CardHeader>
             <CardContent>
               <Label htmlFor="dist-file" className="text-xs text-muted-foreground mb-2 block">
-                Usada para identificar contratos com Benner Atualizado = SIM (coluna AA)
+                Identifica Benner SIM (col AA) e marca dossiê = processo em vermelho
               </Label>
-              <Input
-                id="dist-file"
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={(e) => setDistFile(e.target.files?.[0] || null)}
-              />
+              <Input id="dist-file" type="file" accept=".xlsx,.xls" onChange={(e) => setDistFile(e.target.files?.[0] || null)} />
               {distFile && <p className="text-xs text-green-600 mt-1">✓ {distFile.name}</p>}
             </CardContent>
           </Card>
@@ -192,36 +201,37 @@ export default function CorrigirPlanilha() {
             </CardHeader>
             <CardContent>
               <Label htmlFor="carga-file" className="text-xs text-muted-foreground mb-2 block">
-                Planilha que será corrigida (remoção de duplicatas, CEJUSC e Benner SIM)
+                Será corrigida (remoção de duplicatas, CEJUSC e Benner SIM)
               </Label>
-              <Input
-                id="carga-file"
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={(e) => setCargaFile(e.target.files?.[0] || null)}
-              />
+              <Input id="carga-file" type="file" accept=".xlsx,.xls" onChange={(e) => setCargaFile(e.target.files?.[0] || null)} />
               {cargaFile && <p className="text-xs text-green-600 mt-1">✓ {cargaFile.name}</p>}
             </CardContent>
           </Card>
         </div>
 
-        {/* Action */}
-        <div className="flex gap-3">
+        {/* Actions */}
+        <div className="flex flex-wrap gap-3">
           <Button onClick={processar} disabled={processing || !distFile || !cargaFile} className="gap-2">
             <Upload className="w-4 h-4" />
             {processing ? "Processando..." : "Processar"}
           </Button>
           {resultWb && (
-            <Button variant="outline" onClick={baixar} className="gap-2">
+            <Button variant="outline" onClick={() => downloadWb(resultWb, "Carga_Benner_Corrigida")} className="gap-2">
               <Download className="w-4 h-4" />
-              Baixar Planilha Corrigida
+              Baixar Carga Corrigida
+            </Button>
+          )}
+          {distResultWb && stats && stats.dossieIgualProcesso > 0 && (
+            <Button variant="outline" onClick={() => downloadWb(distResultWb, "Distribuicoes_Verificada")} className="gap-2 border-destructive text-destructive hover:bg-destructive/10">
+              <Download className="w-4 h-4" />
+              Baixar Distribuição ({stats.dossieIgualProcesso} com dossiê = processo)
             </Button>
           )}
         </div>
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold">{stats.totalCarga}</p>
@@ -262,6 +272,15 @@ export default function CorrigirPlanilha() {
                   <p className="text-2xl font-bold">{stats.totalFinal}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">Total Final</p>
+              </CardContent>
+            </Card>
+            <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+              <CardContent className="pt-4 text-center">
+                <div className="flex items-center justify-center gap-1 text-red-700">
+                  <AlertTriangle className="w-4 h-4" />
+                  <p className="text-2xl font-bold">{stats.dossieIgualProcesso}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">Dossiê = Processo</p>
               </CardContent>
             </Card>
           </div>
