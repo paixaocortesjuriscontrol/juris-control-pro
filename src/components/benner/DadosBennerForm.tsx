@@ -133,6 +133,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
     }
     setBuscandoJudit(true);
     try {
+      // ── 1. Chamar buscar-judit (preenche campos do formulário) ──
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: { numero_processo: form.processo.trim() },
       });
@@ -152,8 +153,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
       const tribunaisAceitos = ["TST", "STF", "STJ"];
       const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
-
-      // Derivar situação do processo a partir das movimentações
       const situacaoMapeada = data.situacao_processo || null;
 
       setForm(f => ({
@@ -165,7 +164,6 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         tribunal: tribunalMapeado || f.tribunal,
         recorrente: data.recorrente || f.recorrente,
         situacao_processo: situacaoMapeada || f.situacao_processo,
-        // Campos extraídos das movimentações (steps)
         tem_data_julgamento: data.tem_data_julgamento || f.tem_data_julgamento,
         data_julgamento: data.data_julgamento || f.data_julgamento,
         horario_julgamento: data.horario_julgamento || f.horario_julgamento,
@@ -197,6 +195,59 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.resultado_conhecido_nao_provido) filled.add("resultado_conhecido_nao_provido");
       if (data.resultado_outra) filled.add("resultado_outra");
       if (data.processo_baixado && data.processo_baixado !== "N") filled.add("processo_baixado");
+
+      // ── 2. Chamar orquestrador-transito (classifica + calcula trânsito) ──
+      const processoNumero = form.processo.trim();
+      const { data: processoDb } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("numero", processoNumero)
+        .maybeSingle();
+
+      if (processoDb?.id) {
+        toast.info("Analisando trânsito em julgado...");
+        const { data: orqData, error: orqError } = await supabase.functions.invoke(
+          "orquestrador-transito",
+          { body: { processo_id: processoDb.id } }
+        );
+
+        if (!orqError && orqData?.success) {
+          // Mapear status do orquestrador para os campos do formulário
+          const statusMap: Record<string, string> = {
+            transitado_confirmado: "Trânsito em Julgado",
+            transitado_provavel: "Trânsito em Julgado",
+            em_curso: "Ativo",
+          };
+
+          const situacaoOrq = statusMap[orqData.status_transito] || null;
+          if (situacaoOrq) {
+            setForm(f => ({
+              ...f,
+              situacao_processo: situacaoOrq,
+              confianca_transito: orqData.status_transito === "transitado_confirmado" ? 95 
+                : orqData.status_transito === "transitado_provavel" ? 70 : null,
+              data_transito_julgado: orqData.data_transito_estimada || f.data_transito_julgado,
+              notas: orqData.justificativa 
+                ? `[Orquestrador] ${orqData.justificativa}${f.notas ? '\n' + f.notas : ''}`
+                : f.notas,
+            }));
+            filled.add("situacao_processo");
+            if (orqData.data_transito_estimada) filled.add("data_transito_julgado");
+            if (orqData.status_transito !== "em_curso") filled.add("confianca_transito");
+          }
+
+          const transitoMsg = orqData.status_transito === "transitado_confirmado"
+            ? "✅ Trânsito CONFIRMADO"
+            : orqData.status_transito === "transitado_provavel"
+            ? "⚠️ Trânsito PROVÁVEL (decurso de prazo)"
+            : "📋 Processo em curso";
+          toast.success(`${transitoMsg} | ${orqData.classificadas || 0} movimentações classificadas`);
+        } else if (orqError) {
+          console.warn("Orquestrador erro (não-fatal):", orqError);
+          toast.warning("Dados Judit preenchidos, mas análise de trânsito falhou");
+        }
+      }
+
       setCamposJudit(filled);
 
       const camposPreenchidos = [
