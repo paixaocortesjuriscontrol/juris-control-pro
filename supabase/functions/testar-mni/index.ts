@@ -179,37 +179,16 @@ serve(async (req) => {
       });
     }
 
-    // Get decrypted password via cofre-senhas edge function
-    const cofreResponse = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/cofre-senhas`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "obter_senha",
-          cofre_senha_id,
-        }),
-      }
-    );
-
-    const cofreData = await cofreResponse.json();
-    if (!cofreData.success) {
+    // Decrypt password directly
+    const login = credencial.login;
+    const senha = await decryptSafe(credencial.senha_hash);
+    if (!senha) {
       return new Response(
-        JSON.stringify({
-          error: "Erro ao obter credenciais do cofre",
-          details: cofreData.error,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Senha não encontrada no cofre" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { login, senha } = cofreData.data;
     const tribunal = credencial.tribunal?.toUpperCase().replace(/\s+/g, "");
 
     // Find MNI endpoint
