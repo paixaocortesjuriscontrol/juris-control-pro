@@ -102,3 +102,9 @@ Deno.test("extrai SBDI do texto", () => {
   assertEquals(result.relator, "Lelio Bentes Corrêa");
   assertEquals(result.turma, "SBDI-1");
 });
+
+Deno.test("derivarRelatorDaTurma retorna null para turma com múltiplos relatores", () => {
+  // 1ª Turma tem múltiplos relatores, deve retornar null
+  const result = derivarRelatorDaTurma("1ª Turma");
+  assertEquals(result, null);
+});
