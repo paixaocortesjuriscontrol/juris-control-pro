@@ -194,7 +194,6 @@ serve(async (req) => {
     }
     // Fallback: turma → relator (só se 1:1)
     if (turma && !relator) {
-      const { derivarRelatorDaTurma } = await import("../_shared/extrair-relator.ts");
       const rel = derivarRelatorDaTurma(turma);
       if (rel) {
         relator = rel;
