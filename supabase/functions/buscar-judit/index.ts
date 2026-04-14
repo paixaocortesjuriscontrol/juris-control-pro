@@ -93,9 +93,28 @@ serve(async (req) => {
     // Extrair relator/juiz
     const relator = rd.judge || null;
 
+    // Extrair turma do campo courts
+    let turma: string | null = null;
+    const courts = rd.courts || [];
+    if (Array.isArray(courts)) {
+      // Procurar por turma nos courts (ex: "1ª Turma", "2ª Turma", "SDI-1")
+      for (const court of courts) {
+        const name = (court.name || court).toString();
+        if (/turma|sdi|subse|seção|câmara|órgão especial/i.test(name)) {
+          turma = name;
+          break;
+        }
+      }
+      // Se não achou turma específica, pegar o primeiro court como vara
+      if (!turma && courts.length > 0) {
+        // Não é turma, é vara/comarca
+      }
+    } else if (typeof courts === 'string' && /turma|sdi|subse|seção|câmara/i.test(courts)) {
+      turma = courts;
+    }
+
     // Extrair tribunal
     const tribunalAcronimo = rd.tribunal_acronym || null;
-    // Mapear para sigla curta (TST, STF, STJ, TRT...)
     let tribunal = null;
     if (tribunalAcronimo) {
       if (tribunalAcronimo.toUpperCase().includes("TST")) tribunal = "TST";
