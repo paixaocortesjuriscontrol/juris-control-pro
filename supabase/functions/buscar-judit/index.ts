@@ -65,9 +65,99 @@ serve(async (req) => {
       });
     }
 
-    const data = await response.json();
+    let data = await response.json();
     console.log("Judit response keys:", Object.keys(data));
-    const rd = data.response_data || data;
+    let rd = data.response_data || data;
+
+    // ========== AUTO-FOLLOW: Se tribunal não é TST/STF/STJ, buscar related_lawsuits ==========
+    const tribunaisSuperiores = ["TST", "STF", "STJ"];
+    const acronimoInicial = (rd.tribunal_acronym || rd.court_acronym || "").toUpperCase();
+    const ehTribunalSuperior = tribunaisSuperiores.some(t => acronimoInicial.includes(t));
+    
+    if (!ehTribunalSuperior) {
+      console.log(`Tribunal ${acronimoInicial} não é superior. Verificando related_lawsuits...`);
+      const related = rd.related_lawsuits || data.related_lawsuits || [];
+      console.log(`related_lawsuits encontrados: ${JSON.stringify(related)}`);
+      
+      // Tentar buscar cada related_lawsuit que pareça ser de tribunal superior
+      for (const rel of related) {
+        const relCode = typeof rel === 'string' ? rel : (rel.code || rel.numero || rel._id || null);
+        if (!relCode) continue;
+        
+        console.log(`Tentando buscar related_lawsuit: ${relCode}`);
+        try {
+          const relResp = await fetch(
+            `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(relCode)}`,
+            {
+              method: "GET",
+              headers: {
+                "api-key": JUDIT_API_KEY,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          
+          if (relResp.ok) {
+            const relData = await relResp.json();
+            const relRd = relData.response_data || relData;
+            const relAcronimo = (relRd.tribunal_acronym || "").toUpperCase();
+            
+            if (tribunaisSuperiores.some(t => relAcronimo.includes(t))) {
+              console.log(`✅ Encontrada instância superior: ${relAcronimo} via related_lawsuit ${relCode}`);
+              data = relData;
+              rd = relRd;
+              break;
+            } else {
+              console.log(`related_lawsuit ${relCode} é ${relAcronimo}, ignorando`);
+              await relResp.text(); // consume body
+            }
+          } else {
+            console.log(`related_lawsuit ${relCode} retornou ${relResp.status}`);
+            await relResp.text(); // consume body
+          }
+        } catch (relErr: any) {
+          console.error(`Erro ao buscar related_lawsuit ${relCode}:`, relErr.message);
+        }
+      }
+
+      // Se ainda não é tribunal superior, tentar buscar pelo mesmo número no TST
+      const rdAtual = data.response_data || data;
+      const acronimoAtual = (rdAtual.tribunal_acronym || "").toUpperCase();
+      if (!tribunaisSuperiores.some(t => acronimoAtual.includes(t))) {
+        console.log("Nenhum related_lawsuit superior encontrado. Tentando busca direta no TST...");
+        // A Judit pode ter o mesmo número indexado com instância diferente
+        // Tentar buscar adicionando filtro ou via search endpoint
+        try {
+          const searchResp = await fetch(
+            `https://lawsuits.production.judit.io/lawsuits?code=${encodeURIComponent(cnj)}&tribunal_acronym=TST`,
+            {
+              method: "GET",
+              headers: {
+                "api-key": JUDIT_API_KEY,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          if (searchResp.ok) {
+            const searchData = await searchResp.json();
+            const results = searchData.results || searchData.data || (Array.isArray(searchData) ? searchData : []);
+            console.log(`Busca TST retornou ${results.length} resultados`);
+            if (results.length > 0) {
+              const tstResult = results[0];
+              const tstRd = tstResult.response_data || tstResult;
+              console.log(`✅ Encontrada instância TST via search: ${JSON.stringify(Object.keys(tstRd))}`);
+              data = tstResult;
+              rd = tstRd;
+            }
+          } else {
+            console.log(`Busca TST retornou ${searchResp.status}`);
+            await searchResp.text();
+          }
+        } catch (searchErr: any) {
+          console.log(`Busca TST falhou: ${searchErr.message}`);
+        }
+      }
+    }
 
     // ========== MOVIMENTAÇÕES (steps) - EXTRAIR PRIMEIRO ==========
     const steps = rd.steps || data.steps || [];
