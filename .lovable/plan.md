@@ -1,60 +1,57 @@
 
 
-## Plano: Substituir a lógica de verificação de trânsito em julgado pela versão robusta
+## Plano: Baixar Documentos via Judit + Botão na tela Dados Benner
 
 ### Resumo
 
-Substituir a edge function monolítica `verificar-transito-julgado` pela nova arquitetura modular com 4 arquivos (`types.ts`, `datajud-client.ts`, `transito-detector.ts`, `index.ts`), criando uma nova edge function `check-transito`. O frontend será atualizado para usar a nova função e interpretar os novos campos de resposta (status com 4 valores, confiança numérica, fase executória).
+Criar uma Edge Function `baixar-autos-judit` que usa a API Judit para listar e baixar documentos (PDFs) de um processo, salvando no Storage e registrando na tabela existente `processos_documentos_download`. Adicionar um botão "Baixar Autos" ao lado do botão Judit no formulário Dados Benner.
 
-### Problema com a abordagem atual
+### Fluxo
 
-A função atual usa detecção binária (encontrou/não encontrou trânsito) e uma lista frágil de exclusões. A nova lógica traz:
-- Confiança numérica (95/75/50) em vez de binário
-- Detecção de negação contextual (evita falsos-positivos como "certidão negativa de trânsito")
-- Categoria `transitado_execucao` separada (penhora, leilão, precatório)
-- Movimentações desconhecidas tratadas conservadoramente como recurso
-- Reconciliação TST+TRT com 4 regras explícitas
+```text
+[Botão "Baixar Autos" no form]
+       │
+       ▼
+Edge Function "baixar-autos-judit"
+       │
+       ├─ 1. GET lawsuits/{cnj} → ler attachments[]
+       │     (se vazio, POST requests com response_type="attachments" + polling)
+       │
+       ├─ 2. Para cada attachment:
+       │     GET lawsuits/{cnj}/{instance}/attachments/{attachment_id}
+       │     → upload PDF ao bucket "documentos_processos"
+       │     → INSERT em processos_documentos_download
+       │
+       └─ 3. Retorna { documentos_baixados, documentos[] }
+```
 
-### Mudanças necessárias
+### Mudanças
 
-**1. Criar nova edge function `check-transito` (4 arquivos)**
+**1. Nova Edge Function `baixar-autos-judit`**
+- Recebe `{ processo_id, processo_numero }` via POST
+- Usa `JUDIT_API_KEY` (já configurada nos secrets)
+- Consulta o datalake para obter lista de attachments
+- Se attachments vazio, faz request assíncrona (`response_type: "attachments"`) + polling até 90s
+- Baixa cada PDF via endpoint de attachments
+- Salva no bucket `documentos_processos` com path `{processo_id}/{attachment_name}.pdf`
+- Registra na tabela `processos_documentos_download` existente
+- Retorna resumo com quantidade e lista de documentos
 
-Copiar os 4 arquivos enviados para `supabase/functions/check-transito/`:
-- `types.ts` — tipos TypeScript
-- `datajud-client.ts` — cliente DataJud com ordenação temporal garantida
-- `transito-detector.ts` — detecção em 3 níveis + classificação pós-trânsito
-- `index.ts` — handler HTTP com reconciliação TST+TRT
+**2. Atualizar `DadosBennerForm.tsx`**
+- Adicionar estado `baixandoAutos` e handler `handleBaixarAutos`
+- Novo botão "Baixar Autos" (ícone FileDown, cor blue) ao lado do botão Judit
+- Desabilitado se não há `processo` preenchido
+- Toast com progresso e resultado
 
-Ajustes necessários:
-- A API key do DataJud está hardcoded na função atual. Na nova, usa `Deno.env.get("DATAJUD_API_KEY")`. Será necessário adicionar o secret ou manter hardcoded.
-- A nova função processa **um processo por vez** (POST com `{ numeroProcesso }`), diferente da atual que recebe array. O batching ficará 100% no frontend.
-- A nova função **não faz update no banco** (`dados_benner`). O frontend fará o update após receber a resposta.
-- Manter a autenticação via header Authorization
-
-**2. Atualizar o frontend (`src/pages/DadosBenner.tsx`)**
-
-- Chamar `check-transito` em vez de `verificar-transito-julgado`
-- Enviar um processo por chamada (com paralelismo controlado de 2-3)
-- Mapear os novos status para os existentes na UI:
-  - `transitado` → "Trânsito em Julgado"
-  - `transitado_execucao` → "Trânsito em Julgado (Execução)"
-  - `ativo` → "Ativo"
-  - `inconclusivo` → "Inconclusivo"
-- Exibir o campo `confianca` na interface (badge ou tooltip)
-- Fazer o update em `dados_benner.situacao_processo` após cada resposta
-
-**3. Adicionar secret `DATAJUD_API_KEY`**
-
-Configurar a chave da API DataJud como secret da edge function (valor já existente no código atual).
-
-**4. Manter a função antiga**
-
-A função `verificar-transito-julgado` será mantida temporariamente para não quebrar nada. Pode ser removida depois.
+**3. Configuração**
+- Adicionar `[functions.baixar-autos-judit]` com `verify_jwt = true` em `config.toml`
+- Secret `JUDIT_API_KEY` já existe
 
 ### Detalhes técnicos
 
-- A nova função usa `serve()` do Deno std ao invés de `Deno.serve()` — ambos funcionam no Supabase Edge Functions
-- A nova função usa `term` query (match exato) em vez de `match` query — mais preciso no Elasticsearch
-- A nova função pede `size: 1` (vs `size: 10`) — suficiente pois o número CNJ é único por tribunal
-- O frontend fará o batching com `Promise.allSettled` para 2 chamadas paralelas por vez
+- O endpoint do datalake `GET /lawsuits/{cnj}` retorna attachments com campos: `step_id`, `attachment_date`, `attachment_name`, `extension`
+- O attachment_id para download é o `step_id` do attachment (a confirmar com teste real)
+- Instance é extraída do CNJ (dígito 14, ou do campo `instance` do response_data)
+- Polling do request assíncrono usa `GET requests.prod.judit.io/requests/{request_id}` a cada 5s
+- Deduplicação: antes de baixar, verifica se já existe registro com mesmo `nome_arquivo` + `processo_id` na tabela
 
