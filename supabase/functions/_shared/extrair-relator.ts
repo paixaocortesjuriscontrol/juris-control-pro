@@ -33,6 +33,56 @@ export interface OrgaoJulgadorResult {
 // Códigos CNJ de distribuição / redistribuição (podem precisar refinamento com dados reais)
 const CODIGOS_DISTRIBUICAO = ["51", "36", "26", "36"];
 
+/**
+ * Mapeamento Relator → Turma (TST).
+ * Mesmas regras usadas na Carga Benner / Planilha TST.
+ */
+const RELATOR_TURMA: Record<string, string> = {
+  "luiz philippe vieira de mello filho": "Presidente",
+  "guilherme augusto caputo bastos": "Vice-Presidente",
+  "jose roberto freire pimenta": "Corregedor-Geral",
+  "ives gandra da silva martins filho": "4ª Turma",
+  "maria cristina irigoyen peduzzi": "Impedida",
+  "lelio bentes correa": "1ª Turma",
+  "mauricio jose godinho delgado": "3ª Turma",
+  "katia magalhaes arruda": "6ª Turma",
+  "augusto cesar leite de carvalho": "6ª Turma",
+  "delaide alves miranda arantes": "2ª Turma",
+  "hugo carlos scheuermann": "1ª Turma",
+  "alexandre de souza agra belmonte": "3ª Turma",
+  "claudio mascarenhas brandao": "7ª Turma",
+  "douglas alencar rodrigues": "5ª Turma",
+  "maria helena mallmann": "2ª Turma",
+  "breno medeiros": "5ª Turma",
+  "alexandre luiz ramos": "4ª Turma",
+  "luiz jose dezena da silva": "8ª Turma",
+  "evandro pereira valadao lopes": "8ª Turma",
+  "amaury rodrigues pinto junior": "1ª Turma",
+  "alberto bastos balazeiro": "7ª Turma",
+  "morgana de almeida richa": "4ª Turma",
+  "sergio pinto martins": "8ª Turma",
+  "liana chaib": "3ª Turma",
+  "antonio fabricio de matos goncalves": "7ª Turma",
+  "jose pedro de camargo rodrigues de souza": "5ª Turma",
+  "joao pedro silvestrin": "2ª Turma",
+};
+
+/** Normaliza nome para lookup no mapeamento (remove acentos, lowercase). */
+function normalizarNomeRelator(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Deriva turma a partir do relator usando o mapeamento fixo TST. */
+function derivarTurmaDoRelator(relator: string): string | null {
+  const key = normalizarNomeRelator(relator);
+  return RELATOR_TURMA[key] || null;
+}
+
 // Regex para detectar movimentos de distribuição/redistribuição
 const DISTRIBUICAO_REGEX = /distribu[ií]/i;
 const REDISTRIBUICAO_REGEX = /redistribu/i;
