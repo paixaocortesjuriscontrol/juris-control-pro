@@ -92,6 +92,11 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   
+  // Estados para teste MNI
+  const [testingMni, setTestingMni] = useState<string | null>(null);
+  const [mniDialogOpen, setMniDialogOpen] = useState(false);
+  const [mniResult, setMniResult] = useState<any>(null);
+  
   // Estado para histórico
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [capturaHistorico, setCapturaHistorico] = useState<CapturaIntimacao | null>(null);
@@ -157,6 +162,38 @@ export default function CofreSenhas({ embedded = false }: CofreSenhasProps) {
       toast.error("Erro no teste: " + err.message);
     } finally {
       setTestingCredencial(null);
+    }
+  };
+
+  // Testar acesso MNI com certificado
+  const handleTestarMni = async (credencialId: string) => {
+    setTestingMni(credencialId);
+    setMniResult(null);
+    setMniDialogOpen(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("testar-mni", {
+        body: { cofre_senha_id: credencialId },
+      });
+
+      if (error) throw error;
+      setMniResult(data);
+      
+      if (data.success) {
+        toast.success("Autenticação MNI validada com sucesso!");
+      } else {
+        toast.error("Falha na autenticação MNI");
+      }
+    } catch (err: any) {
+      console.error("Erro no teste MNI:", err);
+      setMniResult({ 
+        success: false, 
+        error: err.message || "Erro ao testar MNI",
+        tipo_erro: "erro_interno"
+      });
+      toast.error("Erro no teste MNI: " + err.message);
+    } finally {
+      setTestingMni(null);
     }
   };
 
