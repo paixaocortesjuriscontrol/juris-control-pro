@@ -186,6 +186,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
       if (data.recorrente) filled.add("recorrente");
+      if (situacaoMapeada) filled.add("situacao_processo");
       if (data.tem_data_julgamento && data.tem_data_julgamento !== "N") filled.add("tem_data_julgamento");
       if (data.data_julgamento) filled.add("data_julgamento");
       if (data.horario_julgamento) filled.add("horario_julgamento");
@@ -205,6 +206,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         data.turma && "Turma",
         tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
+        situacaoMapeada && "Situação",
         data.data_julgamento && "Data Julgamento",
         data.horario_julgamento && "Horário",
         data.tipo_julgamento && "Tipo Julgamento",
