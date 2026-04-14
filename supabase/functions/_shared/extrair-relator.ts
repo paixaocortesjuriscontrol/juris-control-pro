@@ -78,7 +78,7 @@ function normalizarNomeRelator(nome: string): string {
 }
 
 /** Deriva turma a partir do relator usando o mapeamento fixo TST. */
-function derivarTurmaDoRelator(relator: string): string | null {
+export function derivarTurmaDoRelator(relator: string): string | null {
   const key = normalizarNomeRelator(relator);
   return RELATOR_TURMA[key] || null;
 }
