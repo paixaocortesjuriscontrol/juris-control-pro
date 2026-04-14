@@ -163,11 +163,21 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
         situacao_processo: data.situacao_processo || f.situacao_processo,
       }));
 
+      // Track which fields were filled by Judit
+      const filled = new Set<string>();
+      if (data.tipo_recurso) filled.add("tipo_recurso");
+      if (data.data_distribuicao) filled.add("data_distribuicao");
+      if (data.relator) filled.add("relator");
+      if (tribunalMapeado) filled.add("tribunal");
+      if (data.recorrente) filled.add("recorrente");
+      if (data.situacao_processo) filled.add("situacao_processo");
+      setCamposJudit(filled);
+
       const camposPreenchidos = [
         data.tipo_recurso && "Tipo Recurso",
         data.data_distribuicao && "Data Distribuição",
         data.relator && "Relator",
-        data.tribunal && "Tribunal",
+        tribunalMapeado && "Tribunal",
         data.recorrente && "Recorrente",
         data.situacao_processo && "Situação",
       ].filter(Boolean);
