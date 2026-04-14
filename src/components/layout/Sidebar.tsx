@@ -58,6 +58,7 @@ const menuItemsPublicos = [
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
   { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander", color: "text-sky-400" },
+  { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
