@@ -404,8 +404,8 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Data Julgamento? (K)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tem_data_julgamento"))}>
+              <JuditLabel field="tem_data_julgamento"><Label>Data Julgamento? (K)</Label></JuditLabel>
               <Select value={form.tem_data_julgamento || ""} onValueChange={v => set("tem_data_julgamento", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -414,16 +414,16 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Data Julgamento (L)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("data_julgamento"))}>
+              <JuditLabel field="data_julgamento"><Label>Data Julgamento (L)</Label></JuditLabel>
               <Input type="date" value={form.data_julgamento || ""} onChange={e => set("data_julgamento", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Horário (M)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("horario_julgamento"))}>
+              <JuditLabel field="horario_julgamento"><Label>Horário (M)</Label></JuditLabel>
               <Input type="time" value={form.horario_julgamento || ""} onChange={e => set("horario_julgamento", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Tipo Julgamento (N)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditHighlight("tipo_julgamento"))}>
+              <JuditLabel field="tipo_julgamento"><Label>Tipo Julgamento (N)</Label></JuditLabel>
               <Select value={form.tipo_julgamento || ""} onValueChange={v => set("tipo_julgamento", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
