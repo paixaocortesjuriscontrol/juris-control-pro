@@ -215,6 +215,15 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Buscar
               </Button>
+              <Button 
+                variant="default" 
+                onClick={handleBuscarJudit} 
+                disabled={buscandoJudit || !form.processo?.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Judit
+              </Button>
             </div>
             {resultadosBusca.length > 0 && (
               <div className="border border-border rounded-md p-2 space-y-1 bg-muted/50">
