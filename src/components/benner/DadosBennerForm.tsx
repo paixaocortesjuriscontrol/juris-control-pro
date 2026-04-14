@@ -197,6 +197,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
       setForm(f => ({
         ...f,
+        dossie: data.dossie || f.dossie,
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
@@ -218,6 +219,7 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
 
       // Track which fields were filled by Judit
       const filled = new Set<string>();
+      if (data.dossie) filled.add("dossie");
       if (data.tipo_recurso) filled.add("tipo_recurso");
       if (data.data_distribuicao) filled.add("data_distribuicao");
       if (data.relator) filled.add("relator");

@@ -67,10 +67,34 @@ serve(async (req) => {
 
     const data = await response.json();
     console.log("Judit response keys:", Object.keys(data));
-
     const rd = data.response_data || data;
 
-    // === CLASSIFICAÇÃO / TIPO DE RECURSO ===
+    // ========== MOVIMENTAÇÕES (steps) - EXTRAIR PRIMEIRO ==========
+    const steps = rd.steps || data.steps || [];
+    console.log(`Total de steps encontrados: ${steps.length}`);
+
+    // Log de amostra dos primeiros steps para debug
+    if (steps.length > 0) {
+      console.log("Amostra steps (primeiros 3):", JSON.stringify(steps.slice(0, 3).map((s: any) => ({
+        date: s.step_date || s.date,
+        content: (s.content || s.title || "").toString().substring(0, 200),
+        code: s.code || s.movement_code,
+      }))));
+    }
+
+    // ========== DOSSIÊ ==========
+    // Tentar múltiplas fontes para o dossiê
+    let dossie: string | null = rd.dossie || rd.dossier || rd.folder || rd.case_number || null;
+    // Tentar extrair do campo cover
+    if (!dossie && rd.cover?.dossie) dossie = rd.cover.dossie;
+    if (!dossie && rd.cover?.folder) dossie = rd.cover.folder;
+    if (!dossie && rd.cover?.case_number) dossie = rd.cover.case_number;
+    // Tentar extrair do campo extra_data / metadata
+    if (!dossie && rd.extra_data?.dossie) dossie = rd.extra_data.dossie;
+    if (!dossie && rd.metadata?.dossie) dossie = rd.metadata.dossie;
+    console.log(`Dossiê extraído: ${dossie}`);
+
+    // ========== CLASSIFICAÇÃO / TIPO DE RECURSO ==========
     const rawClassification = rd.classification;
     let classificacao: string | null = null;
     if (typeof rawClassification === 'string') {
@@ -81,39 +105,55 @@ serve(async (req) => {
       const first = rd.classifications[0];
       classificacao = typeof first === 'string' ? first : first?.name || null;
     }
+    // Fallback: type ou lawsuit_type
+    if (!classificacao && rd.type) classificacao = typeof rd.type === 'string' ? rd.type : rd.type?.name || null;
+    if (!classificacao && rd.lawsuit_type) classificacao = typeof rd.lawsuit_type === 'string' ? rd.lawsuit_type : rd.lawsuit_type?.name || null;
+    console.log(`Tipo de recurso/classificação: ${classificacao}`);
 
-    // === DATA DE DISTRIBUIÇÃO ===
-    const dataDistribuicao = rd.distribution_date
+    // ========== DATA DE DISTRIBUIÇÃO ==========
+    let dataDistribuicao = rd.distribution_date
       ? rd.distribution_date.substring(0, 10)
       : null;
+    console.log(`Data distribuição (payload raiz): ${dataDistribuicao}`);
 
-    // === RELATOR / JUIZ ===
-    // Fontes possíveis na Judit: judge, cover.judge, parties com tipo Magistrado/Juiz/Relator
-    let relator = rd.judge || null;
-    if (!relator && rd.cover?.judge) {
-      relator = rd.cover.judge;
+    // ========== TRIBUNAL ==========
+    const tribunalAcronimo = rd.tribunal_acronym || rd.court_acronym || null;
+    let tribunal: string | null = null;
+    if (tribunalAcronimo) {
+      const upper = tribunalAcronimo.toUpperCase();
+      if (upper.includes("TST")) tribunal = "TST";
+      else if (upper.includes("STF")) tribunal = "STF";
+      else if (upper.includes("STJ")) tribunal = "STJ";
+      else tribunal = upper;
     }
-    // Buscar em orgaoJulgador (se existir)
-    if (!relator && rd.orgaoJulgador?.magistrado) {
-      relator = rd.orgaoJulgador.magistrado;
-    }
-    // Buscar magistrado nas parties
+    console.log(`Tribunal: ${tribunal} (acronimo: ${tribunalAcronimo})`);
+
+    // ========== RELATOR / JUIZ (múltiplas fontes) ==========
+    let relator: string | null = null;
+    
+    // Fonte 1: campos diretos no payload
+    if (rd.judge) relator = rd.judge;
+    if (!relator && rd.relator) relator = rd.relator;
+    if (!relator && rd.cover?.judge) relator = rd.cover.judge;
+    if (!relator && rd.orgaoJulgador?.magistrado) relator = rd.orgaoJulgador.magistrado;
+    
+    // Fonte 2: parties com tipo magistrado/relator
     if (!relator && Array.isArray(rd.parties)) {
       const magistrado = rd.parties.find((p: any) => {
         const tipo = (p.person_type || "").toUpperCase();
-        return tipo === "MAGISTRADO" || tipo === "JUIZ" || tipo === "RELATOR" || tipo === "DESEMBARGADOR" || tipo === "MINISTRO";
+        return ["MAGISTRADO", "JUIZ", "RELATOR", "DESEMBARGADOR", "MINISTRO"].includes(tipo);
       });
-      if (magistrado) {
-        relator = magistrado.name;
-      }
+      if (magistrado) relator = magistrado.name;
     }
-    // Tentar extrair do county (ex: "1ª TURMA - MIN. FULANO")
+    
+    // Fonte 3: county (ex: "1ª TURMA - MIN. FULANO")
     if (!relator && rd.county) {
       const relMatch = rd.county.match(/(?:MIN\.|MINISTRO|DES\.|DESEMBARGADOR|RELATOR)[:\s]*([A-ZÁÀÃÉÊÍÓÔÚÇ\s]+)/i);
       if (relMatch) relator = relMatch[1].trim();
     }
+    console.log(`Relator (antes dos steps): ${relator}`);
 
-    // === TURMA ===
+    // ========== TURMA (múltiplas fontes) ==========
     let turma: string | null = null;
     const courts = rd.courts || [];
     if (Array.isArray(courts)) {
@@ -125,30 +165,26 @@ serve(async (req) => {
         }
       }
     }
-    // Tentar extrair turma do county (ex: "TST - 3ª TURMA")
     if (!turma && rd.county) {
       const turmaMatch = rd.county.match(/(\d+[ªºa]?\s*turma|sdi[- ]?\d*|subse[çc][aã]o|câmara|órgão especial)/i);
       if (turmaMatch) turma = turmaMatch[1].trim();
     }
-    // Tentar do orgaoJulgador
     if (!turma && rd.orgaoJulgador?.nome) {
       turma = rd.orgaoJulgador.nome;
     }
     if (typeof courts === 'string' && !turma && /turma|sdi|subse|seção|câmara/i.test(courts)) {
       turma = courts;
     }
+    console.log(`Turma (antes dos steps): ${turma}`);
 
-    // === FALLBACK: Extrair relator/turma dos MOVIMENTOS (steps) ===
+    // ========== FALLBACK: EXTRAIR DOS MOVIMENTOS (steps) ==========
     // Mesma lógica usada na importação de planilhas (Carga Benner / Planilha TST)
-    if (!relator || !turma) {
+    if (!relator || !turma || !dataDistribuicao) {
       const orgaoJulgador = extrairOrgaoJulgador(steps);
       console.log("Órgão julgador extraído dos movimentos:", JSON.stringify(orgaoJulgador));
-      if (!relator && orgaoJulgador.relator) {
-        relator = orgaoJulgador.relator;
-      }
-      if (!turma && orgaoJulgador.turma) {
-        turma = orgaoJulgador.turma;
-      }
+      if (!relator && orgaoJulgador.relator) relator = orgaoJulgador.relator;
+      if (!turma && orgaoJulgador.turma) turma = orgaoJulgador.turma;
+      if (!dataDistribuicao && orgaoJulgador.data_distribuicao) dataDistribuicao = orgaoJulgador.data_distribuicao;
     }
 
     // Fallback final: relator → turma via mapeamento TST
@@ -156,19 +192,19 @@ serve(async (req) => {
       turma = derivarTurmaDoRelator(relator);
       if (turma) console.log(`Turma derivada do relator via mapeamento: ${turma}`);
     }
-
-    // === TRIBUNAL ===
-    const tribunalAcronimo = rd.tribunal_acronym || null;
-    let tribunal = null;
-    if (tribunalAcronimo) {
-      const upper = tribunalAcronimo.toUpperCase();
-      if (upper.includes("TST")) tribunal = "TST";
-      else if (upper.includes("STF")) tribunal = "STF";
-      else if (upper.includes("STJ")) tribunal = "STJ";
-      else tribunal = upper;
+    // Fallback: turma → relator (só se 1:1)
+    if (turma && !relator) {
+      const { derivarRelatorDaTurma } = await import("../_shared/extrair-relator.ts");
+      const rel = derivarRelatorDaTurma(turma);
+      if (rel) {
+        relator = rel;
+        console.log(`Relator derivado da turma via mapeamento reverso: ${relator}`);
+      }
     }
 
-    // === PARTES ===
+    console.log(`RESULTADO FINAL - Relator: ${relator}, Turma: ${turma}, Distribuição: ${dataDistribuicao}`);
+
+    // ========== PARTES ==========
     const parties = data.parties || rd.parties || [];
     const poloAtivo = parties
       .filter((p: any) => p.side?.toUpperCase() === "ACTIVE" && p.person_type?.toUpperCase() !== "ADVOGADO")
@@ -179,9 +215,9 @@ serve(async (req) => {
       .map((p: any) => p.name)
       .join(", ");
 
-    // === SITUAÇÃO ===
+    // ========== SITUAÇÃO ==========
     const situacao = rd.status || rd.situation || null;
-    let situacaoProcesso = null;
+    let situacaoProcesso: string | null = null;
     if (situacao) {
       const sit = situacao.toUpperCase();
       if (sit.includes("ATIVO") || sit === "ATIVA") situacaoProcesso = "Ativo";
@@ -190,18 +226,13 @@ serve(async (req) => {
       else if (sit.includes("SUSPENSO")) situacaoProcesso = "Suspenso";
     }
 
-    // === MOVIMENTAÇÕES (steps) - Análise profunda ===
-    const steps = rd.steps || data.steps || [];
-    console.log(`Total de steps encontrados: ${steps.length}`);
-
-    // Padrões regex para detectar eventos nos steps
+    // ========== ANÁLISE DOS STEPS ==========
     const PAUTA_REGEX = /pauta|sess[aã]o de julgamento|inclu[ií]d[oa] em pauta|designad[oa].*julgamento|julgamento.*designad/i;
     const RESULTADO_TRANSCENDENCIA_REGEX = /sem transcend[eê]ncia|transcend[eê]ncia n[aã]o reconhecida/i;
     const RESULTADO_NAO_CONHECIDO_REGEX = /n[aã]o conhec|recurso.*n[aã]o.*conhecid/i;
     const RESULTADO_CONHECIDO_PROVIDO_REGEX = /conhecid[oa].*provid[oa]|dar provimento|recurso.*provid/i;
     const RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX = /conhecid[oa].*n[aã]o.*provid|negar provimento|desprovid|improvid/i;
     const BAIXA_REGEX = /baixa definitiva|remetidos os autos [àa] origem|baixados? os autos|autos.*devolvidos|certid[aã]o de tr[aâ]nsito|tr[aâ]nsito em julgado/i;
-    const JULGAMENTO_TIPO_REGEX = /julgamento virtual|sess[aã]o virtual|julgamento telepresencial|sess[aã]o telepresencial|julgamento presencial/i;
 
     let dataJulgamento: string | null = null;
     let horarioJulgamento: string | null = null;
@@ -214,15 +245,11 @@ serve(async (req) => {
     let resultadoOutra: string | null = null;
     let processoBaixado: string | null = null;
 
-    // Processar cada step buscando informações
     for (const step of steps) {
       const content = (step.content || step.title || step.description || "").toString();
       const stepDate = step.step_date || step.date || null;
-      const contentLower = content.toLowerCase();
 
-      // --- Pauta / Data de Julgamento ---
       if (PAUTA_REGEX.test(content) && stepDate && !dataJulgamento) {
-        // Extrair data do conteúdo ou usar step_date
         const dateMatch = content.match(/(\d{2}\/\d{2}\/\d{4})/);
         if (dateMatch) {
           const parts = dateMatch[1].split('/');
@@ -231,68 +258,40 @@ serve(async (req) => {
           dataJulgamento = stepDate.substring(0, 10);
         }
         temDataJulgamento = "S";
-
-        // Extrair horário
         const timeMatch = content.match(/(\d{1,2})[h:](\d{2})/);
         if (timeMatch) {
           horarioJulgamento = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
         }
-
-        // Tipo de julgamento
         if (/virtual/i.test(content)) tipoJulgamento = "Virtual";
         else if (/telepresencial/i.test(content)) tipoJulgamento = "Telepresencial";
         else if (/h[ií]brid/i.test(content)) tipoJulgamento = "Híbrido";
         else if (/presencial/i.test(content)) tipoJulgamento = "Presencial";
       }
 
-      // --- Resultado do julgamento ---
-      if (RESULTADO_TRANSCENDENCIA_REGEX.test(content)) {
-        resultadoSemTranscendencia = true;
-      }
-      // Ordem importa: testar "não provido" antes de "provido"
-      if (RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX.test(content)) {
-        resultadoConhecidoNaoProvido = true;
-      } else if (RESULTADO_CONHECIDO_PROVIDO_REGEX.test(content)) {
-        resultadoConhecidoProvido = true;
-      }
+      if (RESULTADO_TRANSCENDENCIA_REGEX.test(content)) resultadoSemTranscendencia = true;
+      if (RESULTADO_CONHECIDO_NAO_PROVIDO_REGEX.test(content)) resultadoConhecidoNaoProvido = true;
+      else if (RESULTADO_CONHECIDO_PROVIDO_REGEX.test(content)) resultadoConhecidoProvido = true;
       if (RESULTADO_NAO_CONHECIDO_REGEX.test(content) && !resultadoConhecidoProvido && !resultadoConhecidoNaoProvido) {
         resultadoNaoConhecido = true;
       }
-
-      // --- Baixa definitiva ---
-      if (BAIXA_REGEX.test(content)) {
-        processoBaixado = "S";
-      }
+      if (BAIXA_REGEX.test(content)) processoBaixado = "S";
     }
 
-    // Se não encontrou pauta
     if (!temDataJulgamento) temDataJulgamento = "N";
-    // Se não encontrou baixa
     if (!processoBaixado) processoBaixado = "N";
 
-    // === SITUAÇÃO DO PROCESSO (derivada das movimentações) ===
-    // Prioridade: movimentações > status bruto do PJE
     if (processoBaixado === "S") {
-      // Se detectou trânsito em julgado ou baixa nas movimentações
       const TRANSITO_REGEX = /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i;
       const hasTransito = steps.some((s: any) => TRANSITO_REGEX.test((s.content || s.title || "").toString()));
-      if (hasTransito) {
-        situacaoProcesso = "Trânsito em Julgado";
-      } else {
-        situacaoProcesso = "Baixado";
-      }
+      situacaoProcesso = hasTransito ? "Trânsito em Julgado" : "Baixado";
     }
-    // Se tem resultado (julgamento ocorreu) mas não baixou, manter status do PJE ou marcar como ativo
-    // O status bruto do PJE já foi processado acima
 
-    // Comarca/Vara
     const comarca = rd.county || null;
     const vara = rd.courts || null;
-
-    // Último andamento
     const lastStep = data.last_step || rd.last_step || null;
 
     const result = {
+      dossie: dossie,
       tipo_recurso: classificacao,
       data_distribuicao: dataDistribuicao,
       relator: relator,
@@ -304,7 +303,6 @@ serve(async (req) => {
       situacao_processo: situacaoProcesso,
       comarca: comarca,
       vara: vara,
-      // Novos campos extraídos das movimentações
       tem_data_julgamento: temDataJulgamento,
       data_julgamento: dataJulgamento,
       horario_julgamento: horarioJulgamento,
