@@ -39,6 +39,9 @@ export default function CorrigirPlanilha() {
   const normalizeForCompare = (val: unknown): string =>
     String(val ?? "").trim().replace(/\s+/g, "").toUpperCase();
 
+  const isMeaningfulRow = (row: unknown[]): boolean =>
+    row.some((cell) => normalize(cell) !== "");
+
 
   const processar = useCallback(async () => {
     if (!distFile || !cargaFile) {
@@ -262,6 +265,7 @@ export default function CorrigirPlanilha() {
       let totalAposDuplicatas = 0;
       let bennerSimRemovidasNaCarga = 0;
       let totalCarga = 0;
+      let totalFinal = 0;
 
       const CARGA_HEADER_ROWS = 2;
       const CARGA_DATA_START_ROW = CARGA_HEADER_ROWS + 1;
@@ -273,44 +277,55 @@ export default function CorrigirPlanilha() {
         if (rows.length < CARGA_DATA_START_ROW) continue;
 
         const dataRows = rows.slice(CARGA_HEADER_ROWS);
-        totalCarga += dataRows.length;
+        const rowEntries = dataRows.map((row, index) => ({
+          row,
+          excelRow: index + CARGA_DATA_START_ROW,
+          meaningful: isMeaningfulRow(row),
+        }));
+        const meaningfulEntries = rowEntries.filter((entry) => entry.meaningful);
+
+        totalCarga += meaningfulEntries.length;
         const removeSet = new Set<number>();
         const duplicadosSet = new Set<number>();
         const seen = new Set<string>();
 
+        for (const entry of rowEntries) {
+          if (!entry.meaningful) {
+            removeSet.add(entry.excelRow);
+          }
+        }
+
         // Fase 1: remover duplicados por dossiê
-        for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + CARGA_DATA_START_ROW;
-          const dossie = normalize(dataRows[i][0]);
+        for (const entry of meaningfulEntries) {
+          const dossie = normalize(entry.row[0]);
           if (!dossie) continue;
 
           if (seen.has(dossie)) {
             duplicatasRemovidas++;
-            duplicadosSet.add(excelRow);
-            removeSet.add(excelRow);
+            duplicadosSet.add(entry.excelRow);
+            removeSet.add(entry.excelRow);
           } else {
             seen.add(dossie);
           }
         }
 
-        totalAposDuplicatas += dataRows.length - duplicadosSet.size;
+        totalAposDuplicatas += meaningfulEntries.length - duplicadosSet.size;
 
         // Fase 2: comparar o restante com a distribuição (AA = SIM)
-        for (let i = 0; i < dataRows.length; i++) {
-          const excelRow = i + CARGA_DATA_START_ROW;
-          if (removeSet.has(excelRow)) continue;
+        for (const entry of meaningfulEntries) {
+          if (removeSet.has(entry.excelRow)) continue;
 
-          const dossie = normalize(dataRows[i][0]);
+          const dossie = normalize(entry.row[0]);
           if (dossie && bennerSimContracts.has(dossie)) {
             bennerSimRemovidasNaCarga++;
-            removeSet.add(excelRow);
+            removeSet.add(entry.excelRow);
           }
         }
 
+        totalFinal += meaningfulEntries.filter((entry) => !removeSet.has(entry.excelRow)).length;
+
         if (removeSet.size > 0) rowsToRemovePerSheet.set(si, removeSet);
       }
-
-      const totalFinal = totalAposDuplicatas - bennerSimRemovidasNaCarga;
 
       // JSZip manipulation for carga
       const zip = await JSZip.loadAsync(cargaBuf);
@@ -588,7 +603,7 @@ export default function CorrigirPlanilha() {
               <Card>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold">{stats.totalCarga}</p>
-                  <p className="text-xs text-muted-foreground">Total Original</p>
+                  <p className="text-xs text-muted-foreground">Total Original válido</p>
                 </CardContent>
               </Card>
               <Card className="border-orange-200">
