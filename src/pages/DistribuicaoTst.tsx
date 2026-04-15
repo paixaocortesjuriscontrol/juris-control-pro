@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Loader2, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle } from "lucide-react";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
-import { toast } from "sonner";
-import { format } from "date-fns";
 import { Link } from "react-router-dom";
 
 const favorabilidadeColor = (val: string | null) => {
@@ -23,6 +22,40 @@ export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
   const { dados, loading, fetchDados, saveDado, deleteDado } = useDistribuicoesTst();
+
+  // Filters
+  const [filtroProcesso, setFiltroProcesso] = useState("");
+  const [filtroDossie, setFiltroDossie] = useState("");
+  const [filtroTurma, setFiltroTurma] = useState("");
+  const [filtroRelator, setFiltroRelator] = useState("");
+  const [filtroParte, setFiltroParte] = useState("");
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
+
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim;
+
+  const clearFilters = () => {
+    setFiltroProcesso("");
+    setFiltroDossie("");
+    setFiltroTurma("");
+    setFiltroRelator("");
+    setFiltroParte("");
+    setFiltroDataInicio("");
+    setFiltroDataFim("");
+  };
+
+  const dadosFiltrados = useMemo(() => {
+    return dados.filter(d => {
+      if (filtroProcesso && !d.processo_numero?.toLowerCase().includes(filtroProcesso.toLowerCase())) return false;
+      if (filtroDossie && !d.dossie?.toLowerCase().includes(filtroDossie.toLowerCase())) return false;
+      if (filtroTurma && !d.turma?.toLowerCase().includes(filtroTurma.toLowerCase())) return false;
+      if (filtroRelator && !d.relator?.toLowerCase().includes(filtroRelator.toLowerCase())) return false;
+      if (filtroParte && !d.parte_recorrente?.toLowerCase().includes(filtroParte.toLowerCase())) return false;
+      if (filtroDataInicio && d.data_distribuicao && d.data_distribuicao < filtroDataInicio) return false;
+      if (filtroDataFim && d.data_distribuicao && d.data_distribuicao > filtroDataFim) return false;
+      return true;
+    });
+  }, [dados, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
 
   const handleDelete = async (id: string) => {
     if (confirm("Excluir esta distribuição?")) {
@@ -51,10 +84,10 @@ export default function DistribuicaoTst() {
 
   return (
     <MainLayout title="Distribuição TST">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <DistribuicaoTstImport onImported={fetchDados} />
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
@@ -65,6 +98,32 @@ export default function DistribuicaoTst() {
               </Button>
             </Link>
           </div>
+        </div>
+
+        {/* Filters */}
+        <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Search className="w-4 h-4" /> Filtros
+            </div>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="w-3 h-3 mr-1" /> Limpar
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+            <Input placeholder="Processo" value={filtroProcesso} onChange={e => setFiltroProcesso(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Turma" value={filtroTurma} onChange={e => setFiltroTurma(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Relator" value={filtroRelator} onChange={e => setFiltroRelator(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs" />
+            <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs" title="Data início" />
+            <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs" title="Data fim" />
+          </div>
+          {hasFilters && (
+            <p className="text-xs text-muted-foreground">{dadosFiltrados.length} de {dados.length} registros</p>
+          )}
         </div>
 
         <div className="border border-border rounded-lg overflow-auto">
@@ -81,15 +140,16 @@ export default function DistribuicaoTst() {
                 <TableHead>Turma +/-</TableHead>
                 <TableHead>Parte Recorrente</TableHead>
                 <TableHead>Aba</TableHead>
+                <TableHead>Benner</TableHead>
                 <TableHead className="w-20">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dados.map(d => (
+                <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+              ) : dadosFiltrados.length === 0 ? (
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+              ) : dadosFiltrados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell className="text-sm">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="font-mono text-xs">{d.processo_numero}</TableCell>
@@ -114,6 +174,13 @@ export default function DistribuicaoTst() {
                   <TableCell className="text-sm">{d.parte_recorrente || "—"}</TableCell>
                   <TableCell>
                     {d.aba_origem && <Badge variant="outline" className="text-xs">{d.aba_origem}</Badge>}
+                  </TableCell>
+                  <TableCell>
+                    {d.benner_atualizado ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-muted-foreground/40" />
+                    )}
                   </TableCell>
                   <TableCell onClick={e => e.stopPropagation()}>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
