@@ -205,6 +205,44 @@ export interface EstatisticasCoordenacao {
   };
 }
 
+/** Merges per-user read status from publicacoes_djen_leituras into publication results */
+async function mergeWithLeituras(
+  userId: string,
+  results: PublicacaoUnificada[],
+  apenasNaoLidas: boolean
+): Promise<PublicacaoUnificada[]> {
+  if (results.length === 0) return results;
+
+  const pubIds = results.map(p => p.id);
+
+  // Use RPC to avoid URL length limits with large arrays
+  const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: pubIds });
+
+  const userReadSet = new Set<string>();
+  const lidoPorMap = new Map<string, LeituraUsuario[]>();
+
+  (leituras || []).forEach((l: any) => {
+    if (l.usuario_id === userId) userReadSet.add(l.publicacao_id);
+    if (!lidoPorMap.has(l.publicacao_id)) lidoPorMap.set(l.publicacao_id, []);
+    lidoPorMap.get(l.publicacao_id)!.push({
+      nome: l.usuario_nome || 'Desconhecido',
+      lida_em: l.lida_em,
+    });
+  });
+
+  let merged = results.map(pub => ({
+    ...pub,
+    lida: userReadSet.has(pub.id),
+    lido_por: lidoPorMap.get(pub.id) || [],
+  }));
+
+  if (apenasNaoLidas) {
+    merged = merged.filter(pub => !pub.lida);
+  }
+
+  return merged;
+}
+
 export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
