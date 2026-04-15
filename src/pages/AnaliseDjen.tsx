@@ -1405,18 +1405,18 @@ const AnaliseDjen = () => {
   };
 
   // Buscar números de processos cadastrados para filtro "Com processo"
-  const { data: processosNumerosCadastrados } = useQuery({
+  const { data: processosMapCadastrados } = useQuery({
     queryKey: ['processos-numeros-cadastrados', coordenacaoFiltroEfetivo],
     queryFn: async () => {
-      let q = supabase.from('processos').select('numero');
+      let q = supabase.from('processos').select('id, numero');
       if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       const { data } = await q.limit(5000);
-      // Normalizar para apenas dígitos para comparação
-      const set = new Set<string>();
+      // Map de dígitos -> processo_id para enriquecer publicações
+      const map = new Map<string, string>();
       (data || []).forEach((p: any) => {
-        if (p.numero) set.add(p.numero.replace(/\D/g, ''));
+        if (p.numero) map.set(p.numero.replace(/\D/g, ''), p.id);
       });
-      return set;
+      return map;
     },
     enabled: apenasComProcesso,
     staleTime: 60_000,
@@ -1433,17 +1433,25 @@ const AnaliseDjen = () => {
         return pubDate === dataDisponibilizacao;
       });
     }
-    if (apenasComProcesso && processosNumerosCadastrados) {
-      result = result.filter(pub => {
-        // tipo_origem 'processo' já é de processo cadastrado
-        if (pub.tipo_origem === 'processo') return true;
-        if (!pub.processo_numero) return false;
-        const digits = pub.processo_numero.replace(/\D/g, '');
-        return processosNumerosCadastrados.has(digits);
-      });
+    if (apenasComProcesso && processosMapCadastrados) {
+      result = result
+        .filter(pub => {
+          if (pub.tipo_origem === 'processo') return true;
+          if (!pub.processo_numero) return false;
+          const digits = pub.processo_numero.replace(/\D/g, '');
+          return processosMapCadastrados.has(digits);
+        })
+        .map(pub => {
+          // Enriquecer com processo_id se não tiver
+          if (pub.processo_id || !pub.processo_numero) return pub;
+          const digits = pub.processo_numero.replace(/\D/g, '');
+          const processoId = processosMapCadastrados.get(digits);
+          if (!processoId) return pub;
+          return { ...pub, processo_id: processoId };
+        });
     }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, apenasComProcesso, processosNumerosCadastrados]);
+  }, [mergedPublicacoes, dataDisponibilizacao, apenasComProcesso, processosMapCadastrados]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
