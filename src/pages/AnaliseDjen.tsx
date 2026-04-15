@@ -1709,6 +1709,17 @@ const AnaliseDjen = () => {
 
               <div className="flex items-center gap-2">
                 <Checkbox 
+                  id="comProcesso"
+                  checked={apenasComProcesso}
+                  onCheckedChange={(checked) => setApenasComProcesso(checked as boolean)}
+                />
+                <Label htmlFor="comProcesso" className="cursor-pointer text-xs md:text-sm text-blue-600 dark:text-blue-400 font-medium">
+                  Com Processo
+                </Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox 
                   id="todasPublicacoes"
                   checked={tipoOrigem === 'todos'}
                   onCheckedChange={(checked) => {
