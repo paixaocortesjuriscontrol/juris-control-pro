@@ -2044,6 +2044,16 @@ const AnaliseDjen = () => {
                                     </Badge>
                                   )}
                                   
+                                  {/* Mostrar quem já leu esta publicação */}
+                                  {pub.lido_por && pub.lido_por.length > 0 && (
+                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                      <CheckCheck className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
+                                      <span title={pub.lido_por.map(l => `${l.nome} em ${new Date(l.lida_em).toLocaleString('pt-BR')}`).join('\n')}>
+                                        Lida por {pub.lido_por.map(l => l.nome.split(' ')[0]).join(', ')}
+                                      </span>
+                                    </Badge>
+                                  )}
+                                  
                                   {/* Termo que encontrou a publicação */}
                                   {pub.monitoramento_termo && (
                                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
