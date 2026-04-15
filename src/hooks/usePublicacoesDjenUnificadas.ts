@@ -132,6 +132,11 @@ async function enriquecerPublicacoesComMonitoramento(
   });
 }
 
+export interface LeituraUsuario {
+  nome: string;
+  lida_em: string;
+}
+
 export interface PublicacaoUnificada {
   id: string;
   tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
@@ -166,6 +171,8 @@ export interface PublicacaoUnificada {
   partes_json?: string[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
+  // Per-user read tracking
+  lido_por?: LeituraUsuario[];
 }
 
 export interface FiltrosUnificados {
@@ -196,6 +203,44 @@ export interface EstatisticasCoordenacao {
     processo: number;
     descartada: number;
   };
+}
+
+/** Merges per-user read status from publicacoes_djen_leituras into publication results */
+async function mergeWithLeituras(
+  userId: string,
+  results: PublicacaoUnificada[],
+  apenasNaoLidas: boolean
+): Promise<PublicacaoUnificada[]> {
+  if (results.length === 0) return results;
+
+  const pubIds = results.map(p => p.id);
+
+  // Use RPC to avoid URL length limits with large arrays
+  const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: pubIds });
+
+  const userReadSet = new Set<string>();
+  const lidoPorMap = new Map<string, LeituraUsuario[]>();
+
+  (leituras || []).forEach((l: any) => {
+    if (l.usuario_id === userId) userReadSet.add(l.publicacao_id);
+    if (!lidoPorMap.has(l.publicacao_id)) lidoPorMap.set(l.publicacao_id, []);
+    lidoPorMap.get(l.publicacao_id)!.push({
+      nome: l.usuario_nome || 'Desconhecido',
+      lida_em: l.lida_em,
+    });
+  });
+
+  let merged = results.map(pub => ({
+    ...pub,
+    lida: userReadSet.has(pub.id),
+    lido_por: lidoPorMap.get(pub.id) || [],
+  }));
+
+  if (apenasNaoLidas) {
+    merged = merged.filter(pub => !pub.lida);
+  }
+
+  return merged;
 }
 
 export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
@@ -248,7 +293,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
-        if (filtros.apenasNaoLidas) q = q.eq('lida', false);
+        // Per-user tracking: lida filter handled client-side
         if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
         // Respeita o filtro de coordenação
@@ -403,7 +448,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               p_coordenacao_id: filtros.coordenacaoId,
               p_inicio: dataInicioFiltro ?? null,
               p_fim: dataFimFiltro ?? null,
-              p_apenas_nao_lidas: !!filtros.apenasNaoLidas,
+              p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
               p_search_query: filtros.termoBusca ?? null,
               p_limit: PAGE,
               p_offset: offset,
@@ -523,7 +568,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
           if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
           if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
-          if (filtros.apenasNaoLidas) queryDescartadas = queryDescartadas.eq('lida', false);
+          // Per-user tracking: lida filter handled client-side via mergeWithLeituras
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
@@ -566,7 +611,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const enriquecidos = await enriquecerPublicacoesComMonitoramento(merged);
 
         const deduped = dedupePublicacoesDjen(enriquecidos);
-        return deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return mergeWithLeituras(user!.id, deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), !!filtros.apenasNaoLidas);
 
         } catch (rpcError) {
           console.warn('[DJEN] RPC falhou, usando fallback com queries diretas:', rpcError);
@@ -611,7 +656,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) queryTermos = queryTermos.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
-        if (filtros.apenasNaoLidas) queryTermos = queryTermos.eq('lida', false);
+        // Per-user tracking: lida filter handled client-side via mergeWithLeituras
         
         // Filtrar por coordenação NO BANCO para performance
         if (filtros.coordenacaoId) {
@@ -734,7 +779,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) queryProcessos = queryProcessos.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryProcessos = queryProcessos.lte('created_at', dataFimFiltro);
-        if (filtros.apenasNaoLidas) queryProcessos = queryProcessos.eq('lida', false);
+        // Per-user tracking: lida filter handled client-side via mergeWithLeituras
         
         // Filtrar por coordenação NO BANCO para performance
         if (filtros.coordenacaoId) {
@@ -900,10 +945,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         );
       }
 
-      // Ordenar por data de criação (mais recentes primeiro)
-      return deduped.sort((a, b) => 
+      // Ordenar por data de criação (mais recentes primeiro) + merge per-user leituras
+      const sorted = deduped.sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+      return mergeWithLeituras(user!.id, sorted, !!filtros.apenasNaoLidas);
     },
     enabled: !!user?.id,
   });
@@ -938,8 +984,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
   })();
 
-  // Marcar como lida - usa RPC que marca TODOS os registros duplicados (mesmo hash de dedup)
-  // Isso resolve o problema onde a UI mostra 1 publicação deduplicada, mas existem N registros subjacentes
+  // Marcar como lida - per-user tracking + legacy global flag via RPC
   const marcarComoLida = useMutation({
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
@@ -955,7 +1000,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .in('id', datajudIds);
       }
 
-      // Usa RPC que encontra e marca TODOS os registros que compartilham o mesmo hash de deduplicação
+      // Legacy: marca global flag via RPC (backwards compat)
       const { data, error } = await (supabase as any).rpc('marcar_publicacoes_lidas_por_dedup', {
         p_ids_termos: termos.length > 0 ? termos : null,
         p_ids_processos: processos.length > 0 ? processos : null,
@@ -965,6 +1010,30 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       if (error) {
         console.error('Erro ao marcar publicações lidas via RPC:', error);
         throw new Error(error.message);
+      }
+
+      // Per-user tracking: insert into leituras table
+      // Get user's name from profiles
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('nome')
+        .eq('id', user!.id)
+        .maybeSingle();
+      const userName = profileData?.nome || user?.email || 'Desconhecido';
+
+      const leiturasToInsert = items
+        .filter(i => i.tipo_origem !== 'datajud')
+        .map(i => ({
+          publicacao_id: i.id,
+          tabela_origem: i.tipo_origem,
+          usuario_id: user!.id,
+          usuario_nome: userName,
+        }));
+
+      if (leiturasToInsert.length > 0) {
+        await (supabase as any)
+          .from('publicacoes_djen_leituras')
+          .upsert(leiturasToInsert, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
       }
 
       console.log('[DJEN] Publicações marcadas via dedup:', data);
@@ -984,7 +1053,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         { queryKey: ['publicacoes-unificadas'] },
         (old) => {
           if (!old) return old;
-          return old.map(pub => idsToMark.has(pub.id) ? { ...pub, lida: true } : pub);
+          return old.map(pub => idsToMark.has(pub.id) ? { 
+            ...pub, 
+            lida: true,
+            lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
+          } : pub);
         }
       );
 
@@ -1018,8 +1091,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     loadingStats: isLoading,
     marcarComoLida,
-    totalHoje: statsIndependentes?.total ?? estatisticas.reduce((acc, s) => acc + s.total, 0),
-    naoLidasHoje: statsIndependentes?.naoLidas ?? estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
+    totalHoje: publicacoes.length,
+    naoLidasHoje: publicacoes.filter(p => !p.lida).length,
     totalDescartadasHoje,
   };
 }

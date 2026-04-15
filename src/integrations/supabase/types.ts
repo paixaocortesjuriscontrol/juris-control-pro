@@ -4867,6 +4867,33 @@ export type Database = {
           },
         ]
       }
+      publicacoes_djen_leituras: {
+        Row: {
+          id: string
+          lida_em: string
+          publicacao_id: string
+          tabela_origem: string
+          usuario_id: string
+          usuario_nome: string | null
+        }
+        Insert: {
+          id?: string
+          lida_em?: string
+          publicacao_id: string
+          tabela_origem: string
+          usuario_id: string
+          usuario_nome?: string | null
+        }
+        Update: {
+          id?: string
+          lida_em?: string
+          publicacao_id?: string
+          tabela_origem?: string
+          usuario_id?: string
+          usuario_nome?: string | null
+        }
+        Relationships: []
+      }
       publicacoes_djen_processos: {
         Row: {
           advogados_json: Json | null
@@ -5807,6 +5834,16 @@ export type Database = {
           total_tarefas: number
           urgentes: number
           usuario_id: string
+        }[]
+      }
+      get_leituras_publicacoes: {
+        Args: { p_ids: string[] }
+        Returns: {
+          lida_em: string
+          publicacao_id: string
+          tabela_origem: string
+          usuario_id: string
+          usuario_nome: string
         }[]
       }
       get_notificacoes_counts_by_coordenacao: {
