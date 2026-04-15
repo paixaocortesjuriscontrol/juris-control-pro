@@ -62,7 +62,7 @@ const RELATOR_TURMA: Record<string, string> = {
   "morgana de almeida richa": "4ª Turma",
   "sergio pinto martins": "8ª Turma",
   "liana chaib": "3ª Turma",
-  "antonio fabricio de matos goncalves": "7ª Turma",
+  "antonio fabricio de matos goncalves": "6ª Turma",
   "jose pedro de camargo rodrigues de souza": "5ª Turma",
   "joao pedro silvestrin": "2ª Turma",
 };
