@@ -263,9 +263,12 @@ function extrairTurma(rd: any): string | null {
     const m = nome.match(/(\d+)\s*[ªa]?\s*turma/i);
     if (m) return `${m[1]}ª Turma`;
   }
-  // qualquer órgão colegiado reconhecível
   for (const c of courts) {
-    const nome = (c?.name || "").toString();
+    const nome = (c?.name || "").toString().trim();
+    if (/vice[-\s]?presid[êe]ncia/i.test(nome)) return "Vice-Presidente";
+    if (/corregedor(?:ia|[-\s]?geral)?/i.test(nome)) return "Corregedor-Geral";
+    if (/presid[êe]ncia/i.test(nome) && !/vice[-\s]?presid[êe]ncia/i.test(nome)) return "Presidente";
+    if (/cejusc/i.test(nome)) return "CEJUSC Turma";
     if (/turma|sdi|subse|seção|câmara|órgão especial/i.test(nome)) return nome;
   }
   return null;
@@ -289,7 +292,7 @@ function extrairRelator(rd: any): string | null {
     }
   }
 
-  // Ministros do TST aparecem como "parties" com person_type específico
+  // Ministros/Desembargadores/órgãos administrativos do TST podem aparecer em parties
   if (Array.isArray(rd.parties)) {
     const mag = rd.parties.find((p: any) => {
       const t = (p?.person_type || "").toUpperCase();
@@ -298,7 +301,13 @@ function extrairRelator(rd: any): string | null {
     if (mag?.name) return mag.name;
   }
 
-  const RX_REL = /(?:relator|relatora|min(?:istro|istra)?\.?)[\s:]+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ.\s]{5,60})/i;
+  const turmaAdmin = extrairTurma(rd);
+  if (turmaAdmin) {
+    const relatorDerivado = derivarRelatorDaTurma(turmaAdmin);
+    if (relatorDerivado) return relatorDerivado;
+  }
+
+  const RX_REL = /(?:relator|relatora|min(?:istro|istra)?\.?|desembargador(?:a)?)[\s:]+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ.\s]{5,80})/i;
   for (const s of rd.steps || []) {
     const txt = (s?.content || "").toString();
     const m = txt.match(RX_REL);
@@ -459,6 +468,7 @@ serve(async (req) => {
       const r = derivarRelatorDaTurma(turma);
       if (r) relator = r;
     }
+    console.log(`[buscar-judit] extração final relator=${relator || 'null'} turma=${turma || 'null'}`);
 
     // partes
     const parties = Array.isArray(rd.parties) ? rd.parties : [];
