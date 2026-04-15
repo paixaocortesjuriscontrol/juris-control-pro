@@ -1087,8 +1087,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     loadingStats: isLoading,
     marcarComoLida,
-    totalHoje: statsIndependentes?.total ?? estatisticas.reduce((acc, s) => acc + s.total, 0),
-    naoLidasHoje: statsIndependentes?.naoLidas ?? estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0),
+    totalHoje: publicacoes.length,
+    naoLidasHoje: publicacoes.filter(p => !p.lida).length,
     totalDescartadasHoje,
   };
 }
