@@ -34,6 +34,38 @@ const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30_000;    // 30s — reduzido, pois cache-first resolve maioria
 const CACHE_TTL_DAYS = 7;
 
+// ---------- Cache-first: lookup direto no datalake (instantâneo) ----------
+
+async function juditLookupCache(
+  apiKey: string,
+  cnj: string,
+): Promise<any | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s max
+    const r = await fetch(`${LAWSUITS_BASE}/${encodeURIComponent(cnj)}`, {
+      headers: { "api-key": apiKey, "Content-Type": "application/json" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!r.ok) {
+      await r.text(); // consume body
+      return null;
+    }
+    const data = await r.json();
+    // O endpoint retorna um objeto com response_data ou diretamente os dados
+    const rd = data?.response_data || data;
+    if (!rd || typeof rd !== "object") return null;
+    // Verificar se tem dados mínimos úteis
+    if (!rd.steps?.length && !rd.courts?.length && !rd.parties?.length) return null;
+    console.log(`[buscar-judit] Cache hit! steps=${rd.steps?.length || 0}`);
+    return rd;
+  } catch (e) {
+    console.log(`[buscar-judit] Cache miss/error: ${(e as Error).message}`);
+    return null;
+  }
+}
+
 // ---------- Judit async client --------------------------------------------
 
 async function juditCriarRequest(
