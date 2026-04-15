@@ -28,9 +28,10 @@ const corsHeaders = {
 const JUDIT_BASE = "https://requests.prod.judit.io";
 const REQUESTS_URL = `${JUDIT_BASE}/requests`;
 const RESPONSES_URL = `${JUDIT_BASE}/responses`;
+const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 60_000;    // 60s — evitar timeout do Supabase (~150s)
+const POLL_TIMEOUT_MS = 30_000;    // 30s — reduzido, pois cache-first resolve maioria
 const CACHE_TTL_DAYS = 7;
 
 // ---------- Judit async client --------------------------------------------
