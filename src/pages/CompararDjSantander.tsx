@@ -29,6 +29,14 @@ interface Coordenacao {
   nome: string;
 }
 
+function formatarCNJ(numero: string): string {
+  const digits = numero.replace(/\D/g, "");
+  if (digits.length === 20) {
+    return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+  }
+  return numero;
+}
+
 const COMUNICACAO_PJE_REGEX = /COMUNICA[CÇ][AÃ]O\s+PJE\s+#?\s*(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/gi;
 
 function extrairProcessos(texto: string): string[] {
@@ -265,7 +273,7 @@ export default function CompararDjSantander() {
       }
 
       // Deduplicate
-      const unique = [...new Set(allProcessos)];
+      const unique = [...new Set(allProcessos)].map(formatarCNJ);
       setDjenProcessos(unique);
       setDjenLoaded(true);
       toast.success(`${unique.length} processos encontrados nas publicações DJEN`);
