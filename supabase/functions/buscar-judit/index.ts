@@ -307,13 +307,21 @@ function extrairRelator(rd: any): string | null {
     if (relatorDerivado) return relatorDerivado;
   }
 
+  // Padrão genérico: "relator/min./ministro NOME" em steps
   const RX_REL = /(?:relator|relatora|min(?:istro|istra)?\.?|desembargador(?:a)?)[\s:]+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ.\s]{5,80})/i;
+  // Padrão CONCLUSOS: "CONCLUSOS OS AUTOS PARA DESPACHO (GENÉRICA) A NOME"
+  const RX_CONCLUSOS = /CONCLUSOS\s+(?:OS\s+AUTOS\s+)?(?:PARA\s+\w+\s+)?(?:\([^)]*\)\s+)?(?:A|AO)\s+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ\s.]{5,80})/i;
+  // Padrão MIN. NOME genérico
+  const RX_MIN = /(?:^|\s)MIN(?:ISTR[AO])?\.?\s+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ\s.]{5,80})/i;
+
   for (const s of rd.steps || []) {
     const txt = (s?.content || "").toString();
-    const m = txt.match(RX_REL);
-    if (m) {
-      const cand = m[1].trim().replace(/[.,;]+$/, "");
-      if (cand.split(/\s+/).length >= 2) return cand;
+    for (const rx of [RX_REL, RX_CONCLUSOS, RX_MIN]) {
+      const m = txt.match(rx);
+      if (m) {
+        const cand = m[1].trim().replace(/[.,;]+$/, "");
+        if (cand.split(/\s+/).length >= 2) return cand;
+      }
     }
   }
   return null;
@@ -600,6 +608,12 @@ serve(async (req) => {
         tribunal_selecionado: rd.tribunal_acronym,
         instance_selecionada: rd.instance,
         distribution_date_br: dataDistribuicaoBR,
+        judge_bruto: rd.judge ?? null,
+        courts_brutos: (rd.courts || []).map((c: any) => c?.name || c),
+        steps_amostra: (steps || []).slice(0, 8).map((s: any) => ({
+          data: s.step_date,
+          content: (s.content || "").toString().substring(0, 250),
+        })),
       },
     };
 

@@ -123,6 +123,14 @@ const RELATOR_TITULO_REGEX =
 const RELATOR_ALT_REGEX =
   /(?:ao|para\s+o|para\s+a)\s+(?:ministr[ao]|relator[a]?|des(?:embargador)?\.?\s*(?:federal)?|min\.?)\s+(.+?)(?:\s*[-–]|\s*$)/i;
 
+// Regex para "CONCLUSOS OS AUTOS PARA DESPACHO (GENÉRICA) A NOME"
+const CONCLUSOS_REGEX =
+  /CONCLUSOS\s+(?:OS\s+AUTOS\s+)?(?:PARA\s+\w+\s+)?(?:\([^)]*\)\s+)?(?:A|AO)\s+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ\s.]{5,80})/i;
+
+// Regex para "ATO ORDINATÓRIO - MIN. NOME" ou "MIN. NOME" genérico em steps
+const MIN_STEP_REGEX =
+  /(?:^|\s)MIN(?:ISTR[AO])?\.?\s+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-zÁÉÍÓÚÂÊÔÇÃÕáéíóúâêôçãõ\s.]{5,80})/i;
+
 // Regex para extrair turma (precisam ser refinados com dados reais)
 const TURMA_REGEX =
   /(\d+[ªºa]?\s*turma|sbdi[-\s]?[ivx\d]+|sdi[-\s]?[ivx\d]+|orgao\s+especial|[oó]rg[aã]o\s+especial|tribunal\s+pleno|se[çc][aã]o\s+especializada)/i;
@@ -239,6 +247,43 @@ export function extrairOrgaoJulgador(
         data_distribuicao: data,
         fonte: isRedist ? "movimento_redistribuicao" : "movimento_distribuicao",
       };
+    }
+  }
+
+  // ── Segundo passo: varrer TODOS os steps (não só distribuição) ──
+  // Procura padrões CONCLUSOS...A NOME e MIN. NOME em qualquer andamento
+  for (const step of sorted) {
+    const content = getStepContent(step);
+    const data = getStepDate(step)?.substring(0, 10) || null;
+
+    // Padrão CONCLUSOS
+    let match = CONCLUSOS_REGEX.exec(content);
+    if (match?.[1]) {
+      const relator = limparNome(match[1]);
+      if (relator.split(/\s+/).length >= 2) {
+        let turma = extrairTurmaDoTexto(content) || derivarTurmaDoRelator(relator);
+        return {
+          turma,
+          relator,
+          data_distribuicao: data,
+          fonte: "movimento_distribuicao" as FonteOrgao,
+        };
+      }
+    }
+
+    // Padrão MIN. NOME genérico
+    match = MIN_STEP_REGEX.exec(content);
+    if (match?.[1]) {
+      const relator = limparNome(match[1]);
+      if (relator.split(/\s+/).length >= 2) {
+        let turma = extrairTurmaDoTexto(content) || derivarTurmaDoRelator(relator);
+        return {
+          turma,
+          relator,
+          data_distribuicao: data,
+          fonte: "movimento_distribuicao" as FonteOrgao,
+        };
+      }
     }
   }
 
