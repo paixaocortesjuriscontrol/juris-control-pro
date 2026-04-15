@@ -293,7 +293,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
-        if (filtros.apenasNaoLidas) q = q.eq('lida', false);
+        // Per-user tracking: lida filter handled client-side
         if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
         // Respeita o filtro de coordenação
