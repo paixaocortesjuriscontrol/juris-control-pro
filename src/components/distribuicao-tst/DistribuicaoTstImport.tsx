@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -38,11 +38,26 @@ export function DistribuicaoTstImport({ onImported }: Props) {
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
+
+  const resetState = () => {
+    setImporting(false);
+    setProgress(0);
+    setProgressLabel("");
+    cancelRef.current = false;
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleCancel = () => {
+    cancelRef.current = true;
+    setProgressLabel("Cancelando...");
+  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    cancelRef.current = false;
     setImporting(true);
     setProgress(0);
     setProgressLabel("Lendo planilha...");
@@ -50,7 +65,6 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      // First pass: collect all records
       const allRecords: { sheetName: string; row: string[]; }[] = [];
       
       for (const sheetName of wb.SheetNames) {
@@ -78,21 +92,27 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       if (allRecords.length === 0) {
         toast.warning("Nenhum registro válido encontrado na planilha");
+        resetState();
         return;
       }
 
-      let totalProcessed = 0;
       let totalUpserted = 0;
       const total = allRecords.length;
 
       for (let idx = 0; idx < allRecords.length; idx++) {
+        if (cancelRef.current) {
+          toast.info(`Importação cancelada. ${totalUpserted} registros já processados.`);
+          onImported();
+          resetState();
+          return;
+        }
+
         const { sheetName, row: r } = allRecords[idx];
         const processoNumero = norm(r[1]);
 
         setProgress(Math.round(((idx + 1) / total) * 100));
         setProgressLabel(`Processando ${idx + 1} de ${total}...`);
 
-        // Ensure processo exists
         const { data: existingProc } = await supabase
           .from("processos")
           .select("id")
@@ -154,7 +174,6 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           benner_atualizado: toBool(r[26]),
         };
 
-        // Delete existing then insert (upsert via delete+insert)
         await supabase
           .from("distribuicoes_tst" as any)
           .delete()
@@ -167,9 +186,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         } else {
           totalUpserted++;
         }
-        totalProcessed++;
 
-        // Yield to UI every 5 records
         if (idx % 5 === 0) await new Promise(r => requestAnimationFrame(r));
       }
 
@@ -185,12 +202,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     } catch (err: any) {
       toast.error("Erro ao processar planilha: " + (err?.message || String(err)));
     } finally {
-      setTimeout(() => {
-        setImporting(false);
-        setProgress(0);
-        setProgressLabel("");
-      }, 1500);
-      if (fileRef.current) fileRef.current.value = "";
+      setTimeout(resetState, 1500);
     }
   };
 
@@ -202,10 +214,15 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         Importar Planilha
       </Button>
       {importing && (
-        <div className="flex items-center gap-2 min-w-[250px]">
-          <Progress value={progress} className="h-2 flex-1" />
-          <span className="text-xs text-muted-foreground whitespace-nowrap">{progressLabel}</span>
-        </div>
+        <>
+          <div className="flex items-center gap-2 min-w-[250px]">
+            <Progress value={progress} className="h-2 flex-1" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{progressLabel}</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleCancel} className="text-destructive hover:text-destructive">
+            <XCircle className="w-4 h-4 mr-1" /> Cancelar
+          </Button>
+        </>
       )}
     </div>
   );
