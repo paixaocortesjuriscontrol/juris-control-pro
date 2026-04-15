@@ -34,6 +34,94 @@ const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30_000;    // 30s — reduzido, pois cache-first resolve maioria
 const CACHE_TTL_DAYS = 7;
 
+// ---------- DataJud fallback (CNJ public API) -----------------------------
+const DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==";
+const DATAJUD_BASE = "https://api-publica.datajud.cnj.jus.br";
+
+interface DataJudOrgao {
+  relator: string | null;
+  turma: string | null;
+  dataDistribuicao: string | null;
+  classe: string | null;
+}
+
+async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
+  try {
+    const digits = cnj.replace(/\D/g, "");
+    // Determinar endpoint pelo segmento de justiça (posição 14, 0-indexed 13)
+    const segmento = digits.charAt(13);
+    let endpoint = "api_publica_tst";
+    if (segmento === "5") {
+      // Justiça do Trabalho — tentar TST primeiro
+      endpoint = "api_publica_tst";
+    }
+
+    const url = `${DATAJUD_BASE}/${endpoint}/_search`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `APIKey ${DATAJUD_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: { match: { numeroProcesso: digits } },
+        size: 1,
+        _source: ["orgaoJulgador", "classe", "dataAjuizamento", "relator"],
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!r.ok) {
+      console.log(`[buscar-judit][datajud] HTTP ${r.status}`);
+      return null;
+    }
+
+    const data = await r.json();
+    const hits = data?.hits?.hits || [];
+    if (hits.length === 0) {
+      console.log("[buscar-judit][datajud] Nenhum resultado");
+      return null;
+    }
+
+    const src = hits[0]._source;
+    const orgao = src?.orgaoJulgador || {};
+    const codigoOrgao = orgao?.codigoOrgao?.toString() || "";
+    const nomeOrgao = orgao?.nomeOrgao || "";
+
+    // Extrair turma do nomeOrgao (ex: "6ª Turma", "Gabinete do Ministro X")
+    let turma: string | null = null;
+    const mTurma = nomeOrgao.match(/(\d+)[ªºa]?\s*turma/i);
+    if (mTurma) {
+      turma = `${mTurma[1]}ª Turma`;
+    } else if (/sdi|sbdi|se[çc][aã]o|tribunal\s+pleno|[oó]rg[aã]o\s+especial/i.test(nomeOrgao)) {
+      turma = nomeOrgao;
+    }
+
+    // Extrair relator do nomeOrgao (ex: "Gabinete do Ministro Antônio Fabrício...")
+    let relator: string | null = null;
+    const mGab = nomeOrgao.match(/(?:Gabinete\s+[-–]?\s*d[oa]\s+)?(?:Ministro|Ministra|Min\.?|Desembargador(?:a)?)\s+(.+)/i);
+    if (mGab) {
+      relator = mGab[1].trim().replace(/[.,;()\-]+$/, "");
+    }
+
+    // Classe processual
+    const classe = src?.classe?.nome || null;
+
+    // Data
+    const dataAjuiz = src?.dataAjuizamento?.substring(0, 10) || null;
+
+    console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
+    return { relator, turma, dataDistribuicao: dataAjuiz, classe };
+  } catch (e) {
+    console.log(`[buscar-judit][datajud] erro: ${(e as Error).message}`);
+    return null;
+  }
+}
+
 // ---------- Cache-first: lookup direto no datalake (instantâneo) ----------
 
 async function juditLookupCache(
