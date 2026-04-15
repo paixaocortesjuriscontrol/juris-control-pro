@@ -561,11 +561,8 @@ serve(async (req) => {
       total_steps: steps.length,
       _debug: {
         request_id: requestId,
-        status_judit: envelope.request_status,
-        instancias_retornadas: pageData.length,
-        acronimos_retornados: pageData.map(
-          (i: any) => i?.response_data?.tribunal_acronym,
-        ),
+        status_judit: debugStatus,
+        instancias_retornadas: debugInstancias,
         tribunal_selecionado: rd.tribunal_acronym,
         instance_selecionada: rd.instance,
         distribution_date_br: dataDistribuicaoBR,
