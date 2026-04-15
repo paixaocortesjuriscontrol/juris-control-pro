@@ -116,6 +116,7 @@ const AnaliseDjen = () => {
   const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
   const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  const [apenasComProcesso, setApenasComProcesso] = useState(false);
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -1403,16 +1404,46 @@ const AnaliseDjen = () => {
     }
   };
 
+  // Buscar números de processos cadastrados para filtro "Com processo"
+  const { data: processosNumerosCadastrados } = useQuery({
+    queryKey: ['processos-numeros-cadastrados', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      let q = supabase.from('processos').select('numero');
+      if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      const { data } = await q.limit(5000);
+      // Normalizar para apenas dígitos para comparação
+      const set = new Set<string>();
+      (data || []).forEach((p: any) => {
+        if (p.numero) set.add(p.numero.replace(/\D/g, ''));
+      });
+      return set;
+    },
+    enabled: apenasComProcesso,
+    staleTime: 60_000,
+  });
+
   // Use merged data for all rendering (shadow the hook's publicacoes)
-  // Filtro client-side por data de disponibilização
+  // Filtro client-side por data de disponibilização e "com processo cadastrado"
   const allPublicacoes = useMemo(() => {
-    if (!dataDisponibilizacao) return mergedPublicacoes;
-    return mergedPublicacoes.filter(pub => {
-      if (!pub.data_disponibilizacao) return false;
-      const pubDate = pub.data_disponibilizacao.slice(0, 10); // YYYY-MM-DD
-      return pubDate === dataDisponibilizacao;
-    });
-  }, [mergedPublicacoes, dataDisponibilizacao]);
+    let result = mergedPublicacoes;
+    if (dataDisponibilizacao) {
+      result = result.filter(pub => {
+        if (!pub.data_disponibilizacao) return false;
+        const pubDate = pub.data_disponibilizacao.slice(0, 10);
+        return pubDate === dataDisponibilizacao;
+      });
+    }
+    if (apenasComProcesso && processosNumerosCadastrados) {
+      result = result.filter(pub => {
+        // tipo_origem 'processo' já é de processo cadastrado
+        if (pub.tipo_origem === 'processo') return true;
+        if (!pub.processo_numero) return false;
+        const digits = pub.processo_numero.replace(/\D/g, '');
+        return processosNumerosCadastrados.has(digits);
+      });
+    }
+    return result;
+  }, [mergedPublicacoes, dataDisponibilizacao, apenasComProcesso, processosNumerosCadastrados]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
@@ -1673,6 +1704,17 @@ const AnaliseDjen = () => {
                 />
                 <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
                   Não Lidas
+                </Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="comProcesso"
+                  checked={apenasComProcesso}
+                  onCheckedChange={(checked) => setApenasComProcesso(checked as boolean)}
+                />
+                <Label htmlFor="comProcesso" className="cursor-pointer text-xs md:text-sm text-blue-600 dark:text-blue-400 font-medium">
+                  Com Processo
                 </Label>
               </div>
 
