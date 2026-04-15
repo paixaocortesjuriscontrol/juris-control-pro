@@ -1053,7 +1053,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         { queryKey: ['publicacoes-unificadas'] },
         (old) => {
           if (!old) return old;
-          return old.map(pub => idsToMark.has(pub.id) ? { ...pub, lida: true } : pub);
+          return old.map(pub => idsToMark.has(pub.id) ? { 
+            ...pub, 
+            lida: true,
+            lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
+          } : pub);
         }
       );
 
