@@ -984,8 +984,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
   })();
 
-  // Marcar como lida - usa RPC que marca TODOS os registros duplicados (mesmo hash de dedup)
-  // Isso resolve o problema onde a UI mostra 1 publicação deduplicada, mas existem N registros subjacentes
+  // Marcar como lida - per-user tracking + legacy global flag via RPC
   const marcarComoLida = useMutation({
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
       const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
@@ -1001,7 +1000,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .in('id', datajudIds);
       }
 
-      // Usa RPC que encontra e marca TODOS os registros que compartilham o mesmo hash de deduplicação
+      // Legacy: marca global flag via RPC (backwards compat)
       const { data, error } = await (supabase as any).rpc('marcar_publicacoes_lidas_por_dedup', {
         p_ids_termos: termos.length > 0 ? termos : null,
         p_ids_processos: processos.length > 0 ? processos : null,
@@ -1011,6 +1010,30 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       if (error) {
         console.error('Erro ao marcar publicações lidas via RPC:', error);
         throw new Error(error.message);
+      }
+
+      // Per-user tracking: insert into leituras table
+      // Get user's name from profiles
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('nome')
+        .eq('id', user!.id)
+        .maybeSingle();
+      const userName = profileData?.nome || user?.email || 'Desconhecido';
+
+      const leiturasToInsert = items
+        .filter(i => i.tipo_origem !== 'datajud')
+        .map(i => ({
+          publicacao_id: i.id,
+          tabela_origem: i.tipo_origem,
+          usuario_id: user!.id,
+          usuario_nome: userName,
+        }));
+
+      if (leiturasToInsert.length > 0) {
+        await (supabase as any)
+          .from('publicacoes_djen_leituras')
+          .upsert(leiturasToInsert, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
       }
 
       console.log('[DJEN] Publicações marcadas via dedup:', data);
