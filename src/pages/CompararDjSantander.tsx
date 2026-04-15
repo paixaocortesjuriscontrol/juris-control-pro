@@ -273,7 +273,7 @@ export default function CompararDjSantander() {
       }
 
       // Deduplicate
-      const unique = [...new Set(allProcessos)];
+      const unique = [...new Set(allProcessos)].map(formatarCNJ);
       setDjenProcessos(unique);
       setDjenLoaded(true);
       toast.success(`${unique.length} processos encontrados nas publicações DJEN`);
