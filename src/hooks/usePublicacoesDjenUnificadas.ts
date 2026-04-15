@@ -132,6 +132,11 @@ async function enriquecerPublicacoesComMonitoramento(
   });
 }
 
+export interface LeituraUsuario {
+  nome: string;
+  lida_em: string;
+}
+
 export interface PublicacaoUnificada {
   id: string;
   tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
@@ -166,6 +171,8 @@ export interface PublicacaoUnificada {
   partes_json?: string[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
+  // Per-user read tracking
+  lido_por?: LeituraUsuario[];
 }
 
 export interface FiltrosUnificados {
