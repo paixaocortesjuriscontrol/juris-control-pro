@@ -277,11 +277,12 @@ function extrairRelator(rd: any): string | null {
   if (typeof j === "string" && j.trim() && !INVALIDOS.includes(j.trim().toUpperCase())) return j.trim();
   if (j && typeof j === "object" && j.name && !INVALIDOS.includes((j.name || "").toUpperCase())) return j.name;
 
-  // Extrair de courts: "Gabinete do Ministro Sergio Pinto Martins"
+  // Extrair de courts: "Gabinete do Ministro X" ou "Gabinete - Desembargadora Y"
   const courts = Array.isArray(rd.courts) ? rd.courts : [];
   for (const c of courts) {
     const nome = (c?.name || "").toString();
-    const mGab = nome.match(/(?:Gabinete\s+d[oa]\s+)?(?:Ministro|Ministra|Min\.?)\s+(.+)/i);
+    // Padrão: "Gabinete do Ministro X", "Gabinete - Desembargadora do Trabalho Y"
+    const mGab = nome.match(/(?:Gabinete\s+[-–]?\s*d[oa]\s+)?(?:Ministro|Ministra|Min\.?|Desembargador(?:a)?(?:\s+do\s+Trabalho)?|Des\.?)\s+(.+)/i);
     if (mGab) {
       const cand = mGab[1].trim().replace(/[.,;()\-]+$/, "");
       if (cand.split(/\s+/).length >= 2) return cand;
@@ -375,18 +376,32 @@ serve(async (req) => {
       );
 
       rd = selecionarInstancia(pageData, tribunalHint);
+      
+      // Se o async retornou dados com 0 steps (pending/timeout) e temos cache com steps,
+      // mesclar: usar instância do async mas steps do cache para extração
+      if (rd && (!rd.steps || rd.steps.length === 0) && cachedRd && cachedRd.steps?.length > 0) {
+        console.log(`[buscar-judit] Mesclando: instância async (${rd.tribunal_acronym}) + steps do cache (${cachedRd.steps.length})`);
+        rd = { ...rd, steps: cachedRd.steps, parties: rd.parties?.length ? rd.parties : cachedRd.parties };
+      }
+      
       if (!rd) {
-        return json(
-          {
-            error: "Processo não encontrado na Judit",
-            _debug: {
-              request_id: requestId,
-              status_judit: envelope.request_status,
-              instancias_retornadas: pageData.length,
+        // Se não achou instância TST mas tem cache, usar o cache como fallback
+        if (cachedRd) {
+          console.log(`[buscar-judit] TST não encontrado, usando cache como fallback`);
+          rd = cachedRd;
+        } else {
+          return json(
+            {
+              error: "Processo não encontrado na Judit",
+              _debug: {
+                request_id: requestId,
+                status_judit: envelope.request_status,
+                instancias_retornadas: pageData.length,
+              },
             },
-          },
-          404,
-        );
+            404,
+          );
+        }
       }
 
       console.log(
