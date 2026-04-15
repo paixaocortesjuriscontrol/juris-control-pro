@@ -339,11 +339,20 @@ serve(async (req) => {
     let debugInstancias = 0;
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
-    if (cachedRd) {
+    
+    // Cache só é útil se o tribunal bater com o hint (cache retorna 1 instância, geralmente TRT)
+    const cacheMatchesHint = cachedRd && (!tribunalHint || 
+      (cachedRd.tribunal_acronym || "").toUpperCase() === tribunalHint.toUpperCase() ||
+      (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd)));
+    
+    if (cachedRd && cacheMatchesHint) {
       rd = cachedRd;
-      console.log(`[buscar-judit] Usando dados do cache direto`);
+      console.log(`[buscar-judit] Usando dados do cache direto (tribunal=${cachedRd.tribunal_acronym})`);
     } else {
-      // 2) Fallback: fluxo assíncrono (crawler)
+      // Fallback: fluxo assíncrono (crawler) — retorna TODAS as instâncias
+      if (cachedRd && !cacheMatchesHint) {
+        console.log(`[buscar-judit] Cache descartado: tribunal_cache=${cachedRd.tribunal_acronym} hint=${tribunalHint}`);
+      }
       debugStatus = "async_poll";
       requestId = await juditCriarRequest(JUDIT_API_KEY, cnj);
       if (!requestId) {
