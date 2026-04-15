@@ -28,10 +28,43 @@ const corsHeaders = {
 const JUDIT_BASE = "https://requests.prod.judit.io";
 const REQUESTS_URL = `${JUDIT_BASE}/requests`;
 const RESPONSES_URL = `${JUDIT_BASE}/responses`;
+const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 60_000;    // 60s — evitar timeout do Supabase (~150s)
+const POLL_TIMEOUT_MS = 30_000;    // 30s — reduzido, pois cache-first resolve maioria
 const CACHE_TTL_DAYS = 7;
+
+// ---------- Cache-first: lookup direto no datalake (instantâneo) ----------
+
+async function juditLookupCache(
+  apiKey: string,
+  cnj: string,
+): Promise<any | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s max
+    const r = await fetch(`${LAWSUITS_BASE}/${encodeURIComponent(cnj)}`, {
+      headers: { "api-key": apiKey, "Content-Type": "application/json" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!r.ok) {
+      await r.text(); // consume body
+      return null;
+    }
+    const data = await r.json();
+    // O endpoint retorna um objeto com response_data ou diretamente os dados
+    const rd = data?.response_data || data;
+    if (!rd || typeof rd !== "object") return null;
+    // Verificar se tem dados mínimos úteis
+    if (!rd.steps?.length && !rd.courts?.length && !rd.parties?.length) return null;
+    console.log(`[buscar-judit] Cache hit! steps=${rd.steps?.length || 0}`);
+    return rd;
+  } catch (e) {
+    console.log(`[buscar-judit] Cache miss/error: ${(e as Error).message}`);
+    return null;
+  }
+}
 
 // ---------- Judit async client --------------------------------------------
 
@@ -298,44 +331,59 @@ serve(async (req) => {
     const cnj = numero_processo.trim();
     console.log(`[buscar-judit] CNJ=${cnj} tribunal_hint=${tribunalHint}`);
 
-    // 1) cria requisição assíncrona
-    const requestId = await juditCriarRequest(JUDIT_API_KEY, cnj);
-    if (!requestId) {
-      return json({ error: "Falha ao criar requisição na Judit" }, 502);
-    }
-    console.log(`[buscar-judit] request_id=${requestId}`);
+    // ===== ESTRATÉGIA CACHE-FIRST =====
+    // 1) Tenta lookup direto no datalake (instantâneo, ~1-3s)
+    let rd: any = null;
+    let requestId: string | null = null;
+    let debugStatus = "cache_hit";
+    let debugInstancias = 0;
 
-    // 2) polling até completed
-    const envelope = await juditPollRespostas(JUDIT_API_KEY, requestId);
-    if (!envelope) {
-      return json({ error: "Sem resposta da Judit (timeout)" }, 504);
-    }
+    const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
+    if (cachedRd) {
+      rd = cachedRd;
+      console.log(`[buscar-judit] Usando dados do cache direto`);
+    } else {
+      // 2) Fallback: fluxo assíncrono (crawler)
+      debugStatus = "async_poll";
+      requestId = await juditCriarRequest(JUDIT_API_KEY, cnj);
+      if (!requestId) {
+        return json({ error: "Falha ao criar requisição na Judit" }, 502);
+      }
+      console.log(`[buscar-judit] request_id=${requestId}`);
 
-    const pageData = envelope.page_data ?? [];
-    console.log(
-      `[buscar-judit] status=${envelope.request_status} instancias=${pageData.length} acronimos=${pageData
-        .map((i: any) => i?.response_data?.tribunal_acronym)
-        .join(",")}`,
-    );
+      const envelope = await juditPollRespostas(JUDIT_API_KEY, requestId);
+      if (!envelope) {
+        return json({ error: "Sem resposta da Judit (timeout)" }, 504);
+      }
 
-    const rd = selecionarInstancia(pageData, tribunalHint);
-    if (!rd) {
-      return json(
-        {
-          error: "Processo não encontrado na Judit",
-          _debug: {
-            request_id: requestId,
-            status_judit: envelope.request_status,
-            instancias_retornadas: pageData.length,
+      const pageData = envelope.page_data ?? [];
+      debugStatus = envelope.request_status;
+      debugInstancias = pageData.length;
+      console.log(
+        `[buscar-judit] status=${envelope.request_status} instancias=${pageData.length} acronimos=${pageData
+          .map((i: any) => i?.response_data?.tribunal_acronym)
+          .join(",")}`,
+      );
+
+      rd = selecionarInstancia(pageData, tribunalHint);
+      if (!rd) {
+        return json(
+          {
+            error: "Processo não encontrado na Judit",
+            _debug: {
+              request_id: requestId,
+              status_judit: envelope.request_status,
+              instancias_retornadas: pageData.length,
+            },
           },
-        },
-        404,
+          404,
+        );
+      }
+
+      console.log(
+        `[buscar-judit] selecionado: tribunal=${rd.tribunal_acronym} instance=${rd.instance}`,
       );
     }
-
-    console.log(
-      `[buscar-judit] selecionado: tribunal=${rd.tribunal_acronym} instance=${rd.instance}`,
-    );
 
     // ---- extração ----
     const tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
@@ -513,11 +561,8 @@ serve(async (req) => {
       total_steps: steps.length,
       _debug: {
         request_id: requestId,
-        status_judit: envelope.request_status,
-        instancias_retornadas: pageData.length,
-        acronimos_retornados: pageData.map(
-          (i: any) => i?.response_data?.tribunal_acronym,
-        ),
+        status_judit: debugStatus,
+        instancias_retornadas: debugInstancias,
         tribunal_selecionado: rd.tribunal_acronym,
         instance_selecionada: rd.instance,
         distribution_date_br: dataDistribuicaoBR,
