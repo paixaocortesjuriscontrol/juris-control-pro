@@ -1,57 +1,45 @@
 
 
-## Plano: Baixar Documentos via Judit + Botão na tela Dados Benner
+## Plano: Corrigir extração de Relator e Turma na buscar-judit
 
-### Resumo
+### Problema
+A API Judit, ao retornar dados do TST, frequentemente traz `judge: null` e `courts` apenas com o órgão de origem (ex: "CEJUSC-TST"), sem informação de Turma ou Ministro Relator. Os dados de Relator/Turma aparecem apenas nos textos dos andamentos (`steps`).
 
-Criar uma Edge Function `baixar-autos-judit` que usa a API Judit para listar e baixar documentos (PDFs) de um processo, salvando no Storage e registrando na tabela existente `processos_documentos_download`. Adicionar um botão "Baixar Autos" ao lado do botão Judit no formulário Dados Benner.
-
-### Fluxo
-
-```text
-[Botão "Baixar Autos" no form]
-       │
-       ▼
-Edge Function "baixar-autos-judit"
-       │
-       ├─ 1. GET lawsuits/{cnj} → ler attachments[]
-       │     (se vazio, POST requests com response_type="attachments" + polling)
-       │
-       ├─ 2. Para cada attachment:
-       │     GET lawsuits/{cnj}/{instance}/attachments/{attachment_id}
-       │     → upload PDF ao bucket "documentos_processos"
-       │     → INSERT em processos_documentos_download
-       │
-       └─ 3. Retorna { documentos_baixados, documentos[] }
-```
+### Diagnóstico
+O crawler da Judit para o TST geralmente coleta apenas a "capa" do processo, que não contém Relator nem Turma. Esses dados ficam em:
+- **Relator**: aparece em andamentos como `"CONCLUSOS OS AUTOS PARA DESPACHO (GENÉRICA) A ALEXANDRE GARCIA MULLER"`
+- **Turma**: aparece em andamentos como `"Distribuído à 4ª Turma — Min. X"`
 
 ### Mudanças
 
-**1. Nova Edge Function `baixar-autos-judit`**
-- Recebe `{ processo_id, processo_numero }` via POST
-- Usa `JUDIT_API_KEY` (já configurada nos secrets)
-- Consulta o datalake para obter lista de attachments
-- Se attachments vazio, faz request assíncrona (`response_type: "attachments"`) + polling até 90s
-- Baixa cada PDF via endpoint de attachments
-- Salva no bucket `documentos_processos` com path `{processo_id}/{attachment_name}.pdf`
-- Registra na tabela `processos_documentos_download` existente
-- Retorna resumo com quantidade e lista de documentos
+**1. Adicionar `_debug` expandido na resposta (`buscar-judit/index.ts`)**
+- Incluir `judge_bruto`, `courts_brutos` e `steps_amostra` (primeiros 8 steps) no objeto `_debug` da resposta
+- Permite inspecionar os dados brutos da Judit direto no DevTools do navegador sem precisar de logs do servidor
 
-**2. Atualizar `DadosBennerForm.tsx`**
-- Adicionar estado `baixandoAutos` e handler `handleBaixarAutos`
-- Novo botão "Baixar Autos" (ícone FileDown, cor blue) ao lado do botão Judit
-- Desabilitado se não há `processo` preenchido
-- Toast com progresso e resultado
+**2. Melhorar extração via andamentos (`buscar-judit/index.ts` + `_shared/extrair-relator.ts`)**
+- Adicionar regex para padrão `CONCLUSOS...A NOME` que captura o nome do magistrado após "A" ou "AO" em andamentos de conclusão
+- Regex: `/CONCLUSOS\s+(?:OS\s+AUTOS\s+)?(?:PARA\s+\w+\s+)?(?:\([^)]*\)\s+)?(?:A|AO)\s+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-z...]{5,80})/i`
+- Varrer TODOS os steps (não só os de distribuição/redistribuição) procurando padrões como `MIN.\s+NOME` e `CONCLUSOS...A NOME`
 
-**3. Configuração**
-- Adicionar `[functions.baixar-autos-judit]` com `verify_jwt = true` em `config.toml`
-- Secret `JUDIT_API_KEY` já existe
+**3. Manter inferência bidirecional**
+- Se encontrar Relator mas não Turma → `derivarTurmaDoRelator()`
+- Se encontrar Turma mas não Relator → `derivarRelatorDaTurma()`
+- Já existe no código, apenas garantir que roda após a nova extração
+
+**4. Deploy e teste**
+- Redeployar a edge function
+- Testar com o CNJ `0010067-14.2022.5.15.0033` e verificar o `_debug` na resposta
+
+### Observação importante
+Para processos em fase de conciliação (CEJUSC), pode genuinamente não haver Relator/Turma atribuídos ainda — isso é comportamento esperado, não bug. O `_debug` expandido vai confirmar isso caso a caso.
 
 ### Detalhes técnicos
 
-- O endpoint do datalake `GET /lawsuits/{cnj}` retorna attachments com campos: `step_id`, `attachment_date`, `attachment_name`, `extension`
-- O attachment_id para download é o `step_id` do attachment (a confirmar com teste real)
-- Instance é extraída do CNJ (dígito 14, ou do campo `instance` do response_data)
-- Polling do request assíncrono usa `GET requests.prod.judit.io/requests/{request_id}` a cada 5s
-- Deduplicação: antes de baixar, verifica se já existe registro com mesmo `nome_arquivo` + `processo_id` na tabela
+**Arquivo**: `supabase/functions/buscar-judit/index.ts`
+- Adicionar campos de debug no objeto `_debug` do retorno
+- Adicionar segundo passo de extração varrendo todos os `steps` com regex ampliado
+
+**Arquivo**: `supabase/functions/_shared/extrair-relator.ts`
+- Adicionar padrão `CONCLUSOS` como fallback na função `extrairOrgaoJulgador()`
+- Expandir busca para incluir steps genéricos além de distribuição
 
