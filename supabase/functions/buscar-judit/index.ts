@@ -564,6 +564,38 @@ serve(async (req) => {
       const r = derivarRelatorDaTurma(turma);
       if (r) relator = r;
     }
+
+    // ===== FALLBACK DATAJUD =====
+    // Se relator ou turma ainda estão vazios, consulta DataJud (CNJ) como complemento
+    if (!relator || !turma) {
+      console.log(`[buscar-judit] Relator/turma incompletos após Judit, tentando DataJud...`);
+      const datajud = await consultarDataJud(cnj);
+      if (datajud) {
+        if (!relator && datajud.relator) {
+          relator = datajud.relator;
+          console.log(`[buscar-judit] Relator obtido do DataJud: ${relator}`);
+        }
+        if (!turma && datajud.turma) {
+          turma = datajud.turma;
+          console.log(`[buscar-judit] Turma obtida do DataJud: ${turma}`);
+        }
+        // Se DataJud trouxe classe e a Judit não, usar
+        if (!classificacao && datajud.classe) {
+          // Não reatribuímos classificacao aqui pois é const-like, mas logamos
+          console.log(`[buscar-judit] Classe do DataJud: ${datajud.classe}`);
+        }
+        // Inferência bidirecional após DataJud
+        if (relator && !turma) {
+          const t = derivarTurmaDoRelator(relator);
+          if (t) turma = t;
+        }
+        if (turma && !relator) {
+          const r = derivarRelatorDaTurma(turma);
+          if (r) relator = r;
+        }
+      }
+    }
+
     console.log(`[buscar-judit] extração final relator=${relator || 'null'} turma=${turma || 'null'}`);
 
     // partes
