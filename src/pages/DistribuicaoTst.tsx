@@ -101,7 +101,15 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const { dados: dadosRaw, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+
+  // Apply client-side Judit filter
+  const dados = useMemo(() => {
+    if (filtroJudit === "todos" || juditProcessNumbers.size === 0) return dadosRaw;
+    if (filtroJudit === "sim") return dadosRaw.filter(d => juditProcessNumbers.has(d.processo_numero));
+    if (filtroJudit === "nao") return dadosRaw.filter(d => !juditProcessNumbers.has(d.processo_numero));
+    return dadosRaw;
+  }, [dadosRaw, filtroJudit, juditProcessNumbers]);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
