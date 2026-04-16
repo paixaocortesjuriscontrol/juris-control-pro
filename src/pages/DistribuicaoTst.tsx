@@ -32,6 +32,7 @@ export default function DistribuicaoTst() {
   const [filtroBenner, setFiltroBenner] = useState<string>("todos");
   const [filtroProcesso, setFiltroProcesso] = useState("");
   const [filtroDossie, setFiltroDossie] = useState("");
+  const [filtroDossieStatus, setFiltroDossieStatus] = useState<string>("todos");
   const [filtroTurma, setFiltroTurma] = useState("");
   const [filtroRelator, setFiltroRelator] = useState("");
   const [filtroParte, setFiltroParte] = useState("");
