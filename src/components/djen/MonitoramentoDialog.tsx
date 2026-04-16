@@ -103,11 +103,15 @@ interface MonitoramentoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   monitoramento?: MonitoramentoDjen | null;
+  /** Quando fornecido, pré-preenche o formulário como NOVO monitoramento (duplicação) */
+  duplicateFrom?: MonitoramentoDjen | null;
   /** Quando fornecido, substitui a lista completa de coordenações (para filtrar por usuário) */
   coordenacoesOverride?: { id: string; nome: string; area?: string }[];
 }
 
-export function MonitoramentoDialog({ open, onOpenChange, monitoramento, coordenacoesOverride }: MonitoramentoDialogProps) {
+export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplicateFrom, coordenacoesOverride }: MonitoramentoDialogProps) {
+  // Fonte para pré-preenchimento: edição usa monitoramento; duplicação usa duplicateFrom
+  const fonte = monitoramento ?? duplicateFrom ?? null;
   const { criarMonitoramento, atualizarMonitoramento } = useMonitoramentosDjen();
   const { data: coordenacoesAll = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
