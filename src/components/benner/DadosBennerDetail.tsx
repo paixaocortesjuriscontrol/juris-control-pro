@@ -7,6 +7,7 @@ import { DadosBennerForm } from "./DadosBennerForm";
 import { DadosBennerDistribuicaoTab } from "./DadosBennerDistribuicaoTab";
 import { DadosBennerPautasTab } from "./DadosBennerPautasTab";
 import { DadosBennerProcessoTab } from "./DadosBennerProcessoTab";
+import { DadosBennerPartesTab } from "./DadosBennerPartesTab";
 
 interface Props {
   dado: DadoBenner;
