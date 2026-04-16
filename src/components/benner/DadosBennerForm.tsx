@@ -480,9 +480,35 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
     const toSave = { ...form, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : statusFinal };
-    const ok = await onSave(toSave, dado?.id);
+    const result = await onSave(toSave, dado?.id);
+    
+    // Persist parties if we have them and got a valid ID back
+    if (result && partesJudit.length > 0) {
+      const recordId = typeof result === "string" ? result : dado?.id;
+      if (recordId) {
+        // Remove old judit parties then insert new
+        await supabase
+          .from("partes_processo_benner")
+          .delete()
+          .eq("dados_benner_id", recordId)
+          .eq("origem", "judit");
+        
+        const rows = partesJudit.map(p => ({
+          dados_benner_id: recordId,
+          nome: p.nome || "Sem nome",
+          documento: p.documento || null,
+          tipo_pessoa: p.tipo_pessoa || null,
+          polo: p.polo || null,
+          is_advogado: p.is_advogado || false,
+          origem: "judit",
+        }));
+        
+        await supabase.from("partes_processo_benner").insert(rows);
+      }
+    }
+    
     setSaving(false);
-    if (ok) onCancel();
+    if (result) onCancel();
   };
 
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (

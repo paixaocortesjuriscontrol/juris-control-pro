@@ -171,17 +171,20 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const saveDado = async (dado: DadoBennerInsert, id?: string) => {
+  const saveDado = async (dado: DadoBennerInsert, id?: string): Promise<boolean | string> => {
     if (id) {
       const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id);
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      toast.success("Registro atualizado!");
+      fetchDados();
+      return id;
     } else {
-      const { error } = await supabase.from("dados_benner" as any).insert(dado as any);
+      const { data: inserted, error } = await supabase.from("dados_benner" as any).insert(dado as any).select("id").single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
+      toast.success("Registro salvo!");
+      fetchDados();
+      return (inserted as any)?.id || true;
     }
-    toast.success(id ? "Registro atualizado!" : "Registro salvo!");
-    fetchDados();
-    return true;
   };
 
   const deleteDado = async (id: string) => {
