@@ -349,7 +349,11 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {monitoramento ? 'Editar Monitoramento' : 'Novo Monitoramento DJEN'}
+            {monitoramento
+              ? 'Editar Monitoramento'
+              : duplicateFrom
+                ? 'Duplicar Monitoramento DJEN'
+                : 'Novo Monitoramento DJEN'}
           </DialogTitle>
         </DialogHeader>
         
