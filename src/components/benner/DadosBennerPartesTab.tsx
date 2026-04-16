@@ -86,7 +86,11 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
         body: { numero_cnj: processoNumero },
       });
 
-      if (error) throw error;
+      if (error) {
+        // supabase-js wraps non-2xx as FunctionsHttpError; try to read body
+        const msg = data?.error || error.message || "Erro desconhecido";
+        throw new Error(msg);
+      }
       const partiesDetail = data?.parties_detail;
       if (!Array.isArray(partiesDetail) || partiesDetail.length === 0) {
         toast.warning("Nenhuma parte encontrada na Judit para este processo");
