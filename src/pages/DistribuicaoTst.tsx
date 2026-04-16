@@ -152,13 +152,14 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroJudit !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
     setFiltroBenner("todos");
     setFiltroDossieStatus("todos");
     setFiltroMesAno("todos");
+    setFiltroJudit("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
