@@ -489,15 +489,16 @@ export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
       const existingStrings: string[] = [];
       const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
       let m: RegExpExecArray | null;
-      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(unescXml(m[1]));
       const stringMap = new Map<string, number>();
       existingStrings.forEach((s, i) => stringMap.set(s, i));
       const newStrings = [...existingStrings];
       function getStringIndex(val: string): number {
-        if (stringMap.has(val)) return stringMap.get(val)!;
+        const clean = val.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+        if (stringMap.has(clean)) return stringMap.get(clean)!;
         const idx = newStrings.length;
-        newStrings.push(val);
-        stringMap.set(val, idx);
+        newStrings.push(clean);
+        stringMap.set(clean, idx);
         return idx;
       }
 
