@@ -192,6 +192,9 @@ export default function DistribuicaoTst() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
           <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" onClick={() => setShowCarga(true)}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Gerar Carga Benner
+            </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
             <Button onClick={() => setShowForm(true)}>
