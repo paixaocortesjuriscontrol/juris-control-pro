@@ -122,7 +122,7 @@ export default function DistribuicaoTst() {
 
   useEffect(() => { fetchTabsData(); }, [fetchTabsData]);
 
-  const totalAll = useMemo(() => abas.reduce((s, a) => s + a.count, 0), [abas]);
+  
 
   const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos";
 
