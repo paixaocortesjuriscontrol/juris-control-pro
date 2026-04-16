@@ -109,46 +109,60 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         if (!firstOcc.has(rec.processoNumero)) firstOcc.set(rec.processoNumero, rec.row);
       }
 
-      setStatusText(`Etapa 1/2: Upsert ${uniqueNumeros.length} processos`);
+      setStatusText(`Etapa 1/3: Buscando processos existentes`);
       startTimeRef.current = Date.now();
 
-      const processosToUpsert = uniqueNumeros.map(num => {
-        const r = firstOcc.get(num)!;
-        return {
-          numero: num,
-          status: "ativo" as const,
-          area: "trabalhista",
-          polo_ativo: norm(r[4]) || null,
-          polo_passivo: norm(r[5]) || null,
-          dossie_tst: norm(r[2]) || null,
-          relator_tst: norm(r[6]) || null,
-          turma_tst: norm(r[8]) || null,
-        };
-      });
-
-      let processosCreated = 0;
       const processoIdMap = new Map<string, string>();
+      let newProcessos = 0;
 
-      for (let i = 0; i < processosToUpsert.length; i += BATCH_SIZE) {
+      // Step 1: Lookup existing processos in bulk
+      for (let i = 0; i < uniqueNumeros.length; i += BATCH_SIZE) {
         if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
-        const batch = processosToUpsert.slice(i, i + BATCH_SIZE);
-        const { data, error } = await (supabase.from("processos") as any)
-          .upsert(batch, { onConflict: "numero", ignoreDuplicates: false })
-          .select("id, numero");
+        const batch = uniqueNumeros.slice(i, i + BATCH_SIZE);
+        const { data } = await supabase.from("processos").select("id, numero").in("numero", batch);
+        (data || []).forEach((p: any) => processoIdMap.set(p.numero, p.id));
+        const done = Math.min(i + BATCH_SIZE, uniqueNumeros.length);
+        setProgress(Math.round((done / uniqueNumeros.length) * 15));
+        setDetailText(`${done}/${uniqueNumeros.length} verificados`);
+      }
 
-        if (error) {
-          console.error("Erro upsert processos:", error);
-        } else if (data) {
-          (data as any[]).forEach((p: any) => processoIdMap.set(p.numero, p.id));
-          processosCreated += data.length;
+      // Step 2: Insert only missing processos (ignoreDuplicates)
+      const missing = uniqueNumeros.filter(n => !processoIdMap.has(n));
+      if (missing.length > 0) {
+        setStatusText(`Etapa 2/3: Criando ${missing.length} processos novos`);
+        startTimeRef.current = Date.now();
+
+        const processosToCreate = missing.map(num => {
+          const r = firstOcc.get(num)!;
+          return {
+            numero: num,
+            status: "ativo" as const,
+            area: "trabalhista",
+            polo_ativo: norm(r[4]) || null,
+            polo_passivo: norm(r[5]) || null,
+            dossie_tst: norm(r[2]) || null,
+            relator_tst: norm(r[6]) || null,
+            turma_tst: norm(r[8]) || null,
+          };
+        });
+
+        for (let i = 0; i < processosToCreate.length; i += BATCH_SIZE) {
+          if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
+          const batch = processosToCreate.slice(i, i + BATCH_SIZE);
+          const { data, error } = await supabase.from("processos").insert(batch).select("id, numero");
+          if (error) {
+            console.error("Erro insert processos:", error);
+          } else if (data) {
+            (data as any[]).forEach((p: any) => processoIdMap.set(p.numero, p.id));
+            newProcessos += data.length;
+          }
+          const done = Math.min(i + BATCH_SIZE, processosToCreate.length);
+          setProgress(15 + Math.round((done / processosToCreate.length) * 15));
+          const elapsed = (Date.now() - startTimeRef.current) / 1000;
+          setDetailText(`${done}/${processosToCreate.length} criados · ${formatDuration(elapsed)}`);
         }
-
-        const done = Math.min(i + BATCH_SIZE, processosToUpsert.length);
-        const pct = Math.round((done / processosToUpsert.length) * 30);
-        setProgress(pct);
-        const elapsed = (Date.now() - startTimeRef.current) / 1000;
-        const eta = done > 0 ? ((processosToUpsert.length - done) * elapsed / done) : 0;
-        setDetailText(`${done}/${processosToUpsert.length} processos · ${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
+      } else {
+        setProgress(30);
       }
 
       // === STEP 3: Upsert distribuições ===
