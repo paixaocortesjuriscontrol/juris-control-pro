@@ -608,12 +608,11 @@ serve(async (req) => {
     };
     pushParties(rd.parties);
     if (cachedRd && cachedRd !== rd) pushParties(cachedRd.parties);
-    // Se passamos pelo fluxo async, varrer todas as instâncias do envelope
-    try {
-      // @ts-ignore - envelope só existe no escopo do else acima; reconstruir via requestId não vale a pena.
-      // Em vez disso, guardamos pageData abaixo via variável externa se disponível.
-    } catch {}
-    // (pageData adicional é unida logo abaixo, onde estiver acessível)
+    // Unir partes de TODAS as instâncias retornadas pelo fluxo async
+    for (const item of allInstancesPageData) {
+      const otherRd = item?.response_data;
+      if (otherRd && otherRd !== rd) pushParties(otherRd.parties);
+    }
     // Deduplicar: chave = documento normalizado (se houver) OU name+side+person_type
     const seen = new Set<string>();
     const parties: any[] = [];
