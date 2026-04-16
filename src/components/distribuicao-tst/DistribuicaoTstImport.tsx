@@ -226,15 +226,14 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           return;
         }
         const batch = upsertRecords.slice(i, i + BATCH_SIZE);
-        const { error, data } = await (supabase.from("distribuicoes_tst" as any) as any)
-          .upsert(batch, { onConflict: "processo_numero,aba_origem" })
-          .select("id");
+        const { error } = await (supabase.from("distribuicoes_tst" as any) as any)
+          .upsert(batch, { onConflict: "processo_numero,aba_origem" });
 
         if (error) {
           console.error("Erro lote distribuições:", error);
           totalErrors += batch.length;
         } else {
-          totalUpserted += (data as any[])?.length ?? batch.length;
+          totalUpserted += batch.length;
         }
 
         const done = Math.min(i + BATCH_SIZE, upsertRecords.length);
