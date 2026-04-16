@@ -148,6 +148,196 @@ export default function DistribuicaoTst() {
     fetchTabsData();
   };
 
+  // Open Dados Benner form for a distribuição row
+  const handleOpenBenner = async (dist: DistTst) => {
+    setLoadingBenner(dist.id);
+    try {
+      // Look up existing dados_benner by processo number
+      const { data: existing } = await supabase
+        .from("dados_benner" as any)
+        .select("*")
+        .eq("processo", dist.processo_numero)
+        .limit(1);
+
+      if (existing && (existing as any[]).length > 0) {
+        setBennerDado((existing as any[])[0] as DadoBenner);
+        setBennerPreFill(null);
+      } else {
+        // Pre-fill from distribuição data
+        setBennerDado(null);
+        setBennerPreFill({
+          processo: dist.processo_numero,
+          dossie: dist.dossie || "",
+          turma: dist.turma || "",
+          relator: dist.relator || "",
+          data_distribuicao: dist.data_distribuicao || null,
+          recorrente: dist.parte_recorrente || "",
+          status: "rascunho",
+        });
+      }
+      setShowBennerForm(true);
+    } catch (err) {
+      toast.error("Erro ao buscar dados Benner");
+    }
+    setLoadingBenner(null);
+  };
+
+  // Save handler for Dados Benner form used from this page
+  const handleSaveBenner = async (dado: DadoBennerInsert, id?: string) => {
+    if (id) {
+      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id);
+      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+    } else {
+      const { error } = await supabase.from("dados_benner" as any).insert(dado as any);
+      if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
+    }
+    toast.success(id ? "Registro atualizado!" : "Registro salvo!");
+    return true;
+  };
+
+  // Bulk Judit: process all filtered distribuições
+  const handleBulkJudit = async () => {
+    bulkAbortRef.current = false;
+    setBulkJuditRunning(true);
+
+    try {
+      // Fetch all processo_numero from current filtered view (paginate)
+      let allProcessos: { processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
+      let offset = 0;
+      const FETCH_SIZE = 1000;
+      while (true) {
+        let q = supabase
+          .from("distribuicoes_tst" as any)
+          .select("processo_numero, dossie, turma, relator, data_distribuicao, parte_recorrente")
+          .order("created_at", { ascending: false });
+        
+        if (debouncedFilters.aba_origem && debouncedFilters.aba_origem !== "todas") q = q.eq("aba_origem", debouncedFilters.aba_origem);
+        if (debouncedFilters.benner === "sim") q = q.eq("benner_atualizado", true);
+        else if (debouncedFilters.benner === "nao") q = q.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+        if (debouncedFilters.processo) q = q.ilike("processo_numero", `%${debouncedFilters.processo}%`);
+        if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
+        if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
+        if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
+        if (debouncedFilters.parte) q = q.ilike("parte_recorrente", `%${debouncedFilters.parte}%`);
+
+        const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
+        if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
+        allProcessos = allProcessos.concat((data as any[]) || []);
+        if (!data || data.length < FETCH_SIZE) break;
+        offset += FETCH_SIZE;
+      }
+
+      // Deduplicate by processo_numero
+      const seen = new Set<string>();
+      const unique = allProcessos.filter(p => {
+        if (!p.processo_numero || seen.has(p.processo_numero)) return false;
+        seen.add(p.processo_numero);
+        return true;
+      });
+
+      if (unique.length === 0) {
+        toast.info("Nenhum processo encontrado com os filtros atuais");
+        setBulkJuditRunning(false);
+        return;
+      }
+
+      setBulkJuditProgress({ current: 0, total: unique.length });
+      let successCount = 0;
+
+      for (let i = 0; i < unique.length; i++) {
+        if (bulkAbortRef.current) { toast.info("Operação cancelada"); break; }
+
+        const proc = unique[i];
+        setBulkJuditProgress({ current: i + 1, total: unique.length });
+
+        try {
+          const { data: juditData, error: juditError } = await supabase.functions.invoke("buscar-judit", {
+            body: { numero_processo: proc.processo_numero, tribunal: "TST" },
+          });
+
+          if (juditError || juditData?.error) continue;
+
+          // Build dados_benner record
+          const tribunaisAceitos = ["TST", "STF", "STJ"];
+          const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
+
+          const dadoToSave: any = {
+            processo: proc.processo_numero,
+            dossie: juditData.dossie || proc.dossie || "",
+            turma: juditData.turma || proc.turma || "",
+            relator: juditData.relator || proc.relator || "",
+            data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
+            recorrente: juditData.recorrente || proc.parte_recorrente || "",
+            tribunal: tribunalMapeado || "TST",
+            tipo_recurso: juditData.tipo_recurso || null,
+            situacao_processo: juditData.situacao_processo || null,
+            tem_data_julgamento: juditData.tem_data_julgamento || null,
+            data_julgamento: juditData.data_julgamento || null,
+            horario_julgamento: juditData.horario_julgamento || null,
+            tipo_julgamento: juditData.tipo_julgamento || null,
+            resultado_sem_transcendencia: juditData.resultado_sem_transcendencia || false,
+            resultado_nao_conhecido: juditData.resultado_nao_conhecido || false,
+            resultado_conhecido_provido: juditData.resultado_conhecido_provido || false,
+            resultado_conhecido_nao_provido: juditData.resultado_conhecido_nao_provido || false,
+            resultado_outra: juditData.resultado_outra || null,
+            processo_baixado: juditData.processo_baixado || null,
+            status: "rascunho",
+          };
+
+          // Upsert: check if exists
+          const { data: existingBenner } = await supabase
+            .from("dados_benner" as any)
+            .select("id")
+            .eq("processo", proc.processo_numero)
+            .limit(1);
+
+          if (existingBenner && (existingBenner as any[]).length > 0) {
+            // Update only non-null judit fields
+            const updateFields: any = {};
+            if (juditData.tipo_recurso) updateFields.tipo_recurso = juditData.tipo_recurso;
+            if (juditData.relator) updateFields.relator = juditData.relator;
+            if (juditData.turma) updateFields.turma = juditData.turma;
+            if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
+            if (juditData.recorrente) updateFields.recorrente = juditData.recorrente;
+            if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
+            if (juditData.data_distribuicao) updateFields.data_distribuicao = juditData.data_distribuicao;
+            if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
+            if (juditData.data_julgamento) updateFields.data_julgamento = juditData.data_julgamento;
+            if (juditData.horario_julgamento) updateFields.horario_julgamento = juditData.horario_julgamento;
+            if (juditData.tipo_julgamento) updateFields.tipo_julgamento = juditData.tipo_julgamento;
+            if (juditData.resultado_sem_transcendencia) updateFields.resultado_sem_transcendencia = true;
+            if (juditData.resultado_nao_conhecido) updateFields.resultado_nao_conhecido = true;
+            if (juditData.resultado_conhecido_provido) updateFields.resultado_conhecido_provido = true;
+            if (juditData.resultado_conhecido_nao_provido) updateFields.resultado_conhecido_nao_provido = true;
+            if (juditData.resultado_outra) updateFields.resultado_outra = juditData.resultado_outra;
+            if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
+
+            if (Object.keys(updateFields).length > 0) {
+              await supabase.from("dados_benner" as any).update(updateFields as any).eq("id", (existingBenner as any[])[0].id);
+              successCount++;
+            }
+          } else {
+            // Get user id
+            const { data: authData } = await supabase.auth.getUser();
+            dadoToSave.user_id = authData?.user?.id || null;
+            await supabase.from("dados_benner" as any).insert(dadoToSave);
+            successCount++;
+          }
+
+          // Throttle to avoid rate limits
+          await new Promise(r => setTimeout(r, 800));
+        } catch {
+          // Continue on error
+        }
+      }
+
+      toast.success(`Judit: ${successCount} de ${unique.length} processo(s) atualizados no Dados Benner`);
+    } catch (err: any) {
+      toast.error("Erro no preenchimento em massa: " + (err?.message || "Erro desconhecido"));
+    }
+    setBulkJuditRunning(false);
+  };
+
   const formatDate = (d: string | null) => {
     if (!d) return "—";
     try { return new Date(d + "T12:00:00").toLocaleDateString("pt-BR"); } catch { return d; }
@@ -163,13 +353,27 @@ export default function DistribuicaoTst() {
       pages.push(1);
       let start = Math.max(2, page - 2);
       let end = Math.min(totalPages - 1, page + 2);
-      if (start > 2) pages.push(-1); // ellipsis
+      if (start > 2) pages.push(-1);
       for (let i = start; i <= end; i++) pages.push(i);
-      if (end < totalPages - 1) pages.push(-2); // ellipsis
+      if (end < totalPages - 1) pages.push(-2);
       pages.push(totalPages);
     }
     return pages;
   };
+
+  if (showBennerForm) {
+    return (
+      <MainLayout title="Distribuição TST - Dados Benner">
+        <div className="max-w-4xl mx-auto">
+          <DadosBennerForm
+            dado={bennerDado || (bennerPreFill ? { ...({} as DadoBenner), ...bennerPreFill, id: "", created_at: "", updated_at: "" } as any : undefined)}
+            onSave={handleSaveBenner}
+            onCancel={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); }}
+          />
+        </div>
+      </MainLayout>
+    );
+  }
 
   if (showCarga) {
     return (
