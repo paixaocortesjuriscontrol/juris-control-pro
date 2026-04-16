@@ -634,19 +634,22 @@ export default function CargaBenner() {
       const existingStrings: string[] = [];
       const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
       let m: RegExpExecArray | null;
+      const unesc = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
       while ((m = siRegex.exec(sstXml)) !== null) {
-        existingStrings.push(m[1]);
+        existingStrings.push(unesc(m[1]));
       }
 
       const stringMap = new Map<string, number>();
       existingStrings.forEach((s, i) => stringMap.set(s, i));
       const newStrings = [...existingStrings];
 
+      const cleanStr = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
       function getStringIndex(val: string): number {
-        if (stringMap.has(val)) return stringMap.get(val)!;
+        const v = cleanStr(val);
+        if (stringMap.has(v)) return stringMap.get(v)!;
         const idx = newStrings.length;
-        newStrings.push(val);
-        stringMap.set(val, idx);
+        newStrings.push(v);
+        stringMap.set(v, idx);
         return idx;
       }
 
@@ -711,8 +714,8 @@ export default function CargaBenner() {
       }
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-      const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const newSstEntries = newStrings.map(s => `<si><t>${escapeXml(s)}</t></si>`).join("");
+      const esc = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const newSstEntries = newStrings.map(s => `<si><t>${esc(s)}</t></si>`).join("");
       const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
       zip.file("xl/sharedStrings.xml", newSst);
 
@@ -762,15 +765,18 @@ export default function CargaBenner() {
       const existingStrings: string[] = [];
       const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
       let m: RegExpExecArray | null;
-      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      const unesc2 = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(unesc2(m[1]));
       const stringMap = new Map<string, number>();
       existingStrings.forEach((s, i) => stringMap.set(s, i));
       const newStrings = [...existingStrings];
+      const cleanStr2 = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
       function getStrIdx(val: string): number {
-        if (stringMap.has(val)) return stringMap.get(val)!;
+        const v = cleanStr2(val);
+        if (stringMap.has(v)) return stringMap.get(v)!;
         const idx = newStrings.length;
-        newStrings.push(val);
-        stringMap.set(val, idx);
+        newStrings.push(v);
+        stringMap.set(v, idx);
         return idx;
       }
       function c2l(c: number): string {
@@ -888,8 +894,8 @@ export default function CargaBenner() {
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       // --- rebuild shared strings ---
-      const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const newSstEntries = newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("");
+      const esc2 = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const newSstEntries = newStrings.map(s => `<si><t>${esc2(s)}</t></si>`).join("");
       const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
       zip.file("xl/sharedStrings.xml", newSst);
 
