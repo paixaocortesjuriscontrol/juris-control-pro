@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
@@ -41,6 +42,9 @@ export default function DistribuicaoTst() {
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
+
+  // Row selection for bulk Judit
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
@@ -201,30 +205,43 @@ export default function DistribuicaoTst() {
     setBulkJuditRunning(true);
 
     try {
-      // Fetch all processo_numero from current filtered view (paginate)
       let allProcessos: { processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
-      let offset = 0;
-      const FETCH_SIZE = 1000;
-      while (true) {
-        let q = supabase
-          .from("distribuicoes_tst" as any)
-          .select("processo_numero, dossie, turma, relator, data_distribuicao, parte_recorrente")
-          .order("created_at", { ascending: false });
-        
-        if (debouncedFilters.aba_origem && debouncedFilters.aba_origem !== "todas") q = q.eq("aba_origem", debouncedFilters.aba_origem);
-        if (debouncedFilters.benner === "sim") q = q.eq("benner_atualizado", true);
-        else if (debouncedFilters.benner === "nao") q = q.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-        if (debouncedFilters.processo) q = q.ilike("processo_numero", `%${debouncedFilters.processo}%`);
-        if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
-        if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
-        if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
-        if (debouncedFilters.parte) q = q.ilike("parte_recorrente", `%${debouncedFilters.parte}%`);
 
-        const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
-        if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
-        allProcessos = allProcessos.concat((data as any[]) || []);
-        if (!data || data.length < FETCH_SIZE) break;
-        offset += FETCH_SIZE;
+      // If rows are selected, use only those
+      if (selectedIds.size > 0) {
+        allProcessos = dados.filter(d => selectedIds.has(d.id)).map(d => ({
+          processo_numero: d.processo_numero,
+          dossie: d.dossie,
+          turma: d.turma,
+          relator: d.relator,
+          data_distribuicao: d.data_distribuicao,
+          parte_recorrente: d.parte_recorrente,
+        }));
+      } else {
+        // Fetch all from current filtered view
+        let offset = 0;
+        const FETCH_SIZE = 1000;
+        while (true) {
+          let q = supabase
+            .from("distribuicoes_tst" as any)
+            .select("processo_numero, dossie, turma, relator, data_distribuicao, parte_recorrente")
+            .order("created_at", { ascending: false });
+          
+          if (debouncedFilters.aba_origem && debouncedFilters.aba_origem !== "todas") q = q.eq("aba_origem", debouncedFilters.aba_origem);
+          if (debouncedFilters.benner === "sim") q = q.eq("benner_atualizado", true);
+          else if (debouncedFilters.benner === "nao") q = q.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+          if (debouncedFilters.processo) q = q.ilike("processo_numero", `%${debouncedFilters.processo}%`);
+          if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
+          if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
+          if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
+          if (debouncedFilters.parte) q = q.ilike("parte_recorrente", `%${debouncedFilters.parte}%`);
+
+          const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
+          if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
+          allProcessos = allProcessos.concat((data as any[]) || []);
+          if (!data || data.length < FETCH_SIZE) break;
+          offset += FETCH_SIZE;
+        }
       }
 
       // Deduplicate by processo_numero
@@ -236,7 +253,7 @@ export default function DistribuicaoTst() {
       });
 
       if (unique.length === 0) {
-        toast.info("Nenhum processo encontrado com os filtros atuais");
+        toast.info("Nenhum processo encontrado");
         setBulkJuditRunning(false);
         return;
       }
@@ -364,7 +381,10 @@ export default function DistribuicaoTst() {
   if (showBennerForm) {
     return (
       <MainLayout title="Distribuição TST - Dados Benner">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-4">
+          <Button variant="ghost" size="sm" onClick={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); }}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Voltar para Distribuição TST
+          </Button>
           <DadosBennerForm
             dado={bennerDado}
             initialData={bennerPreFill || undefined}
@@ -433,7 +453,11 @@ export default function DistribuicaoTst() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {bulkJuditRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              {bulkJuditRunning ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}` : "Preencher com Judit"}
+              {bulkJuditRunning 
+                ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}` 
+                : selectedIds.size > 0 
+                  ? `Preencher Selecionados (${selectedIds.size}) com Judit`
+                  : "Preencher com Judit"}
             </Button>
             {bulkJuditRunning && (
               <Button variant="destructive" size="sm" onClick={() => { bulkAbortRef.current = true; }}>
@@ -553,7 +577,14 @@ export default function DistribuicaoTst() {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setSelectedIds(new Set())}>
+                {selectedIds.size} selecionado(s) — limpar
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Bulk Judit progress */}
@@ -571,6 +602,20 @@ export default function DistribuicaoTst() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox 
+                    checked={dados.length > 0 && dados.every(d => selectedIds.has(d.id))}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedIds(new Set([...selectedIds, ...dados.map(d => d.id)]));
+                      } else {
+                        const newSet = new Set(selectedIds);
+                        dados.forEach(d => newSet.delete(d.id));
+                        setSelectedIds(newSet);
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Processo</TableHead>
                 <TableHead>Dossiê</TableHead>
@@ -587,11 +632,22 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(d.id)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedIds);
+                        if (checked) newSet.add(d.id);
+                        else newSet.delete(d.id);
+                        setSelectedIds(newSet);
+                      }}
+                    />
+                  </TableCell>
                   <TableCell className="text-sm">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="font-mono text-xs">{d.processo_numero}</TableCell>
                   <TableCell className="text-sm">{d.dossie || "—"}</TableCell>
