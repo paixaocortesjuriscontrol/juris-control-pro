@@ -555,6 +555,17 @@ export default function DistribuicaoTst() {
           <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
         </div>
 
+        {/* Bulk Judit progress */}
+        {bulkJuditRunning && (
+          <div className="border border-emerald-500/30 rounded-lg p-3 bg-emerald-50 dark:bg-emerald-950/20 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-700 dark:text-emerald-400">Preenchendo com Judit...</span>
+              <span className="text-xs text-muted-foreground">{bulkJuditProgress.current}/{bulkJuditProgress.total}</span>
+            </div>
+            <Progress value={bulkJuditProgress.total > 0 ? (bulkJuditProgress.current / bulkJuditProgress.total) * 100 : 0} className="h-2" />
+          </div>
+        )}
+
         <div className="border border-border rounded-lg overflow-auto">
           <Table>
             <TableHeader>
@@ -570,7 +581,7 @@ export default function DistribuicaoTst() {
                 <TableHead>Parte Recorrente</TableHead>
                 <TableHead>Aba</TableHead>
                 <TableHead>Benner</TableHead>
-                <TableHead className="w-20">Ações</TableHead>
+                <TableHead className="w-28">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -612,9 +623,24 @@ export default function DistribuicaoTst() {
                     )}
                   </TableCell>
                   <TableCell onClick={e => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleOpenBenner(d)}
+                        disabled={loadingBenner === d.id}
+                        title="Abrir Dados Benner"
+                      >
+                        {loadingBenner === d.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Database className="w-4 h-4 text-primary" />
+                        )}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
