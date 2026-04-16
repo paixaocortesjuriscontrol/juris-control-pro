@@ -311,14 +311,14 @@ export default function TermosDjen() {
               <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-6">Tipo</TableHead>
-                    <TableHead>Termo</TableHead>
-                    <TableHead className="hidden sm:table-cell">OAB/UF</TableHead>
-                    <TableHead className="hidden md:table-cell">Coordenação</TableHead>
-                    <TableHead className="hidden md:table-cell">Tribunais</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">Publicações</TableHead>
-                    <TableHead className="text-right pr-6">Ações</TableHead>
+                    <TableHead className="pl-6 w-[90px]">Tipo</TableHead>
+                    <TableHead className="w-[220px]">Termo</TableHead>
+                    <TableHead className="hidden sm:table-cell w-[110px]">OAB/UF</TableHead>
+                    <TableHead className="hidden md:table-cell w-[220px]">Coordenação</TableHead>
+                    <TableHead className="hidden md:table-cell w-[140px]">Tribunais</TableHead>
+                    <TableHead className="w-[80px]">Status</TableHead>
+                    <TableHead className="hidden sm:table-cell w-[130px]">Publicações</TableHead>
+                    <TableHead className="text-right pr-6 w-[160px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
