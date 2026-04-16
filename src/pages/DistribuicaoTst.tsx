@@ -30,6 +30,17 @@ export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
   const [showCarga, setShowCarga] = useState(false);
+  
+  // Dados Benner form from distribuição
+  const [showBennerForm, setShowBennerForm] = useState(false);
+  const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
+  const [bennerPreFill, setBennerPreFill] = useState<Partial<DadoBennerInsert> | null>(null);
+  const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
+  
+  // Bulk Judit
+  const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
+  const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
+  const bulkAbortRef = useRef(false);
 
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
