@@ -37,6 +37,7 @@ export default function DistribuicaoTst() {
   const [showBennerForm, setShowBennerForm] = useState(false);
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
   const [bennerPreFill, setBennerPreFill] = useState<Partial<DadoBennerInsert> | null>(null);
+  const [markBennerCamposJudit, setMarkBennerCamposJudit] = useState(false);
   const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
   
   // Bulk Judit
@@ -160,6 +161,8 @@ export default function DistribuicaoTst() {
   const handleOpenBenner = async (dist: DistTst) => {
     setLoadingBenner(dist.id);
     try {
+      setMarkBennerCamposJudit(!!dist.judit_preenchido);
+
       // Look up existing dados_benner by processo number
       const { data: existing } = await supabase
         .from("dados_benner" as any)
@@ -185,6 +188,7 @@ export default function DistribuicaoTst() {
       }
       setShowBennerForm(true);
     } catch (err) {
+      setMarkBennerCamposJudit(false);
       toast.error("Erro ao buscar dados Benner");
     }
     setLoadingBenner(null);
@@ -397,14 +401,15 @@ export default function DistribuicaoTst() {
     return (
       <MainLayout title="Distribuição TST - Dados Benner">
         <div className="max-w-4xl mx-auto space-y-4">
-          <Button variant="ghost" size="sm" onClick={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); }}>
+          <Button variant="ghost" size="sm" onClick={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); setMarkBennerCamposJudit(false); }}>
             <ArrowLeft className="w-4 h-4 mr-1" /> Voltar para Distribuição TST
           </Button>
           <DadosBennerForm
             dado={bennerDado}
             initialData={bennerPreFill || undefined}
+            markExistingJuditFields={markBennerCamposJudit}
             onSave={handleSaveBenner}
-            onCancel={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); }}
+            onCancel={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); setMarkBennerCamposJudit(false); }}
           />
         </div>
       </MainLayout>

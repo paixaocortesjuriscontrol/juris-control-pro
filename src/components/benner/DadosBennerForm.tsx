@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 interface Props {
   dado?: DadoBenner | null;
   initialData?: Partial<DadoBennerInsert>;
+  markExistingJuditFields?: boolean;
   onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean>;
   onCancel: () => void;
 }
@@ -43,7 +44,32 @@ const emptyForm: DadoBennerInsert = {
   notas: "",
 };
 
-export function DadosBennerForm({ dado, initialData, onSave, onCancel }: Props) {
+const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
+  const filled = new Set<string>();
+
+  if (source.dossie?.trim()) filled.add("dossie");
+  if (source.tipo_recurso?.trim()) filled.add("tipo_recurso");
+  if (source.data_distribuicao) filled.add("data_distribuicao");
+  if (source.relator?.trim()) filled.add("relator");
+  if (source.turma?.trim()) filled.add("turma");
+  if (source.tribunal?.trim()) filled.add("tribunal");
+  if (source.recorrente?.trim()) filled.add("recorrente");
+  if (source.situacao_processo?.trim()) filled.add("situacao_processo");
+  if (source.tem_data_julgamento && source.tem_data_julgamento !== "N") filled.add("tem_data_julgamento");
+  if (source.data_julgamento) filled.add("data_julgamento");
+  if (source.horario_julgamento?.trim()) filled.add("horario_julgamento");
+  if (source.tipo_julgamento?.trim()) filled.add("tipo_julgamento");
+  if (source.resultado_sem_transcendencia) filled.add("resultado_sem_transcendencia");
+  if (source.resultado_nao_conhecido) filled.add("resultado_nao_conhecido");
+  if (source.resultado_conhecido_provido) filled.add("resultado_conhecido_provido");
+  if (source.resultado_conhecido_nao_provido) filled.add("resultado_conhecido_nao_provido");
+  if (source.resultado_outra?.trim()) filled.add("resultado_outra");
+  if (source.processo_baixado && source.processo_baixado !== "N") filled.add("processo_baixado");
+
+  return filled;
+};
+
+export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel }: Props) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,18 +96,22 @@ export function DadosBennerForm({ dado, initialData, onSave, onCancel }: Props) 
       const { id, created_at, updated_at, ...rest } = dado;
       setForm(rest as DadoBennerInsert);
       setProntoEnviar(dado.status === "pronto_envio");
+      setCamposJudit(markExistingJuditFields ? inferCamposJudit(rest as Partial<DadoBennerInsert>) : new Set());
     } else if (initialData) {
-      setForm(f => ({ ...f, ...initialData }));
+      const nextForm = { ...emptyForm, ...initialData };
+      setForm(nextForm);
+      setCamposJudit(markExistingJuditFields ? inferCamposJudit(nextForm) : new Set());
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
       });
     } else {
+      setCamposJudit(new Set());
       // Set user_id
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
       });
     }
-  }, [dado, JSON.stringify(initialData)]);
+  }, [dado, markExistingJuditFields, JSON.stringify(initialData)]);
 
   // Poll progress for autos download job
   const startPolling = useCallback((jobId: string) => {
