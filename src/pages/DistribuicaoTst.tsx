@@ -167,6 +167,36 @@ export default function DistribuicaoTst() {
           </div>
         )}
 
+        {/* Mês/Ano tabs */}
+        {mesesAnos.length > 1 && (
+          <div className="flex gap-1 flex-wrap">
+            <Button
+              variant={filtroMesAno === "todos" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFiltroMesAno("todos")}
+              className="text-xs h-7"
+            >
+              Todos meses
+            </Button>
+            {mesesAnos.map(([key, count]) => {
+              const [y, m] = key.split("-");
+              const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+              const label = `${meses[parseInt(m) - 1]}/${y}`;
+              return (
+                <Button
+                  key={key}
+                  variant={filtroMesAno === key ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFiltroMesAno(key)}
+                  className="text-xs h-7"
+                >
+                  {label} ({count})
+                </Button>
+              );
+            })}
+          </div>
+        
+
         {/* Filters */}
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
           <div className="flex items-center justify-between">
