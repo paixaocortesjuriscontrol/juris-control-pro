@@ -80,6 +80,15 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     } else if (filters.benner === "nao") {
       query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     }
+    // Dossiê status filter
+    if (filters.dossieStatus === "preenchido") {
+      query = query.not("dossie", "is", null).neq("dossie", "");
+    } else if (filters.dossieStatus === "nao_preenchido") {
+      query = query.or("dossie.is.null,dossie.eq.");
+    } else if (filters.dossieStatus === "valido") {
+      query = query.like("dossie", "__.__.___.______%/__");
+    } else if (filters.dossieStatus === "invalido") {
+      query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
     if (filters.processo) {
       query = query.ilike("processo_numero", `%${filters.processo}%`);
     }
