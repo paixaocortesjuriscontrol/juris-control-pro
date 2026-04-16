@@ -473,6 +473,7 @@ serve(async (req) => {
       }
 
       const pageData = envelope.page_data ?? [];
+      allInstancesPageData = pageData;
       debugStatus = envelope.request_status;
       debugInstancias = pageData.length;
       console.log(
