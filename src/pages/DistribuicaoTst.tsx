@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
+import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,6 +25,7 @@ const favorabilidadeColor = (val: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  const [showCarga, setShowCarga] = useState(false);
 
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
@@ -151,6 +153,23 @@ export default function DistribuicaoTst() {
     return pages;
   };
 
+  if (showCarga) {
+    return (
+      <MainLayout title="Distribuição TST - Carga Benner">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <FileSpreadsheet className="w-6 h-6 text-primary" />
+              Carga Benner (Dados do Supabase)
+            </h1>
+            <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
+          </div>
+          <CargaBennerFromDb />
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (showForm || editando) {
     return (
       <MainLayout title="Distribuição TST">
@@ -173,6 +192,9 @@ export default function DistribuicaoTst() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
           <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" onClick={() => setShowCarga(true)}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Gerar Carga Benner
+            </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
             <Button onClick={() => setShowForm(true)}>
