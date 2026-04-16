@@ -164,7 +164,18 @@ export default function DistribuicaoTst() {
             </h1>
             <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
           </div>
-          <CargaBennerFromDb />
+          <CargaBennerFromDb filters={{
+            aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
+            benner: filtroBenner as any,
+            processo: filtroProcesso || undefined,
+            dossie: filtroDossie || undefined,
+            turma: filtroTurma || undefined,
+            relator: filtroRelator || undefined,
+            parte: filtroParte || undefined,
+            mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
+            dataInicio: filtroDataInicio || undefined,
+            dataFim: filtroDataFim || undefined,
+          }} />
         </div>
       </MainLayout>
     );
