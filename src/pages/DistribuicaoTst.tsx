@@ -436,7 +436,9 @@ export default function DistribuicaoTst() {
             </h1>
             <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
           </div>
-          <CargaBennerFromDb filters={{
+          <CargaBennerFromDb 
+            selectedProcessNumbers={selectedIds.size > 0 ? dados.filter(d => selectedIds.has(d.id)).map(d => d.processo_numero) : undefined}
+            filters={{
             aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
             benner: filtroBenner as any,
             processo: filtroProcesso || undefined,
@@ -494,7 +496,8 @@ export default function DistribuicaoTst() {
               </Button>
             )}
             <Button variant="secondary" onClick={() => setShowCarga(true)}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Gerar Carga Benner
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> 
+              {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
@@ -589,6 +592,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
                 <SelectItem value="valido">Preenchido Válido</SelectItem>
                 <SelectItem value="invalido">Preenchido Inválido</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroJudit} onValueChange={setFiltroJudit}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Judit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Judit: Todos</SelectItem>
+                <SelectItem value="sim">Preenchido com Judit</SelectItem>
+                <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
           </div>
