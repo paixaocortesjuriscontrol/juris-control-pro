@@ -63,6 +63,25 @@ export default function DistribuicaoTst() {
   // Debounced text filters
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
   
+  // Judit filter: fetch dados_benner process numbers
+  const [juditProcessNumbers, setJuditProcessNumbers] = useState<Set<string>>(new Set());
+  const fetchJuditProcessNumbers = useCallback(async () => {
+    if (filtroJudit === "todos") { setJuditProcessNumbers(new Set()); return; }
+    const all: string[] = [];
+    let offset = 0;
+    const size = 1000;
+    while (true) {
+      const { data } = await supabase.from("dados_benner" as any).select("processo").range(offset, offset + size - 1);
+      if (!data || data.length === 0) break;
+      (data as any[]).forEach((d: any) => { if (d.processo) all.push(d.processo); });
+      if (data.length < size) break;
+      offset += size;
+    }
+    setJuditProcessNumbers(new Set(all));
+  }, [filtroJudit]);
+
+  useEffect(() => { fetchJuditProcessNumbers(); }, [fetchJuditProcessNumbers]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedFilters({
