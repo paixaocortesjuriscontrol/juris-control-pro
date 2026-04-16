@@ -138,12 +138,16 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       updateStats({ step: "Verificando processos", stepNumber: 1, totalSteps: 2, processed: 0, total: uniqueNumeros.length, created: 0, updated: 0, errors: 0 });
 
-      for (let i = 0; i < uniqueNumeros.length; i += 500) {
+      const LOOKUP_BATCH = 100;
+      for (let i = 0; i < uniqueNumeros.length; i += LOOKUP_BATCH) {
         if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
-        const batch = uniqueNumeros.slice(i, i + 500);
-        const { data } = await supabase.from("processos").select("id, numero").in("numero", batch);
+        const batch = uniqueNumeros.slice(i, i + LOOKUP_BATCH);
+        const { data, error } = await supabase.from("processos").select("id, numero").in("numero", batch);
+        if (error) {
+          console.error("Erro ao buscar processos:", error);
+        }
         (data || []).forEach((p: any) => processoIdMap.set(p.numero, p.id));
-        const done = Math.min(i + 500, uniqueNumeros.length);
+        const done = Math.min(i + LOOKUP_BATCH, uniqueNumeros.length);
         setProgress(Math.round((done / uniqueNumeros.length) * 25));
         updateStats({ processed: done });
       }
