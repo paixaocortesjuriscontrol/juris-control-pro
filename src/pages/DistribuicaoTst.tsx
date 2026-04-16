@@ -726,7 +726,7 @@ export default function DistribuicaoTst() {
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
+            <p className="text-xs text-muted-foreground">{effectiveTotalCount} registros encontrados</p>
             {selectedIds.size > 0 && (
               <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setSelectedIds(new Set())}>
                 {selectedIds.size} selecionado(s) — limpar
@@ -854,10 +854,10 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {effectiveTotalPages > 1 && (
           <div className="flex items-center justify-between pt-2">
             <p className="text-xs text-muted-foreground">
-              Página {page} de {totalPages} · {totalCount} registros
+              Página {page} de {effectiveTotalPages} · {effectiveTotalCount} registros
             </p>
             <div className="flex items-center gap-1">
               <Button
@@ -888,7 +888,7 @@ export default function DistribuicaoTst() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                disabled={page >= totalPages}
+                disabled={page >= effectiveTotalPages}
                 onClick={() => setPage(page + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
