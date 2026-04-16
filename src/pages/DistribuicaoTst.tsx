@@ -195,7 +195,7 @@ export default function DistribuicaoTst() {
               );
             })}
           </div>
-        
+        )}
 
         {/* Filters */}
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
