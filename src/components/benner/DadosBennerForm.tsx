@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   dado?: DadoBenner | null;
+  initialData?: Partial<DadoBennerInsert>;
   onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean>;
   onCancel: () => void;
 }
