@@ -216,55 +216,71 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       const allDist: any[] = [];
       let page = 0;
       const pageSize = 1000;
-      while (true) {
-        let query = supabase
-          .from("distribuicoes_tst" as any)
-          .select("*")
-          .order("created_at", { ascending: false });
 
-        // Apply filters
-        if (filters.aba_origem && filters.aba_origem !== "todas") {
-          query = query.eq("aba_origem", filters.aba_origem);
+      // If selectedProcessNumbers provided, fetch only those
+      if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
+        // Fetch in batches of 100 (Supabase .in() limit)
+        for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
+          const batch = selectedProcessNumbers.slice(i, i + 100);
+          const { data, error } = await supabase
+            .from("distribuicoes_tst" as any)
+            .select("*")
+            .in("processo_numero", batch)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          if (data) allDist.push(...(data as any[]));
         }
-        if (filters.benner === "sim") {
-          query = query.eq("benner_atualizado", true);
-        } else if (filters.benner === "nao") {
-          query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-        }
-        if (filters.processo) {
-          query = query.ilike("processo_numero", `%${filters.processo}%`);
-        }
-        if (filters.dossie) {
-          query = query.ilike("dossie", `%${filters.dossie}%`);
-        }
-        if (filters.turma) {
-          query = query.ilike("turma", `%${filters.turma}%`);
-        }
-        if (filters.relator) {
-          query = query.ilike("relator", `%${filters.relator}%`);
-        }
-        if (filters.parte) {
-          query = query.ilike("parte_recorrente", `%${filters.parte}%`);
-        }
-        if (filters.mesAno && filters.mesAno !== "todos") {
-          const start = `${filters.mesAno}-01`;
-          const [y, m] = filters.mesAno.split("-").map(Number);
-          const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-          query = query.gte("data_distribuicao", start).lt("data_distribuicao", nextMonth);
-        }
-        if (filters.dataInicio) {
-          query = query.gte("data_distribuicao", filters.dataInicio);
-        }
-        if (filters.dataFim) {
-          query = query.lte("data_distribuicao", filters.dataFim);
-        }
+      } else {
+        while (true) {
+          let query = supabase
+            .from("distribuicoes_tst" as any)
+            .select("*")
+            .order("created_at", { ascending: false });
 
-        const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allDist.push(...(data as any[]));
-        if (data.length < pageSize) break;
-        page++;
+          // Apply filters
+          if (filters.aba_origem && filters.aba_origem !== "todas") {
+            query = query.eq("aba_origem", filters.aba_origem);
+          }
+          if (filters.benner === "sim") {
+            query = query.eq("benner_atualizado", true);
+          } else if (filters.benner === "nao") {
+            query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+          }
+          if (filters.processo) {
+            query = query.ilike("processo_numero", `%${filters.processo}%`);
+          }
+          if (filters.dossie) {
+            query = query.ilike("dossie", `%${filters.dossie}%`);
+          }
+          if (filters.turma) {
+            query = query.ilike("turma", `%${filters.turma}%`);
+          }
+          if (filters.relator) {
+            query = query.ilike("relator", `%${filters.relator}%`);
+          }
+          if (filters.parte) {
+            query = query.ilike("parte_recorrente", `%${filters.parte}%`);
+          }
+          if (filters.mesAno && filters.mesAno !== "todos") {
+            const start = `${filters.mesAno}-01`;
+            const [y, m] = filters.mesAno.split("-").map(Number);
+            const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+            query = query.gte("data_distribuicao", start).lt("data_distribuicao", nextMonth);
+          }
+          if (filters.dataInicio) {
+            query = query.gte("data_distribuicao", filters.dataInicio);
+          }
+          if (filters.dataFim) {
+            query = query.lte("data_distribuicao", filters.dataFim);
+          }
+
+          const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allDist.push(...(data as any[]));
+          if (data.length < pageSize) break;
+          page++;
+        }
       }
 
       if (allDist.length === 0) throw new Error("Nenhuma distribuição encontrada no banco");
