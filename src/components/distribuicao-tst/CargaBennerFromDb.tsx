@@ -193,7 +193,7 @@ interface Props {
   selectedProcessNumbers?: string[];
 }
 
-export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers }: Props) {
   const [processing, setProcessing] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
