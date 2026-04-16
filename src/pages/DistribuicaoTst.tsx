@@ -609,8 +609,8 @@ export default function DistribuicaoTst() {
                     }}
                   />
                 </TableHead>
+                <TableHead>Data</TableHead>
                 <TableHead>Processo</TableHead>
-                <TableHead>Dossiê</TableHead>
                 <TableHead>Equipe</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Relator +/-</TableHead>
