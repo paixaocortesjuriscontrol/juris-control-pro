@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle } from "lucide-react";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
+import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
 import { Link } from "react-router-dom";
 
 const favorabilidadeColor = (val: string | null) => {
@@ -24,6 +26,8 @@ export default function DistribuicaoTst() {
   const { dados, loading, fetchDados, saveDado, deleteDado } = useDistribuicoesTst();
 
   // Filters
+  const [filtroAba, setFiltroAba] = useState<string>("todas");
+  const [filtroBenner, setFiltroBenner] = useState<string>("todos");
   const [filtroProcesso, setFiltroProcesso] = useState("");
   const [filtroDossie, setFiltroDossie] = useState("");
   const [filtroTurma, setFiltroTurma] = useState("");
@@ -32,9 +36,18 @@ export default function DistribuicaoTst() {
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim;
+  // Extract unique aba_origem values for tabs
+  const abas = useMemo(() => {
+    const set = new Set<string>();
+    dados.forEach(d => { if (d.aba_origem) set.add(d.aba_origem); });
+    return [...set].sort();
+  }, [dados]);
+
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos";
 
   const clearFilters = () => {
+    setFiltroAba("todas");
+    setFiltroBenner("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -46,6 +59,9 @@ export default function DistribuicaoTst() {
 
   const dadosFiltrados = useMemo(() => {
     return dados.filter(d => {
+      if (filtroAba !== "todas" && d.aba_origem !== filtroAba) return false;
+      if (filtroBenner === "sim" && !d.benner_atualizado) return false;
+      if (filtroBenner === "nao" && d.benner_atualizado) return false;
       if (filtroProcesso && !d.processo_numero?.toLowerCase().includes(filtroProcesso.toLowerCase())) return false;
       if (filtroDossie && !d.dossie?.toLowerCase().includes(filtroDossie.toLowerCase())) return false;
       if (filtroTurma && !d.turma?.toLowerCase().includes(filtroTurma.toLowerCase())) return false;
@@ -55,7 +71,7 @@ export default function DistribuicaoTst() {
       if (filtroDataFim && d.data_distribuicao && d.data_distribuicao > filtroDataFim) return false;
       return true;
     });
-  }, [dados, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
+  }, [dados, filtroAba, filtroBenner, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
 
   const handleDelete = async (id: string) => {
     if (confirm("Excluir esta distribuição?")) {
@@ -89,6 +105,7 @@ export default function DistribuicaoTst() {
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
           <div className="flex gap-2 flex-wrap">
             <DistribuicaoTstImport onImported={fetchDados} />
+            <DossieUpdateImport onUpdated={fetchDados} />
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
@@ -99,6 +116,34 @@ export default function DistribuicaoTst() {
             </Link>
           </div>
         </div>
+
+        {/* Aba tabs */}
+        {abas.length > 1 && (
+          <div className="flex gap-1 flex-wrap">
+            <Button
+              variant={filtroAba === "todas" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFiltroAba("todas")}
+              className="text-xs h-7"
+            >
+              Todas ({dados.length})
+            </Button>
+            {abas.map(aba => {
+              const count = dados.filter(d => d.aba_origem === aba).length;
+              return (
+                <Button
+                  key={aba}
+                  variant={filtroAba === aba ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFiltroAba(aba)}
+                  className="text-xs h-7"
+                >
+                  {aba} ({count})
+                </Button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
@@ -112,7 +157,7 @@ export default function DistribuicaoTst() {
               </Button>
             )}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
             <Input placeholder="Processo" value={filtroProcesso} onChange={e => setFiltroProcesso(e.target.value)} className="h-8 text-xs" />
             <Input placeholder="Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(e.target.value)} className="h-8 text-xs" />
             <Input placeholder="Turma" value={filtroTurma} onChange={e => setFiltroTurma(e.target.value)} className="h-8 text-xs" />
@@ -120,6 +165,16 @@ export default function DistribuicaoTst() {
             <Input placeholder="Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs" />
             <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs" title="Data início" />
             <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs" title="Data fim" />
+            <Select value={filtroBenner} onValueChange={setFiltroBenner}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Benner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Benner: Todos</SelectItem>
+                <SelectItem value="sim">Benner: Sim</SelectItem>
+                <SelectItem value="nao">Benner: Não</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {hasFilters && (
             <p className="text-xs text-muted-foreground">{dadosFiltrados.length} de {dados.length} registros</p>
