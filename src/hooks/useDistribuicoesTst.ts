@@ -33,6 +33,9 @@ export interface DistribuicaoTst {
   recurso_terceiros: string | null;
   transito_julgado: boolean | null;
   benner_atualizado: boolean | null;
+  judit_preenchido: boolean;
+  judit_preenchido_em: string | null;
+  judit_preenchido_por: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +53,7 @@ export interface DistribuicaoTstFilters {
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido";
+  judit?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
