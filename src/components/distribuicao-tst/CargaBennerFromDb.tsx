@@ -56,6 +56,24 @@ function normalizeText(val: unknown): string {
   return String(val ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
+function escXml(s: string): string {
+  return s
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function unescXml(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 function normalizeCNJ(raw: string): string {
   const digits = String(raw ?? "").replace(/\D/g, "");
   return digits.length >= 15 ? digits.padStart(20, "0") : digits;
@@ -471,15 +489,16 @@ export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
       const existingStrings: string[] = [];
       const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
       let m: RegExpExecArray | null;
-      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(unescXml(m[1]));
       const stringMap = new Map<string, number>();
       existingStrings.forEach((s, i) => stringMap.set(s, i));
       const newStrings = [...existingStrings];
       function getStringIndex(val: string): number {
-        if (stringMap.has(val)) return stringMap.get(val)!;
+        const clean = val.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+        if (stringMap.has(clean)) return stringMap.get(clean)!;
         const idx = newStrings.length;
-        newStrings.push(val);
-        stringMap.set(val, idx);
+        newStrings.push(clean);
+        stringMap.set(clean, idx);
         return idx;
       }
 
@@ -525,7 +544,6 @@ export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
       }
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-      const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       zip.file("xl/sharedStrings.xml",
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("")}</sst>`
       );
@@ -565,15 +583,16 @@ export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
       const existingStrings: string[] = [];
       const siRegex = /<si><t[^>]*>([\s\S]*?)<\/t><\/si>/g;
       let m: RegExpExecArray | null;
-      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(m[1]);
+      while ((m = siRegex.exec(sstXml)) !== null) existingStrings.push(unescXml(m[1]));
       const stringMap = new Map<string, number>();
       existingStrings.forEach((s, i) => stringMap.set(s, i));
       const newStrings = [...existingStrings];
       function getStrIdx(val: string): number {
-        if (stringMap.has(val)) return stringMap.get(val)!;
+        const clean = val.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+        if (stringMap.has(clean)) return stringMap.get(clean)!;
         const idx = newStrings.length;
-        newStrings.push(val);
-        stringMap.set(val, idx);
+        newStrings.push(clean);
+        stringMap.set(clean, idx);
         return idx;
       }
 
@@ -654,7 +673,6 @@ export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
       sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-      const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       zip.file("xl/sharedStrings.xml",
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("")}</sst>`
       );
