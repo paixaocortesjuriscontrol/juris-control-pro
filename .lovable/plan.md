@@ -1,45 +1,75 @@
 
 
-## Plano: Corrigir extração de Relator e Turma na buscar-judit
+# Aba "Partes" no Dados Benner — com persistência em tabela
 
-### Problema
-A API Judit, ao retornar dados do TST, frequentemente traz `judge: null` e `courts` apenas com o órgão de origem (ex: "CEJUSC-TST"), sem informação de Turma ou Ministro Relator. Os dados de Relator/Turma aparecem apenas nos textos dos andamentos (`steps`).
+## Resumo
+Criar uma tabela `partes_processo_benner` para armazenar todas as partes (incluindo advogados) com CPF/CNPJ, tipo de pessoa e polo. Criar a aba "Partes" no detalhe do Dados Benner com botão Judit que busca e grava as partes.
 
-### Diagnóstico
-O crawler da Judit para o TST geralmente coleta apenas a "capa" do processo, que não contém Relator nem Turma. Esses dados ficam em:
-- **Relator**: aparece em andamentos como `"CONCLUSOS OS AUTOS PARA DESPACHO (GENÉRICA) A ALEXANDRE GARCIA MULLER"`
-- **Turma**: aparece em andamentos como `"Distribuído à 4ª Turma — Min. X"`
+## 1. Migration SQL — nova tabela
 
-### Mudanças
+```sql
+CREATE TABLE public.partes_processo_benner (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  dados_benner_id uuid NOT NULL REFERENCES public.dados_benner(id) ON DELETE CASCADE,
+  nome text NOT NULL,
+  documento text,          -- CPF ou CNPJ (só dígitos)
+  tipo_pessoa text,        -- REQUERENTE, REQUERIDO, ADVOGADO, TERCEIRO, etc.
+  polo text,               -- Active, Passive, Interested
+  is_advogado boolean DEFAULT false,
+  origem text DEFAULT 'manual', -- 'judit' ou 'manual'
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
 
-**1. Adicionar `_debug` expandido na resposta (`buscar-judit/index.ts`)**
-- Incluir `judge_bruto`, `courts_brutos` e `steps_amostra` (primeiros 8 steps) no objeto `_debug` da resposta
-- Permite inspecionar os dados brutos da Judit direto no DevTools do navegador sem precisar de logs do servidor
+ALTER TABLE public.partes_processo_benner ENABLE ROW LEVEL SECURITY;
 
-**2. Melhorar extração via andamentos (`buscar-judit/index.ts` + `_shared/extrair-relator.ts`)**
-- Adicionar regex para padrão `CONCLUSOS...A NOME` que captura o nome do magistrado após "A" ou "AO" em andamentos de conclusão
-- Regex: `/CONCLUSOS\s+(?:OS\s+AUTOS\s+)?(?:PARA\s+\w+\s+)?(?:\([^)]*\)\s+)?(?:A|AO)\s+([A-ZÁÉÍÓÚÂÊÔÇÃÕ][A-Za-z...]{5,80})/i`
-- Varrer TODOS os steps (não só os de distribuição/redistribuição) procurando padrões como `MIN.\s+NOME` e `CONCLUSOS...A NOME`
+CREATE POLICY "Authenticated users can manage partes"
+  ON public.partes_processo_benner
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
 
-**3. Manter inferência bidirecional**
-- Se encontrar Relator mas não Turma → `derivarTurmaDoRelator()`
-- Se encontrar Turma mas não Relator → `derivarRelatorDaTurma()`
-- Já existe no código, apenas garantir que roda após a nova extração
+CREATE TRIGGER update_partes_processo_benner_updated_at
+  BEFORE UPDATE ON public.partes_processo_benner
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
 
-**4. Deploy e teste**
-- Redeployar a edge function
-- Testar com o CNJ `0010067-14.2022.5.15.0033` e verificar o `_debug` na resposta
+## 2. Edge Function `buscar-judit/index.ts`
 
-### Observação importante
-Para processos em fase de conciliação (CEJUSC), pode genuinamente não haver Relator/Turma atribuídos ainda — isso é comportamento esperado, não bug. O `_debug` expandido vai confirmar isso caso a caso.
+Adicionar `parties_detail` ao objeto `result` retornado (linha ~698):
 
-### Detalhes técnicos
+```typescript
+parties_detail: parties.map((p: any) => ({
+  nome: p?.name || '',
+  documento: p?.main_document || null,
+  tipo_pessoa: p?.person_type || null,
+  polo: p?.side || null,
+  is_advogado: (p?.person_type || '').toUpperCase() === 'ADVOGADO',
+})),
+```
 
-**Arquivo**: `supabase/functions/buscar-judit/index.ts`
-- Adicionar campos de debug no objeto `_debug` do retorno
-- Adicionar segundo passo de extração varrendo todos os `steps` com regex ampliado
+## 3. Novo componente `DadosBennerPartesTab.tsx`
 
-**Arquivo**: `supabase/functions/_shared/extrair-relator.ts`
-- Adicionar padrão `CONCLUSOS` como fallback na função `extrairOrgaoJulgador()`
-- Expandir busca para incluir steps genéricos além de distribuição
+- Recebe `dadosBennerId` e `processoNumero`
+- Carrega partes existentes da tabela `partes_processo_benner` via query
+- Exibe tabela com colunas: Polo, Tipo, Nome, CPF/CNPJ, Origem
+- Linhas com `origem = 'judit'` ficam com fundo/borda verde (emerald)
+- Botão "Buscar Judit" que:
+  1. Chama `supabase.functions.invoke("buscar-judit", ...)`
+  2. Recebe `parties_detail`
+  3. Deleta partes anteriores com `origem = 'judit'` daquele `dados_benner_id`
+  4. Insere as novas partes
+  5. Recarrega a lista
+- Permite adicionar/remover partes manuais
+- Formata CPF (xxx.xxx.xxx-xx) e CNPJ (xx.xxx.xxx/xxxx-xx) na exibição
+
+## 4. Atualizar `DadosBennerDetail.tsx`
+
+- Adicionar tab "Partes" passando `dado.id` e `processoNumero`
+
+## Arquivos afetados
+- **Migration**: nova tabela `partes_processo_benner`
+- **Editar**: `supabase/functions/buscar-judit/index.ts` (adicionar `parties_detail`)
+- **Criar**: `src/components/benner/DadosBennerPartesTab.tsx`
+- **Editar**: `src/components/benner/DadosBennerDetail.tsx` (nova aba)
 
