@@ -29,9 +29,17 @@ function toBool(val: unknown): boolean {
   return t === "S" || t === "SIM" || t === "X" || t === "TRUE";
 }
 
+interface ParsedRecord {
+  sheetName: string;
+  processoNumero: string;
+  row: string[];
+}
+
 interface Props {
   onImported: () => void;
 }
+
+const BATCH_SIZE = 50;
 
 export function DistribuicaoTstImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
@@ -61,12 +69,13 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     setImporting(true);
     setProgress(0);
     setProgressLabel("Lendo planilha...");
+
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      const allRecords: { sheetName: string; row: string[]; }[] = [];
-      
+      // Parse all records from all sheets
+      const allRecords: ParsedRecord[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
@@ -86,7 +95,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
           const processoNumero = norm(r[1]);
           if (!processoNumero || processoNumero.length < 7) continue;
-          allRecords.push({ sheetName, row: r });
+          allRecords.push({ sheetName, processoNumero, row: r });
         }
       }
 
@@ -96,54 +105,111 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return;
       }
 
-      let totalUpserted = 0;
       const total = allRecords.length;
+      setProgressLabel(`Etapa 1/3: Verificando processos... (${total} registros)`);
+      setProgress(5);
 
-      for (let idx = 0; idx < allRecords.length; idx++) {
-        if (cancelRef.current) {
-          toast.info(`Importação cancelada. ${totalUpserted} registros já processados.`);
-          onImported();
-          resetState();
-          return;
-        }
+      // Step 1: Collect unique processo numbers and resolve IDs in bulk
+      const uniqueNumeros = [...new Set(allRecords.map(r => r.processoNumero))];
+      const processoIdMap = new Map<string, string>();
 
-        const { sheetName, row: r } = allRecords[idx];
-        const processoNumero = norm(r[1]);
-
-        setProgress(Math.round(((idx + 1) / total) * 100));
-        setProgressLabel(`Processando ${idx + 1} de ${total}...`);
-
-        const { data: existingProc } = await supabase
+      // Fetch existing processos in batches of 200
+      for (let i = 0; i < uniqueNumeros.length; i += 200) {
+        if (cancelRef.current) { toast.info("Importação cancelada."); resetState(); return; }
+        const batch = uniqueNumeros.slice(i, i + 200);
+        const { data } = await supabase
           .from("processos")
-          .select("id")
-          .eq("numero", processoNumero)
-          .maybeSingle();
+          .select("id, numero")
+          .in("numero", batch);
+        (data || []).forEach((p: any) => processoIdMap.set(p.numero, p.id));
+        setProgress(5 + Math.round((i / uniqueNumeros.length) * 15));
+      }
 
-        let processoId = existingProc?.id;
-        if (!processoId) {
-          const { data: newProc, error: procErr } = await supabase
-            .from("processos")
-            .insert({
-              numero: processoNumero,
-              status: "ativo",
-              area: "trabalhista",
-              polo_ativo: norm(r[4]) || null,
-              polo_passivo: norm(r[5]) || null,
-              dossie_tst: norm(r[2]) || null,
-              relator_tst: norm(r[6]) || null,
-              turma_tst: norm(r[8]) || null,
-            })
-            .select("id")
-            .single();
-          if (procErr) {
-            console.error("Erro ao criar processo:", procErr);
-            continue;
+      // Create missing processos in batches
+      const missing = uniqueNumeros.filter(n => !processoIdMap.has(n));
+      if (missing.length > 0) {
+        setProgressLabel(`Etapa 1/3: Criando ${missing.length} processos novos...`);
+        // Build insert payloads using first occurrence data
+        const firstOccurrence = new Map<string, string[]>();
+        for (const rec of allRecords) {
+          if (missing.includes(rec.processoNumero) && !firstOccurrence.has(rec.processoNumero)) {
+            firstOccurrence.set(rec.processoNumero, rec.row);
           }
-          processoId = newProc.id;
         }
 
-        const rec = {
-          processo_id: processoId,
+        const toCreate = missing.map(num => {
+          const r = firstOccurrence.get(num)!;
+          return {
+            numero: num,
+            status: "ativo" as const,
+            area: "trabalhista",
+            polo_ativo: norm(r[4]) || null,
+            polo_passivo: norm(r[5]) || null,
+            dossie_tst: norm(r[2]) || null,
+            relator_tst: norm(r[6]) || null,
+            turma_tst: norm(r[8]) || null,
+          };
+        });
+
+        for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
+          if (cancelRef.current) { toast.info("Importação cancelada."); resetState(); return; }
+          const batch = toCreate.slice(i, i + BATCH_SIZE);
+          const { data, error } = await supabase
+            .from("processos")
+            .insert(batch)
+            .select("id, numero");
+          if (!error && data) {
+            data.forEach((p: any) => processoIdMap.set(p.numero, p.id));
+          } else if (error) {
+            // Fallback: insert one by one for this batch
+            for (const item of batch) {
+              const { data: single, error: sErr } = await supabase
+                .from("processos")
+                .insert(item)
+                .select("id, numero")
+                .single();
+              if (!sErr && single) processoIdMap.set(single.numero, single.id);
+            }
+          }
+          setProgress(20 + Math.round((i / toCreate.length) * 10));
+        }
+      }
+
+      setProgress(30);
+      setProgressLabel(`Etapa 2/3: Removendo registros antigos...`);
+
+      // Step 2: Delete existing distribuicoes for all processo_numero+aba_origem combos in bulk
+      // Group by aba_origem for efficient deletion
+      const abaGroups = new Map<string, string[]>();
+      for (const rec of allRecords) {
+        const key = rec.sheetName;
+        if (!abaGroups.has(key)) abaGroups.set(key, []);
+        const arr = abaGroups.get(key)!;
+        if (!arr.includes(rec.processoNumero)) arr.push(rec.processoNumero);
+      }
+
+      for (const [aba, numeros] of abaGroups) {
+        if (cancelRef.current) { toast.info("Importação cancelada."); resetState(); return; }
+        // Delete in batches of 200 numeros per aba
+        for (let i = 0; i < numeros.length; i += 200) {
+          const batch = numeros.slice(i, i + 200);
+          await supabase
+            .from("distribuicoes_tst" as any)
+            .delete()
+            .in("processo_numero", batch)
+            .eq("aba_origem", aba);
+        }
+      }
+
+      setProgress(40);
+      setProgressLabel(`Etapa 3/3: Inserindo ${total} distribuições...`);
+
+      // Step 3: Build and insert all records in batches
+      let totalUpserted = 0;
+      const insertRecords = allRecords
+        .filter(rec => processoIdMap.has(rec.processoNumero))
+        .map(({ sheetName, processoNumero, row: r }) => ({
+          processo_id: processoIdMap.get(processoNumero)!,
           processo_numero: processoNumero,
           aba_origem: sheetName,
           data_distribuicao: parseDateBR(r[0]),
@@ -172,35 +238,48 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           recurso_terceiros: norm(r[24]) || null,
           transito_julgado: toBool(r[25]),
           benner_atualizado: toBool(r[26]),
-        };
+        }));
 
-        await supabase
-          .from("distribuicoes_tst" as any)
-          .delete()
-          .eq("processo_numero", rec.processo_numero)
-          .eq("aba_origem", rec.aba_origem || "");
-
-        const { error } = await supabase.from("distribuicoes_tst" as any).insert(rec as any);
-        if (error) {
-          console.error(`Erro ao importar:`, error);
-        } else {
-          totalUpserted++;
+      for (let i = 0; i < insertRecords.length; i += BATCH_SIZE) {
+        if (cancelRef.current) {
+          toast.info(`Importação cancelada. ${totalUpserted} registros já inseridos.`);
+          onImported();
+          resetState();
+          return;
         }
 
-        if (idx % 5 === 0) await new Promise(r => requestAnimationFrame(r));
+        const batch = insertRecords.slice(i, i + BATCH_SIZE);
+        const { error, data } = await supabase
+          .from("distribuicoes_tst" as any)
+          .insert(batch as any)
+          .select("id");
+
+        if (error) {
+          console.error(`Erro lote ${i / BATCH_SIZE + 1}:`, error);
+          // Fallback individual
+          for (const rec of batch) {
+            const { error: sErr } = await supabase.from("distribuicoes_tst" as any).insert(rec as any);
+            if (!sErr) totalUpserted++;
+          }
+        } else {
+          totalUpserted += (data as any[])?.length ?? batch.length;
+        }
+
+        setProgress(40 + Math.round(((i + batch.length) / insertRecords.length) * 60));
+        setProgressLabel(`Etapa 3/3: ${totalUpserted} de ${insertRecords.length} inseridos...`);
       }
 
       setProgress(100);
       setProgressLabel("Concluído!");
 
       if (totalUpserted > 0) {
-        toast.success(`${totalUpserted} distribuições importadas/atualizadas com sucesso!`);
+        toast.success(`${totalUpserted} distribuições importadas/atualizadas!`);
         onImported();
       } else {
         toast.warning("Nenhum registro importado");
       }
     } catch (err: any) {
-      toast.error("Erro ao processar planilha: " + (err?.message || String(err)));
+      toast.error("Erro: " + (err?.message || String(err)));
     } finally {
       setTimeout(resetState, 1500);
     }
@@ -215,7 +294,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       </Button>
       {importing && (
         <>
-          <div className="flex items-center gap-2 min-w-[250px]">
+          <div className="flex items-center gap-2 min-w-[300px]">
             <Progress value={progress} className="h-2 flex-1" />
             <span className="text-xs text-muted-foreground whitespace-nowrap">{progressLabel}</span>
           </div>
