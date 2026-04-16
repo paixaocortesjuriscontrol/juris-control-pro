@@ -25,6 +25,7 @@ const favorabilidadeColor = (val: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  const [showCarga, setShowCarga] = useState(false);
 
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
