@@ -33,6 +33,9 @@ export interface DistribuicaoTst {
   recurso_terceiros: string | null;
   transito_julgado: boolean | null;
   benner_atualizado: boolean | null;
+  judit_preenchido: boolean;
+  judit_preenchido_em: string | null;
+  judit_preenchido_por: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +53,7 @@ export interface DistribuicaoTstFilters {
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido";
+  judit?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
@@ -89,6 +93,12 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       query = query.like("dossie", "__.__.___.______%/__");
     } else if (filters.dossieStatus === "invalido") {
       query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
+    }
+    // Judit filter
+    if (filters.judit === "sim") {
+      query = query.eq("judit_preenchido", true);
+    } else if (filters.judit === "nao") {
+      query = query.eq("judit_preenchido", false);
     }
     if (filters.processo) {
       query = query.ilike("processo_numero", `%${filters.processo}%`);

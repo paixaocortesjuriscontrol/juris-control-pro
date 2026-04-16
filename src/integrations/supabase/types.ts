@@ -1714,6 +1714,9 @@ export type Database = {
           execucao: string | null
           honra: string | null
           id: string
+          judit_preenchido: boolean
+          judit_preenchido_em: string | null
+          judit_preenchido_por: string | null
           materias_recurso_banco: string | null
           materias_recurso_reclamante: string | null
           midia_negativa: string | null
@@ -1748,6 +1751,9 @@ export type Database = {
           execucao?: string | null
           honra?: string | null
           id?: string
+          judit_preenchido?: boolean
+          judit_preenchido_em?: string | null
+          judit_preenchido_por?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
           midia_negativa?: string | null
@@ -1782,6 +1788,9 @@ export type Database = {
           execucao?: string | null
           honra?: string | null
           id?: string
+          judit_preenchido?: boolean
+          judit_preenchido_em?: string | null
+          judit_preenchido_por?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
           midia_negativa?: string | null
@@ -1802,6 +1811,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "distribuicoes_tst_judit_preenchido_por_fkey"
+            columns: ["judit_preenchido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribuicoes_tst_judit_preenchido_por_fkey"
+            columns: ["judit_preenchido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "distribuicoes_tst_processo_id_fkey"
             columns: ["processo_id"]

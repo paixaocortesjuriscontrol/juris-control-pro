@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,53 +27,6 @@ const favorabilidadeColor = (val: string | null) => {
   return "secondary";
 };
 
-const applyDistribuicaoFilters = (query: any, filters: DistribuicaoTstFilters) => {
-  if (filters.aba_origem && filters.aba_origem !== "todas") {
-    query = query.eq("aba_origem", filters.aba_origem);
-  }
-  if (filters.benner === "sim") {
-    query = query.eq("benner_atualizado", true);
-  } else if (filters.benner === "nao") {
-    query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-  }
-  if (filters.dossieStatus === "preenchido") {
-    query = query.not("dossie", "is", null).neq("dossie", "");
-  } else if (filters.dossieStatus === "nao_preenchido") {
-    query = query.or("dossie.is.null,dossie.eq.");
-  } else if (filters.dossieStatus === "valido") {
-    query = query.like("dossie", "__.__.___.______%/__");
-  } else if (filters.dossieStatus === "invalido") {
-    query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
-  }
-  if (filters.processo) {
-    query = query.ilike("processo_numero", `%${filters.processo}%`);
-  }
-  if (filters.dossie) {
-    query = query.ilike("dossie", `%${filters.dossie}%`);
-  }
-  if (filters.turma) {
-    query = query.ilike("turma", `%${filters.turma}%`);
-  }
-  if (filters.relator) {
-    query = query.ilike("relator", `%${filters.relator}%`);
-  }
-  if (filters.parte) {
-    query = query.ilike("parte_recorrente", `%${filters.parte}%`);
-  }
-  if (filters.mesAno && filters.mesAno !== "todos") {
-    const start = `${filters.mesAno}-01`;
-    const [y, m] = filters.mesAno.split("-").map(Number);
-    const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-    query = query.gte("data_distribuicao", start).lt("data_distribuicao", nextMonth);
-  }
-  if (filters.dataInicio) {
-    query = query.gte("data_distribuicao", filters.dataInicio);
-  }
-  if (filters.dataFim) {
-    query = query.lte("data_distribuicao", filters.dataFim);
-  }
-  return query;
-};
 
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
@@ -110,45 +63,6 @@ export default function DistribuicaoTst() {
 
   // Debounced text filters
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
-  
-  // Judit filter: fetch dados_benner process numbers and paginate client-side
-  const [juditProcessNumbers, setJuditProcessNumbers] = useState<Set<string> | null>(null);
-  const [juditLoading, setJuditLoading] = useState(false);
-  const [juditDados, setJuditDados] = useState<DistTst[] | null>(null);
-  const [juditTotalCount, setJuditTotalCount] = useState(0);
-
-  const fetchJuditProcessNumbers = useCallback(async () => {
-    if (filtroJudit === "todos") {
-      setJuditProcessNumbers(null);
-      return;
-    }
-
-    setJuditLoading(true);
-    const all: string[] = [];
-    let offset = 0;
-    const size = 1000;
-
-    while (true) {
-      const { data } = await supabase
-        .from("dados_benner" as any)
-        .select("processo")
-        .range(offset, offset + size - 1);
-
-      if (!data || data.length === 0) break;
-      (data as any[]).forEach((d: any) => {
-        if (d.processo) all.push(d.processo);
-      });
-      if (data.length < size) break;
-      offset += size;
-    }
-
-    setJuditProcessNumbers(new Set(all));
-    setJuditLoading(false);
-  }, [filtroJudit]);
-
-  useEffect(() => {
-    fetchJuditProcessNumbers();
-  }, [fetchJuditProcessNumbers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -161,75 +75,16 @@ export default function DistribuicaoTst() {
         aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
         benner: filtroBenner as any,
         dossieStatus: filtroDossieStatus !== "todos" ? (filtroDossieStatus as any) : undefined,
+        judit: filtroJudit as any,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
         dataFim: filtroDataFim || undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados: dadosRaw, loading: loadingRaw, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
-
-  useEffect(() => {
-    setPage(1);
-  }, [filtroJudit, setPage]);
-
-  useEffect(() => {
-    const fetchJuditFilteredPage = async () => {
-      if (filtroJudit === "todos" || juditProcessNumbers === null) {
-        setJuditDados(null);
-        setJuditTotalCount(0);
-        return;
-      }
-
-      setJuditLoading(true);
-      try {
-        const allRows: DistTst[] = [];
-        let offset = 0;
-        const pageSize = 1000;
-
-        while (true) {
-          let query = supabase
-            .from("distribuicoes_tst" as any)
-            .select("*")
-            .order("created_at", { ascending: false });
-
-          query = applyDistribuicaoFilters(query, debouncedFilters);
-
-          const { data, error } = await query.range(offset, offset + pageSize - 1);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-
-          allRows.push(...((data as any[]) || []));
-          if (data.length < pageSize) break;
-          offset += pageSize;
-        }
-
-        const filtered = allRows.filter((d) =>
-          filtroJudit === "sim"
-            ? juditProcessNumbers.has(d.processo_numero)
-            : !juditProcessNumbers.has(d.processo_numero),
-        );
-
-        const PAGE_SIZE = 100;
-        const from = (page - 1) * PAGE_SIZE;
-        setJuditTotalCount(filtered.length);
-        setJuditDados(filtered.slice(from, from + PAGE_SIZE));
-      } catch (error: any) {
-        toast.error("Erro ao filtrar por Judit: " + (error.message || "Erro desconhecido"));
-      } finally {
-        setJuditLoading(false);
-      }
-    };
-
-    fetchJuditFilteredPage();
-  }, [filtroJudit, juditProcessNumbers, debouncedFilters, page]);
-
-  const loading = loadingRaw || juditLoading;
-  const dados = juditDados ?? dadosRaw;
-  const effectiveTotalCount = filtroJudit === "todos" ? totalCount : juditTotalCount;
-  const effectiveTotalPages = filtroJudit === "todos" ? totalPages : Math.ceil(juditTotalCount / 100);
+  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
@@ -490,6 +345,17 @@ export default function DistribuicaoTst() {
             successCount++;
           }
 
+          // Mark distribuicao as judit_preenchido
+          const { data: authData2 } = await supabase.auth.getUser();
+          await supabase
+            .from("distribuicoes_tst" as any)
+            .update({
+              judit_preenchido: true,
+              judit_preenchido_em: new Date().toISOString(),
+              judit_preenchido_por: authData2?.user?.id || null,
+            } as any)
+            .eq("processo_numero", proc.processo_numero);
+
           // Throttle to avoid rate limits
           await new Promise(r => setTimeout(r, 800));
         } catch {
@@ -513,16 +379,16 @@ export default function DistribuicaoTst() {
   const getVisiblePages = () => {
     const pages: number[] = [];
     const maxVisible = 7;
-    if (effectiveTotalPages <= maxVisible) {
-      for (let i = 1; i <= effectiveTotalPages; i++) pages.push(i);
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       pages.push(1);
       const start = Math.max(2, page - 2);
-      const end = Math.min(effectiveTotalPages - 1, page + 2);
+      const end = Math.min(totalPages - 1, page + 2);
       if (start > 2) pages.push(-1);
       for (let i = start; i <= end; i++) pages.push(i);
-      if (end < effectiveTotalPages - 1) pages.push(-2);
-      pages.push(effectiveTotalPages);
+      if (end < totalPages - 1) pages.push(-2);
+      pages.push(totalPages);
     }
     return pages;
   };
@@ -726,7 +592,7 @@ export default function DistribuicaoTst() {
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground">{effectiveTotalCount} registros encontrados</p>
+            <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
             {selectedIds.size > 0 && (
               <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setSelectedIds(new Set())}>
                 {selectedIds.size} selecionado(s) — limpar
@@ -854,10 +720,10 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Pagination */}
-        {effectiveTotalPages > 1 && (
+        {totalPages > 1 && (
           <div className="flex items-center justify-between pt-2">
             <p className="text-xs text-muted-foreground">
-              Página {page} de {effectiveTotalPages} · {effectiveTotalCount} registros
+              Página {page} de {totalPages} · {totalCount} registros
             </p>
             <div className="flex items-center gap-1">
               <Button
@@ -888,7 +754,7 @@ export default function DistribuicaoTst() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                disabled={page >= effectiveTotalPages}
+                disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >
                 <ChevronRight className="w-4 h-4" />

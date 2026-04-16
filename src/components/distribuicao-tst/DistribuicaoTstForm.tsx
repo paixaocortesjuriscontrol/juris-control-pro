@@ -48,6 +48,9 @@ const emptyForm: DistribuicaoTstInsert = {
   recurso_terceiros: null,
   transito_julgado: false,
   benner_atualizado: false,
+  judit_preenchido: false,
+  judit_preenchido_em: null,
+  judit_preenchido_por: null,
 };
 
 export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
