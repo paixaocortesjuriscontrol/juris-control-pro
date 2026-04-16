@@ -64,9 +64,11 @@ export default function DistribuicaoTst() {
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
   
   // Judit filter: fetch dados_benner process numbers
-  const [juditProcessNumbers, setJuditProcessNumbers] = useState<Set<string>>(new Set());
+  const [juditProcessNumbers, setJuditProcessNumbers] = useState<Set<string> | null>(null);
+  const [juditLoading, setJuditLoading] = useState(false);
   const fetchJuditProcessNumbers = useCallback(async () => {
-    if (filtroJudit === "todos") { setJuditProcessNumbers(new Set()); return; }
+    if (filtroJudit === "todos") { setJuditProcessNumbers(null); return; }
+    setJuditLoading(true);
     const all: string[] = [];
     let offset = 0;
     const size = 1000;
@@ -78,6 +80,7 @@ export default function DistribuicaoTst() {
       offset += size;
     }
     setJuditProcessNumbers(new Set(all));
+    setJuditLoading(false);
   }, [filtroJudit]);
 
   useEffect(() => { fetchJuditProcessNumbers(); }, [fetchJuditProcessNumbers]);
@@ -101,11 +104,13 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados: dadosRaw, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const { dados: dadosRaw, loading: loadingRaw, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+
+  const loading = loadingRaw || juditLoading;
 
   // Apply client-side Judit filter
   const dados = useMemo(() => {
-    if (filtroJudit === "todos" || juditProcessNumbers.size === 0) return dadosRaw;
+    if (filtroJudit === "todos" || juditProcessNumbers === null) return dadosRaw;
     if (filtroJudit === "sim") return dadosRaw.filter(d => juditProcessNumbers.has(d.processo_numero));
     if (filtroJudit === "nao") return dadosRaw.filter(d => !juditProcessNumbers.has(d.processo_numero));
     return dadosRaw;
