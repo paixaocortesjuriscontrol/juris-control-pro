@@ -110,45 +110,6 @@ export default function DistribuicaoTst() {
 
   // Debounced text filters
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
-  
-  // Judit filter: fetch dados_benner process numbers and paginate client-side
-  const [juditProcessNumbers, setJuditProcessNumbers] = useState<Set<string> | null>(null);
-  const [juditLoading, setJuditLoading] = useState(false);
-  const [juditDados, setJuditDados] = useState<DistTst[] | null>(null);
-  const [juditTotalCount, setJuditTotalCount] = useState(0);
-
-  const fetchJuditProcessNumbers = useCallback(async () => {
-    if (filtroJudit === "todos") {
-      setJuditProcessNumbers(null);
-      return;
-    }
-
-    setJuditLoading(true);
-    const all: string[] = [];
-    let offset = 0;
-    const size = 1000;
-
-    while (true) {
-      const { data } = await supabase
-        .from("dados_benner" as any)
-        .select("processo")
-        .range(offset, offset + size - 1);
-
-      if (!data || data.length === 0) break;
-      (data as any[]).forEach((d: any) => {
-        if (d.processo) all.push(d.processo);
-      });
-      if (data.length < size) break;
-      offset += size;
-    }
-
-    setJuditProcessNumbers(new Set(all));
-    setJuditLoading(false);
-  }, [filtroJudit]);
-
-  useEffect(() => {
-    fetchJuditProcessNumbers();
-  }, [fetchJuditProcessNumbers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -161,75 +122,16 @@ export default function DistribuicaoTst() {
         aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
         benner: filtroBenner as any,
         dossieStatus: filtroDossieStatus !== "todos" ? (filtroDossieStatus as any) : undefined,
+        judit: filtroJudit as any,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
         dataFim: filtroDataFim || undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados: dadosRaw, loading: loadingRaw, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
-
-  useEffect(() => {
-    setPage(1);
-  }, [filtroJudit, setPage]);
-
-  useEffect(() => {
-    const fetchJuditFilteredPage = async () => {
-      if (filtroJudit === "todos" || juditProcessNumbers === null) {
-        setJuditDados(null);
-        setJuditTotalCount(0);
-        return;
-      }
-
-      setJuditLoading(true);
-      try {
-        const allRows: DistTst[] = [];
-        let offset = 0;
-        const pageSize = 1000;
-
-        while (true) {
-          let query = supabase
-            .from("distribuicoes_tst" as any)
-            .select("*")
-            .order("created_at", { ascending: false });
-
-          query = applyDistribuicaoFilters(query, debouncedFilters);
-
-          const { data, error } = await query.range(offset, offset + pageSize - 1);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-
-          allRows.push(...((data as any[]) || []));
-          if (data.length < pageSize) break;
-          offset += pageSize;
-        }
-
-        const filtered = allRows.filter((d) =>
-          filtroJudit === "sim"
-            ? juditProcessNumbers.has(d.processo_numero)
-            : !juditProcessNumbers.has(d.processo_numero),
-        );
-
-        const PAGE_SIZE = 100;
-        const from = (page - 1) * PAGE_SIZE;
-        setJuditTotalCount(filtered.length);
-        setJuditDados(filtered.slice(from, from + PAGE_SIZE));
-      } catch (error: any) {
-        toast.error("Erro ao filtrar por Judit: " + (error.message || "Erro desconhecido"));
-      } finally {
-        setJuditLoading(false);
-      }
-    };
-
-    fetchJuditFilteredPage();
-  }, [filtroJudit, juditProcessNumbers, debouncedFilters, page]);
-
-  const loading = loadingRaw || juditLoading;
-  const dados = juditDados ?? dadosRaw;
-  const effectiveTotalCount = filtroJudit === "todos" ? totalCount : juditTotalCount;
-  const effectiveTotalPages = filtroJudit === "todos" ? totalPages : Math.ceil(juditTotalCount / 100);
+  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
