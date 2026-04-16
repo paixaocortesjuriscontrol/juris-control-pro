@@ -425,6 +425,20 @@ export default function DistribuicaoTst() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
           <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant="default" 
+              onClick={handleBulkJudit} 
+              disabled={bulkJuditRunning}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {bulkJuditRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {bulkJuditRunning ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}` : "Preencher com Judit"}
+            </Button>
+            {bulkJuditRunning && (
+              <Button variant="destructive" size="sm" onClick={() => { bulkAbortRef.current = true; }}>
+                <X className="w-4 h-4 mr-1" /> Cancelar
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => setShowCarga(true)}>
               <FileSpreadsheet className="w-4 h-4 mr-2" /> Gerar Carga Benner
             </Button>
