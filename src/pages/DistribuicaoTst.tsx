@@ -205,30 +205,43 @@ export default function DistribuicaoTst() {
     setBulkJuditRunning(true);
 
     try {
-      // Fetch all processo_numero from current filtered view (paginate)
       let allProcessos: { processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
-      let offset = 0;
-      const FETCH_SIZE = 1000;
-      while (true) {
-        let q = supabase
-          .from("distribuicoes_tst" as any)
-          .select("processo_numero, dossie, turma, relator, data_distribuicao, parte_recorrente")
-          .order("created_at", { ascending: false });
-        
-        if (debouncedFilters.aba_origem && debouncedFilters.aba_origem !== "todas") q = q.eq("aba_origem", debouncedFilters.aba_origem);
-        if (debouncedFilters.benner === "sim") q = q.eq("benner_atualizado", true);
-        else if (debouncedFilters.benner === "nao") q = q.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-        if (debouncedFilters.processo) q = q.ilike("processo_numero", `%${debouncedFilters.processo}%`);
-        if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
-        if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
-        if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
-        if (debouncedFilters.parte) q = q.ilike("parte_recorrente", `%${debouncedFilters.parte}%`);
 
-        const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
-        if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
-        allProcessos = allProcessos.concat((data as any[]) || []);
-        if (!data || data.length < FETCH_SIZE) break;
-        offset += FETCH_SIZE;
+      // If rows are selected, use only those
+      if (selectedIds.size > 0) {
+        allProcessos = dados.filter(d => selectedIds.has(d.id)).map(d => ({
+          processo_numero: d.processo_numero,
+          dossie: d.dossie,
+          turma: d.turma,
+          relator: d.relator,
+          data_distribuicao: d.data_distribuicao,
+          parte_recorrente: d.parte_recorrente,
+        }));
+      } else {
+        // Fetch all from current filtered view
+        let offset = 0;
+        const FETCH_SIZE = 1000;
+        while (true) {
+          let q = supabase
+            .from("distribuicoes_tst" as any)
+            .select("processo_numero, dossie, turma, relator, data_distribuicao, parte_recorrente")
+            .order("created_at", { ascending: false });
+          
+          if (debouncedFilters.aba_origem && debouncedFilters.aba_origem !== "todas") q = q.eq("aba_origem", debouncedFilters.aba_origem);
+          if (debouncedFilters.benner === "sim") q = q.eq("benner_atualizado", true);
+          else if (debouncedFilters.benner === "nao") q = q.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+          if (debouncedFilters.processo) q = q.ilike("processo_numero", `%${debouncedFilters.processo}%`);
+          if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
+          if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
+          if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
+          if (debouncedFilters.parte) q = q.ilike("parte_recorrente", `%${debouncedFilters.parte}%`);
+
+          const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
+          if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
+          allProcessos = allProcessos.concat((data as any[]) || []);
+          if (!data || data.length < FETCH_SIZE) break;
+          offset += FETCH_SIZE;
+        }
       }
 
       // Deduplicate by processo_numero
@@ -240,7 +253,7 @@ export default function DistribuicaoTst() {
       });
 
       if (unique.length === 0) {
-        toast.info("Nenhum processo encontrado com os filtros atuais");
+        toast.info("Nenhum processo encontrado");
         setBulkJuditRunning(false);
         return;
       }
