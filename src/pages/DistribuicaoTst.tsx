@@ -43,11 +43,28 @@ export default function DistribuicaoTst() {
     return [...set].sort();
   }, [dados]);
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos";
+  // Extract unique month/year values from data_distribuicao
+  const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
+  const mesesAnos = useMemo(() => {
+    const map = new Map<string, number>();
+    dados.forEach(d => {
+      if (d.data_distribuicao) {
+        const [y, m] = d.data_distribuicao.split("-");
+        if (y && m) {
+          const key = `${y}-${m}`;
+          map.set(key, (map.get(key) || 0) + 1);
+        }
+      }
+    });
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [dados]);
+
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
     setFiltroBenner("todos");
+    setFiltroMesAno("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -62,6 +79,11 @@ export default function DistribuicaoTst() {
       if (filtroAba !== "todas" && d.aba_origem !== filtroAba) return false;
       if (filtroBenner === "sim" && !d.benner_atualizado) return false;
       if (filtroBenner === "nao" && d.benner_atualizado) return false;
+      if (filtroMesAno !== "todos" && d.data_distribuicao) {
+        const mesAno = d.data_distribuicao.slice(0, 7);
+        if (mesAno !== filtroMesAno) return false;
+      }
+      if (filtroMesAno !== "todos" && !d.data_distribuicao) return false;
       if (filtroProcesso && !d.processo_numero?.toLowerCase().includes(filtroProcesso.toLowerCase())) return false;
       if (filtroDossie && !d.dossie?.toLowerCase().includes(filtroDossie.toLowerCase())) return false;
       if (filtroTurma && !d.turma?.toLowerCase().includes(filtroTurma.toLowerCase())) return false;
@@ -71,7 +93,7 @@ export default function DistribuicaoTst() {
       if (filtroDataFim && d.data_distribuicao && d.data_distribuicao > filtroDataFim) return false;
       return true;
     });
-  }, [dados, filtroAba, filtroBenner, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
+  }, [dados, filtroAba, filtroBenner, filtroMesAno, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
 
   const handleDelete = async (id: string) => {
     if (confirm("Excluir esta distribuição?")) {
@@ -139,6 +161,36 @@ export default function DistribuicaoTst() {
                   className="text-xs h-7"
                 >
                   {aba} ({count})
+                </Button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Mês/Ano tabs */}
+        {mesesAnos.length > 1 && (
+          <div className="flex gap-1 flex-wrap">
+            <Button
+              variant={filtroMesAno === "todos" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFiltroMesAno("todos")}
+              className="text-xs h-7"
+            >
+              Todos meses
+            </Button>
+            {mesesAnos.map(([key, count]) => {
+              const [y, m] = key.split("-");
+              const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+              const label = `${meses[parseInt(m) - 1]}/${y}`;
+              return (
+                <Button
+                  key={key}
+                  variant={filtroMesAno === key ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFiltroMesAno(key)}
+                  className="text-xs h-7"
+                >
+                  {label} ({count})
                 </Button>
               );
             })}

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -15,6 +16,8 @@ interface Props {
 
 export function DossieUpdateImport({ onUpdated }: Props) {
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -22,13 +25,14 @@ export function DossieUpdateImport({ onUpdated }: Props) {
     if (!file) return;
 
     setImporting(true);
+    setProgress(0);
+    setStatusText("Lendo planilha…");
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
 
-      // Find header row
       let headerIdx = -1;
       let colDossie = -1;
       let colProcesso = -1;
@@ -50,7 +54,6 @@ export function DossieUpdateImport({ onUpdated }: Props) {
         return;
       }
 
-      // Build map: processo_numero -> dossie
       const dossieMap = new Map<string, string>();
       for (let i = headerIdx + 1; i < json.length; i++) {
         const r = json[i];
@@ -69,33 +72,51 @@ export function DossieUpdateImport({ onUpdated }: Props) {
         return;
       }
 
-      // Fetch distribuicoes that match and update dossie
       const numeros = [...dossieMap.keys()];
       let updated = 0;
+      let notFound = 0;
+      const totalBatches = Math.ceil(numeros.length / 500);
 
       for (let i = 0; i < numeros.length; i += 500) {
+        const batchIdx = Math.floor(i / 500) + 1;
+        setProgress(Math.round((batchIdx / totalBatches) * 100));
+        setStatusText(`Atualizando lote ${batchIdx}/${totalBatches} · ${updated} atualizados`);
+
         const batch = numeros.slice(i, i + 500);
         const { data } = await supabase
           .from("distribuicoes_tst" as any)
           .select("id, processo_numero")
           .in("processo_numero", batch);
 
-        if (!data || (data as any[]).length === 0) continue;
+        if (!data || (data as any[]).length === 0) {
+          notFound += batch.length;
+          continue;
+        }
 
-        // Group updates by dossie value for efficiency
+        const found = new Set((data as any[]).map((r: any) => r.processo_numero));
+        notFound += batch.length - found.size;
+
+        // Group by dossie value for batch updates
+        const byDossie = new Map<string, string[]>();
         for (const row of data as any[]) {
           const newDossie = dossieMap.get(row.processo_numero);
           if (!newDossie) continue;
+          if (!byDossie.has(newDossie)) byDossie.set(newDossie, []);
+          byDossie.get(newDossie)!.push(row.processo_numero);
+        }
+
+        for (const [dossie, processos] of byDossie) {
           const { error } = await supabase
             .from("distribuicoes_tst" as any)
-            .update({ dossie: newDossie } as any)
-            .eq("processo_numero", row.processo_numero);
-          if (!error) updated++;
+            .update({ dossie } as any)
+            .in("processo_numero", processos);
+          if (!error) updated += processos.length;
         }
       }
 
+      setProgress(100);
       if (updated > 0) {
-        toast.success(`${updated} dossiês atualizados!`);
+        toast.success(`${updated} dossiês atualizados! (${notFound} não encontrados)`);
         onUpdated();
       } else {
         toast.warning("Nenhum dossiê atualizado (nenhum processo correspondente encontrado)");
@@ -104,17 +125,25 @@ export function DossieUpdateImport({ onUpdated }: Props) {
       toast.error("Erro: " + (err?.message || String(err)));
     } finally {
       setImporting(false);
+      setProgress(0);
+      setStatusText("");
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   return (
-    <>
+    <div className="flex flex-col gap-1">
       <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
       <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
         {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
         Atualizar Dossiês
       </Button>
-    </>
+      {importing && (
+        <div className="space-y-1 min-w-[200px]">
+          <Progress value={progress} className="h-2" />
+          <p className="text-[10px] text-muted-foreground truncate">{statusText}</p>
+        </div>
+      )}
+    </div>
   );
 }
