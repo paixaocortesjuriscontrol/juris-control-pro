@@ -178,7 +178,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       }
 
       // === STEP 3: Upsert distribuições ===
-      setStatusText("Etapa 2/2: Salvando distribuições");
+      setStatusText("Etapa 3/3: Salvando distribuições");
       startTimeRef.current = Date.now();
 
       const upsertRecords = allRows
