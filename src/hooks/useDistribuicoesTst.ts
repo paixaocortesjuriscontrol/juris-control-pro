@@ -94,6 +94,12 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     } else if (filters.dossieStatus === "invalido") {
       query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
     }
+    // Judit filter
+    if (filters.judit === "sim") {
+      query = query.eq("judit_preenchido", true);
+    } else if (filters.judit === "nao") {
+      query = query.eq("judit_preenchido", false);
+    }
     if (filters.processo) {
       query = query.ilike("processo_numero", `%${filters.processo}%`);
     }
