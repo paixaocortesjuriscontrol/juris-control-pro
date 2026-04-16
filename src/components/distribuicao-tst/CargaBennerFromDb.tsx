@@ -156,8 +156,22 @@ function colToLetter(c: number): string {
   return s;
 }
 
+interface CargaFilters {
+  aba_origem?: string;
+  benner?: "todos" | "sim" | "nao";
+  processo?: string;
+  dossie?: string;
+  turma?: string;
+  relator?: string;
+  parte?: string;
+  mesAno?: string;
+  dataInicio?: string;
+  dataFim?: string;
+}
+
 interface Props {
   onClose?: () => void;
+  filters?: CargaFilters;
 }
 
 export function CargaBennerFromDb({ onClose }: Props) {
