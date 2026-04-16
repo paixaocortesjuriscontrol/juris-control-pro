@@ -43,6 +43,9 @@ export default function DistribuicaoTst() {
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
 
+  // Row selection for bulk Judit
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
   const [filtroBenner, setFiltroBenner] = useState<string>("todos");
