@@ -453,7 +453,11 @@ export default function DistribuicaoTst() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {bulkJuditRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              {bulkJuditRunning ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}` : "Preencher com Judit"}
+              {bulkJuditRunning 
+                ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}` 
+                : selectedIds.size > 0 
+                  ? `Preencher Selecionados (${selectedIds.size}) com Judit`
+                  : "Preencher com Judit"}
             </Button>
             {bulkJuditRunning && (
               <Button variant="destructive" size="sm" onClick={() => { bulkAbortRef.current = true; }}>
