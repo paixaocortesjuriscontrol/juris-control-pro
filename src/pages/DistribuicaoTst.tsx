@@ -59,11 +59,12 @@ export default function DistribuicaoTst() {
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [dados]);
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
     setFiltroBenner("todos");
+    setFiltroMesAno("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -78,6 +79,11 @@ export default function DistribuicaoTst() {
       if (filtroAba !== "todas" && d.aba_origem !== filtroAba) return false;
       if (filtroBenner === "sim" && !d.benner_atualizado) return false;
       if (filtroBenner === "nao" && d.benner_atualizado) return false;
+      if (filtroMesAno !== "todos" && d.data_distribuicao) {
+        const mesAno = d.data_distribuicao.slice(0, 7);
+        if (mesAno !== filtroMesAno) return false;
+      }
+      if (filtroMesAno !== "todos" && !d.data_distribuicao) return false;
       if (filtroProcesso && !d.processo_numero?.toLowerCase().includes(filtroProcesso.toLowerCase())) return false;
       if (filtroDossie && !d.dossie?.toLowerCase().includes(filtroDossie.toLowerCase())) return false;
       if (filtroTurma && !d.turma?.toLowerCase().includes(filtroTurma.toLowerCase())) return false;
@@ -87,7 +93,7 @@ export default function DistribuicaoTst() {
       if (filtroDataFim && d.data_distribuicao && d.data_distribuicao > filtroDataFim) return false;
       return true;
     });
-  }, [dados, filtroAba, filtroBenner, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
+  }, [dados, filtroAba, filtroBenner, filtroMesAno, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
 
   const handleDelete = async (id: string) => {
     if (confirm("Excluir esta distribuição?")) {
