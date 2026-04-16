@@ -544,7 +544,6 @@ export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
       }
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
-      const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       zip.file("xl/sharedStrings.xml",
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("")}</sst>`
       );
