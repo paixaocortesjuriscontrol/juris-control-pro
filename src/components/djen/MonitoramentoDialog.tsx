@@ -117,42 +117,45 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
   
   const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte'>(
-    monitoramento?.tipo || 'palavra-chave'
+    fonte?.tipo || 'palavra-chave'
   );
-  const [termoBusca, setTermoBusca] = useState(monitoramento?.termo_busca || '');
-  const [oab, setOab] = useState(monitoramento?.oab || '');
+  const [termoBusca, setTermoBusca] = useState(fonte?.termo_busca || '');
+  const [oab, setOab] = useState(fonte?.oab || '');
   const [selectedUfs, setSelectedUfs] = useState<string[]>([]);
   const [todasRegioes, setTodasRegioes] = useState(false);
-  const [coordenacaoId, setCoordenacaoId] = useState<string>(monitoramento?.coordenacao_id || '');
+  const [coordenacaoId, setCoordenacaoId] = useState<string>(fonte?.coordenacao_id || '');
   
   // Novos campos avançados
-  const [descricao, setDescricao] = useState(monitoramento?.descricao || '');
-  const [exclusoes, setExclusoes] = useState<string[]>(monitoramento?.exclusoes || []);
+  const [descricao, setDescricao] = useState(fonte?.descricao || '');
+  const [exclusoes, setExclusoes] = useState<string[]>(fonte?.exclusoes || []);
   const [novaExclusao, setNovaExclusao] = useState('');
   const [condicoesConcomitantes, setCondicoesConcomitantes] = useState<string[]>(
-    monitoramento?.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
+    fonte?.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
   );
   const [novaCondicao, setNovaCondicao] = useState('');
-  const [termosOr, setTermosOr] = useState<string[]>(monitoramento?.termos_or || []);
+  const [termosOr, setTermosOr] = useState<string[]>(fonte?.termos_or || []);
   const [novoTermoOr, setNovoTermoOr] = useState('');
-  const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(monitoramento?.tribunais || []);
+  const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(fonte?.tribunais || []);
 
   useEffect(() => {
-    if (monitoramento) {
-      setTipo(monitoramento.tipo as typeof tipo);
-      setTermoBusca(monitoramento.termo_busca || '');
-      setOab(monitoramento.oab || '');
-      setCoordenacaoId(monitoramento.coordenacao_id || '');
-      setDescricao(monitoramento.descricao || '');
-      setExclusoes(monitoramento.exclusoes || []);
+    const src = monitoramento ?? duplicateFrom ?? null;
+    if (src) {
+      setTipo(src.tipo as typeof tipo);
+      setTermoBusca(src.termo_busca || '');
+      setOab(src.oab || '');
+      setCoordenacaoId(src.coordenacao_id || '');
+      // Em duplicação, sufixar a descrição para o usuário identificar
+      const baseDesc = src.descricao || '';
+      setDescricao(duplicateFrom && !monitoramento ? `${baseDesc} (cópia)`.trim() : baseDesc);
+      setExclusoes(src.exclusoes || []);
       setCondicoesConcomitantes(
-        monitoramento.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
+        src.condicao_concomitante?.split('|').map(s => s.trim()).filter(Boolean) || []
       );
       setNovaCondicao('');
-      setTermosOr(monitoramento.termos_or || []);
+      setTermosOr(src.termos_or || []);
       
       // Expandir IDs sintéticos ao carregar
-      let tribunaisCarregados = monitoramento.tribunais || [];
+      let tribunaisCarregados = src.tribunais || [];
       const expandidos: string[] = [];
       for (const t of tribunaisCarregados) {
         if (t === 'TODOS_TRT') {
@@ -165,16 +168,15 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       }
       setTribunaisSelecionados([...new Set(expandidos)]);
       
-      if (monitoramento.uf) {
-        if (monitoramento.uf === 'TODAS') {
+      if (src.uf) {
+        if (src.uf === 'TODAS') {
           setTodasRegioes(true);
           setSelectedUfs([]);
         } else {
           setTodasRegioes(false);
-          setSelectedUfs(monitoramento.uf.split(',').map(s => s.trim()).filter(Boolean));
+          setSelectedUfs(src.uf.split(',').map(s => s.trim()).filter(Boolean));
         }
       } else {
-        // Monitoramento não tinha UF definida - resetar estados
         setTodasRegioes(false);
         setSelectedUfs([]);
       }
@@ -193,7 +195,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setSelectedUfs([]);
       setTodasRegioes(false);
     }
-  }, [monitoramento, open]);
+  }, [monitoramento, duplicateFrom, open]);
 
   const handleToggleUf = (uf: string) => {
     setSelectedUfs(prev => 
