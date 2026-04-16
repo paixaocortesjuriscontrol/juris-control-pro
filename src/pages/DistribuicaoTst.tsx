@@ -595,7 +595,20 @@ export default function DistribuicaoTst() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
+                <TableHead className="w-10">
+                  <Checkbox 
+                    checked={dados.length > 0 && dados.every(d => selectedIds.has(d.id))}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedIds(new Set([...selectedIds, ...dados.map(d => d.id)]));
+                      } else {
+                        const newSet = new Set(selectedIds);
+                        dados.forEach(d => newSet.delete(d.id));
+                        setSelectedIds(newSet);
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Processo</TableHead>
                 <TableHead>Dossiê</TableHead>
                 <TableHead>Equipe</TableHead>
