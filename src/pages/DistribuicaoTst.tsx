@@ -611,6 +611,7 @@ export default function DistribuicaoTst() {
                 </TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Processo</TableHead>
+                <TableHead>Dossiê</TableHead>
                 <TableHead>Equipe</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Relator +/-</TableHead>
@@ -624,11 +625,22 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(d.id)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedIds);
+                        if (checked) newSet.add(d.id);
+                        else newSet.delete(d.id);
+                        setSelectedIds(newSet);
+                      }}
+                    />
+                  </TableCell>
                   <TableCell className="text-sm">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="font-mono text-xs">{d.processo_numero}</TableCell>
                   <TableCell className="text-sm">{d.dossie || "—"}</TableCell>
