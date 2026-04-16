@@ -7,6 +7,7 @@ import { DadosBennerForm } from "./DadosBennerForm";
 import { DadosBennerDistribuicaoTab } from "./DadosBennerDistribuicaoTab";
 import { DadosBennerPautasTab } from "./DadosBennerPautasTab";
 import { DadosBennerProcessoTab } from "./DadosBennerProcessoTab";
+import { DadosBennerPartesTab } from "./DadosBennerPartesTab";
 
 interface Props {
   dado: DadoBenner;
@@ -32,6 +33,7 @@ export function DadosBennerDetail({ dado, onSave, onCancel }: Props) {
         <TabsList className="w-full justify-start">
           <TabsTrigger value="dados">Dados Carga Benner</TabsTrigger>
           <TabsTrigger value="processo">Dados do Processo</TabsTrigger>
+          <TabsTrigger value="partes">Partes</TabsTrigger>
           <TabsTrigger value="distribuicao">Distribuição</TabsTrigger>
           <TabsTrigger value="pautas">Pautas</TabsTrigger>
         </TabsList>
@@ -46,6 +48,10 @@ export function DadosBennerDetail({ dado, onSave, onCancel }: Props) {
 
         <TabsContent value="processo" className="mt-4">
           <DadosBennerProcessoTab processoNumero={processoNumero} />
+        </TabsContent>
+
+        <TabsContent value="partes" className="mt-4">
+          <DadosBennerPartesTab dadosBennerId={dado.id} processoNumero={processoNumero} />
         </TabsContent>
 
         <TabsContent value="distribuicao" className="mt-4">

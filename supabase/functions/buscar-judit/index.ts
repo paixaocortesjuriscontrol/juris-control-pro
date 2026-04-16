@@ -721,6 +721,13 @@ serve(async (req) => {
       raw_classification: classificacao,
       raw_courts: courts,
       total_steps: steps.length,
+      parties_detail: parties.map((p: any) => ({
+        nome: p?.name || '',
+        documento: p?.main_document || null,
+        tipo_pessoa: p?.person_type || null,
+        polo: p?.side || null,
+        is_advogado: (p?.person_type || '').toUpperCase() === 'ADVOGADO',
+      })),
       _debug: {
         request_id: requestId,
         status_judit: debugStatus,
