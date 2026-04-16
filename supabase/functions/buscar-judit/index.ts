@@ -443,6 +443,7 @@ serve(async (req) => {
     let requestId: string | null = null;
     let debugStatus = "cache_hit";
     let debugInstancias = 0;
+    let allInstancesPageData: any[] = []; // guarda TODAS as instâncias do async para unir partes
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
     
@@ -472,6 +473,7 @@ serve(async (req) => {
       }
 
       const pageData = envelope.page_data ?? [];
+      allInstancesPageData = pageData;
       debugStatus = envelope.request_status;
       debugInstancias = pageData.length;
       console.log(
@@ -598,8 +600,34 @@ serve(async (req) => {
 
     console.log(`[buscar-judit] extração final relator=${relator || 'null'} turma=${turma || 'null'}`);
 
-    // partes
-    const parties = Array.isArray(rd.parties) ? rd.parties : [];
+    // partes — UNIR de todas as instâncias retornadas (cache + page_data),
+    // pois Judit às vezes popula advogados em uma instância e não em outra.
+    const partiesPool: any[] = [];
+    const pushParties = (arr: any) => {
+      if (Array.isArray(arr)) for (const p of arr) if (p) partiesPool.push(p);
+    };
+    pushParties(rd.parties);
+    if (cachedRd && cachedRd !== rd) pushParties(cachedRd.parties);
+    // Unir partes de TODAS as instâncias retornadas pelo fluxo async
+    for (const item of allInstancesPageData) {
+      const otherRd = item?.response_data;
+      if (otherRd && otherRd !== rd) pushParties(otherRd.parties);
+    }
+    // Deduplicar: chave = documento normalizado (se houver) OU name+side+person_type
+    const seen = new Set<string>();
+    const parties: any[] = [];
+    for (const p of partiesPool) {
+      const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+      const name = (p?.name || "").toString().trim().toUpperCase();
+      const side = (p?.side || "").toString().toUpperCase();
+      const ptype = (p?.person_type || "").toString().toUpperCase();
+      const key = doc ? `doc:${doc}:${ptype}` : `nm:${name}:${side}:${ptype}`;
+      if (!key || key === "nm:::") continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      parties.push(p);
+    }
+    console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
     const poloAtivo = parties
       .filter((p: any) =>
         (p?.side || "").toUpperCase() === "ACTIVE" &&
