@@ -23,6 +23,14 @@ interface Props {
   onCancel: () => void;
 }
 
+type ParteJudit = {
+  nome: string;
+  documento: string | null;
+  tipo_pessoa: string | null;
+  polo: string | null;
+  is_advogado: boolean;
+};
+
 const emptyForm: DadoBennerInsert = {
   user_id: null, coordenacao_id: null, status: "rascunho",
   dossie: "", processo: "", tribunal: "", tipo_recurso: "", data_distribuicao: null,
@@ -91,13 +99,36 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
-  const [partesJudit, setPartesJudit] = useState<Array<{
-    nome: string;
-    documento: string | null;
-    tipo_pessoa: string | null;
-    polo: string | null;
-    is_advogado: boolean;
-  }>>([]);
+  const [partesJudit, setPartesJudit] = useState<ParteJudit[]>([]);
+
+  const carregarPartesPersistidas = useCallback(async (dadosBennerId?: string | null) => {
+    if (!dadosBennerId) {
+      setPartesJudit([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("partes_processo_benner")
+      .select("nome, documento, tipo_pessoa, polo, is_advogado")
+      .eq("dados_benner_id", dadosBennerId)
+      .eq("origem", "judit")
+      .order("is_advogado", { ascending: true })
+      .order("nome", { ascending: true });
+
+    if (error) {
+      console.warn("Erro ao carregar partes já salvas do registro:", error);
+      setPartesJudit([]);
+      return;
+    }
+
+    setPartesJudit(((data as ParteJudit[] | null) || []).map((parte) => ({
+      nome: parte.nome || "Sem nome",
+      documento: parte.documento || null,
+      tipo_pessoa: parte.tipo_pessoa || null,
+      polo: parte.polo || null,
+      is_advogado: Boolean(parte.is_advogado),
+    })));
+  }, []);
 
   useEffect(() => {
     if (dado) {
@@ -105,21 +136,24 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       setForm(rest as DadoBennerInsert);
       setProntoEnviar(dado.status === "pronto_envio");
       setCamposJudit(markExistingJuditFields ? inferCamposJudit(rest as Partial<DadoBennerInsert>) : new Set());
+      void carregarPartesPersistidas(dado.id);
     } else if (initialData) {
       const nextForm = { ...emptyForm, ...initialData };
       setForm(nextForm);
       setCamposJudit(markExistingJuditFields ? inferCamposJudit(nextForm) : new Set());
+      setPartesJudit([]);
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
       });
     } else {
       setCamposJudit(new Set());
+      setPartesJudit([]);
       // Set user_id
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
       });
     }
-  }, [dado, markExistingJuditFields, JSON.stringify(initialData)]);
+  }, [dado, markExistingJuditFields, JSON.stringify(initialData), carregarPartesPersistidas]);
 
   // Poll progress for autos download job
   const startPolling = useCallback((jobId: string) => {
