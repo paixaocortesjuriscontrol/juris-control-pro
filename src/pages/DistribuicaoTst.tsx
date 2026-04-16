@@ -513,16 +513,16 @@ export default function DistribuicaoTst() {
   const getVisiblePages = () => {
     const pages: number[] = [];
     const maxVisible = 7;
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    if (effectiveTotalPages <= maxVisible) {
+      for (let i = 1; i <= effectiveTotalPages; i++) pages.push(i);
     } else {
       pages.push(1);
-      let start = Math.max(2, page - 2);
-      let end = Math.min(totalPages - 1, page + 2);
+      const start = Math.max(2, page - 2);
+      const end = Math.min(effectiveTotalPages - 1, page + 2);
       if (start > 2) pages.push(-1);
       for (let i = start; i <= end; i++) pages.push(i);
-      if (end < totalPages - 1) pages.push(-2);
-      pages.push(totalPages);
+      if (end < effectiveTotalPages - 1) pages.push(-2);
+      pages.push(effectiveTotalPages);
     }
     return pages;
   };
