@@ -58,6 +58,7 @@ export default function DistribuicaoTst() {
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
+  const [filtroJudit, setFiltroJudit] = useState<string>("todos");
 
   // Debounced text filters
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});

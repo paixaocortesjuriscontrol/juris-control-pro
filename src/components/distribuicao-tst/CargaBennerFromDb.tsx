@@ -190,6 +190,7 @@ interface CargaFilters {
 interface Props {
   onClose?: () => void;
   filters?: CargaFilters;
+  selectedProcessNumbers?: string[];
 }
 
 export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
