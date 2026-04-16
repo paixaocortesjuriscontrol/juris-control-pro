@@ -49,7 +49,7 @@ export function useDistribuicoesTst() {
       .from("distribuicoes_tst" as any)
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(5000);
     if (error) {
       toast.error("Erro ao carregar distribuições: " + error.message);
     } else {
