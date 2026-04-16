@@ -305,6 +305,18 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Benner: Não</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroDossieStatus} onValueChange={setFiltroDossieStatus}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Dossiê" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Dossiê: Todos</SelectItem>
+                <SelectItem value="preenchido">Preenchido</SelectItem>
+                <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
+                <SelectItem value="valido">Preenchido Válido</SelectItem>
+                <SelectItem value="invalido">Preenchido Inválido</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
         </div>
