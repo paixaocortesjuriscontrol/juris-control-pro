@@ -153,6 +153,23 @@ export default function DistribuicaoTst() {
     return pages;
   };
 
+  if (showCarga) {
+    return (
+      <MainLayout title="Distribuição TST - Carga Benner">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <FileSpreadsheet className="w-6 h-6 text-primary" />
+              Carga Benner (Dados do Supabase)
+            </h1>
+            <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
+          </div>
+          <CargaBennerFromDb />
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (showForm || editando) {
     return (
       <MainLayout title="Distribuição TST">
