@@ -540,6 +540,7 @@ export default function DistribuicaoTst() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={filtroBenner} onValueChange={setFiltroBenner}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Benner" />
               </SelectTrigger>
