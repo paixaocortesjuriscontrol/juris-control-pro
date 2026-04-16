@@ -122,7 +122,7 @@ export default function DistribuicaoTst() {
 
   useEffect(() => { fetchTabsData(); }, [fetchTabsData]);
 
-  const totalAll = useMemo(() => abas.reduce((s, a) => s + a.count, 0), [abas]);
+  
 
   const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos";
 
@@ -480,33 +480,8 @@ export default function DistribuicaoTst() {
           </div>
         </div>
 
-        {/* Aba tabs */}
-        {abas.length > 1 && (
-          <div className="flex gap-1 flex-wrap">
-            <Button
-              variant={filtroAba === "todas" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFiltroAba("todas")}
-              className="text-xs h-7"
-            >
-              Todas ({totalAll})
-            </Button>
-            {abas.map(({ aba, count }) => (
-              <Button
-                key={aba}
-                variant={filtroAba === aba ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFiltroAba(aba)}
-                className="text-xs h-7"
-              >
-                {aba} ({count})
-              </Button>
-            ))}
-          </div>
-        )}
-
         {/* Mês/Ano tabs */}
-        {mesesAnos.length > 1 && (
+        {mesesAnos.length > 0 && (
           <div className="flex gap-1 flex-wrap">
             <Button
               variant={filtroMesAno === "todos" ? "default" : "outline"}
@@ -514,7 +489,7 @@ export default function DistribuicaoTst() {
               onClick={() => setFiltroMesAno("todos")}
               className="text-xs h-7"
             >
-              Todos meses
+              Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
             </Button>
             {mesesAnos.map(({ key, count }) => {
               const [y, m] = key.split("-");
@@ -554,6 +529,17 @@ export default function DistribuicaoTst() {
             <Input placeholder="Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs" />
             <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs" title="Data início" />
             <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs" title="Data fim" />
+            <Select value={filtroAba} onValueChange={setFiltroAba}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Aba origem" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Aba: Todas</SelectItem>
+                {abas.map(({ aba, count }) => (
+                  <SelectItem key={aba} value={aba}>{aba} ({count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={filtroBenner} onValueChange={setFiltroBenner}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Benner" />
