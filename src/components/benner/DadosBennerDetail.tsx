@@ -11,7 +11,7 @@ import { DadosBennerPartesTab } from "./DadosBennerPartesTab";
 
 interface Props {
   dado: DadoBenner;
-  onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean>;
+  onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
 }
 
