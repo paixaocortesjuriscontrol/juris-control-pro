@@ -913,6 +913,56 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         </div>
       </div>
 
+      {/* SEÇÃO PARTES - Teal */}
+      {partesJudit.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <SectionHeader title={`Partes do Processo (${partesJudit.length})`} color="bg-teal-600 text-white" />
+          <div className="p-4">
+            <div className="rounded-md border overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Polo</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>CPF/CNPJ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {partesJudit.map((p, i) => (
+                    <TableRow
+                      key={i}
+                      className={cn(
+                        p.is_advogado && "text-muted-foreground",
+                        "bg-emerald-50/50 dark:bg-emerald-950/20"
+                      )}
+                    >
+                      <TableCell className="text-xs">
+                        {p.polo === "Active" ? "Ativo" : p.polo === "Passive" ? "Passivo" : p.polo || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">{p.tipo_pessoa || "—"}</TableCell>
+                      <TableCell className="font-medium text-sm">{p.nome}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {p.documento
+                          ? p.documento.length === 11
+                            ? p.documento.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+                            : p.documento.length === 14
+                              ? p.documento.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+                              : p.documento
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+              <Users className="w-3 h-3" /> Dados importados da Judit. Serão salvos na aba "Partes" ao gravar o registro.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border pt-4">
         <div className="flex items-center gap-3">
