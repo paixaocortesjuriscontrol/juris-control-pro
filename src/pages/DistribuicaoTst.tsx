@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,53 +27,6 @@ const favorabilidadeColor = (val: string | null) => {
   return "secondary";
 };
 
-const applyDistribuicaoFilters = (query: any, filters: DistribuicaoTstFilters) => {
-  if (filters.aba_origem && filters.aba_origem !== "todas") {
-    query = query.eq("aba_origem", filters.aba_origem);
-  }
-  if (filters.benner === "sim") {
-    query = query.eq("benner_atualizado", true);
-  } else if (filters.benner === "nao") {
-    query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-  }
-  if (filters.dossieStatus === "preenchido") {
-    query = query.not("dossie", "is", null).neq("dossie", "");
-  } else if (filters.dossieStatus === "nao_preenchido") {
-    query = query.or("dossie.is.null,dossie.eq.");
-  } else if (filters.dossieStatus === "valido") {
-    query = query.like("dossie", "__.__.___.______%/__");
-  } else if (filters.dossieStatus === "invalido") {
-    query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
-  }
-  if (filters.processo) {
-    query = query.ilike("processo_numero", `%${filters.processo}%`);
-  }
-  if (filters.dossie) {
-    query = query.ilike("dossie", `%${filters.dossie}%`);
-  }
-  if (filters.turma) {
-    query = query.ilike("turma", `%${filters.turma}%`);
-  }
-  if (filters.relator) {
-    query = query.ilike("relator", `%${filters.relator}%`);
-  }
-  if (filters.parte) {
-    query = query.ilike("parte_recorrente", `%${filters.parte}%`);
-  }
-  if (filters.mesAno && filters.mesAno !== "todos") {
-    const start = `${filters.mesAno}-01`;
-    const [y, m] = filters.mesAno.split("-").map(Number);
-    const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-    query = query.gte("data_distribuicao", start).lt("data_distribuicao", nextMonth);
-  }
-  if (filters.dataInicio) {
-    query = query.gte("data_distribuicao", filters.dataInicio);
-  }
-  if (filters.dataFim) {
-    query = query.lte("data_distribuicao", filters.dataFim);
-  }
-  return query;
-};
 
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
