@@ -529,7 +529,17 @@ export default function DistribuicaoTst() {
             <Input placeholder="Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs" />
             <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs" title="Data início" />
             <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs" title="Data fim" />
-            <Select value={filtroBenner} onValueChange={setFiltroBenner}>
+            <Select value={filtroAba} onValueChange={setFiltroAba}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Aba origem" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Aba: Todas</SelectItem>
+                {abas.map(({ aba, count }) => (
+                  <SelectItem key={aba} value={aba}>{aba} ({count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Benner" />
               </SelectTrigger>
