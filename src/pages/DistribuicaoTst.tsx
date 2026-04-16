@@ -345,6 +345,17 @@ export default function DistribuicaoTst() {
             successCount++;
           }
 
+          // Mark distribuicao as judit_preenchido
+          const { data: authData2 } = await supabase.auth.getUser();
+          await supabase
+            .from("distribuicoes_tst" as any)
+            .update({
+              judit_preenchido: true,
+              judit_preenchido_em: new Date().toISOString(),
+              judit_preenchido_por: authData2?.user?.id || null,
+            } as any)
+            .eq("processo_numero", proc.processo_numero);
+
           // Throttle to avoid rate limits
           await new Promise(r => setTimeout(r, 800));
         } catch {
