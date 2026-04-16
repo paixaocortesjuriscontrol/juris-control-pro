@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, XCircle } from "lucide-react";
+import { Upload, Loader2, XCircle, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -29,30 +29,62 @@ function toBool(val: unknown): boolean {
   return t === "S" || t === "SIM" || t === "X" || t === "TRUE";
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.ceil(seconds % 60);
+  return `${m}m${s > 0 ? ` ${s}s` : ""}`;
+}
+
 interface Props {
   onImported: () => void;
 }
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 200;
+
+interface ImportStats {
+  step: string;
+  stepNumber: number;
+  totalSteps: number;
+  processed: number;
+  total: number;
+  created: number;
+  updated: number;
+  errors: number;
+  elapsed: number;
+  eta: number;
+}
 
 export function DistribuicaoTstImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("");
+  const [stats, setStats] = useState<ImportStats | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef(false);
+  const startTimeRef = useRef(0);
 
   const resetState = () => {
     setImporting(false);
     setProgress(0);
-    setProgressLabel("");
+    setStats(null);
     cancelRef.current = false;
     if (fileRef.current) fileRef.current.value = "";
   };
 
   const handleCancel = () => {
     cancelRef.current = true;
-    setProgressLabel("Cancelando...");
+  };
+
+  const updateStats = (partial: Partial<ImportStats>) => {
+    setStats(prev => {
+      const next = { ...(prev || { step: "", stepNumber: 0, totalSteps: 2, processed: 0, total: 0, created: 0, updated: 0, errors: 0, elapsed: 0, eta: 0 }), ...partial };
+      next.elapsed = (Date.now() - startTimeRef.current) / 1000;
+      if (next.processed > 0 && next.total > 0) {
+        const rate = next.elapsed / next.processed;
+        next.eta = Math.max(0, (next.total - next.processed) * rate);
+      }
+      return next;
+    });
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,28 +94,25 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     cancelRef.current = false;
     setImporting(true);
     setProgress(0);
-    setProgressLabel("Lendo planilha...");
+    startTimeRef.current = Date.now();
+    updateStats({ step: "Lendo planilha...", stepNumber: 0, totalSteps: 2, processed: 0, total: 0 });
 
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      // Parse all records
       const allRows: { sheetName: string; processoNumero: string; row: string[] }[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
-
         let headerIdx = -1;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
-          const row = json[i];
-          if (row?.some(c => /n[uú]mero.*processo/i.test(String(c ?? "")) || /dossi[eê]/i.test(String(c ?? "")))) {
+          if (json[i]?.some(c => /n[uú]mero.*processo/i.test(String(c ?? "")) || /dossi[eê]/i.test(String(c ?? "")))) {
             headerIdx = i;
             break;
           }
         }
         if (headerIdx === -1) continue;
-
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
@@ -99,55 +128,61 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return;
       }
 
-      const total = allRows.length;
+      const totalRows = allRows.length;
 
-      // Step 1: Resolve processo IDs in bulk
-      setProgressLabel(`Etapa 1/2: Verificando processos...`);
-      setProgress(5);
+      // === STEP 1: Resolve processo IDs ===
+      startTimeRef.current = Date.now();
       const uniqueNumeros = [...new Set(allRows.map(r => r.processoNumero))];
       const processoIdMap = new Map<string, string>();
+      let newProcessos = 0;
 
-      for (let i = 0; i < uniqueNumeros.length; i += 200) {
+      updateStats({ step: "Verificando processos", stepNumber: 1, totalSteps: 2, processed: 0, total: uniqueNumeros.length, created: 0, updated: 0, errors: 0 });
+
+      for (let i = 0; i < uniqueNumeros.length; i += 500) {
         if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
-        const batch = uniqueNumeros.slice(i, i + 200);
+        const batch = uniqueNumeros.slice(i, i + 500);
         const { data } = await supabase.from("processos").select("id, numero").in("numero", batch);
         (data || []).forEach((p: any) => processoIdMap.set(p.numero, p.id));
-        setProgress(5 + Math.round((i / uniqueNumeros.length) * 20));
+        const done = Math.min(i + 500, uniqueNumeros.length);
+        setProgress(Math.round((done / uniqueNumeros.length) * 25));
+        updateStats({ processed: done });
       }
 
-      // Create missing processos
+      // Create missing
       const missing = uniqueNumeros.filter(n => !processoIdMap.has(n));
       if (missing.length > 0) {
-        setProgressLabel(`Etapa 1/2: Criando ${missing.length} processos...`);
-        const firstOccurrence = new Map<string, string[]>();
+        updateStats({ step: `Criando ${missing.length} processos novos`, processed: 0, total: missing.length });
+        const firstOcc = new Map<string, string[]>();
         for (const rec of allRows) {
-          if (missing.includes(rec.processoNumero) && !firstOccurrence.has(rec.processoNumero)) {
-            firstOccurrence.set(rec.processoNumero, rec.row);
-          }
+          if (missing.includes(rec.processoNumero) && !firstOcc.has(rec.processoNumero)) firstOcc.set(rec.processoNumero, rec.row);
         }
         const toCreate = missing.map(num => {
-          const r = firstOccurrence.get(num)!;
+          const r = firstOcc.get(num)!;
           return { numero: num, status: "ativo" as const, area: "trabalhista", polo_ativo: norm(r[4]) || null, polo_passivo: norm(r[5]) || null, dossie_tst: norm(r[2]) || null, relator_tst: norm(r[6]) || null, turma_tst: norm(r[8]) || null };
         });
         for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
           if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
           const batch = toCreate.slice(i, i + BATCH_SIZE);
           const { data, error } = await supabase.from("processos").insert(batch).select("id, numero");
-          if (!error && data) data.forEach((p: any) => processoIdMap.set(p.numero, p.id));
-          else if (error) {
+          if (!error && data) {
+            data.forEach((p: any) => processoIdMap.set(p.numero, p.id));
+            newProcessos += data.length;
+          } else if (error) {
             for (const item of batch) {
               const { data: s } = await supabase.from("processos").insert(item).select("id, numero").single();
-              if (s) processoIdMap.set(s.numero, s.id);
+              if (s) { processoIdMap.set(s.numero, s.id); newProcessos++; }
             }
           }
+          updateStats({ processed: Math.min(i + BATCH_SIZE, toCreate.length), created: newProcessos });
         }
       }
 
+      // === STEP 2: Upsert distribuições ===
       setProgress(30);
-      setProgressLabel(`Etapa 2/2: Upsert ${total} distribuições...`);
-
-      // Step 2: Upsert in batches using the unique index
+      startTimeRef.current = Date.now();
       let totalUpserted = 0;
+      let totalErrors = 0;
+
       const upsertRecords = allRows
         .filter(rec => processoIdMap.has(rec.processoNumero))
         .map(({ sheetName, processoNumero, row: r }) => ({
@@ -182,6 +217,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           benner_atualizado: toBool(r[26]),
         }));
 
+      updateStats({ step: "Salvando distribuições", stepNumber: 2, totalSteps: 2, processed: 0, total: upsertRecords.length, created: 0, updated: 0, errors: 0 });
+
       for (let i = 0; i < upsertRecords.length; i += BATCH_SIZE) {
         if (cancelRef.current) {
           toast.info(`Cancelado. ${totalUpserted} registros processados.`);
@@ -190,26 +227,30 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           return;
         }
         const batch = upsertRecords.slice(i, i + BATCH_SIZE);
-        const { error, data } = await (supabase
-          .from("distribuicoes_tst" as any) as any)
+        const { error, data } = await (supabase.from("distribuicoes_tst" as any) as any)
           .upsert(batch, { onConflict: "processo_numero,aba_origem" })
           .select("id");
 
         if (error) {
-          console.error(`Erro lote ${Math.floor(i / BATCH_SIZE) + 1}:`, error);
+          console.error(`Erro lote:`, error);
+          totalErrors += batch.length;
         } else {
           totalUpserted += (data as any[])?.length ?? batch.length;
         }
 
-        setProgress(30 + Math.round(((i + batch.length) / upsertRecords.length) * 70));
-        setProgressLabel(`Etapa 2/2: ${totalUpserted} de ${upsertRecords.length}...`);
+        const done = Math.min(i + BATCH_SIZE, upsertRecords.length);
+        setProgress(30 + Math.round((done / upsertRecords.length) * 70));
+        updateStats({ processed: done, created: totalUpserted, errors: totalErrors });
       }
 
       setProgress(100);
-      setProgressLabel("Concluído!");
+      updateStats({ step: "Concluído!", processed: upsertRecords.length, total: upsertRecords.length });
 
       if (totalUpserted > 0) {
-        toast.success(`${totalUpserted} distribuições importadas/atualizadas!`);
+        const msg = newProcessos > 0
+          ? `${totalUpserted} distribuições salvas (${newProcessos} processos novos criados)!`
+          : `${totalUpserted} distribuições importadas/atualizadas!`;
+        toast.success(msg);
         onImported();
       } else {
         toast.warning("Nenhum registro importado");
@@ -217,27 +258,71 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
     } finally {
-      setTimeout(resetState, 1500);
+      setTimeout(resetState, 2000);
     }
   };
 
   return (
-    <div className="flex items-center gap-3">
-      <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
-      <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
-        {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-        Importar Planilha
-      </Button>
-      {importing && (
-        <>
-          <div className="flex items-center gap-2 min-w-[300px]">
-            <Progress value={progress} className="h-2 flex-1" />
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{progressLabel}</span>
-          </div>
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+        <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+          {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+          Importar Planilha
+        </Button>
+        {importing && (
           <Button variant="ghost" size="sm" onClick={handleCancel} className="text-destructive hover:text-destructive">
             <XCircle className="w-4 h-4 mr-1" /> Cancelar
           </Button>
-        </>
+        )}
+      </div>
+
+      {importing && stats && (
+        <div className="border border-border rounded-lg p-4 bg-muted/30 space-y-3 max-w-xl">
+          {/* Step indicator */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-foreground">
+              {stats.stepNumber > 0 ? `Etapa ${stats.stepNumber}/${stats.totalSteps}: ` : ""}{stats.step}
+            </span>
+            <span className="text-muted-foreground font-mono">{progress}%</span>
+          </div>
+
+          {/* Progress bar */}
+          <Progress value={progress} className="h-3" />
+
+          {/* Details row */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {stats.total > 0 && (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                {stats.processed}/{stats.total} registros
+              </span>
+            )}
+            {stats.created > 0 && (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-blue-500" />
+                {stats.created} salvos
+              </span>
+            )}
+            {stats.errors > 0 && (
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 text-destructive" />
+                {stats.errors} erros
+              </span>
+            )}
+            {stats.elapsed > 0 && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatDuration(stats.elapsed)}
+              </span>
+            )}
+            {stats.eta > 2 && stats.processed < stats.total && (
+              <span className="text-muted-foreground/70">
+                ~{formatDuration(stats.eta)} restante
+              </span>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
