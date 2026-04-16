@@ -29,12 +29,6 @@ function toBool(val: unknown): boolean {
   return t === "S" || t === "SIM" || t === "X" || t === "TRUE";
 }
 
-interface ParsedRecord {
-  sheetName: string;
-  processoNumero: string;
-  row: string[];
-}
-
 interface Props {
   onImported: () => void;
 }
@@ -74,8 +68,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      // Parse all records from all sheets
-      const allRecords: ParsedRecord[] = [];
+      // Parse all records
+      const allRows: { sheetName: string; processoNumero: string; row: string[] }[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
@@ -93,120 +87,68 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
-          const processoNumero = norm(r[1]);
-          if (!processoNumero || processoNumero.length < 7) continue;
-          allRecords.push({ sheetName, processoNumero, row: r });
+          const num = norm(r[1]);
+          if (!num || num.length < 7) continue;
+          allRows.push({ sheetName, processoNumero: num, row: r });
         }
       }
 
-      if (allRecords.length === 0) {
+      if (allRows.length === 0) {
         toast.warning("Nenhum registro válido encontrado na planilha");
         resetState();
         return;
       }
 
-      const total = allRecords.length;
-      setProgressLabel(`Etapa 1/3: Verificando processos... (${total} registros)`);
-      setProgress(5);
+      const total = allRows.length;
 
-      // Step 1: Collect unique processo numbers and resolve IDs in bulk
-      const uniqueNumeros = [...new Set(allRecords.map(r => r.processoNumero))];
+      // Step 1: Resolve processo IDs in bulk
+      setProgressLabel(`Etapa 1/2: Verificando processos...`);
+      setProgress(5);
+      const uniqueNumeros = [...new Set(allRows.map(r => r.processoNumero))];
       const processoIdMap = new Map<string, string>();
 
-      // Fetch existing processos in batches of 200
       for (let i = 0; i < uniqueNumeros.length; i += 200) {
-        if (cancelRef.current) { toast.info("Importação cancelada."); resetState(); return; }
+        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
         const batch = uniqueNumeros.slice(i, i + 200);
-        const { data } = await supabase
-          .from("processos")
-          .select("id, numero")
-          .in("numero", batch);
+        const { data } = await supabase.from("processos").select("id, numero").in("numero", batch);
         (data || []).forEach((p: any) => processoIdMap.set(p.numero, p.id));
-        setProgress(5 + Math.round((i / uniqueNumeros.length) * 15));
+        setProgress(5 + Math.round((i / uniqueNumeros.length) * 20));
       }
 
-      // Create missing processos in batches
+      // Create missing processos
       const missing = uniqueNumeros.filter(n => !processoIdMap.has(n));
       if (missing.length > 0) {
-        setProgressLabel(`Etapa 1/3: Criando ${missing.length} processos novos...`);
-        // Build insert payloads using first occurrence data
+        setProgressLabel(`Etapa 1/2: Criando ${missing.length} processos...`);
         const firstOccurrence = new Map<string, string[]>();
-        for (const rec of allRecords) {
+        for (const rec of allRows) {
           if (missing.includes(rec.processoNumero) && !firstOccurrence.has(rec.processoNumero)) {
             firstOccurrence.set(rec.processoNumero, rec.row);
           }
         }
-
         const toCreate = missing.map(num => {
           const r = firstOccurrence.get(num)!;
-          return {
-            numero: num,
-            status: "ativo" as const,
-            area: "trabalhista",
-            polo_ativo: norm(r[4]) || null,
-            polo_passivo: norm(r[5]) || null,
-            dossie_tst: norm(r[2]) || null,
-            relator_tst: norm(r[6]) || null,
-            turma_tst: norm(r[8]) || null,
-          };
+          return { numero: num, status: "ativo" as const, area: "trabalhista", polo_ativo: norm(r[4]) || null, polo_passivo: norm(r[5]) || null, dossie_tst: norm(r[2]) || null, relator_tst: norm(r[6]) || null, turma_tst: norm(r[8]) || null };
         });
-
         for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
-          if (cancelRef.current) { toast.info("Importação cancelada."); resetState(); return; }
+          if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
           const batch = toCreate.slice(i, i + BATCH_SIZE);
-          const { data, error } = await supabase
-            .from("processos")
-            .insert(batch)
-            .select("id, numero");
-          if (!error && data) {
-            data.forEach((p: any) => processoIdMap.set(p.numero, p.id));
-          } else if (error) {
-            // Fallback: insert one by one for this batch
+          const { data, error } = await supabase.from("processos").insert(batch).select("id, numero");
+          if (!error && data) data.forEach((p: any) => processoIdMap.set(p.numero, p.id));
+          else if (error) {
             for (const item of batch) {
-              const { data: single, error: sErr } = await supabase
-                .from("processos")
-                .insert(item)
-                .select("id, numero")
-                .single();
-              if (!sErr && single) processoIdMap.set(single.numero, single.id);
+              const { data: s } = await supabase.from("processos").insert(item).select("id, numero").single();
+              if (s) processoIdMap.set(s.numero, s.id);
             }
           }
-          setProgress(20 + Math.round((i / toCreate.length) * 10));
         }
       }
 
       setProgress(30);
-      setProgressLabel(`Etapa 2/3: Removendo registros antigos...`);
+      setProgressLabel(`Etapa 2/2: Upsert ${total} distribuições...`);
 
-      // Step 2: Delete existing distribuicoes for all processo_numero+aba_origem combos in bulk
-      // Group by aba_origem for efficient deletion
-      const abaGroups = new Map<string, string[]>();
-      for (const rec of allRecords) {
-        const key = rec.sheetName;
-        if (!abaGroups.has(key)) abaGroups.set(key, []);
-        const arr = abaGroups.get(key)!;
-        if (!arr.includes(rec.processoNumero)) arr.push(rec.processoNumero);
-      }
-
-      for (const [aba, numeros] of abaGroups) {
-        if (cancelRef.current) { toast.info("Importação cancelada."); resetState(); return; }
-        // Delete in batches of 200 numeros per aba
-        for (let i = 0; i < numeros.length; i += 200) {
-          const batch = numeros.slice(i, i + 200);
-          await supabase
-            .from("distribuicoes_tst" as any)
-            .delete()
-            .in("processo_numero", batch)
-            .eq("aba_origem", aba);
-        }
-      }
-
-      setProgress(40);
-      setProgressLabel(`Etapa 3/3: Inserindo ${total} distribuições...`);
-
-      // Step 3: Build and insert all records in batches
+      // Step 2: Upsert in batches using the unique index
       let totalUpserted = 0;
-      const insertRecords = allRecords
+      const upsertRecords = allRows
         .filter(rec => processoIdMap.has(rec.processoNumero))
         .map(({ sheetName, processoNumero, row: r }) => ({
           processo_id: processoIdMap.get(processoNumero)!,
@@ -240,33 +182,27 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           benner_atualizado: toBool(r[26]),
         }));
 
-      for (let i = 0; i < insertRecords.length; i += BATCH_SIZE) {
+      for (let i = 0; i < upsertRecords.length; i += BATCH_SIZE) {
         if (cancelRef.current) {
-          toast.info(`Importação cancelada. ${totalUpserted} registros já inseridos.`);
+          toast.info(`Cancelado. ${totalUpserted} registros processados.`);
           onImported();
           resetState();
           return;
         }
-
-        const batch = insertRecords.slice(i, i + BATCH_SIZE);
-        const { error, data } = await supabase
-          .from("distribuicoes_tst" as any)
-          .insert(batch as any)
+        const batch = upsertRecords.slice(i, i + BATCH_SIZE);
+        const { error, data } = await (supabase
+          .from("distribuicoes_tst" as any) as any)
+          .upsert(batch, { onConflict: "processo_numero,aba_origem" })
           .select("id");
 
         if (error) {
-          console.error(`Erro lote ${i / BATCH_SIZE + 1}:`, error);
-          // Fallback individual
-          for (const rec of batch) {
-            const { error: sErr } = await supabase.from("distribuicoes_tst" as any).insert(rec as any);
-            if (!sErr) totalUpserted++;
-          }
+          console.error(`Erro lote ${Math.floor(i / BATCH_SIZE) + 1}:`, error);
         } else {
           totalUpserted += (data as any[])?.length ?? batch.length;
         }
 
-        setProgress(40 + Math.round(((i + batch.length) / insertRecords.length) * 60));
-        setProgressLabel(`Etapa 3/3: ${totalUpserted} de ${insertRecords.length} inseridos...`);
+        setProgress(30 + Math.round(((i + batch.length) / upsertRecords.length) * 70));
+        setProgressLabel(`Etapa 2/2: ${totalUpserted} de ${upsertRecords.length}...`);
       }
 
       setProgress(100);
