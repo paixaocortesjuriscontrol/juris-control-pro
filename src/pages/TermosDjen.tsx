@@ -398,6 +398,14 @@ export default function TermosDjen() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => handleDuplicar(m)}
+                              title="Duplicar"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => atualizarMonitoramento.mutate({ id: m.id, ativo: !m.ativo })}
                               title={m.ativo ? "Pausar" : "Ativar"}
                             >
@@ -448,6 +456,7 @@ export default function TermosDjen() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         monitoramento={editingMonitoramento}
+        duplicateFrom={duplicatingMonitoramento}
         coordenacoesOverride={coordenacoes}
       />
     </MainLayout>
