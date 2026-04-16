@@ -19,7 +19,7 @@ interface Props {
   dado?: DadoBenner | null;
   initialData?: Partial<DadoBennerInsert>;
   markExistingJuditFields?: boolean;
-  onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean>;
+  onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
 }
 
