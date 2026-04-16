@@ -174,7 +174,7 @@ interface Props {
   filters?: CargaFilters;
 }
 
-export function CargaBennerFromDb({ onClose }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
   const [processing, setProcessing] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
