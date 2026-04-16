@@ -480,33 +480,8 @@ export default function DistribuicaoTst() {
           </div>
         </div>
 
-        {/* Aba tabs */}
-        {abas.length > 1 && (
-          <div className="flex gap-1 flex-wrap">
-            <Button
-              variant={filtroAba === "todas" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFiltroAba("todas")}
-              className="text-xs h-7"
-            >
-              Todas ({totalAll})
-            </Button>
-            {abas.map(({ aba, count }) => (
-              <Button
-                key={aba}
-                variant={filtroAba === aba ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFiltroAba(aba)}
-                className="text-xs h-7"
-              >
-                {aba} ({count})
-              </Button>
-            ))}
-          </div>
-        )}
-
         {/* Mês/Ano tabs */}
-        {mesesAnos.length > 1 && (
+        {mesesAnos.length > 0 && (
           <div className="flex gap-1 flex-wrap">
             <Button
               variant={filtroMesAno === "todos" ? "default" : "outline"}
@@ -514,7 +489,7 @@ export default function DistribuicaoTst() {
               onClick={() => setFiltroMesAno("todos")}
               className="text-xs h-7"
             >
-              Todos meses
+              Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
             </Button>
             {mesesAnos.map(({ key, count }) => {
               const [y, m] = key.split("-");
