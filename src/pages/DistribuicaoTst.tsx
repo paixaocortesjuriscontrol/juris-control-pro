@@ -43,6 +43,22 @@ export default function DistribuicaoTst() {
     return [...set].sort();
   }, [dados]);
 
+  // Extract unique month/year values from data_distribuicao
+  const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
+  const mesesAnos = useMemo(() => {
+    const map = new Map<string, number>();
+    dados.forEach(d => {
+      if (d.data_distribuicao) {
+        const [y, m] = d.data_distribuicao.split("-");
+        if (y && m) {
+          const key = `${y}-${m}`;
+          map.set(key, (map.get(key) || 0) + 1);
+        }
+      }
+    });
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [dados]);
+
   const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos";
 
   const clearFilters = () => {
