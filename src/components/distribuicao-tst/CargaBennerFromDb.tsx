@@ -156,11 +156,25 @@ function colToLetter(c: number): string {
   return s;
 }
 
-interface Props {
-  onClose?: () => void;
+interface CargaFilters {
+  aba_origem?: string;
+  benner?: "todos" | "sim" | "nao";
+  processo?: string;
+  dossie?: string;
+  turma?: string;
+  relator?: string;
+  parte?: string;
+  mesAno?: string;
+  dataInicio?: string;
+  dataFim?: string;
 }
 
-export function CargaBennerFromDb({ onClose }: Props) {
+interface Props {
+  onClose?: () => void;
+  filters?: CargaFilters;
+}
+
+export function CargaBennerFromDb({ onClose, filters = {} }: Props) {
   const [processing, setProcessing] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
@@ -184,11 +198,49 @@ export function CargaBennerFromDb({ onClose }: Props) {
       let page = 0;
       const pageSize = 1000;
       while (true) {
-        const { data, error } = await supabase
+        let query = supabase
           .from("distribuicoes_tst" as any)
           .select("*")
-          .order("created_at", { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .order("created_at", { ascending: false });
+
+        // Apply filters
+        if (filters.aba_origem && filters.aba_origem !== "todas") {
+          query = query.eq("aba_origem", filters.aba_origem);
+        }
+        if (filters.benner === "sim") {
+          query = query.eq("benner_atualizado", true);
+        } else if (filters.benner === "nao") {
+          query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+        }
+        if (filters.processo) {
+          query = query.ilike("processo_numero", `%${filters.processo}%`);
+        }
+        if (filters.dossie) {
+          query = query.ilike("dossie", `%${filters.dossie}%`);
+        }
+        if (filters.turma) {
+          query = query.ilike("turma", `%${filters.turma}%`);
+        }
+        if (filters.relator) {
+          query = query.ilike("relator", `%${filters.relator}%`);
+        }
+        if (filters.parte) {
+          query = query.ilike("parte_recorrente", `%${filters.parte}%`);
+        }
+        if (filters.mesAno && filters.mesAno !== "todos") {
+          const start = `${filters.mesAno}-01`;
+          const [y, m] = filters.mesAno.split("-").map(Number);
+          const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+          query = query.gte("data_distribuicao", start).lt("data_distribuicao", nextMonth);
+        }
+        if (filters.dataInicio) {
+          query = query.gte("data_distribuicao", filters.dataInicio);
+        }
+        if (filters.dataFim) {
+          query = query.lte("data_distribuicao", filters.dataFim);
+        }
+
+        const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
         allDist.push(...(data as any[]));
