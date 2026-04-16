@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle, Users } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +19,7 @@ interface Props {
   dado?: DadoBenner | null;
   initialData?: Partial<DadoBennerInsert>;
   markExistingJuditFields?: boolean;
-  onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean>;
+  onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
 }
 
@@ -90,6 +91,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
+  const [partesJudit, setPartesJudit] = useState<Array<{
+    nome: string;
+    documento: string | null;
+    tipo_pessoa: string | null;
+    polo: string | null;
+    is_advogado: boolean;
+  }>>([]);
 
   useEffect(() => {
     if (dado) {
@@ -335,6 +343,11 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
 
       setCamposJudit(new Set(filled));
 
+      // Capture parties_detail for display
+      if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
+        setPartesJudit(data.parties_detail);
+      }
+
       const camposPreenchidos = [
         data.tipo_recurso && "Tipo Recurso",
         data.data_distribuicao && "Data Distribuição",
@@ -467,9 +480,35 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
     const toSave = { ...form, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : statusFinal };
-    const ok = await onSave(toSave, dado?.id);
+    const result = await onSave(toSave, dado?.id);
+    
+    // Persist parties if we have them and got a valid ID back
+    if (result && partesJudit.length > 0) {
+      const recordId = typeof result === "string" ? result : dado?.id;
+      if (recordId) {
+        // Remove old judit parties then insert new
+        await supabase
+          .from("partes_processo_benner")
+          .delete()
+          .eq("dados_benner_id", recordId)
+          .eq("origem", "judit");
+        
+        const rows = partesJudit.map(p => ({
+          dados_benner_id: recordId,
+          nome: p.nome || "Sem nome",
+          documento: p.documento || null,
+          tipo_pessoa: p.tipo_pessoa || null,
+          polo: p.polo || null,
+          is_advogado: p.is_advogado || false,
+          origem: "judit",
+        }));
+        
+        await supabase.from("partes_processo_benner").insert(rows);
+      }
+    }
+    
     setSaving(false);
-    if (ok) onCancel();
+    if (result) onCancel();
   };
 
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (
@@ -899,6 +938,56 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
           </div>
         </div>
       </div>
+
+      {/* SEÇÃO PARTES - Teal */}
+      {partesJudit.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <SectionHeader title={`Partes do Processo (${partesJudit.length})`} color="bg-teal-600 text-white" />
+          <div className="p-4">
+            <div className="rounded-md border overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Polo</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>CPF/CNPJ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {partesJudit.map((p, i) => (
+                    <TableRow
+                      key={i}
+                      className={cn(
+                        p.is_advogado && "text-muted-foreground",
+                        "bg-emerald-50/50 dark:bg-emerald-950/20"
+                      )}
+                    >
+                      <TableCell className="text-xs">
+                        {p.polo === "Active" ? "Ativo" : p.polo === "Passive" ? "Passivo" : p.polo || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">{p.tipo_pessoa || "—"}</TableCell>
+                      <TableCell className="font-medium text-sm">{p.nome}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {p.documento
+                          ? p.documento.length === 11
+                            ? p.documento.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+                            : p.documento.length === 14
+                              ? p.documento.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+                              : p.documento
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+              <Users className="w-3 h-3" /> Dados importados da Judit. Serão salvos na aba "Partes" ao gravar o registro.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border pt-4">
