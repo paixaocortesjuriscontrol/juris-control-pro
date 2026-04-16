@@ -366,7 +366,8 @@ export default function DistribuicaoTst() {
       <MainLayout title="Distribuição TST - Dados Benner">
         <div className="max-w-4xl mx-auto">
           <DadosBennerForm
-            dado={bennerDado || (bennerPreFill ? { ...({} as DadoBenner), ...bennerPreFill, id: "", created_at: "", updated_at: "" } as any : undefined)}
+            dado={bennerDado}
+            initialData={bennerPreFill || undefined}
             onSave={handleSaveBenner}
             onCancel={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); }}
           />
