@@ -577,7 +577,14 @@ export default function DistribuicaoTst() {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setSelectedIds(new Set())}>
+                {selectedIds.size} selecionado(s) — limpar
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Bulk Judit progress */}
