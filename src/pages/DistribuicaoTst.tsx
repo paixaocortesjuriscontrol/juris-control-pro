@@ -58,10 +58,30 @@ export default function DistribuicaoTst() {
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
+  const [filtroJudit, setFiltroJudit] = useState<string>("todos");
 
   // Debounced text filters
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
   
+  // Judit filter: fetch dados_benner process numbers
+  const [juditProcessNumbers, setJuditProcessNumbers] = useState<Set<string>>(new Set());
+  const fetchJuditProcessNumbers = useCallback(async () => {
+    if (filtroJudit === "todos") { setJuditProcessNumbers(new Set()); return; }
+    const all: string[] = [];
+    let offset = 0;
+    const size = 1000;
+    while (true) {
+      const { data } = await supabase.from("dados_benner" as any).select("processo").range(offset, offset + size - 1);
+      if (!data || data.length === 0) break;
+      (data as any[]).forEach((d: any) => { if (d.processo) all.push(d.processo); });
+      if (data.length < size) break;
+      offset += size;
+    }
+    setJuditProcessNumbers(new Set(all));
+  }, [filtroJudit]);
+
+  useEffect(() => { fetchJuditProcessNumbers(); }, [fetchJuditProcessNumbers]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedFilters({
@@ -81,7 +101,15 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const { dados: dadosRaw, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+
+  // Apply client-side Judit filter
+  const dados = useMemo(() => {
+    if (filtroJudit === "todos" || juditProcessNumbers.size === 0) return dadosRaw;
+    if (filtroJudit === "sim") return dadosRaw.filter(d => juditProcessNumbers.has(d.processo_numero));
+    if (filtroJudit === "nao") return dadosRaw.filter(d => !juditProcessNumbers.has(d.processo_numero));
+    return dadosRaw;
+  }, [dadosRaw, filtroJudit, juditProcessNumbers]);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
@@ -124,13 +152,14 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroJudit !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
     setFiltroBenner("todos");
     setFiltroDossieStatus("todos");
     setFiltroMesAno("todos");
+    setFiltroJudit("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -407,7 +436,9 @@ export default function DistribuicaoTst() {
             </h1>
             <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
           </div>
-          <CargaBennerFromDb filters={{
+          <CargaBennerFromDb 
+            selectedProcessNumbers={selectedIds.size > 0 ? dados.filter(d => selectedIds.has(d.id)).map(d => d.processo_numero) : undefined}
+            filters={{
             aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
             benner: filtroBenner as any,
             processo: filtroProcesso || undefined,
@@ -465,7 +496,8 @@ export default function DistribuicaoTst() {
               </Button>
             )}
             <Button variant="secondary" onClick={() => setShowCarga(true)}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Gerar Carga Benner
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> 
+              {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
@@ -560,6 +592,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
                 <SelectItem value="valido">Preenchido Válido</SelectItem>
                 <SelectItem value="invalido">Preenchido Inválido</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroJudit} onValueChange={setFiltroJudit}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Judit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Judit: Todos</SelectItem>
+                <SelectItem value="sim">Preenchido com Judit</SelectItem>
+                <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
           </div>
