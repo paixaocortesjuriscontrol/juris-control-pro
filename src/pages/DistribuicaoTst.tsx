@@ -1,16 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle } from "lucide-react";
-import { useDistribuicoesTst, DistribuicaoTst as DistTst } from "@/hooks/useDistribuicoesTst";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -23,7 +24,6 @@ const favorabilidadeColor = (val: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
-  const { dados, loading, fetchDados, saveDado, deleteDado } = useDistribuicoesTst();
 
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
@@ -35,29 +35,71 @@ export default function DistribuicaoTst() {
   const [filtroParte, setFiltroParte] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
-
-  // Extract unique aba_origem values for tabs
-  const abas = useMemo(() => {
-    const set = new Set<string>();
-    dados.forEach(d => { if (d.aba_origem) set.add(d.aba_origem); });
-    return [...set].sort();
-  }, [dados]);
-
-  // Extract unique month/year values from data_distribuicao
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
-  const mesesAnos = useMemo(() => {
-    const map = new Map<string, number>();
-    dados.forEach(d => {
-      if (d.data_distribuicao) {
-        const [y, m] = d.data_distribuicao.split("-");
-        if (y && m) {
-          const key = `${y}-${m}`;
-          map.set(key, (map.get(key) || 0) + 1);
+
+  // Debounced text filters
+  const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters({
+        processo: filtroProcesso || undefined,
+        dossie: filtroDossie || undefined,
+        turma: filtroTurma || undefined,
+        relator: filtroRelator || undefined,
+        parte: filtroParte || undefined,
+        aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
+        benner: filtroBenner as any,
+        mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
+        dataInicio: filtroDataInicio || undefined,
+        dataFim: filtroDataFim || undefined,
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
+
+  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+
+  // Fetch distinct aba_origem and meses for tabs (lightweight queries)
+  const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
+  const [mesesAnos, setMesesAnos] = useState<{ key: string; count: number }[]>([]);
+
+  const fetchTabsData = useCallback(async () => {
+    // Fetch abas
+    const { data: abasData } = await supabase
+      .from("distribuicoes_tst" as any)
+      .select("aba_origem")
+      .not("aba_origem", "is", null);
+
+    if (abasData) {
+      const map = new Map<string, number>();
+      (abasData as any[]).forEach((d: any) => {
+        if (d.aba_origem) map.set(d.aba_origem, (map.get(d.aba_origem) || 0) + 1);
+      });
+      setAbas([...map.entries()].map(([aba, count]) => ({ aba, count })).sort((a, b) => a.aba.localeCompare(b.aba)));
+    }
+
+    // Fetch meses
+    const { data: mesesData } = await supabase
+      .from("distribuicoes_tst" as any)
+      .select("data_distribuicao")
+      .not("data_distribuicao", "is", null);
+
+    if (mesesData) {
+      const map = new Map<string, number>();
+      (mesesData as any[]).forEach((d: any) => {
+        if (d.data_distribuicao) {
+          const key = d.data_distribuicao.slice(0, 7);
+          if (key.length === 7) map.set(key, (map.get(key) || 0) + 1);
         }
-      }
-    });
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [dados]);
+      });
+      setMesesAnos([...map.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.key.localeCompare(a.key)));
+    }
+  }, []);
+
+  useEffect(() => { fetchTabsData(); }, [fetchTabsData]);
+
+  const totalAll = useMemo(() => abas.reduce((s, a) => s + a.count, 0), [abas]);
 
   const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos";
 
@@ -74,36 +116,39 @@ export default function DistribuicaoTst() {
     setFiltroDataFim("");
   };
 
-  const dadosFiltrados = useMemo(() => {
-    return dados.filter(d => {
-      if (filtroAba !== "todas" && d.aba_origem !== filtroAba) return false;
-      if (filtroBenner === "sim" && !d.benner_atualizado) return false;
-      if (filtroBenner === "nao" && d.benner_atualizado) return false;
-      if (filtroMesAno !== "todos" && d.data_distribuicao) {
-        const mesAno = d.data_distribuicao.slice(0, 7);
-        if (mesAno !== filtroMesAno) return false;
-      }
-      if (filtroMesAno !== "todos" && !d.data_distribuicao) return false;
-      if (filtroProcesso && !d.processo_numero?.toLowerCase().includes(filtroProcesso.toLowerCase())) return false;
-      if (filtroDossie && !d.dossie?.toLowerCase().includes(filtroDossie.toLowerCase())) return false;
-      if (filtroTurma && !d.turma?.toLowerCase().includes(filtroTurma.toLowerCase())) return false;
-      if (filtroRelator && !d.relator?.toLowerCase().includes(filtroRelator.toLowerCase())) return false;
-      if (filtroParte && !d.parte_recorrente?.toLowerCase().includes(filtroParte.toLowerCase())) return false;
-      if (filtroDataInicio && d.data_distribuicao && d.data_distribuicao < filtroDataInicio) return false;
-      if (filtroDataFim && d.data_distribuicao && d.data_distribuicao > filtroDataFim) return false;
-      return true;
-    });
-  }, [dados, filtroAba, filtroBenner, filtroMesAno, filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroDataInicio, filtroDataFim]);
-
   const handleDelete = async (id: string) => {
     if (confirm("Excluir esta distribuição?")) {
       await deleteDado(id);
+      fetchTabsData();
     }
+  };
+
+  const handleRefresh = () => {
+    fetchDados();
+    fetchTabsData();
   };
 
   const formatDate = (d: string | null) => {
     if (!d) return "—";
     try { return new Date(d + "T12:00:00").toLocaleDateString("pt-BR"); } catch { return d; }
+  };
+
+  // Pagination helpers
+  const getVisiblePages = () => {
+    const pages: number[] = [];
+    const maxVisible = 7;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      let start = Math.max(2, page - 2);
+      let end = Math.min(totalPages - 1, page + 2);
+      if (start > 2) pages.push(-1); // ellipsis
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (end < totalPages - 1) pages.push(-2); // ellipsis
+      pages.push(totalPages);
+    }
+    return pages;
   };
 
   if (showForm || editando) {
@@ -120,14 +165,16 @@ export default function DistribuicaoTst() {
     );
   }
 
+  const mesesLabels = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
   return (
     <MainLayout title="Distribuição TST">
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
           <div className="flex gap-2 flex-wrap">
-            <DistribuicaoTstImport onImported={fetchDados} />
-            <DossieUpdateImport onUpdated={fetchDados} />
+            <DistribuicaoTstImport onImported={handleRefresh} />
+            <DossieUpdateImport onUpdated={handleRefresh} />
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
@@ -148,22 +195,19 @@ export default function DistribuicaoTst() {
               onClick={() => setFiltroAba("todas")}
               className="text-xs h-7"
             >
-              Todas ({dados.length})
+              Todas ({totalAll})
             </Button>
-            {abas.map(aba => {
-              const count = dados.filter(d => d.aba_origem === aba).length;
-              return (
-                <Button
-                  key={aba}
-                  variant={filtroAba === aba ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFiltroAba(aba)}
-                  className="text-xs h-7"
-                >
-                  {aba} ({count})
-                </Button>
-              );
-            })}
+            {abas.map(({ aba, count }) => (
+              <Button
+                key={aba}
+                variant={filtroAba === aba ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFiltroAba(aba)}
+                className="text-xs h-7"
+              >
+                {aba} ({count})
+              </Button>
+            ))}
           </div>
         )}
 
@@ -178,10 +222,9 @@ export default function DistribuicaoTst() {
             >
               Todos meses
             </Button>
-            {mesesAnos.map(([key, count]) => {
+            {mesesAnos.map(({ key, count }) => {
               const [y, m] = key.split("-");
-              const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-              const label = `${meses[parseInt(m) - 1]}/${y}`;
+              const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
               return (
                 <Button
                   key={key}
@@ -228,9 +271,7 @@ export default function DistribuicaoTst() {
               </SelectContent>
             </Select>
           </div>
-          {hasFilters && (
-            <p className="text-xs text-muted-foreground">{dadosFiltrados.length} de {dados.length} registros</p>
-          )}
+          <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
         </div>
 
         <div className="border border-border rounded-lg overflow-auto">
@@ -254,9 +295,9 @@ export default function DistribuicaoTst() {
             <TableBody>
               {loading ? (
                 <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : dadosFiltrados.length === 0 ? (
+              ) : dados.length === 0 ? (
                 <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dadosFiltrados.map(d => (
+              ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell className="text-sm">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="font-mono text-xs">{d.processo_numero}</TableCell>
@@ -299,6 +340,50 @@ export default function DistribuicaoTst() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-xs text-muted-foreground">
+              Página {page} de {totalPages} · {totalCount} registros
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {getVisiblePages().map((p, i) =>
+                p < 0 ? (
+                  <span key={`e${i}`} className="px-1 text-muted-foreground text-xs">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 w-8 p-0 text-xs"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </MainLayout>
   );
