@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff, Copy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,6 +69,7 @@ export default function TermosDjen() {
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMonitoramento, setEditingMonitoramento] = useState<MonitoramentoDjen | null>(null);
+  const [duplicatingMonitoramento, setDuplicatingMonitoramento] = useState<MonitoramentoDjen | null>(null);
 
   const {
     monitoramentos: todosMonitoramentos,
@@ -160,11 +161,19 @@ export default function TermosDjen() {
 
   const handleNovo = () => {
     setEditingMonitoramento(null);
+    setDuplicatingMonitoramento(null);
     setDialogOpen(true);
   };
 
   const handleEditar = (m: MonitoramentoDjen) => {
     setEditingMonitoramento(m);
+    setDuplicatingMonitoramento(null);
+    setDialogOpen(true);
+  };
+
+  const handleDuplicar = (m: MonitoramentoDjen) => {
+    setEditingMonitoramento(null);
+    setDuplicatingMonitoramento(m);
     setDialogOpen(true);
   };
 
@@ -389,6 +398,14 @@ export default function TermosDjen() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => handleDuplicar(m)}
+                              title="Duplicar"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => atualizarMonitoramento.mutate({ id: m.id, ativo: !m.ativo })}
                               title={m.ativo ? "Pausar" : "Ativar"}
                             >
@@ -439,6 +456,7 @@ export default function TermosDjen() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         monitoramento={editingMonitoramento}
+        duplicateFrom={duplicatingMonitoramento}
         coordenacoesOverride={coordenacoes}
       />
     </MainLayout>
