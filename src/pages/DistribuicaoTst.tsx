@@ -415,16 +415,16 @@ export default function DistribuicaoTst() {
   const getVisiblePages = () => {
     const pages: number[] = [];
     const maxVisible = 7;
-    if (effectiveTotalPages <= maxVisible) {
-      for (let i = 1; i <= effectiveTotalPages; i++) pages.push(i);
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       pages.push(1);
       const start = Math.max(2, page - 2);
-      const end = Math.min(effectiveTotalPages - 1, page + 2);
+      const end = Math.min(totalPages - 1, page + 2);
       if (start > 2) pages.push(-1);
       for (let i = start; i <= end; i++) pages.push(i);
-      if (end < effectiveTotalPages - 1) pages.push(-2);
-      pages.push(effectiveTotalPages);
+      if (end < totalPages - 1) pages.push(-2);
+      pages.push(totalPages);
     }
     return pages;
   };
@@ -628,7 +628,7 @@ export default function DistribuicaoTst() {
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground">{effectiveTotalCount} registros encontrados</p>
+            <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
             {selectedIds.size > 0 && (
               <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setSelectedIds(new Set())}>
                 {selectedIds.size} selecionado(s) — limpar
@@ -756,10 +756,10 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Pagination */}
-        {effectiveTotalPages > 1 && (
+        {totalPages > 1 && (
           <div className="flex items-center justify-between pt-2">
             <p className="text-xs text-muted-foreground">
-              Página {page} de {effectiveTotalPages} · {effectiveTotalCount} registros
+              Página {page} de {totalPages} · {totalCount} registros
             </p>
             <div className="flex items-center gap-1">
               <Button
@@ -790,7 +790,7 @@ export default function DistribuicaoTst() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                disabled={page >= effectiveTotalPages}
+                disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
