@@ -249,7 +249,10 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       setStatusText("Concluído!");
 
       if (totalUpserted > 0) {
-        toast.success(`${totalUpserted} distribuições importadas em ${formatDuration((Date.now() - startTimeRef.current) / 1000)}!`);
+        const parts: string[] = [`${totalUpserted} distribuições salvas`];
+        if (newProcessos > 0) parts.push(`${newProcessos} processos novos`);
+        if (updatedProcessos > 0) parts.push(`${updatedProcessos} processos atualizados`);
+        toast.success(parts.join(", ") + "!");
         onImported();
       } else {
         toast.warning("Nenhum registro importado");
