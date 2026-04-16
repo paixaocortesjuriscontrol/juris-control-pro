@@ -82,7 +82,7 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
     }
     setBuscando(true);
     try {
-      const { data, error } = await (supabase.functions as any).__originalInvoke("buscar-judit", {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: { numero_cnj: processoNumero },
       });
 
