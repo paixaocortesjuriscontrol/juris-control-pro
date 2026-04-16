@@ -43,7 +43,7 @@ const emptyForm: DadoBennerInsert = {
   notas: "",
 };
 
-export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
+export function DadosBennerForm({ dado, initialData, onSave, onCancel }: Props) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,13 +70,18 @@ export function DadosBennerForm({ dado, onSave, onCancel }: Props) {
       const { id, created_at, updated_at, ...rest } = dado;
       setForm(rest as DadoBennerInsert);
       setProntoEnviar(dado.status === "pronto_envio");
+    } else if (initialData) {
+      setForm(f => ({ ...f, ...initialData }));
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
+      });
     } else {
       // Set user_id
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
       });
     }
-  }, [dado]);
+  }, [dado, JSON.stringify(initialData)]);
 
   // Poll progress for autos download job
   const startPolling = useCallback((jobId: string) => {
