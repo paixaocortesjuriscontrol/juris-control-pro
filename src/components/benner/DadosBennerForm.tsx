@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle, Users } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,6 +91,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
+  const [partesJudit, setPartesJudit] = useState<Array<{
+    nome: string;
+    documento: string | null;
+    tipo_pessoa: string | null;
+    polo: string | null;
+    is_advogado: boolean;
+  }>>([]);
 
   useEffect(() => {
     if (dado) {
@@ -334,6 +342,11 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       if (data.processo_baixado && data.processo_baixado !== "N") filled.add("processo_baixado");
 
       setCamposJudit(new Set(filled));
+
+      // Capture parties_detail for display
+      if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
+        setPartesJudit(data.parties_detail);
+      }
 
       const camposPreenchidos = [
         data.tipo_recurso && "Tipo Recurso",
