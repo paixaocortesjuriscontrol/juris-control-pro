@@ -3552,6 +3552,53 @@ export type Database = {
           },
         ]
       }
+      partes_processo_benner: {
+        Row: {
+          created_at: string | null
+          dados_benner_id: string
+          documento: string | null
+          id: string
+          is_advogado: boolean | null
+          nome: string
+          origem: string | null
+          polo: string | null
+          tipo_pessoa: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dados_benner_id: string
+          documento?: string | null
+          id?: string
+          is_advogado?: boolean | null
+          nome: string
+          origem?: string | null
+          polo?: string | null
+          tipo_pessoa?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dados_benner_id?: string
+          documento?: string | null
+          id?: string
+          is_advogado?: boolean | null
+          nome?: string
+          origem?: string | null
+          polo?: string | null
+          tipo_pessoa?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partes_processo_benner_dados_benner_id_fkey"
+            columns: ["dados_benner_id"]
+            isOneToOne: false
+            referencedRelation: "dados_benner"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participantes_evento: {
         Row: {
           created_at: string
