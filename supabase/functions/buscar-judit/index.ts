@@ -429,7 +429,7 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const numero_processo = body?.numero_processo;
+    const numero_processo = body?.numero_processo || body?.numero_cnj;
     const tribunalHint = body?.tribunal || null;
     if (!numero_processo || typeof numero_processo !== "string") {
       return json({ error: "Número do processo é obrigatório" }, 400);
