@@ -443,6 +443,7 @@ serve(async (req) => {
     let requestId: string | null = null;
     let debugStatus = "cache_hit";
     let debugInstancias = 0;
+    let allInstancesPageData: any[] = []; // guarda TODAS as instâncias do async para unir partes
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
     
