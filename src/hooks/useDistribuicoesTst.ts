@@ -89,6 +89,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       query = query.like("dossie", "__.__.___.______%/__");
     } else if (filters.dossieStatus === "invalido") {
       query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
+    }
     if (filters.processo) {
       query = query.ilike("processo_numero", `%${filters.processo}%`);
     }
