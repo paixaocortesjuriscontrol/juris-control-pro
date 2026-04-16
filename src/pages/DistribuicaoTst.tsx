@@ -32,6 +32,7 @@ export default function DistribuicaoTst() {
   const [filtroBenner, setFiltroBenner] = useState<string>("todos");
   const [filtroProcesso, setFiltroProcesso] = useState("");
   const [filtroDossie, setFiltroDossie] = useState("");
+  const [filtroDossieStatus, setFiltroDossieStatus] = useState<string>("todos");
   const [filtroTurma, setFiltroTurma] = useState("");
   const [filtroRelator, setFiltroRelator] = useState("");
   const [filtroParte, setFiltroParte] = useState("");
@@ -52,13 +53,14 @@ export default function DistribuicaoTst() {
         parte: filtroParte || undefined,
         aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
         benner: filtroBenner as any,
+        dossieStatus: filtroDossieStatus !== "todos" ? filtroDossieStatus as any : undefined,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
         dataFim: filtroDataFim || undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
   const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
@@ -103,11 +105,12 @@ export default function DistribuicaoTst() {
 
   const totalAll = useMemo(() => abas.reduce((s, a) => s + a.count, 0), [abas]);
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
     setFiltroBenner("todos");
+    setFiltroDossieStatus("todos");
     setFiltroMesAno("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
@@ -301,6 +304,18 @@ export default function DistribuicaoTst() {
                 <SelectItem value="todos">Benner: Todos</SelectItem>
                 <SelectItem value="sim">Benner: Sim</SelectItem>
                 <SelectItem value="nao">Benner: Não</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroDossieStatus} onValueChange={setFiltroDossieStatus}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Dossiê" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Dossiê: Todos</SelectItem>
+                <SelectItem value="preenchido">Preenchido</SelectItem>
+                <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
+                <SelectItem value="valido">Preenchido Válido</SelectItem>
+                <SelectItem value="invalido">Preenchido Inválido</SelectItem>
               </SelectContent>
             </Select>
           </div>
