@@ -41,6 +41,7 @@ interface Props {
 }
 
 const BATCH_SIZE = 500;
+const EXISTING_CHECK_BATCH_SIZE = 80;
 
 interface DuplicateRow {
   sheetName: string;
