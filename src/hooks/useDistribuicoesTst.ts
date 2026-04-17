@@ -25,6 +25,7 @@ export interface DistribuicaoTst {
   materias_recurso_banco: string | null;
   aparelhamento_banco: string | null;
   chance_exito_banco: string | null;
+  tipo_recurso: string | null;
   honra: string | null;
   tema: string | null;
   execucao: string | null;
