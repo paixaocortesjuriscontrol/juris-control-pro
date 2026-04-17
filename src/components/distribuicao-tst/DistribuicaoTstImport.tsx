@@ -71,6 +71,14 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     setStatusText("Lendo planilha...");
 
     try {
+      // === STEP 0: Auth ===
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Você precisa estar autenticado para importar.");
+        resetState();
+        return;
+      }
+
       // === STEP 1: Parse Excel ===
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
@@ -220,6 +228,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             transito_julgado: toBool(r[25]),
             benner_atualizado: toBool(r[26]),
             status: "rascunho",
+            user_id: user.id,
           };
         });
 
