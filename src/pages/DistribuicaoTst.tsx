@@ -18,6 +18,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -111,7 +113,14 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
+
+  // Re-aplica filtro de responsáveis sempre que muda
+  useEffect(() => {
+    setDebouncedFilters(prev => ({ ...prev, responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined }));
+  }, [JSON.stringify(filtroResponsavelIds)]);
+
+  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
