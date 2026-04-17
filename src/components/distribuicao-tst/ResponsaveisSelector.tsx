@@ -12,11 +12,13 @@ interface Props {
   onChange: (ids: string[]) => void;
   placeholder?: string;
   className?: string;
+  /** Se passado, restringe a combo aos membros desta coordenação */
+  coordenacaoId?: string | null;
 }
 
-export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Selecionar responsáveis...", className }: Props) {
+export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Selecionar responsáveis...", className, coordenacaoId }: Props) {
   const [open, setOpen] = useState(false);
-  const { profiles, loading } = useProfilesBasic();
+  const { profiles, loading } = useProfilesBasic(coordenacaoId);
 
   const toggle = (id: string) => {
     if (selectedIds.includes(id)) onChange(selectedIds.filter(x => x !== id));

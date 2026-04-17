@@ -704,6 +704,7 @@ export default function DistribuicaoTst() {
               selectedIds={filtroResponsavelIds}
               onChange={setFiltroResponsavelIds}
               placeholder="Todos os responsáveis"
+              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
             />
           </div>
           <div className="flex items-center gap-2">
