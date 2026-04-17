@@ -1,0 +1,76 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown, X, UserPlus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
+
+interface Props {
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Selecionar responsáveis...", className }: Props) {
+  const [open, setOpen] = useState(false);
+  const { profiles, loading } = useProfilesBasic();
+
+  const toggle = (id: string) => {
+    if (selectedIds.includes(id)) onChange(selectedIds.filter(x => x !== id));
+    else onChange([...selectedIds, id]);
+  };
+
+  const remove = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange(selectedIds.filter(x => x !== id));
+  };
+
+  const selectedProfiles = profiles.filter(p => selectedIds.includes(p.id));
+
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" role="combobox" className="w-full justify-between min-h-10 h-auto py-2">
+            <div className="flex flex-wrap gap-1 items-center">
+              {selectedProfiles.length === 0 ? (
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" /> {placeholder}
+                </span>
+              ) : (
+                selectedProfiles.map(p => (
+                  <Badge key={p.id} variant="secondary" className="gap-1">
+                    {p.nome}
+                    <button onClick={(e) => remove(p.id, e)} className="hover:text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))
+              )}
+            </div>
+            <ChevronsUpDown className="w-4 h-4 opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 pointer-events-auto" align="start">
+          <Command>
+            <CommandInput placeholder="Buscar responsável..." />
+            <CommandList>
+              <CommandEmpty>{loading ? "Carregando..." : "Nenhum encontrado."}</CommandEmpty>
+              <CommandGroup>
+                {profiles.map(p => (
+                  <CommandItem key={p.id} value={p.nome} onSelect={() => toggle(p.id)}>
+                    <Check className={cn("mr-2 h-4 w-4", selectedIds.includes(p.id) ? "opacity-100" : "opacity-0")} />
+                    {p.nome}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}

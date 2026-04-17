@@ -1,0 +1,83 @@
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+export interface ProfileBasic {
+  id: string;
+  nome: string;
+}
+
+/** Lista todos os perfis (para escolher responsáveis) */
+export function useProfilesBasic() {
+  const [profiles, setProfiles] = useState<ProfileBasic[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("profiles_basic")
+        .select("id, nome")
+        .order("nome");
+      setProfiles((data as any[]) || []);
+      setLoading(false);
+    })();
+  }, []);
+  return { profiles, loading };
+}
+
+/** Carrega responsáveis vinculados a um dados_benner_id */
+export function useResponsaveis(dadosBennerId: string | null | undefined) {
+  const [ids, setIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!dadosBennerId) { setIds([]); return; }
+    setLoading(true);
+    const { data } = await supabase
+      .from("dados_benner_responsaveis" as any)
+      .select("usuario_id")
+      .eq("dados_benner_id", dadosBennerId);
+    setIds(((data as any[]) || []).map(r => r.usuario_id));
+    setLoading(false);
+  }, [dadosBennerId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  return { ids, setIds, loading, reload };
+}
+
+/** Salva (substitui) os responsáveis de um dados_benner */
+export async function saveResponsaveis(dadosBennerId: string, usuarioIds: string[]) {
+  // Remove todos os existentes
+  await supabase
+    .from("dados_benner_responsaveis" as any)
+    .delete()
+    .eq("dados_benner_id", dadosBennerId);
+
+  if (usuarioIds.length === 0) return true;
+
+  const rows = usuarioIds.map(uid => ({
+    dados_benner_id: dadosBennerId,
+    usuario_id: uid,
+  }));
+  const { error } = await supabase
+    .from("dados_benner_responsaveis" as any)
+    .insert(rows as any);
+  return !error;
+}
+
+/** Carrega responsáveis para vários dados_benner_ids. Retorna Map<id, ProfileBasic[]> */
+export async function loadResponsaveisMap(dadosBennerIds: string[]): Promise<Map<string, ProfileBasic[]>> {
+  const map = new Map<string, ProfileBasic[]>();
+  if (dadosBennerIds.length === 0) return map;
+  const { data } = await supabase
+    .from("dados_benner_responsaveis" as any)
+    .select("dados_benner_id, usuario_id, profiles_basic:usuario_id(id, nome)")
+    .in("dados_benner_id", dadosBennerIds);
+
+  ((data as any[]) || []).forEach((row: any) => {
+    const arr = map.get(row.dados_benner_id) || [];
+    if (row.profiles_basic) arr.push({ id: row.profiles_basic.id, nome: row.profiles_basic.nome });
+    map.set(row.dados_benner_id, arr);
+  });
+  return map;
+}
