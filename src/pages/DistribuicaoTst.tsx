@@ -569,6 +569,31 @@ export default function DistribuicaoTst() {
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const confirmacao = window.prompt(
+                  'ATENÇÃO: Isto vai APAGAR TODOS os registros de Distribuição TST (dados_benner da Coordenação Dra. Renata).\n\nDigite APAGAR para confirmar:'
+                );
+                if (confirmacao !== 'APAGAR') {
+                  toast.info('Operação cancelada.');
+                  return;
+                }
+                try {
+                  const { error, count } = await supabase
+                    .from('dados_benner')
+                    .delete({ count: 'exact' })
+                    .eq('coordenacao_id', '3e47fc83-3539-4fa7-9fcf-33825120e1b7');
+                  if (error) throw error;
+                  toast.success(`${count ?? 0} registros apagados.`);
+                  handleRefresh();
+                } catch (err: any) {
+                  toast.error('Erro ao apagar: ' + (err?.message || String(err)));
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Apagar Todos
+            </Button>
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
