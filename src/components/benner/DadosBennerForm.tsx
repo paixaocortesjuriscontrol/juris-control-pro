@@ -186,20 +186,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const handleBuscarProcesso = async () => {
     if (!form.processo?.trim()) { toast.warning("Digite o número do processo"); return; }
     setBuscando(true);
-    
-    // Busca na tabela distribuicoes_tst pelo número do processo para obter dossiê
-    const { data: distTst } = await supabase
-      .from("distribuicoes_tst" as any)
-      .select("processo_numero, dossie, turma, relator, equipe, relator_favorabilidade, turma_favorabilidade")
-      .ilike("processo_numero" as any, `%${form.processo}%`)
-      .limit(5);
 
-    // Busca na própria tabela dados_benner
+    // Busca na tabela unificada dados_benner (fonte única — inclui dados de distribuição)
     const { data: dadosBenner } = await supabase
       .from("dados_benner" as any)
-      .select("dossie, processo, turma, relator, tribunal, coordenacao_id")
+      .select("dossie, processo, turma, relator, tribunal, coordenacao_id, equipe, aba_origem")
       .ilike("processo" as any, `%${form.processo}%`)
-      .limit(5);
+      .limit(10);
     
     // Busca na tabela processos
     const { data: processos } = await supabase
@@ -211,11 +204,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     setBuscando(false);
     
     const resultados: any[] = [];
-    if (distTst && (distTst as any[]).length > 0) {
-      (distTst as any[]).forEach((d: any) => {
-        resultados.push({ tipo: "distribuicao", processo: d.processo_numero, dossie: d.dossie, turma: d.turma, relator: d.relator });
-      });
-    }
     if (dadosBenner && (dadosBenner as any[]).length > 0) {
       (dadosBenner as any[]).forEach((d: any) => {
         resultados.push({ tipo: "benner", processo: d.processo, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
