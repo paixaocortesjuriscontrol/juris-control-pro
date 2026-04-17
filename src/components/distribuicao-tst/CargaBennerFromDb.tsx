@@ -174,6 +174,20 @@ function colToLetter(c: number): string {
   return s;
 }
 
+function setWorksheetColumnWidth(sheetXml: string, colIndex1Based: number, width: number): string {
+  const colXml = `<col min="${colIndex1Based}" max="${colIndex1Based}" width="${width}" customWidth="1"/>`;
+
+  if (sheetXml.includes("<cols>")) {
+    return sheetXml.replace("</cols>", `${colXml}</cols>`);
+  }
+
+  if (sheetXml.includes("<sheetData>")) {
+    return sheetXml.replace("<sheetData>", `<cols>${colXml}</cols><sheetData>`);
+  }
+
+  return sheetXml;
+}
+
 interface CargaFilters {
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
@@ -561,6 +575,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
       const lastRow = outputData.length + 2;
       sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${colToLetter(maxCol - 1)}${lastRow}"/>`);
+      if (fullMode === "full") {
+        sheetXml = setWorksheetColumnWidth(sheetXml, 27, 60);
+      }
       const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
       if (sheetDataMatch) {
         const allContent = sheetDataMatch[1];
@@ -697,6 +714,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       const lastRow = outputData.length + 2;
       sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${colToLetter(totalCols - 1)}${lastRow}"/>`);
       sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
+      sheetXml = setWorksheetColumnWidth(sheetXml, 28, 60);
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",

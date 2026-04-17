@@ -27,6 +27,32 @@ const favorabilidadeColor = (val: string | null) => {
   return "secondary";
 };
 
+const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
+  const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
+  const nonLawyers = parties.filter((party: any) => party?.nome && !party?.is_advogado);
+
+  const ativos = [...new Set(nonLawyers
+    .filter((party: any) => String(party?.polo || "").toUpperCase() === "ACTIVE")
+    .map((party: any) => String(party.nome).trim())
+    .filter(Boolean))];
+
+  const passivos = [...new Set(nonLawyers
+    .filter((party: any) => String(party?.polo || "").toUpperCase() === "PASSIVE")
+    .map((party: any) => String(party.nome).trim())
+    .filter(Boolean))];
+
+  const partes: string[] = [];
+  if (ativos.length > 0) partes.push(`Ativo: ${ativos.join(", ")}`);
+  if (passivos.length > 0) partes.push(`Passivo: ${passivos.join(", ")}`);
+
+  if (partes.length > 0) return partes.join(" | ");
+
+  const recorrenteRaw = String(juditData?.recorrente ?? "").trim();
+  if (recorrenteRaw) return recorrenteRaw;
+
+  return fallback || "";
+};
+
 
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
@@ -292,6 +318,8 @@ export default function DistribuicaoTst() {
 
           if (juditError || juditData?.error) continue;
 
+          const recorrenteJudit = getJuditPartesResumo(juditData, proc.parte_recorrente);
+
           // Build dados_benner record
           const tribunaisAceitos = ["TST", "STF", "STJ"];
           const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
@@ -302,7 +330,7 @@ export default function DistribuicaoTst() {
             turma: juditData.turma || proc.turma || "",
             relator: juditData.relator || proc.relator || "",
             data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
-            recorrente: juditData.recorrente || proc.parte_recorrente || "",
+            recorrente: recorrenteJudit,
             tribunal: tribunalMapeado || "TST",
             tipo_recurso: juditData.tipo_recurso || null,
             situacao_processo: juditData.situacao_processo || null,
@@ -333,7 +361,7 @@ export default function DistribuicaoTst() {
             if (juditData.relator) updateFields.relator = juditData.relator;
             if (juditData.turma) updateFields.turma = juditData.turma;
             if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
-            if (juditData.recorrente) updateFields.recorrente = juditData.recorrente;
+            if (recorrenteJudit) updateFields.recorrente = recorrenteJudit;
             if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
             if (juditData.data_distribuicao) updateFields.data_distribuicao = juditData.data_distribuicao;
             if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
@@ -348,7 +376,7 @@ export default function DistribuicaoTst() {
             if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
 
             if (Object.keys(updateFields).length > 0) {
-              await supabase.from("dados_benner" as any).update(updateFields as any).eq("id", (existingBenner as any[])[0].id);
+              await supabase.from("dados_benner" as any).update(updateFields as any).eq("processo", proc.processo_numero);
               successCount++;
             }
           } else {
