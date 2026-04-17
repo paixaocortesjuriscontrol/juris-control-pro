@@ -232,9 +232,10 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           };
         });
 
-      // Separa registros com dossie (podem usar upsert composto via índice único parcial)
-      // dos sem dossie (sempre insert puro)
-      const recordsComDossie = upsertRecords.filter(r => r.dossie);
+      const dedupedRecordsComDossie = Array.from(
+        new Map(recordsComDossie.map(record => [`${record.processo}||${record.dossie}`, record])).values()
+      );
+
       const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
 
       let totalUpserted = 0;
@@ -265,7 +266,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           }
 
           const done = totalUpserted + totalErrors;
-          const total = upsertRecords.length;
+          const total = dedupedRecordsComDossie.length + recordsSemDossie.length;
           const pct = 30 + Math.round((done / total) * 70);
           setProgress(pct);
           const elapsed = (Date.now() - startTimeRef.current) / 1000;
