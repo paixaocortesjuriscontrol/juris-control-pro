@@ -75,6 +75,10 @@ export default function DistribuicaoTst() {
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
 
+  // Relatório PDF de Partes
+  const [pdfRunning, setPdfRunning] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
+
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
