@@ -71,6 +71,9 @@ export function useCoordenacoesFull() {
         });
       });
 
+      // ID da coordenação da Dra. Renata (usa dados_benner / Distribuição TST como fonte de verdade)
+      const RENATA_COORD_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+
       const coordenacoesWithDetails = await Promise.all(
         (coordenacoes || []).map(async (coord) => {
           // Buscar membros da coordenação
@@ -84,29 +87,60 @@ export function useCoordenacoesFull() {
             `)
             .eq("coordenacao_id", coord.id);
 
-          // Buscar contagem de processos por membro usando count
+          const isRenata = coord.id === RENATA_COORD_ID;
+
+          // Buscar contagem de processos por membro
           const membrosWithProcessCount = await Promise.all(
             (membros || []).map(async (m: any) => {
               const userId = m.usuario?.id || m.usuario_id;
-              if (!userId) {
-                return { ...m, processCount: 0 };
+              if (!userId) return { ...m, processCount: 0 };
+
+              if (isRenata) {
+                // Conta dados_benner distintos vinculados ao usuário (Distribuição TST)
+                const { data: links } = await supabase
+                  .from("dados_benner_responsaveis" as any)
+                  .select("dados_benner_id, dados_benner!inner(coordenacao_id, aba_origem)" as any)
+                  .eq("usuario_id", userId)
+                  .eq("dados_benner.coordenacao_id", coord.id)
+                  .not("dados_benner.aba_origem", "is", null);
+                const distinct = new Set(((links as any[]) || []).map(l => l.dados_benner_id));
+                return { ...m, processCount: distinct.size };
               }
-              
+
               const { count } = await supabase
                 .from("processos")
                 .select("id", { count: "exact", head: true })
                 .eq("coordenacao_id", coord.id)
                 .eq("advogado_responsavel_id", userId);
 
-              return {
-                ...m,
-                processCount: count || 0,
-              };
+              return { ...m, processCount: count || 0 };
             })
           );
 
-          // Obter estatísticas da coordenação do mapa
-          const stats = statsMap.get(coord.id) || { total: 0, distribuidos: 0, naoDistribuidos: 0 };
+          let stats = statsMap.get(coord.id) || { total: 0, distribuidos: 0, naoDistribuidos: 0 };
+
+          if (isRenata) {
+            // Override: usa dados_benner como fonte para Dra. Renata
+            const { count: totalDb } = await supabase
+              .from("dados_benner" as any)
+              .select("id", { count: "exact", head: true })
+              .eq("coordenacao_id", coord.id)
+              .not("aba_origem", "is", null);
+
+            // Distribuídos: dados_benner que têm pelo menos 1 responsável
+            const { data: comResp } = await supabase
+              .from("dados_benner_responsaveis" as any)
+              .select("dados_benner_id, dados_benner!inner(coordenacao_id, aba_origem)" as any)
+              .eq("dados_benner.coordenacao_id", coord.id)
+              .not("dados_benner.aba_origem", "is", null);
+            const distribuidosCount = new Set(((comResp as any[]) || []).map(r => r.dados_benner_id)).size;
+
+            stats = {
+              total: totalDb || 0,
+              distribuidos: distribuidosCount,
+              naoDistribuidos: Math.max((totalDb || 0) - distribuidosCount, 0),
+            };
+          }
 
           return {
             ...coord,
