@@ -6,21 +6,44 @@ export interface ProfileBasic {
   nome: string;
 }
 
-/** Lista todos os perfis (para escolher responsáveis) */
-export function useProfilesBasic() {
+/**
+ * Lista perfis para escolher responsáveis.
+ * Se `coordenacaoId` for passado, restringe aos membros daquela coordenação.
+ */
+export function useProfilesBasic(coordenacaoId?: string | null) {
   const [profiles, setProfiles] = useState<ProfileBasic[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from("profiles_basic")
-        .select("id, nome")
-        .order("nome");
-      setProfiles((data as any[]) || []);
+      if (coordenacaoId) {
+        // Busca membros da coordenação e faz join manual com profiles_basic
+        const { data: membros } = await supabase
+          .from("membros_coordenacao" as any)
+          .select("usuario_id")
+          .eq("coordenacao_id", coordenacaoId);
+        const ids = ((membros as any[]) || []).map(m => m.usuario_id);
+        if (ids.length === 0) {
+          setProfiles([]);
+          setLoading(false);
+          return;
+        }
+        const { data } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", ids)
+          .order("nome");
+        setProfiles((data as any[]) || []);
+      } else {
+        const { data } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .order("nome");
+        setProfiles((data as any[]) || []);
+      }
       setLoading(false);
     })();
-  }, []);
+  }, [coordenacaoId]);
   return { profiles, loading };
 }
 
