@@ -231,22 +231,32 @@ export default function DistribuicaoTst() {
         const FETCH_SIZE = 1000;
         while (true) {
           let q = supabase
-            .from("distribuicoes_tst" as any)
-            .select("processo_numero, dossie, turma, relator, data_distribuicao, parte_recorrente")
+            .from("dados_benner" as any)
+            .select("processo, dossie, turma, relator, data_distribuicao, recorrente")
+            .not("aba_origem", "is", null)
             .order("created_at", { ascending: false });
           
           if (debouncedFilters.aba_origem && debouncedFilters.aba_origem !== "todas") q = q.eq("aba_origem", debouncedFilters.aba_origem);
           if (debouncedFilters.benner === "sim") q = q.eq("benner_atualizado", true);
           else if (debouncedFilters.benner === "nao") q = q.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-          if (debouncedFilters.processo) q = q.ilike("processo_numero", `%${debouncedFilters.processo}%`);
+          if (debouncedFilters.processo) q = q.ilike("processo", `%${debouncedFilters.processo}%`);
           if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
           if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
           if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
-          if (debouncedFilters.parte) q = q.ilike("parte_recorrente", `%${debouncedFilters.parte}%`);
+          if (debouncedFilters.parte) q = q.ilike("recorrente", `%${debouncedFilters.parte}%`);
 
           const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
-          allProcessos = allProcessos.concat((data as any[]) || []);
+          // Mapeia para a forma esperada pelo loop abaixo
+          const mapped = ((data as any[]) || []).map((d: any) => ({
+            processo_numero: d.processo,
+            dossie: d.dossie,
+            turma: d.turma,
+            relator: d.relator,
+            data_distribuicao: d.data_distribuicao,
+            parte_recorrente: d.recorrente,
+          }));
+          allProcessos = allProcessos.concat(mapped);
           if (!data || data.length < FETCH_SIZE) break;
           offset += FETCH_SIZE;
         }
@@ -349,16 +359,16 @@ export default function DistribuicaoTst() {
             successCount++;
           }
 
-          // Mark distribuicao as judit_preenchido
+          // Marca o registro em dados_benner como judit_preenchido
           const { data: authData2 } = await supabase.auth.getUser();
           await supabase
-            .from("distribuicoes_tst" as any)
+            .from("dados_benner" as any)
             .update({
               judit_preenchido: true,
               judit_preenchido_em: new Date().toISOString(),
               judit_preenchido_por: authData2?.user?.id || null,
             } as any)
-            .eq("processo_numero", proc.processo_numero);
+            .eq("processo", proc.processo_numero);
 
           // Throttle to avoid rate limits
           await new Promise(r => setTimeout(r, 800));
