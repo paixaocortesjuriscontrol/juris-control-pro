@@ -1446,6 +1446,7 @@ export type Database = {
           confianca_transito: number | null
           coordenacao_id: string | null
           created_at: string
+          data_distribuicao: string | null
           data_distribuicao_planilha: string | null
           data_distribuicao_real: string | null
           data_julgamento: string | null
@@ -1519,6 +1520,7 @@ export type Database = {
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
+          data_distribuicao?: string | null
           data_distribuicao_planilha?: string | null
           data_distribuicao_real?: string | null
           data_julgamento?: string | null
@@ -1592,6 +1594,7 @@ export type Database = {
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
+          data_distribuicao?: string | null
           data_distribuicao_planilha?: string | null
           data_distribuicao_real?: string | null
           data_julgamento?: string | null
