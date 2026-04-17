@@ -139,32 +139,41 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     } else {
       const rows = (data as any[]) || [];
 
-      // Enrich with parte_recorrente from dados_benner when missing
-      const processosSemParte = rows
-        .filter(r => !r.parte_recorrente || String(r.parte_recorrente).trim() === "")
-        .map(r => r.processo_numero)
-        .filter(Boolean);
+      // Enrich from dados_benner (source of truth - most updated)
+      const allProcessos = rows.map(r => r.processo_numero).filter(Boolean);
 
-      if (processosSemParte.length > 0) {
+      if (allProcessos.length > 0) {
         const { data: bennerData } = await supabase
           .from("dados_benner" as any)
-          .select("processo, recorrente")
-          .in("processo", processosSemParte);
+          .select("processo, recorrente, relator, turma, tipo_recurso, data_distribuicao")
+          .in("processo", allProcessos);
 
         if (bennerData && (bennerData as any[]).length > 0) {
-          const map = new Map<string, string>();
+          const map = new Map<string, any>();
           (bennerData as any[]).forEach((b: any) => {
-            if (b.recorrente && String(b.recorrente).trim() !== "" && !map.has(b.processo)) {
-              map.set(b.processo, b.recorrente);
-            }
+            // Keep first record per processo (or merge non-null)
+            const existing = map.get(b.processo) || {};
+            map.set(b.processo, {
+              recorrente: existing.recorrente || b.recorrente,
+              relator: existing.relator || b.relator,
+              turma: existing.turma || b.turma,
+              tipo_recurso: existing.tipo_recurso || b.tipo_recurso,
+              data_distribuicao: existing.data_distribuicao || b.data_distribuicao,
+            });
           });
           rows.forEach(r => {
-            if ((!r.parte_recorrente || String(r.parte_recorrente).trim() === "") && map.has(r.processo_numero)) {
-              r.parte_recorrente = map.get(r.processo_numero);
+            const b = map.get(r.processo_numero);
+            if (b) {
+              if (b.recorrente && String(b.recorrente).trim() !== "") r.parte_recorrente = b.recorrente;
+              if (b.relator && String(b.relator).trim() !== "") r.relator = b.relator;
+              if (b.turma && String(b.turma).trim() !== "") r.turma = b.turma;
+              if (b.tipo_recurso && String(b.tipo_recurso).trim() !== "") r.tipo_recurso = b.tipo_recurso;
+              if (b.data_distribuicao) r.data_distribuicao = b.data_distribuicao;
             }
           });
         }
       }
+
 
       setDados(rows);
       setTotalCount(count || 0);
