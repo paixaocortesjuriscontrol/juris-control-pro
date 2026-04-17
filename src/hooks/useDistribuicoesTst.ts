@@ -136,7 +136,36 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (error) {
       toast.error("Erro ao carregar distribuições: " + error.message);
     } else {
-      setDados((data as any[]) || []);
+      const rows = (data as any[]) || [];
+
+      // Enrich with parte_recorrente from dados_benner when missing
+      const processosSemParte = rows
+        .filter(r => !r.parte_recorrente || String(r.parte_recorrente).trim() === "")
+        .map(r => r.processo_numero)
+        .filter(Boolean);
+
+      if (processosSemParte.length > 0) {
+        const { data: bennerData } = await supabase
+          .from("dados_benner" as any)
+          .select("processo, recorrente")
+          .in("processo", processosSemParte);
+
+        if (bennerData && (bennerData as any[]).length > 0) {
+          const map = new Map<string, string>();
+          (bennerData as any[]).forEach((b: any) => {
+            if (b.recorrente && String(b.recorrente).trim() !== "" && !map.has(b.processo)) {
+              map.set(b.processo, b.recorrente);
+            }
+          });
+          rows.forEach(r => {
+            if ((!r.parte_recorrente || String(r.parte_recorrente).trim() === "") && map.has(r.processo_numero)) {
+              r.parte_recorrente = map.get(r.processo_numero);
+            }
+          });
+        }
+      }
+
+      setDados(rows);
       setTotalCount(count || 0);
     }
     setLoading(false);
