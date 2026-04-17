@@ -182,16 +182,17 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       startTimeRef.current = Date.now();
 
       const upsertRecords = allRows
-        .filter(rec => processoIdMap.has(rec.processoNumero))
+        .filter(rec => processoIdMap.has(rec.processoNumero) && rec.processoNumero)
         .map(({ sheetName, processoNumero, row: r }) => {
           const relatorFav = norm(r[7]).toLowerCase();
           const turmaFav = norm(r[9]).toLowerCase();
+          const dossieVal = norm(r[2]);
           return {
             processo: processoNumero,
             tribunal: "TST",
             aba_origem: sheetName,
             data_distribuicao: parseDateBR(r[0]),
-            dossie: norm(r[2]) || null,
+            dossie: dossieVal || null,
             equipe: norm(r[3]) || null,
             reclamante: norm(r[4]) || null,
             reclamada: norm(r[5]) || null,
@@ -222,45 +223,60 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           };
         });
 
+      // Separa registros com dossie (podem usar upsert composto via índice único parcial)
+      // dos sem dossie (sempre insert puro)
+      const recordsComDossie = upsertRecords.filter(r => r.dossie);
+      const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
+
       let totalUpserted = 0;
       let totalErrors = 0;
 
-      for (let i = 0; i < upsertRecords.length; i += BATCH_SIZE) {
-        if (cancelRef.current) {
-          toast.info(`Cancelado. ${totalUpserted} registros processados.`);
-          onImported();
-          resetState();
-          return;
-        }
-        const batch = upsertRecords.slice(i, i + BATCH_SIZE);
-        // Para cada registro do batch: se já existe (processo + dossie), atualiza apenas campos novos preservando dados Judit;
-        // se não existe, insere. Como Supabase não suporta upsert composto sem unique constraint, fazemos manualmente.
-        for (const rec of batch) {
-          const { data: existing } = await supabase
-            .from("dados_benner" as any)
-            .select("id")
-            .eq("processo", rec.processo)
-            .eq("dossie", rec.dossie || "")
-            .limit(1);
+      const processBatch = async (records: typeof upsertRecords, useUpsert: boolean) => {
+        for (let i = 0; i < records.length; i += BATCH_SIZE) {
+          if (cancelRef.current) return false;
+          const batch = records.slice(i, i + BATCH_SIZE);
 
-          if (existing && (existing as any[]).length > 0) {
-            const { error } = await supabase
-              .from("dados_benner" as any)
-              .update(rec as any)
-              .eq("id", (existing as any[])[0].id);
-            if (error) totalErrors++; else totalUpserted++;
+          let error;
+          if (useUpsert) {
+            const res = await (supabase.from("dados_benner" as any) as any)
+              .upsert(batch, { onConflict: "processo,dossie", ignoreDuplicates: false });
+            error = res.error;
           } else {
-            const { error } = await supabase.from("dados_benner" as any).insert(rec as any);
-            if (error) totalErrors++; else totalUpserted++;
+            const res = await supabase.from("dados_benner" as any).insert(batch as any);
+            error = res.error;
           }
-        }
 
-        const done = Math.min(i + BATCH_SIZE, upsertRecords.length);
-        const pct = 30 + Math.round((done / upsertRecords.length) * 70);
-        setProgress(pct);
-        const elapsed = (Date.now() - startTimeRef.current) / 1000;
-        const eta = done > 0 ? ((upsertRecords.length - done) * elapsed / done) : 0;
-        setDetailText(`${done}/${upsertRecords.length} distribuições · ${totalErrors > 0 ? `${totalErrors} erros · ` : ""}${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
+          if (error) {
+            console.error("Erro upsert dados_benner:", error);
+            totalErrors += batch.length;
+          } else {
+            totalUpserted += batch.length;
+          }
+
+          const done = totalUpserted + totalErrors;
+          const total = upsertRecords.length;
+          const pct = 30 + Math.round((done / total) * 70);
+          setProgress(pct);
+          const elapsed = (Date.now() - startTimeRef.current) / 1000;
+          const eta = done > 0 ? ((total - done) * elapsed / done) : 0;
+          setDetailText(`${done}/${total} distribuições · ${totalErrors > 0 ? `${totalErrors} erros · ` : ""}${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
+        }
+        return true;
+      };
+
+      const okComDossie = await processBatch(recordsComDossie, true);
+      if (!okComDossie) {
+        toast.info(`Cancelado. ${totalUpserted} registros processados.`);
+        onImported();
+        resetState();
+        return;
+      }
+      const okSemDossie = await processBatch(recordsSemDossie, false);
+      if (!okSemDossie) {
+        toast.info(`Cancelado. ${totalUpserted} registros processados.`);
+        onImported();
+        resetState();
+        return;
       }
 
       setProgress(100);
