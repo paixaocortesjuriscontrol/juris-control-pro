@@ -307,7 +307,17 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           Importar Planilha
         </Button>
         {importing && (
-          <Button variant="ghost" size="sm" onClick={() => { cancelRef.current = true; }} className="text-destructive hover:text-destructive">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              cancelRef.current = true;
+              setStatusText("Cancelando... aguarde o lote atual finalizar");
+              toast.info("Cancelamento solicitado. Aguardando lote atual...");
+            }}
+            disabled={cancelRef.current}
+            className="text-destructive hover:text-destructive"
+          >
             <XCircle className="w-4 h-4 mr-1" /> Cancelar
           </Button>
         )}
