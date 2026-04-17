@@ -415,7 +415,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           <Button
             variant="outline"
             onClick={downloadDuplicates}
-            className="border-amber-500 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950"
+            className="border-warning text-warning hover:bg-warning/10"
           >
             <AlertTriangle className="w-4 h-4 mr-2" />
             Baixar Duplicados ({duplicates.length})
