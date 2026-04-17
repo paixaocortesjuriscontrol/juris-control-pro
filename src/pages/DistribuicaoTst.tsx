@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText } from "lucide-react";
+import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
@@ -73,6 +74,10 @@ export default function DistribuicaoTst() {
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
+
+  // Relatório PDF de Partes
+  const [pdfRunning, setPdfRunning] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -239,7 +244,50 @@ export default function DistribuicaoTst() {
     return true;
   };
 
-  // Bulk Judit: process all filtered distribuições
+  // Gerar relatório PDF de partes (respeita filtros e seleção)
+  const handleGerarRelatorioPdf = async () => {
+    setPdfRunning(true);
+    setPdfProgress({ current: 0, total: 0 });
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando processos filtrados...");
+        ids = await fetchAllFilteredBennerIds(debouncedFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhum processo para gerar relatório.");
+        setPdfRunning(false);
+        return;
+      }
+      if (ids.length > 1500) {
+        const ok = window.confirm(`O relatório terá ${ids.length} processos e pode demorar e gerar um arquivo grande. Continuar?`);
+        if (!ok) { setPdfRunning(false); return; }
+      }
+      toast.info(`Carregando dados de ${ids.length} processo(s)...`);
+      const processos = await fetchProcessosComPartes(ids, (c, t) => setPdfProgress({ current: c, total: t }));
+      const filtrosResumo = buildFiltrosResumo(debouncedFilters, {
+        responsaveisLabel: filtroResponsavelIds.length > 0 ? `${filtroResponsavelIds.length} selecionado(s)` : undefined,
+      });
+      const blob = gerarRelatorioPartesPdf(processos, filtrosResumo);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      a.download = `relatorio-partes-tst-${ts}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Relatório gerado com ${processos.length} processo(s).`);
+    } catch (err: any) {
+      toast.error("Erro ao gerar relatório: " + (err?.message || String(err)));
+    } finally {
+      setPdfRunning(false);
+    }
+  };
+
   const handleBulkJudit = async () => {
     bulkAbortRef.current = false;
     setBulkJuditRunning(true);
@@ -559,6 +607,19 @@ export default function DistribuicaoTst() {
                 <X className="w-4 h-4 mr-1" /> Cancelar
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={handleGerarRelatorioPdf}
+              disabled={pdfRunning}
+              title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
+            >
+              {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+              {pdfRunning
+                ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                : selectedIds.size > 0
+                  ? `Relatório PDF Partes (${selectedIds.size})`
+                  : "Relatório PDF Partes"}
+            </Button>
             <Button variant="secondary" onClick={() => setShowCarga(true)}>
               <FileSpreadsheet className="w-4 h-4 mr-2" /> 
               {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
