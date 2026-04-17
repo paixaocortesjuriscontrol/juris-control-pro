@@ -199,7 +199,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             processo: processoNumero,
             tribunal: "TST",
             aba_origem: sheetName,
-            data_distribuicao: parseDateBR(r[0]),
+            data_distribuicao_planilha: parseDateBR(r[0]),
             dossie: dossieVal || null,
             equipe: norm(r[3]) || null,
             reclamante: norm(r[4]) || null,
@@ -229,6 +229,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             benner_atualizado: toBool(r[26]),
             status: "rascunho",
             user_id: user.id,
+            coordenacao_id: "3e47fc83-3539-4fa7-9fcf-33825120e1b7", // Sempre Coordenação Dra. Renata Santander
           };
         });
 

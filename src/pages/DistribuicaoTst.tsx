@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
@@ -18,6 +19,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -111,7 +114,14 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim]);
 
-  const { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
+
+  // Re-aplica filtro de responsáveis sempre que muda
+  useEffect(() => {
+    setDebouncedFilters(prev => ({ ...prev, responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined }));
+  }, [JSON.stringify(filtroResponsavelIds)]);
+
+  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
@@ -207,7 +217,7 @@ export default function DistribuicaoTst() {
           dossie: dist.dossie || "",
           turma: dist.turma || "",
           relator: dist.relator || "",
-          data_distribuicao: dist.data_distribuicao || null,
+          data_distribuicao: dist.data_distribuicao_real || dist.data_distribuicao_planilha || null,
           recorrente: dist.parte_recorrente || "",
           status: "rascunho",
         });
@@ -248,7 +258,7 @@ export default function DistribuicaoTst() {
           dossie: d.dossie,
           turma: d.turma,
           relator: d.relator,
-          data_distribuicao: d.data_distribuicao,
+          data_distribuicao: d.data_distribuicao_real || d.data_distribuicao_planilha,
           parte_recorrente: d.parte_recorrente,
         }));
       } else {
@@ -330,7 +340,7 @@ export default function DistribuicaoTst() {
             dossie: juditData.dossie || proc.dossie || "",
             turma: juditData.turma || proc.turma || "",
             relator: juditData.relator || proc.relator || "",
-            data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
+            data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
             recorrente: recorrenteJudit,
             tribunal: tribunalMapeado || "TST",
             tipo_recurso: juditData.tipo_recurso || null,
@@ -367,7 +377,7 @@ export default function DistribuicaoTst() {
             if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
             if (recorrenteJudit) updateFields.recorrente = recorrenteJudit;
             if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
-            if (juditData.data_distribuicao) updateFields.data_distribuicao = juditData.data_distribuicao;
+            if (juditData.data_distribuicao) updateFields.data_distribuicao_real = juditData.data_distribuicao;
             if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
             if (juditData.data_julgamento) updateFields.data_julgamento = juditData.data_julgamento;
             if (juditData.horario_julgamento) updateFields.horario_julgamento = juditData.horario_julgamento;
@@ -663,6 +673,14 @@ export default function DistribuicaoTst() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Filtrar por Responsáveis</Label>
+            <ResponsaveisSelector
+              selectedIds={filtroResponsavelIds}
+              onChange={setFiltroResponsavelIds}
+              placeholder="Todos os responsáveis"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
             {selectedIds.size > 0 && (
@@ -702,13 +720,14 @@ export default function DistribuicaoTst() {
                     }}
                   />
                 </TableHead>
-                <TableHead>Data</TableHead>
+                <TableHead>Data Plan.</TableHead>
+                <TableHead>Data Real</TableHead>
                 <TableHead>Processo</TableHead>
                 <TableHead>Dossiê</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Turma</TableHead>
+                <TableHead>Responsáveis</TableHead>
                 <TableHead>Tipo de Recurso</TableHead>
-                <TableHead>Data Distribuição</TableHead>
                 <TableHead>Parte Recorrente</TableHead>
                 <TableHead>Benner</TableHead>
                 <TableHead className="w-28">Ações</TableHead>
@@ -716,10 +735,22 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dados.map(d => (
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+              ) : dados.map(d => {
+                const relatorClass = d.relator_favorabilidade?.toLowerCase().includes("positiv")
+                  ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                  : d.relator_favorabilidade?.toLowerCase().includes("negativ")
+                    ? "text-destructive font-semibold"
+                    : "";
+                const turmaClass = d.turma_favorabilidade?.toLowerCase().includes("positiv")
+                  ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                  : d.turma_favorabilidade?.toLowerCase().includes("negativ")
+                    ? "text-destructive font-semibold"
+                    : "";
+                const responsaveis = responsaveisMap.get(d.id) || [];
+                return (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
                     <Checkbox
@@ -732,13 +763,22 @@ export default function DistribuicaoTst() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="text-xs">{formatDate(d.data_distribuicao)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_planilha)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.processo_numero}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.dossie || "—"}</TableCell>
-                  <TableCell className="text-xs">{d.relator || "—"}</TableCell>
-                  <TableCell className="text-xs">{d.turma || "—"}</TableCell>
+                  <TableCell className={cn("text-xs", relatorClass)}>{d.relator || "—"}</TableCell>
+                  <TableCell className={cn("text-xs", turmaClass)}>{d.turma || "—"}</TableCell>
+                  <TableCell className="text-xs">
+                    {responsaveis.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {responsaveis.map(r => (
+                          <Badge key={r.id} variant="secondary" className="text-[10px] px-1.5 py-0">{r.nome}</Badge>
+                        ))}
+                      </div>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell className="text-xs">{d.tipo_recurso || "—"}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="text-xs">{d.parte_recorrente || "—"}</TableCell>
                   <TableCell>
                     {d.benner_atualizado ? (
@@ -768,7 +808,8 @@ export default function DistribuicaoTst() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
