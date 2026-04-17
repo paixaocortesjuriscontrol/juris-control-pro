@@ -788,7 +788,19 @@ export default function DistribuicaoTst() {
                   <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_planilha)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.processo_numero}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{d.dossie || "—"}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    {d.dossie ? (
+                      <button
+                        type="button"
+                        className="text-primary hover:underline disabled:opacity-50"
+                        onClick={() => handleOpenBenner(d)}
+                        disabled={loadingBenner === d.id}
+                        title="Abrir Dados Benner"
+                      >
+                        {d.dossie}
+                      </button>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell className={cn("text-xs", relatorClass)}>{d.relator || "—"}</TableCell>
                   <TableCell className={cn("text-xs", turmaClass)}>{d.turma || "—"}</TableCell>
                   <TableCell className="text-xs">
