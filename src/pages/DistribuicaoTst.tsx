@@ -340,7 +340,7 @@ export default function DistribuicaoTst() {
             dossie: juditData.dossie || proc.dossie || "",
             turma: juditData.turma || proc.turma || "",
             relator: juditData.relator || proc.relator || "",
-            data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
+            data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
             recorrente: recorrenteJudit,
             tribunal: tribunalMapeado || "TST",
             tipo_recurso: juditData.tipo_recurso || null,
@@ -377,7 +377,7 @@ export default function DistribuicaoTst() {
             if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
             if (recorrenteJudit) updateFields.recorrente = recorrenteJudit;
             if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
-            if (juditData.data_distribuicao) updateFields.data_distribuicao = juditData.data_distribuicao;
+            if (juditData.data_distribuicao) updateFields.data_distribuicao_real = juditData.data_distribuicao;
             if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
             if (juditData.data_julgamento) updateFields.data_julgamento = juditData.data_julgamento;
             if (juditData.horario_julgamento) updateFields.horario_julgamento = juditData.horario_julgamento;
