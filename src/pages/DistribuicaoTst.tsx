@@ -790,7 +790,8 @@ export default function DistribuicaoTst() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
