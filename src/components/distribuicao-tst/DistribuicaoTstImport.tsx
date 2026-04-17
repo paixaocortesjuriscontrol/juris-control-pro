@@ -41,6 +41,7 @@ interface Props {
 }
 
 const BATCH_SIZE = 500;
+const EXISTING_CHECK_BATCH_SIZE = 80;
 
 interface DuplicateRow {
   sheetName: string;
@@ -295,18 +296,26 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const existingPairs = new Set<string>();
       const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
 
-      for (let i = 0; i < dedupedRecordsComDossie.length; i += BATCH_SIZE) {
+      for (let i = 0; i < dedupedRecordsComDossie.length; i += EXISTING_CHECK_BATCH_SIZE) {
         if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
-        const batch = dedupedRecordsComDossie.slice(i, i + BATCH_SIZE);
-        const processos = [...new Set(batch.map(record => record.processo))];
+        const batch = dedupedRecordsComDossie.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
+        const processos = [...new Set(batch.map(record => record.processo).filter(Boolean))];
         const dossies = [...new Set(batch.map(record => record.dossie).filter(Boolean))];
+
+        if (processos.length === 0 || dossies.length === 0) continue;
+
         const { data, error } = await (supabase.from("dados_benner") as any)
           .select("processo, dossie")
           .in("processo", processos)
-          .in("dossie", dossies);
+          .in("dossie", dossies)
+          .limit(EXISTING_CHECK_BATCH_SIZE * 3);
 
         if (error) {
-          console.error("Erro ao verificar distribuições existentes:", error);
+          console.error("Erro ao verificar distribuições existentes:", error, {
+            processos: processos.length,
+            dossies: dossies.length,
+            batchSize: batch.length,
+          });
           throw error;
         }
 
