@@ -42,11 +42,21 @@ interface Props {
 
 const BATCH_SIZE = 500;
 
+interface DuplicateRow {
+  sheetName: string;
+  rowIndex: number;
+  processo: string;
+  dossie: string;
+  row: string[];
+}
+
 export function DistribuicaoTstImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const [detailText, setDetailText] = useState("");
+  const [duplicates, setDuplicates] = useState<DuplicateRow[]>([]);
+  const [duplicatesHeader, setDuplicatesHeader] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef(false);
   const startTimeRef = useRef(0);
@@ -58,6 +68,18 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     setDetailText("");
     cancelRef.current = false;
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const downloadDuplicates = () => {
+    if (duplicates.length === 0) return;
+    const wb = XLSX.utils.book_new();
+    const aoa: any[][] = [
+      ["Aba", "Linha na planilha", "Processo", "Dossiê", ...duplicatesHeader],
+      ...duplicates.map(d => [d.sheetName, d.rowIndex + 1, d.processo, d.dossie, ...d.row]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, "Duplicados");
+    XLSX.writeFile(wb, `duplicados-tst-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
