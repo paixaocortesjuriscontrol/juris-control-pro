@@ -92,9 +92,9 @@ export default function DistribuicaoTst() {
   const [mesesAnos, setMesesAnos] = useState<{ key: string; count: number }[]>([]);
 
   const fetchTabsData = useCallback(async () => {
-    // Fetch abas
+    // Lê de dados_benner (tabela única) restringindo ao escopo de distribuições (aba_origem != null)
     const { data: abasData } = await supabase
-      .from("distribuicoes_tst" as any)
+      .from("dados_benner" as any)
       .select("aba_origem")
       .not("aba_origem", "is", null);
 
@@ -106,10 +106,10 @@ export default function DistribuicaoTst() {
       setAbas([...map.entries()].map(([aba, count]) => ({ aba, count })).sort((a, b) => a.aba.localeCompare(b.aba)));
     }
 
-    // Fetch meses
     const { data: mesesData } = await supabase
-      .from("distribuicoes_tst" as any)
+      .from("dados_benner" as any)
       .select("data_distribuicao")
+      .not("aba_origem", "is", null)
       .not("data_distribuicao", "is", null);
 
     if (mesesData) {
