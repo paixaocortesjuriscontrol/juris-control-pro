@@ -1446,7 +1446,8 @@ export type Database = {
           confianca_transito: number | null
           coordenacao_id: string | null
           created_at: string
-          data_distribuicao: string | null
+          data_distribuicao_planilha: string | null
+          data_distribuicao_real: string | null
           data_julgamento: string | null
           data_transito_julgado: string | null
           decisao_quarteirizado: string | null
@@ -1518,7 +1519,8 @@ export type Database = {
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
-          data_distribuicao?: string | null
+          data_distribuicao_planilha?: string | null
+          data_distribuicao_real?: string | null
           data_julgamento?: string | null
           data_transito_julgado?: string | null
           decisao_quarteirizado?: string | null
@@ -1590,7 +1592,8 @@ export type Database = {
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
-          data_distribuicao?: string | null
+          data_distribuicao_planilha?: string | null
+          data_distribuicao_real?: string | null
           data_julgamento?: string | null
           data_transito_julgado?: string | null
           decisao_quarteirizado?: string | null
@@ -1656,6 +1659,35 @@ export type Database = {
             columns: ["coordenacao_id"]
             isOneToOne: false
             referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dados_benner_responsaveis: {
+        Row: {
+          created_at: string
+          dados_benner_id: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          dados_benner_id: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          dados_benner_id?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dados_benner_responsaveis_dados_benner_id_fkey"
+            columns: ["dados_benner_id"]
+            isOneToOne: false
+            referencedRelation: "dados_benner"
             referencedColumns: ["id"]
           },
         ]

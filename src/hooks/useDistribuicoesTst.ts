@@ -4,21 +4,21 @@ import { toast } from "sonner";
 
 /**
  * NOTA DE ARQUITETURA: A tela "Distribuição TST" lê e grava em `dados_benner`
- * (tabela única / fonte de verdade). A interface `DistribuicaoTst` abaixo é
- * apenas um mapeamento dos campos de `dados_benner` para manter compatibilidade
- * com os componentes existentes (DistribuicaoTstForm, ProcessoDistribuicoesTab,
- * DadosBennerDistribuicaoTab, CargaBennerFromDb, DistribuicaoTst.tsx).
+ * (tabela única / fonte de verdade). Responsáveis múltiplos vivem em
+ * `dados_benner_responsaveis` (link N:N para profiles).
  *
- * Filtro de escopo: registros onde `aba_origem IS NOT NULL` (vieram de
- * importação Dr. Renata / formulário de distribuição).
+ * Campos de data:
+ *  - data_distribuicao_planilha: vem da planilha importada / digitação manual
+ *  - data_distribuicao_real: preenchida exclusivamente via Judit / manualmente
  */
 
 export interface DistribuicaoTst {
   id: string;
-  processo_id: string; // mapeado de processos.id via lookup quando necessário (não persistido em dados_benner)
-  processo_numero: string; // dados_benner.processo
+  processo_id: string;
+  processo_numero: string;
   aba_origem: string | null;
-  data_distribuicao: string | null;
+  data_distribuicao_planilha: string | null;
+  data_distribuicao_real: string | null;
   dossie: string | null;
   equipe: string | null;
   reclamante: string | null;
@@ -27,7 +27,7 @@ export interface DistribuicaoTst {
   relator_favorabilidade: string | null;
   turma: string | null;
   turma_favorabilidade: string | null;
-  parte_recorrente: string | null; // dados_benner.recorrente
+  parte_recorrente: string | null;
   tipo_recurso_reclamante: string | null;
   materias_recurso_reclamante: string | null;
   aparelhamento_reclamante: string | null;
@@ -48,6 +48,8 @@ export interface DistribuicaoTst {
   judit_preenchido: boolean;
   judit_preenchido_em: string | null;
   judit_preenchido_por: string | null;
+  coordenacao_id: string | null;
+  responsaveis_ids?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -69,28 +71,19 @@ export interface DistribuicaoTstFilters {
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
+  responsavelIds?: string[];
 }
 
-// Converte um registro de dados_benner para a interface DistribuicaoTst
 function bennerToDistribuicao(b: any): DistribuicaoTst {
-  // Deriva favorabilidade textual dos booleanos posicao_*
-  const relatorFav = b.posicao_relator_favoravel
-    ? "POSITIVO"
-    : b.posicao_relator_desfavoravel
-      ? "NEGATIVO"
-      : null;
-  const turmaFav = b.posicao_turma_favoravel
-    ? "POSITIVA"
-    : b.posicao_turma_desfavoravel
-      ? "NEGATIVA"
-      : null;
-
+  const relatorFav = b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null;
+  const turmaFav = b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null;
   return {
     id: b.id,
-    processo_id: "", // não usado a partir de dados_benner; resolved sob demanda
+    processo_id: "",
     processo_numero: b.processo || "",
     aba_origem: b.aba_origem ?? null,
-    data_distribuicao: b.data_distribuicao ?? null,
+    data_distribuicao_planilha: b.data_distribuicao_planilha ?? null,
+    data_distribuicao_real: b.data_distribuicao_real ?? null,
     dossie: b.dossie ?? null,
     equipe: b.equipe ?? null,
     reclamante: b.reclamante ?? null,
@@ -120,18 +113,19 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     judit_preenchido: !!b.judit_preenchido,
     judit_preenchido_em: b.judit_preenchido_em ?? null,
     judit_preenchido_por: b.judit_preenchido_por ?? null,
+    coordenacao_id: b.coordenacao_id ?? null,
     created_at: b.created_at,
     updated_at: b.updated_at,
   };
 }
 
-// Converte payload do form (DistribuicaoTstInsert) em payload de dados_benner
 export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<string, any> {
   const payload: Record<string, any> = {
     processo: d.processo_numero,
     dossie: d.dossie,
     aba_origem: d.aba_origem,
-    data_distribuicao: d.data_distribuicao,
+    data_distribuicao_planilha: d.data_distribuicao_planilha,
+    data_distribuicao_real: d.data_distribuicao_real,
     equipe: d.equipe,
     reclamante: d.reclamante,
     reclamada: d.reclamada,
@@ -157,10 +151,10 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     judit_preenchido: d.judit_preenchido,
     judit_preenchido_em: d.judit_preenchido_em,
     judit_preenchido_por: d.judit_preenchido_por,
+    coordenacao_id: d.coordenacao_id,
     tribunal: "TST",
   };
 
-  // Mapeia favorabilidade textual em booleanos posicao_*
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();
     payload.posicao_relator_favoravel = v.includes("positiv") || v.includes("favor") ? true : null;
@@ -172,13 +166,13 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     payload.posicao_turma_desfavoravel = v.includes("negativ") || v.includes("desfav") ? true : null;
   }
 
-  // Remove undefined (mantém null para limpar campos)
   Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
   return payload;
 }
 
 export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const [dados, setDados] = useState<DistribuicaoTst[]>([]);
+  const [responsaveisMap, setResponsaveisMap] = useState<Map<string, { id: string; nome: string }[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -188,61 +182,48 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const fetchDados = useCallback(async () => {
     setLoading(true);
 
+    // Filtro por responsáveis: descobrir IDs antes
+    let restrictIds: string[] | null = null;
+    if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+      const { data: rData } = await supabase
+        .from("dados_benner_responsaveis" as any)
+        .select("dados_benner_id")
+        .in("usuario_id", filters.responsavelIds);
+      restrictIds = [...new Set(((rData as any[]) || []).map(r => r.dados_benner_id))];
+      if (restrictIds.length === 0) {
+        setDados([]); setTotalCount(0); setLoading(false); setResponsaveisMap(new Map()); return;
+      }
+    }
+
     let query = supabase
       .from("dados_benner" as any)
       .select("*", { count: "exact" })
       .not("aba_origem", "is", null)
       .order("created_at", { ascending: false });
 
-    if (filters.aba_origem && filters.aba_origem !== "todas") {
-      query = query.eq("aba_origem", filters.aba_origem);
-    }
-    if (filters.benner === "sim") {
-      query = query.eq("benner_atualizado", true);
-    } else if (filters.benner === "nao") {
-      query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-    }
-    if (filters.dossieStatus === "preenchido") {
-      query = query.not("dossie", "is", null).neq("dossie", "");
-    } else if (filters.dossieStatus === "nao_preenchido") {
-      query = query.or("dossie.is.null,dossie.eq.");
-    } else if (filters.dossieStatus === "valido") {
-      query = query.like("dossie", "__.__.___.______%/__");
-    } else if (filters.dossieStatus === "invalido") {
-      query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
-    }
-    if (filters.judit === "sim") {
-      query = query.eq("judit_preenchido", true);
-    } else if (filters.judit === "nao") {
-      query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
-    }
-    if (filters.processo) {
-      query = query.ilike("processo", `%${filters.processo}%`);
-    }
-    if (filters.dossie) {
-      query = query.ilike("dossie", `%${filters.dossie}%`);
-    }
-    if (filters.turma) {
-      query = query.ilike("turma", `%${filters.turma}%`);
-    }
-    if (filters.relator) {
-      query = query.ilike("relator", `%${filters.relator}%`);
-    }
-    if (filters.parte) {
-      query = query.ilike("recorrente", `%${filters.parte}%`);
-    }
+    if (restrictIds) query = query.in("id", restrictIds);
+    if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
+    if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
+    else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+    if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
+    else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
+    else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
+    else if (filters.dossieStatus === "invalido") query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
+    if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
+    else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
+    if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
+    if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
+    if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
+    if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
+    if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
     if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      query = query.gte("data_distribuicao", start).lt("data_distribuicao", nextMonth);
+      query = query.gte("data_distribuicao_planilha", start).lt("data_distribuicao_planilha", nextMonth);
     }
-    if (filters.dataInicio) {
-      query = query.gte("data_distribuicao", filters.dataInicio);
-    }
-    if (filters.dataFim) {
-      query = query.lte("data_distribuicao", filters.dataFim);
-    }
+    if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
+    if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
@@ -250,11 +231,31 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     const { data, error, count } = await query;
     if (error) {
       toast.error("Erro ao carregar distribuições: " + error.message);
-    } else {
-      const rows = ((data as any[]) || []).map(bennerToDistribuicao);
-      setDados(rows);
-      setTotalCount(count || 0);
+      setLoading(false);
+      return;
     }
+    const rows = ((data as any[]) || []).map(bennerToDistribuicao);
+    setDados(rows);
+    setTotalCount(count || 0);
+
+    // Carrega responsáveis para os ids visíveis
+    const visibleIds = rows.map(r => r.id);
+    if (visibleIds.length > 0) {
+      const { data: respData } = await supabase
+        .from("dados_benner_responsaveis" as any)
+        .select("dados_benner_id, usuario_id, profiles_basic:usuario_id(id, nome)")
+        .in("dados_benner_id", visibleIds);
+      const map = new Map<string, { id: string; nome: string }[]>();
+      ((respData as any[]) || []).forEach((row: any) => {
+        const arr = map.get(row.dados_benner_id) || [];
+        if (row.profiles_basic) arr.push({ id: row.profiles_basic.id, nome: row.profiles_basic.nome });
+        map.set(row.dados_benner_id, arr);
+      });
+      setResponsaveisMap(map);
+    } else {
+      setResponsaveisMap(new Map());
+    }
+
     setLoading(false);
   }, [page, JSON.stringify(filters)]);
 
@@ -265,13 +266,25 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
 
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string) => {
     const payload = distribuicaoToBenner(dado);
+    const responsaveisIds = dado.responsaveis_ids || [];
+    let rowId = id;
     if (id) {
       const { error } = await supabase.from("dados_benner" as any).update(payload as any).eq("id", id);
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
     } else {
       payload.status = "rascunho";
-      const { error } = await supabase.from("dados_benner" as any).insert(payload as any);
+      const { data: ins, error } = await supabase.from("dados_benner" as any).insert(payload as any).select("id").single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
+      rowId = (ins as any)?.id;
+    }
+    // Persist responsáveis
+    if (rowId) {
+      await supabase.from("dados_benner_responsaveis" as any).delete().eq("dados_benner_id", rowId);
+      if (responsaveisIds.length > 0) {
+        await supabase.from("dados_benner_responsaveis" as any).insert(
+          responsaveisIds.map(uid => ({ dados_benner_id: rowId, usuario_id: uid })) as any
+        );
+      }
     }
     toast.success(id ? "Registro atualizado!" : "Registro salvo!");
     fetchDados();
@@ -286,5 +299,5 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     return true;
   };
 
-  return { dados, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages };
+  return { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages };
 }
