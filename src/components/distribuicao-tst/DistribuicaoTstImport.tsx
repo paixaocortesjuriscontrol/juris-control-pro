@@ -276,7 +276,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return true;
       };
 
-      const okComDossie = await processBatch(recordsComDossie, true);
+      const okComDossie = await processBatch(dedupedRecordsComDossie, true);
       if (!okComDossie) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
