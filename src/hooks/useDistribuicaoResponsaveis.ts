@@ -71,12 +71,24 @@ export async function loadResponsaveisMap(dadosBennerIds: string[]): Promise<Map
   if (dadosBennerIds.length === 0) return map;
   const { data } = await supabase
     .from("dados_benner_responsaveis" as any)
-    .select("dados_benner_id, usuario_id, profiles_basic:usuario_id(id, nome)")
+    .select("dados_benner_id, usuario_id")
     .in("dados_benner_id", dadosBennerIds);
 
-  ((data as any[]) || []).forEach((row: any) => {
+  const respRows = (data as any[]) || [];
+  const userIds = [...new Set(respRows.map(r => r.usuario_id).filter(Boolean))];
+  const profileMap = new Map<string, ProfileBasic>();
+  if (userIds.length > 0) {
+    const { data: profs } = await supabase
+      .from("profiles_basic" as any)
+      .select("id, nome")
+      .in("id", userIds);
+    ((profs as any[]) || []).forEach((p: any) => profileMap.set(p.id, { id: p.id, nome: p.nome }));
+  }
+
+  respRows.forEach((row: any) => {
     const arr = map.get(row.dados_benner_id) || [];
-    if (row.profiles_basic) arr.push({ id: row.profiles_basic.id, nome: row.profiles_basic.nome });
+    const prof = profileMap.get(row.usuario_id);
+    if (prof) arr.push(prof);
     map.set(row.dados_benner_id, arr);
   });
   return map;
