@@ -199,7 +199,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             processo: processoNumero,
             tribunal: "TST",
             aba_origem: sheetName,
-            data_distribuicao: parseDateBR(r[0]),
+            data_distribuicao_planilha: parseDateBR(r[0]),
             dossie: dossieVal || null,
             equipe: norm(r[3]) || null,
             reclamante: norm(r[4]) || null,
