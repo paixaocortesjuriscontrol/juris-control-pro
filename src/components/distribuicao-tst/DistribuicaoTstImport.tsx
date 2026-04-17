@@ -405,12 +405,22 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
         <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
           {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
           Importar Planilha
         </Button>
+        {duplicates.length > 0 && (
+          <Button
+            variant="outline"
+            onClick={downloadDuplicates}
+            className="border-amber-500 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950"
+          >
+            <AlertTriangle className="w-4 h-4 mr-2" />
+            Baixar Duplicados ({duplicates.length})
+          </Button>
+        )}
         {importing && (
           <Button
             variant="ghost"
