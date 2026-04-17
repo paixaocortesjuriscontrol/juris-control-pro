@@ -34,6 +34,28 @@ const formatDate = (d: string | null) => {
   }
 };
 
+const formatDocumento = (doc: string | null, tipo: string | null): string => {
+  if (!doc) return "—";
+  const digits = doc.replace(/\D/g, "");
+  // CPF: 11 dígitos -> 000.000.000-00
+  if (digits.length === 11) {
+    return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+  }
+  // CNPJ: 14 dígitos -> 00.000.000/0000-00
+  if (digits.length === 14) {
+    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  }
+  // Tenta inferir pelo tipo_pessoa quando tamanho irregular
+  const t = (tipo || "").toLowerCase();
+  if (digits.length > 11 && digits.length < 14 && (t.includes("juridic") || t.includes("pj"))) {
+    return digits.padStart(14, "0").replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  }
+  if (digits.length > 0 && digits.length < 11 && (t.includes("fisic") || t.includes("pf"))) {
+    return digits.padStart(11, "0").replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+  }
+  return doc;
+};
+
 const normalizePolo = (polo: string | null): "Ativo" | "Passivo" | "Outro" => {
   if (!polo) return "Outro";
   const p = polo.toLowerCase();
