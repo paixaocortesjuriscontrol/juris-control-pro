@@ -204,11 +204,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     setBuscando(false);
     
     const resultados: any[] = [];
-    if (distTst && (distTst as any[]).length > 0) {
-      (distTst as any[]).forEach((d: any) => {
-        resultados.push({ tipo: "distribuicao", processo: d.processo_numero, dossie: d.dossie, turma: d.turma, relator: d.relator });
-      });
-    }
     if (dadosBenner && (dadosBenner as any[]).length > 0) {
       (dadosBenner as any[]).forEach((d: any) => {
         resultados.push({ tipo: "benner", processo: d.processo, dossie: d.dossie, turma: d.turma, relator: d.relator, tribunal: d.tribunal, coordenacao_id: d.coordenacao_id });
