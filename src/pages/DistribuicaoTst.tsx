@@ -702,13 +702,14 @@ export default function DistribuicaoTst() {
                     }}
                   />
                 </TableHead>
-                <TableHead>Data</TableHead>
+                <TableHead>Data Plan.</TableHead>
+                <TableHead>Data Real</TableHead>
                 <TableHead>Processo</TableHead>
                 <TableHead>Dossiê</TableHead>
                 <TableHead>Relator</TableHead>
                 <TableHead>Turma</TableHead>
+                <TableHead>Responsáveis</TableHead>
                 <TableHead>Tipo de Recurso</TableHead>
-                <TableHead>Data Distribuição</TableHead>
                 <TableHead>Parte Recorrente</TableHead>
                 <TableHead>Benner</TableHead>
                 <TableHead className="w-28">Ações</TableHead>
@@ -716,10 +717,22 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dados.map(d => (
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+              ) : dados.map(d => {
+                const relatorClass = d.relator_favorabilidade?.toLowerCase().includes("positiv")
+                  ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                  : d.relator_favorabilidade?.toLowerCase().includes("negativ")
+                    ? "text-destructive font-semibold"
+                    : "";
+                const turmaClass = d.turma_favorabilidade?.toLowerCase().includes("positiv")
+                  ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                  : d.turma_favorabilidade?.toLowerCase().includes("negativ")
+                    ? "text-destructive font-semibold"
+                    : "";
+                const responsaveis = responsaveisMap.get(d.id) || [];
+                return (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
                     <Checkbox
@@ -732,13 +745,22 @@ export default function DistribuicaoTst() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="text-xs">{formatDate(d.data_distribuicao)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_planilha)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.processo_numero}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.dossie || "—"}</TableCell>
-                  <TableCell className="text-xs">{d.relator || "—"}</TableCell>
-                  <TableCell className="text-xs">{d.turma || "—"}</TableCell>
+                  <TableCell className={cn("text-xs", relatorClass)}>{d.relator || "—"}</TableCell>
+                  <TableCell className={cn("text-xs", turmaClass)}>{d.turma || "—"}</TableCell>
+                  <TableCell className="text-xs">
+                    {responsaveis.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {responsaveis.map(r => (
+                          <Badge key={r.id} variant="secondary" className="text-[10px] px-1.5 py-0">{r.nome}</Badge>
+                        ))}
+                      </div>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell className="text-xs">{d.tipo_recurso || "—"}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="text-xs">{d.parte_recorrente || "—"}</TableCell>
                   <TableCell>
                     {d.benner_atualizado ? (
