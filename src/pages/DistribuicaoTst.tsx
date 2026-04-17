@@ -91,7 +91,9 @@ export default function DistribuicaoTst() {
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
   const [filtroJudit, setFiltroJudit] = useState<string>("todos");
 
-  // Debounced text filters
+  const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
+
+  // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
 
   useEffect(() => {
@@ -109,17 +111,11 @@ export default function DistribuicaoTst() {
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
         dataFim: filtroDataFim || undefined,
+        responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim]);
-
-  const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
-
-  // Re-aplica filtro de responsáveis sempre que muda
-  useEffect(() => {
-    setDebouncedFilters(prev => ({ ...prev, responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined }));
-  }, [JSON.stringify(filtroResponsavelIds)]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
