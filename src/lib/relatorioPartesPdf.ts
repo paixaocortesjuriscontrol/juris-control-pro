@@ -289,7 +289,7 @@ export function gerarRelatorioPartesPdf(
         arr.map((p) => [
           p.nome || "—",
           p.tipo_pessoa || "—",
-          p.documento || "—",
+          formatDocumento(p.documento, p.tipo_pessoa),
         ]);
 
       const renderTable = (titulo: string, arr: ParteRow[], headColor: [number, number, number]) => {
