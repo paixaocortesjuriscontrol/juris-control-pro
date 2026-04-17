@@ -672,6 +672,14 @@ export default function DistribuicaoTst() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Filtrar por Responsáveis</Label>
+            <ResponsaveisSelector
+              selectedIds={filtroResponsavelIds}
+              onChange={setFiltroResponsavelIds}
+              placeholder="Todos os responsáveis"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
             {selectedIds.size > 0 && (
