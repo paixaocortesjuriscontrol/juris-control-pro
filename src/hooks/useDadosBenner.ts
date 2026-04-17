@@ -118,8 +118,8 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       }
 
       if (filters?.tem_distribuicao) {
-        const { data } = await supabase.from("distribuicoes_tst").select("processo_numero");
-        distContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        const { data } = await supabase.from("dados_benner" as any).select("processo").not("aba_origem", "is", null);
+        distContratos = [...new Set(((data as any[]) || []).map((d: any) => d.processo).filter(Boolean))];
         if (distContratos.length === 0) {
           setDados([]);
           setTotalCount(0);
@@ -234,8 +234,8 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       }
 
       if (filters?.tem_distribuicao) {
-        const { data } = await supabase.from("distribuicoes_tst").select("processo_numero");
-        distContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        const { data } = await supabase.from("dados_benner" as any).select("processo").not("aba_origem", "is", null);
+        distContratos = [...new Set(((data as any[]) || []).map((d: any) => d.processo).filter(Boolean))];
         if (distContratos.length === 0) return [];
       }
 
@@ -289,8 +289,8 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       }
 
       if (filters?.tem_distribuicao) {
-        const { data } = await supabase.from("distribuicoes_tst").select("processo_numero");
-        distContratos = [...new Set((data || []).map((d: any) => d.processo_numero).filter(Boolean))];
+        const { data } = await supabase.from("dados_benner" as any).select("processo").not("aba_origem", "is", null);
+        distContratos = [...new Set(((data as any[]) || []).map((d: any) => d.processo).filter(Boolean))];
         if (distContratos.length === 0) return [];
       }
 
