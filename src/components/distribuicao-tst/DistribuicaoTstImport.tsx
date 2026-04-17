@@ -195,11 +195,12 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           const relatorFav = norm(r[7]).toLowerCase();
           const turmaFav = norm(r[9]).toLowerCase();
           const dossieVal = norm(r[2]);
+          const dataPlanilha = parseDateBR(r[0]);
           return {
             processo: processoNumero,
             tribunal: "TST",
             aba_origem: sheetName,
-            data_distribuicao_planilha: parseDateBR(r[0]),
+            data_distribuicao_planilha: dataPlanilha,
             dossie: dossieVal || null,
             equipe: norm(r[3]) || null,
             reclamante: norm(r[4]) || null,
@@ -230,6 +231,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             status: "rascunho",
             user_id: user.id,
             coordenacao_id: "3e47fc83-3539-4fa7-9fcf-33825120e1b7", // Sempre Coordenação Dra. Renata Santander
+            data_distribuicao_real: dataPlanilha,
           };
         });
 
@@ -239,17 +241,46 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       );
       const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
 
+      const existingPairs = new Set<string>();
+      const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
+
+      for (let i = 0; i < dedupedRecordsComDossie.length; i += BATCH_SIZE) {
+        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
+        const batch = dedupedRecordsComDossie.slice(i, i + BATCH_SIZE);
+        const processos = [...new Set(batch.map(record => record.processo))];
+        const dossies = [...new Set(batch.map(record => record.dossie).filter(Boolean))];
+        const { data, error } = await (supabase.from("dados_benner") as any)
+          .select("processo, dossie")
+          .in("processo", processos)
+          .in("dossie", dossies);
+
+        if (error) {
+          console.error("Erro ao verificar distribuições existentes:", error);
+          throw error;
+        }
+
+        (data || []).forEach((record: any) => {
+          existingPairs.add(`${record.processo}||${record.dossie}`);
+        });
+      }
+
+      const recordsComDossieNovos = dedupedRecordsComDossie.filter(record => !existingPairs.has(`${record.processo}||${record.dossie}`));
+      const recordsComDossieExistentes = dedupedRecordsComDossie
+        .filter(record => existingPairs.has(`${record.processo}||${record.dossie}`))
+        .map(({ data_distribuicao_real, ...record }) => record);
+
       let totalUpserted = 0;
       let totalErrors = 0;
       let firstError: string | null = null;
+      const totalRecords = recordKeys.length + recordsSemDossie.length;
 
-      const processBatch = async (records: typeof upsertRecords, useUpsert: boolean) => {
+      const processBatch = async (records: any[], mode: "insert" | "upsert") => {
         for (let i = 0; i < records.length; i += BATCH_SIZE) {
           if (cancelRef.current) return false;
           const batch = records.slice(i, i + BATCH_SIZE);
 
           let error: any;
-          if (useUpsert) {
+          if (mode === "upsert") {
             const res = await (supabase.from("dados_benner" as any) as any)
               .upsert(batch, { onConflict: "processo,dossie", ignoreDuplicates: false });
             error = res.error;
@@ -259,7 +290,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           }
 
           if (error) {
-            console.error("Erro upsert dados_benner:", error, "Sample record:", batch[0]);
+            console.error("Erro ao salvar dados_benner:", error, "Sample record:", batch[0]);
             if (!firstError) firstError = `${error.message}${error.details ? ` | ${error.details}` : ""}${error.hint ? ` | ${error.hint}` : ""}`;
             totalErrors += batch.length;
           } else {
@@ -267,24 +298,30 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           }
 
           const done = totalUpserted + totalErrors;
-          const total = dedupedRecordsComDossie.length + recordsSemDossie.length;
-          const pct = 30 + Math.round((done / total) * 70);
+          const pct = totalRecords > 0 ? 30 + Math.round((done / totalRecords) * 70) : 100;
           setProgress(pct);
           const elapsed = (Date.now() - startTimeRef.current) / 1000;
-          const eta = done > 0 ? ((total - done) * elapsed / done) : 0;
-          setDetailText(`${done}/${total} distribuições · ${totalErrors > 0 ? `${totalErrors} erros · ` : ""}${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
+          const eta = done > 0 ? ((totalRecords - done) * elapsed / done) : 0;
+          setDetailText(`${done}/${totalRecords} distribuições · ${totalErrors > 0 ? `${totalErrors} erros · ` : ""}${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
         }
         return true;
       };
 
-      const okComDossie = await processBatch(dedupedRecordsComDossie, true);
-      if (!okComDossie) {
+      const okComDossieNovos = await processBatch(recordsComDossieNovos, "insert");
+      if (!okComDossieNovos) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
         resetState();
         return;
       }
-      const okSemDossie = await processBatch(recordsSemDossie, false);
+      const okComDossieExistentes = await processBatch(recordsComDossieExistentes, "upsert");
+      if (!okComDossieExistentes) {
+        toast.info(`Cancelado. ${totalUpserted} registros processados.`);
+        onImported();
+        resetState();
+        return;
+      }
+      const okSemDossie = await processBatch(recordsSemDossie, "insert");
       if (!okSemDossie) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
