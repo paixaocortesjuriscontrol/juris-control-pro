@@ -649,9 +649,9 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={13} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => (
                 <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
                   <TableCell onClick={e => e.stopPropagation()}>
@@ -668,27 +668,11 @@ export default function DistribuicaoTst() {
                   <TableCell className="text-xs">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.processo_numero}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.dossie || "—"}</TableCell>
-                  <TableCell className="text-xs">{d.equipe || "—"}</TableCell>
                   <TableCell className="text-xs">{d.relator || "—"}</TableCell>
-                  <TableCell>
-                    {d.relator_favorabilidade && (
-                      <Badge variant={favorabilidadeColor(d.relator_favorabilidade) as any} className="text-[10px] px-1.5 py-0 leading-tight">
-                        {d.relator_favorabilidade}
-                      </Badge>
-                    )}
-                  </TableCell>
                   <TableCell className="text-xs">{d.turma || "—"}</TableCell>
-                  <TableCell>
-                    {d.turma_favorabilidade && (
-                      <Badge variant={favorabilidadeColor(d.turma_favorabilidade) as any} className="text-[10px] px-1.5 py-0 leading-tight">
-                        {d.turma_favorabilidade}
-                      </Badge>
-                    )}
-                  </TableCell>
+                  <TableCell className="text-xs">{d.tipo_recurso || "—"}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao)}</TableCell>
                   <TableCell className="text-xs">{d.parte_recorrente || "—"}</TableCell>
-                  <TableCell>
-                    {d.aba_origem && <Badge variant="outline" className="text-[10px] px-1.5 py-0 leading-tight">{d.aba_origem}</Badge>}
-                  </TableCell>
                   <TableCell>
                     {d.benner_atualizado ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
