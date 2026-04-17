@@ -232,10 +232,10 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           };
         });
 
+      const recordsComDossie = upsertRecords.filter(r => r.dossie);
       const dedupedRecordsComDossie = Array.from(
         new Map(recordsComDossie.map(record => [`${record.processo}||${record.dossie}`, record])).values()
       );
-
       const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
 
       let totalUpserted = 0;
