@@ -177,43 +177,50 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         setDetailText(`${done}/${processosToUpsert.length} processos · ${newProcessos} novos · ${updatedProcessos} atualizados${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
       }
 
-      // === STEP 3: Upsert distribuições ===
-      setStatusText("Etapa 3/3: Salvando distribuições");
+      // === STEP 3: Upsert distribuições direto em dados_benner (tabela única) ===
+      setStatusText("Etapa 3/3: Salvando distribuições em Dados Benner");
       startTimeRef.current = Date.now();
 
       const upsertRecords = allRows
         .filter(rec => processoIdMap.has(rec.processoNumero))
-        .map(({ sheetName, processoNumero, row: r }) => ({
-          processo_id: processoIdMap.get(processoNumero)!,
-          processo_numero: processoNumero,
-          aba_origem: sheetName,
-          data_distribuicao: parseDateBR(r[0]),
-          dossie: norm(r[2]) || null,
-          equipe: norm(r[3]) || null,
-          reclamante: norm(r[4]) || null,
-          reclamada: norm(r[5]) || null,
-          relator: norm(r[6]) || null,
-          relator_favorabilidade: norm(r[7]) || null,
-          turma: norm(r[8]) || null,
-          turma_favorabilidade: norm(r[9]) || null,
-          parte_recorrente: norm(r[10]) || null,
-          tipo_recurso_reclamante: norm(r[11]) || null,
-          materias_recurso_reclamante: norm(r[12]) || null,
-          aparelhamento_reclamante: norm(r[13]) || null,
-          chance_exito_reclamante: norm(r[14]) || null,
-          tipo_recurso_banco: norm(r[15]) || null,
-          materias_recurso_banco: norm(r[16]) || null,
-          aparelhamento_banco: norm(r[17]) || null,
-          chance_exito_banco: norm(r[18]) || null,
-          honra: norm(r[19]) || null,
-          tema: norm(r[20]) || null,
-          execucao: norm(r[21]) || null,
-          midia_negativa: norm(r[22]) || null,
-          decisao_quarteirizado: norm(r[23]) || null,
-          recurso_terceiros: norm(r[24]) || null,
-          transito_julgado: toBool(r[25]),
-          benner_atualizado: toBool(r[26]),
-        }));
+        .map(({ sheetName, processoNumero, row: r }) => {
+          const relatorFav = norm(r[7]).toLowerCase();
+          const turmaFav = norm(r[9]).toLowerCase();
+          return {
+            processo: processoNumero,
+            tribunal: "TST",
+            aba_origem: sheetName,
+            data_distribuicao: parseDateBR(r[0]),
+            dossie: norm(r[2]) || null,
+            equipe: norm(r[3]) || null,
+            reclamante: norm(r[4]) || null,
+            reclamada: norm(r[5]) || null,
+            relator: norm(r[6]) || null,
+            posicao_relator_favoravel: relatorFav.includes("positiv") ? true : null,
+            posicao_relator_desfavoravel: relatorFav.includes("negativ") ? true : null,
+            turma: norm(r[8]) || null,
+            posicao_turma_favoravel: turmaFav.includes("positiv") ? true : null,
+            posicao_turma_desfavoravel: turmaFav.includes("negativ") ? true : null,
+            recorrente: norm(r[10]) || null,
+            tipo_recurso_reclamante: norm(r[11]) || null,
+            materias_recurso_reclamante: norm(r[12]) || null,
+            aparelhamento_reclamante: norm(r[13]) || null,
+            chance_exito_reclamante: norm(r[14]) || null,
+            tipo_recurso_banco: norm(r[15]) || null,
+            materias_recurso_banco: norm(r[16]) || null,
+            aparelhamento_banco: norm(r[17]) || null,
+            chance_exito_banco: norm(r[18]) || null,
+            honra: norm(r[19]) || null,
+            tema: norm(r[20]) || null,
+            execucao: norm(r[21]) || null,
+            midia_negativa: norm(r[22]) || null,
+            decisao_quarteirizado: norm(r[23]) || null,
+            recurso_terceiros: norm(r[24]) || null,
+            transito_julgado: toBool(r[25]),
+            benner_atualizado: toBool(r[26]),
+            status: "rascunho",
+          };
+        });
 
       let totalUpserted = 0;
       let totalErrors = 0;
@@ -226,14 +233,26 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           return;
         }
         const batch = upsertRecords.slice(i, i + BATCH_SIZE);
-        const { error } = await (supabase.from("distribuicoes_tst" as any) as any)
-          .upsert(batch, { onConflict: "processo_numero,aba_origem" });
+        // Para cada registro do batch: se já existe (processo + dossie), atualiza apenas campos novos preservando dados Judit;
+        // se não existe, insere. Como Supabase não suporta upsert composto sem unique constraint, fazemos manualmente.
+        for (const rec of batch) {
+          const { data: existing } = await supabase
+            .from("dados_benner" as any)
+            .select("id")
+            .eq("processo", rec.processo)
+            .eq("dossie", rec.dossie || "")
+            .limit(1);
 
-        if (error) {
-          console.error("Erro lote distribuições:", error);
-          totalErrors += batch.length;
-        } else {
-          totalUpserted += batch.length;
+          if (existing && (existing as any[]).length > 0) {
+            const { error } = await supabase
+              .from("dados_benner" as any)
+              .update(rec as any)
+              .eq("id", (existing as any[])[0].id);
+            if (error) totalErrors++; else totalUpserted++;
+          } else {
+            const { error } = await supabase.from("dados_benner" as any).insert(rec as any);
+            if (error) totalErrors++; else totalUpserted++;
+          }
         }
 
         const done = Math.min(i + BATCH_SIZE, upsertRecords.length);
