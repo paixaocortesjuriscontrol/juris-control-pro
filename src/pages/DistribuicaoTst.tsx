@@ -319,6 +319,7 @@ export default function DistribuicaoTst() {
           if (juditError || juditData?.error) continue;
 
           const recorrenteJudit = getJuditPartesResumo(juditData, proc.parte_recorrente);
+          const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
 
           // Build dados_benner record
           const tribunaisAceitos = ["TST", "STF", "STJ"];
@@ -354,7 +355,10 @@ export default function DistribuicaoTst() {
             .eq("processo", proc.processo_numero)
             .limit(1);
 
+          let bennerId: string | null = null;
+
           if (existingBenner && (existingBenner as any[]).length > 0) {
+            bennerId = (existingBenner as any[])[0].id;
             // Update only non-null judit fields
             const updateFields: any = {};
             if (juditData.tipo_recurso) updateFields.tipo_recurso = juditData.tipo_recurso;
@@ -383,8 +387,33 @@ export default function DistribuicaoTst() {
             // Get user id
             const { data: authData } = await supabase.auth.getUser();
             dadoToSave.user_id = authData?.user?.id || null;
-            await supabase.from("dados_benner" as any).insert(dadoToSave);
+            const { data: inserted } = await supabase
+              .from("dados_benner" as any)
+              .insert(dadoToSave)
+              .select("id")
+              .single();
+            bennerId = (inserted as any)?.id || null;
             successCount++;
+          }
+
+          // Persiste partes detalhadas (CPF/CNPJ, advogados, etc.) na aba "Partes"
+          if (bennerId && partiesDetail.length > 0) {
+            await supabase
+              .from("partes_processo_benner")
+              .delete()
+              .eq("dados_benner_id", bennerId)
+              .eq("origem", "judit");
+
+            const partesRows = partiesDetail.map((p: any) => ({
+              dados_benner_id: bennerId,
+              nome: p.nome || "Sem nome",
+              documento: p.documento || null,
+              tipo_pessoa: p.tipo_pessoa || null,
+              polo: p.polo || null,
+              is_advogado: !!p.is_advogado,
+              origem: "judit",
+            }));
+            await supabase.from("partes_processo_benner").insert(partesRows);
           }
 
           // Marca o registro em dados_benner como judit_preenchido
