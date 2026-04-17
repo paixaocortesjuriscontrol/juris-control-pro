@@ -182,26 +182,23 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const fetchDados = useCallback(async () => {
     setLoading(true);
 
-    // Filtro por responsáveis: descobrir IDs antes
-    let restrictIds: string[] | null = null;
-    if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-      const { data: rData } = await supabase
-        .from("dados_benner_responsaveis" as any)
-        .select("dados_benner_id")
-        .in("usuario_id", filters.responsavelIds);
-      restrictIds = [...new Set(((rData as any[]) || []).map(r => r.dados_benner_id))];
-      if (restrictIds.length === 0) {
-        setDados([]); setTotalCount(0); setLoading(false); setResponsaveisMap(new Map()); return;
-      }
-    }
+    const hasResponsavelFilter = filters.responsavelIds && filters.responsavelIds.length > 0;
+
+    // Quando há filtro de responsáveis, usamos join inner com a tabela N:N
+    // para evitar URLs gigantes (centenas de IDs em .in()).
+    const selectClause = hasResponsavelFilter
+      ? "*, dados_benner_responsaveis!inner(usuario_id)"
+      : "*";
 
     let query = supabase
       .from("dados_benner" as any)
-      .select("*", { count: "exact" })
+      .select(selectClause, { count: "exact" })
       .not("aba_origem", "is", null)
       .order("created_at", { ascending: false });
 
-    if (restrictIds) query = query.in("id", restrictIds);
+    if (hasResponsavelFilter) {
+      query = query.in("dados_benner_responsaveis.usuario_id", filters.responsavelIds!);
+    }
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
