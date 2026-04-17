@@ -228,6 +228,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             transito_julgado: toBool(r[25]),
             benner_atualizado: toBool(r[26]),
             status: "rascunho",
+            user_id: user.id,
           };
         });
 
