@@ -607,6 +607,19 @@ export default function DistribuicaoTst() {
                 <X className="w-4 h-4 mr-1" /> Cancelar
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={handleGerarRelatorioPdf}
+              disabled={pdfRunning}
+              title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
+            >
+              {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+              {pdfRunning
+                ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                : selectedIds.size > 0
+                  ? `Relatório PDF Partes (${selectedIds.size})`
+                  : "Relatório PDF Partes"}
+            </Button>
             <Button variant="secondary" onClick={() => setShowCarga(true)}>
               <FileSpreadsheet className="w-4 h-4 mr-2" /> 
               {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
