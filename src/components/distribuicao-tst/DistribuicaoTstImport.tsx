@@ -229,6 +229,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             benner_atualizado: toBool(r[26]),
             status: "rascunho",
             user_id: user.id,
+            coordenacao_id: "3e47fc83-3539-4fa7-9fcf-33825120e1b7", // Sempre Coordenação Dra. Renata Santander
           };
         });
 
