@@ -230,13 +230,14 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       let totalUpserted = 0;
       let totalErrors = 0;
+      let firstError: string | null = null;
 
       const processBatch = async (records: typeof upsertRecords, useUpsert: boolean) => {
         for (let i = 0; i < records.length; i += BATCH_SIZE) {
           if (cancelRef.current) return false;
           const batch = records.slice(i, i + BATCH_SIZE);
 
-          let error;
+          let error: any;
           if (useUpsert) {
             const res = await (supabase.from("dados_benner" as any) as any)
               .upsert(batch, { onConflict: "processo,dossie", ignoreDuplicates: false });
@@ -247,7 +248,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           }
 
           if (error) {
-            console.error("Erro upsert dados_benner:", error);
+            console.error("Erro upsert dados_benner:", error, "Sample record:", batch[0]);
+            if (!firstError) firstError = `${error.message}${error.details ? ` | ${error.details}` : ""}${error.hint ? ` | ${error.hint}` : ""}`;
             totalErrors += batch.length;
           } else {
             totalUpserted += batch.length;
@@ -286,10 +288,14 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         const parts: string[] = [`${totalUpserted} distribuições salvas`];
         if (newProcessos > 0) parts.push(`${newProcessos} processos novos`);
         if (updatedProcessos > 0) parts.push(`${updatedProcessos} processos atualizados`);
+        if (totalErrors > 0) parts.push(`${totalErrors} erros`);
         toast.success(parts.join(", ") + "!");
         onImported();
       } else {
-        toast.warning("Nenhum registro importado");
+        toast.error(
+          `Nenhum registro importado. ${totalErrors} com erro. ${firstError ? `Causa: ${firstError}` : "Verifique o console (F12)."}`,
+          { duration: 20000 }
+        );
       }
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
