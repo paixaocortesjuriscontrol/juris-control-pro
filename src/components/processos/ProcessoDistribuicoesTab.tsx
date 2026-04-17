@@ -13,16 +13,24 @@ interface ProcessoDistribuicoesTabProps {
 
 export function ProcessoDistribuicoesTab({ processoId, processoNumero }: ProcessoDistribuicoesTabProps) {
   const { data: distribuicoes = [], isLoading } = useQuery({
-    queryKey: ["distribuicoes-tst", processoId],
+    queryKey: ["distribuicoes-tst", processoNumero],
     queryFn: async () => {
+      // Lê de dados_benner (tabela única) filtrando pelo número do processo e por aba_origem (escopo distribuição)
       const { data, error } = await supabase
-        .from("distribuicoes_tst" as any)
+        .from("dados_benner" as any)
         .select("*")
-        .eq("processo_id", processoId)
+        .eq("processo", processoNumero)
+        .not("aba_origem", "is", null)
         .order("data_distribuicao", { ascending: false });
 
       if (error) throw error;
-      return (data || []) as any[];
+      // Mapeia campos: recorrente -> parte_recorrente; deriva favorabilidade textual dos booleans
+      return ((data as any[]) || []).map((b: any) => ({
+        ...b,
+        parte_recorrente: b.recorrente ?? null,
+        relator_favorabilidade: b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null,
+        turma_favorabilidade: b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null,
+      }));
     },
   });
 

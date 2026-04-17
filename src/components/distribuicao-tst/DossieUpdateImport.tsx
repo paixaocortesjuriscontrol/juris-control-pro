@@ -84,32 +84,31 @@ export function DossieUpdateImport({ onUpdated }: Props) {
 
         const batch = numeros.slice(i, i + 500);
         const { data } = await supabase
-          .from("distribuicoes_tst" as any)
-          .select("id, processo_numero")
-          .in("processo_numero", batch);
+          .from("dados_benner" as any)
+          .select("id, processo")
+          .in("processo", batch);
 
         if (!data || (data as any[]).length === 0) {
           notFound += batch.length;
           continue;
         }
 
-        const found = new Set((data as any[]).map((r: any) => r.processo_numero));
+        const found = new Set((data as any[]).map((r: any) => r.processo));
         notFound += batch.length - found.size;
 
-        // Group by dossie value for batch updates
         const byDossie = new Map<string, string[]>();
         for (const row of data as any[]) {
-          const newDossie = dossieMap.get(row.processo_numero);
+          const newDossie = dossieMap.get(row.processo);
           if (!newDossie) continue;
           if (!byDossie.has(newDossie)) byDossie.set(newDossie, []);
-          byDossie.get(newDossie)!.push(row.processo_numero);
+          byDossie.get(newDossie)!.push(row.processo);
         }
 
         for (const [dossie, processos] of byDossie) {
           const { error } = await supabase
-            .from("distribuicoes_tst" as any)
+            .from("dados_benner" as any)
             .update({ dossie } as any)
-            .in("processo_numero", processos);
+            .in("processo", processos);
           if (!error) updated += processos.length;
         }
       }

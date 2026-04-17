@@ -217,27 +217,36 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       let page = 0;
       const pageSize = 1000;
 
-      // If selectedProcessNumbers provided, fetch only those
+      // Lê de dados_benner filtrando aba_origem (escopo distribuições TST). Mapeia campos para o
+      // formato esperado adiante (parte_recorrente <- recorrente; favorabilidade textual derivada).
+      const mapBennerToDist = (b: any) => ({
+        ...b,
+        processo_numero: b.processo,
+        parte_recorrente: b.recorrente ?? null,
+        relator_favorabilidade: b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null,
+        turma_favorabilidade: b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null,
+      });
+
       if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
-        // Fetch in batches of 100 (Supabase .in() limit)
         for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
           const batch = selectedProcessNumbers.slice(i, i + 100);
           const { data, error } = await supabase
-            .from("distribuicoes_tst" as any)
+            .from("dados_benner" as any)
             .select("*")
-            .in("processo_numero", batch)
+            .in("processo", batch)
+            .not("aba_origem", "is", null)
             .order("created_at", { ascending: false });
           if (error) throw error;
-          if (data) allDist.push(...(data as any[]));
+          if (data) allDist.push(...((data as any[]).map(mapBennerToDist)));
         }
       } else {
         while (true) {
           let query = supabase
-            .from("distribuicoes_tst" as any)
+            .from("dados_benner" as any)
             .select("*")
+            .not("aba_origem", "is", null)
             .order("created_at", { ascending: false });
 
-          // Apply filters
           if (filters.aba_origem && filters.aba_origem !== "todas") {
             query = query.eq("aba_origem", filters.aba_origem);
           }
@@ -247,7 +256,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
             query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
           }
           if (filters.processo) {
-            query = query.ilike("processo_numero", `%${filters.processo}%`);
+            query = query.ilike("processo", `%${filters.processo}%`);
           }
           if (filters.dossie) {
             query = query.ilike("dossie", `%${filters.dossie}%`);
@@ -259,7 +268,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
             query = query.ilike("relator", `%${filters.relator}%`);
           }
           if (filters.parte) {
-            query = query.ilike("parte_recorrente", `%${filters.parte}%`);
+            query = query.ilike("recorrente", `%${filters.parte}%`);
           }
           if (filters.mesAno && filters.mesAno !== "todos") {
             const start = `${filters.mesAno}-01`;
@@ -277,7 +286,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
-          allDist.push(...(data as any[]));
+          allDist.push(...((data as any[]).map(mapBennerToDist)));
           if (data.length < pageSize) break;
           page++;
         }

@@ -4350,12 +4350,14 @@ export default function ImportarProcessos() {
           }
         }
 
-        // Save distribution record in distribuicoes_tst (upsert to handle re-imports)
+        // Save distribution record direto em dados_benner (tabela única)
         const processoId = existingProcesso?.id || (await supabase.from("processos").select("id").eq("numero", processo.numero.trim()).maybeSingle()).data?.id;
         if (processoId) {
+          const relatorFav = String(renataData.relator_favorabilidade || "").toLowerCase();
+          const turmaFav = String(renataData.turma_favorabilidade || "").toLowerCase();
           const distData: any = {
-            processo_id: processoId,
-            processo_numero: processo.numero.trim(),
+            processo: processo.numero.trim(),
+            tribunal: "TST",
             data_distribuicao: parseDate(processo.dataDistribuicao),
             aba_origem: renataData.aba_origem || null,
             dossie: renataData.dossie_tst ? String(renataData.dossie_tst) : null,
@@ -4363,10 +4365,12 @@ export default function ImportarProcessos() {
             reclamante: processo.parteAtiva || null,
             reclamada: processo.partePassiva || null,
             relator: renataData.relator_tst ? String(renataData.relator_tst) : null,
-            relator_favorabilidade: renataData.relator_favorabilidade ? String(renataData.relator_favorabilidade) : null,
+            posicao_relator_favoravel: relatorFav.includes("positiv") ? true : null,
+            posicao_relator_desfavoravel: relatorFav.includes("negativ") ? true : null,
             turma: renataData.turma_tst ? String(renataData.turma_tst) : null,
-            turma_favorabilidade: renataData.turma_favorabilidade ? String(renataData.turma_favorabilidade) : null,
-            parte_recorrente: renataData.parte_recorrente_tst ? String(renataData.parte_recorrente_tst) : null,
+            posicao_turma_favoravel: turmaFav.includes("positiv") ? true : null,
+            posicao_turma_desfavoravel: turmaFav.includes("negativ") ? true : null,
+            recorrente: renataData.parte_recorrente_tst ? String(renataData.parte_recorrente_tst) : null,
             tipo_recurso_reclamante: renataData.tipo_recurso_reclamante ? String(renataData.tipo_recurso_reclamante) : null,
             materias_recurso_reclamante: renataData.materias_recurso_reclamante ? String(renataData.materias_recurso_reclamante) : null,
             aparelhamento_reclamante: renataData.aparelhamento_reclamante ? String(renataData.aparelhamento_reclamante) : null,
@@ -4383,22 +4387,21 @@ export default function ImportarProcessos() {
             recurso_terceiros: renataData.recurso_terceiros_tst ? String(renataData.recurso_terceiros_tst) : null,
             benner_atualizado: renataData.benner_atualizado,
             transito_julgado: processo.transitadoJulgado,
+            status: "rascunho",
           };
-          // Delete existing record with same key, then insert
-          await supabase.from("distribuicoes_tst" as any)
-            .delete()
-            .eq("processo_numero", processo.numero.trim())
-            .eq("aba_origem", renataData.aba_origem || "");
-          
-          if (distData.data_distribuicao) {
-            await supabase.from("distribuicoes_tst" as any)
-              .delete()
-              .eq("processo_numero", processo.numero.trim())
-              .eq("data_distribuicao", distData.data_distribuicao)
-              .eq("aba_origem", renataData.aba_origem || "");
+          // Upsert manual: se existe (processo + dossie), atualiza preservando dados Judit; senão insere.
+          const { data: existingBenner } = await supabase
+            .from("dados_benner" as any)
+            .select("id, judit_preenchido")
+            .eq("processo", processo.numero.trim())
+            .eq("dossie", distData.dossie || "")
+            .limit(1);
+
+          if (existingBenner && (existingBenner as any[]).length > 0) {
+            await supabase.from("dados_benner" as any).update(distData as any).eq("id", (existingBenner as any[])[0].id);
+          } else {
+            await supabase.from("dados_benner" as any).insert(distData as any);
           }
-          
-          await supabase.from("distribuicoes_tst" as any).insert(distData as any);
         }
 
         updatedProcessos[i] = {

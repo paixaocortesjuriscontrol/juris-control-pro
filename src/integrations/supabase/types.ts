@@ -1435,22 +1435,39 @@ export type Database = {
       }
       dados_benner: {
         Row: {
+          aba_origem: string | null
           analise_quarteirizado: string | null
+          aparelhamento_banco: string | null
+          aparelhamento_reclamante: string | null
+          benner_atualizado: boolean | null
           chance_exito: string | null
+          chance_exito_banco: string | null
+          chance_exito_reclamante: string | null
           confianca_transito: number | null
           coordenacao_id: string | null
           created_at: string
           data_distribuicao: string | null
           data_julgamento: string | null
           data_transito_julgado: string | null
+          decisao_quarteirizado: string | null
           dossie: string | null
           entrega_memoriais: string | null
+          equipe: string | null
+          execucao: string | null
           ganhamos: boolean | null
+          honra: string | null
           horario_julgamento: string | null
           id: string
+          judit_preenchido: boolean | null
+          judit_preenchido_em: string | null
+          judit_preenchido_por: string | null
           materia_honra: string | null
+          materias_recurso_banco: string | null
+          materias_recurso_reclamante: string | null
+          midia_negativa: string | null
           notas: string | null
           observacoes: string | null
+          parte_recorrente_origem: string | null
           perdemos: boolean | null
           posicao_relator_desfavoravel: boolean | null
           posicao_relator_favoravel: boolean | null
@@ -1459,9 +1476,12 @@ export type Database = {
           processo: string | null
           processo_baixado: string | null
           provas_digitais: string | null
+          reclamada: string | null
+          reclamante: string | null
           recorrente: string | null
           recurso_bem_aparelhado: boolean | null
           recurso_mal_aparelhado: boolean | null
+          recurso_terceiros: string | null
           relator: string | null
           resultado_conhecido_nao_provido: boolean | null
           resultado_conhecido_provido: boolean | null
@@ -1474,31 +1494,52 @@ export type Database = {
           status: string
           sustentacao_oral: string | null
           tem_data_julgamento: string | null
+          tema: string | null
           tipo_julgamento: string | null
           tipo_recurso: string | null
           tipo_recurso_auto: boolean | null
+          tipo_recurso_banco: string | null
+          tipo_recurso_reclamante: string | null
+          transito_julgado: boolean | null
           tribunal: string | null
           turma: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          aba_origem?: string | null
           analise_quarteirizado?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
+          benner_atualizado?: boolean | null
           chance_exito?: string | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
           data_distribuicao?: string | null
           data_julgamento?: string | null
           data_transito_julgado?: string | null
+          decisao_quarteirizado?: string | null
           dossie?: string | null
           entrega_memoriais?: string | null
+          equipe?: string | null
+          execucao?: string | null
           ganhamos?: boolean | null
+          honra?: string | null
           horario_julgamento?: string | null
           id?: string
+          judit_preenchido?: boolean | null
+          judit_preenchido_em?: string | null
+          judit_preenchido_por?: string | null
           materia_honra?: string | null
+          materias_recurso_banco?: string | null
+          materias_recurso_reclamante?: string | null
+          midia_negativa?: string | null
           notas?: string | null
           observacoes?: string | null
+          parte_recorrente_origem?: string | null
           perdemos?: boolean | null
           posicao_relator_desfavoravel?: boolean | null
           posicao_relator_favoravel?: boolean | null
@@ -1507,9 +1548,12 @@ export type Database = {
           processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
+          reclamada?: string | null
+          reclamante?: string | null
           recorrente?: string | null
           recurso_bem_aparelhado?: boolean | null
           recurso_mal_aparelhado?: boolean | null
+          recurso_terceiros?: string | null
           relator?: string | null
           resultado_conhecido_nao_provido?: boolean | null
           resultado_conhecido_provido?: boolean | null
@@ -1522,31 +1566,52 @@ export type Database = {
           status?: string
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
+          tema?: string | null
           tipo_julgamento?: string | null
           tipo_recurso?: string | null
           tipo_recurso_auto?: boolean | null
+          tipo_recurso_banco?: string | null
+          tipo_recurso_reclamante?: string | null
+          transito_julgado?: boolean | null
           tribunal?: string | null
           turma?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          aba_origem?: string | null
           analise_quarteirizado?: string | null
+          aparelhamento_banco?: string | null
+          aparelhamento_reclamante?: string | null
+          benner_atualizado?: boolean | null
           chance_exito?: string | null
+          chance_exito_banco?: string | null
+          chance_exito_reclamante?: string | null
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
           data_distribuicao?: string | null
           data_julgamento?: string | null
           data_transito_julgado?: string | null
+          decisao_quarteirizado?: string | null
           dossie?: string | null
           entrega_memoriais?: string | null
+          equipe?: string | null
+          execucao?: string | null
           ganhamos?: boolean | null
+          honra?: string | null
           horario_julgamento?: string | null
           id?: string
+          judit_preenchido?: boolean | null
+          judit_preenchido_em?: string | null
+          judit_preenchido_por?: string | null
           materia_honra?: string | null
+          materias_recurso_banco?: string | null
+          materias_recurso_reclamante?: string | null
+          midia_negativa?: string | null
           notas?: string | null
           observacoes?: string | null
+          parte_recorrente_origem?: string | null
           perdemos?: boolean | null
           posicao_relator_desfavoravel?: boolean | null
           posicao_relator_favoravel?: boolean | null
@@ -1555,9 +1620,12 @@ export type Database = {
           processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
+          reclamada?: string | null
+          reclamante?: string | null
           recorrente?: string | null
           recurso_bem_aparelhado?: boolean | null
           recurso_mal_aparelhado?: boolean | null
+          recurso_terceiros?: string | null
           relator?: string | null
           resultado_conhecido_nao_provido?: boolean | null
           resultado_conhecido_provido?: boolean | null
@@ -1570,9 +1638,13 @@ export type Database = {
           status?: string
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
+          tema?: string | null
           tipo_julgamento?: string | null
           tipo_recurso?: string | null
           tipo_recurso_auto?: boolean | null
+          tipo_recurso_banco?: string | null
+          tipo_recurso_reclamante?: string | null
+          transito_julgado?: boolean | null
           tribunal?: string | null
           turma?: string | null
           updated_at?: string
@@ -1698,7 +1770,7 @@ export type Database = {
           },
         ]
       }
-      distribuicoes_tst: {
+      distribuicoes_tst_legacy: {
         Row: {
           aba_origem: string | null
           aparelhamento_banco: string | null
