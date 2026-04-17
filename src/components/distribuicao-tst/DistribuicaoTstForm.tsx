@@ -176,6 +176,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
               selectedIds={form.responsaveis_ids || []}
               onChange={(ids) => set("responsaveis_ids", ids)}
               placeholder="Selecionar um ou mais responsáveis..."
+              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
             />
           </div>
         </div>
