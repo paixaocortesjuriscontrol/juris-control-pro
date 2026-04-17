@@ -2,10 +2,21 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/**
+ * NOTA DE ARQUITETURA: A tela "Distribuição TST" lê e grava em `dados_benner`
+ * (tabela única / fonte de verdade). A interface `DistribuicaoTst` abaixo é
+ * apenas um mapeamento dos campos de `dados_benner` para manter compatibilidade
+ * com os componentes existentes (DistribuicaoTstForm, ProcessoDistribuicoesTab,
+ * DadosBennerDistribuicaoTab, CargaBennerFromDb, DistribuicaoTst.tsx).
+ *
+ * Filtro de escopo: registros onde `aba_origem IS NOT NULL` (vieram de
+ * importação Dr. Renata / formulário de distribuição).
+ */
+
 export interface DistribuicaoTst {
   id: string;
-  processo_id: string;
-  processo_numero: string;
+  processo_id: string; // mapeado de processos.id via lookup quando necessário (não persistido em dados_benner)
+  processo_numero: string; // dados_benner.processo
   aba_origem: string | null;
   data_distribuicao: string | null;
   dossie: string | null;
@@ -16,7 +27,7 @@ export interface DistribuicaoTst {
   relator_favorabilidade: string | null;
   turma: string | null;
   turma_favorabilidade: string | null;
-  parte_recorrente: string | null;
+  parte_recorrente: string | null; // dados_benner.recorrente
   tipo_recurso_reclamante: string | null;
   materias_recurso_reclamante: string | null;
   aparelhamento_reclamante: string | null;
@@ -60,6 +71,112 @@ export interface DistribuicaoTstFilters {
   dataFim?: string;
 }
 
+// Converte um registro de dados_benner para a interface DistribuicaoTst
+function bennerToDistribuicao(b: any): DistribuicaoTst {
+  // Deriva favorabilidade textual dos booleanos posicao_*
+  const relatorFav = b.posicao_relator_favoravel
+    ? "POSITIVO"
+    : b.posicao_relator_desfavoravel
+      ? "NEGATIVO"
+      : null;
+  const turmaFav = b.posicao_turma_favoravel
+    ? "POSITIVA"
+    : b.posicao_turma_desfavoravel
+      ? "NEGATIVA"
+      : null;
+
+  return {
+    id: b.id,
+    processo_id: "", // não usado a partir de dados_benner; resolved sob demanda
+    processo_numero: b.processo || "",
+    aba_origem: b.aba_origem ?? null,
+    data_distribuicao: b.data_distribuicao ?? null,
+    dossie: b.dossie ?? null,
+    equipe: b.equipe ?? null,
+    reclamante: b.reclamante ?? null,
+    reclamada: b.reclamada ?? null,
+    relator: b.relator ?? null,
+    relator_favorabilidade: relatorFav,
+    turma: b.turma ?? null,
+    turma_favorabilidade: turmaFav,
+    parte_recorrente: b.recorrente ?? null,
+    tipo_recurso_reclamante: b.tipo_recurso_reclamante ?? null,
+    materias_recurso_reclamante: b.materias_recurso_reclamante ?? null,
+    aparelhamento_reclamante: b.aparelhamento_reclamante ?? null,
+    chance_exito_reclamante: b.chance_exito_reclamante ?? null,
+    tipo_recurso_banco: b.tipo_recurso_banco ?? null,
+    materias_recurso_banco: b.materias_recurso_banco ?? null,
+    aparelhamento_banco: b.aparelhamento_banco ?? null,
+    chance_exito_banco: b.chance_exito_banco ?? null,
+    tipo_recurso: b.tipo_recurso ?? null,
+    honra: b.honra ?? null,
+    tema: b.tema ?? null,
+    execucao: b.execucao ?? null,
+    midia_negativa: b.midia_negativa ?? null,
+    decisao_quarteirizado: b.decisao_quarteirizado ?? null,
+    recurso_terceiros: b.recurso_terceiros ?? null,
+    transito_julgado: b.transito_julgado ?? null,
+    benner_atualizado: b.benner_atualizado ?? null,
+    judit_preenchido: !!b.judit_preenchido,
+    judit_preenchido_em: b.judit_preenchido_em ?? null,
+    judit_preenchido_por: b.judit_preenchido_por ?? null,
+    created_at: b.created_at,
+    updated_at: b.updated_at,
+  };
+}
+
+// Converte payload do form (DistribuicaoTstInsert) em payload de dados_benner
+export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<string, any> {
+  const payload: Record<string, any> = {
+    processo: d.processo_numero,
+    dossie: d.dossie,
+    aba_origem: d.aba_origem,
+    data_distribuicao: d.data_distribuicao,
+    equipe: d.equipe,
+    reclamante: d.reclamante,
+    reclamada: d.reclamada,
+    relator: d.relator,
+    turma: d.turma,
+    recorrente: d.parte_recorrente,
+    tipo_recurso_reclamante: d.tipo_recurso_reclamante,
+    materias_recurso_reclamante: d.materias_recurso_reclamante,
+    aparelhamento_reclamante: d.aparelhamento_reclamante,
+    chance_exito_reclamante: d.chance_exito_reclamante,
+    tipo_recurso_banco: d.tipo_recurso_banco,
+    materias_recurso_banco: d.materias_recurso_banco,
+    aparelhamento_banco: d.aparelhamento_banco,
+    chance_exito_banco: d.chance_exito_banco,
+    honra: d.honra,
+    tema: d.tema,
+    execucao: d.execucao,
+    midia_negativa: d.midia_negativa,
+    decisao_quarteirizado: d.decisao_quarteirizado,
+    recurso_terceiros: d.recurso_terceiros,
+    transito_julgado: d.transito_julgado,
+    benner_atualizado: d.benner_atualizado,
+    judit_preenchido: d.judit_preenchido,
+    judit_preenchido_em: d.judit_preenchido_em,
+    judit_preenchido_por: d.judit_preenchido_por,
+    tribunal: "TST",
+  };
+
+  // Mapeia favorabilidade textual em booleanos posicao_*
+  if (d.relator_favorabilidade !== undefined) {
+    const v = (d.relator_favorabilidade || "").toLowerCase();
+    payload.posicao_relator_favoravel = v.includes("positiv") || v.includes("favor") ? true : null;
+    payload.posicao_relator_desfavoravel = v.includes("negativ") || v.includes("desfav") ? true : null;
+  }
+  if (d.turma_favorabilidade !== undefined) {
+    const v = (d.turma_favorabilidade || "").toLowerCase();
+    payload.posicao_turma_favoravel = v.includes("positiv") || v.includes("favor") ? true : null;
+    payload.posicao_turma_desfavoravel = v.includes("negativ") || v.includes("desfav") ? true : null;
+  }
+
+  // Remove undefined (mantém null para limpar campos)
+  Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+  return payload;
+}
+
 export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const [dados, setDados] = useState<DistribuicaoTst[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,11 +189,11 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     setLoading(true);
 
     let query = supabase
-      .from("distribuicoes_tst" as any)
+      .from("dados_benner" as any)
       .select("*", { count: "exact" })
+      .not("aba_origem", "is", null)
       .order("created_at", { ascending: false });
 
-    // Apply server-side filters
     if (filters.aba_origem && filters.aba_origem !== "todas") {
       query = query.eq("aba_origem", filters.aba_origem);
     }
@@ -85,7 +202,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     } else if (filters.benner === "nao") {
       query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     }
-    // Dossiê status filter
     if (filters.dossieStatus === "preenchido") {
       query = query.not("dossie", "is", null).neq("dossie", "");
     } else if (filters.dossieStatus === "nao_preenchido") {
@@ -95,14 +211,13 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     } else if (filters.dossieStatus === "invalido") {
       query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
     }
-    // Judit filter
     if (filters.judit === "sim") {
       query = query.eq("judit_preenchido", true);
     } else if (filters.judit === "nao") {
-      query = query.eq("judit_preenchido", false);
+      query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     }
     if (filters.processo) {
-      query = query.ilike("processo_numero", `%${filters.processo}%`);
+      query = query.ilike("processo", `%${filters.processo}%`);
     }
     if (filters.dossie) {
       query = query.ilike("dossie", `%${filters.dossie}%`);
@@ -114,7 +229,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       query = query.ilike("relator", `%${filters.relator}%`);
     }
     if (filters.parte) {
-      query = query.ilike("parte_recorrente", `%${filters.parte}%`);
+      query = query.ilike("recorrente", `%${filters.parte}%`);
     }
     if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
@@ -129,7 +244,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       query = query.lte("data_distribuicao", filters.dataFim);
     }
 
-    // Pagination
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
 
@@ -137,44 +251,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (error) {
       toast.error("Erro ao carregar distribuições: " + error.message);
     } else {
-      const rows = (data as any[]) || [];
-
-      // Enrich from dados_benner (source of truth - most updated)
-      const allProcessos = rows.map(r => r.processo_numero).filter(Boolean);
-
-      if (allProcessos.length > 0) {
-        const { data: bennerData } = await supabase
-          .from("dados_benner" as any)
-          .select("processo, recorrente, relator, turma, tipo_recurso, data_distribuicao")
-          .in("processo", allProcessos);
-
-        if (bennerData && (bennerData as any[]).length > 0) {
-          const map = new Map<string, any>();
-          (bennerData as any[]).forEach((b: any) => {
-            // Keep first record per processo (or merge non-null)
-            const existing = map.get(b.processo) || {};
-            map.set(b.processo, {
-              recorrente: existing.recorrente || b.recorrente,
-              relator: existing.relator || b.relator,
-              turma: existing.turma || b.turma,
-              tipo_recurso: existing.tipo_recurso || b.tipo_recurso,
-              data_distribuicao: existing.data_distribuicao || b.data_distribuicao,
-            });
-          });
-          rows.forEach(r => {
-            const b = map.get(r.processo_numero);
-            if (b) {
-              if (b.recorrente && String(b.recorrente).trim() !== "") r.parte_recorrente = b.recorrente;
-              if (b.relator && String(b.relator).trim() !== "") r.relator = b.relator;
-              if (b.turma && String(b.turma).trim() !== "") r.turma = b.turma;
-              if (b.tipo_recurso && String(b.tipo_recurso).trim() !== "") r.tipo_recurso = b.tipo_recurso;
-              if (b.data_distribuicao) r.data_distribuicao = b.data_distribuicao;
-            }
-          });
-        }
-      }
-
-
+      const rows = ((data as any[]) || []).map(bennerToDistribuicao);
       setDados(rows);
       setTotalCount(count || 0);
     }
@@ -183,16 +260,17 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
 
   useEffect(() => { fetchDados(); }, [fetchDados]);
 
-  // Reset page when filters change
   const filtersKey = JSON.stringify(filters);
   useEffect(() => { setPage(1); }, [filtersKey]);
 
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string) => {
+    const payload = distribuicaoToBenner(dado);
     if (id) {
-      const { error } = await supabase.from("distribuicoes_tst" as any).update(dado as any).eq("id", id);
+      const { error } = await supabase.from("dados_benner" as any).update(payload as any).eq("id", id);
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
     } else {
-      const { error } = await supabase.from("distribuicoes_tst" as any).insert(dado as any);
+      payload.status = "rascunho";
+      const { error } = await supabase.from("dados_benner" as any).insert(payload as any);
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
     }
     toast.success(id ? "Registro atualizado!" : "Registro salvo!");
@@ -201,7 +279,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   };
 
   const deleteDado = async (id: string) => {
-    const { error } = await supabase.from("distribuicoes_tst" as any).delete().eq("id", id);
+    const { error } = await supabase.from("dados_benner" as any).delete().eq("id", id);
     if (error) { toast.error("Erro ao excluir: " + error.message); return false; }
     toast.success("Registro excluído!");
     fetchDados();
