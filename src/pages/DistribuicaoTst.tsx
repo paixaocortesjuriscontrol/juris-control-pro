@@ -244,7 +244,50 @@ export default function DistribuicaoTst() {
     return true;
   };
 
-  // Bulk Judit: process all filtered distribuições
+  // Gerar relatório PDF de partes (respeita filtros e seleção)
+  const handleGerarRelatorioPdf = async () => {
+    setPdfRunning(true);
+    setPdfProgress({ current: 0, total: 0 });
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando processos filtrados...");
+        ids = await fetchAllFilteredBennerIds(debouncedFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhum processo para gerar relatório.");
+        setPdfRunning(false);
+        return;
+      }
+      if (ids.length > 1500) {
+        const ok = window.confirm(`O relatório terá ${ids.length} processos e pode demorar e gerar um arquivo grande. Continuar?`);
+        if (!ok) { setPdfRunning(false); return; }
+      }
+      toast.info(`Carregando dados de ${ids.length} processo(s)...`);
+      const processos = await fetchProcessosComPartes(ids, (c, t) => setPdfProgress({ current: c, total: t }));
+      const filtrosResumo = buildFiltrosResumo(debouncedFilters, {
+        responsaveisLabel: filtroResponsavelIds.length > 0 ? `${filtroResponsavelIds.length} selecionado(s)` : undefined,
+      });
+      const blob = gerarRelatorioPartesPdf(processos, filtrosResumo);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      a.download = `relatorio-partes-tst-${ts}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Relatório gerado com ${processos.length} processo(s).`);
+    } catch (err: any) {
+      toast.error("Erro ao gerar relatório: " + (err?.message || String(err)));
+    } finally {
+      setPdfRunning(false);
+    }
+  };
+
   const handleBulkJudit = async () => {
     bulkAbortRef.current = false;
     setBulkJuditRunning(true);
