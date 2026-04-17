@@ -207,7 +207,7 @@ export default function DistribuicaoTst() {
           dossie: dist.dossie || "",
           turma: dist.turma || "",
           relator: dist.relator || "",
-          data_distribuicao: dist.data_distribuicao || null,
+          data_distribuicao: dist.data_distribuicao_real || dist.data_distribuicao_planilha || null,
           recorrente: dist.parte_recorrente || "",
           status: "rascunho",
         });
@@ -248,7 +248,7 @@ export default function DistribuicaoTst() {
           dossie: d.dossie,
           turma: d.turma,
           relator: d.relator,
-          data_distribuicao: d.data_distribuicao,
+          data_distribuicao: d.data_distribuicao_real || d.data_distribuicao_planilha,
           parte_recorrente: d.parte_recorrente,
         }));
       } else {
