@@ -89,6 +89,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     cancelRef.current = false;
     setImporting(true);
     setProgress(0);
+    setDuplicates([]);
+    setDuplicatesHeader([]);
     startTimeRef.current = Date.now();
     setStatusText("Lendo planilha...");
 
@@ -105,7 +107,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      const allRows: { sheetName: string; processoNumero: string; row: string[] }[] = [];
+      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[] }[] = [];
+      let capturedHeader: string[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
@@ -117,12 +120,13 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           }
         }
         if (headerIdx === -1) continue;
+        if (capturedHeader.length === 0) capturedHeader = (json[headerIdx] || []).map(c => String(c ?? ""));
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
           const num = norm(r[1]);
           if (!num || num.length < 7) continue;
-          allRows.push({ sheetName, processoNumero: num, row: r });
+          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r });
         }
       }
 
@@ -130,6 +134,31 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         toast.warning("Nenhum registro válido encontrado na planilha");
         resetState();
         return;
+      }
+
+      // === Detectar duplicados (mesmo processo+dossie aparecendo mais de uma vez) ===
+      const counts = new Map<string, number>();
+      for (const rec of allRows) {
+        const dossie = norm(rec.row[2]);
+        const key = `${rec.processoNumero}||${dossie}`;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      const dupRows: DuplicateRow[] = allRows
+        .filter(rec => {
+          const dossie = norm(rec.row[2]);
+          return (counts.get(`${rec.processoNumero}||${dossie}`) || 0) > 1;
+        })
+        .map(rec => ({
+          sheetName: rec.sheetName,
+          rowIndex: rec.rowIndex,
+          processo: rec.processoNumero,
+          dossie: norm(rec.row[2]),
+          row: rec.row.map(c => String(c ?? "")),
+        }));
+      if (dupRows.length > 0) {
+        setDuplicates(dupRows);
+        setDuplicatesHeader(capturedHeader);
+        toast.warning(`${dupRows.length} linhas duplicadas detectadas. Use o botão "Baixar Duplicados" para revisar.`, { duration: 10000 });
       }
 
       // === STEP 2: Upsert processos (bulk, no lookup needed) ===
