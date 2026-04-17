@@ -638,13 +638,11 @@ export default function DistribuicaoTst() {
                 <TableHead>Data</TableHead>
                 <TableHead>Processo</TableHead>
                 <TableHead>Dossiê</TableHead>
-                <TableHead>Equipe</TableHead>
                 <TableHead>Relator</TableHead>
-                <TableHead>Relator +/-</TableHead>
                 <TableHead>Turma</TableHead>
-                <TableHead>Turma +/-</TableHead>
+                <TableHead>Tipo de Recurso</TableHead>
+                <TableHead>Data Distribuição</TableHead>
                 <TableHead>Parte Recorrente</TableHead>
-                <TableHead>Aba</TableHead>
                 <TableHead>Benner</TableHead>
                 <TableHead className="w-28">Ações</TableHead>
               </TableRow>
