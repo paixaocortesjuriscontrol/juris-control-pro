@@ -5849,14 +5849,6 @@ export type Database = {
       }
     }
     Functions: {
-      atualizar_distribuicoes_tst_json: {
-        Args: { p_dados: Json }
-        Returns: {
-          atualizados: number
-          dossies_nao_encontrados: string[]
-          nao_encontrados: number
-        }[]
-      }
       calcular_primeiro_dia_util: {
         Args: { data_base: string; dias_uteis_adicionar?: number }
         Returns: string

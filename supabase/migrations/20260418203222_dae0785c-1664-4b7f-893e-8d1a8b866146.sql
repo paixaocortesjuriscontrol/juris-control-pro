@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.atualizar_distribuicoes_tst_json(jsonb);
