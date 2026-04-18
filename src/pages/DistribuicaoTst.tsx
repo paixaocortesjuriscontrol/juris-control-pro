@@ -561,6 +561,7 @@ export default function DistribuicaoTst() {
             turma: filtroTurma || undefined,
             relator: filtroRelator || undefined,
             parte: filtroParte || undefined,
+            nomeParte: filtroNomeParte || undefined,
             mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
             dataInicio: filtroDataInicio || undefined,
             dataFim: filtroDataFim || undefined,
@@ -712,6 +713,7 @@ export default function DistribuicaoTst() {
             <Input placeholder="Turma" value={filtroTurma} onChange={e => setFiltroTurma(e.target.value)} className="h-8 text-xs" />
             <Input placeholder="Relator" value={filtroRelator} onChange={e => setFiltroRelator(e.target.value)} className="h-8 text-xs" />
             <Input placeholder="Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Nome da Parte (Reclamante/Reclamada)" value={filtroNomeParte} onChange={e => setFiltroNomeParte(e.target.value)} className="h-8 text-xs" />
             <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs" title="Data início" />
             <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs" title="Data fim" />
             <Select value={filtroAba} onValueChange={setFiltroAba}>
