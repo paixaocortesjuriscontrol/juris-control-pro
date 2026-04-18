@@ -110,6 +110,7 @@ export default function DistribuicaoTst() {
         turma: filtroTurma || undefined,
         relator: filtroRelator || undefined,
         parte: filtroParte || undefined,
+        nomeParte: filtroNomeParte || undefined,
         aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
         benner: filtroBenner as any,
         dossieStatus: filtroDossieStatus !== "todos" ? (filtroDossieStatus as any) : undefined,
@@ -121,7 +122,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
 
@@ -166,7 +167,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroJudit !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroJudit !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -179,6 +180,7 @@ export default function DistribuicaoTst() {
     setFiltroTurma("");
     setFiltroRelator("");
     setFiltroParte("");
+    setFiltroNomeParte("");
     setFiltroDataInicio("");
     setFiltroDataFim("");
   };
