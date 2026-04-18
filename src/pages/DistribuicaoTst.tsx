@@ -91,6 +91,7 @@ export default function DistribuicaoTst() {
   const [filtroTurma, setFiltroTurma] = useState("");
   const [filtroRelator, setFiltroRelator] = useState("");
   const [filtroParte, setFiltroParte] = useState("");
+  const [filtroNomeParte, setFiltroNomeParte] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");

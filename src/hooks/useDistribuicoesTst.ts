@@ -64,6 +64,7 @@ export interface DistribuicaoTstFilters {
   turma?: string;
   relator?: string;
   parte?: string;
+  nomeParte?: string;
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido";
@@ -213,6 +214,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
     if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
+    if (filters.nomeParte) {
+      const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
+      query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
+    }
     if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
