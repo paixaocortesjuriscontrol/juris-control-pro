@@ -196,6 +196,7 @@ interface CargaFilters {
   turma?: string;
   relator?: string;
   parte?: string;
+  nomeParte?: string;
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
@@ -283,6 +284,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           }
           if (filters.parte) {
             query = query.ilike("recorrente", `%${filters.parte}%`);
+          }
+          if (filters.nomeParte) {
+            const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
+            query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
           }
           if (filters.mesAno && filters.mesAno !== "todos") {
             const start = `${filters.mesAno}-01`;
