@@ -183,6 +183,8 @@ export default function DistribuicaoTst() {
     setFiltroNomeParte("");
     setFiltroDataInicio("");
     setFiltroDataFim("");
+    setFiltroResponsavelIds([]);
+    setSelectedIds(new Set());
   };
 
   const handleDelete = async (id: string) => {
@@ -193,6 +195,7 @@ export default function DistribuicaoTst() {
   };
 
   const handleRefresh = () => {
+    setSelectedIds(new Set());
     fetchDados();
     fetchTabsData();
   };
