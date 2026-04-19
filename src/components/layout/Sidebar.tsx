@@ -50,12 +50,12 @@ const menuItemsPublicos = [
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
+  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },
   { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
   { icon: Upload, label: "Carga Benner", path: "/carga-benner", color: "text-sky-400" },
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
-  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
   { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander", color: "text-sky-400" },
   { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha", color: "text-sky-400" },
