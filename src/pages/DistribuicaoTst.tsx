@@ -51,7 +51,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
   if (ativos.length > 0) partes.push(`Ativo: ${ativos.join(", ")}`);
   if (passivos.length > 0) partes.push(`Passivo: ${passivos.join(", ")}`);
 
-  if (partes.length > 0) return partes.join(" | ");
+  if (partes.length > 0) return partes.join("\n");
 
   const recorrenteRaw = String(juditData?.recorrente ?? "").trim();
   if (recorrenteRaw) return recorrenteRaw;

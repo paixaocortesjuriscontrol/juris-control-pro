@@ -891,10 +891,16 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
                 </SelectContent>
               </Select>
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("recorrente"))}>
-              <JuditLabel field="recorrente"><Label>Recorrente (AA)</Label></JuditLabel>
-              <Input value={form.recorrente || ""} onChange={e => set("recorrente", e.target.value)} />
-            </div>
+          </div>
+          <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("recorrente"))}>
+            <JuditLabel field="recorrente"><Label>Recorrente (AA)</Label></JuditLabel>
+            <Textarea
+              value={form.recorrente || ""}
+              onChange={e => set("recorrente", e.target.value)}
+              rows={4}
+              className="font-mono text-xs whitespace-pre-wrap"
+              placeholder="Ativo: ...&#10;Passivo: ..."
+            />
           </div>
         </div>
       </div>
