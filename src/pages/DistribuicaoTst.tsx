@@ -957,7 +957,7 @@ export default function DistribuicaoTst() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha || d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs align-middle">
                     {(() => {
