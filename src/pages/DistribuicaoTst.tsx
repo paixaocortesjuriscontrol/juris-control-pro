@@ -109,7 +109,11 @@ export default function DistribuicaoTst() {
   // Sempre que o formulário Benner abrir, rolar para o topo da página
   useEffect(() => {
     if (showBennerForm) {
-      window.scrollTo({ top: 0, behavior: "auto" });
+      // O scroll real fica no <main> do MainLayout (lg:overflow-y-auto)
+      requestAnimationFrame(() => {
+        document.querySelectorAll("main").forEach(m => m.scrollTo({ top: 0, behavior: "auto" }));
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
     }
   }, [showBennerForm]);
 
