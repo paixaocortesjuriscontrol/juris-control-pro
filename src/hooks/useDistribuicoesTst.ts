@@ -16,6 +16,7 @@ export interface DistribuicaoTst {
   id: string;
   processo_id: string;
   processo_numero: string;
+  situacao_processo?: string | null;
   aba_origem: string | null;
   data_distribuicao_planilha: string | null;
   data_distribuicao_real: string | null;
@@ -84,6 +85,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     id: b.id,
     processo_id: "",
     processo_numero: b.processo || "",
+    situacao_processo: b.situacao_processo ?? null,
     aba_origem: b.aba_origem ?? null,
     data_distribuicao_planilha: b.data_distribuicao_planilha ?? null,
     data_distribuicao_real: b.data_distribuicao_real ?? null,

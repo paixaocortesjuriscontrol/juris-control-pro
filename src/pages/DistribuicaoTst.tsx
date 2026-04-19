@@ -977,7 +977,7 @@ export default function DistribuicaoTst() {
                     {(() => {
                       const raw = d.processo_numero || "";
                       const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
-                      const situacao = ((d as any).situacao_processo || "").toLowerCase();
+                      const situacao = (d.situacao_processo || "").toLowerCase();
                       const isTransito = situacao.includes("trânsito") || situacao.includes("transito");
                       const isAtivo = situacao.trim() === "ativo";
                       const situacaoClass = isTransito
