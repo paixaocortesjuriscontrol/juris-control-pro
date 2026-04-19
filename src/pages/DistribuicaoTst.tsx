@@ -980,22 +980,22 @@ export default function DistribuicaoTst() {
                       const situacao = ((d as any).situacao_processo || "").toLowerCase();
                       const isTransito = situacao.includes("trânsito") || situacao.includes("transito");
                       const isAtivo = situacao.trim() === "ativo";
-                      const situacaoStyle: React.CSSProperties = isTransito
-                        ? { color: "hsl(0, 85%, 50%)", fontWeight: 600 }
+                      const situacaoClass = isTransito
+                        ? "text-destructive font-semibold"
                         : isAtivo
-                        ? { color: "hsl(217, 91%, 50%)", fontWeight: 600 }
-                        : {};
+                        ? "text-blue-600 dark:text-blue-400 font-semibold"
+                        : "";
                       if (cnjMatch) {
                         const numero = cnjMatch[1];
                         const resto = cnjMatch[2].trim();
                         return (
                           <div className="space-y-0.5">
-                            <div className="whitespace-nowrap" style={situacaoStyle}>{numero}</div>
+                            <div className={cn("whitespace-nowrap", situacaoClass)}>{numero}</div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
                       }
-                      return <div className="break-words" style={situacaoStyle}>{raw}</div>;
+                      return <div className={cn("break-words", situacaoClass)}>{raw}</div>;
                     })()}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle" onClick={e => e.stopPropagation()}>
