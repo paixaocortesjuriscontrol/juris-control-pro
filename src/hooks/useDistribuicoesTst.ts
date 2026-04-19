@@ -249,8 +249,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     else if (filters.situacaoProcesso === "transito") query = query.ilike("situacao_processo", "tr_nsito em julgado");
     else if (filters.situacaoProcesso === "outros") {
       query = query
-        .not("situacao_processo", "ilike", "ativo")
-        .not("situacao_processo", "ilike", "tr_nsito em julgado");
+        .or("situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.tr_nsito em julgado)");
     }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
