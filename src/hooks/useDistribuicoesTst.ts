@@ -246,8 +246,12 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
-    else if (filters.situacaoProcesso === "transito") query = query.ilike("situacao_processo", "tr%nsito em julgado");
-    else if (filters.situacaoProcesso === "outros") query = query.or("situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.tr%nsito em julgado)");
+    else if (filters.situacaoProcesso === "transito") query = query.ilike("situacao_processo", "tr_nsito em julgado");
+    else if (filters.situacaoProcesso === "outros") {
+      query = query
+        .not("situacao_processo", "ilike", "ativo")
+        .not("situacao_processo", "ilike", "tr_nsito em julgado");
+    }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
