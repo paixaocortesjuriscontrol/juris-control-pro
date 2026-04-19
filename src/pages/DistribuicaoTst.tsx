@@ -6,7 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send } from "lucide-react";
+import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
+import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
@@ -125,6 +127,7 @@ export default function DistribuicaoTst() {
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
@@ -198,6 +201,45 @@ export default function DistribuicaoTst() {
     setSelectedIds(new Set());
     fetchDados();
     fetchTabsData();
+    refetchStats();
+  };
+
+  const handleMarcarPronto = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase.from("dados_benner" as any).update({ status: "pronto_envio" } as any).in("id", batch);
+        if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) marcado(s) como Pronto!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
+  const handleMarcarEnviado = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como enviado"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase.from("dados_benner" as any)
+          .update({ status: "enviado", benner_atualizado: true } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) marcado(s) como Enviado!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
   };
 
   // Open Dados Benner form for a distribuição row
@@ -631,6 +673,12 @@ export default function DistribuicaoTst() {
               <FileSpreadsheet className="w-4 h-4 mr-2" /> 
               {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
             </Button>
+            <Button variant="outline" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
+              <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button variant="outline" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
+              <Send className="w-4 h-4 mr-2" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
             <Button
@@ -668,6 +716,9 @@ export default function DistribuicaoTst() {
             </Link>
           </div>
         </div>
+
+        {/* Stats Cards (respeitam os filtros) */}
+        <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} />
 
         {/* Mês/Ano tabs */}
         {mesesAnos.length > 0 && (
