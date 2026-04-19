@@ -673,6 +673,12 @@ export default function DistribuicaoTst() {
               <FileSpreadsheet className="w-4 h-4 mr-2" /> 
               {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
             </Button>
+            <Button variant="outline" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
+              <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button variant="outline" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
+              <Send className="w-4 h-4 mr-2" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
             <Button
@@ -710,6 +716,9 @@ export default function DistribuicaoTst() {
             </Link>
           </div>
         </div>
+
+        {/* Stats Cards (respeitam os filtros) */}
+        <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} />
 
         {/* Mês/Ano tabs */}
         {mesesAnos.length > 0 && (
