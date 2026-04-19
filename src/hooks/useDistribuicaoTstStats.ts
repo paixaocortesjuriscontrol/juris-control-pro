@@ -45,6 +45,9 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
   else if (filters.dossieStatus === "valido") query = query.like("dossie", DOSSIE_VALID_LIKE);
   else if (filters.dossieStatus === "invalido") query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", DOSSIE_VALID_LIKE);
+  const CNJ_PG_REGEX = "^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]\\.[0-9]{2}\\.[0-9]{4}$";
+  if (filters.processoStatus === "valido") query = query.filter("processo", "~", CNJ_PG_REGEX);
+  else if (filters.processoStatus === "invalido") query = query.or(`processo.is.null,processo.eq.,processo.not.match.${CNJ_PG_REGEX}`);
   if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
   else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
   if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
