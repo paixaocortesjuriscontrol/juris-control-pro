@@ -106,6 +106,13 @@ export default function DistribuicaoTst() {
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
 
+  // Sempre que o formulário Benner abrir, rolar para o topo da página
+  useEffect(() => {
+    if (showBennerForm) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [showBennerForm]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedFilters({
