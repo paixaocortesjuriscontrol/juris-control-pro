@@ -51,7 +51,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
   if (ativos.length > 0) partes.push(`Ativo: ${ativos.join(", ")}`);
   if (passivos.length > 0) partes.push(`Passivo: ${passivos.join(", ")}`);
 
-  if (partes.length > 0) return partes.join(" | ");
+  if (partes.length > 0) return partes.join("\n");
 
   const recorrenteRaw = String(juditData?.recorrente ?? "").trim();
   if (recorrenteRaw) return recorrenteRaw;
@@ -959,7 +959,24 @@ export default function DistribuicaoTst() {
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_planilha)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_real)}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{d.processo_numero}</TableCell>
+                  <TableCell className="text-xs align-top">
+                    {(() => {
+                      const raw = d.processo_numero || "";
+                      const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
+                      if (cnjMatch) {
+                        const numero = cnjMatch[1];
+                        const resto = cnjMatch[2].trim();
+                        return (
+                          <div className="space-y-0.5">
+                            <div className="whitespace-nowrap font-mono">{numero}</div>
+                            {resto && <div className="text-[10px] text-muted-foreground italic">{resto}</div>}
+                          </div>
+                        );
+                      }
+                      // Processo inválido: não quebra o número, mas permite quebra do comentário
+                      return <div className="break-words">{raw}</div>;
+                    })()}
+                  </TableCell>
                   <TableCell className="text-xs whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     {d.dossie ? (
                       <button
@@ -985,7 +1002,11 @@ export default function DistribuicaoTst() {
                     ) : "—"}
                   </TableCell>
                   <TableCell className="text-xs">{d.tipo_recurso || "—"}</TableCell>
-                  <TableCell className="text-xs">{d.parte_recorrente || "—"}</TableCell>
+                  <TableCell className="text-xs align-top max-w-xs">
+                    {d.parte_recorrente ? (
+                      <div className="whitespace-pre-line break-words leading-snug">{d.parte_recorrente}</div>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell>
                     {d.benner_atualizado ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
