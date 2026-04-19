@@ -14,15 +14,27 @@ interface Props {
   className?: string;
   /** Se passado, restringe a combo aos membros desta coordenação */
   coordenacaoId?: string | null;
+  /** Se true, mostra a opção "Não distribuído" no topo (filtro processos sem responsável) */
+  includeUnassignedOption?: boolean;
 }
 
-export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Selecionar responsáveis...", className, coordenacaoId }: Props) {
+export const UNASSIGNED_RESPONSAVEL_ID = "__sem_responsavel__";
+
+export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Selecionar responsáveis...", className, coordenacaoId, includeUnassignedOption = false }: Props) {
   const [open, setOpen] = useState(false);
   const { profiles, loading } = useProfilesBasic(coordenacaoId);
 
   const toggle = (id: string) => {
-    if (selectedIds.includes(id)) onChange(selectedIds.filter(x => x !== id));
-    else onChange([...selectedIds, id]);
+    if (id === UNASSIGNED_RESPONSAVEL_ID) {
+      // Mutuamente exclusivo: ao marcar "Não distribuído", limpa demais; ao desmarcar, esvazia
+      if (selectedIds.includes(UNASSIGNED_RESPONSAVEL_ID)) onChange([]);
+      else onChange([UNASSIGNED_RESPONSAVEL_ID]);
+      return;
+    }
+    // Se "Não distribuído" estava marcado, removê-lo ao escolher um responsável real
+    const base = selectedIds.filter(x => x !== UNASSIGNED_RESPONSAVEL_ID);
+    if (base.includes(id)) onChange(base.filter(x => x !== id));
+    else onChange([...base, id]);
   };
 
   const remove = (id: string, e: React.MouseEvent) => {
@@ -31,6 +43,7 @@ export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Sel
   };
 
   const selectedProfiles = profiles.filter(p => selectedIds.includes(p.id));
+  const unassignedSelected = selectedIds.includes(UNASSIGNED_RESPONSAVEL_ID);
 
   return (
     <div className={cn("space-y-2", className)}>
