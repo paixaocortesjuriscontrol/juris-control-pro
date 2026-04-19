@@ -248,8 +248,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
     else if (filters.situacaoProcesso === "transito") query = query.ilike("situacao_processo", "%trânsito em julgado%");
     else if (filters.situacaoProcesso === "outros") {
-      // "Outros" = qualquer valor que não seja Ativo nem Trânsito em Julgado, incluindo NULL
-      query = query.or("situacao_processo.is.null,situacao_processo.eq.Baixado,situacao_processo.eq.Suspenso,situacao_processo.eq.Arquivado");
+      // "Outros" = qualquer valor que não seja Ativo nem Trânsito em Julgado (inclui NULL)
+      query = query.or(
+        'situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.*trânsito em julgado*)'
+      );
     }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
