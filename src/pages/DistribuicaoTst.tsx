@@ -758,8 +758,8 @@ export default function DistribuicaoTst() {
           </div>
         </div>
 
-        {/* Stats Cards (respeitam os filtros) */}
-        <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} />
+        {/* Stats Cards (respeitam os filtros e são clicáveis) */}
+        <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
 
         {/* Mês/Ano tabs */}
         {mesesAnos.length > 0 && (
@@ -842,6 +842,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
                 <SelectItem value="valido">Preenchido Válido</SelectItem>
                 <SelectItem value="invalido">Preenchido Inválido</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroProcessoStatus} onValueChange={setFiltroProcessoStatus}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Processo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Processo: Todos</SelectItem>
+                <SelectItem value="valido">Processo Válido (CNJ)</SelectItem>
+                <SelectItem value="invalido">Processo Inválido</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filtroJudit} onValueChange={setFiltroJudit}>
