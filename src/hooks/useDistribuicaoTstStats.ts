@@ -70,19 +70,22 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   return query;
 }
 
-function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithResponsavel: string[] | null) {
+function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "processo, dossie, judit_preenchido, benner_atualizado, dados_benner_responsaveis!inner(usuario_id)"
-    : "processo, dossie, judit_preenchido, benner_atualizado";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
     .not("aba_origem", "is", null);
   q = applyCommonFilters(q, filters, hasResponsavelFilter, realRespIds);
-  if (idsWithResponsavel) {
-    if (idsWithResponsavel.length > 0) {
-      q = q.not("id", "in", `(${idsWithResponsavel.join(",")})`);
+  if (idsWithoutResponsavel) {
+    if (idsWithoutResponsavel.length === 0) {
+      // Forçar resultado vazio sem URL gigante
+      q = q.eq("id", "00000000-0000-0000-0000-000000000000");
+    } else {
+      q = q.in("id", idsWithoutResponsavel);
     }
   }
   return q;
