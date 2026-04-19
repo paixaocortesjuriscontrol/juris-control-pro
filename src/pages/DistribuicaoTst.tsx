@@ -867,6 +867,17 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Situação: Todas</SelectItem>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="transito">Trânsito em Julgado</SelectItem>
+                <SelectItem value="outros">Outros</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Filtrar por Responsáveis</Label>
