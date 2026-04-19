@@ -70,6 +70,7 @@ export interface DistribuicaoTstFilters {
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido";
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
+  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros";
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
