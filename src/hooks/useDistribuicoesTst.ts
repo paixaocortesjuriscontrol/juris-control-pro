@@ -68,6 +68,7 @@ export interface DistribuicaoTstFilters {
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido";
+  processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
