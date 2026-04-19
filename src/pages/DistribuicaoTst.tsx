@@ -174,7 +174,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroSituacaoProcesso !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -183,6 +183,7 @@ export default function DistribuicaoTst() {
     setFiltroProcessoStatus("todos");
     setFiltroMesAno("todos");
     setFiltroJudit("todos");
+    setFiltroSituacaoProcesso("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
