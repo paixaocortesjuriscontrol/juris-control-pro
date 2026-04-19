@@ -34,9 +34,9 @@ const DOSSIE_VALID_LIKE = "__.__.___.______%/__";
 // Regex do padrão CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos)
 const CNJ_REGEX = /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/;
 
-function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResponsavelFilter: boolean) {
+function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResponsavelFilter: boolean, realRespIds: string[]) {
   if (hasResponsavelFilter) {
-    query = query.in("dados_benner_responsaveis.usuario_id", filters.responsavelIds!);
+    query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
   }
   if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
   if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
@@ -70,8 +70,8 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   return query;
 }
 
-function baseQuery(filters: DistribuicaoTstFilters) {
-  const hasResponsavelFilter = !!(filters.responsavelIds && filters.responsavelIds.length > 0);
+function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithResponsavel: string[] | null) {
+  const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
     ? "processo, dossie, judit_preenchido, benner_atualizado, dados_benner_responsaveis!inner(usuario_id)"
     : "processo, dossie, judit_preenchido, benner_atualizado";
@@ -79,7 +79,12 @@ function baseQuery(filters: DistribuicaoTstFilters) {
     .from("dados_benner" as any)
     .select(selectClause)
     .not("aba_origem", "is", null);
-  q = applyCommonFilters(q, filters, hasResponsavelFilter);
+  q = applyCommonFilters(q, filters, hasResponsavelFilter, realRespIds);
+  if (idsWithResponsavel) {
+    if (idsWithResponsavel.length > 0) {
+      q = q.not("id", "in", `(${idsWithResponsavel.join(",")})`);
+    }
+  }
   return q;
 }
 
@@ -92,12 +97,36 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
+      const UNASSIGNED = "__sem_responsavel__";
+      const respIds = filters.responsavelIds || [];
+      const wantsUnassigned = respIds.includes(UNASSIGNED);
+      const realRespIds = respIds.filter(id => id !== UNASSIGNED);
+
+      let idsWithResponsavel: string[] | null = null;
+      if (wantsUnassigned) {
+        idsWithResponsavel = [];
+        const PAGE = 1000;
+        let off = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("dados_benner_responsaveis" as any)
+            .select("dados_benner_id")
+            .range(off, off + PAGE - 1);
+          if (error) break;
+          const rows = (data as any[]) || [];
+          rows.forEach((r: any) => { if (r.dados_benner_id) idsWithResponsavel!.push(r.dados_benner_id); });
+          if (rows.length < PAGE) break;
+          off += PAGE;
+        }
+        idsWithResponsavel = [...new Set(idsWithResponsavel)];
+      }
+
       // Pagina todos os registros do escopo filtrado para calcular cada métrica.
       const FETCH_SIZE = 1000;
       let offset = 0;
       const acc: DistribuicaoTstStats = { ...ZERO };
       while (true) {
-        const { data, error } = await baseQuery(filters).range(offset, offset + FETCH_SIZE - 1);
+        const { data, error } = await baseQuery(filters, realRespIds, idsWithResponsavel).range(offset, offset + FETCH_SIZE - 1);
         if (error) {
           // Em caso de erro, mantém o que foi acumulado
           break;

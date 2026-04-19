@@ -184,7 +184,31 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const fetchDados = useCallback(async () => {
     setLoading(true);
 
-    const hasResponsavelFilter = filters.responsavelIds && filters.responsavelIds.length > 0;
+    const UNASSIGNED = "__sem_responsavel__";
+    const respIds = filters.responsavelIds || [];
+    const wantsUnassigned = respIds.includes(UNASSIGNED);
+    const realRespIds = respIds.filter(id => id !== UNASSIGNED);
+    const hasResponsavelFilter = realRespIds.length > 0;
+
+    // Pré-busca dos IDs com responsável para suportar filtro "Não distribuído"
+    let idsWithResponsavel: string[] | null = null;
+    if (wantsUnassigned) {
+      idsWithResponsavel = [];
+      const PAGE = 1000;
+      let off = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("dados_benner_responsaveis" as any)
+          .select("dados_benner_id")
+          .range(off, off + PAGE - 1);
+        if (error) break;
+        const rows = (data as any[]) || [];
+        rows.forEach((r: any) => { if (r.dados_benner_id) idsWithResponsavel!.push(r.dados_benner_id); });
+        if (rows.length < PAGE) break;
+        off += PAGE;
+      }
+      idsWithResponsavel = [...new Set(idsWithResponsavel)];
+    }
 
     // Quando há filtro de responsáveis, usamos join inner com a tabela N:N
     // para evitar URLs gigantes (centenas de IDs em .in()).
@@ -199,7 +223,17 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       .order("created_at", { ascending: false });
 
     if (hasResponsavelFilter) {
-      query = query.in("dados_benner_responsaveis.usuario_id", filters.responsavelIds!);
+      query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
+    }
+    if (wantsUnassigned && idsWithResponsavel) {
+      if (idsWithResponsavel.length === 0) {
+        // Nenhum tem responsável → todos não distribuídos: sem filtro extra
+      } else {
+        // not.in com lista grande: dividir em "and(id.neq.X,id.neq.Y,...)" não escala.
+        // Usamos representação com parênteses do PostgREST: not.in.(uuid1,uuid2,...)
+        const csv = idsWithResponsavel.join(",");
+        query = query.not("id", "in", `(${csv})`);
+      }
     }
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
