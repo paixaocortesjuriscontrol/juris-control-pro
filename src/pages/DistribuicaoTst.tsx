@@ -90,6 +90,7 @@ export default function DistribuicaoTst() {
   const [filtroProcesso, setFiltroProcesso] = useState("");
   const [filtroDossie, setFiltroDossie] = useState("");
   const [filtroDossieStatus, setFiltroDossieStatus] = useState<string>("todos");
+  const [filtroProcessoStatus, setFiltroProcessoStatus] = useState<string>("todos");
   const [filtroTurma, setFiltroTurma] = useState("");
   const [filtroRelator, setFiltroRelator] = useState("");
   const [filtroParte, setFiltroParte] = useState("");
@@ -116,6 +117,7 @@ export default function DistribuicaoTst() {
         aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
         benner: filtroBenner as any,
         dossieStatus: filtroDossieStatus !== "todos" ? (filtroDossieStatus as any) : undefined,
+        processoStatus: filtroProcessoStatus !== "todos" ? (filtroProcessoStatus as any) : undefined,
         judit: filtroJudit as any,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
@@ -124,7 +126,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
@@ -170,12 +172,13 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroJudit !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
     setFiltroBenner("todos");
     setFiltroDossieStatus("todos");
+    setFiltroProcessoStatus("todos");
     setFiltroMesAno("todos");
     setFiltroJudit("todos");
     setFiltroProcesso("");
@@ -188,6 +191,44 @@ export default function DistribuicaoTst() {
     setFiltroDataFim("");
     setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
+  };
+
+  // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
+  const activeCardKey = (() => {
+    if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
+    if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
+    if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
+    if (filtroDossieStatus === "invalido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesInvalidos" as const;
+    if (filtroDossieStatus === "nao_preenchido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesNaoPreenchidos" as const;
+    if (filtroJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditPreenchido" as const;
+    if (filtroJudit === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditNaoPreenchido" as const;
+    if (filtroBenner === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerSim" as const;
+    if (filtroBenner === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerNao" as const;
+    if (filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "total" as const;
+    return null;
+  })();
+
+  const handleCardClick = (key: import("@/components/distribuicao-tst/DistribuicaoTstStatsCards").StatsCardKey) => {
+    // Se já está ativo, limpa filtros desses 4 selects (volta a "Total" do escopo atual)
+    const isActive = activeCardKey === key;
+    // Reseta os 4 selects de classificação
+    setFiltroProcessoStatus("todos");
+    setFiltroDossieStatus("todos");
+    setFiltroJudit("todos");
+    setFiltroBenner("todos");
+    setSelectedIds(new Set());
+    if (isActive || key === "total") return;
+    switch (key) {
+      case "processosValidos": setFiltroProcessoStatus("valido"); break;
+      case "processosInvalidos": setFiltroProcessoStatus("invalido"); break;
+      case "dossiesValidos": setFiltroDossieStatus("valido"); break;
+      case "dossiesInvalidos": setFiltroDossieStatus("invalido"); break;
+      case "dossiesNaoPreenchidos": setFiltroDossieStatus("nao_preenchido"); break;
+      case "juditPreenchido": setFiltroJudit("sim"); break;
+      case "juditNaoPreenchido": setFiltroJudit("nao"); break;
+      case "bennerSim": setFiltroBenner("sim"); break;
+      case "bennerNao": setFiltroBenner("nao"); break;
+    }
   };
 
   const handleDelete = async (id: string) => {
