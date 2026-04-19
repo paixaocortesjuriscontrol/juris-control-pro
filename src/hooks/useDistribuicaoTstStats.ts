@@ -97,12 +97,36 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
+      const UNASSIGNED = "__sem_responsavel__";
+      const respIds = filters.responsavelIds || [];
+      const wantsUnassigned = respIds.includes(UNASSIGNED);
+      const realRespIds = respIds.filter(id => id !== UNASSIGNED);
+
+      let idsWithResponsavel: string[] | null = null;
+      if (wantsUnassigned) {
+        idsWithResponsavel = [];
+        const PAGE = 1000;
+        let off = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("dados_benner_responsaveis" as any)
+            .select("dados_benner_id")
+            .range(off, off + PAGE - 1);
+          if (error) break;
+          const rows = (data as any[]) || [];
+          rows.forEach((r: any) => { if (r.dados_benner_id) idsWithResponsavel!.push(r.dados_benner_id); });
+          if (rows.length < PAGE) break;
+          off += PAGE;
+        }
+        idsWithResponsavel = [...new Set(idsWithResponsavel)];
+      }
+
       // Pagina todos os registros do escopo filtrado para calcular cada métrica.
       const FETCH_SIZE = 1000;
       let offset = 0;
       const acc: DistribuicaoTstStats = { ...ZERO };
       while (true) {
-        const { data, error } = await baseQuery(filters).range(offset, offset + FETCH_SIZE - 1);
+        const { data, error } = await baseQuery(filters, realRespIds, idsWithResponsavel).range(offset, offset + FETCH_SIZE - 1);
         if (error) {
           // Em caso de erro, mantém o que foi acumulado
           break;
