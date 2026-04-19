@@ -5958,6 +5958,12 @@ export type Database = {
           total_processos: number
         }[]
       }
+      get_dados_benner_sem_responsavel: {
+        Args: never
+        Returns: {
+          id: string
+        }[]
+      }
       get_dashboard_stats: { Args: never; Returns: Json }
       get_djen_publicacoes_unificadas: {
         Args: {

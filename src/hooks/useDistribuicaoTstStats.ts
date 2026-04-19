@@ -70,19 +70,22 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   return query;
 }
 
-function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithResponsavel: string[] | null) {
+function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "processo, dossie, judit_preenchido, benner_atualizado, dados_benner_responsaveis!inner(usuario_id)"
-    : "processo, dossie, judit_preenchido, benner_atualizado";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
     .not("aba_origem", "is", null);
   q = applyCommonFilters(q, filters, hasResponsavelFilter, realRespIds);
-  if (idsWithResponsavel) {
-    if (idsWithResponsavel.length > 0) {
-      q = q.not("id", "in", `(${idsWithResponsavel.join(",")})`);
+  if (idsWithoutResponsavel) {
+    if (idsWithoutResponsavel.length === 0) {
+      // Forçar resultado vazio sem URL gigante
+      q = q.eq("id", "00000000-0000-0000-0000-000000000000");
+    } else {
+      q = q.in("id", idsWithoutResponsavel);
     }
   }
   return q;
@@ -102,23 +105,14 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
       const wantsUnassigned = respIds.includes(UNASSIGNED);
       const realRespIds = respIds.filter(id => id !== UNASSIGNED);
 
-      let idsWithResponsavel: string[] | null = null;
+      let idsWithoutResponsavel: string[] | null = null;
       if (wantsUnassigned) {
-        idsWithResponsavel = [];
-        const PAGE = 1000;
-        let off = 0;
-        while (true) {
-          const { data, error } = await supabase
-            .from("dados_benner_responsaveis" as any)
-            .select("dados_benner_id")
-            .range(off, off + PAGE - 1);
-          if (error) break;
-          const rows = (data as any[]) || [];
-          rows.forEach((r: any) => { if (r.dados_benner_id) idsWithResponsavel!.push(r.dados_benner_id); });
-          if (rows.length < PAGE) break;
-          off += PAGE;
+        const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
+        if (!error) {
+          idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
+        } else {
+          idsWithoutResponsavel = [];
         }
-        idsWithResponsavel = [...new Set(idsWithResponsavel)];
       }
 
       // Pagina todos os registros do escopo filtrado para calcular cada métrica.
@@ -126,7 +120,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
       let offset = 0;
       const acc: DistribuicaoTstStats = { ...ZERO };
       while (true) {
-        const { data, error } = await baseQuery(filters, realRespIds, idsWithResponsavel).range(offset, offset + FETCH_SIZE - 1);
+        const { data, error } = await baseQuery(filters, realRespIds, idsWithoutResponsavel).range(offset, offset + FETCH_SIZE - 1);
         if (error) {
           // Em caso de erro, mantém o que foi acumulado
           break;
