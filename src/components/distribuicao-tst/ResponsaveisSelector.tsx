@@ -51,19 +51,29 @@ export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Sel
         <PopoverTrigger asChild>
           <Button variant="outline" role="combobox" className="w-full justify-between min-h-10 h-auto py-2">
             <div className="flex flex-wrap gap-1 items-center">
-              {selectedProfiles.length === 0 ? (
+              {selectedProfiles.length === 0 && !unassignedSelected ? (
                 <span className="text-muted-foreground flex items-center gap-2">
                   <UserPlus className="w-4 h-4" /> {placeholder}
                 </span>
               ) : (
-                selectedProfiles.map(p => (
-                  <Badge key={p.id} variant="secondary" className="gap-1">
-                    {p.nome}
-                    <button onClick={(e) => remove(p.id, e)} className="hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                ))
+                <>
+                  {unassignedSelected && (
+                    <Badge variant="outline" className="gap-1 border-dashed">
+                      Não distribuído
+                      <button onClick={(e) => remove(UNASSIGNED_RESPONSAVEL_ID, e)} className="hover:text-destructive">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {selectedProfiles.map(p => (
+                    <Badge key={p.id} variant="secondary" className="gap-1">
+                      {p.nome}
+                      <button onClick={(e) => remove(p.id, e)} className="hover:text-destructive">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </>
               )}
             </div>
             <ChevronsUpDown className="w-4 h-4 opacity-50 shrink-0" />
@@ -75,6 +85,12 @@ export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Sel
             <CommandList>
               <CommandEmpty>{loading ? "Carregando..." : "Nenhum encontrado."}</CommandEmpty>
               <CommandGroup>
+                {includeUnassignedOption && (
+                  <CommandItem value="Não distribuído" onSelect={() => toggle(UNASSIGNED_RESPONSAVEL_ID)}>
+                    <Check className={cn("mr-2 h-4 w-4", unassignedSelected ? "opacity-100" : "opacity-0")} />
+                    <span className="italic text-muted-foreground">Não distribuído (sem responsável)</span>
+                  </CommandItem>
+                )}
                 {profiles.map(p => (
                   <CommandItem key={p.id} value={p.nome} onSelect={() => toggle(p.id)}>
                     <Check className={cn("mr-2 h-4 w-4", selectedIds.includes(p.id) ? "opacity-100" : "opacity-0")} />
