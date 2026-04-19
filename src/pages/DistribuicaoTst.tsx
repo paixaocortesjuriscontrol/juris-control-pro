@@ -99,6 +99,7 @@ export default function DistribuicaoTst() {
   const [filtroDataFim, setFiltroDataFim] = useState("");
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
   const [filtroJudit, setFiltroJudit] = useState<string>("todos");
+  const [filtroSituacaoProcesso, setFiltroSituacaoProcesso] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
 
