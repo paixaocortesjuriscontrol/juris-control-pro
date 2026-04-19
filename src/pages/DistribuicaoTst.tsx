@@ -922,7 +922,7 @@ export default function DistribuicaoTst() {
                 <TableHead>Turma</TableHead>
                 <TableHead>Responsáveis</TableHead>
                 <TableHead>Tipo de Recurso</TableHead>
-                <TableHead>Parte Recorrente</TableHead>
+                
                 <TableHead>Benner</TableHead>
                 <TableHead className="w-28">Ações</TableHead>
               </TableRow>
@@ -1002,11 +1002,6 @@ export default function DistribuicaoTst() {
                     ) : "—"}
                   </TableCell>
                   <TableCell className="text-xs">{d.tipo_recurso || "—"}</TableCell>
-                  <TableCell className="text-xs align-top max-w-xs">
-                    {d.parte_recorrente ? (
-                      <div className="whitespace-pre-line break-words leading-snug">{d.parte_recorrente}</div>
-                    ) : "—"}
-                  </TableCell>
                   <TableCell>
                     {d.benner_atualizado ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
