@@ -977,17 +977,23 @@ export default function DistribuicaoTst() {
                     {(() => {
                       const raw = d.processo_numero || "";
                       const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
+                      const situacao = ((d as any).situacao_processo || "").toLowerCase();
+                      const situacaoClass = situacao.includes("trânsito") || situacao.includes("transito")
+                        ? "text-red-600 font-medium"
+                        : situacao === "ativo"
+                        ? "text-blue-600 font-medium"
+                        : "text-foreground";
                       if (cnjMatch) {
                         const numero = cnjMatch[1];
                         const resto = cnjMatch[2].trim();
                         return (
                           <div className="space-y-0.5">
-                            <div className="whitespace-nowrap">{numero}</div>
+                            <div className={cn("whitespace-nowrap", situacaoClass)}>{numero}</div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
                       }
-                      return <div className="break-words">{raw}</div>;
+                      return <div className={cn("break-words", situacaoClass)}>{raw}</div>;
                     })()}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle" onClick={e => e.stopPropagation()}>
