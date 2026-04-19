@@ -190,24 +190,18 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     const realRespIds = respIds.filter(id => id !== UNASSIGNED);
     const hasResponsavelFilter = realRespIds.length > 0;
 
-    // Pré-busca dos IDs com responsável para suportar filtro "Não distribuído"
-    let idsWithResponsavel: string[] | null = null;
+    // Pré-busca dos IDs SEM responsável (lista pequena: ~256), via RPC.
+    // Antes usávamos a lista de COM responsável (~2500+) com .not.in.(...)
+    // o que gerava URL gigantesca e erro "Failed to fetch".
+    let idsWithoutResponsavel: string[] | null = null;
     if (wantsUnassigned) {
-      idsWithResponsavel = [];
-      const PAGE = 1000;
-      let off = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from("dados_benner_responsaveis" as any)
-          .select("dados_benner_id")
-          .range(off, off + PAGE - 1);
-        if (error) break;
-        const rows = (data as any[]) || [];
-        rows.forEach((r: any) => { if (r.dados_benner_id) idsWithResponsavel!.push(r.dados_benner_id); });
-        if (rows.length < PAGE) break;
-        off += PAGE;
+      const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
+      if (error) {
+        toast.error("Erro ao filtrar 'Não distribuído': " + error.message);
+        setLoading(false);
+        return;
       }
-      idsWithResponsavel = [...new Set(idsWithResponsavel)];
+      idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
     }
 
     // Quando há filtro de responsáveis, usamos join inner com a tabela N:N
@@ -225,16 +219,18 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (hasResponsavelFilter) {
       query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
     }
-    if (wantsUnassigned && idsWithResponsavel) {
-      if (idsWithResponsavel.length === 0) {
-        // Nenhum tem responsável → todos não distribuídos: sem filtro extra
-      } else {
-        // not.in com lista grande: dividir em "and(id.neq.X,id.neq.Y,...)" não escala.
-        // Usamos representação com parênteses do PostgREST: not.in.(uuid1,uuid2,...)
-        const csv = idsWithResponsavel.join(",");
-        query = query.not("id", "in", `(${csv})`);
+    if (wantsUnassigned && idsWithoutResponsavel) {
+      if (idsWithoutResponsavel.length === 0) {
+        // Nenhum sem responsável → resultado vazio
+        setDados([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
       }
+      // Lista é pequena (~256 itens), URL viável
+      query = query.in("id", idsWithoutResponsavel);
     }
+
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
