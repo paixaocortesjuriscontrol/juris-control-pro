@@ -945,8 +945,8 @@ export default function DistribuicaoTst() {
                     : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
-                  <TableCell onClick={e => e.stopPropagation()}>
+                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => setEditando(d)}>
+                  <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(d.id)}
                       onCheckedChange={(checked) => {
@@ -957,9 +957,9 @@ export default function DistribuicaoTst() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_planilha)}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{formatDate(d.data_distribuicao_real)}</TableCell>
-                  <TableCell className="text-xs align-top">
+                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
+                  <TableCell className="text-xs align-middle">
                     {(() => {
                       const raw = d.processo_numero || "";
                       const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
@@ -968,16 +968,15 @@ export default function DistribuicaoTst() {
                         const resto = cnjMatch[2].trim();
                         return (
                           <div className="space-y-0.5">
-                            <div className="whitespace-nowrap font-mono">{numero}</div>
-                            {resto && <div className="text-[10px] text-muted-foreground italic">{resto}</div>}
+                            <div className="whitespace-nowrap">{numero}</div>
+                            {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
                       }
-                      // Processo inválido: não quebra o número, mas permite quebra do comentário
                       return <div className="break-words">{raw}</div>;
                     })()}
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <TableCell className="text-xs whitespace-nowrap align-middle" onClick={e => e.stopPropagation()}>
                     {d.dossie ? (
                       <button
                         type="button"
@@ -990,19 +989,19 @@ export default function DistribuicaoTst() {
                       </button>
                     ) : "—"}
                   </TableCell>
-                  <TableCell className={cn("text-xs", relatorClass)}>{d.relator || "—"}</TableCell>
-                  <TableCell className={cn("text-xs", turmaClass)}>{d.turma || "—"}</TableCell>
-                  <TableCell className="text-xs">
+                  <TableCell className={cn("text-xs align-middle", relatorClass)}>{d.relator || "—"}</TableCell>
+                  <TableCell className={cn("text-xs align-middle", turmaClass)}>{d.turma || "—"}</TableCell>
+                  <TableCell className="text-xs align-middle">
                     {responsaveis.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {responsaveis.map(r => (
-                          <Badge key={r.id} variant="secondary" className="text-[10px] px-1.5 py-0">{r.nome}</Badge>
+                          <Badge key={r.id} variant="secondary" className="text-xs px-1.5 py-0 font-normal">{r.nome}</Badge>
                         ))}
                       </div>
                     ) : "—"}
                   </TableCell>
-                  <TableCell className="text-xs">{d.tipo_recurso || "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-xs align-middle">{d.tipo_recurso || "—"}</TableCell>
+                  <TableCell className="align-middle">
                     {d.benner_atualizado ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     ) : (
