@@ -127,6 +127,7 @@ export default function DistribuicaoTst() {
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
@@ -200,6 +201,45 @@ export default function DistribuicaoTst() {
     setSelectedIds(new Set());
     fetchDados();
     fetchTabsData();
+    refetchStats();
+  };
+
+  const handleMarcarPronto = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase.from("dados_benner" as any).update({ status: "pronto_envio" } as any).in("id", batch);
+        if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) marcado(s) como Pronto!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
+  const handleMarcarEnviado = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como enviado"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase.from("dados_benner" as any)
+          .update({ status: "enviado", benner_atualizado: true } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) marcado(s) como Enviado!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
   };
 
   // Open Dados Benner form for a distribuição row
