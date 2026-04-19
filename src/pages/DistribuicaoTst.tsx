@@ -99,6 +99,7 @@ export default function DistribuicaoTst() {
   const [filtroDataFim, setFiltroDataFim] = useState("");
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
   const [filtroJudit, setFiltroJudit] = useState<string>("todos");
+  const [filtroSituacaoProcesso, setFiltroSituacaoProcesso] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
 
@@ -119,6 +120,7 @@ export default function DistribuicaoTst() {
         dossieStatus: filtroDossieStatus !== "todos" ? (filtroDossieStatus as any) : undefined,
         processoStatus: filtroProcessoStatus !== "todos" ? (filtroProcessoStatus as any) : undefined,
         judit: filtroJudit as any,
+        situacaoProcesso: filtroSituacaoProcesso !== "todos" ? (filtroSituacaoProcesso as any) : undefined,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
         dataFim: filtroDataFim || undefined,
@@ -126,7 +128,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
@@ -172,7 +174,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroSituacaoProcesso !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -181,6 +183,7 @@ export default function DistribuicaoTst() {
     setFiltroProcessoStatus("todos");
     setFiltroMesAno("todos");
     setFiltroJudit("todos");
+    setFiltroSituacaoProcesso("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -862,6 +865,17 @@ export default function DistribuicaoTst() {
                 <SelectItem value="todos">Judit: Todos</SelectItem>
                 <SelectItem value="sim">Preenchido com Judit</SelectItem>
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Situação: Todas</SelectItem>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="transito">Trânsito em Julgado</SelectItem>
+                <SelectItem value="outros">Outros</SelectItem>
               </SelectContent>
             </Select>
           </div>
