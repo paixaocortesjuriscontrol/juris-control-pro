@@ -251,7 +251,7 @@ serve(async (req) => {
     let pfxPassword: string | null = null;
     if (credencial.certificado_a1_path) {
       const { data: pfxFile, error: pfxError } = await supabaseAdmin.storage
-        .from("certificados-a1")
+        .from("cofre_certificados")
         .download(credencial.certificado_a1_path);
 
       if (pfxError || !pfxFile) {
