@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     }
 
     // 1) Atualização no Auth (email/senha)
-    const updateAuthData: { email?: string; password?: string } = {};
+    const updateAuthData: { email?: string; password?: string; user_metadata?: Record<string, unknown> } = {};
 
     if (typeof email === "string" && email.trim()) {
       updateAuthData.email = email.trim();
@@ -79,6 +79,11 @@ Deno.serve(async (req) => {
         });
       }
       updateAuthData.password = password;
+    }
+
+    // Espelha o nome no user_metadata do Auth para manter consistência
+    if (typeof nome === "string" && nome.trim()) {
+      updateAuthData.user_metadata = { nome: nome.trim() };
     }
 
     // 2) Atualização no Profile (dados do app)
