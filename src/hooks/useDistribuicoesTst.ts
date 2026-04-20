@@ -77,6 +77,7 @@ export interface DistribuicaoTstFilters {
   dataInicio?: string;
   dataFim?: string;
   responsavelIds?: string[];
+  semTurma?: boolean;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -276,6 +277,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     }
     if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
     if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
+    if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);

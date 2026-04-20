@@ -13,7 +13,10 @@ export type StatsCardKey =
   | "juditNaoPreenchido"
   | "bennerSim"
   | "bennerNao"
-  | "processosAtivos";
+  | "processosAtivos"
+  | "transitoJulgado"
+  | "outrosSituacao"
+  | "semTurma";
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -42,10 +45,13 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "bennerSim", label: "Benner Enviado (Sim)", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
     { key: "bennerNao", label: "Benner Não Enviado", value: stats.bennerNao, className: "from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200 dark:border-orange-800", textClass: "text-orange-600 dark:text-orange-400" },
     { key: "processosAtivos", label: "Processos Ativos", value: stats.processosAtivos, className: "from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800", textClass: "text-green-600 dark:text-green-400" },
+    { key: "transitoJulgado", label: "Trânsito em Julgado", value: stats.transitoJulgado, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-600 dark:text-amber-400" },
+    { key: "outrosSituacao", label: "Outros", value: stats.outrosSituacao, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-200 dark:border-zinc-800", textClass: "text-zinc-600 dark:text-zinc-400" },
+    { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 md:gap-3">
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5 md:gap-2">
       {cards.map((c) => {
         const isActive = activeKey === c.key;
         const clickable = !!onCardClick;
@@ -61,10 +67,10 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
             )}
             title={clickable ? "Clique para filtrar" : undefined}
           >
-            <CardContent className="p-3">
-              <p className={cn("text-[11px] md:text-xs font-medium truncate", c.textClass)} title={c.label}>{c.label}</p>
-              <p className={cn("text-lg md:text-2xl font-bold mt-1", c.textClass)}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : c.value.toLocaleString("pt-BR")}
+            <CardContent className="p-2">
+              <p className={cn("text-[10px] md:text-[11px] font-medium truncate leading-tight", c.textClass)} title={c.label}>{c.label}</p>
+              <p className={cn("text-base md:text-lg font-bold mt-0.5 leading-tight", c.textClass)}>
+                {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : c.value.toLocaleString("pt-BR")}
               </p>
             </CardContent>
           </Card>
