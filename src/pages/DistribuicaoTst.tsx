@@ -103,6 +103,7 @@ export default function DistribuicaoTst() {
   const [filtroSituacaoProcesso, setFiltroSituacaoProcesso] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
+  const [filtroSemTurma, setFiltroSemTurma] = useState<boolean>(false);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -137,10 +138,11 @@ export default function DistribuicaoTst() {
         dataInicio: filtroDataInicio || undefined,
         dataFim: filtroDataFim || undefined,
         responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined,
+        semTurma: filtroSemTurma || undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds)]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
@@ -205,6 +207,7 @@ export default function DistribuicaoTst() {
     setFiltroDataInicio("");
     setFiltroDataFim("");
     setFiltroResponsavelIds([]);
+    setFiltroSemTurma(false);
     setSelectedIds(new Set());
   };
 
@@ -220,6 +223,9 @@ export default function DistribuicaoTst() {
     if (filtroBenner === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerNao" as const;
     if (filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "total" as const;
     if (filtroSituacaoProcesso === "ativo" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosAtivos" as const;
+    if (filtroSituacaoProcesso === "transito" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "transitoJulgado" as const;
+    if (filtroSituacaoProcesso === "outros" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "outrosSituacao" as const;
+    if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
     return null;
   })();
 
@@ -232,6 +238,7 @@ export default function DistribuicaoTst() {
     setFiltroJudit("todos");
     setFiltroBenner("todos");
     setFiltroSituacaoProcesso("todos");
+    setFiltroSemTurma(false);
     setSelectedIds(new Set());
     if (isActive || key === "total") return;
     switch (key) {
@@ -244,6 +251,9 @@ export default function DistribuicaoTst() {
       case "bennerSim": setFiltroBenner("sim"); break;
       case "bennerNao": setFiltroBenner("nao"); break;
       case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
+      case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
+      case "outrosSituacao": setFiltroSituacaoProcesso("outros"); break;
+      case "semTurma": setFiltroSemTurma(true); break;
     }
   };
 
