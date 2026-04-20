@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, User, LogOut, Bell, Loader2, KeyRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useImport } from "@/contexts/ImportContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
@@ -34,6 +35,26 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { role } = useUserRole();
   const navigate = useNavigate();
   const [senhaDialogOpen, setSenhaDialogOpen] = useState(false);
+  const [profileNome, setProfileNome] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?.id) {
+      setProfileNome(null);
+      return;
+    }
+    supabase
+      .from("profiles")
+      .select("nome")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setProfileNome(data?.nome ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const getRoleLabel = () => {
     if (role === "admin") return "Administrador";
@@ -58,8 +79,9 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   };
 
   const getInitials = () => {
-    if (user?.user_metadata?.nome) {
-      const names = user.user_metadata.nome.split(" ");
+    const nome = profileNome || user?.user_metadata?.nome;
+    if (nome) {
+      const names = nome.split(" ");
       return names.length > 1 
         ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
         : names[0].substring(0, 2).toUpperCase();
@@ -68,7 +90,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   };
 
   const getDisplayName = () => {
-    return user?.user_metadata?.nome || user?.email?.split("@")[0] || "Usuário";
+    return profileNome || user?.user_metadata?.nome || user?.email?.split("@")[0] || "Usuário";
   };
 
   return (
