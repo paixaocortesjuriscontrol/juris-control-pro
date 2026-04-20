@@ -213,8 +213,7 @@ export default function DistribuicaoTst() {
     if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
     if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
     if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
-    if (filtroDossieStatus === "invalido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesInvalidos" as const;
-    if (filtroDossieStatus === "nao_preenchido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesNaoPreenchidos" as const;
+    if (filtroDossieStatus === "invalido_ou_nao_preenchido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesInvalidos" as const;
     if (filtroJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditPreenchido" as const;
     if (filtroJudit === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditNaoPreenchido" as const;
     if (filtroBenner === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerSim" as const;
@@ -237,8 +236,7 @@ export default function DistribuicaoTst() {
       case "processosValidos": setFiltroProcessoStatus("valido"); break;
       case "processosInvalidos": setFiltroProcessoStatus("invalido"); break;
       case "dossiesValidos": setFiltroDossieStatus("valido"); break;
-      case "dossiesInvalidos": setFiltroDossieStatus("invalido"); break;
-      case "dossiesNaoPreenchidos": setFiltroDossieStatus("nao_preenchido"); break;
+      case "dossiesInvalidos": setFiltroDossieStatus("invalido_ou_nao_preenchido"); break;
       case "juditPreenchido": setFiltroJudit("sim"); break;
       case "juditNaoPreenchido": setFiltroJudit("nao"); break;
       case "bennerSim": setFiltroBenner("sim"); break;

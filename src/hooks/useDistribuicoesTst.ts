@@ -69,7 +69,7 @@ export interface DistribuicaoTstFilters {
   nomeParte?: string;
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
-  dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido";
+  dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido" | "invalido_ou_nao_preenchido";
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   situacaoProcesso?: "todos" | "ativo" | "transito" | "outros";
@@ -244,6 +244,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
     else if (filters.dossieStatus === "invalido") query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
+    else if (filters.dossieStatus === "invalido_ou_nao_preenchido") query = query.or("dossie.is.null,dossie.eq.,dossie.not.like.__.__.___.______%/__");
     // Processo CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (somente dígitos)
     const CNJ_REGEX = "^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]\\.[0-9]{2}\\.[0-9]{4}$";
     if (filters.processoStatus === "valido") query = query.filter("processo", "~", CNJ_REGEX);
