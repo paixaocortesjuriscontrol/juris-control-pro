@@ -14,6 +14,9 @@ export interface DistribuicaoTstStats {
   bennerSim: number;
   bennerNao: number;
   processosAtivos: number;
+  transitoJulgado: number;
+  outrosSituacao: number;
+  semTurma: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -28,6 +31,9 @@ const ZERO: DistribuicaoTstStats = {
   bennerSim: 0,
   bennerNao: 0,
   processosAtivos: 0,
+  transitoJulgado: 0,
+  outrosSituacao: 0,
+  semTurma: 0,
 };
 
 // Mesma regra usada na coluna "Dossiê" (filtro válido/inválido)
@@ -83,8 +89,8 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
 function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, dados_benner_responsaveis!inner(usuario_id)"
-    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
@@ -156,6 +162,11 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           // Processos Ativos
           const situacao = String(r.situacao_processo || "").trim().toLowerCase();
           if (situacao === "ativo") acc.processosAtivos++;
+          if (situacao.includes("trânsito em julgado") || situacao.includes("transito em julgado")) acc.transitoJulgado++;
+          if (!situacao || (situacao !== "ativo" && !situacao.includes("trânsito em julgado") && !situacao.includes("transito em julgado"))) acc.outrosSituacao++;
+          // Sem Turma
+          const turma = String(r.turma || "").trim();
+          if (!turma) acc.semTurma++;
         }
         if (rows.length < FETCH_SIZE) break;
         offset += FETCH_SIZE;
