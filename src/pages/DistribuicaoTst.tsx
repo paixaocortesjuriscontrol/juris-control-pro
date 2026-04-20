@@ -351,13 +351,34 @@ export default function DistribuicaoTst() {
   // Save handler for Dados Benner form used from this page
   const handleSaveBenner = async (dado: DadoBennerInsert, id?: string) => {
     if (id) {
-      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id);
+      const { data: updated, error } = await supabase
+        .from("dados_benner" as any)
+        .update(dado as any)
+        .eq("id", id)
+        .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      if (!updated || (updated as any[]).length === 0) {
+        toast.error("Atualização bloqueada por permissão (RLS). Verifique se você é o dono do registro ou tem perfil de admin/coordenador.");
+        return false;
+      }
     } else {
-      const { error } = await supabase.from("dados_benner" as any).insert(dado as any);
+      // Garante user_id no insert para satisfazer RLS (user_id = auth.uid())
+      const { data: authData } = await supabase.auth.getUser();
+      const insertPayload = { ...(dado as any), user_id: (dado as any).user_id || authData?.user?.id || null };
+      const { data: inserted, error } = await supabase
+        .from("dados_benner" as any)
+        .insert(insertPayload)
+        .select("id")
+        .single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
+      if (inserted?.id) {
+        toast.success("Registro salvo!");
+        handleRefresh();
+        return inserted.id as string;
+      }
     }
     toast.success(id ? "Registro atualizado!" : "Registro salvo!");
+    handleRefresh();
     return true;
   };
 
