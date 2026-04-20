@@ -520,10 +520,19 @@ export default function DistribuicaoTst() {
           const tribunaisAceitos = ["TST", "STF", "STJ"];
           const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
 
+          // Helper: turma é uma das 8 turmas oficiais do TST?
+          const isTurmaOficialTst = (t: string | null | undefined): boolean => {
+            if (!t) return false;
+            const norm = String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+            return /^[1-8][ªa]?\s*turma$/.test(norm);
+          };
+          const turmaFinal = juditData.turma || proc.turma || "";
+          const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
+
           const dadoToSave: any = {
             processo: proc.processo_numero,
             dossie: juditData.dossie || proc.dossie || "",
-            turma: juditData.turma || proc.turma || "",
+            turma: turmaFinal,
             relator: juditData.relator || proc.relator || "",
             data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
             recorrente: recorrenteJudit,
@@ -540,6 +549,7 @@ export default function DistribuicaoTst() {
             resultado_conhecido_nao_provido: juditData.resultado_conhecido_nao_provido || false,
             resultado_outra: juditData.resultado_outra || null,
             processo_baixado: juditData.processo_baixado || null,
+            erro_judit: erroJuditFlag,
             status: "rascunho",
           };
 
