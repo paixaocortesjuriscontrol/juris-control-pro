@@ -56,6 +56,7 @@ const emptyForm: DistribuicaoTstInsert = {
   judit_preenchido: false,
   judit_preenchido_em: null,
   judit_preenchido_por: null,
+  observacao_advogado: null,
 };
 
 export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
@@ -177,6 +178,15 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
               onChange={(ids) => set("responsaveis_ids", ids)}
               placeholder="Selecionar um ou mais responsáveis..."
               coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Observação Advogado</Label>
+            <Textarea
+              value={form.observacao_advogado || ""}
+              onChange={e => set("observacao_advogado", e.target.value || null)}
+              placeholder="Anotações livres do advogado responsável..."
+              rows={3}
             />
           </div>
         </div>
