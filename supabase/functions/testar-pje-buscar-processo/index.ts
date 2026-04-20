@@ -350,28 +350,8 @@ serve(async (req) => {
       });
     }
 
-    // Baixar certificado A1
-    let pfxBase64: string | null = null;
-    let pfxPassword: string | null = null;
-    if (credencial.certificado_a1_path) {
-      const { data: pfxFile, error: pfxError } = await supabaseAdmin.storage
-        .from("cofre_certificados")
-        .download(credencial.certificado_a1_path);
-
-      if (pfxError || !pfxFile) {
-        return new Response(JSON.stringify({
-          error: "Não foi possível baixar o certificado A1",
-          detalhes: pfxError?.message,
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      pfxBase64 = arrayBufferToBase64(await pfxFile.arrayBuffer());
-      pfxPassword = await decryptSafe(credencial.certificado_a1_senha);
-    }
-
+    // O proxy n8n agora usa o nó HTTP Request com credencial SSL Certificate
+    // configurada diretamente no n8n. Não precisamos mais enviar o PFX no body.
     const tribunalAlvo = extrairTribunalDoProcesso(numeroProcesso);
     if (!tribunalAlvo || !MNI_ENDPOINTS[tribunalAlvo]) {
       return new Response(JSON.stringify({
@@ -404,8 +384,6 @@ serve(async (req) => {
           endpoint: mniUrl,
           soap_action: "consultarProcesso",
           soap_body: soapBody,
-          pfx_base64: pfxBase64,
-          pfx_password: pfxPassword,
           timeout_ms: 55000,
         }),
         signal: proxyController.signal,
@@ -446,7 +424,7 @@ serve(async (req) => {
 
     if (!responseText || responseText.trim() === "<xml>...</xml>") {
       return new Response(JSON.stringify({
-        error: "O proxy n8n retornou resposta vazia/mascarada. Causa provável: o Code node do n8n está falhando (módulo 'https' bloqueado). Adicione NODE_FUNCTION_ALLOW_BUILTIN=* e NODE_FUNCTION_ALLOW_EXTERNAL=* nos containers n8n e n8n-worker e redeploy.",
+        error: "O proxy n8n retornou resposta vazia. Verifique se o nó HTTP Request com credencial SSL Certificate está configurado corretamente no workflow.",
         tipo_erro: "proxy_resposta_invalida",
         tempo_ms: elapsedMs,
         tribunal: tribunalAlvo,
