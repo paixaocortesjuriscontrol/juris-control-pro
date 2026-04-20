@@ -677,21 +677,21 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               </Button>
               <Button 
                 variant="default" 
-                onClick={() => handleBuscarJudit(false)}
+                onClick={handleBuscarJudit}
                 disabled={buscandoJudit || !form.processo?.trim()}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {buscandoJudit && !modoTeste ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Judit
               </Button>
               <Button
                 variant="default"
-                onClick={() => handleBuscarJudit(true)}
-                disabled={buscandoJudit || !form.processo?.trim()}
+                onClick={handleTestarPje}
+                disabled={testandoPje || !form.processo?.trim()}
                 className="bg-rose-600 hover:bg-rose-700 text-white"
-                title="Mesma busca da Judit, mas destacando os campos em vermelho (modo teste)"
+                title="Consulta o PJE via MNI usando a credencial de teste do Cofre (Paixão Cortes - TST)"
               >
-                {buscandoJudit && modoTeste ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {testandoPje ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Testar
               </Button>
               <Button 
