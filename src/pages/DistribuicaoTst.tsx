@@ -65,6 +65,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  const { isAdmin } = useUserRole();
   const [showCarga, setShowCarga] = useState(false);
   
   // Dados Benner form from distribuição
