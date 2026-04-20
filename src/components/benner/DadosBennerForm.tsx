@@ -545,7 +545,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   // Highlight wrapper for fields filled by Judit
   const juditHighlight = (field: string) =>
     camposJudit.has(field)
-      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500"
+      ? (modoTeste
+          ? "ring-2 ring-rose-500 bg-rose-50 dark:bg-rose-950/30 rounded-md transition-all duration-500"
+          : "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500")
       : "";
 
   // Highlight for fields filled by DataJud (tipo_recurso_auto)
@@ -563,8 +565,16 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     <div className="flex items-center gap-1.5">
       {children}
       {camposJudit.has(field) && (
-        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-normal">
-          Judit
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px] px-1 py-0 h-4 font-normal",
+            modoTeste
+              ? "border-rose-500 text-rose-600 dark:text-rose-400"
+              : "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+          )}
+        >
+          {modoTeste ? "Teste" : "Judit"}
         </Badge>
       )}
       {field === "tipo_recurso" && form.tipo_recurso_auto && !camposJudit.has(field) && (
