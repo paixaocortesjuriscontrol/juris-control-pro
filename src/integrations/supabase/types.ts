@@ -1455,6 +1455,7 @@ export type Database = {
           dossie: string | null
           entrega_memoriais: string | null
           equipe: string | null
+          erro_judit: boolean
           execucao: string | null
           ganhamos: boolean | null
           honra: string | null
@@ -1530,6 +1531,7 @@ export type Database = {
           dossie?: string | null
           entrega_memoriais?: string | null
           equipe?: string | null
+          erro_judit?: boolean
           execucao?: string | null
           ganhamos?: boolean | null
           honra?: string | null
@@ -1605,6 +1607,7 @@ export type Database = {
           dossie?: string | null
           entrega_memoriais?: string | null
           equipe?: string | null
+          erro_judit?: boolean
           execucao?: string | null
           ganhamos?: boolean | null
           honra?: string | null
