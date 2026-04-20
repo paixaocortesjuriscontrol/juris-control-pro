@@ -84,6 +84,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const [modoTeste, setModoTeste] = useState(false);
   const [baixandoAutos, setBaixandoAutos] = useState(false);
   const [autosJobId, setAutosJobId] = useState<string | null>(null);
   const [autosProgress, setAutosProgress] = useState<{
