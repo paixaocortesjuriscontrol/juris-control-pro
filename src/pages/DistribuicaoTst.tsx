@@ -572,8 +572,18 @@ export default function DistribuicaoTst() {
             if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
 
             if (Object.keys(updateFields).length > 0) {
-              await supabase.from("dados_benner" as any).update(updateFields as any).eq("processo", proc.processo_numero);
-              successCount++;
+              const { data: upd, error: updErr } = await (supabase
+                .from("dados_benner" as any)
+                .update(updateFields as any)
+                .eq("processo", proc.processo_numero)
+                .select("id") as any);
+              if (updErr) {
+                console.warn("[bulk-judit] update error", proc.processo_numero, updErr.message);
+              } else if (!upd || (upd as any[]).length === 0) {
+                console.warn("[bulk-judit] update bloqueado por RLS", proc.processo_numero);
+              } else {
+                successCount++;
+              }
             }
           } else {
             // Get user id
