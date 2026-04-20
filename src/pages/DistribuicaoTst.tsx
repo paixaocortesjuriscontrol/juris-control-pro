@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
+import { CopyButton } from "@/components/ui/copy-button";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -1001,25 +1002,36 @@ export default function DistribuicaoTst() {
                         const resto = cnjMatch[2].trim();
                         return (
                           <div className="space-y-0.5">
-                            <div className={cn("whitespace-nowrap", situacaoClass)}>{numero}</div>
+                            <div className={cn("whitespace-nowrap inline-flex items-center gap-1", situacaoClass)}>
+                              <span>{numero}</span>
+                              <CopyButton value={numero} label="Processo" />
+                            </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
                       }
-                      return <div className={cn("break-words", situacaoClass)}>{raw}</div>;
+                      return (
+                        <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
+                          <span>{raw}</span>
+                          {raw && <CopyButton value={raw} label="Processo" />}
+                        </div>
+                      );
                     })()}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle" onClick={e => e.stopPropagation()}>
                     {d.dossie ? (
-                      <button
-                        type="button"
-                        className="text-primary hover:underline disabled:opacity-50"
-                        onClick={() => handleOpenBenner(d)}
-                        disabled={loadingBenner === d.id}
-                        title="Abrir Dados Benner"
-                      >
-                        {d.dossie}
-                      </button>
+                      <span className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline disabled:opacity-50"
+                          onClick={() => handleOpenBenner(d)}
+                          disabled={loadingBenner === d.id}
+                          title="Abrir Dados Benner"
+                        >
+                          {d.dossie}
+                        </button>
+                        <CopyButton value={d.dossie} label="Dossiê" />
+                      </span>
                     ) : "—"}
                   </TableCell>
                   <TableCell className={cn("text-xs align-middle", relatorClass)}>{d.relator || "—"}</TableCell>
