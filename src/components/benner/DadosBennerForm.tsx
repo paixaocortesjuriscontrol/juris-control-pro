@@ -291,7 +291,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     }
   }, []);
 
-  const handleBuscarJudit = async (teste = false) => {
+  const handleBuscarJudit = async () => {
     if (!form.processo?.trim()) {
       toast.warning("Digite o número do processo primeiro");
       return;
@@ -299,7 +299,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
 
     const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
-    setModoTeste(teste);
+    setModoTeste(false);
 
     try {
       // Sempre buscar instância TST — o formulário Dados Benner é voltado para processos no TST.
