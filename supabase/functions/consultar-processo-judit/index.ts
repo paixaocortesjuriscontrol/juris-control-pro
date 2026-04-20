@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { extrairOrgaoJulgador, derivarTurmaDoRelator, derivarRelatorDaTurma } from "../_shared/extrair-relator.ts";
+import { extrairOrgaoJulgador, derivarTurmaDoRelator, derivarRelatorDaTurma, isTurmaOficialTst } from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -277,6 +277,18 @@ serve(async (req) => {
       .from("processos")
       .update(updateData)
       .eq("id", processo_id);
+
+    // ── Espelha erro_judit em dados_benner (se existir registro vinculado) ──
+    // Marca quando a turma final NÃO pertence à composição oficial do TST (1ª-8ª Turma).
+    try {
+      const erroJudit = !isTurmaOficialTst(turmaFinal as string | null);
+      await supabaseAuth
+        .from("dados_benner")
+        .update({ erro_judit: erroJudit })
+        .eq("processo", numeroCnj);
+    } catch (e) {
+      console.warn("[consultar-processo-judit] falha ao atualizar erro_judit:", (e as Error).message);
+    }
 
     console.log(
       `[consultar-processo-judit] Concluído: ${movCount} movimentações processadas`

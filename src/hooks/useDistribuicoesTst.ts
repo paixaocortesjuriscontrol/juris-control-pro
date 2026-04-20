@@ -49,6 +49,7 @@ export interface DistribuicaoTst {
   judit_preenchido: boolean;
   judit_preenchido_em: string | null;
   judit_preenchido_por: string | null;
+  erro_judit?: boolean;
   coordenacao_id: string | null;
   responsaveis_ids?: string[];
   observacao_advogado?: string | null;
@@ -72,6 +73,7 @@ export interface DistribuicaoTstFilters {
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido" | "invalido_ou_nao_preenchido";
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
+  erroJudit?: "todos" | "sim" | "nao";
   situacaoProcesso?: "todos" | "ativo" | "transito" | "outros";
   mesAno?: string;
   dataInicio?: string;
@@ -120,6 +122,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     judit_preenchido: !!b.judit_preenchido,
     judit_preenchido_em: b.judit_preenchido_em ?? null,
     judit_preenchido_por: b.judit_preenchido_por ?? null,
+    erro_judit: !!b.erro_judit,
     coordenacao_id: b.coordenacao_id ?? null,
     observacao_advogado: b.observacao_advogado ?? null,
     created_at: b.created_at,
@@ -252,6 +255,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     else if (filters.processoStatus === "invalido") query = query.or(`processo.is.null,processo.eq.,processo.not.match."${CNJ_REGEX}"`);
     if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
+    if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
+    else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
     else if (filters.situacaoProcesso === "transito") query = query.ilike("situacao_processo", "%trânsito em julgado%");
     else if (filters.situacaoProcesso === "outros") {

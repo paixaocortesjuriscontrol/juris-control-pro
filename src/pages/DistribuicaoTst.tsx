@@ -102,6 +102,7 @@ export default function DistribuicaoTst() {
   const [filtroDataFim, setFiltroDataFim] = useState("");
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
   const [filtroJudit, setFiltroJudit] = useState<string>("todos");
+  const [filtroErroJudit, setFiltroErroJudit] = useState<string>("todos");
   const [filtroSituacaoProcesso, setFiltroSituacaoProcesso] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
@@ -135,6 +136,7 @@ export default function DistribuicaoTst() {
         dossieStatus: filtroDossieStatus !== "todos" ? (filtroDossieStatus as any) : undefined,
         processoStatus: filtroProcessoStatus !== "todos" ? (filtroProcessoStatus as any) : undefined,
         judit: filtroJudit as any,
+        erroJudit: filtroErroJudit !== "todos" ? (filtroErroJudit as any) : undefined,
         situacaoProcesso: filtroSituacaoProcesso !== "todos" ? (filtroSituacaoProcesso as any) : undefined,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
@@ -144,7 +146,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
@@ -190,7 +192,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroSituacaoProcesso !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -199,6 +201,7 @@ export default function DistribuicaoTst() {
     setFiltroProcessoStatus("todos");
     setFiltroMesAno("todos");
     setFiltroJudit("todos");
+    setFiltroErroJudit("todos");
     setFiltroSituacaoProcesso("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
@@ -517,10 +520,19 @@ export default function DistribuicaoTst() {
           const tribunaisAceitos = ["TST", "STF", "STJ"];
           const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
 
+          // Helper: turma é uma das 8 turmas oficiais do TST?
+          const isTurmaOficialTst = (t: string | null | undefined): boolean => {
+            if (!t) return false;
+            const norm = String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+            return /^[1-8][ªa]?\s*turma$/.test(norm);
+          };
+          const turmaFinal = juditData.turma || proc.turma || "";
+          const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
+
           const dadoToSave: any = {
             processo: proc.processo_numero,
             dossie: juditData.dossie || proc.dossie || "",
-            turma: juditData.turma || proc.turma || "",
+            turma: turmaFinal,
             relator: juditData.relator || proc.relator || "",
             data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
             recorrente: recorrenteJudit,
@@ -537,6 +549,7 @@ export default function DistribuicaoTst() {
             resultado_conhecido_nao_provido: juditData.resultado_conhecido_nao_provido || false,
             resultado_outra: juditData.resultado_outra || null,
             processo_baixado: juditData.processo_baixado || null,
+            erro_judit: erroJuditFlag,
             status: "rascunho",
           };
 
@@ -570,6 +583,8 @@ export default function DistribuicaoTst() {
             if (juditData.resultado_conhecido_nao_provido) updateFields.resultado_conhecido_nao_provido = true;
             if (juditData.resultado_outra) updateFields.resultado_outra = juditData.resultado_outra;
             if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
+            // Sempre reavalia o flag erro_judit com a turma final (mesmo que turma não tenha mudado)
+            updateFields.erro_judit = erroJuditFlag;
 
             if (Object.keys(updateFields).length > 0) {
               const { data: upd, error: updErr } = await (supabase
@@ -925,6 +940,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroErroJudit} onValueChange={setFiltroErroJudit}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Erro Judit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Erro Judit: Todos</SelectItem>
+                <SelectItem value="sim">Erro Judit: Sim</SelectItem>
+                <SelectItem value="nao">Erro Judit: Não</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Situação" />
@@ -1081,7 +1106,16 @@ export default function DistribuicaoTst() {
                     ) : "—"}
                   </TableCell>
                   <TableCell className={cn("text-xs align-middle", relatorClass)}>{d.relator || "—"}</TableCell>
-                  <TableCell className={cn("text-xs align-middle", turmaClass)}>{d.turma || "—"}</TableCell>
+                  <TableCell className={cn("text-xs align-middle", turmaClass)}>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span>{d.turma || "—"}</span>
+                      {d.erro_judit && (
+                        <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 font-normal" title="Turma fora da composição oficial do TST (1ª-8ª Turma)">
+                          Erro Judit
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-xs align-middle">
                     {responsaveis.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
