@@ -416,10 +416,12 @@ serve(async (req) => {
     const parsed = parseMniToJuditLike(responseText);
 
     if (!parsed.numero) {
+      console.log("[testar-pje-buscar-processo] XML sem numero. Primeiros 2000 chars:", responseText.substring(0, 2000));
       return new Response(JSON.stringify({
         error: "Processo não encontrado no PJE TST ou XML sem dados",
         tipo_erro: "processo_nao_encontrado",
         tempo_ms: elapsedMs,
+        xml_preview: responseText.substring(0, 1500),
       }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
