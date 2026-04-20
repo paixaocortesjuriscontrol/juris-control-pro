@@ -52,13 +52,6 @@ const menuItemsPublicos = [
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
-  { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },
-  { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
-  { icon: Upload, label: "Carga Benner", path: "/carga-benner", color: "text-sky-400" },
-  { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
-  { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
-  { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander", color: "text-sky-400" },
-  { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FileWarning, label: "Painel Intimações", path: "/painel-intimacoes" },
@@ -70,14 +63,20 @@ const menuItemsPublicos = [
   { icon: ExternalLink, label: "Consulta Externa", path: "/consulta-externa" },
   { icon: Newspaper, label: "Buscar PJE", path: "/buscar-pje" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
-  { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
-  
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
 
 // Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin = [
+  { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos" },
+  { icon: Table2, label: "Planilha TST", path: "/planilha-tst" },
+  { icon: Upload, label: "Carga Benner", path: "/carga-benner" },
+  { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner" },
+  { icon: Scale, label: "Pautas TST", path: "/pautas-tst" },
+  { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander" },
+  { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha" },
+  { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
