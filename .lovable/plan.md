@@ -1,59 +1,111 @@
 
 
-## Nova categoria "Erro Judit" para isolar processos com turma inválida
+# Plano: Acesso ao PJE-TST via Cofre de Senhas usando n8n (Hostinger) como Proxy mTLS
 
-Criar uma marcação persistente para os processos que a Judit preencheu com uma turma fora da composição oficial do TST (1ª–8ª Turma), permitir filtrá-los na tela de Distribuição TST, e marcar agora os **188 processos** que estão nessa situação. Quando você rodar a busca Judit novamente, o flag será reavaliado automaticamente.
+## Por que estamos sendo bloqueados hoje
 
-### O que vai ser feito
+A Edge Function `testar-mni` faz a chamada SOAP direto do runtime Deno do Supabase. Isso falha por **dois motivos combinados**:
 
-**1. Coluna de marcação no banco** (`dados_benner.erro_judit boolean default false`)
+1. **Bloqueio de IP**: O TST e demais tribunais bloqueiam faixas de IP de cloud (Supabase/AWS/GCP). Toda chamada cai em `403`/`timeout`/`reset`.
+2. **Falta de mTLS**: O PJE-TST exige autenticação mútua TLS apresentando o **certificado A1 (.pfx)** do advogado no handshake. O Deno das Edge Functions não suporta `client certificates` nativamente — então mesmo se o IP passasse, o servidor recusaria a conexão.
 
-Migração que:
-- Adiciona a coluna `erro_judit` (boolean, default false, não-nulo).
-- Cria índice parcial `WHERE erro_judit = true` para o filtro ser rápido.
-- Faz backfill: marca `erro_judit = true` nos 188 registros onde `judit_preenchido = true` E `turma` não pertence a `{1ª Turma … 8ª Turma}` (normalizando acentos, número romano, "TURMA"/"Turma" etc.).
+A sua VPS Hostinger com n8n resolve os dois problemas: tem IP fixo "limpo" e o Node.js (que roda dentro do n8n) suporta mTLS nativo via `https.Agent({ pfx, passphrase })`.
 
-**2. Reavaliação automática a cada consulta Judit** (`supabase/functions/consultar-processo-judit/index.ts` e `buscar-judit/index.ts`)
+## Arquitetura proposta
 
-Após calcular `turmaFinal` (já com fallback de mapeamento oficial pelo relator), incluir no `update` da `dados_benner`:
-- `erro_judit = true` se a turma final ainda estiver fora da lista oficial **ou** se a Judit retornou turma mas o relator é desconhecido.
-- `erro_judit = false` quando a turma final é uma das 8 turmas oficiais.
+```text
+[App Lovable]
+     │  invoke('testar-mni', { cofre_senha_id })
+     ▼
+[Edge Function testar-mni]
+     │ 1. Valida JWT do usuário
+     │ 2. Decripta senha + senha do .pfx (AES-GCM)
+     │ 3. Baixa o .pfx do Storage do Supabase
+     │ 4. POST → n8n webhook (com PROXY_TOKEN)
+     ▼
+[n8n na Hostinger] ── Webhook "pje-mni-proxy"
+     │ a. Valida X-Proxy-Token
+     │ b. Monta envelope SOAP consultarAvisosPendentes
+     │ c. HTTP Request com mTLS (pfx em base64 + senha)
+     ▼
+[pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao]
+     │
+     ▼ resposta SOAP
+[n8n] devolve { http_status, body, elapsed_ms }
+     ▼
+[Edge Function] interpreta SOAP, atualiza cofre_senhas e retorna ao front
+```
 
-Assim, na próxima rodada da busca Judit em lote os flags se autocorrigem — quem ficar com turma válida sai da categoria, quem continuar inválido permanece.
+## Etapas de implementação
 
-**3. Filtro na tela Distribuição TST**
+### 1. Workflow n8n na Hostinger
+Criar um workflow `pje-mni-proxy` com 3 nós:
 
-- `src/hooks/useDistribuicoesTst.ts`: adicionar `erroJudit?: "todos" | "sim" | "nao"` em `DistribuicaoTstFilters` e aplicar `query.eq("erro_judit", true/false)`.
-- `src/pages/DistribuicaoTst.tsx`: novo `Select` ao lado do filtro "Judit":
-  ```text
-  Erro Judit: Todos
-  Erro Judit: Sim
-  Erro Judit: Não
+- **Webhook** (POST, path `/webhook/pje-mni-proxy`, Header Auth)
+  Body esperado:
+  ```json
+  {
+    "endpoint": "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao",
+    "soap_action": "consultarAvisosPendentes",
+    "soap_body": "<soapenv:Envelope>...</soapenv:Envelope>",
+    "pfx_base64": "MIIK...",
+    "pfx_password": "senha_do_certificado",
+    "timeout_ms": 30000
+  }
   ```
-  Incluir o estado em `clearFilters`, `hasFilters`, `debouncedFilters` e nas dependências do `useEffect`.
+- **Code** (JavaScript) — monta `https.Agent` com `pfx: Buffer.from(pfx_base64,'base64')` e faz a request com `axios`/`fetch` Node, retornando `{status, headers, body, elapsed_ms}`.
+- **Respond to Webhook** — devolve o JSON.
 
-**4. Indicador visual (leve)**
+Variáveis de ambiente no n8n: `PROXY_TOKEN` (gerado, ~32 chars random).
 
-- Na tabela, um badge vermelho discreto "Erro Judit" ao lado do nome da turma quando `erro_judit = true`, para tornar óbvio o que precisa ser revisado.
+### 2. Secrets no Supabase (Lovable Cloud)
+- `N8N_PJE_PROXY_URL` → `https://seu-n8n.hostinger.com/webhook/pje-mni-proxy`
+- `N8N_PJE_PROXY_TOKEN` → mesmo valor configurado no n8n
+- (Já existe) `COFRE_ENCRYPTION_KEY` para decriptar A1+senha
 
-### Critério de "Erro Judit"
+### 3. Refatorar Edge Function `testar-mni`
+Em vez de chamar `pje.tst.jus.br` direto:
+- Buscar `certificado_a1_path` da credencial → baixar do Storage Supabase
+- Decriptar `senha_hash` e `certificado_a1_senha`
+- Converter o .pfx para base64
+- POST para `N8N_PJE_PROXY_URL` com header `X-Proxy-Token`
+- Interpretar resposta SOAP (faultstring, `consultarAvisosPendentesResponse`)
+- Atualizar `cofre_senhas.status_validacao` / `tentativas_falhas` / `bloqueado_ate` (lógica já existente é mantida)
 
-Um registro é classificado como erro quando:
-- `judit_preenchido = true`, **e**
-- após normalização, `turma` ∉ `{"1ª Turma","2ª Turma","3ª Turma","4ª Turma","5ª Turma","6ª Turma","7ª Turma","8ª Turma"}`.
+### 4. UI do Cofre de Senhas
+Sem mudança visual. O botão "Testar MNI" passa a funcionar no TST. Acrescentar no resultado:
+- `via_proxy: true`
+- `proxy_latencia_ms` para diagnóstico
 
-Cobre os casos vistos hoje: `"4 TURMA"` solto, `"SBDI-I"`, `"Subseção"`, `"Presidência"`, `"CEJUSC"`, `"10ª TURMA"`, turmas de TRT etc.
+### 5. Tratamento de erros padronizado
+Mapear códigos retornados pelo n8n:
+- `proxy_unreachable` → "Proxy n8n offline — verifique a VPS"
+- `cert_invalid` → "Certificado A1 inválido ou expirado"
+- `cert_password_wrong` → "Senha do certificado incorreta"
+- `auth_failed` (faultstring com 'autenticação') → "CPF/Senha do PJE incorretos"
+- `tribunal_indisponivel` → erro 5xx do TST
 
-### Detalhes técnicos
+## Detalhes técnicos
 
-- Migração SQL: `ALTER TABLE` + `CREATE INDEX` + `UPDATE` de backfill usando `unaccent + lower + regexp` para validar o conjunto oficial.
-- Edge Functions: helper `isTurmaOficialTst(turma)` em `supabase/functions/_shared/extrair-relator.ts`, importado pelas duas funções; `updateData.erro_judit = !isTurmaOficialTst(turmaFinal)`.
-- Tipos do Supabase (`src/integrations/supabase/types.ts`) regeneram automaticamente após a migração.
-- Não altera RLS (já permite UPDATE para todos os autenticados).
+- **Storage do .pfx**: o campo `certificado_a1_path` aponta para um arquivo no bucket Supabase. A Edge Function usa `service_role` para `download()`.
+- **Tamanho do payload**: A1 típico tem 4–8KB → base64 ~10KB. Confortável para webhook.
+- **Segurança do proxy**: o n8n só aceita requests com `X-Proxy-Token` válido; recomendo também restringir o webhook por IP (firewall Hostinger → permitir somente faixas Supabase Edge ou tornar `N8N_PJE_PROXY_TOKEN` longo e rotacioná-lo).
+- **Timeout**: 30s no n8n, 35s na Edge Function (margem).
+- **Logs**: gravados em `historico_capturas` (já existe) com `detalhes.proxy_used = 'n8n-hostinger'`.
+- **Escopo inicial**: só TST. Demais TRTs continuam mostrando "Endpoint MNI não configurado" — habilitamos depois reutilizando o mesmo proxy (só adiciona URL no `MNI_ENDPOINTS`).
 
-### Resultado esperado
+## O que você precisa preparar antes de eu codar
 
-- Os 188 processos atuais ficam marcados como "Erro Judit" e podem ser isolados com um clique no novo filtro.
-- Toda nova consulta Judit (individual ou em lote) reavalia o flag, então quem voltar com turma válida sai da categoria sem ação manual.
-- Dados existentes preservados (nenhuma turma é apagada — apenas marcada).
+1. URL pública do seu n8n na Hostinger (ex: `https://n8n.seudominio.com.br`).
+2. Confirmar que o n8n está acessível por HTTPS (TLS válido — Let's Encrypt já basta).
+3. Decidir o `PROXY_TOKEN` (eu gero um se preferir).
+4. Confirmar que o certificado A1 do TST já está cadastrado no Cofre de uma credencial de teste.
+
+## Arquivos que serão alterados
+
+- `supabase/functions/testar-mni/index.ts` — refatorado para usar proxy
+- Novo: documentação `mem://features/cofre-senhas/n8n-pje-proxy.md`
+- Adicionar 2 secrets via tool de secrets
+
+Sem mudanças no schema do banco. Sem mudanças na UI além de mensagens de erro mais claras.
 
