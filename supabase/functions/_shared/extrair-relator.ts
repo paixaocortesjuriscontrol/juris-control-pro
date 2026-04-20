@@ -107,6 +107,22 @@ export function derivarRelatorDaTurma(turma: string): string | null {
     : null;
 }
 
+/**
+ * Verifica se a turma informada pertence à composição oficial do TST
+ * (1ª a 8ª Turma). Normaliza acentos, espaços e variantes ("ª/a/").
+ * Retorna `false` para nulos/vazios.
+ */
+export function isTurmaOficialTst(turma: string | null | undefined): boolean {
+  if (!turma) return false;
+  const norm = turma
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return /^[1-8][ªa]?\s*turma$/.test(norm);
+}
+
 // Regex para detectar movimentos de distribuição/redistribuição
 const DISTRIBUICAO_REGEX = /distribu[ií]/i;
 const REDISTRIBUICAO_REGEX = /redistribu/i;
