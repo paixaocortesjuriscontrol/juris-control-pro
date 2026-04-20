@@ -444,8 +444,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         relator: data.relator || f.relator,
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
-        reclamante: data.reclamante || f.reclamante,
-        reclamada: data.reclamada || f.reclamada,
       }));
 
       const filled = new Set<string>();
@@ -453,8 +451,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       if (data.relator) filled.add("relator");
       if (data.turma) filled.add("turma");
       if (tribunalMapeado) filled.add("tribunal");
-      if (data.reclamante) filled.add("reclamante");
-      if (data.reclamada) filled.add("reclamada");
 
       setCamposJudit(new Set(filled));
 
@@ -467,8 +463,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         data.relator && "Relator",
         data.turma && "Turma",
         tribunalMapeado && "Tribunal",
-        data.reclamante && "Reclamante",
-        data.reclamada && "Reclamada",
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
