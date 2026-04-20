@@ -13,7 +13,33 @@ const N8N_PROXY_TOKEN = Deno.env.get("N8N_PJE_PROXY_TOKEN") ?? "";
 
 // Credencial fixa de teste (Paixão Cortes - TST - Osmar A1)
 const FIXED_COFRE_ID = "20531186-32eb-4e07-8b48-59c2a2f5e6fc";
-const TST_MNI_URL = "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao";
+const MNI_ENDPOINTS: Record<string, string> = {
+  TST: "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT1: "https://pje.trt1.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT2: "https://pje.trt2.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT3: "https://pje.trt3.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT4: "https://pje.trt4.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT5: "https://pje.trt5.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT6: "https://pje.trt6.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT7: "https://pje.trt7.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT8: "https://pje.trt8.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT9: "https://pje.trt9.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT10: "https://pje.trt10.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT11: "https://pje.trt11.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT12: "https://pje.trt12.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT13: "https://pje.trt13.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT14: "https://pje.trt14.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT15: "https://pje.trt15.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT16: "https://pje.trt16.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT17: "https://pje.trt17.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT18: "https://pje.trt18.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT19: "https://pje.trt19.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT20: "https://pje.trt20.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT21: "https://pje.trt21.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT22: "https://pje.trt22.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT23: "https://pje.trt23.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  TRT24: "https://pje.trt24.jus.br/pje-integracao-api/mni300/intercomunicacao",
+};
 
 // ============ Utilitários de cripto ============
 async function deriveKey(secret: string): Promise<CryptoKey> {
@@ -97,6 +123,21 @@ function getAttr(xml: string, attr: string): string {
   return m ? m[1] : "";
 }
 
+function limparNumeroProcesso(numero: string): string {
+  return numero.replace(/\D/g, "").padStart(20, "0");
+}
+
+function extrairTribunalDoProcesso(numeroProcesso: string): string | null {
+  const numeroLimpo = limparNumeroProcesso(numeroProcesso);
+  if (numeroLimpo.length !== 20) return null;
+
+  const segmentoJustica = numeroLimpo.charAt(13);
+  const tribunal = numeroLimpo.substring(14, 16).replace(/^0+/, "") || "0";
+
+  if (segmentoJustica !== "5") return null;
+  return tribunal === "0" ? "TST" : `TRT${tribunal}`;
+}
+
 // ============ SOAP envelope ============
 function buildSoapConsultarProcesso(login: string, senha: string, numeroProcesso: string): string {
   const numLimpo = numeroProcesso.replace(/\D/g, "");
@@ -161,7 +202,7 @@ interface ParseResult {
   total_movimentos: number;
 }
 
-function parseMniToJuditLike(xml: string): ParseResult {
+function parseMniToJuditLike(xml: string, tribunalSigla: string): ParseResult {
   const processo = getTagContent(xml, "processo") || xml;
   const dadosBasicos = getTagContent(processo, "dadosBasicos") || processo;
 
@@ -206,8 +247,7 @@ function parseMniToJuditLike(xml: string): ParseResult {
     }
   }
 
-  // Tribunal: se órgão contém "TST" ou veio do endpoint TST, é TST
-  const tribunal = "TST"; // credencial fixa é TST
+  const tribunal = tribunalSigla;
 
   // Recorrente: heurística — se o nome do órgão indica "Vice-Presidência" / recurso, recorrente é o passivo (ativo no recurso)
   // No mínimo, no TST, recorrente costuma ser o reclamante OU reclamada. Sem dados extras, deixamos null.
@@ -332,6 +372,18 @@ serve(async (req) => {
       pfxPassword = await decryptSafe(credencial.certificado_a1_senha);
     }
 
+    const tribunalAlvo = extrairTribunalDoProcesso(numeroProcesso);
+    if (!tribunalAlvo || !MNI_ENDPOINTS[tribunalAlvo]) {
+      return new Response(JSON.stringify({
+        error: "Número do processo não pertence à Justiça do Trabalho suportada pelo MNI",
+        tipo_erro: "tribunal_nao_suportado",
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const mniUrl = MNI_ENDPOINTS[tribunalAlvo];
     const soapBody = buildSoapConsultarProcesso(login, senha, numeroProcesso);
     const startTime = Date.now();
 
@@ -349,7 +401,7 @@ serve(async (req) => {
           "X-Proxy-Token": N8N_PROXY_TOKEN,
         },
         body: JSON.stringify({
-          endpoint: TST_MNI_URL,
+          endpoint: mniUrl,
           soap_action: "consultarProcesso",
           soap_body: soapBody,
           pfx_base64: pfxBase64,
@@ -389,6 +441,19 @@ serve(async (req) => {
 
     const elapsedMs = Date.now() - startTime;
 
+    if (!responseText || responseText.trim() === "<xml>...</xml>") {
+      return new Response(JSON.stringify({
+        error: "O proxy do PJE retornou uma resposta inválida ou mascarada",
+        tipo_erro: "proxy_resposta_invalida",
+        tempo_ms: elapsedMs,
+        tribunal: tribunalAlvo,
+        http_status: proxyHttpStatus,
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Verificar fault
     const faultMatch = responseText.match(/<(?:[\w:]*)?faultstring[^>]*>([\s\S]*?)<\/(?:[\w:]*)?faultstring>/i);
     if (faultMatch) {
@@ -413,7 +478,7 @@ serve(async (req) => {
       });
     }
 
-    const parsed = parseMniToJuditLike(responseText);
+    const parsed = parseMniToJuditLike(responseText, tribunalAlvo);
 
     if (!parsed.numero) {
       console.log("[testar-pje-buscar-processo] XML sem numero. Primeiros 2000 chars:", responseText.substring(0, 2000));

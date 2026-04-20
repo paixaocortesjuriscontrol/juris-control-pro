@@ -321,8 +321,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         return;
       }
 
-      const tribunaisAceitos = ["TST", "STF", "STJ"];
-      const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
+      const tribunalMapeado = typeof data.tribunal === "string" && data.tribunal.trim()
+        ? data.tribunal.trim().toUpperCase()
+        : null;
       const situacaoMapeada = data.situacao_processo || null;
 
       setForm(f => ({
