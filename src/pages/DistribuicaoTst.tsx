@@ -365,16 +365,16 @@ export default function DistribuicaoTst() {
       // Garante user_id no insert para satisfazer RLS (user_id = auth.uid())
       const { data: authData } = await supabase.auth.getUser();
       const insertPayload = { ...(dado as any), user_id: (dado as any).user_id || authData?.user?.id || null };
-      const { data: inserted, error } = await supabase
+      const { data: inserted, error } = await (supabase
         .from("dados_benner" as any)
         .insert(insertPayload)
         .select("id")
-        .single();
+        .single() as any);
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
-      if (inserted?.id) {
+      if ((inserted as any)?.id) {
         toast.success("Registro salvo!");
         handleRefresh();
-        return inserted.id as string;
+        return (inserted as any).id as string;
       }
     }
     toast.success(id ? "Registro atualizado!" : "Registro salvo!");
