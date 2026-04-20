@@ -567,6 +567,18 @@ serve(async (req) => {
       if (r) relator = r;
     }
 
+    // ===== CORREÇÃO TURMA TST =====
+    // Se o tribunal final é TST e o relator está no mapeamento determinístico TST,
+    // SEMPRE usar a turma derivada do relator (sobrescrevendo qualquer turma
+    // extraída de courts, que pode pertencer a outra instância — TRT/TRF).
+    if (tribunal === "TST" && relator) {
+      const turmaTst = derivarTurmaDoRelator(relator);
+      if (turmaTst && turmaTst !== turma) {
+        console.log(`[buscar-judit] Turma corrigida via mapeamento TST: '${turma}' -> '${turmaTst}' (relator=${relator})`);
+        turma = turmaTst;
+      }
+    }
+
     // ===== FALLBACK DATAJUD =====
     // Se relator ou turma ainda estão vazios, consulta DataJud (CNJ) como complemento
     if (!relator || !turma) {
