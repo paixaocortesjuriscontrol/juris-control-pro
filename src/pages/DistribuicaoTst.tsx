@@ -351,13 +351,34 @@ export default function DistribuicaoTst() {
   // Save handler for Dados Benner form used from this page
   const handleSaveBenner = async (dado: DadoBennerInsert, id?: string) => {
     if (id) {
-      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id);
+      const { data: updated, error } = await supabase
+        .from("dados_benner" as any)
+        .update(dado as any)
+        .eq("id", id)
+        .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      if (!updated || (updated as any[]).length === 0) {
+        toast.error("Atualização bloqueada por permissão (RLS). Verifique se você é o dono do registro ou tem perfil de admin/coordenador.");
+        return false;
+      }
     } else {
-      const { error } = await supabase.from("dados_benner" as any).insert(dado as any);
+      // Garante user_id no insert para satisfazer RLS (user_id = auth.uid())
+      const { data: authData } = await supabase.auth.getUser();
+      const insertPayload = { ...(dado as any), user_id: (dado as any).user_id || authData?.user?.id || null };
+      const { data: inserted, error } = await (supabase
+        .from("dados_benner" as any)
+        .insert(insertPayload)
+        .select("id")
+        .single() as any);
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
+      if ((inserted as any)?.id) {
+        toast.success("Registro salvo!");
+        handleRefresh();
+        return (inserted as any).id as string;
+      }
     }
     toast.success(id ? "Registro atualizado!" : "Registro salvo!");
+    handleRefresh();
     return true;
   };
 
@@ -551,8 +572,18 @@ export default function DistribuicaoTst() {
             if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
 
             if (Object.keys(updateFields).length > 0) {
-              await supabase.from("dados_benner" as any).update(updateFields as any).eq("processo", proc.processo_numero);
-              successCount++;
+              const { data: upd, error: updErr } = await (supabase
+                .from("dados_benner" as any)
+                .update(updateFields as any)
+                .eq("processo", proc.processo_numero)
+                .select("id") as any);
+              if (updErr) {
+                console.warn("[bulk-judit] update error", proc.processo_numero, updErr.message);
+              } else if (!upd || (upd as any[]).length === 0) {
+                console.warn("[bulk-judit] update bloqueado por RLS", proc.processo_numero);
+              } else {
+                successCount++;
+              }
             }
           } else {
             // Get user id
