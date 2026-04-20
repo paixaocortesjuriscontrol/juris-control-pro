@@ -750,6 +750,7 @@ export default function DistribuicaoTst() {
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
+            {isAdmin && (
             <Button
               variant="destructive"
               onClick={async () => {
@@ -775,6 +776,7 @@ export default function DistribuicaoTst() {
             >
               <Trash2 className="w-4 h-4 mr-2" /> Apagar Todos
             </Button>
+            )}
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
