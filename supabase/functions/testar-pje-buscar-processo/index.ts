@@ -427,6 +427,8 @@ serve(async (req) => {
       const proxyJson = await proxyResponse.json();
       proxyHttpStatus = proxyJson.status ?? proxyJson.http_status ?? 0;
       responseText = proxyJson.body ?? proxyJson.data ?? "";
+      console.log("[testar-pje-buscar-processo] proxyJson keys:", Object.keys(proxyJson));
+      console.log("[testar-pje-buscar-processo] proxyJson preview:", JSON.stringify(proxyJson).substring(0, 1500));
     } catch (proxyErr) {
       clearTimeout(proxyTimeout);
       return new Response(JSON.stringify({
