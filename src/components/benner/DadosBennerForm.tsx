@@ -291,7 +291,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     }
   }, []);
 
-  const handleBuscarJudit = async () => {
+  const handleBuscarJudit = async (teste = false) => {
     if (!form.processo?.trim()) {
       toast.warning("Digite o número do processo primeiro");
       return;
