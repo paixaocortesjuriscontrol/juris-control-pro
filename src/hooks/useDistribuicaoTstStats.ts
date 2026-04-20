@@ -83,8 +83,8 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
 function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "id, processo, dossie, judit_preenchido, benner_atualizado, dados_benner_responsaveis!inner(usuario_id)"
-    : "id, processo, dossie, judit_preenchido, benner_atualizado";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
