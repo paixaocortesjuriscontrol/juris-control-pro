@@ -84,6 +84,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const [modoTeste, setModoTeste] = useState(false);
   const [baixandoAutos, setBaixandoAutos] = useState(false);
   const [autosJobId, setAutosJobId] = useState<string | null>(null);
   const [autosProgress, setAutosProgress] = useState<{
@@ -290,7 +291,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     }
   }, []);
 
-  const handleBuscarJudit = async () => {
+  const handleBuscarJudit = async (teste = false) => {
     if (!form.processo?.trim()) {
       toast.warning("Digite o número do processo primeiro");
       return;
@@ -298,6 +299,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
 
     const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
+    setModoTeste(teste);
 
     try {
       // Sempre buscar instância TST — o formulário Dados Benner é voltado para processos no TST.
@@ -543,7 +545,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   // Highlight wrapper for fields filled by Judit
   const juditHighlight = (field: string) =>
     camposJudit.has(field)
-      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500"
+      ? (modoTeste
+          ? "ring-2 ring-rose-500 bg-rose-50 dark:bg-rose-950/30 rounded-md transition-all duration-500"
+          : "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all duration-500")
       : "";
 
   // Highlight for fields filled by DataJud (tipo_recurso_auto)
@@ -561,8 +565,16 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     <div className="flex items-center gap-1.5">
       {children}
       {camposJudit.has(field) && (
-        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-normal">
-          Judit
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px] px-1 py-0 h-4 font-normal",
+            modoTeste
+              ? "border-rose-500 text-rose-600 dark:text-rose-400"
+              : "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+          )}
+        >
+          {modoTeste ? "Teste" : "Judit"}
         </Badge>
       )}
       {field === "tipo_recurso" && form.tipo_recurso_auto && !camposJudit.has(field) && (
@@ -595,12 +607,22 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               </Button>
               <Button 
                 variant="default" 
-                onClick={handleBuscarJudit} 
+                onClick={() => handleBuscarJudit(false)}
                 disabled={buscandoJudit || !form.processo?.trim()}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {buscandoJudit && !modoTeste ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Judit
+              </Button>
+              <Button
+                variant="default"
+                onClick={() => handleBuscarJudit(true)}
+                disabled={buscandoJudit || !form.processo?.trim()}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                title="Mesma busca da Judit, mas destacando os campos em vermelho (modo teste)"
+              >
+                {buscandoJudit && modoTeste ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Testar
               </Button>
               <Button 
                 variant="default" 
