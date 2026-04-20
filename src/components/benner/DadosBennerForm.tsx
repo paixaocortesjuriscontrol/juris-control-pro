@@ -300,10 +300,11 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     setBuscandoJudit(true);
 
     try {
-      // Sempre buscar instância TST — o formulário Dados Benner é voltado para processos no TST
-      const tribunalHint = form.tribunal || "TST";
+      // Sempre buscar instância TST — o formulário Dados Benner é voltado para processos no TST.
+      // Mesmo que o campo "tribunal" do formulário esteja preenchido com TRT/STJ/etc, forçamos TST
+      // para garantir que Relator e Turma venham da instância correta.
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: tribunalHint },
+        body: { numero_processo: processoNumero, tribunal: "TST" },
       });
 
       if (error) {
