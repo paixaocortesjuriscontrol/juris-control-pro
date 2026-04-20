@@ -427,6 +427,8 @@ serve(async (req) => {
       const proxyJson = await proxyResponse.json();
       proxyHttpStatus = proxyJson.status ?? proxyJson.http_status ?? 0;
       responseText = proxyJson.body ?? proxyJson.data ?? "";
+      console.log("[testar-pje-buscar-processo] proxyJson keys:", Object.keys(proxyJson));
+      console.log("[testar-pje-buscar-processo] proxyJson preview:", JSON.stringify(proxyJson).substring(0, 1500));
     } catch (proxyErr) {
       clearTimeout(proxyTimeout);
       return new Response(JSON.stringify({
@@ -443,7 +445,7 @@ serve(async (req) => {
 
     if (!responseText || responseText.trim() === "<xml>...</xml>") {
       return new Response(JSON.stringify({
-        error: "O proxy do PJE retornou uma resposta inválida ou mascarada",
+        error: "O proxy n8n retornou resposta vazia/mascarada. Causa provável: o Code node do n8n está falhando (módulo 'https' bloqueado). Adicione NODE_FUNCTION_ALLOW_BUILTIN=* e NODE_FUNCTION_ALLOW_EXTERNAL=* nos containers n8n e n8n-worker e redeploy.",
         tipo_erro: "proxy_resposta_invalida",
         tempo_ms: elapsedMs,
         tribunal: tribunalAlvo,
