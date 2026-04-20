@@ -49,6 +49,7 @@ export interface DistribuicaoTst {
   judit_preenchido: boolean;
   judit_preenchido_em: string | null;
   judit_preenchido_por: string | null;
+  erro_judit?: boolean;
   coordenacao_id: string | null;
   responsaveis_ids?: string[];
   observacao_advogado?: string | null;
@@ -72,6 +73,7 @@ export interface DistribuicaoTstFilters {
   dossieStatus?: "todos" | "preenchido" | "nao_preenchido" | "valido" | "invalido" | "invalido_ou_nao_preenchido";
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
+  erroJudit?: "todos" | "sim" | "nao";
   situacaoProcesso?: "todos" | "ativo" | "transito" | "outros";
   mesAno?: string;
   dataInicio?: string;
