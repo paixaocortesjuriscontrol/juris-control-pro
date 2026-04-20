@@ -299,6 +299,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
 
     const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
+    setModoTeste(teste);
 
     try {
       // Sempre buscar instância TST — o formulário Dados Benner é voltado para processos no TST.
