@@ -282,9 +282,28 @@ serve(async (req) => {
     // Marca quando a turma final NÃO pertence à composição oficial do TST (1ª-8ª Turma).
     try {
       const erroJudit = !isTurmaOficialTst(turmaFinal as string | null);
+
+      // Mapeia phase do payload Judit para situacao_processo padronizada do dados_benner.
+      // Cobre casos como o processo 0020168-27.2023.5.04.0019 (TRT4 arquivado) que nem
+      // está no TST mas constava como Ativo na planilha.
+      const phaseRaw = (rd?.phase || rd?.status || "").toString().toUpperCase();
+      let situacaoFromPhase: string | null = null;
+      if (phaseRaw.includes("ARQUIVAD") || phaseRaw.includes("FINALIZAD")) {
+        situacaoFromPhase = "Arquivado";
+      } else if (phaseRaw.includes("BAIXAD")) {
+        situacaoFromPhase = "Baixado";
+      } else if (phaseRaw.includes("SUSPENS")) {
+        situacaoFromPhase = "Suspenso";
+      } else if (phaseRaw.includes("ATIVO") || phaseRaw === "ATIVA") {
+        situacaoFromPhase = "Ativo";
+      }
+
+      const dbUpdate: Record<string, unknown> = { erro_judit: erroJudit };
+      if (situacaoFromPhase) dbUpdate.situacao_processo = situacaoFromPhase;
+
       await supabaseAuth
         .from("dados_benner")
-        .update({ erro_judit: erroJudit })
+        .update(dbUpdate)
         .eq("processo", numeroCnj);
     } catch (e) {
       console.warn("[consultar-processo-judit] falha ao atualizar erro_judit:", (e as Error).message);
