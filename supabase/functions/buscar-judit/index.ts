@@ -159,7 +159,7 @@ async function juditLookupCache(
 async function juditCriarRequest(
   apiKey: string,
   cnj: string,
-): Promise<string | null> {
+): Promise<{ request_id: string } | { error: string; status: number }> {
   const body = {
     search: {
       search_type: "lawsuit_cnj",
@@ -179,11 +179,17 @@ async function juditCriarRequest(
   });
 
   if (!r.ok) {
-    console.error(`POST /requests ${r.status}: ${await r.text()}`);
-    return null;
+    const text = await r.text();
+    console.error(`POST /requests ${r.status}: ${text}`);
+    let msg = text;
+    try {
+      const parsed = JSON.parse(text);
+      msg = parsed?.error?.message || parsed?.error?.data || parsed?.message || text;
+    } catch (_) { /* keep raw */ }
+    return { error: msg, status: r.status };
   }
   const data = await r.json();
-  return data.request_id ?? null;
+  return { request_id: data.request_id };
 }
 
 async function juditPollRespostas(
@@ -461,10 +467,18 @@ serve(async (req) => {
         console.log(`[buscar-judit] Cache descartado: tribunal_cache=${cachedRd.tribunal_acronym} hint=${tribunalHint}`);
       }
       debugStatus = "async_poll";
-      requestId = await juditCriarRequest(JUDIT_API_KEY, cnj);
-      if (!requestId) {
-        return json({ error: "Falha ao criar requisição na Judit" }, 502);
+      const criar = await juditCriarRequest(JUDIT_API_KEY, cnj);
+      if ("error" in criar) {
+        const isLimite = /MAX_CONSUMPTION|LIMIT|QUOTA/i.test(criar.error);
+        return json({
+          error: isLimite
+            ? "Limite do plano Judit atingido. Verifique seu consumo no painel Judit."
+            : `Falha ao criar requisição na Judit: ${criar.error}`,
+          judit_status: criar.status,
+          judit_error: criar.error,
+        }, criar.status === 422 ? 402 : 502);
       }
+      requestId = criar.request_id;
       console.log(`[buscar-judit] request_id=${requestId}`);
 
       const envelope = await juditPollRespostas(JUDIT_API_KEY, requestId);
