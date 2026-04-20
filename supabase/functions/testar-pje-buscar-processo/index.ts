@@ -414,10 +414,11 @@ serve(async (req) => {
 
       if (!proxyResponse.ok) {
         const errText = await proxyResponse.text();
+        console.error("[testar-pje-buscar-processo] Proxy HTTP", proxyResponse.status, "body:", errText.substring(0, 2000));
         return new Response(JSON.stringify({
           error: `Proxy n8n retornou HTTP ${proxyResponse.status}`,
           tipo_erro: "proxy_unreachable",
-          detalhes: errText.substring(0, 500),
+          detalhes: errText.substring(0, 2000),
         }), {
           status: 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
