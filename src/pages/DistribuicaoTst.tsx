@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { CopyButton } from "@/components/ui/copy-button";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -64,6 +65,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  const { isAdmin } = useUserRole();
   const [showCarga, setShowCarga] = useState(false);
   
   // Dados Benner form from distribuição
@@ -748,6 +750,7 @@ export default function DistribuicaoTst() {
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
+            {isAdmin && (
             <Button
               variant="destructive"
               onClick={async () => {
@@ -773,6 +776,7 @@ export default function DistribuicaoTst() {
             >
               <Trash2 className="w-4 h-4 mr-2" /> Apagar Todos
             </Button>
+            )}
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
