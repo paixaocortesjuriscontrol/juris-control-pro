@@ -85,6 +85,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [modoTeste, setModoTeste] = useState(false);
+  const [testandoPje, setTestandoPje] = useState(false);
   const [baixandoAutos, setBaixandoAutos] = useState(false);
   const [autosJobId, setAutosJobId] = useState<string | null>(null);
   const [autosProgress, setAutosProgress] = useState<{
@@ -291,7 +292,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     }
   }, []);
 
-  const handleBuscarJudit = async (teste = false) => {
+  const handleBuscarJudit = async () => {
     if (!form.processo?.trim()) {
       toast.warning("Digite o número do processo primeiro");
       return;
@@ -299,7 +300,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
 
     const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
-    setModoTeste(teste);
+    setModoTeste(false);
 
     try {
       // Sempre buscar instância TST — o formulário Dados Benner é voltado para processos no TST.
@@ -406,6 +407,75 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     }
 
     setBuscandoJudit(false);
+  };
+
+  const handleTestarPje = async () => {
+    if (!form.processo?.trim()) {
+      toast.warning("Digite o número do processo primeiro");
+      return;
+    }
+
+    const processoNumero = form.processo.trim();
+    setTestandoPje(true);
+    setModoTeste(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("testar-pje-buscar-processo", {
+        body: { numero_processo: processoNumero },
+      });
+
+      if (error) {
+        console.error("Erro PJE:", error);
+        toast.error("Erro ao consultar PJE: " + (error.message || "Erro desconhecido"));
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      const tribunaisAceitos = ["TST", "STF", "STJ"];
+      const tribunalMapeado = tribunaisAceitos.includes(data.tribunal) ? data.tribunal : null;
+
+      setForm(f => ({
+        ...f,
+        data_distribuicao: data.data_distribuicao || f.data_distribuicao,
+        relator: data.relator || f.relator,
+        turma: data.turma || f.turma,
+        tribunal: tribunalMapeado || f.tribunal,
+      }));
+
+      const filled = new Set<string>();
+      if (data.data_distribuicao) filled.add("data_distribuicao");
+      if (data.relator) filled.add("relator");
+      if (data.turma) filled.add("turma");
+      if (tribunalMapeado) filled.add("tribunal");
+
+      setCamposJudit(new Set(filled));
+
+      if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
+        setPartesJudit(data.parties_detail);
+      }
+
+      const camposPreenchidos = [
+        data.data_distribuicao && "Data Distribuição",
+        data.relator && "Relator",
+        data.turma && "Turma",
+        tribunalMapeado && "Tribunal",
+      ].filter(Boolean);
+
+      if (camposPreenchidos.length > 0) {
+        toast.success(`PJE: ${camposPreenchidos.length} campo(s) preenchidos via MNI — ${camposPreenchidos.join(", ")}`);
+      } else {
+        toast.info("PJE: processo encontrado, mas sem dados extraídos");
+      }
+    } catch (err: any) {
+      console.error("Erro ao testar PJE:", err);
+      toast.error("Erro de conexão com o PJE");
+    } finally {
+      setTestandoPje(false);
+    }
   };
 
   const handleBaixarAutos = async () => {
@@ -607,21 +677,21 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               </Button>
               <Button 
                 variant="default" 
-                onClick={() => handleBuscarJudit(false)}
+                onClick={handleBuscarJudit}
                 disabled={buscandoJudit || !form.processo?.trim()}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {buscandoJudit && !modoTeste ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Judit
               </Button>
               <Button
                 variant="default"
-                onClick={() => handleBuscarJudit(true)}
-                disabled={buscandoJudit || !form.processo?.trim()}
+                onClick={handleTestarPje}
+                disabled={testandoPje || !form.processo?.trim()}
                 className="bg-rose-600 hover:bg-rose-700 text-white"
-                title="Mesma busca da Judit, mas destacando os campos em vermelho (modo teste)"
+                title="Consulta o PJE via MNI usando a credencial de teste do Cofre (Paixão Cortes - TST)"
               >
-                {buscandoJudit && modoTeste ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {testandoPje ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Testar
               </Button>
               <Button 
