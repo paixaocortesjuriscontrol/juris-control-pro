@@ -583,6 +583,8 @@ export default function DistribuicaoTst() {
             if (juditData.resultado_conhecido_nao_provido) updateFields.resultado_conhecido_nao_provido = true;
             if (juditData.resultado_outra) updateFields.resultado_outra = juditData.resultado_outra;
             if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
+            // Sempre reavalia o flag erro_judit com a turma final (mesmo que turma não tenha mudado)
+            updateFields.erro_judit = erroJuditFlag;
 
             if (Object.keys(updateFields).length > 0) {
               const { data: upd, error: updErr } = await (supabase
