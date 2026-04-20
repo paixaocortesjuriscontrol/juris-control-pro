@@ -1,92 +1,59 @@
 
 
-## Diagnóstico
+## Nova categoria "Erro Judit" para isolar processos com turma inválida
 
-Existem hoje **duas tabelas com dados sobrepostos**:
-- `distribuicoes_tst` (3.592 registros) — origem: importação de planilhas Dr. Renata
-- `dados_benner` (1.806 registros) — fonte de verdade, atualizada via Judit
+Criar uma marcação persistente para os processos que a Judit preencheu com uma turma fora da composição oficial do TST (1ª–8ª Turma), permitir filtrá-los na tela de Distribuição TST, e marcar agora os **188 processos** que estão nessa situação. Quando você rodar a busca Judit novamente, o flag será reavaliado automaticamente.
 
-**1.801 processos coincidem** entre as duas. **1.791 distribuições não têm Benner** ainda. A solução é unificar: transformar `dados_benner` na **única tabela mestre** e descontinuar leitura/gravação direta de `distribuicoes_tst` para esses campos.
+### O que vai ser feito
 
-## Mapeamento de campos
+**1. Coluna de marcação no banco** (`dados_benner.erro_judit boolean default false`)
 
-Campos que **já existem em ambas** (Benner prevalece quando preenchido):
-`processo`, `dossie`, `relator`, `turma`, `tipo_recurso`, `data_distribuicao`, `recorrente` (= `parte_recorrente`)
+Migração que:
+- Adiciona a coluna `erro_judit` (boolean, default false, não-nulo).
+- Cria índice parcial `WHERE erro_judit = true` para o filtro ser rápido.
+- Faz backfill: marca `erro_judit = true` nos 188 registros onde `judit_preenchido = true` E `turma` não pertence a `{1ª Turma … 8ª Turma}` (normalizando acentos, número romano, "TURMA"/"Turma" etc.).
 
-Campos **exclusivos de distribuicoes_tst** que precisam ser preservados (migrar para `dados_benner` adicionando colunas):
-- `aba_origem`, `equipe`, `reclamante`, `reclamada`
-- `relator_favorabilidade`, `turma_favorabilidade` (já existem como `posicao_relator_favoravel/desfavoravel` e `posicao_turma_*` — converter)
-- `tipo_recurso_reclamante`, `tipo_recurso_banco`, `materias_recurso_*`, `aparelhamento_*`, `chance_exito_*`
-- `honra`, `tema`, `execucao`, `midia_negativa`, `decisao_quarteirizado`, `recurso_terceiros`
-- `benner_atualizado`, `transito_julgado`
-- `judit_preenchido`, `judit_preenchido_em`, `judit_preenchido_por`
+**2. Reavaliação automática a cada consulta Judit** (`supabase/functions/consultar-processo-judit/index.ts` e `buscar-judit/index.ts`)
 
-## Plano de unificação
+Após calcular `turmaFinal` (já com fallback de mapeamento oficial pelo relator), incluir no `update` da `dados_benner`:
+- `erro_judit = true` se a turma final ainda estiver fora da lista oficial **ou** se a Judit retornou turma mas o relator é desconhecido.
+- `erro_judit = false` quando a turma final é uma das 8 turmas oficiais.
 
-### Etapa 1 — Migração de schema (`dados_benner`)
-Adicionar colunas faltantes em `dados_benner`:
-```
-aba_origem, equipe, reclamante, reclamada,
-tipo_recurso_reclamante, materias_recurso_reclamante, aparelhamento_reclamante, chance_exito_reclamante,
-tipo_recurso_banco, materias_recurso_banco, aparelhamento_banco, chance_exito_banco,
-honra, tema, execucao, midia_negativa, decisao_quarteirizado, recurso_terceiros,
-benner_atualizado (boolean), transito_julgado (boolean),
-judit_preenchido (boolean), judit_preenchido_em (timestamptz), judit_preenchido_por (uuid),
-parte_recorrente_origem (text)  -- para distinguir origem do dado
-```
+Assim, na próxima rodada da busca Judit em lote os flags se autocorrigem — quem ficar com turma válida sai da categoria, quem continuar inválido permanece.
 
-### Etapa 2 — Migração de dados (1.791 distribuições órfãs)
-Para cada registro em `distribuicoes_tst` que **não tem** correspondente em `dados_benner`:
-- INSERT em `dados_benner` com todos os campos copiados
-- `processo` ← `processo_numero`, `recorrente` ← `parte_recorrente`
-- Mapear `relator_favorabilidade='Positiva'` → `posicao_relator_favoravel=true` (e idem turma/negativo)
-- `status = 'rascunho'`
+**3. Filtro na tela Distribuição TST**
 
-Para os 1.801 já presentes em ambas:
-- UPDATE em `dados_benner` preenchendo apenas campos NULL/vazios em Benner com valores da distribuição (Benner prevalece)
-- Copiar os campos exclusivos (`aba_origem`, `equipe`, `honra`, `tema`, etc.) sempre que estiverem vazios em Benner
+- `src/hooks/useDistribuicoesTst.ts`: adicionar `erroJudit?: "todos" | "sim" | "nao"` em `DistribuicaoTstFilters` e aplicar `query.eq("erro_judit", true/false)`.
+- `src/pages/DistribuicaoTst.tsx`: novo `Select` ao lado do filtro "Judit":
+  ```text
+  Erro Judit: Todos
+  Erro Judit: Sim
+  Erro Judit: Não
+  ```
+  Incluir o estado em `clearFilters`, `hasFilters`, `debouncedFilters` e nas dependências do `useEffect`.
 
-### Etapa 3 — Refatoração da UI (`/distribuicao-tst`)
-- **`useDistribuicoesTst.ts`**: trocar a fonte primária para `dados_benner`. A tela de "Distribuição TST" passa a ler de `dados_benner` filtrando por `tribunal='TST'` (ou pela presença de `aba_origem`).
-- Remover o "enriquecimento" via lookup secundário (não é mais necessário — já é uma única tabela).
-- Manter os mesmos filtros (processo, dossiê, relator, turma, parte, aba, mês, judit, benner_atualizado).
-- A grid e o formulário de edição abrem direto o registro de `dados_benner`.
+**4. Indicador visual (leve)**
 
-### Etapa 4 — Ajuste dos pontos de escrita
-- **`DistribuicaoTstImport.tsx`** (importação Dr. Renata): passar a fazer upsert direto em `dados_benner` (chave: `processo + dossie`).
-- **`ImportarProcessos.tsx`**: idem — gravar em `dados_benner`.
-- **`DossieUpdateImport.tsx`**: atualizar dossiê em `dados_benner`.
-- **`ProcessoDistribuicoesTab.tsx`** e **`DadosBennerDistribuicaoTab.tsx`**: ler de `dados_benner` filtrando por `processo`.
-- **`CargaBennerFromDb.tsx`**: usar `dados_benner` como fonte.
-- **Bulk Judit** em `DistribuicaoTst.tsx`: simplificar — só atualiza `dados_benner` (sem mais escrita dupla em `distribuicoes_tst`).
-- **`useDadosBenner.ts`**: o filtro `tem_distribuicao` deixa de ter sentido (vira `aba_origem IS NOT NULL`).
+- Na tabela, um badge vermelho discreto "Erro Judit" ao lado do nome da turma quando `erro_judit = true`, para tornar óbvio o que precisa ser revisado.
 
-### Etapa 5 — Descomissionamento
-- Renomear `distribuicoes_tst` → `distribuicoes_tst_legacy` (mantida read-only por 30 dias para auditoria/rollback).
-- Após validação do usuário em produção, DROP definitivo via nova migration.
+### Critério de "Erro Judit"
 
-## Considerações técnicas
+Um registro é classificado como erro quando:
+- `judit_preenchido = true`, **e**
+- após normalização, `turma` ∉ `{"1ª Turma","2ª Turma","3ª Turma","4ª Turma","5ª Turma","6ª Turma","7ª Turma","8ª Turma"}`.
 
-- A regra **"Benner prevalece quando atualizado pela Judit"** é aplicada na migração inicial (UPDATE só preenche NULLs em Benner) e também no fluxo futuro: a Judit grava direto em `dados_benner`, então não há mais conflito.
-- `processo + dossie` continua sendo a chave única funcional (memory: `dados-benner-uniqueness`).
-- A página `/distribuicao-tst` continua existindo com o mesmo nome e UX — muda apenas a tabela por trás.
-- RLS de `dados_benner` já existe; nenhuma nova política necessária.
-- Coordenação `coordenacao_id` em `dados_benner` será preenchida via lookup em `processos` quando possível, senão fica NULL.
+Cobre os casos vistos hoje: `"4 TURMA"` solto, `"SBDI-I"`, `"Subseção"`, `"Presidência"`, `"CEJUSC"`, `"10ª TURMA"`, turmas de TRT etc.
 
-## Diagrama do fluxo final
+### Detalhes técnicos
 
-```text
-                  ┌──────────────────┐
-  Planilha Dr.    │                  │
-  Renata ─────────┤  dados_benner    │◄─── Judit API (prevalece)
-                  │  (única tabela)  │
-  Importação ─────┤                  │◄─── Edição manual (form)
-  processos       └────────┬─────────┘
-                           │
-                ┌──────────┴──────────┐
-                │                     │
-        /distribuicao-tst       /dados-benner
-        (filtro: aba_origem    (todos os
-         IS NOT NULL)           registros)
-```
+- Migração SQL: `ALTER TABLE` + `CREATE INDEX` + `UPDATE` de backfill usando `unaccent + lower + regexp` para validar o conjunto oficial.
+- Edge Functions: helper `isTurmaOficialTst(turma)` em `supabase/functions/_shared/extrair-relator.ts`, importado pelas duas funções; `updateData.erro_judit = !isTurmaOficialTst(turmaFinal)`.
+- Tipos do Supabase (`src/integrations/supabase/types.ts`) regeneram automaticamente após a migração.
+- Não altera RLS (já permite UPDATE para todos os autenticados).
+
+### Resultado esperado
+
+- Os 188 processos atuais ficam marcados como "Erro Judit" e podem ser isolados com um clique no novo filtro.
+- Toda nova consulta Judit (individual ou em lote) reavalia o flag, então quem voltar com turma válida sai da categoria sem ação manual.
+- Dados existentes preservados (nenhuma turma é apagada — apenas marcada).
 
