@@ -8,6 +8,8 @@ const corsHeaders = {
 };
 
 const ENCRYPTION_KEY = Deno.env.get("COFRE_ENCRYPTION_KEY") ?? "";
+const N8N_PROXY_URL = Deno.env.get("N8N_PJE_PROXY_URL") ?? "";
+const N8N_PROXY_TOKEN = Deno.env.get("N8N_PJE_PROXY_TOKEN") ?? "";
 
 // Decrypt AES-GCM (same as cofre-senhas)
 async function deriveKey(secret: string): Promise<CryptoKey> {
@@ -41,6 +43,20 @@ async function decryptSafe(value: string | null): Promise<string | null> {
   } catch {
     return value; // plaintext fallback
   }
+}
+
+// Convert ArrayBuffer to base64 (chunked to avoid stack overflow)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunkSize))
+    );
+  }
+  return btoa(binary);
 }
 
 // Mapa de endpoints MNI por tribunal
@@ -214,26 +230,125 @@ serve(async (req) => {
       `[testar-mni] Testando MNI para tribunal ${tribunal} em ${mniUrl}`
     );
 
+    // === Proxy n8n com mTLS ===
+    if (!N8N_PROXY_URL || !N8N_PROXY_TOKEN) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            "Proxy n8n não configurado (N8N_PJE_PROXY_URL / N8N_PJE_PROXY_TOKEN ausentes).",
+          tipo_erro: "proxy_nao_configurado",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Baixar certificado A1 (.pfx) do Storage, se houver
+    let pfxBase64: string | null = null;
+    let pfxPassword: string | null = null;
+    if (credencial.certificado_a1_path) {
+      const { data: pfxFile, error: pfxError } = await supabaseAdmin.storage
+        .from("certificados-a1")
+        .download(credencial.certificado_a1_path);
+
+      if (pfxError || !pfxFile) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Não foi possível baixar o certificado A1 do storage",
+            tipo_erro: "cert_storage_erro",
+            detalhes: pfxError?.message,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const pfxBuffer = await pfxFile.arrayBuffer();
+      pfxBase64 = arrayBufferToBase64(pfxBuffer);
+      pfxPassword = await decryptSafe(credencial.certificado_a1_senha);
+    }
+
     // Build SOAP envelope
     const soapBody = buildConsultarAvisosPendentesSOAP(login, senha);
 
     const startTime = Date.now();
 
-    // Make SOAP request
-    const mniResponse = await fetch(mniUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/xml;charset=UTF-8",
-        SOAPAction: "consultarAvisosPendentes",
-      },
-      body: soapBody,
-    });
+    // Chamar proxy n8n (com mTLS)
+    const proxyController = new AbortController();
+    const proxyTimeout = setTimeout(() => proxyController.abort(), 35000);
+
+    let proxyHttpStatus = 0;
+    let responseText = "";
+    let proxyLatenciaMs = 0;
+
+    try {
+      const proxyResponse = await fetch(N8N_PROXY_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Proxy-Token": N8N_PROXY_TOKEN,
+        },
+        body: JSON.stringify({
+          endpoint: mniUrl,
+          soap_action: "consultarAvisosPendentes",
+          soap_body: soapBody,
+          pfx_base64: pfxBase64,
+          pfx_password: pfxPassword,
+          timeout_ms: 30000,
+        }),
+        signal: proxyController.signal,
+      });
+      clearTimeout(proxyTimeout);
+
+      if (!proxyResponse.ok) {
+        const errText = await proxyResponse.text();
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Proxy n8n retornou HTTP ${proxyResponse.status}`,
+            tipo_erro: "proxy_unreachable",
+            detalhes: errText.substring(0, 500),
+            via_proxy: true,
+          }),
+          {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const proxyJson = await proxyResponse.json();
+      proxyHttpStatus = proxyJson.status ?? proxyJson.http_status ?? 0;
+      responseText = proxyJson.body ?? proxyJson.data ?? "";
+      proxyLatenciaMs = proxyJson.elapsed_ms ?? 0;
+    } catch (proxyErr) {
+      clearTimeout(proxyTimeout);
+      console.error("[testar-mni] Erro no proxy n8n:", proxyErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Falha ao contatar proxy n8n",
+          tipo_erro: "proxy_unreachable",
+          detalhes: String(proxyErr),
+          via_proxy: true,
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const elapsedMs = Date.now() - startTime;
-    const responseText = await mniResponse.text();
 
     console.log(
-      `[testar-mni] Resposta MNI: status=${mniResponse.status}, tempo=${elapsedMs}ms, tamanho=${responseText.length}`
+      `[testar-mni] Resposta via proxy n8n: status=${proxyHttpStatus}, tempo_total=${elapsedMs}ms, latencia_proxy=${proxyLatenciaMs}ms, tamanho=${responseText.length}`
     );
 
     // Parse response
@@ -263,13 +378,13 @@ serve(async (req) => {
 
     // Check for successful response (contains avisos or success indicator)
     const hasAvisos = responseText.includes("consultarAvisosPendentesResponse");
-    const isSuccess = mniResponse.ok && (hasAvisos || !isFault);
+    const isSuccess = proxyHttpStatus >= 200 && proxyHttpStatus < 300 && (hasAvisos || !isFault);
 
     // Update credential status
     const statusUpdate: Record<string, unknown> = {
       ultima_validacao: new Date().toISOString(),
       status_validacao: isSuccess ? "valido" : isAuthError ? "erro_credencial" : "erro_conexao",
-      mensagem_erro: isSuccess ? null : faultMessage || mensagem || `HTTP ${mniResponse.status}`,
+      mensagem_erro: isSuccess ? null : faultMessage || mensagem || `HTTP ${proxyHttpStatus}`,
     };
 
     if (isSuccess) {
@@ -313,10 +428,12 @@ serve(async (req) => {
         tribunal,
         endpoint: mniUrl,
         tempo_ms: elapsedMs,
-        http_status: mniResponse.status,
+        http_status: proxyHttpStatus,
+        via_proxy: true,
+        proxy_latencia_ms: proxyLatenciaMs,
         autenticacao_ok: isSuccess,
         total_avisos_pendentes: isSuccess ? totalAvisos : undefined,
-        erro: !isSuccess ? faultMessage || mensagem || `HTTP ${mniResponse.status}` : undefined,
+        erro: !isSuccess ? faultMessage || mensagem || `HTTP ${proxyHttpStatus}` : undefined,
         tipo_erro: !isSuccess
           ? isAuthError
             ? "credencial_invalida"
