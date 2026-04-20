@@ -928,6 +928,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroErroJudit} onValueChange={setFiltroErroJudit}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Erro Judit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Erro Judit: Todos</SelectItem>
+                <SelectItem value="sim">Erro Judit: Sim</SelectItem>
+                <SelectItem value="nao">Erro Judit: Não</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Situação" />
@@ -1084,7 +1094,16 @@ export default function DistribuicaoTst() {
                     ) : "—"}
                   </TableCell>
                   <TableCell className={cn("text-xs align-middle", relatorClass)}>{d.relator || "—"}</TableCell>
-                  <TableCell className={cn("text-xs align-middle", turmaClass)}>{d.turma || "—"}</TableCell>
+                  <TableCell className={cn("text-xs align-middle", turmaClass)}>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span>{d.turma || "—"}</span>
+                      {d.erro_judit && (
+                        <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 font-normal" title="Turma fora da composição oficial do TST (1ª-8ª Turma)">
+                          Erro Judit
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-xs align-middle">
                     {responsaveis.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
