@@ -8,6 +8,8 @@ const corsHeaders = {
 };
 
 const ENCRYPTION_KEY = Deno.env.get("COFRE_ENCRYPTION_KEY") ?? "";
+const N8N_PROXY_URL = Deno.env.get("N8N_PJE_PROXY_URL") ?? "";
+const N8N_PROXY_TOKEN = Deno.env.get("N8N_PJE_PROXY_TOKEN") ?? "";
 
 // Decrypt AES-GCM (same as cofre-senhas)
 async function deriveKey(secret: string): Promise<CryptoKey> {
@@ -41,6 +43,20 @@ async function decryptSafe(value: string | null): Promise<string | null> {
   } catch {
     return value; // plaintext fallback
   }
+}
+
+// Convert ArrayBuffer to base64 (chunked to avoid stack overflow)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunkSize))
+    );
+  }
+  return btoa(binary);
 }
 
 // Mapa de endpoints MNI por tribunal
