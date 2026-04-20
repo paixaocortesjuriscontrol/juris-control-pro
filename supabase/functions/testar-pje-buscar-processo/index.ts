@@ -372,6 +372,18 @@ serve(async (req) => {
       pfxPassword = await decryptSafe(credencial.certificado_a1_senha);
     }
 
+    const tribunalAlvo = extrairTribunalDoProcesso(numeroProcesso);
+    if (!tribunalAlvo || !MNI_ENDPOINTS[tribunalAlvo]) {
+      return new Response(JSON.stringify({
+        error: "Número do processo não pertence à Justiça do Trabalho suportada pelo MNI",
+        tipo_erro: "tribunal_nao_suportado",
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const mniUrl = MNI_ENDPOINTS[tribunalAlvo];
     const soapBody = buildSoapConsultarProcesso(login, senha, numeroProcesso);
     const startTime = Date.now();
 
@@ -389,7 +401,7 @@ serve(async (req) => {
           "X-Proxy-Token": N8N_PROXY_TOKEN,
         },
         body: JSON.stringify({
-          endpoint: TST_MNI_URL,
+          endpoint: mniUrl,
           soap_action: "consultarProcesso",
           soap_body: soapBody,
           pfx_base64: pfxBase64,
@@ -429,6 +441,19 @@ serve(async (req) => {
 
     const elapsedMs = Date.now() - startTime;
 
+    if (!responseText || responseText.trim() === "<xml>...</xml>") {
+      return new Response(JSON.stringify({
+        error: "O proxy do PJE retornou uma resposta inválida ou mascarada",
+        tipo_erro: "proxy_resposta_invalida",
+        tempo_ms: elapsedMs,
+        tribunal: tribunalAlvo,
+        http_status: proxyHttpStatus,
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Verificar fault
     const faultMatch = responseText.match(/<(?:[\w:]*)?faultstring[^>]*>([\s\S]*?)<\/(?:[\w:]*)?faultstring>/i);
     if (faultMatch) {
@@ -453,7 +478,7 @@ serve(async (req) => {
       });
     }
 
-    const parsed = parseMniToJuditLike(responseText);
+    const parsed = parseMniToJuditLike(responseText, tribunalAlvo);
 
     if (!parsed.numero) {
       console.log("[testar-pje-buscar-processo] XML sem numero. Primeiros 2000 chars:", responseText.substring(0, 2000));
