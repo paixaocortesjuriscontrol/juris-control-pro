@@ -219,6 +219,7 @@ export default function DistribuicaoTst() {
     if (filtroBenner === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerSim" as const;
     if (filtroBenner === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerNao" as const;
     if (filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "total" as const;
+    if (filtroSituacaoProcesso === "ativo" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosAtivos" as const;
     return null;
   })();
 
@@ -230,6 +231,7 @@ export default function DistribuicaoTst() {
     setFiltroDossieStatus("todos");
     setFiltroJudit("todos");
     setFiltroBenner("todos");
+    setFiltroSituacaoProcesso("todos");
     setSelectedIds(new Set());
     if (isActive || key === "total") return;
     switch (key) {
@@ -241,6 +243,7 @@ export default function DistribuicaoTst() {
       case "juditNaoPreenchido": setFiltroJudit("nao"); break;
       case "bennerSim": setFiltroBenner("sim"); break;
       case "bennerNao": setFiltroBenner("nao"); break;
+      case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
     }
   };
 
