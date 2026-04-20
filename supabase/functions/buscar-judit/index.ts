@@ -579,6 +579,32 @@ serve(async (req) => {
       }
     }
 
+    // ===== SANITIZAÇÃO TURMA TST =====
+    // Quando o processo é TST, descartar turmas que claramente vieram de outra
+    // instância (TRT, varas, regiões). Isso evita exibir "7ª Turma" quando essa
+    // 7ª Turma na verdade é do TRT capturado nos courts/steps.
+    if (tribunal === "TST" && turma) {
+      const turmaUpper = turma.toUpperCase();
+      const ehDeOutraInstancia =
+        /\bTRT\b|REGI[ÃA]O|VARA\s+DO\s+TRABALHO|\bTRF\b|\bTJ[A-Z]{2}\b|JUIZ(?:ADO)?\s+DO\s+TRABALHO/i.test(turma);
+      // Lista de turmas válidas no TST
+      const ehTurmaTstValida =
+        /^[1-8]ª\s*TURMA$/i.test(turma.trim()) ||
+        /^(PRESIDENTE|VICE-?PRESIDENTE|CORREGEDOR(-GERAL)?|SBDI[-\s]?[12I]+|SDI[-\s]?[12I]+|TRIBUNAL\s+PLENO|[OÓ]RG[ÃA]O\s+ESPECIAL|SE[ÇC][ÃA]O\s+ESPECIALIZADA)$/i.test(turma.trim());
+
+      if (ehDeOutraInstancia || !ehTurmaTstValida) {
+        console.log(`[buscar-judit] Turma '${turma}' descartada (não é turma válida do TST). Tentando derivar do relator...`);
+        const turmaDerivada = relator ? derivarTurmaDoRelator(relator) : null;
+        if (turmaDerivada) {
+          console.log(`[buscar-judit] Turma TST derivada do relator: ${turmaDerivada}`);
+          turma = turmaDerivada;
+        } else {
+          console.log(`[buscar-judit] Sem mapeamento TST para o relator '${relator}'. Turma definida como null.`);
+          turma = null;
+        }
+      }
+    }
+
     // ===== FALLBACK DATAJUD =====
     // Se relator ou turma ainda estão vazios, consulta DataJud (CNJ) como complemento
     if (!relator || !turma) {
