@@ -423,7 +423,7 @@ serve(async (req) => {
         tempo_ms: elapsedMs,
         xml_preview: responseText.substring(0, 1500),
       }), {
-        status: 404,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
