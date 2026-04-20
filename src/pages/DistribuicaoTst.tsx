@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { CopyButton } from "@/components/ui/copy-button";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
