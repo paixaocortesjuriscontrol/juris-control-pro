@@ -424,7 +424,7 @@ serve(async (req) => {
 
     if (!responseText || responseText.trim() === "<xml>...</xml>") {
       return new Response(JSON.stringify({
-        error: "O proxy n8n retornou resposta vazia/mascarada. Causa provável: o Code node do n8n está falhando (módulo 'https' bloqueado). Adicione NODE_FUNCTION_ALLOW_BUILTIN=* e NODE_FUNCTION_ALLOW_EXTERNAL=* nos containers n8n e n8n-worker e redeploy.",
+        error: "O proxy n8n retornou resposta vazia. Verifique se o nó HTTP Request com credencial SSL Certificate está configurado corretamente no workflow.",
         tipo_erro: "proxy_resposta_invalida",
         tempo_ms: elapsedMs,
         tribunal: tribunalAlvo,
