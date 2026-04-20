@@ -122,6 +122,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     judit_preenchido: !!b.judit_preenchido,
     judit_preenchido_em: b.judit_preenchido_em ?? null,
     judit_preenchido_por: b.judit_preenchido_por ?? null,
+    erro_judit: !!b.erro_judit,
     coordenacao_id: b.coordenacao_id ?? null,
     observacao_advogado: b.observacao_advogado ?? null,
     created_at: b.created_at,
