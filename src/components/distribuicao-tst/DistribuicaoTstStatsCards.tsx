@@ -12,7 +12,8 @@ export type StatsCardKey =
   | "juditPreenchido"
   | "juditNaoPreenchido"
   | "bennerSim"
-  | "bennerNao";
+  | "bennerNao"
+  | "processosAtivos";
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -40,6 +41,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "juditNaoPreenchido", label: "Não Preenchidos Judit", value: stats.juditNaoPreenchido, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-200 dark:border-slate-800", textClass: "text-slate-600 dark:text-slate-400" },
     { key: "bennerSim", label: "Benner Enviado (Sim)", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
     { key: "bennerNao", label: "Benner Não Enviado", value: stats.bennerNao, className: "from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200 dark:border-orange-800", textClass: "text-orange-600 dark:text-orange-400" },
+    { key: "processosAtivos", label: "Processos Ativos", value: stats.processosAtivos, className: "from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800", textClass: "text-green-600 dark:text-green-400" },
   ];
 
   return (

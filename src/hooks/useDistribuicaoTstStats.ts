@@ -13,6 +13,7 @@ export interface DistribuicaoTstStats {
   juditNaoPreenchido: number;
   bennerSim: number;
   bennerNao: number;
+  processosAtivos: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -26,6 +27,7 @@ const ZERO: DistribuicaoTstStats = {
   juditNaoPreenchido: 0,
   bennerSim: 0,
   bennerNao: 0,
+  processosAtivos: 0,
 };
 
 // Mesma regra usada na coluna "Dossiê" (filtro válido/inválido)
@@ -151,6 +153,9 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           // Benner
           if (r.benner_atualizado) acc.bennerSim++;
           else acc.bennerNao++;
+          // Processos Ativos
+          const situacao = String(r.situacao_processo || "").trim().toLowerCase();
+          if (situacao === "ativo") acc.processosAtivos++;
         }
         if (rows.length < FETCH_SIZE) break;
         offset += FETCH_SIZE;
