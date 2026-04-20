@@ -51,6 +51,7 @@ export interface DistribuicaoTst {
   judit_preenchido_por: string | null;
   coordenacao_id: string | null;
   responsaveis_ids?: string[];
+  observacao_advogado?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +120,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     judit_preenchido_em: b.judit_preenchido_em ?? null,
     judit_preenchido_por: b.judit_preenchido_por ?? null,
     coordenacao_id: b.coordenacao_id ?? null,
+    observacao_advogado: b.observacao_advogado ?? null,
     created_at: b.created_at,
     updated_at: b.updated_at,
   };
@@ -159,6 +161,7 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     coordenacao_id: d.coordenacao_id,
     tribunal: "TST",
   };
+  if (d.observacao_advogado !== undefined) payload.observacao_advogado = d.observacao_advogado;
 
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();

@@ -1468,6 +1468,7 @@ export type Database = {
           materias_recurso_reclamante: string | null
           midia_negativa: string | null
           notas: string | null
+          observacao_advogado: string | null
           observacoes: string | null
           parte_recorrente_origem: string | null
           perdemos: boolean | null
@@ -1542,6 +1543,7 @@ export type Database = {
           materias_recurso_reclamante?: string | null
           midia_negativa?: string | null
           notas?: string | null
+          observacao_advogado?: string | null
           observacoes?: string | null
           parte_recorrente_origem?: string | null
           perdemos?: boolean | null
@@ -1616,6 +1618,7 @@ export type Database = {
           materias_recurso_reclamante?: string | null
           midia_negativa?: string | null
           notas?: string | null
+          observacao_advogado?: string | null
           observacoes?: string | null
           parte_recorrente_origem?: string | null
           perdemos?: boolean | null

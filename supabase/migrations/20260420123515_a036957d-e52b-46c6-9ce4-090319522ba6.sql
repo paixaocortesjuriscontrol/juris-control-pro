@@ -1,0 +1,1 @@
+ALTER TABLE public.dados_benner ADD COLUMN IF NOT EXISTS observacao_advogado TEXT;
