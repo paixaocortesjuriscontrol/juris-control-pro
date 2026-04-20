@@ -58,7 +58,7 @@ const RELATOR_TURMA: Record<string, string> = {
   "luiz jose dezena da silva": "8ª Turma",
   "evandro pereira valadao lopes": "8ª Turma",
   "amaury rodrigues pinto junior": "1ª Turma",
-  "alberto bastos balazeiro": "7ª Turma",
+  "alberto bastos balazeiro": "3ª Turma",
   "morgana de almeida richa": "4ª Turma",
   "sergio pinto martins": "8ª Turma",
   "liana chaib": "3ª Turma",
