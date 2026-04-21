@@ -65,10 +65,7 @@ const menuItemsPublicos = [
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
-];
-
-// Itens visíveis apenas para administradores (na seção inferior)
-const menuItemsAdmin = [
+  // Itens que aparecem para todos (antes estavam restritos a admin)
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos" },
   { icon: Table2, label: "Planilha TST", path: "/planilha-tst" },
   { icon: Upload, label: "Carga Benner", path: "/carga-benner" },
@@ -76,6 +73,10 @@ const menuItemsAdmin = [
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst" },
   { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander" },
   { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha" },
+];
+
+// Itens visíveis apenas para administradores (na seção inferior)
+const menuItemsAdmin = [
   { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },
