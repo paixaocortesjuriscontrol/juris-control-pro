@@ -24,11 +24,10 @@ export function useUserRole() {
         .eq("user_id", user.id)
         .limit(10);
 
-      const roles = Array.isArray(data)
-        ? data.map((item) => item.role)
-        : data?.role
-          ? [data.role]
-          : [];
+      const rows = (data ?? []) as Array<{ role: AppRole | null }>;
+      const roles = rows
+        .map((item) => item.role)
+        .filter((item): item is AppRole => item !== null);
 
       const resolvedRole = roles.includes("admin")
         ? "admin"
