@@ -22,13 +22,25 @@ export function useUserRole() {
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .limit(10);
+
+      const roles = Array.isArray(data)
+        ? data.map((item) => item.role)
+        : data?.role
+          ? [data.role]
+          : [];
+
+      const resolvedRole = roles.includes("admin")
+        ? "admin"
+        : roles.includes("coordenador")
+          ? "coordenador"
+          : roles[0] ?? null;
 
       if (error) {
         console.error("Error fetching user role:", error);
         setRole(null);
       } else {
-        setRole(data?.role ?? null);
+        setRole(resolvedRole);
       }
       setLoading(false);
     }
