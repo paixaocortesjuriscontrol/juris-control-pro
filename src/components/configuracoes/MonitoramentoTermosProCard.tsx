@@ -268,22 +268,32 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   }, []);
 
   // Status config
-  const effectiveStatus = progress.status;
+  // Se o singleton local está ocioso mas há execução ativa no backend,
+  // tratamos como "executando" para sincronizar o card com o indicador flutuante.
+  const effectiveStatus =
+    progress.status === 'idle' && backendActive ? 'executando' : progress.status;
   const isTerminalStatus =
     effectiveStatus === 'concluido' ||
     effectiveStatus === 'cancelado' ||
     effectiveStatus === 'erro';
 
   // Se status já é terminal, ele prevalece sobre qualquer flag "isRunning" atrasada
-  const effectiveIsRunning = !isTerminalStatus && (isRunning || effectiveStatus === 'executando');
+  const effectiveIsRunning =
+    !isTerminalStatus && (isRunning || effectiveStatus === 'executando' || !!backendActive);
 
   const displayedPercentage = useMemo(() => {
     if (effectiveStatus === 'concluido') return 100;
 
-    const raw = Number.isFinite(progress.percentage) ? Math.round(progress.percentage) : 0;
+    // Quando a execução está rodando no backend (e não localmente),
+    // usar o progresso vindo do banco em vez do progresso local (que está zerado).
+    const sourcePct =
+      progress.status === 'idle' && backendActive
+        ? backendActive.percentage
+        : progress.percentage;
+    const raw = Number.isFinite(sourcePct) ? Math.round(sourcePct) : 0;
     const clamped = Math.min(100, Math.max(0, raw));
     return effectiveIsRunning ? Math.min(99, clamped) : clamped;
-  }, [progress.percentage, effectiveIsRunning, effectiveStatus]);
+  }, [progress.percentage, progress.status, backendActive, effectiveIsRunning, effectiveStatus]);
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
