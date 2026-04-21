@@ -36,7 +36,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
-import { useUserRole } from "@/hooks/useUserRole";
 
 // Itens visíveis para todos os usuários autenticados
 const menuItemsPublicos = [
@@ -83,12 +82,11 @@ const menuItemsAdmin = [
   { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
+const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];
+
 export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAdmin, loading: roleLoading } = useUserRole();
-  // Mostra itens admin enquanto o role ainda está carregando para evitar "sumiço" momentâneo
-  const showAdminItems = isAdmin || roleLoading;
 
   const SidebarContent = () => (
     <>
@@ -110,8 +108,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
-        {/* Itens públicos */}
-        {menuItemsPublicos.map((item) => (
+        {menuItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -122,24 +119,6 @@ export function Sidebar() {
                 isActive && "nav-item-active",
                 item.highlight && "text-amber-400",
                 item.color
-              )
-            }
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
-          </NavLink>
-        ))}
-
-        {/* Itens apenas admin */}
-        {showAdminItems && menuItemsAdmin.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn(
-                "nav-item",
-                isActive && "nav-item-active"
               )
             }
           >
