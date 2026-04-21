@@ -85,7 +85,9 @@ const menuItemsAdmin = [
 export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAdmin } = useUserRole();
+  const { isAdmin, loading: roleLoading } = useUserRole();
+  // Mostra itens admin enquanto o role ainda está carregando para evitar "sumiço" momentâneo
+  const showAdminItems = isAdmin || roleLoading;
 
   const SidebarContent = () => (
     <>
@@ -128,7 +130,7 @@ export function Sidebar() {
         ))}
 
         {/* Itens apenas admin */}
-        {isAdmin && menuItemsAdmin.map((item) => (
+        {showAdminItems && menuItemsAdmin.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
