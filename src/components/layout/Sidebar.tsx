@@ -37,8 +37,16 @@ import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
 
+type MenuItem = {
+  icon: typeof LayoutDashboard;
+  label: string;
+  path: string;
+  highlight?: boolean;
+  color?: string;
+};
+
 // Itens visíveis para todos os usuários autenticados
-const menuItemsPublicos = [
+const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
@@ -75,7 +83,7 @@ const menuItemsPublicos = [
 ];
 
 // Itens visíveis apenas para administradores (na seção inferior)
-const menuItemsAdmin = [
+const menuItemsAdmin: MenuItem[] = [
   { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },
