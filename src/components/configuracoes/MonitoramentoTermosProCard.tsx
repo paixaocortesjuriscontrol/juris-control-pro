@@ -355,6 +355,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
 
   const handleForceKill = useCallback(() => {
     setShowKillDialog(false);
+    setBackendActive(null);
     forceKill(true);
   }, [forceKill]);
 
