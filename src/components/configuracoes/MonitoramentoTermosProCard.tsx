@@ -135,6 +135,53 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     forceKill,
   } = useDjenTermosPro();
 
+  // Detecta execução backend ativa (modo híbrido / 100% background / scheduler em outra aba).
+  // Sem isso, o card mostraria "Aguardando" enquanto o indicador flutuante mostra "Executando".
+  const [backendActive, setBackendActive] = useState<{
+    percentage: number;
+    mensagem: string;
+    novas: number;
+    tempoDecorrido: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { data } = await supabase
+          .from('execucoes_agendadas')
+          .select('detalhes, iniciado_em')
+          .eq('tipo', 'djen_pro')
+          .eq('status', 'executando')
+          .is('finalizado_em', null)
+          .order('iniciado_em', { ascending: false })
+          .limit(1);
+        if (cancelled) return;
+        const row = data?.[0];
+        if (!row) {
+          setBackendActive(null);
+          return;
+        }
+        const det = (row.detalhes as any) || {};
+        const percentage = det?.percentage ?? det?.progress?.percentage ?? 0;
+        const mensagem = det?.mensagem || det?.etapaAtual || 'Executando no backend...';
+        const novas = det?.novas ?? det?.totalNovas ?? 0;
+        const iniciadoEm = row.iniciado_em ? new Date(row.iniciado_em).getTime() : Date.now();
+        setBackendActive({
+          percentage: Math.max(0, Math.min(100, Number(percentage) || 0)),
+          mensagem,
+          novas: Number(novas) || 0,
+          tempoDecorrido: Math.floor((Date.now() - iniciadoEm) / 1000),
+        });
+      } catch {
+        // silencioso
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 8_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   // Filtros
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
@@ -221,22 +268,32 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   }, []);
 
   // Status config
-  const effectiveStatus = progress.status;
+  // Se o singleton local está ocioso mas há execução ativa no backend,
+  // tratamos como "executando" para sincronizar o card com o indicador flutuante.
+  const effectiveStatus =
+    progress.status === 'idle' && backendActive ? 'executando' : progress.status;
   const isTerminalStatus =
     effectiveStatus === 'concluido' ||
     effectiveStatus === 'cancelado' ||
     effectiveStatus === 'erro';
 
   // Se status já é terminal, ele prevalece sobre qualquer flag "isRunning" atrasada
-  const effectiveIsRunning = !isTerminalStatus && (isRunning || effectiveStatus === 'executando');
+  const effectiveIsRunning =
+    !isTerminalStatus && (isRunning || effectiveStatus === 'executando' || !!backendActive);
 
   const displayedPercentage = useMemo(() => {
     if (effectiveStatus === 'concluido') return 100;
 
-    const raw = Number.isFinite(progress.percentage) ? Math.round(progress.percentage) : 0;
+    // Quando a execução está rodando no backend (e não localmente),
+    // usar o progresso vindo do banco em vez do progresso local (que está zerado).
+    const sourcePct =
+      progress.status === 'idle' && backendActive
+        ? backendActive.percentage
+        : progress.percentage;
+    const raw = Number.isFinite(sourcePct) ? Math.round(sourcePct) : 0;
     const clamped = Math.min(100, Math.max(0, raw));
     return effectiveIsRunning ? Math.min(99, clamped) : clamped;
-  }, [progress.percentage, effectiveIsRunning, effectiveStatus]);
+  }, [progress.percentage, progress.status, backendActive, effectiveIsRunning, effectiveStatus]);
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
