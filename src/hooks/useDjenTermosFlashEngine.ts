@@ -627,7 +627,7 @@ async function _processarTermoProInterno(
         onRateLimit: (waitMs, attempt, page) => {
           diagnostico.rateLimitHits += 1;
           diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
-          const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
+          const aviso = `⚠️ Rate limit no DJEN Flash: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
           console.warn(`[DJEN Flash] ${aviso} | ${contexto}`);
           updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
         },
