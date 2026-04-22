@@ -1492,9 +1492,41 @@ export function ProcessoDetalhesCompletos({
                                   <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-50">
                                     {tarefa.tipo_tarefa}
                                   </Badge>
-                                  <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
-                                    {tarefa.status}
-                                  </Badge>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <Select
+                                      value={tarefa.status || 'pendente'}
+                                      onValueChange={async (novoStatus) => {
+                                        try {
+                                          const updateData: Record<string, unknown> = { status: novoStatus };
+                                          if (novoStatus === 'cumprido') {
+                                            updateData.data_cumprimento = new Date().toISOString();
+                                          } else {
+                                            updateData.data_cumprimento = null;
+                                          }
+                                          const { error } = await supabase
+                                            .from('tarefas')
+                                            .update(updateData)
+                                            .eq('id', tarefa.id);
+                                          if (error) throw error;
+                                          await queryClient.invalidateQueries({ queryKey: ['tarefas-processo', processo?.id] });
+                                          await queryClient.invalidateQueries({ queryKey: ['tarefas'] });
+                                          sonnerToast.success('Situação atualizada!');
+                                        } catch (err: any) {
+                                          sonnerToast.error('Erro ao atualizar: ' + err.message);
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-6 w-[140px] text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                                        <SelectItem value="em_andamento">🔄 Em andamento</SelectItem>
+                                        <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
+                                        <SelectItem value="atrasado">⚠️ Atrasado</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
                                 <p className="text-sm font-medium">{tarefa.titulo}</p>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
