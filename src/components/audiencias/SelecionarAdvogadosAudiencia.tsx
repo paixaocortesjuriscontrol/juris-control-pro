@@ -90,6 +90,17 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
     onSelectionChange(selectedAdvogados.filter(id => id !== advogadoId));
   };
 
+  const handleCheckedChange = (advogadoId: string, checked: boolean | "indeterminate") => {
+    if (checked === true) {
+      if (!selectedAdvogados.includes(advogadoId)) {
+        onSelectionChange([...selectedAdvogados, advogadoId]);
+      }
+      return;
+    }
+
+    onSelectionChange(selectedAdvogados.filter(id => id !== advogadoId));
+  };
+
   const advogadosSelecionadosInfo = todosAdvogados.filter(a => selectedAdvogados.includes(a.id));
 
   return (
@@ -147,14 +158,15 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
             </p>
           ) : (
             advogadosFiltrados.map(advogado => (
-              <div
+              <label
                 key={advogado.id}
+                htmlFor={`audiencia-advogado-${advogado.id}`}
                 className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
-                onClick={() => toggleAdvogado(advogado.id)}
               >
                 <Checkbox
+                  id={`audiencia-advogado-${advogado.id}`}
                   checked={selectedAdvogados.includes(advogado.id)}
-                  onCheckedChange={() => toggleAdvogado(advogado.id)}
+                  onCheckedChange={(checked) => handleCheckedChange(advogado.id, checked)}
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{advogado.nome}</p>
@@ -163,7 +175,7 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
                     {advogado.email}
                   </p>
                 </div>
-              </div>
+              </label>
             ))
           )}
         </div>
