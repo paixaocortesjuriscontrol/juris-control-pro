@@ -101,10 +101,10 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 let state: {
   isRunning: boolean;
-  progress: DjenTermosProProgress;
+  progress: DjenTermosFlashProgress;
   checkpoint: Checkpoint | null;
   abortController: AbortController | null;
-  listeners: Set<(p: DjenTermosProProgress) => void>;
+  listeners: Set<(p: DjenTermosFlashProgress) => void>;
   timerInterval: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number;
   executionId: string | null;
@@ -119,14 +119,14 @@ let state: {
   executionId: null,
 };
 
-const STORAGE_KEY = 'djen-termos-pro-checkpoint-v1';
+const STORAGE_KEY = 'djen-termos-flash-checkpoint-v1';
 const BR_TZ = 'America/Sao_Paulo';
 
 // ============================================================================
 // HELPERS
 // ============================================================================
 
-function createDefaultProgress(): DjenTermosProProgress {
+function createDefaultProgress(): DjenTermosFlashProgress {
   return {
     status: 'idle', globalCurrent: 0, globalTotal: 0, percentage: 0,
     diaAtualYmd: null, diaAtualIndice: 0, totalDias: 0,
@@ -185,13 +185,13 @@ function notifyListeners() {
   for (const listener of state.listeners) listener(state.progress);
 }
 
-function updateProgress(partial: Partial<DjenTermosProProgress>) {
+function updateProgress(partial: Partial<DjenTermosFlashProgress>) {
   state.progress = { ...state.progress, ...partial };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
 }
 
-export function getDjenTermosProLastUpdatedAt(): number {
+export function getDjenTermosFlashLastUpdatedAt(): number {
   return state.lastUpdatedAt;
 }
 
@@ -628,7 +628,7 @@ async function _processarTermoProInterno(
           diagnostico.rateLimitHits += 1;
           diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
           const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
-          console.warn(`[DJEN Pro] ${aviso} | ${contexto}`);
+          console.warn(`[DJEN Flash] ${aviso} | ${contexto}`);
           updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
         },
       });
@@ -640,7 +640,7 @@ async function _processarTermoProInterno(
         diagnostico.falhasBusca += failedPages;
         if (resp.lastError) diagnostico.ultimoErroBusca = resp.lastError;
         console.warn(
-          `[DJEN Pro] Busca parcial em ${contexto}: resultados=${resp.items.length}, ` +
+          `[DJEN Flash] Busca parcial em ${contexto}: resultados=${resp.items.length}, ` +
             `pages=${resp.pagesFetched}, failedPages=${failedPages}, truncated=${resp.truncated}` +
             `${resp.lastError ? `, erro=${resp.lastError}` : ''}`
         );
@@ -653,7 +653,7 @@ async function _processarTermoProInterno(
       // Log explícito quando a busca termina em truncamento (paginação não foi até o fim)
       if (resp.truncated) {
         console.warn(
-          `[DJEN Pro] ⚠️ TRUNCADO em ${contexto}: ${resp.items.length} resultados após ${resp.pagesFetched} páginas. ` +
+          `[DJEN Flash] ⚠️ TRUNCADO em ${contexto}: ${resp.items.length} resultados após ${resp.pagesFetched} páginas. ` +
           `A API ainda tinha hasMore=true. Pode haver publicações faltando.`
         );
       }
@@ -664,7 +664,7 @@ async function _processarTermoProInterno(
       if (e?.name === 'AbortError') throw e;
       diagnostico.falhasBusca += 1;
       diagnostico.ultimoErroBusca = e?.message || 'Falha de busca';
-      console.warn(`[DJEN Pro] Falha em ${contexto}:`, e?.message);
+      console.warn(`[DJEN Flash] Falha em ${contexto}:`, e?.message);
       updateProgress({
         mensagem: `⚠️ Falha de busca: ${contexto}`,
         ultimoErroBusca: diagnostico.ultimoErroBusca,
@@ -723,7 +723,7 @@ async function _processarTermoProInterno(
       `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
     );
     if (resp) {
-      console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+      console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
     }
     
     if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
@@ -739,7 +739,7 @@ async function _processarTermoProInterno(
       .trim();
     
     if (termoTexto) {
-      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
+      console.log(`[DJEN Flash] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
         const resp = await executarBusca(
@@ -756,7 +756,7 @@ async function _processarTermoProInterno(
           `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`
         );
         if (resp) {
-          console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+          console.log(`[DJEN Flash] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
         if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
       }
@@ -776,7 +776,7 @@ async function _processarTermoProInterno(
 
     for (const termoExtra of termosExtras) {
       if (signal.aborted) break;
-      console.log(`[DJEN Pro] Busca termos_or palavra-chave: "${termoExtra}"`);
+      console.log(`[DJEN Flash] Busca termos_or palavra-chave: "${termoExtra}"`);
 
       for (const trib of tribLoop) {
         if (signal.aborted) break;
@@ -794,7 +794,7 @@ async function _processarTermoProInterno(
           `termos_or palavra-chave | ${termoExtra} | ${trib ?? 'TODOS'}`
         );
         if (resp) {
-          console.log(`[DJEN Pro] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+          console.log(`[DJEN Flash] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
         if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
       }
@@ -821,7 +821,7 @@ async function _processarTermoProInterno(
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
-      console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
+      console.log(`[DJEN Flash] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
       await executarBusca(
         {
           tipo: 'advogado' as PjeSearchType,
@@ -868,7 +868,7 @@ async function _processarTermoProInterno(
         .replace(/[\u0300-\u036f]/g, '')
         .trim();
       
-      console.log(`[DJEN Pro] Busca termos_or: nomeAdvogado="${nomeParaApi}"${parsed.oabDigits ? ` OAB=${parsed.oabDigits}` : ''}`);
+      console.log(`[DJEN Flash] Busca termos_or: nomeAdvogado="${nomeParaApi}"${parsed.oabDigits ? ` OAB=${parsed.oabDigits}` : ''}`);
       
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
@@ -886,7 +886,7 @@ async function _processarTermoProInterno(
           `termos_or advogado | ${parsed.nome} | ${trib ?? 'TODOS'}`
         );
         if (resp) {
-          console.log(`[DJEN Pro] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+          console.log(`[DJEN Flash] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
         await delay(CONFIG.delay_between_tribunais);
       }
@@ -916,14 +916,14 @@ async function _processarTermoProInterno(
 
   if (diagnostico.rateLimitHits > 0 || diagnostico.falhasBusca > 0 || diagnostico.buscasParciais > 0) {
     console.warn(
-      `[DJEN Pro] Diagnóstico do termo "${mon.termo_busca}": ` +
+      `[DJEN Flash] Diagnóstico do termo "${mon.termo_busca}": ` +
         `429=${diagnostico.rateLimitHits}, falhas=${diagnostico.falhasBusca}, parciais=${diagnostico.buscasParciais}` +
         `${diagnostico.ultimoErroBusca ? `, último erro=${diagnostico.ultimoErroBusca}` : ''}`
     );
   }
   
   if (signal.aborted || resultados.length === 0) {
-    console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}": ${resultados.length} resultados brutos, abortado=${signal.aborted}. Nada a validar.`);
+    console.log(`[DJEN Flash] 📊 Termo "${mon.termo_busca}": ${resultados.length} resultados brutos, abortado=${signal.aborted}. Nada a validar.`);
     return { novas: 0, duplicadas: 0, descartadas: 0, ...diagnostico };
   }
   
@@ -933,7 +933,7 @@ async function _processarTermoProInterno(
   let descartadas = 0;
   const pubsDescartadas: any[] = [];
   
-  console.log(`[DJEN Pro] 📋 Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo}, tribunais=${tribunais.join(',') || 'TODOS'}, exclusoes=${mon.exclusoes?.join(',') || 'nenhuma'}, condicao=${mon.condicao_concomitante || 'nenhuma'})`);
+  console.log(`[DJEN Flash] 📋 Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo}, tribunais=${tribunais.join(',') || 'TODOS'}, exclusoes=${mon.exclusoes?.join(',') || 'nenhuma'}, condicao=${mon.condicao_concomitante || 'nenhuma'})`);
   
   const pubsValidas = resultados.filter((pub, idx) => {
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '?';
@@ -942,7 +942,7 @@ async function _processarTermoProInterno(
       const sigla = getSiglaTribunal(pub);
       if (!sigla || !tribunais.includes(sigla)) {
         descartadas++;
-        console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: tribunal "${sigla}" não permitido (esperado: ${tribunais.join(',')})`);
+        console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: tribunal "${sigla}" não permitido (esperado: ${tribunais.join(',')})`);
         pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
         return false;
       }
@@ -952,7 +952,7 @@ async function _processarTermoProInterno(
     const excEncontrada = temExclusao(pub, mon.exclusoes);
     if (excEncontrada) {
       descartadas++;
-      console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: exclusão "${excEncontrada}"`);
+      console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: exclusão "${excEncontrada}"`);
       pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${excEncontrada}` });
       return false;
     }
@@ -960,7 +960,7 @@ async function _processarTermoProInterno(
     // 3. Validar termo (usando metadados estruturados)
     if (!validarTermo(pub, mon)) {
       descartadas++;
-      console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
+      console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
@@ -968,12 +968,12 @@ async function _processarTermoProInterno(
     // 4. Condição concomitante
     if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
       descartadas++;
-      console.log(`[DJEN Pro]   ❌ [${idx}] proc=${procNum} descartado: condição concomitante não atendida`);
+      console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: condição concomitante não atendida`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
       return false;
     }
     
-    console.log(`[DJEN Pro]   ✅ [${idx}] proc=${procNum} VÁLIDA`);
+    console.log(`[DJEN Flash]   ✅ [${idx}] proc=${procNum} VÁLIDA`);
     return true;
   });
   
@@ -1006,7 +1006,7 @@ async function _processarTermoProInterno(
   const duplicadasBanco = pubsUnicas.length - novas.length;
   
   const dedupHashLocal = pubsValidas.length - pubsUnicas.length;
-  console.log(`[DJEN Pro] 📊 Termo "${mon.termo_busca}" resumo: ${resultados.length} brutos (${dedupByContentHash} dedup content-hash na coleta) → ${pubsValidas.length} válidas → ${pubsUnicas.length} únicas (${dedupHashLocal} dedup hash-local) → ${novas.length} novas, ${duplicadasBanco} já no banco, ${descartadas} descartadas`);
+  console.log(`[DJEN Flash] 📊 Termo "${mon.termo_busca}" resumo: ${resultados.length} brutos (${dedupByContentHash} dedup content-hash na coleta) → ${pubsValidas.length} válidas → ${pubsUnicas.length} únicas (${dedupHashLocal} dedup hash-local) → ${novas.length} novas, ${duplicadasBanco} já no banco, ${descartadas} descartadas`);
   
   // Inserir novas
   if (novas.length > 0) {
@@ -1048,9 +1048,9 @@ async function _processarTermoProInterno(
       .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
       .select('id, processo_numero');
     if (upsertError) {
-      console.error(`[DJEN Pro] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);
+      console.error(`[DJEN Flash] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);
     } else {
-      console.log(`[DJEN Pro] ✅ Salvas ${(upsertData || []).length} publicações para "${mon.termo_busca}"`, 
+      console.log(`[DJEN Flash] ✅ Salvas ${(upsertData || []).length} publicações para "${mon.termo_busca}"`, 
         (upsertData || []).slice(0, 5).map((r: any) => r.processo_numero));
     }
   }
@@ -1121,7 +1121,7 @@ async function executarLoop(
   monitoramentoIds?: string[],
 ) {
   if (state.isRunning) {
-    console.warn('[DJEN Pro] Já existe uma execução em andamento (local)');
+    console.warn('[DJEN Flash] Já existe uma execução em andamento (local)');
     return;
   }
   
@@ -1130,19 +1130,19 @@ async function executarLoop(
     const { data: running } = await supabase
       .from('execucoes_agendadas')
       .select('id, iniciado_em')
-      .eq('tipo', 'djen_pro')
+      .eq('tipo', 'djen_flash')
       .eq('status', 'executando')
       .is('finalizado_em', null);
     
     if (running && running.length > 0) {
       const ids = running.map(r => r.id).join(', ');
-      console.warn(`[DJEN Pro] Já existe(m) ${running.length} execução(ões) no banco: ${ids}. Cancelando início.`);
+      console.warn(`[DJEN Flash] Já existe(m) ${running.length} execução(ões) no banco: ${ids}. Cancelando início.`);
       
       // Cancelar execuções órfãs com mais de 2 horas
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       const stale = running.filter(r => r.iniciado_em && r.iniciado_em < twoHoursAgo);
       if (stale.length > 0) {
-        console.log(`[DJEN Pro] Cancelando ${stale.length} execuções órfãs (>2h)`);
+        console.log(`[DJEN Flash] Cancelando ${stale.length} execuções órfãs (>2h)`);
         for (const s of stale) {
           await supabase
             .from('execucoes_agendadas')
@@ -1151,7 +1151,7 @@ async function executarLoop(
         }
         // Se todas eram órfãs, continuar
         if (stale.length === running.length) {
-          console.log('[DJEN Pro] Todas as execuções eram órfãs, prosseguindo...');
+          console.log('[DJEN Flash] Todas as execuções eram órfãs, prosseguindo...');
         } else {
           return;
         }
@@ -1160,7 +1160,7 @@ async function executarLoop(
       }
     }
   } catch (e) {
-    console.warn('[DJEN Pro] Erro ao verificar execuções no banco, prosseguindo:', e);
+    console.warn('[DJEN Flash] Erro ao verificar execuções no banco, prosseguindo:', e);
   }
   
   state.isRunning = true;
@@ -1184,12 +1184,12 @@ async function executarLoop(
     if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
     if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
     
-    console.log('[DJEN Pro] Filtros aplicados:', { coordenacaoId, monitoramentoIds, ativo: true });
+    console.log('[DJEN Flash] Filtros aplicados:', { coordenacaoId, monitoramentoIds, ativo: true });
     
     const { data: termos, error } = await query;
     if (error) throw error;
     
-    console.log('[DJEN Pro] Monitoramentos encontrados:', termos?.length ?? 0, termos?.map(t => ({ id: t.id, termo: t.termo_busca, ativo: t.ativo })));
+    console.log('[DJEN Flash] Monitoramentos encontrados:', termos?.length ?? 0, termos?.map(t => ({ id: t.id, termo: t.termo_busca, ativo: t.ativo })));
     
     if (!termos?.length) {
       const msg = coordenacaoId || monitoramentoIds?.length
@@ -1245,24 +1245,24 @@ async function executarLoop(
       const { data: inserted, error: insertErr } = await supabase
         .from('execucoes_agendadas')
         .insert({
-          tipo: 'djen_pro',
+          tipo: 'djen_flash',
           status: 'executando',
-          job_name: 'DJEN Termos Pro',
+          job_name: 'DJEN Termos Flash',
           iniciado_em: new Date().toISOString(),
           detalhes: { totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
         })
         .select('id');
       if (insertErr) {
-        console.error('[DJEN Pro] FALHA ao registrar execução no banco:', insertErr.message, insertErr.details, insertErr.hint);
+        console.error('[DJEN Flash] FALHA ao registrar execução no banco:', insertErr.message, insertErr.details, insertErr.hint);
       } else if (inserted && inserted.length > 0) {
         executionId = inserted[0].id;
         state.executionId = executionId;
-        console.log('[DJEN Pro] Execução registrada no banco com ID:', executionId);
+        console.log('[DJEN Flash] Execução registrada no banco com ID:', executionId);
       } else {
-        console.error('[DJEN Pro] INSERT retornou sem erro mas sem dados');
+        console.error('[DJEN Flash] INSERT retornou sem erro mas sem dados');
       }
     } catch (e) {
-      console.error('[DJEN Pro] Erro inesperado ao registrar execução:', e);
+      console.error('[DJEN Flash] Erro inesperado ao registrar execução:', e);
     }
 
     updateProgress({
@@ -1305,7 +1305,7 @@ async function executarLoop(
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
         });
 
-        console.log(`[DJEN Pro] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
+        console.log(`[DJEN Flash] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
         
         const resultado = await processarTermoPro(mon, diaYmd, signal);
         acumNovas += resultado.novas;
@@ -1374,7 +1374,7 @@ async function executarLoop(
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
     }
   } catch (err: any) {
-    console.error('[DJEN Pro] Erro:', err);
+    console.error('[DJEN Flash] Erro:', err);
     updateProgress({ status: 'erro', mensagem: `Erro: ${err?.message || String(err)}` });
   } finally {
     state.isRunning = false;
@@ -1409,7 +1409,7 @@ async function executarLoop(
           })
           .eq('id', executionId);
       } catch (e) {
-        console.warn('[DJEN Pro] Erro ao finalizar execução:', e);
+        console.warn('[DJEN Flash] Erro ao finalizar execução:', e);
       }
       state.executionId = null;
     }
@@ -1427,7 +1427,7 @@ async function executarLoop(
 // API PÚBLICA (singleton)
 // ============================================================================
 
-export function executarDjenTermosPro(
+export function executarDjenTermosFlash(
   dataInicioYmd?: string,
   dataFimYmd?: string,
   retomar = false,
@@ -1440,7 +1440,7 @@ export function executarDjenTermosPro(
   executarLoop(inicio, fim, retomar, coordenacaoId, monitoramentoIds);
 }
 
-export function cancelarDjenTermosPro() {
+export function cancelarDjenTermosFlash() {
   if (state.abortController) {
     state.abortController.abort();
     updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
@@ -1466,22 +1466,22 @@ export function cancelarDjenTermosPro() {
         },
       },
     })
-    .eq('tipo', 'djen_pro')
+    .eq('tipo', 'djen_flash')
     .eq('status', 'executando')
     .then(({ error }) => {
-      if (error) console.warn('[DJEN Pro] Erro ao cancelar execuções ativas no banco:', error);
-      else console.log('[DJEN Pro] Execuções ativas canceladas no banco');
+      if (error) console.warn('[DJEN Flash] Erro ao cancelar execuções ativas no banco:', error);
+      else console.log('[DJEN Flash] Execuções ativas canceladas no banco');
     });
   state.executionId = null;
 }
 
-export function limparEstadoDjenTermosPro() {
+export function limparEstadoDjenTermosFlash() {
   state.progress = createDefaultProgress();
   notifyListeners();
 }
 
-export function forceKillDjenTermosPro(clearCheckpoint = false) {
-  cancelarDjenTermosPro();
+export function forceKillDjenTermosFlash(clearCheckpoint = false) {
+  cancelarDjenTermosFlash();
   state.isRunning = false;
   if (state.timerInterval) {
     clearInterval(state.timerInterval);
@@ -1492,19 +1492,19 @@ export function forceKillDjenTermosPro(clearCheckpoint = false) {
   notifyListeners();
 }
 
-export function getDjenTermosProProgress(): DjenTermosProProgress {
+export function getDjenTermosFlashProgress(): DjenTermosFlashProgress {
   return state.progress;
 }
 
-export function isDjenTermosProRunning(): boolean {
+export function isDjenTermosFlashRunning(): boolean {
   return state.isRunning;
 }
 
-export function getCheckpointPro(): Checkpoint | null {
+export function getCheckpointFlash(): Checkpoint | null {
   return state.checkpoint || loadCheckpoint();
 }
 
-export function subscribeDjenTermosPro(listener: (p: DjenTermosProProgress) => void): () => void {
+export function subscribeDjenTermosFlash(listener: (p: DjenTermosFlashProgress) => void): () => void {
   state.listeners.add(listener);
   return () => { state.listeners.delete(listener); };
 }
