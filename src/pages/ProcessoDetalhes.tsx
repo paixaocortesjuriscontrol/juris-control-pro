@@ -228,14 +228,31 @@ export default function ProcessoDetalhes() {
   const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
     queryKey: ["audiencias-processo", id, processo?.numero],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audiencias_detectadas")
-        .select("*")
-        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
-        .order("data_audiencia", { ascending: false });
+      const [porProcessoId, porNumeroProcesso] = await Promise.all([
+        supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("processo_id", id!)
+          .order("data_audiencia", { ascending: false }),
+        supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("processo_numero", processo?.numero)
+          .order("data_audiencia", { ascending: false }),
+      ]);
+
+      const error = porProcessoId.error || porNumeroProcesso.error;
+
+      const merged = [...(porProcessoId.data || []), ...(porNumeroProcesso.data || [])];
+      const deduplicadas = Array.from(new Map(merged.map((aud) => [aud.id, aud])).values());
+      deduplicadas.sort((a, b) => {
+        const dateA = a.data_audiencia ? new Date(a.data_audiencia).getTime() : 0;
+        const dateB = b.data_audiencia ? new Date(b.data_audiencia).getTime() : 0;
+        return dateB - dateA;
+      });
 
       if (error) throw error;
-      return data || [];
+      return deduplicadas;
     },
     enabled: !!id && !!processo?.numero,
   });

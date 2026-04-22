@@ -228,6 +228,7 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         .from('audiencias_detectadas')
         .insert({
           ...dadosAudiencia,
+          processo_id: dadosAudiencia.processo_id || null,
           data_audiencia: dataAudienciaISO,
           origem: 'manual',
           criado_por: user.id,
