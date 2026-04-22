@@ -1467,106 +1467,116 @@ export function ProcessoDetalhesCompletos({
                     <div className="space-y-3">
                       {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
                     </div>
-                  ) : (audiencias.length + tarefas.filter((t: any) => isTarefaAudiencia(t.tipo_tarefa)).length) > 0 ? (
-                    <div className="space-y-2">
-                      {audiencias.map((aud) => (
-                        <Card 
-                          key={aud.id} 
-                          className="hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => onEditAudiencia?.(aud)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {getAudienciaStatusBadge(aud.status)}
-                                  {aud.tipo_audiencia && (
-                                    <Badge variant="outline" className="text-xs">{aud.tipo_audiencia}</Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm font-medium">
-                                  {formatDate(aud.data_audiencia)} {aud.hora && `às ${aud.hora}`}
-                                </p>
-                                {aud.local_audiencia && (
-                                  <p className="text-xs text-muted-foreground">{aud.local_audiencia}</p>
-                                )}
-                              </div>
-                              <Button variant="ghost" size="icon" className="h-7 w-7">
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                      {tarefas.filter((t: any) => isTarefaAudiencia(t.tipo_tarefa)).map((tarefa: any) => (
-                        <Card 
-                          key={tarefa.id} 
-                          className="hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => onSelectTarefa?.(tarefa.id)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant="outline" className="text-xs text-amber-700 border-amber-300 bg-amber-50">
-                                    {tarefa.tipo_tarefa}
-                                  </Badge>
-                                  <div onClick={(e) => e.stopPropagation()}>
-                                    <Select
-                                      value={tarefa.status || 'pendente'}
-                                      onValueChange={async (novoStatus) => {
-                                        try {
-                                          const updateData: Record<string, unknown> = { status: novoStatus };
-                                          if (novoStatus === 'cumprido') {
-                                            updateData.data_cumprimento = new Date().toISOString();
-                                          } else {
-                                            updateData.data_cumprimento = null;
-                                          }
-                                          const { error } = await supabase
-                                            .from('tarefas')
-                                            .update(updateData)
-                                            .eq('id', tarefa.id);
-                                          if (error) throw error;
-                                          await queryClient.invalidateQueries({ queryKey: ['tarefas-processo', processo?.id] });
-                                          await queryClient.invalidateQueries({ queryKey: ['tarefas'] });
-                                          sonnerToast.success('Situação atualizada!');
-                                        } catch (err: any) {
-                                          sonnerToast.error('Erro ao atualizar: ' + err.message);
-                                        }
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-6 w-[140px] text-xs">
+                  ) : audiencias.length > 0 ? (
+                    <div className="space-y-3">
+                      {audiencias.map((aud) => {
+                        const handleAlterarStatus = async (novoStatus: string) => {
+                          try {
+                            const updates: Record<string, unknown> = { status: novoStatus };
+                            if (novoStatus === 'tratado' || novoStatus === 'ignorado') {
+                              updates.tratado_por = user?.id;
+                              updates.tratado_em = new Date().toISOString();
+                            }
+                            const { error } = await supabase
+                              .from('audiencias_detectadas')
+                              .update(updates)
+                              .eq('id', aud.id);
+                            if (error) throw error;
+                            if (audienciaInvalidateKey) {
+                              queryClient.invalidateQueries({ queryKey: audienciaInvalidateKey });
+                            }
+                            sonnerToast.success('Status atualizado!');
+                          } catch (err: any) {
+                            sonnerToast.error('Erro: ' + err.message);
+                          }
+                        };
+                        return (
+                          <Card key={aud.id} className="hover:shadow-md transition-shadow">
+                            <CardContent className="p-4">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {/* Coluna esquerda: dados + ações */}
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Select value={aud.status || 'pendente'} onValueChange={handleAlterarStatus}>
+                                      <SelectTrigger className="h-7 w-[160px] text-xs">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                                        <SelectItem value="em_andamento">🔄 Em andamento</SelectItem>
-                                        <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
-                                        <SelectItem value="atrasado">⚠️ Atrasado</SelectItem>
+                                        <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                                        <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                                        <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                                        <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                                        <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
                                       </SelectContent>
                                     </Select>
+                                    {aud.tipo_audiencia && (
+                                      <Badge variant="outline" className="text-xs">{aud.tipo_audiencia}</Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg w-fit">
+                                    <Calendar className="h-4 w-4 text-primary" />
+                                    <span className="font-bold text-primary text-sm">
+                                      {aud.data_audiencia ? formatDate(aud.data_audiencia) : 'Sem data'}
+                                    </span>
+                                    {(aud.hora_brasilia || aud.hora) && (
+                                      <span className="text-xs text-muted-foreground">
+                                        às {aud.hora_brasilia || aud.hora}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {aud.local_audiencia && (
+                                    <p className="text-xs text-muted-foreground">{aud.local_audiencia}</p>
+                                  )}
+                                  {aud.resumo_objeto && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
+                                  )}
+                                  <div className="pt-1">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                          <MoreVertical className="h-4 w-4 mr-1" />
+                                          Ações
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start">
+                                        <DropdownMenuItem onSelect={() => onSelectAudiencia?.(aud)}>
+                                          <Eye className="h-4 w-4 mr-2" /> Detalhes
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => onEditAudiencia?.(aud)}>
+                                          <Pencil className="h-4 w-4 mr-2" /> Editar
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => onCriarTarefaAudiencia?.(aud)}>
+                                          <ListChecks className="h-4 w-4 mr-2" /> Criar Tarefa
+                                        </DropdownMenuItem>
+                                        {aud.status === 'pendente' && (
+                                          <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem onSelect={() => handleAlterarStatus('tratado')}>
+                                              <CheckCircle className="h-4 w-4 mr-2 text-green-600" /> Marcar Tratado
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleAlterarStatus('ignorado')}>
+                                              <XCircle className="h-4 w-4 mr-2 text-muted-foreground" /> Ignorar
+                                            </DropdownMenuItem>
+                                          </>
+                                        )}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </div>
                                 </div>
-                                <p className="text-sm font-medium">{tarefa.titulo}</p>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  {tarefa.data_vencimento && (
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="h-3 w-3" />
-                                      {formatDate(tarefa.data_vencimento)}
-                                    </span>
-                                  )}
-                                  {tarefa.responsavel?.nome && (
-                                    <span className="flex items-center gap-1">
-                                      <User className="h-3 w-3" />
-                                      {tarefa.responsavel.nome}
-                                    </span>
-                                  )}
+                                {/* Coluna direita: observação editável inline */}
+                                <div className="lg:border-l lg:pl-4">
+                                  <AudienciaObservacaoInline
+                                    audienciaId={aud.id}
+                                    initialValue={aud.observacoes ?? null}
+                                    invalidateKey={audienciaInvalidateKey ?? ['audiencias-processo', processo?.id]}
+                                  />
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8">
