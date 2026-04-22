@@ -559,21 +559,34 @@ function parsearTermoOr(raw: string): ParsedTermoOr | null {
 // PROCESSAMENTO DE UM TERMO
 // ============================================================================
 
+type TermoFlashResult = {
+  novas: number; duplicadas: number; descartadas: number;
+  rateLimitHits: number; falhasBusca: number; buscasParciais: number;
+  ultimoErroBusca: string | null;
+  chamadasApi: number; paginasEvitadas: number;
+  complementaresPuladas: number; tribunaisPulados429: number;
+};
+
+function emptyTermoFlashResult(): TermoFlashResult {
+  return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0,
+    ultimoErroBusca: null, chamadasApi: 0, paginasEvitadas: 0, complementaresPuladas: 0, tribunaisPulados429: 0 };
+}
+
 async function processarTermoPro(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
-): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
-  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
-  return await _processarTermoProInterno(mon, diaYmd, signal);
+): Promise<TermoFlashResult> {
+  if (signal.aborted) return emptyTermoFlashResult();
+  return await _processarTermoFlashInterno(mon, diaYmd, signal);
 }
 
-async function _processarTermoProInterno(
+async function _processarTermoFlashInterno(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
-): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; falhasBusca: number; buscasParciais: number; ultimoErroBusca: string | null }> {
-  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0, ultimoErroBusca: null };
+): Promise<TermoFlashResult> {
+  if (signal.aborted) return emptyTermoFlashResult();
   
   const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
   const tribunais = expandirTribunais(mon.tribunais);
