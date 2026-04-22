@@ -657,32 +657,6 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
         </CardContent>
       </Card>
 
-      {/* Card de Agendamento Pro */}
-      <Card className="mt-4">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Agendamento Automático Pro</CardTitle>
-            </div>
-            <SchedulerProBadge />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Executa automaticamente todos os dias às <span className="font-semibold text-foreground">20:45 BRT</span> com data do dia
-          </p>
-          <SchedulerProToggle />
-          <SchedulerProStatus />
-          <div className="flex items-start gap-2 rounded-md bg-muted/50 p-3 border border-muted">
-            <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground">
-              Mantenha esta aba aberta para que o agendamento funcione
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Dialog de retomada */}
       <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <AlertDialogContent>
