@@ -2136,6 +2136,13 @@ export default function ProcessoDetalhes() {
         />
       )}
 
+      {/* Criar Tarefa a partir de Audiência */}
+      <CriarTarefaAudienciaDialog
+        open={!!criarTarefaAudiencia}
+        onOpenChange={(open) => !open && setCriarTarefaAudiencia(null)}
+        audiencia={criarTarefaAudiencia}
+      />
+
       {/* Intimação Details Dialog */}
       <Dialog open={!!selectedIntimacao} onOpenChange={(open) => !open && setSelectedIntimacao(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
