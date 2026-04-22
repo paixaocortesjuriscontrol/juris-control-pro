@@ -1,26 +1,27 @@
 /**
- * DJEN Termos Pro Engine v1.0
- * 
- * Engine completamente novo e independente do DJEN Termos original.
- * Usa metadados estruturados da API PJE Comunica (destinatarios, destinatarioadvogados)
- * para validação precisa ao invés de regex no corpo do texto.
- * 
- * Principais diferenças do engine original:
- * - Validação de advogado via destinatarioadvogados[].advogado (OAB + nome exatos)
- * - Validação de parte via destinatarios[].nome (matching direto)
- * - Condições concomitantes verificadas contra texto + metadados estruturados
- * - Código limpo e focado, sem vícios legados
+ * DJEN Termos Flash Engine v1.0
+ *
+ * Motor independente e otimizado, derivado do Pro mas com:
+ *  1. Paginação inteligente (pjeComunicaClientFlash) — evita página extra "para confirmar fim".
+ *  2. Advogado UF=TODAS: 1 chamada global (sem siglaTribunal) com filtro local pelos tribunais.
+ *  3. Complementar palavraChave para "parte" só roda nos tribunais com 0 resultados primários.
+ *  4. Termos_or de advogado: dedupe (não busca OAB se nome já trouxe resultado).
+ *  5. Circuit breaker por termo: pula tribunais restantes após N 429s.
+ *  6. Validação confia nos filtros nativos da API (parte/advogado) — reduz descartes.
+ *  7. Telemetria: chamadasApi, paginasEvitadas, complementaresPuladas, tribunaisPulados429.
+ *
+ * Independente do Pro: storage keys, singleton, tipo no banco e logs separados.
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
+import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClientFlash";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
 // ============================================================================
 
-export interface DjenTermosProProgress {
+export interface DjenTermosFlashProgress {
   status: 'idle' | 'executando' | 'concluido' | 'cancelado' | 'erro';
   globalCurrent: number;
   globalTotal: number;
@@ -42,6 +43,14 @@ export interface DjenTermosProProgress {
   falhasBusca: number;
   buscasParciais: number;
   ultimoErroBusca: string | null;
+  /** Telemetria Flash: chamadas à API PJE acumuladas */
+  chamadasApi: number;
+  /** Telemetria Flash: páginas extras evitadas pela paginação inteligente */
+  paginasEvitadas: number;
+  /** Telemetria Flash: buscas complementares puladas (parte com primária OK) */
+  complementaresPuladas: number;
+  /** Telemetria Flash: tribunais pulados pelo circuit breaker (429) */
+  tribunaisPulados429: number;
 }
 
 interface Monitoramento {
