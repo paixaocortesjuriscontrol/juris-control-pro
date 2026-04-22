@@ -96,7 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!isActive) {
               toast.error("Sua conta está desativada. Entre em contato com o administrador.");
               await supabase.auth.signOut();
+              return;
             }
+            await registrarAcessoSeNecessario(currentSession.user.id, currentSession.user.email);
           }, 0);
         }
       }
@@ -119,7 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isActive) {
           toast.error("Sua conta está desativada. Entre em contato com o administrador.");
           await supabase.auth.signOut();
+          return;
         }
+        await registrarAcessoSeNecessario(existingSession.user.id, existingSession.user.email);
       }
     }).catch(() => {
       clearTimeout(timeoutId);
