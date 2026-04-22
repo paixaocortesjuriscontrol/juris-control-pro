@@ -143,6 +143,9 @@ interface ProcessoDetalhesCompletosProps {
   onVoltar: () => void;
   onEditar: () => void;
   onEditAudiencia?: (audiencia: any) => void;
+  onSelectAudiencia?: (audiencia: any) => void;
+  onCriarTarefaAudiencia?: (audiencia: any) => void;
+  audienciaInvalidateKey?: unknown[];
   onSelectIntimacao?: (intimacao: any) => void;
   onSelectTarefa?: (tarefaId: string) => void;
   onVoltarTarefa?: () => void;
