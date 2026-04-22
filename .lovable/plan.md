@@ -1,111 +1,103 @@
 
 
-# Plano: Acesso ao PJE-TST via Cofre de Senhas usando n8n (Hostinger) como Proxy mTLS
+# DJEN Termos Flash — novo motor otimizado (sem alterar o Pro)
 
-## Por que estamos sendo bloqueados hoje
+## Objetivo
 
-A Edge Function `testar-mni` faz a chamada SOAP direto do runtime Deno do Supabase. Isso falha por **dois motivos combinados**:
+Criar um motor independente **DJEN Termos Flash** que aplique todas as otimizações do plano anterior (paginação inteligente, busca global por UF=TODAS, complementar condicional, circuit breaker, validação por metadados, dedupe de termos_or), sem tocar no DJEN Termos Pro. Disponibilizar um card próprio na tela de Configurações, ao lado do card do Pro.
 
-1. **Bloqueio de IP**: O TST e demais tribunais bloqueiam faixas de IP de cloud (Supabase/AWS/GCP). Toda chamada cai em `403`/`timeout`/`reset`.
-2. **Falta de mTLS**: O PJE-TST exige autenticação mútua TLS apresentando o **certificado A1 (.pfx)** do advogado no handshake. O Deno das Edge Functions não suporta `client certificates` nativamente — então mesmo se o IP passasse, o servidor recusaria a conexão.
+## Estratégia: duplicar tudo do Pro com sufixo `Flash`
 
-A sua VPS Hostinger com n8n resolve os dois problemas: tem IP fixo "limpo" e o Node.js (que roda dentro do n8n) suporta mTLS nativo via `https.Agent({ pfx, passphrase })`.
+Nenhum arquivo do Pro será alterado. Todos os artefatos abaixo são novos.
 
-## Arquitetura proposta
+### Arquivos novos (duplicados do Pro)
 
 ```text
-[App Lovable]
-     │  invoke('testar-mni', { cofre_senha_id })
-     ▼
-[Edge Function testar-mni]
-     │ 1. Valida JWT do usuário
-     │ 2. Decripta senha + senha do .pfx (AES-GCM)
-     │ 3. Baixa o .pfx do Storage do Supabase
-     │ 4. POST → n8n webhook (com PROXY_TOKEN)
-     ▼
-[n8n na Hostinger] ── Webhook "pje-mni-proxy"
-     │ a. Valida X-Proxy-Token
-     │ b. Monta envelope SOAP consultarAvisosPendentes
-     │ c. HTTP Request com mTLS (pfx em base64 + senha)
-     ▼
-[pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao]
-     │
-     ▼ resposta SOAP
-[n8n] devolve { http_status, body, elapsed_ms }
-     ▼
-[Edge Function] interpreta SOAP, atualiza cofre_senhas e retorna ao front
+src/hooks/useDjenTermosFlashEngine.ts   ← cópia de useDjenTermosProEngine.ts
+src/hooks/useDjenTermosFlash.ts         ← cópia de useDjenTermosPro.ts
+src/components/configuracoes/MonitoramentoTermosFlashCard.tsx
+                                        ← cópia de MonitoramentoTermosCard.tsx (versão Pro)
+src/utils/pjeComunicaClientFlash.ts     ← cópia enxuta de pjeComunicaClient.ts (paginação inteligente)
 ```
 
-## Etapas de implementação
+Storage keys, nomes de singleton, channels do Supabase Realtime e identificadores de checkpoint serão renomeados para `*_flash` / `djen-termos-flash-*` para garantir que **Pro e Flash rodem em paralelo sem colidir**.
 
-### 1. Workflow n8n na Hostinger
-Criar um workflow `pje-mni-proxy` com 3 nós:
+### Tabelas / configurações
 
-- **Webhook** (POST, path `/webhook/pje-mni-proxy`, Header Auth)
-  Body esperado:
-  ```json
-  {
-    "endpoint": "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao",
-    "soap_action": "consultarAvisosPendentes",
-    "soap_body": "<soapenv:Envelope>...</soapenv:Envelope>",
-    "pfx_base64": "MIIK...",
-    "pfx_password": "senha_do_certificado",
-    "timeout_ms": 30000
-  }
-  ```
-- **Code** (JavaScript) — monta `https.Agent` com `pfx: Buffer.from(pfx_base64,'base64')` e faz a request com `axios`/`fetch` Node, retornando `{status, headers, body, elapsed_ms}`.
-- **Respond to Webhook** — devolve o JSON.
+- Reaproveitar a tabela `configuracoes_monitoramento` adicionando o tipo `'termos_flash'` (em paralelo a `'termos'`).
+- Não alterar a constraint do CHECK de `execucoes_agendadas` (o Flash usa o mesmo `'termos'` no logging interno do Pro? Não — o Flash terá seu próprio bucket de log. Detalhes técnicos abaixo).
 
-Variáveis de ambiente no n8n: `PROXY_TOKEN` (gerado, ~32 chars random).
+## Otimizações aplicadas no Flash (não no Pro)
 
-### 2. Secrets no Supabase (Lovable Cloud)
-- `N8N_PJE_PROXY_URL` → `https://seu-n8n.hostinger.com/webhook/pje-mni-proxy`
-- `N8N_PJE_PROXY_TOKEN` → mesmo valor configurado no n8n
-- (Já existe) `COFRE_ENCRYPTION_KEY` para decriptar A1+senha
+1. **Paginação inteligente em `pjeComunicaClientFlash.buscarPjeComunicaPaginado`**
+   - `continueUntilEmpty=false` por padrão.
+   - Encerra após página 1 se `items.length < pageSize` E `totalExpected` foi satisfeito.
+   - Mantém `maxPages: null` + `continueUntilEmpty=true` apenas como *fallback* quando `totalExpected` está ausente e a primeira página veio cheia (preserva o caso SANTANDER 62 páginas).
+   - Loga `⚠️ TRUNCADO` se parar com `hasMore=true`.
 
-### 3. Refatorar Edge Function `testar-mni`
-Em vez de chamar `pje.tst.jus.br` direto:
-- Buscar `certificado_a1_path` da credencial → baixar do Storage Supabase
-- Decriptar `senha_hash` e `certificado_a1_senha`
-- Converter o .pfx para base64
-- POST para `N8N_PJE_PROXY_URL` com header `X-Proxy-Token`
-- Interpretar resposta SOAP (faultstring, `consultarAvisosPendentesResponse`)
-- Atualizar `cofre_senhas.status_validacao` / `tentativas_falhas` / `bloqueado_ate` (lógica já existente é mantida)
+2. **Advogado UF=TODAS: 1 chamada global**
+   - Quando `mon.uf === 'TODAS'` e há lista de tribunais, busca **sem `siglaTribunal`** por `nomeAdvogado` (e por OAB se existir), depois filtra localmente pelos tribunais permitidos.
+   - Retry por tribunal só dispara se a busca global vier vazia.
 
-### 4. UI do Cofre de Senhas
-Sem mudança visual. O botão "Testar MNI" passa a funcionar no TST. Acrescentar no resultado:
-- `via_proxy: true`
-- `proxy_latencia_ms` para diagnóstico
+3. **Complementar `palavraChave` para `parte`: condicional por tribunal**
+   - Roda apenas nos tribunais onde `nomeParte` retornou 0 resultados. Cobertura SANTANDER/TST mantida.
 
-### 5. Tratamento de erros padronizado
-Mapear códigos retornados pelo n8n:
-- `proxy_unreachable` → "Proxy n8n offline — verifique a VPS"
-- `cert_invalid` → "Certificado A1 inválido ou expirado"
-- `cert_password_wrong` → "Senha do certificado incorreta"
-- `auth_failed` (faultstring com 'autenticação') → "CPF/Senha do PJE incorretos"
-- `tribunal_indisponivel` → erro 5xx do TST
+4. **Dedupe de termos_or**
+   - Agrupa por OAB e por nome. Não busca OAB do mesmo advogado se o nome já trouxe resultado.
+   - Para UF=TODAS, aplica regra global (item 2) também aos termos_or.
+
+5. **Circuit breaker por termo**
+   - Após 3 ocorrências de 429 no mesmo termo, pula tribunais restantes desse termo e marca como "parcial" em `ultimoErroBusca`.
+   - Aumenta `globalCooldownUntil` para no mínimo 12s em 429 reincidente; respeita `retry-after`.
+
+6. **Validação confiando em filtros nativos da API**
+   - `parte`: aceita publicação trazida via `nomeParte=X` sem re-validar texto (mantém apenas filtros de exclusão e tribunal).
+   - `advogado`: aceita via `numeroOab=X` sem exigir nome no texto.
+   - Validação rigorosa por texto continua para `palavra-chave` e `palavraChave` complementar.
+
+7. **Telemetria no resumo final**
+   - Por termo: `chamadas_api`, `paginas_extras_evitadas`, `complementares_puladas`, `descartes_por_motivo`, `tribunais_pulados_429`.
+
+## UI — Configurações
+
+- Novo card `MonitoramentoTermosFlashCard` adicionado na mesma página onde o `MonitoramentoTermosCard` (Pro) já é renderizado.
+- Mesma estética e mesmos controles do card Pro: switch ativo, frequência (diário/2x/semanal), horário agendado, última execução, painel ao vivo, botão Executar/Cancelar/Retomar, link "Ver alertas".
+- Título: **"Monitoração 360º Flash"** com descrição "Versão otimizada e mais rápida da varredura de termos estratégicos".
 
 ## Detalhes técnicos
 
-- **Storage do .pfx**: o campo `certificado_a1_path` aponta para um arquivo no bucket Supabase. A Edge Function usa `service_role` para `download()`.
-- **Tamanho do payload**: A1 típico tem 4–8KB → base64 ~10KB. Confortável para webhook.
-- **Segurança do proxy**: o n8n só aceita requests com `X-Proxy-Token` válido; recomendo também restringir o webhook por IP (firewall Hostinger → permitir somente faixas Supabase Edge ou tornar `N8N_PJE_PROXY_TOKEN` longo e rotacioná-lo).
-- **Timeout**: 30s no n8n, 35s na Edge Function (margem).
-- **Logs**: gravados em `historico_capturas` (já existe) com `detalhes.proxy_used = 'n8n-hostinger'`.
-- **Escopo inicial**: só TST. Demais TRTs continuam mostrando "Endpoint MNI não configurado" — habilitamos depois reutilizando o mesmo proxy (só adiciona URL no `MNI_ENDPOINTS`).
+### Renomeações no Flash (engine + hook)
 
-## O que você precisa preparar antes de eu codar
+- Singleton: `djenTermosFlashState` (em vez de `djenTermosProState`).
+- Storage keys: `djen-termos-flash-checkpoint`, `djen-termos-flash-progress`.
+- Subscriber API: `subscribeDjenTermosFlash`, `executarDjenTermosFlash`, `cancelarDjenTermosFlash`, `getCheckpointFlash`, etc.
+- React Query invalidations idênticas às do Pro (mesmas keys: `publicacoes-djen`, `publicacoes-unificadas`, `notificacoes-counts`).
+- Toasts: prefixo "DJEN Flash:".
 
-1. URL pública do seu n8n na Hostinger (ex: `https://n8n.seudominio.com.br`).
-2. Confirmar que o n8n está acessível por HTTPS (TLS válido — Let's Encrypt já basta).
-3. Decidir o `PROXY_TOKEN` (eu gero um se preferir).
-4. Confirmar que o certificado A1 do TST já está cadastrado no Cofre de uma credencial de teste.
+### Configuração no banco
 
-## Arquivos que serão alterados
+- Em `configuracoes_monitoramento`, criar registro com `tipo='termos_flash'` por coordenação (lazy-create no primeiro acesso ao card, padrão do `useConfiguracoesMonitoramento`).
+- Ajuste em `useConfiguracoesMonitoramento`: adicionar getter `configuracaoTermosFlash` análogo a `configuracaoTermos` (esta é uma alteração mínima e necessária — não é arquivo do Pro).
+- `useExecutarMonitoramento({ tipo: 'termos_flash' })`: aceitar o novo tipo. Se a edge function de execução agendada não suportar, manter execução **somente manual** no Flash inicialmente (cron agendado fica como follow-up).
 
-- `supabase/functions/testar-mni/index.ts` — refatorado para usar proxy
-- Novo: documentação `mem://features/cofre-senhas/n8n-pje-proxy.md`
-- Adicionar 2 secrets via tool de secrets
+### Constraints e migrations
 
-Sem mudanças no schema do banco. Sem mudanças na UI além de mensagens de erro mais claras.
+- `execucoes_agendadas.tipo` CHECK precisa aceitar `'termos_flash'` se o logging do Flash gravar nessa tabela. Migration: ampliar o CHECK para incluir o novo valor (sem remover os existentes).
+- `configuracoes_monitoramento.tipo` recebe o novo valor `'termos_flash'` (verificar se há CHECK; se houver, ampliar).
+
+### Não alterado
+
+- `useDjenTermosProEngine.ts`, `useDjenTermosPro.ts`, `MonitoramentoTermosCard.tsx`, `pjeComunicaClient.ts` e qualquer ponto que o Pro use permanecem intactos.
+
+## Critérios de aceitação
+
+- Card "Monitoração 360º Flash" visível em Configurações ao lado do card Pro.
+- Executar Flash não interrompe nem afeta o estado do Pro (e vice-versa) — checkpoints e progresso isolados.
+- Para a coordenação Dr. Thomas, execução Flash conclui com **redução perceptível de tempo e de descartes** vs. Pro, com logs `[DJEN Flash]` no console mostrando `chamadas_api` e `complementares_puladas`.
+- Caso SANTANDER/TST de 62+ páginas continua sendo capturado integralmente.
+
+## Estimativa
+
+- Duplicação dos arquivos + renomeações: rápido.
+- Aplicar otimizações 1–7 no engine Flash + ajuste no `useConfiguracoesMonitoramento` + migration: trabalho focado em 4 arquivos novos e 1 ajuste pequeno.
 
