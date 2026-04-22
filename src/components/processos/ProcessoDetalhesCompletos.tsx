@@ -1493,6 +1493,38 @@ export function ProcessoDetalhesCompletos({
                         return (
                           <Card key={aud.id} className="hover:shadow-md transition-shadow">
                             <CardContent className="p-4">
+                              {/* Cabeçalho profissional da audiência */}
+                              <div className="flex items-start justify-between gap-3 pb-3 mb-3 border-b">
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Gavel className="h-4 w-4 text-primary shrink-0" />
+                                    <span className="font-mono text-sm font-semibold text-foreground truncate">
+                                      {aud.processo_numero || processo?.numero || 'Processo sem número'}
+                                    </span>
+                                    {aud.tipo_audiencia && (
+                                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                                        {aud.tipo_audiencia}
+                                      </Badge>
+                                    )}
+                                    {aud.modalidade && (
+                                      <Badge variant="outline" className="text-[10px] capitalize">
+                                        {aud.modalidade}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                                    {aud.vara_camara && (
+                                      <span className="truncate">⚖ {aud.vara_camara}</span>
+                                    )}
+                                    {aud.comarca && (
+                                      <span className="truncate">📍 {aud.comarca}</span>
+                                    )}
+                                    {aud.created_at && (
+                                      <span>Registrada em {formatDate(aud.created_at)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {/* Coluna esquerda: dados + ações */}
                                 <div className="space-y-2">
@@ -1510,9 +1542,6 @@ export function ProcessoDetalhesCompletos({
                                         <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
                                       </SelectContent>
                                     </Select>
-                                    {aud.tipo_audiencia && (
-                                      <Badge variant="outline" className="text-xs">{aud.tipo_audiencia}</Badge>
-                                    )}
                                   </div>
                                   <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg w-fit">
                                     <Calendar className="h-4 w-4 text-primary" />
@@ -1526,10 +1555,22 @@ export function ProcessoDetalhesCompletos({
                                     )}
                                   </div>
                                   {aud.local_audiencia && (
-                                    <p className="text-xs text-muted-foreground">{aud.local_audiencia}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      <span className="font-medium text-foreground">Local: </span>
+                                      {aud.local_audiencia}
+                                    </p>
                                   )}
                                   {aud.resumo_objeto && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
+                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                      <span className="font-medium text-foreground">Objeto: </span>
+                                      {aud.resumo_objeto}
+                                    </p>
+                                  )}
+                                  {(aud.polo_ativo || aud.cliente) && (
+                                    <p className="text-xs text-muted-foreground line-clamp-1">
+                                      <span className="font-medium text-foreground">Parte: </span>
+                                      {aud.polo_ativo || aud.cliente}
+                                    </p>
                                   )}
                                   <div className="pt-1">
                                     <DropdownMenu>
