@@ -1496,7 +1496,23 @@ export default function ProcessoDetalhes() {
                           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {getAudienciaStatusBadge(aud.status)}
+                                <Select
+                                  value={aud.status || 'pendente'}
+                                  onValueChange={(v) => handleAlterarStatusAudiencia(aud.id, v)}
+                                  disabled={updatingAudiencia === aud.id}
+                                >
+                                  <SelectTrigger className="h-7 w-[160px] text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                                    <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                                    <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                                    <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                                    <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                                  </SelectContent>
+                                </Select>
                                 {getOrigemBadge(aud.origem)}
                                 {aud.tipo_audiencia && (
                                   <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
