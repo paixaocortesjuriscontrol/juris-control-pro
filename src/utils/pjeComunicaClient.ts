@@ -409,6 +409,11 @@ export async function buscarPjeComunicaNoBrowser(
           ? page * pageSize < totalExpected
           : items.length === pageSize;
 
+      console.log(
+        `[PJE Comunica] 📄 page=${page} items=${items.length}/${pageSize} ` +
+        `totalExpected=${totalExpected ?? 'N/A'} hasMore=${hasMore}`
+      );
+
       return {
         success: true,
         items,
