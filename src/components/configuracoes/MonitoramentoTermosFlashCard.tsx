@@ -66,62 +66,7 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Sub-components for scheduler (must be separate to use hooks independently)
-function SchedulerProBadge() {
-  const { ativo } = useDjenTermosProScheduler();
-  return <Badge variant={ativo ? "default" : "secondary"}>{ativo ? "Ativo" : "Inativo"}</Badge>;
-}
-
-function SchedulerProToggle() {
-  const { ativo, horario, start, stop, setTime } = useDjenTermosProScheduler();
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between rounded-md border px-3 py-2">
-        <Label htmlFor="djen-pro-scheduler-toggle" className="text-sm font-medium">Ativar agendamento</Label>
-        <Switch
-          id="djen-pro-scheduler-toggle"
-          checked={ativo}
-          onCheckedChange={(checked) => {
-            if (checked) { start(); toast.success('Agendamento Pro ativado'); }
-            else { stop(); toast.info('Agendamento Pro desativado'); }
-          }}
-        />
-      </div>
-      <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-        <Label className="text-sm font-medium whitespace-nowrap">Horário (BRT)</Label>
-        <Input
-          type="time"
-          value={horario}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val) {
-              const [h, m] = val.split(':').map(Number);
-              setTime(h, m);
-              toast.success(`Horário alterado para ${val}`);
-            }
-          }}
-          className="w-28 h-8"
-        />
-      </div>
-    </div>
-  );
-}
-
-function SchedulerProStatus() {
-  const { ativo, proximoHorario } = useDjenTermosProScheduler();
-  if (!ativo || !proximoHorario) return null;
-  return (
-    <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3">
-      <Clock className="h-4 w-4 text-primary flex-shrink-0" />
-      <div className="flex-1">
-        <p className="text-xs text-muted-foreground">Próxima execução</p>
-        <p className="text-sm font-medium">{proximoHorario}</p>
-      </div>
-    </div>
-  );
-}
-
-export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
+export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const {
     progress,
@@ -133,7 +78,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     cancelar,
     limpar,
     forceKill,
-  } = useDjenTermosPro();
+  } = useDjenTermosFlash();
 
   // Detecta execução backend ativa (modo híbrido / 100% background / scheduler em outra aba).
   // Sem isso, o card mostraria "Aguardando" enquanto o indicador flutuante mostra "Executando".
