@@ -66,6 +66,14 @@ import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
+import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
