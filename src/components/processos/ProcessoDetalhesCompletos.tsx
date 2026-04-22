@@ -1513,17 +1513,87 @@ export function ProcessoDetalhesCompletos({
                                     )}
                                   </div>
                                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-                                    {aud.vara_camara && (
-                                      <span className="truncate">⚖ {aud.vara_camara}</span>
-                                    )}
-                                    {aud.comarca && (
-                                      <span className="truncate">📍 {aud.comarca}</span>
-                                    )}
                                     {aud.created_at && (
                                       <span>Registrada em {formatDate(aud.created_at)}</span>
                                     )}
+                                    {aud.origem && (
+                                      <span className="capitalize">Origem: {aud.origem}</span>
+                                    )}
                                   </div>
                                 </div>
+                              </div>
+                              {/* Grade de detalhes profissional */}
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 mb-3 text-xs">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</p>
+                                  <p className="font-medium text-foreground">
+                                    {aud.data_audiencia ? formatDate(aud.data_audiencia) : '—'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</p>
+                                  <p className="font-medium text-foreground truncate">{aud.tipo_audiencia || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora</p>
+                                  <p className="font-medium text-foreground">{aud.hora || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Local</p>
+                                  <p className="font-medium text-foreground">{aud.hora_local || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Brasília</p>
+                                  <p className="font-medium text-foreground">{aud.hora_brasilia || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Modalidade</p>
+                                  <p className="font-medium text-foreground capitalize">{aud.modalidade || '—'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Vara / Câmara</p>
+                                  <p className="font-medium text-foreground truncate">{aud.vara_camara || '—'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comarca</p>
+                                  <p className="font-medium text-foreground truncate">{aud.comarca || '—'}</p>
+                                </div>
+                                {aud.funcao && (
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Função</p>
+                                    <p className="font-medium text-foreground truncate">{aud.funcao}</p>
+                                  </div>
+                                )}
+                                {aud.advogado && (
+                                  <div className="col-span-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Advogado</p>
+                                    <p className="font-medium text-foreground truncate">{aud.advogado}</p>
+                                  </div>
+                                )}
+                                {aud.preposto && (
+                                  <div className="col-span-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preposto</p>
+                                    <p className="font-medium text-foreground truncate">{aud.preposto}</p>
+                                  </div>
+                                )}
+                                {aud.testemunhas && (
+                                  <div className="col-span-2 sm:col-span-3 lg:col-span-4">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Testemunhas</p>
+                                    <p className="font-medium text-foreground line-clamp-2">{aud.testemunhas}</p>
+                                  </div>
+                                )}
+                                {aud.polo_ativo && (
+                                  <div className="col-span-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Polo Ativo</p>
+                                    <p className="font-medium text-foreground truncate">{aud.polo_ativo}</p>
+                                  </div>
+                                )}
+                                {aud.cliente && (
+                                  <div className="col-span-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cliente</p>
+                                    <p className="font-medium text-foreground truncate">{aud.cliente}</p>
+                                  </div>
+                                )}
                               </div>
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {/* Coluna esquerda: dados + ações */}
@@ -1543,17 +1613,6 @@ export function ProcessoDetalhesCompletos({
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                  <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg w-fit">
-                                    <Calendar className="h-4 w-4 text-primary" />
-                                    <span className="font-bold text-primary text-sm">
-                                      {aud.data_audiencia ? formatDate(aud.data_audiencia) : 'Sem data'}
-                                    </span>
-                                    {(aud.hora_brasilia || aud.hora) && (
-                                      <span className="text-xs text-muted-foreground">
-                                        às {aud.hora_brasilia || aud.hora}
-                                      </span>
-                                    )}
-                                  </div>
                                   {aud.local_audiencia && (
                                     <p className="text-xs text-muted-foreground">
                                       <span className="font-medium text-foreground">Local: </span>
@@ -1564,12 +1623,6 @@ export function ProcessoDetalhesCompletos({
                                     <p className="text-xs text-muted-foreground line-clamp-3">
                                       <span className="font-medium text-foreground">Objeto: </span>
                                       {aud.resumo_objeto}
-                                    </p>
-                                  )}
-                                  {(aud.polo_ativo || aud.cliente) && (
-                                    <p className="text-xs text-muted-foreground line-clamp-1">
-                                      <span className="font-medium text-foreground">Parte: </span>
-                                      {aud.polo_ativo || aud.cliente}
                                     </p>
                                   )}
                                   <div className="pt-1">
