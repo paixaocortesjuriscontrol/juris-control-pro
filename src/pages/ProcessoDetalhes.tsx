@@ -80,11 +80,21 @@ import {
   ListTodo,
   CalendarDays,
   Globe,
-  ListPlus
+  ListPlus,
+  MoreVertical,
+  ListChecks
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
+import { CriarTarefaAudienciaDialog } from "@/components/audiencias/CriarTarefaAudienciaDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
@@ -152,6 +162,7 @@ export default function ProcessoDetalhes() {
   // States for audiências and intimações actions
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
   const [selectedIntimacao, setSelectedIntimacao] = useState<any>(null);
   const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
   const [updatingIntimacao, setUpdatingIntimacao] = useState<string | null>(null);
@@ -1532,26 +1543,43 @@ export default function ProcessoDetalhes() {
                               {aud.resumo_objeto && (
                                 <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
                               )}
-                              <div className="flex gap-2 flex-wrap pt-1">
-                                <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
-                                  <Pencil className="h-4 w-4 mr-1" />
-                                  Editar
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
-                                  <Eye className="h-4 w-4 mr-1" />
-                                  Detalhes
-                                </Button>
-                                {aud.status === 'pendente' && (
-                                  <>
-                                    <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                      <CheckCircle className="h-4 w-4 mr-1" />
-                                      Tratado
+                              <div className="pt-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <MoreVertical className="h-4 w-4 mr-1" />
+                                      Ações
                                     </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                )}
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start">
+                                    <DropdownMenuItem onSelect={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
+                                      <Eye className="h-4 w-4 mr-2" /> Detalhes
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setEditingAudiencia(aud as AudienciaDetectada)}>
+                                      <Pencil className="h-4 w-4 mr-2" /> Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setCriarTarefaAudiencia(aud as AudienciaDetectada)}>
+                                      <ListChecks className="h-4 w-4 mr-2" /> Criar Tarefa
+                                    </DropdownMenuItem>
+                                    {aud.status === 'pendente' && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onSelect={() => handleMarcarAudienciaTratado(aud.id)}
+                                          disabled={updatingAudiencia === aud.id}
+                                        >
+                                          <CheckCircle className="h-4 w-4 mr-2 text-green-600" /> Marcar Tratado
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onSelect={() => handleIgnorarAudiencia(aud.id)}
+                                          disabled={updatingAudiencia === aud.id}
+                                        >
+                                          <XCircle className="h-4 w-4 mr-2 text-muted-foreground" /> Ignorar
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </div>
 
@@ -2107,6 +2135,13 @@ export default function ProcessoDetalhes() {
           }}
         />
       )}
+
+      {/* Criar Tarefa a partir de Audiência */}
+      <CriarTarefaAudienciaDialog
+        open={!!criarTarefaAudiencia}
+        onOpenChange={(open) => !open && setCriarTarefaAudiencia(null)}
+        audiencia={criarTarefaAudiencia}
+      />
 
       {/* Intimação Details Dialog */}
       <Dialog open={!!selectedIntimacao} onOpenChange={(open) => !open && setSelectedIntimacao(null)}>
