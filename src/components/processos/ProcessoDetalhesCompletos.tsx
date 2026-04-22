@@ -51,7 +51,12 @@ import {
   BellOff,
   Info,
   ListPlus,
-  Plus
+  Plus,
+  MoreVertical,
+  Pencil,
+  ListChecks,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { ProcessoPedidosTab } from "./ProcessoPedidosTab";
 import { cn } from "@/lib/utils";
