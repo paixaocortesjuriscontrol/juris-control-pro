@@ -2001,6 +2001,9 @@ export default function ProcessoDetalhes() {
             setViewMode("editar");
           }}
           onEditAudiencia={(aud) => setEditingAudiencia(aud)}
+          onSelectAudiencia={(aud) => setSelectedAudiencia(aud)}
+          onCriarTarefaAudiencia={(aud) => setCriarTarefaAudiencia(aud)}
+          audienciaInvalidateKey={["audiencias-processo", id, processo?.numero]}
           onSelectIntimacao={(int) => setSelectedIntimacao(int)}
           onSelectTarefa={(tarefaId) => setSelectedTarefaId(tarefaId)}
           onVoltarTarefa={() => setSelectedTarefaId(null)}
