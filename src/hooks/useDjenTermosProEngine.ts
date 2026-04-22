@@ -610,7 +610,8 @@ async function _processarTermoProInterno(
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
         signal,
-        maxPages: 9999,
+        maxPages: null,
+        continueUntilEmpty: true,
         delayMs: CONFIG.delay_between_pages,
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
