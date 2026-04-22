@@ -96,7 +96,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
         const { data } = await supabase
           .from('execucoes_agendadas')
           .select('detalhes, iniciado_em')
-          .eq('tipo', 'djen_pro')
+          .eq('tipo', 'djen_flash')
           .eq('status', 'executando')
           .is('finalizado_em', null)
           .order('iniciado_em', { ascending: false })
@@ -135,7 +135,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
 
   const { data: monitoramentos = [] } = useQuery({
-    queryKey: ['monitoramentos-djen-coord-termos-pro', coordenacaoFiltroEfetivo],
+    queryKey: ['monitoramentos-djen-coord-termos-flash', coordenacaoFiltroEfetivo],
     queryFn: async () => {
       if (!coordenacaoFiltroEfetivo) return [];
       const { data, error } = await supabase
@@ -163,8 +163,8 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
   const [showKillDialog, setShowKillDialog] = useState(false);
 
   useEffect(() => {
-    const savedHybrid = localStorage.getItem('djen-pro-hybrid-mode');
-    const savedBg = localStorage.getItem('djen-pro-background-only');
+    const savedHybrid = localStorage.getItem('djen-flash-hybrid-mode');
+    const savedBg = localStorage.getItem('djen-flash-background-only');
     if (savedBg === 'true') {
       setBackgroundOnly(true);
       setHybridMode(false);
@@ -174,11 +174,11 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('djen-pro-hybrid-mode', hybridMode ? 'true' : 'false');
+    localStorage.setItem('djen-flash-hybrid-mode', hybridMode ? 'true' : 'false');
   }, [hybridMode]);
 
   useEffect(() => {
-    localStorage.setItem('djen-pro-background-only', backgroundOnly ? 'true' : 'false');
+    localStorage.setItem('djen-flash-background-only', backgroundOnly ? 'true' : 'false');
     if (backgroundOnly) setHybridMode(false);
   }, [backgroundOnly]);
 
@@ -344,7 +344,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">DJEN Termos Pro</CardTitle>
+              <CardTitle className="text-lg">DJEN Termos Flash</CardTitle>
             </div>
             <Badge variant="secondary" className={cn("gap-1", statusConfig.bg, statusConfig.color)}>
               <StatusIcon className={cn("h-3 w-3", statusConfig.animate && "animate-spin")} />
@@ -480,7 +480,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
           {/* Modo híbrido */}
           <div className="flex items-center justify-between rounded-md border px-3 py-2">
             <div className="flex items-center gap-2">
-              <Label htmlFor="djen-pro-hybrid" className="text-xs text-muted-foreground">
+              <Label htmlFor="djen-flash-hybrid" className="text-xs text-muted-foreground">
                 Modo híbrido (backend)
               </Label>
               <TooltipProvider>
@@ -495,7 +495,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
               </TooltipProvider>
             </div>
             <Switch
-              id="djen-pro-hybrid"
+              id="djen-flash-hybrid"
               checked={hybridMode}
               onCheckedChange={handleToggleHybrid}
               disabled={effectiveIsRunning || backgroundOnly}
@@ -505,7 +505,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
           {/* 100% background */}
           <div className="flex items-center justify-between rounded-md border px-3 py-2">
             <div className="flex items-center gap-2">
-              <Label htmlFor="djen-pro-background" className="text-xs text-muted-foreground">
+              <Label htmlFor="djen-flash-background" className="text-xs text-muted-foreground">
                 100% background
               </Label>
               <TooltipProvider>
@@ -520,7 +520,7 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
               </TooltipProvider>
             </div>
             <Switch
-              id="djen-pro-background"
+              id="djen-flash-background"
               checked={backgroundOnly}
               onCheckedChange={handleToggleBackground}
               disabled={effectiveIsRunning}
