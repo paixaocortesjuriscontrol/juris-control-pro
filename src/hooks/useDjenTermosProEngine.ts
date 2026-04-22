@@ -711,17 +711,17 @@ async function _processarTermoProInterno(
     if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
   }
   
-  // Busca complementar para tipo "parte": buscar também por palavraChave (texto)
-  // SOMENTE se a busca primária não retornou resultados suficientes
-  // A API PJE Comunica pode não retornar resultados com nomeParte para alguns tribunais
-  if (tipo === 'parte' && !signal.aborted && resultados.length === 0) {
+  // Busca complementar para tipo "parte": buscar também por palavraChave.
+  // A API PJE Comunica pode omitir publicações relevantes no filtro nomeParte mesmo
+  // quando já retornou outros resultados para o mesmo tribunal/termo.
+  if (tipo === 'parte' && !signal.aborted) {
     const termoTexto = mon.termo_busca
       ?.normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .trim();
     
     if (termoTexto) {
-      console.log(`[DJEN Pro] Busca complementar parte por palavraChave (primária retornou 0): "${termoTexto}"`);
+      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
         const resp = await executarBusca(
