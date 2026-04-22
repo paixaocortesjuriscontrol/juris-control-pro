@@ -763,20 +763,55 @@ async function _processarTermoFlashInterno(
   const tribLoop = (tribunais.length > 0)
     ? tribunais
     : [undefined as string | undefined];
-  
-  for (const trib of tribLoop) {
-    if (signal.aborted) break;
-    
-    const resp = await executarBusca(
-      { ...baseParams, siglaTribunal: trib, page: 1 },
-      trib,
-      `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
+
+  // ===== OTIMIZAÇÃO 2: Advogado UF=TODAS — 1 chamada global =====
+  // Quando a UF é "TODAS" e há lista de tribunais configurada, uma única busca
+  // GLOBAL (sem siglaTribunal) é feita; depois filtramos localmente os tribunais permitidos.
+  // Isso substitui N chamadas (1 por tribunal) por apenas 1 → grande redução de carga e 429.
+  const ufTodas = tipo === 'advogado' && (String(mon.uf || '').toUpperCase() === 'TODAS' || !mon.uf);
+  const usarBuscaGlobal = ufTodas && tribunais.length > 0;
+
+  if (usarBuscaGlobal) {
+    const respGlobal = await executarBusca(
+      { ...baseParams, siglaTribunal: undefined, page: 1 },
+      undefined,
+      `busca primária GLOBAL ${tipo} | ${mon.termo_busca} | tribunais=${tribunais.join(',')}`,
     );
-    if (resp) {
-      console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+    if (respGlobal) {
+      console.log(
+        `[DJEN Flash] 🌐 Busca global tipo=${tipo} termo="${mon.termo_busca}" UF=TODAS: ` +
+        `${respGlobal.items.length} resultados, pages=${respGlobal.pagesFetched} (substitui ${tribunais.length} chamadas por tribunal)`
+      );
+      // Marcar como "achou em todos" — a validação local por tribunal cuidará do filtro.
+      // Não precisamos do retry por tribunal a menos que a global tenha vindo vazia.
+      if (respGlobal.items.length > 0) {
+        for (const t of tribunais) tribuniaisComResultados.add(t);
+      }
     }
-    
-    if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+  } else {
+    for (const trib of tribLoop) {
+      if (signal.aborted) break;
+      if (checkCircuit()) {
+        telemetria.tribunaisPulados429 += 1;
+        continue;
+      }
+
+      const resultadosAntes = resultados.length;
+      const resp = await executarBusca(
+        { ...baseParams, siglaTribunal: trib, page: 1 },
+        trib,
+        `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`,
+      );
+      if (resp) {
+        console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        // Rastrear quais tribunais retornaram resultados (para complementar condicional)
+        if (trib && (resultados.length - resultadosAntes) > 0) {
+          tribuniaisComResultados.add(trib);
+        }
+      }
+
+      if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+    }
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave.
