@@ -921,6 +921,39 @@ export default function ProcessoDetalhes() {
     }
   };
 
+  const handleAlterarStatusAudiencia = async (audienciaId: string, novoStatus: string) => {
+    setUpdatingAudiencia(audienciaId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const updateData: Record<string, unknown> = { status: novoStatus };
+      if (novoStatus === 'tratado' || novoStatus === 'ignorado') {
+        updateData.tratado_por = user?.id;
+        updateData.tratado_em = new Date().toISOString();
+      } else {
+        updateData.tratado_por = null;
+        updateData.tratado_em = null;
+      }
+
+      const { error } = await supabase
+        .from("audiencias_detectadas")
+        .update(updateData)
+        .eq("id", audienciaId);
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
+      toast({ title: "Situação atualizada" });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAudiencia(null);
+    }
+  };
+
   // Handlers for intimações
   const handleMarcarIntimacaoTratado = async (intimacaoId: string) => {
     setUpdatingIntimacao(intimacaoId);
