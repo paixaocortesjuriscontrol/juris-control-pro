@@ -36,7 +36,6 @@ import {
   Loader2, Zap, PlayCircle, StopCircle,
   CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull, Info
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDjenTermosFlash } from "@/hooks/useDjenTermosFlash";
 import { toast } from "sonner";

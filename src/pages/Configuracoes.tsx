@@ -13,6 +13,7 @@ import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDia
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { MonitoramentoTermosProCard } from "@/components/configuracoes/MonitoramentoTermosProCard";
+import { MonitoramentoTermosFlashCard } from "@/components/configuracoes/MonitoramentoTermosFlashCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
@@ -63,6 +64,10 @@ export default function Configuracoes() {
           <TabsTrigger value="djen-termos-pro" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Pro</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen-termos-flash" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN Termos Flash</span>
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -196,6 +201,18 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoTermosProCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba DJEN Termos Flash */}
+        <TabsContent value="djen-termos-flash" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">DJEN Termos Flash</h2>
+            <p className="text-sm text-muted-foreground">
+              Versão otimizada do Pro: paginação inteligente, busca global UF=TODAS,
+              complementar condicional, circuit breaker e validação por metadados nativos.
+            </p>
+          </div>
+          <MonitoramentoTermosFlashCard coordenacaoId="" />
         </TabsContent>
 
         {/* Aba Relatórios de Monitoramento */}
