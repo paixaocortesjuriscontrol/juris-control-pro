@@ -51,10 +51,10 @@ export function CacheIndicator({
         </TooltipTrigger>
         <TooltipContent>
           {isFetching
-            ? "Buscando dados da API..."
+            ? "Atualizando lista..."
             : isStale
-            ? "Dados em cache podem estar desatualizados"
-            : "Dados carregados do cache local"}
+            ? "Os dados exibidos podem estar desatualizados"
+            : "Dados atualizados"}
         </TooltipContent>
       </Tooltip>
 
