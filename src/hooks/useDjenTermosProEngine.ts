@@ -610,7 +610,7 @@ async function _processarTermoProInterno(
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
         signal,
-        maxPages: 999,
+        maxPages: 9999,
         delayMs: CONFIG.delay_between_pages,
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
@@ -638,6 +638,14 @@ async function _processarTermoProInterno(
           mensagem: `⚠️ Busca parcial: ${contexto}`,
           ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
         });
+      }
+
+      // Log explícito quando a busca termina em truncamento (paginação não foi até o fim)
+      if (resp.truncated) {
+        console.warn(
+          `[DJEN Pro] ⚠️ TRUNCADO em ${contexto}: ${resp.items.length} resultados após ${resp.pagesFetched} páginas. ` +
+          `A API ainda tinha hasMore=true. Pode haver publicações faltando.`
+        );
       }
 
       addResults(resp.items, tribunal);
