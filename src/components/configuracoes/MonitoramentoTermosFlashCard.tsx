@@ -1,9 +1,10 @@
 /**
- * DJEN Termos Pro Dashboard Card
- * 
- * Clone do DjenTermosDashboardCardV2 adaptado para o engine Pro (singleton).
- * Usa useDjenTermosPro ao invés de useDjenTermos.
- * Motor independente com validação por metadados estruturados.
+ * DJEN Termos Flash Dashboard Card
+ *
+ * Versão otimizada do DJEN Termos Pro: paginação inteligente,
+ * busca global por UF=TODAS, complementar condicional, circuit breaker,
+ * validação por metadados nativos da API e dedupe de termos_or.
+ * Motor independente — não compartilha estado com o Pro.
  */
 
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
@@ -35,10 +36,8 @@ import {
   Loader2, Zap, PlayCircle, StopCircle,
   CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull, Info
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
-import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
+import { useDjenTermosFlash } from "@/hooks/useDjenTermosFlash";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
 
@@ -66,62 +65,7 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Sub-components for scheduler (must be separate to use hooks independently)
-function SchedulerProBadge() {
-  const { ativo } = useDjenTermosProScheduler();
-  return <Badge variant={ativo ? "default" : "secondary"}>{ativo ? "Ativo" : "Inativo"}</Badge>;
-}
-
-function SchedulerProToggle() {
-  const { ativo, horario, start, stop, setTime } = useDjenTermosProScheduler();
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between rounded-md border px-3 py-2">
-        <Label htmlFor="djen-pro-scheduler-toggle" className="text-sm font-medium">Ativar agendamento</Label>
-        <Switch
-          id="djen-pro-scheduler-toggle"
-          checked={ativo}
-          onCheckedChange={(checked) => {
-            if (checked) { start(); toast.success('Agendamento Pro ativado'); }
-            else { stop(); toast.info('Agendamento Pro desativado'); }
-          }}
-        />
-      </div>
-      <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-        <Label className="text-sm font-medium whitespace-nowrap">Horário (BRT)</Label>
-        <Input
-          type="time"
-          value={horario}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val) {
-              const [h, m] = val.split(':').map(Number);
-              setTime(h, m);
-              toast.success(`Horário alterado para ${val}`);
-            }
-          }}
-          className="w-28 h-8"
-        />
-      </div>
-    </div>
-  );
-}
-
-function SchedulerProStatus() {
-  const { ativo, proximoHorario } = useDjenTermosProScheduler();
-  if (!ativo || !proximoHorario) return null;
-  return (
-    <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3">
-      <Clock className="h-4 w-4 text-primary flex-shrink-0" />
-      <div className="flex-1">
-        <p className="text-xs text-muted-foreground">Próxima execução</p>
-        <p className="text-sm font-medium">{proximoHorario}</p>
-      </div>
-    </div>
-  );
-}
-
-export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
+export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
   const queryClient = useQueryClient();
   const {
     progress,
@@ -133,7 +77,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     cancelar,
     limpar,
     forceKill,
-  } = useDjenTermosPro();
+  } = useDjenTermosFlash();
 
   // Detecta execução backend ativa (modo híbrido / 100% background / scheduler em outra aba).
   // Sem isso, o card mostraria "Aguardando" enquanto o indicador flutuante mostra "Executando".
@@ -151,7 +95,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         const { data } = await supabase
           .from('execucoes_agendadas')
           .select('detalhes, iniciado_em')
-          .eq('tipo', 'djen_pro')
+          .eq('tipo', 'djen_flash')
           .eq('status', 'executando')
           .is('finalizado_em', null)
           .order('iniciado_em', { ascending: false })
@@ -190,7 +134,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
 
   const { data: monitoramentos = [] } = useQuery({
-    queryKey: ['monitoramentos-djen-coord-termos-pro', coordenacaoFiltroEfetivo],
+    queryKey: ['monitoramentos-djen-coord-termos-flash', coordenacaoFiltroEfetivo],
     queryFn: async () => {
       if (!coordenacaoFiltroEfetivo) return [];
       const { data, error } = await supabase
@@ -218,8 +162,8 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   const [showKillDialog, setShowKillDialog] = useState(false);
 
   useEffect(() => {
-    const savedHybrid = localStorage.getItem('djen-pro-hybrid-mode');
-    const savedBg = localStorage.getItem('djen-pro-background-only');
+    const savedHybrid = localStorage.getItem('djen-flash-hybrid-mode');
+    const savedBg = localStorage.getItem('djen-flash-background-only');
     if (savedBg === 'true') {
       setBackgroundOnly(true);
       setHybridMode(false);
@@ -229,11 +173,11 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('djen-pro-hybrid-mode', hybridMode ? 'true' : 'false');
+    localStorage.setItem('djen-flash-hybrid-mode', hybridMode ? 'true' : 'false');
   }, [hybridMode]);
 
   useEffect(() => {
-    localStorage.setItem('djen-pro-background-only', backgroundOnly ? 'true' : 'false');
+    localStorage.setItem('djen-flash-background-only', backgroundOnly ? 'true' : 'false');
     if (backgroundOnly) setHybridMode(false);
   }, [backgroundOnly]);
 
@@ -399,7 +343,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">DJEN Termos Pro</CardTitle>
+              <CardTitle className="text-lg">DJEN Termos Flash</CardTitle>
             </div>
             <Badge variant="secondary" className={cn("gap-1", statusConfig.bg, statusConfig.color)}>
               <StatusIcon className={cn("h-3 w-3", statusConfig.animate && "animate-spin")} />
@@ -535,7 +479,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           {/* Modo híbrido */}
           <div className="flex items-center justify-between rounded-md border px-3 py-2">
             <div className="flex items-center gap-2">
-              <Label htmlFor="djen-pro-hybrid" className="text-xs text-muted-foreground">
+              <Label htmlFor="djen-flash-hybrid" className="text-xs text-muted-foreground">
                 Modo híbrido (backend)
               </Label>
               <TooltipProvider>
@@ -550,7 +494,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               </TooltipProvider>
             </div>
             <Switch
-              id="djen-pro-hybrid"
+              id="djen-flash-hybrid"
               checked={hybridMode}
               onCheckedChange={handleToggleHybrid}
               disabled={effectiveIsRunning || backgroundOnly}
@@ -560,7 +504,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           {/* 100% background */}
           <div className="flex items-center justify-between rounded-md border px-3 py-2">
             <div className="flex items-center gap-2">
-              <Label htmlFor="djen-pro-background" className="text-xs text-muted-foreground">
+              <Label htmlFor="djen-flash-background" className="text-xs text-muted-foreground">
                 100% background
               </Label>
               <TooltipProvider>
@@ -575,7 +519,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               </TooltipProvider>
             </div>
             <Switch
-              id="djen-pro-background"
+              id="djen-flash-background"
               checked={backgroundOnly}
               onCheckedChange={handleToggleBackground}
               disabled={effectiveIsRunning}
@@ -709,32 +653,6 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               💡 Execução continua em background mesmo ao sair desta tela
             </p>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Card de Agendamento Pro */}
-      <Card className="mt-4">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Agendamento Automático Pro</CardTitle>
-            </div>
-            <SchedulerProBadge />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Executa automaticamente todos os dias às <span className="font-semibold text-foreground">20:45 BRT</span> com data do dia
-          </p>
-          <SchedulerProToggle />
-          <SchedulerProStatus />
-          <div className="flex items-start gap-2 rounded-md bg-muted/50 p-3 border border-muted">
-            <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground">
-              Mantenha esta aba aberta para que o agendamento funcione
-            </p>
-          </div>
         </CardContent>
       </Card>
 
