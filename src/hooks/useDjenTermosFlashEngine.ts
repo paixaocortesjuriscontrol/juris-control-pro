@@ -138,6 +138,10 @@ function createDefaultProgress(): DjenTermosFlashProgress {
     falhasBusca: 0,
     buscasParciais: 0,
     ultimoErroBusca: null,
+    chamadasApi: 0,
+    paginasEvitadas: 0,
+    complementaresPuladas: 0,
+    tribunaisPulados429: 0,
   };
 }
 
