@@ -1,9 +1,10 @@
 /**
- * DJEN Termos Pro Dashboard Card
- * 
- * Clone do DjenTermosDashboardCardV2 adaptado para o engine Pro (singleton).
- * Usa useDjenTermosPro ao invés de useDjenTermos.
- * Motor independente com validação por metadados estruturados.
+ * DJEN Termos Flash Dashboard Card
+ *
+ * Versão otimizada do DJEN Termos Pro: paginação inteligente,
+ * busca global por UF=TODAS, complementar condicional, circuit breaker,
+ * validação por metadados nativos da API e dedupe de termos_or.
+ * Motor independente — não compartilha estado com o Pro.
  */
 
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
@@ -37,8 +38,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
-import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
+import { useDjenTermosFlash } from "@/hooks/useDjenTermosFlash";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
 
