@@ -80,11 +80,21 @@ import {
   ListTodo,
   CalendarDays,
   Globe,
-  ListPlus
+  ListPlus,
+  MoreVertical,
+  ListChecks
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
+import { CriarTarefaAudienciaDialog } from "@/components/audiencias/CriarTarefaAudienciaDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
