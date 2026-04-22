@@ -1309,8 +1309,8 @@ export default function ProcessoDetalhes() {
         >
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">Audiências</span>
-          {(audiencias.length + tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa)).length) > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length + tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa)).length}</Badge>
+          {audiencias.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
