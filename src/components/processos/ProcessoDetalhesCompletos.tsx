@@ -214,26 +214,30 @@ export function ProcessoDetalhesCompletos({
   const [savingResumo, setSavingResumo] = useState(false);
   const [resumoResponsaveis, setResumoResponsaveis] = useState<any[]>([]);
 
-  if (processo && !resumoInitialized) {
+  useEffect(() => {
+    if (!processo || resumoInitialized) return;
+
     setResumoForm({
       assunto: processo.assunto || "",
       tribunal: processo.tribunal || "",
       comarca: processo.comarca || "",
       vara: processo.vara || "",
-      
       polo_ativo: processo.polo_ativo || "",
       polo_passivo: processo.polo_passivo || "",
       valor_causa: processo.valor_causa || "",
       area: processo.area || "",
       fase: processo.fase || "",
-      
       pasta_fisica: processo.pasta_fisica || "",
       pasta_cliente: processo.pasta_cliente || "",
       descricao: processo.descricao || "",
       data_distribuicao: processo.data_distribuicao || "",
     });
     setResumoInitialized(true);
-  }
+  }, [processo, resumoInitialized]);
+
+  useEffect(() => {
+    setResumoInitialized(false);
+  }, [processo?.id]);
 
   const updateResumoField = (field: string, value: any) => {
     setResumoForm(prev => ({ ...prev, [field]: value }));
