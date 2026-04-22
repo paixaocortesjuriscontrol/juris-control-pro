@@ -1,0 +1,1632 @@
+/**
+ * DJEN Termos Flash Engine v1.0
+ *
+ * Motor independente e otimizado, derivado do Pro mas com:
+ *  1. Paginação inteligente (pjeComunicaClientFlash) — evita página extra "para confirmar fim".
+ *  2. Advogado UF=TODAS: 1 chamada global (sem siglaTribunal) com filtro local pelos tribunais.
+ *  3. Complementar palavraChave para "parte" só roda nos tribunais com 0 resultados primários.
+ *  4. Termos_or de advogado: dedupe (não busca OAB se nome já trouxe resultado).
+ *  5. Circuit breaker por termo: pula tribunais restantes após N 429s.
+ *  6. Validação confia nos filtros nativos da API (parte/advogado) — reduz descartes.
+ *  7. Telemetria: chamadasApi, paginasEvitadas, complementaresPuladas, tribunaisPulados429.
+ *
+ * Independente do Pro: storage keys, singleton, tipo no banco e logs separados.
+ */
+
+import { supabase } from "@/integrations/supabase/client";
+import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClientFlash";
+import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+
+// ============================================================================
+// TIPOS
+// ============================================================================
+
+export interface DjenTermosFlashProgress {
+  status: 'idle' | 'executando' | 'concluido' | 'cancelado' | 'erro';
+  globalCurrent: number;
+  globalTotal: number;
+  percentage: number;
+  diaAtualYmd: string | null;
+  diaAtualIndice: number;
+  totalDias: number;
+  termoAtualNoDia: number;
+  totalTermos: number;
+  novas: number;
+  duplicadas: number;
+  descartadas: number;
+  mensagem: string;
+  termoAtual: string | null;
+  tempoDecorrido: number;
+  dataInicioYmd: string | null;
+  dataFimYmd: string | null;
+  rateLimitHits: number;
+  falhasBusca: number;
+  buscasParciais: number;
+  ultimoErroBusca: string | null;
+  /** Telemetria Flash: chamadas à API PJE acumuladas */
+  chamadasApi: number;
+  /** Telemetria Flash: páginas extras evitadas pela paginação inteligente */
+  paginasEvitadas: number;
+  /** Telemetria Flash: buscas complementares puladas (parte com primária OK) */
+  complementaresPuladas: number;
+  /** Telemetria Flash: tribunais pulados pelo circuit breaker (429) */
+  tribunaisPulados429: number;
+}
+
+interface Monitoramento {
+  id: string;
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
+  termo_busca: string;
+  oab?: string;
+  uf?: string;
+  ativo: boolean;
+  exclusoes?: string[];
+  tribunais?: string[];
+  termos_or?: string[];
+  descricao?: string | null;
+  condicao_concomitante?: string | null;
+  coordenacao_id?: string | null;
+}
+
+interface Checkpoint {
+  runKey: string;
+  diaIndice: number;
+  termoIndice: number;
+  novas: number;
+  duplicadas: number;
+  descartadas: number;
+  tempoInicio: number;
+  dataInicioYmd: string;
+  dataFimYmd: string;
+}
+
+// ============================================================================
+// CONFIGURAÇÃO
+// ============================================================================
+
+const CONFIG = {
+  delay_between_terms: 1200,
+  delay_between_pages: 1000,
+  delay_between_tribunais: 1200,
+  delay_between_termos_or: 1000,
+  max_retries: 3,
+  retry_base_delay: 8000,
+};
+
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ============================================================================
+// SINGLETON STATE
+// ============================================================================
+
+let state: {
+  isRunning: boolean;
+  progress: DjenTermosFlashProgress;
+  checkpoint: Checkpoint | null;
+  abortController: AbortController | null;
+  listeners: Set<(p: DjenTermosFlashProgress) => void>;
+  timerInterval: ReturnType<typeof setInterval> | null;
+  lastUpdatedAt: number;
+  executionId: string | null;
+} = {
+  isRunning: false,
+  progress: createDefaultProgress(),
+  checkpoint: null,
+  abortController: null,
+  listeners: new Set(),
+  timerInterval: null,
+  lastUpdatedAt: 0,
+  executionId: null,
+};
+
+const STORAGE_KEY = 'djen-termos-flash-checkpoint-v1';
+const BR_TZ = 'America/Sao_Paulo';
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function createDefaultProgress(): DjenTermosFlashProgress {
+  return {
+    status: 'idle', globalCurrent: 0, globalTotal: 0, percentage: 0,
+    diaAtualYmd: null, diaAtualIndice: 0, totalDias: 0,
+    termoAtualNoDia: 0, totalTermos: 0,
+    novas: 0, duplicadas: 0, descartadas: 0,
+    mensagem: '', termoAtual: null, tempoDecorrido: 0,
+    dataInicioYmd: null, dataFimYmd: null,
+    rateLimitHits: 0,
+    falhasBusca: 0,
+    buscasParciais: 0,
+    ultimoErroBusca: null,
+    chamadasApi: 0,
+    paginasEvitadas: 0,
+    complementaresPuladas: 0,
+    tribunaisPulados429: 0,
+  };
+}
+
+function ymdBrasilia(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BR_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  return `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}`;
+}
+
+function gerarListaDatas(inicio: string, fim: string): string[] {
+  const datas: string[] = [];
+  const d = new Date(`${inicio}T12:00:00`);
+  const end = new Date(`${fim}T12:00:00`);
+  while (d <= end) {
+    datas.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return datas;
+}
+
+function saveCheckpoint(cp: Checkpoint | null) {
+  if (cp) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cp, savedAt: Date.now() }));
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  state.checkpoint = cp;
+}
+
+function loadCheckpoint(): Checkpoint | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
+function notifyListeners() {
+  for (const listener of state.listeners) listener(state.progress);
+}
+
+function updateProgress(partial: Partial<DjenTermosFlashProgress>) {
+  state.progress = { ...state.progress, ...partial };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
+}
+
+export function getDjenTermosFlashLastUpdatedAt(): number {
+  return state.lastUpdatedAt;
+}
+
+// ============================================================================
+// NORMALIZAÇÃO E VALIDAÇÃO (usando metadados estruturados)
+// ============================================================================
+
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ').replace(/[^0-9A-Za-z\s]/g, ' ')
+    .replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function contemFrase(textoNorm: string, fraseNorm: string): boolean {
+  if (!fraseNorm) return true;
+  const escaped = fraseNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(textoNorm);
+}
+
+/**
+ * Validação com suporte a "+" (AND logic).
+ * Cada segmento separado por "+" deve aparecer como frase exata no texto.
+ * Ex: "BRADESCO + SEGUROS" → texto deve conter "BRADESCO" E "SEGUROS".
+ */
+function contemFraseComAnd(textoNorm: string, termoRaw: string): boolean {
+  if (!termoRaw) return true;
+  if (!termoRaw.includes('+')) {
+    return contemFrase(textoNorm, normalizar(termoRaw));
+  }
+  const partes = termoRaw.split('+').map(p => p.trim()).filter(Boolean);
+  return partes.every(p => {
+    if (/^OAB\s/i.test(p)) return true; // skip OAB parts
+    const pNorm = normalizar(p);
+    return !pNorm || contemFrase(textoNorm, pNorm);
+  });
+}
+
+/**
+ * Encurta um termo longo para busca na API.
+ * A API PJE Comunica não lida bem com frases muito longas como palavraChave.
+ * Retorna as primeiras 2 palavras significativas (>= 2 chars) para busca ampla,
+ * e a validação local depois confirma a frase exata completa.
+ */
+function encurtarParaApi(termo: string): string {
+  if (!termo?.trim()) return termo;
+  const limpo = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const palavras = limpo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\.,]+$/.test(p));
+  if (palavras.length <= 2) return limpo;
+  // Usar as 2 primeiras palavras significativas para busca ampla
+  return palavras.slice(0, 2).join(' ');
+}
+
+/**
+ * Valida advogado usando metadados estruturados da API.
+ * Campos: destinatarioadvogados[].advogado.{nome, numero_oab, uf_oab}
+ */
+function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolean {
+  const advogados = pub?.destinatarioadvogados;
+  if (!Array.isArray(advogados) || advogados.length === 0) return false;
+  
+  const oabDigits = oab ? String(oab).replace(/\D/g, '') : '';
+  const nomeNorm = nome ? normalizar(nome) : '';
+  
+  for (const entry of advogados) {
+    const adv = entry?.advogado || entry;
+    if (!adv) continue;
+    
+    // Match por OAB (exato nos dígitos)
+    if (oabDigits && adv.numero_oab) {
+      const advOabDigits = String(adv.numero_oab).replace(/\D/g, '');
+      if (advOabDigits === oabDigits) return true;
+    }
+    
+    // Match por nome (normalizado)
+    if (nomeNorm && adv.nome) {
+      const advNomeNorm = normalizar(adv.nome);
+      if (advNomeNorm === nomeNorm || advNomeNorm.includes(nomeNorm) || nomeNorm.includes(advNomeNorm)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Valida parte usando metadados estruturados da API.
+ * Campos: destinatarios[].{nome, polo}
+ */
+function validarParteMetadados(pub: any, nomeParte: string): boolean {
+  const dests = pub?.destinatarios;
+  if (!Array.isArray(dests) || dests.length === 0) return false;
+  
+  const nomeNorm = normalizar(nomeParte);
+  if (!nomeNorm) return false;
+  
+  for (const d of dests) {
+    if (!d?.nome) continue;
+    const destNorm = normalizar(d.nome);
+    if (destNorm.includes(nomeNorm) || nomeNorm.includes(destNorm)) return true;
+  }
+  return false;
+}
+
+/**
+ * Constrói texto completo para validação (conteúdo + metadados).
+ */
+function buildTextoCompleto(pub: any): string {
+  const partes: string[] = [];
+  
+  // Texto principal
+  const texto = pub?.texto || pub?.conteudo || pub?.teor || '';
+  if (texto) partes.push(texto);
+  
+  // Destinatários (partes)
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) {
+      if (d?.nome) partes.push(d.nome);
+    }
+  }
+  
+  // Advogados
+  if (Array.isArray(pub?.destinatarioadvogados)) {
+    for (const entry of pub.destinatarioadvogados) {
+      const adv = entry?.advogado || entry;
+      if (adv?.nome) partes.push(adv.nome);
+      if (adv?.numero_oab) partes.push(`OAB ${adv.uf_oab || ''} ${adv.numero_oab}`);
+    }
+  }
+  
+  return partes.join('\n');
+}
+
+/** Verifica exclusões contra texto + metadados */
+function temExclusao(pub: any, exclusoes?: string[]): string | null {
+  if (!exclusoes?.length) return null;
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  for (const exc of exclusoes) {
+    const excNorm = normalizar(exc);
+    if (excNorm && textoNorm.includes(excNorm)) return exc;
+  }
+  return null;
+}
+
+/** Verifica condição concomitante (OR de grupos AND separados por |) */
+function condicaoConcomitanteAtendida(pub: any, condicao?: string | null): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao).split('|').map(g => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  
+  return grupos.some(grupo => {
+    const termosAnd = grupo.split(',').map(t => t.trim()).filter(Boolean);
+    if (termosAnd.length === 0) return true;
+    return termosAnd.every(t => contemFrase(textoNorm, normalizar(t)));
+  });
+}
+
+/** Valida se a publicação contém o termo buscado (usando metadados estruturados) */
+function validarTermo(pub: any, mon: Monitoramento): boolean {
+  const tipo = mon.tipo;
+  const textoCompleto = buildTextoCompleto(pub);
+  const textoNorm = normalizar(textoCompleto);
+  
+  if (tipo === 'advogado') {
+    // 1. Validar via metadados estruturados (mais confiável)
+    if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
+    
+    // 2. Fallback: validar no texto
+    const nomeNorm = normalizar(mon.termo_busca);
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    
+    // 3. Fallback: OAB no texto
+    if (mon.oab) {
+      const oabDigits = String(mon.oab).replace(/\D/g, '');
+      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    }
+    
+    // 4. Verificar termos_or (outros advogados) — parsear formato "OAB/NOME"
+    if (mon.termos_or?.length) {
+      for (const termoOr of mon.termos_or) {
+        const parsed = parsearTermoOr(termoOr);
+        if (!parsed) continue;
+        
+        // Validar por metadados (OAB e/ou nome)
+        if (validarAdvogadoMetadados(pub, parsed.oabDigits, parsed.nome)) return true;
+        
+        // Fallback: nome no texto
+        const nomeNorm = normalizar(parsed.nome);
+        if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+        
+        // Fallback: OAB no texto
+        if (parsed.oabDigits && parsed.oabDigits.length >= 3 && textoNorm.includes(parsed.oabDigits)) return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  if (tipo === 'parte') {
+    // 1. Validar via metadados estruturados
+    if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    
+    // 2. Fallback: texto
+    const nomeNorm = normalizar(mon.termo_busca);
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    
+    return false;
+  }
+  
+  if (tipo === 'processo') {
+    const numDigits = mon.termo_busca.replace(/\D/g, '');
+    const pubNum = String(pub?.numero_processo || pub?.numeroProcesso || pub?.processo || '').replace(/\D/g, '');
+    return pubNum.includes(numDigits);
+  }
+  
+  // palavra-chave (suporte a "+" como AND)
+  if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
+  
+  // termos_or (parsear para extrair nome puro)
+  if (mon.termos_or?.length) {
+    for (const t of mon.termos_or) {
+      const parsed = parsearTermoOr(t);
+      if (!parsed) continue;
+      if (contemFraseComAnd(textoNorm, parsed.nome)) return true;
+    }
+  }
+  
+  return false;
+}
+
+// ============================================================================
+// TRIBUNAL HELPERS
+// ============================================================================
+
+const TODOS_CIVEIS = ['TJAC','TJAL','TJAM','TJAP','TJBA','TJCE','TJDFT','TJES','TJGO','TJMA','TJMG','TJMS','TJMT','TJPA','TJPB','TJPE','TJPI','TJPR','TJRJ','TJRN','TJRO','TJRR','TJRS','TJSC','TJSE','TJSP','TJTO'];
+const TODOS_TRT = ['TST','TRT1','TRT2','TRT3','TRT4','TRT5','TRT6','TRT7','TRT8','TRT9','TRT10','TRT11','TRT12','TRT13','TRT14','TRT15','TRT16','TRT17','TRT18','TRT19','TRT20','TRT21','TRT22','TRT23','TRT24'];
+
+function expandirTribunais(tribunais?: string[]): string[] {
+  if (!tribunais?.length) return [];
+  const set = new Set<string>();
+  for (const t of tribunais) {
+    if (t === 'TODOS_CIVEIS') TODOS_CIVEIS.forEach(x => set.add(x));
+    else if (t === 'TODOS_TRT') TODOS_TRT.forEach(x => set.add(x));
+    else set.add(t.toUpperCase());
+  }
+  return Array.from(set);
+}
+
+function getSiglaTribunal(item: any): string | null {
+  const raw = item?.siglaTribunal || item?.tribunal || item?.nomeOrgao || null;
+  if (!raw || typeof raw !== 'string') return null;
+  const m = raw.toUpperCase().match(/\b(TJ\w+|TRT\d+|TRF\d+|TST|STJ|STF)\b/);
+  return m?.[1] ?? raw.trim().toUpperCase();
+}
+
+function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
+  // Include processo_numero to prevent collisions between different processes
+  const proc = (processoNumero || '').replace(/[^0-9]/g, '');
+  const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
+  // Use two independent 32-bit hashes to form a 64-bit hash (reduces collision probability)
+  let h1 = 0, h2 = 0x9e3779b9;
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i);
+    h1 = ((h1 << 5) - h1) + c;
+    h1 = h1 & h1;
+    h2 = ((h2 << 7) ^ h2) + c;
+    h2 = h2 & h2;
+  }
+  return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
+}
+
+function calcularProximoDiaUtil(dataBase: Date): Date {
+  const resultado = new Date(dataBase);
+  while (resultado.getDay() === 0 || resultado.getDay() === 6) resultado.setDate(resultado.getDate() + 1);
+  const mes = resultado.getMonth();
+  const dia = resultado.getDate();
+  if ((mes === 11 && dia >= 20) || (mes === 0 && dia <= 6)) {
+    if (mes === 11) resultado.setFullYear(resultado.getFullYear() + 1);
+    resultado.setMonth(0); resultado.setDate(7);
+    while (resultado.getDay() === 0 || resultado.getDay() === 6) resultado.setDate(resultado.getDate() + 1);
+  }
+  return resultado;
+}
+
+function calcularDataPublicacao(dataDispYmd: string): string {
+  const base = new Date(`${dataDispYmd}T12:00:00`);
+  base.setDate(base.getDate() + 1);
+  return calcularProximoDiaUtil(base).toISOString().slice(0, 10);
+}
+
+// ============================================================================
+// PROCESSAMENTO DE PUBLICAÇÃO
+// ============================================================================
+
+function extrairAdvogadosEstruturados(pub: any): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  
+  if (Array.isArray(pub?.destinatarioadvogados)) {
+    for (const entry of pub.destinatarioadvogados) {
+      const adv = entry?.advogado || entry;
+      if (!adv?.nome) continue;
+      const key = `${adv.nome}|${adv.numero_oab || ''}`.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const oabStr = adv.numero_oab ? ` - OAB ${adv.uf_oab || ''}${adv.numero_oab}` : '';
+      result.push(`${adv.nome}${oabStr}`);
+    }
+  }
+  return result;
+}
+
+function extrairPartesEstruturadas(pub: any): string[] {
+  if (!Array.isArray(pub?.destinatarios)) return [];
+  return pub.destinatarios
+    .filter((d: any) => d?.nome)
+    .map((d: any) => {
+      const polo = d.polo === 'A' ? 'Reclamante' : d.polo === 'P' ? 'Reclamado' : d.polo || '';
+      return polo ? `[${polo}] ${d.nome}` : d.nome;
+    });
+}
+
+// ============================================================================
+// PARSER DE TERMOS_OR (formato "OAB/NOME" ou nome puro)
+// ============================================================================
+
+interface ParsedTermoOr {
+  nome: string;
+  oabDigits?: string;
+}
+
+function parsearTermoOr(raw: string): ParsedTermoOr | null {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+  
+  // Formato "OAB/NOME" (ex: "16733/LEANDRO ARTIAGA E VIEIRA")
+  const oabNomeMatch = trimmed.match(/^(\d{3,6})\s*\/\s*(.+)$/);
+  if (oabNomeMatch) {
+    return { oabDigits: oabNomeMatch[1], nome: oabNomeMatch[2].trim() };
+  }
+  
+  // Formato "NOME/OAB" (ex: "LEANDRO ARTIAGA E VIEIRA/16733")
+  const nomeOabMatch = trimmed.match(/^(.+?)\s*\/\s*(\d{3,6})$/);
+  if (nomeOabMatch) {
+    return { oabDigits: nomeOabMatch[2], nome: nomeOabMatch[1].trim() };
+  }
+  
+  // Prefixos de tribunal: "TRT10 - Adv. NOME" → NOME
+  let clean = trimmed;
+  clean = clean.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  clean = clean.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  clean = clean.replace(/^Adv\.?\s*/i, '');
+  clean = clean.trim();
+  
+  if (!clean) return null;
+  return { nome: clean };
+}
+
+// ============================================================================
+// PROCESSAMENTO DE UM TERMO
+// ============================================================================
+
+type TermoFlashResult = {
+  novas: number; duplicadas: number; descartadas: number;
+  rateLimitHits: number; falhasBusca: number; buscasParciais: number;
+  ultimoErroBusca: string | null;
+  chamadasApi: number; paginasEvitadas: number;
+  complementaresPuladas: number; tribunaisPulados429: number;
+};
+
+function emptyTermoFlashResult(): TermoFlashResult {
+  return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0,
+    ultimoErroBusca: null, chamadasApi: 0, paginasEvitadas: 0, complementaresPuladas: 0, tribunaisPulados429: 0 };
+}
+
+async function processarTermoPro(
+  mon: Monitoramento,
+  diaYmd: string,
+  signal: AbortSignal,
+): Promise<TermoFlashResult> {
+  if (signal.aborted) return emptyTermoFlashResult();
+  return await _processarTermoFlashInterno(mon, diaYmd, signal);
+}
+
+async function _processarTermoFlashInterno(
+  mon: Monitoramento,
+  diaYmd: string,
+  signal: AbortSignal,
+): Promise<TermoFlashResult> {
+  if (signal.aborted) return emptyTermoFlashResult();
+  
+  const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
+  const tribunais = expandirTribunais(mon.tribunais);
+  
+  // Buscar publicações da API
+  const resultados: any[] = [];
+  const seen = new Set<string>();
+  const seenContentHash = new Set<string>();
+  let dedupByContentHash = 0;
+  
+  const addResults = (items: any[], tribunalOverride?: string) => {
+    for (const item of items) {
+      const id = String(item?.id ?? '');
+      const key = id || JSON.stringify(item).slice(0, 400);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      
+      // Dedup secundária por hash de conteúdo — captura mesma publicação com IDs diferentes
+      const conteudo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
+      const processo = String(item?.numeroProcesso ?? '').replace(/\D/g, '');
+      const contentKey = `${processo}|${conteudo.slice(0, 300).toLowerCase().trim()}`;
+      if (contentKey.length > 5 && seenContentHash.has(contentKey)) {
+        dedupByContentHash++;
+        continue;
+      }
+      if (contentKey.length > 5) seenContentHash.add(contentKey);
+      
+      const enriched = tribunalOverride
+        ? { ...item, siglaTribunal: item?.siglaTribunal ?? tribunalOverride }
+        : item;
+      resultados.push(enriched);
+    }
+  };
+
+  const diagnostico = {
+    rateLimitHits: 0,
+    falhasBusca: 0,
+    buscasParciais: 0,
+    ultimoErroBusca: null as string | null,
+  };
+
+  // ===== Telemetria Flash =====
+  const telemetria = {
+    chamadasApi: 0,
+    paginasEvitadas: 0,
+    complementaresPuladas: 0,
+    tribunaisPulados429: 0,
+  };
+
+  // ===== Circuit breaker (otimização 5) =====
+  // Após N 429s no mesmo termo, paramos de tentar tribunais novos.
+  const CIRCUIT_BREAKER_429_LIMIT = 3;
+  const tribuniaisComResultados = new Set<string>(); // tribunais que retornaram >0 resultados na primária
+  let circuitOpen = false;
+  const checkCircuit = (): boolean => {
+    if (circuitOpen) return true;
+    if (diagnostico.rateLimitHits >= CIRCUIT_BREAKER_429_LIMIT) {
+      circuitOpen = true;
+      console.warn(
+        `[DJEN Flash] 🛑 Circuit breaker aberto para "${mon.termo_busca}" ` +
+        `após ${diagnostico.rateLimitHits} 429s. Pulando tribunais restantes.`
+      );
+    }
+    return circuitOpen;
+  };
+
+  const executarBusca = async (
+    params: Parameters<typeof buscarPjeComunicaPaginado>[0],
+    tribunal: string | undefined,
+    contexto: string,
+  ) => {
+    if (checkCircuit()) {
+      telemetria.tribunaisPulados429 += 1;
+      return null;
+    }
+    telemetria.chamadasApi += 1;
+    try {
+      const resp = await buscarPjeComunicaPaginado(params, {
+        signal,
+        // Flash: paginação inteligente — sem continueUntilEmpty por padrão.
+        // Só ativamos quando a primeira página vem cheia E totalExpected ausente
+        // (a lógica disso já está no client Flash; aqui só desligamos o flag).
+        maxPages: null,
+        continueUntilEmpty: false,
+        delayMs: CONFIG.delay_between_pages,
+        maxRetries: CONFIG.max_retries,
+        retryBaseDelay: CONFIG.retry_base_delay,
+        onRateLimit: (waitMs, attempt, page) => {
+          diagnostico.rateLimitHits += 1;
+          diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
+          const aviso = `⚠️ Rate limit no DJEN Flash: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
+          console.warn(`[DJEN Flash] ${aviso} | ${contexto}`);
+          updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
+        },
+      });
+
+      const failedPages = resp.failedPages ?? 0;
+      const buscaParcial = !!resp.partial || !!resp.truncated || failedPages > 0;
+      if (buscaParcial) {
+        diagnostico.buscasParciais += 1;
+        diagnostico.falhasBusca += failedPages;
+        if (resp.lastError) diagnostico.ultimoErroBusca = resp.lastError;
+        console.warn(
+          `[DJEN Flash] Busca parcial em ${contexto}: resultados=${resp.items.length}, ` +
+            `pages=${resp.pagesFetched}, failedPages=${failedPages}, truncated=${resp.truncated}` +
+            `${resp.lastError ? `, erro=${resp.lastError}` : ''}`
+        );
+        updateProgress({
+          mensagem: `⚠️ Busca parcial: ${contexto}`,
+          ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
+        });
+      }
+
+      // Log explícito quando a busca termina em truncamento (paginação não foi até o fim)
+      if (resp.truncated) {
+        console.warn(
+          `[DJEN Flash] ⚠️ TRUNCADO em ${contexto}: ${resp.items.length} resultados após ${resp.pagesFetched} páginas. ` +
+          `A API ainda tinha hasMore=true. Pode haver publicações faltando.`
+        );
+      }
+
+      addResults(resp.items, tribunal);
+      return resp;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+      diagnostico.falhasBusca += 1;
+      diagnostico.ultimoErroBusca = e?.message || 'Falha de busca';
+      console.warn(`[DJEN Flash] Falha em ${contexto}:`, e?.message);
+      updateProgress({
+        mensagem: `⚠️ Falha de busca: ${contexto}`,
+        ultimoErroBusca: diagnostico.ultimoErroBusca,
+      });
+      return null;
+    }
+  };
+  
+  // Configurar parâmetros base
+  const baseParams: any = {
+    tipo,
+    dataInicio: diaYmd,
+    dataFim: diaYmd,
+    pageSize: 50,
+  };
+  
+  if (tipo === 'parte') {
+    baseParams.nomeParte = mon.termo_busca;
+  } else if (tipo === 'advogado') {
+    baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
+    // Normalizar acentos do nomeAdvogado — a API PJE Comunica aceita sem acentos
+    // e o parâmetro nomeAdvogado é de BUSCA (não match exato no campo destinatarioadvogados)
+    baseParams.nomeAdvogado = mon.termo_busca
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    baseParams.uf = mon.uf;
+  } else if (tipo === 'processo') {
+    baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
+  } else {
+    // palavra-chave: encurtar para a API (frases longas não retornam resultados).
+    // A validação local depois confirma a frase COMPLETA.
+    if (mon.termo_busca.includes('+')) {
+      const partes = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean)
+        .filter(p => !/^OAB\s/i.test(p));
+      // Usar a maior parte, encurtada para API
+      const maiorParte = partes.sort((a, b) => b.length - a.length)[0] || mon.termo_busca;
+      baseParams.palavraChave = encurtarParaApi(maiorParte);
+    } else {
+      baseParams.palavraChave = encurtarParaApi(mon.termo_busca);
+    }
+  }
+  
+  // Determinar loops de tribunal
+  const isAdvogadoComOab = tipo === 'advogado' && !!mon.oab;
+  const tribLoop = (tribunais.length > 0)
+    ? tribunais
+    : [undefined as string | undefined];
+
+  // ===== OTIMIZAÇÃO 2: Advogado UF=TODAS — 1 chamada global =====
+  // Quando a UF é "TODAS" e há lista de tribunais configurada, uma única busca
+  // GLOBAL (sem siglaTribunal) é feita; depois filtramos localmente os tribunais permitidos.
+  // Isso substitui N chamadas (1 por tribunal) por apenas 1 → grande redução de carga e 429.
+  const ufTodas = tipo === 'advogado' && (String(mon.uf || '').toUpperCase() === 'TODAS' || !mon.uf);
+  const usarBuscaGlobal = ufTodas && tribunais.length > 0;
+
+  if (usarBuscaGlobal) {
+    const respGlobal = await executarBusca(
+      { ...baseParams, siglaTribunal: undefined, page: 1 },
+      undefined,
+      `busca primária GLOBAL ${tipo} | ${mon.termo_busca} | tribunais=${tribunais.join(',')}`,
+    );
+    if (respGlobal) {
+      console.log(
+        `[DJEN Flash] 🌐 Busca global tipo=${tipo} termo="${mon.termo_busca}" UF=TODAS: ` +
+        `${respGlobal.items.length} resultados, pages=${respGlobal.pagesFetched} (substitui ${tribunais.length} chamadas por tribunal)`
+      );
+      // Marcar como "achou em todos" — a validação local por tribunal cuidará do filtro.
+      // Não precisamos do retry por tribunal a menos que a global tenha vindo vazia.
+      if (respGlobal.items.length > 0) {
+        for (const t of tribunais) tribuniaisComResultados.add(t);
+      }
+    }
+  } else {
+    for (const trib of tribLoop) {
+      if (signal.aborted) break;
+      if (checkCircuit()) {
+        telemetria.tribunaisPulados429 += 1;
+        continue;
+      }
+
+      const resultadosAntes = resultados.length;
+      const resp = await executarBusca(
+        { ...baseParams, siglaTribunal: trib, page: 1 },
+        trib,
+        `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`,
+      );
+      if (resp) {
+        console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        // Rastrear quais tribunais retornaram resultados (para complementar condicional)
+        if (trib && (resultados.length - resultadosAntes) > 0) {
+          tribuniaisComResultados.add(trib);
+        }
+      }
+
+      if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+    }
+  }
+  
+  // ===== OTIMIZAÇÃO 3: Complementar palavraChave para "parte" — CONDICIONAL =====
+  // Só roda nos tribunais onde a primária por nomeParte trouxe 0 resultados.
+  // Mantém cobertura SANTANDER/TST sem multiplicar chamadas por 2× quando primária OK.
+  if (tipo === 'parte' && !signal.aborted) {
+    const termoTexto = mon.termo_busca
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+    if (termoTexto) {
+      const tribunaisParaComplementar = tribLoop.filter((trib) => {
+        // Sem filtro de tribunal → roda sempre (não temos como saber por tribunal)
+        if (!trib) return true;
+        // Se já encontrou primária → pula complementar
+        if (tribuniaisComResultados.has(trib)) {
+          telemetria.complementaresPuladas += 1;
+          return false;
+        }
+        return true;
+      });
+
+      if (tribunaisParaComplementar.length > 0) {
+        console.log(
+          `[DJEN Flash] Complementar parte por palavraChave: "${termoTexto}" em ` +
+          `${tribunaisParaComplementar.length} tribunais (puladas: ${telemetria.complementaresPuladas})`
+        );
+        for (const trib of tribunaisParaComplementar) {
+          if (signal.aborted) break;
+          if (checkCircuit()) {
+            telemetria.tribunaisPulados429 += 1;
+            continue;
+          }
+          const resp = await executarBusca(
+            {
+              tipo: 'palavra-chave' as PjeSearchType,
+              palavraChave: termoTexto,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
+            },
+            trib,
+            `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`,
+          );
+          if (resp) {
+            console.log(`[DJEN Flash] Complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+          }
+          if (tribunaisParaComplementar.length > 1) await delay(CONFIG.delay_between_tribunais);
+        }
+      } else {
+        console.log(`[DJEN Flash] Complementar parte pulada totalmente — primária OK em todos os ${tribLoop.length} tribunais`);
+      }
+    }
+  }
+
+  // Busca complementar para tipo "palavra-chave": executar também cada termo_or
+  // Isso garante que monitoramentos com grupos OR realmente disparem buscas individuais.
+  if (tipo === 'palavra-chave' && !signal.aborted && mon.termos_or?.length) {
+    const termoPrincipalNorm = normalizar(mon.termo_busca);
+    const termosExtras = Array.from(new Set(
+      mon.termos_or
+        .map((t) => parsearTermoOr(t)?.nome || String(t || '').trim())
+        .map((t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
+        .filter(Boolean)
+    )).filter((t) => normalizar(t) !== termoPrincipalNorm);
+
+    for (const termoExtra of termosExtras) {
+      if (signal.aborted) break;
+      console.log(`[DJEN Flash] Busca termos_or palavra-chave: "${termoExtra}"`);
+
+      for (const trib of tribLoop) {
+        if (signal.aborted) break;
+        const resp = await executarBusca(
+          {
+            tipo: 'palavra-chave' as PjeSearchType,
+            palavraChave: encurtarParaApi(termoExtra),
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
+          },
+          trib,
+          `termos_or palavra-chave | ${termoExtra} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
+          console.log(`[DJEN Flash] termos_or palavra-chave "${termoExtra}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+        }
+        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+      }
+
+      await delay(CONFIG.delay_between_termos_or);
+    }
+  }
+  
+  // Retry sem ufOab quando busca por OAB não retornou resultados do tribunal desejado.
+  // IMPORTANTE: A API PJE Comunica frequentemente ignora siglaTribunal em buscas por OAB,
+  // retornando resultados de outros tribunais. Precisamos verificar se temos resultados
+  // que REALMENTE correspondem aos tribunais configurados, não apenas se temos resultados.
+  const temResultadosDoTribunal = tribunais.length === 0 || resultados.some(pub => {
+    const sigla = getSiglaTribunal(pub);
+    return sigla && tribunais.includes(sigla);
+  });
+  if (isAdvogadoComOab && !temResultadosDoTribunal && !signal.aborted) {
+    const tribunaisRetry = tribunais.length > 0 ? tribunais : [];
+    // Normalizar acentos do nome para busca — a API aceita melhor sem acentos
+    const nomeNormalizado = mon.termo_busca
+      ?.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    
+    for (const trib of tribunaisRetry) {
+      if (signal.aborted) break;
+      console.log(`[DJEN Flash] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
+      await executarBusca(
+        {
+          tipo: 'advogado' as PjeSearchType,
+          nomeAdvogado: nomeNormalizado,
+          siglaTribunal: trib,
+          dataInicio: diaYmd,
+          dataFim: diaYmd,
+          pageSize: 50,
+          page: 1,
+        },
+        trib,
+        `retry sem uf/oab | ${nomeNormalizado} | ${trib}`
+      );
+      await delay(CONFIG.delay_between_tribunais);
+    }
+  }
+  
+  // Busca complementar para advogados: buscar cada termos_or como nomeAdvogado separado
+  // Os termos_or podem ter formato "OAB/NOME" (ex: "16733/LEANDRO ARTIAGA E VIEIRA")
+  // que precisa ser parseado para fazer buscas por nomeAdvogado (não texto)
+  if ((tipo === 'advogado') && !signal.aborted && mon.termos_or?.length) {
+    const parsedOr: ParsedTermoOr[] = [];
+    for (const t of mon.termos_or) {
+      const parsed = parsearTermoOr(t);
+      if (parsed) parsedOr.push(parsed);
+    }
+    
+    // Deduplicar por nome normalizado
+    const nomesJaBuscados = new Set<string>();
+    // O termo principal já foi buscado
+    nomesJaBuscados.add(normalizar(mon.termo_busca));
+    
+    const textTribLoop = tribunais.length > 0 ? tribunais : [undefined as string | undefined];
+    
+    for (const parsed of parsedOr) {
+      if (signal.aborted) break;
+      const nomeNorm = normalizar(parsed.nome);
+      if (nomesJaBuscados.has(nomeNorm)) continue;
+      nomesJaBuscados.add(nomeNorm);
+      
+      // Normalizar acentos do nome para API
+      const nomeParaApi = parsed.nome
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+      
+      console.log(`[DJEN Flash] Busca termos_or: nomeAdvogado="${nomeParaApi}"${parsed.oabDigits ? ` OAB=${parsed.oabDigits}` : ''}`);
+      
+      for (const trib of textTribLoop) {
+        if (signal.aborted) break;
+        const resp = await executarBusca(
+          {
+            tipo: 'advogado' as PjeSearchType,
+            nomeAdvogado: nomeParaApi,
+            siglaTribunal: trib,
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            page: 1,
+          },
+          trib,
+          `termos_or advogado | ${parsed.nome} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
+          console.log(`[DJEN Flash] termos_or "${parsed.nome}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+        }
+        await delay(CONFIG.delay_between_tribunais);
+      }
+      
+      // Se tem OAB, buscar também por OAB (captura resultados que nome não encontra)
+      if (parsed.oabDigits && !signal.aborted) {
+        for (const trib of textTribLoop) {
+          if (signal.aborted) break;
+          await executarBusca(
+            {
+              tipo: 'advogado' as PjeSearchType,
+              oab: parsed.oabDigits,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
+            },
+            trib,
+            `termos_or advogado OAB | ${parsed.oabDigits} | ${trib ?? 'TODOS'}`
+          );
+          await delay(CONFIG.delay_between_tribunais);
+        }
+      }
+    }
+  }
+
+  if (diagnostico.rateLimitHits > 0 || diagnostico.falhasBusca > 0 || diagnostico.buscasParciais > 0) {
+    console.warn(
+      `[DJEN Flash] Diagnóstico do termo "${mon.termo_busca}": ` +
+        `429=${diagnostico.rateLimitHits}, falhas=${diagnostico.falhasBusca}, parciais=${diagnostico.buscasParciais}` +
+        `${diagnostico.ultimoErroBusca ? `, último erro=${diagnostico.ultimoErroBusca}` : ''}`
+    );
+  }
+  
+  if (signal.aborted || resultados.length === 0) {
+    console.log(`[DJEN Flash] 📊 Termo "${mon.termo_busca}": ${resultados.length} resultados brutos, abortado=${signal.aborted}. Nada a validar.`);
+    return { novas: 0, duplicadas: 0, descartadas: 0, ...diagnostico, ...telemetria };
+  }
+  
+  // ================================================================
+  // VALIDAÇÃO usando metadados estruturados
+  // ================================================================
+  let descartadas = 0;
+  const pubsDescartadas: any[] = [];
+  
+  console.log(`[DJEN Flash] 📋 Validando ${resultados.length} resultados para "${mon.termo_busca}" (tipo=${mon.tipo}, tribunais=${tribunais.join(',') || 'TODOS'}, exclusoes=${mon.exclusoes?.join(',') || 'nenhuma'}, condicao=${mon.condicao_concomitante || 'nenhuma'})`);
+  
+  const pubsValidas = resultados.filter((pub, idx) => {
+    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '?';
+    // 1. Filtro de tribunal
+    if (tribunais.length > 0) {
+      const sigla = getSiglaTribunal(pub);
+      if (!sigla || !tribunais.includes(sigla)) {
+        descartadas++;
+        console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: tribunal "${sigla}" não permitido (esperado: ${tribunais.join(',')})`);
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
+        return false;
+      }
+    }
+    
+    // 2. Verificar exclusões
+    const excEncontrada = temExclusao(pub, mon.exclusoes);
+    if (excEncontrada) {
+      descartadas++;
+      console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: exclusão "${excEncontrada}"`);
+      pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${excEncontrada}` });
+      return false;
+    }
+    
+    // 3. Validar termo (usando metadados estruturados)
+    // OTIMIZAÇÃO 6 (Flash): para "parte" e "advogado", a API já filtrou pelo
+    // nomeParte/numeroOab/nomeAdvogado nativos — confiar no filtro nativo
+    // reduz drasticamente o descarte por "termo_nao_encontrado".
+    const confiarFiltroNativo = (mon.tipo === 'parte' || mon.tipo === 'advogado');
+    if (!confiarFiltroNativo && !validarTermo(pub, mon)) {
+      descartadas++;
+      console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
+      return false;
+    }
+    
+    // 4. Condição concomitante
+    if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
+      descartadas++;
+      console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: condição concomitante não atendida`);
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+      return false;
+    }
+    
+    console.log(`[DJEN Flash]   ✅ [${idx}] proc=${procNum} VÁLIDA`);
+    return true;
+  });
+  
+  // Deduplicar por hash
+  const hashMap = new Map<string, any>();
+  for (const pub of pubsValidas) {
+    const conteudo = pub.texto || pub.conteudo || pub.teor || '';
+    const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+    const hash = gerarHash(conteudo, dataDisp, procNum);
+    if (!hashMap.has(hash)) {
+      hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
+    }
+  }
+  const pubsUnicas = Array.from(hashMap.values());
+  
+  // Verificar duplicatas no banco
+  const hashes = pubsUnicas.map(p => p.hash_conteudo);
+  let existentes = new Set<string>();
+  if (hashes.length > 0) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('hash_conteudo')
+      .eq('monitoramento_id', mon.id)
+      .in('hash_conteudo', hashes);
+    existentes = new Set((data || []).map(d => d.hash_conteudo));
+  }
+  
+  const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+  const duplicadasBanco = pubsUnicas.length - novas.length;
+  
+  const dedupHashLocal = pubsValidas.length - pubsUnicas.length;
+  console.log(`[DJEN Flash] 📊 Termo "${mon.termo_busca}" resumo: ${resultados.length} brutos (${dedupByContentHash} dedup content-hash na coleta) → ${pubsValidas.length} válidas → ${pubsUnicas.length} únicas (${dedupHashLocal} dedup hash-local) → ${novas.length} novas, ${duplicadasBanco} já no banco, ${descartadas} descartadas`);
+  
+  // Inserir novas
+  if (novas.length > 0) {
+    const payload = novas.map(pub => {
+      const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
+      const conteudoFormatado = buildDjenLikeConteudo({
+        pub, diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
+      
+      const dataDisp = pub.data_disponibilizacao_ymd;
+      const dataPub = calcularDataPublicacao(dataDisp);
+      
+      // Metadados estruturados (direto da API)
+      const advogados = extrairAdvogadosEstruturados(pub);
+      const partes = extrairPartesEstruturadas(pub);
+      
+      return {
+        monitoramento_id: mon.id,
+        hash_conteudo: pub.hash_conteudo,
+        processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo || null,
+        conteudo: conteudoFormatado,
+        data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+        data_publicacao: `${dataPub}T12:00:00.000Z`,
+        tribunal: getSiglaTribunal(pub),
+        fonte: pub.siglaTribunal || pub.tribunal || 'DJEN-PRO',
+        lida: false,
+        orgao: pub.nomeOrgao || pub.nome_orgao || null,
+        tipo_comunicacao: pub.tipoComunicacao || null,
+        meio: pub.meio || pub.meiocompleto || null,
+        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
+        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
+      };
+    });
+    
+    const { error: upsertError, data: upsertData } = await supabase
+      .from('publicacoes_djen')
+      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
+      .select('id, processo_numero');
+    if (upsertError) {
+      console.error(`[DJEN Flash] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);
+    } else {
+      console.log(`[DJEN Flash] ✅ Salvas ${(upsertData || []).length} publicações para "${mon.termo_busca}"`, 
+        (upsertData || []).slice(0, 5).map((r: any) => r.processo_numero));
+    }
+  }
+  
+  // Persistir descartadas (dedup por hash para contar corretamente)
+  let descartadasEfetivas = 0;
+  if (pubsDescartadas.length > 0) {
+    const descHashMap = new Map<string, any>();
+    for (const pub of pubsDescartadas) {
+      const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || '';
+      const conteudoFormatado = buildDjenLikeConteudo({
+        pub, diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
+      const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+      const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+      const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
+      
+      if (descHashMap.has(hash)) continue;
+      
+      const advogados = extrairAdvogadosEstruturados(pub);
+      const partes = extrairPartesEstruturadas(pub);
+      
+      descHashMap.set(hash, {
+        monitoramento_id: mon.id,
+        hash_conteudo: hash,
+        processo_numero: pub.numeroProcesso || pub.numero_processo || null,
+        conteudo: conteudoFormatado.slice(0, 100000),
+        data_publicacao: `${calcularDataPublicacao(dataDisp)}T12:00:00.000Z`,
+        data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+        tribunal: getSiglaTribunal(pub),
+        fonte: pub.siglaTribunal || 'DJEN-PRO',
+        motivo_descarte: pub.motivo_descarte || 'desconhecido',
+        orgao: pub.nomeOrgao || null,
+        tipo_comunicacao: pub.tipoComunicacao || null,
+        meio: pub.meio || null,
+        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
+        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
+      });
+    }
+    
+    const payloadDesc = Array.from(descHashMap.values()).slice(0, 200);
+    descartadasEfetivas = payloadDesc.length;
+    
+    await supabase
+      .from('publicacoes_djen_descartadas')
+      .upsert(payloadDesc, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
+  }
+  
+  return {
+    novas: novas.length,
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length),
+    descartadas: descartadasEfetivas,
+    ...diagnostico,
+    ...telemetria,
+  };
+}
+
+// ============================================================================
+// EXECUÇÃO PRINCIPAL
+// ============================================================================
+
+async function executarLoop(
+  dataInicioYmd: string,
+  dataFimYmd: string,
+  retomar: boolean,
+  coordenacaoId?: string,
+  monitoramentoIds?: string[],
+) {
+  if (state.isRunning) {
+    console.warn('[DJEN Flash] Já existe uma execução em andamento (local)');
+    return;
+  }
+  
+  // Verificar no banco se já existe execução rodando (evita duplicatas entre abas/sessões)
+  try {
+    const { data: running } = await supabase
+      .from('execucoes_agendadas')
+      .select('id, iniciado_em')
+      .eq('tipo', 'djen_flash')
+      .eq('status', 'executando')
+      .is('finalizado_em', null);
+    
+    if (running && running.length > 0) {
+      const ids = running.map(r => r.id).join(', ');
+      console.warn(`[DJEN Flash] Já existe(m) ${running.length} execução(ões) no banco: ${ids}. Cancelando início.`);
+      
+      // Cancelar execuções órfãs com mais de 2 horas
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const stale = running.filter(r => r.iniciado_em && r.iniciado_em < twoHoursAgo);
+      if (stale.length > 0) {
+        console.log(`[DJEN Flash] Cancelando ${stale.length} execuções órfãs (>2h)`);
+        for (const s of stale) {
+          await supabase
+            .from('execucoes_agendadas')
+            .update({ status: 'cancelado', finalizado_em: new Date().toISOString(), detalhes: { mensagem: 'Cancelado: execução órfã (>2h)' } })
+            .eq('id', s.id);
+        }
+        // Se todas eram órfãs, continuar
+        if (stale.length === running.length) {
+          console.log('[DJEN Flash] Todas as execuções eram órfãs, prosseguindo...');
+        } else {
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[DJEN Flash] Erro ao verificar execuções no banco, prosseguindo:', e);
+  }
+  
+  state.isRunning = true;
+  state.abortController = new AbortController();
+  const signal = state.abortController.signal;
+  const tempoInicio = Date.now();
+  let executionId: string | null = null;
+  
+  // Timer de tempo decorrido
+  state.timerInterval = setInterval(() => {
+    updateProgress({ tempoDecorrido: Math.floor((Date.now() - tempoInicio) / 1000) });
+  }, 1000);
+  
+  try {
+    // Carregar monitoramentos
+    let query = supabase
+      .from('monitoramentos_djen')
+      .select('*')
+      .eq('ativo', true);
+    
+    if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
+    if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
+    
+    console.log('[DJEN Flash] Filtros aplicados:', { coordenacaoId, monitoramentoIds, ativo: true });
+    
+    const { data: termos, error } = await query;
+    if (error) throw error;
+    
+    console.log('[DJEN Flash] Monitoramentos encontrados:', termos?.length ?? 0, termos?.map(t => ({ id: t.id, termo: t.termo_busca, ativo: t.ativo })));
+    
+    if (!termos?.length) {
+      const msg = coordenacaoId || monitoramentoIds?.length
+        ? 'Nenhum monitoramento ativo encontrado com os filtros selecionados. Verifique se o monitoramento está marcado como "Ativo".'
+        : 'Nenhum monitoramento ativo encontrado';
+      updateProgress({ status: 'erro', mensagem: msg, percentage: 0 });
+      return;
+    }
+    
+    const monitoramentos: Monitoramento[] = termos.map((t: any) => ({
+      id: t.id, tipo: t.tipo, termo_busca: t.termo_busca,
+      oab: t.oab, uf: t.uf, ativo: t.ativo,
+      exclusoes: t.exclusoes, tribunais: t.tribunais,
+      termos_or: t.termos_or, descricao: t.descricao,
+      condicao_concomitante: t.condicao_concomitante,
+      coordenacao_id: t.coordenacao_id,
+    }));
+    
+    const datas = gerarListaDatas(dataInicioYmd, dataFimYmd);
+    const totalOps = datas.length * monitoramentos.length;
+
+    if (totalOps <= 0) {
+      updateProgress({
+        status: 'erro',
+        percentage: 0,
+        mensagem: 'Período inválido para execução. Verifique as datas selecionadas.',
+      });
+      return;
+    }
+    
+    // Checkpoint para retomada
+    const cp = retomar ? loadCheckpoint() : null;
+    const runKey = `${dataInicioYmd}..${dataFimYmd}`;
+    let startDiaIdx = 0;
+    let startTermoIdx = 0;
+    let acumNovas = 0;
+    let acumDuplicadas = 0;
+    let acumDescartadas = 0;
+    let acumRateLimitHits = 0;
+    let acumFalhasBusca = 0;
+    let acumBuscasParciais = 0;
+    let acumChamadasApi = 0;
+    let acumPaginasEvitadas = 0;
+    let acumComplementaresPuladas = 0;
+    let acumTribunaisPulados429 = 0;
+    
+    if (cp && cp.runKey === runKey) {
+      startDiaIdx = cp.diaIndice;
+      startTermoIdx = cp.termoIndice;
+      acumNovas = cp.novas;
+      acumDuplicadas = cp.duplicadas;
+      acumDescartadas = cp.descartadas;
+    }
+    
+    // Registrar execução no banco
+    try {
+      const { data: inserted, error: insertErr } = await supabase
+        .from('execucoes_agendadas')
+        .insert({
+          tipo: 'djen_flash',
+          status: 'executando',
+          job_name: 'DJEN Termos Flash',
+          iniciado_em: new Date().toISOString(),
+          detalhes: { totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
+        })
+        .select('id');
+      if (insertErr) {
+        console.error('[DJEN Flash] FALHA ao registrar execução no banco:', insertErr.message, insertErr.details, insertErr.hint);
+      } else if (inserted && inserted.length > 0) {
+        executionId = inserted[0].id;
+        state.executionId = executionId;
+        console.log('[DJEN Flash] Execução registrada no banco com ID:', executionId);
+      } else {
+        console.error('[DJEN Flash] INSERT retornou sem erro mas sem dados');
+      }
+    } catch (e) {
+      console.error('[DJEN Flash] Erro inesperado ao registrar execução:', e);
+    }
+
+    updateProgress({
+      status: 'executando',
+      globalTotal: totalOps,
+      totalDias: datas.length,
+      totalTermos: monitoramentos.length,
+      dataInicioYmd,
+      dataFimYmd,
+      novas: acumNovas,
+      duplicadas: acumDuplicadas,
+      descartadas: acumDescartadas,
+      rateLimitHits: acumRateLimitHits,
+      falhasBusca: acumFalhasBusca,
+      buscasParciais: acumBuscasParciais,
+      ultimoErroBusca: null,
+      mensagem: 'Iniciando DJEN Termos Pro...',
+    });
+    
+    for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
+      if (signal.aborted) break;
+      const diaYmd = datas[diaIdx];
+      
+      const termoStart = (diaIdx === startDiaIdx) ? startTermoIdx : 0;
+      
+      for (let termoIdx = termoStart; termoIdx < monitoramentos.length; termoIdx++) {
+        if (signal.aborted) break;
+        const mon = monitoramentos[termoIdx];
+        const completedBefore = diaIdx * monitoramentos.length + termoIdx;
+        const globalCurrent = completedBefore + 1;
+        const percentageBefore = Math.min(99, Math.max(0, Math.round((completedBefore / totalOps) * 100)));
+        
+        updateProgress({
+          diaAtualYmd: diaYmd,
+          diaAtualIndice: diaIdx + 1,
+          termoAtualNoDia: termoIdx + 1,
+          termoAtual: mon.descricao || mon.termo_busca,
+          globalCurrent: completedBefore,
+          percentage: percentageBefore,
+          mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+        });
+
+        console.log(`[DJEN Flash] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
+        
+        const resultado = await processarTermoPro(mon, diaYmd, signal);
+        acumNovas += resultado.novas;
+        acumDuplicadas += resultado.duplicadas;
+        acumDescartadas += resultado.descartadas;
+        acumRateLimitHits += resultado.rateLimitHits;
+        acumFalhasBusca += resultado.falhasBusca;
+        acumBuscasParciais += resultado.buscasParciais;
+        acumChamadasApi += resultado.chamadasApi;
+        acumPaginasEvitadas += resultado.paginasEvitadas;
+        acumComplementaresPuladas += resultado.complementaresPuladas;
+        acumTribunaisPulados429 += resultado.tribunaisPulados429;
+        const percentageAfter = Math.min(99, Math.max(0, Math.round((globalCurrent / totalOps) * 100)));
+        
+        updateProgress({
+          globalCurrent,
+          percentage: percentageAfter,
+          novas: acumNovas,
+          duplicadas: acumDuplicadas,
+          descartadas: acumDescartadas,
+          rateLimitHits: acumRateLimitHits,
+          falhasBusca: acumFalhasBusca,
+          buscasParciais: acumBuscasParciais,
+          ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
+        });
+        
+        // Checkpoint
+        saveCheckpoint({
+          runKey, diaIndice: diaIdx, termoIndice: termoIdx + 1,
+          novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
+          tempoInicio, dataInicioYmd, dataFimYmd,
+        });
+
+        // Persist progress to DB every ~10 terms
+        if (executionId && globalCurrent % 10 === 0) {
+          supabase
+            .from('execucoes_agendadas')
+            .update({
+              detalhes: {
+                novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
+                percentage: percentageAfter, termoAtual: mon.descricao || mon.termo_busca,
+                totalTermos: monitoramentos.length, totalDias: datas.length,
+                dataInicioYmd, dataFimYmd,
+                diagnostico: {
+                  rateLimitHits: acumRateLimitHits,
+                  falhasBusca: acumFalhasBusca,
+                  buscasParciais: acumBuscasParciais,
+                  ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
+                },
+              },
+            })
+            .eq('id', executionId)
+            .then(() => {});
+        }
+        
+        await delay(CONFIG.delay_between_terms);
+        
+      }
+    }
+    
+    if (!signal.aborted) {
+      saveCheckpoint(null);
+      updateProgress({
+        status: 'concluido',
+        percentage: 100,
+        globalCurrent: totalOps,
+        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas` +
+          ` • Flash: chamadasApi=${acumChamadasApi}, pgEvitadas=${acumPaginasEvitadas}, complPuladas=${acumComplementaresPuladas}, tribPulados429=${acumTribunaisPulados429}` +
+          ((acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''),
+      });
+    } else {
+      updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
+    }
+  } catch (err: any) {
+    console.error('[DJEN Flash] Erro:', err);
+    updateProgress({ status: 'erro', mensagem: `Erro: ${err?.message || String(err)}` });
+  } finally {
+    state.isRunning = false;
+    if (state.timerInterval) {
+      clearInterval(state.timerInterval);
+      state.timerInterval = null;
+    }
+    // Finalizar registro no banco
+    if (executionId) {
+      try {
+        const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
+        await supabase
+          .from('execucoes_agendadas')
+          .update({
+            status: finalStatus,
+            finalizado_em: new Date().toISOString(),
+            detalhes: {
+              novas: state.progress.novas,
+              duplicadas: state.progress.duplicadas,
+              descartadas: state.progress.descartadas,
+              percentage: state.progress.percentage,
+              mensagem: state.progress.mensagem,
+              dataInicioYmd,
+              dataFimYmd,
+              diagnostico: {
+                rateLimitHits: state.progress.rateLimitHits,
+                falhasBusca: state.progress.falhasBusca,
+                buscasParciais: state.progress.buscasParciais,
+                ultimoErroBusca: state.progress.ultimoErroBusca,
+              },
+            },
+          })
+          .eq('id', executionId);
+      } catch (e) {
+        console.warn('[DJEN Flash] Erro ao finalizar execução:', e);
+      }
+      state.executionId = null;
+    }
+    // Garantir que status nunca fique preso em 'executando' após término
+    if (state.progress.status === 'executando') {
+      state.progress = { ...state.progress, status: 'concluido' };
+    }
+    // Notificar React que isRunning mudou para false
+    state.lastUpdatedAt = Date.now();
+    notifyListeners();
+  }
+}
+
+// ============================================================================
+// API PÚBLICA (singleton)
+// ============================================================================
+
+export function executarDjenTermosFlash(
+  dataInicioYmd?: string,
+  dataFimYmd?: string,
+  retomar = false,
+  coordenacaoId?: string,
+  monitoramentoIds?: string[],
+) {
+  const hoje = ymdBrasilia();
+  const inicio = dataInicioYmd || hoje;
+  const fim = dataFimYmd || hoje;
+  executarLoop(inicio, fim, retomar, coordenacaoId, monitoramentoIds);
+}
+
+export function cancelarDjenTermosFlash() {
+  if (state.abortController) {
+    state.abortController.abort();
+    updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
+  }
+  // Finalizar qualquer execução ativa no banco imediatamente (mesmo sem executionId local).
+  // Isso cobre casos de modo background/híbrido, scheduler e estados órfãos entre abas.
+  supabase
+    .from('execucoes_agendadas')
+    .update({
+      status: 'cancelado',
+      finalizado_em: new Date().toISOString(),
+      detalhes: {
+        novas: state.progress.novas,
+        duplicadas: state.progress.duplicadas,
+        descartadas: state.progress.descartadas,
+        percentage: state.progress.percentage,
+        mensagem: 'Cancelado pelo usuário',
+        diagnostico: {
+          rateLimitHits: state.progress.rateLimitHits,
+          falhasBusca: state.progress.falhasBusca,
+          buscasParciais: state.progress.buscasParciais,
+          ultimoErroBusca: state.progress.ultimoErroBusca,
+        },
+      },
+    })
+    .eq('tipo', 'djen_flash')
+    .eq('status', 'executando')
+    .then(({ error }) => {
+      if (error) console.warn('[DJEN Flash] Erro ao cancelar execuções ativas no banco:', error);
+      else console.log('[DJEN Flash] Execuções ativas canceladas no banco');
+    });
+  state.executionId = null;
+}
+
+export function limparEstadoDjenTermosFlash() {
+  state.progress = createDefaultProgress();
+  notifyListeners();
+}
+
+export function forceKillDjenTermosFlash(clearCheckpoint = false) {
+  cancelarDjenTermosFlash();
+  state.isRunning = false;
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+  if (clearCheckpoint) saveCheckpoint(null);
+  state.progress = createDefaultProgress();
+  notifyListeners();
+}
+
+export function getDjenTermosFlashProgress(): DjenTermosFlashProgress {
+  return state.progress;
+}
+
+export function isDjenTermosFlashRunning(): boolean {
+  return state.isRunning;
+}
+
+export function getCheckpointFlash(): Checkpoint | null {
+  return state.checkpoint || loadCheckpoint();
+}
+
+export function subscribeDjenTermosFlash(listener: (p: DjenTermosFlashProgress) => void): () => void {
+  state.listeners.add(listener);
+  return () => { state.listeners.delete(listener); };
+}
