@@ -1422,7 +1422,15 @@ async function executarLoop(
         });
 
         console.log(`[DJEN Flash] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
-        
+
+        // Checkpoint inicial: garante que cancelar a qualquer momento (mesmo durante o 1º termo)
+        // deixe um ponto de retomada (re-processa o termo atual, que é idempotente via dedupe).
+        saveCheckpoint({
+          runKey, diaIndice: diaIdx, termoIndice: termoIdx,
+          novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
+          tempoInicio, dataInicioYmd, dataFimYmd,
+        });
+
         const resultado = await processarTermoPro(mon, diaYmd, signal);
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
