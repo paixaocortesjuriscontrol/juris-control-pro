@@ -1343,6 +1343,10 @@ async function executarLoop(
     let acumRateLimitHits = 0;
     let acumFalhasBusca = 0;
     let acumBuscasParciais = 0;
+    let acumChamadasApi = 0;
+    let acumPaginasEvitadas = 0;
+    let acumComplementaresPuladas = 0;
+    let acumTribunaisPulados429 = 0;
     
     if (cp && cp.runKey === runKey) {
       startDiaIdx = cp.diaIndice;
@@ -1426,6 +1430,10 @@ async function executarLoop(
         acumRateLimitHits += resultado.rateLimitHits;
         acumFalhasBusca += resultado.falhasBusca;
         acumBuscasParciais += resultado.buscasParciais;
+        acumChamadasApi += resultado.chamadasApi;
+        acumPaginasEvitadas += resultado.paginasEvitadas;
+        acumComplementaresPuladas += resultado.complementaresPuladas;
+        acumTribunaisPulados429 += resultado.tribunaisPulados429;
         const percentageAfter = Math.min(99, Math.max(0, Math.round((globalCurrent / totalOps) * 100)));
         
         updateProgress({
@@ -1480,7 +1488,9 @@ async function executarLoop(
         status: 'concluido',
         percentage: 100,
         globalCurrent: totalOps,
-        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas${(acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''}`,
+        mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas` +
+          ` • Flash: chamadasApi=${acumChamadasApi}, pgEvitadas=${acumPaginasEvitadas}, complPuladas=${acumComplementaresPuladas}, tribPulados429=${acumTribunaisPulados429}` +
+          ((acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''),
       });
     } else {
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });

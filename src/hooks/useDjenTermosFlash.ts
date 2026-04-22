@@ -1,5 +1,5 @@
 /**
- * Hook React para o DJEN Termos Pro Engine
+ * Hook React para o DJEN Termos Flash Engine
  * 
  * Wrapper reativo para o singleton do engine Pro.
  * Independente do useDjenTermos original.
@@ -9,28 +9,28 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  type DjenTermosProProgress,
-  executarDjenTermosPro,
-  cancelarDjenTermosPro,
-  limparEstadoDjenTermosPro,
-  forceKillDjenTermosPro,
-  getDjenTermosProProgress,
-  isDjenTermosProRunning,
-  getCheckpointPro,
-  subscribeDjenTermosPro,
-} from './useDjenTermosProEngine';
+  type DjenTermosFlashProgress,
+  executarDjenTermosFlash,
+  cancelarDjenTermosFlash,
+  limparEstadoDjenTermosFlash,
+  forceKillDjenTermosFlash,
+  getDjenTermosFlashProgress,
+  isDjenTermosFlashRunning,
+  getCheckpointFlash,
+  subscribeDjenTermosFlash,
+} from './useDjenTermosFlashEngine';
 
-export type { DjenTermosProProgress };
+export type { DjenTermosFlashProgress };
 
-export function useDjenTermosPro() {
+export function useDjenTermosFlash() {
   const queryClient = useQueryClient();
-  const [progress, setProgress] = useState<DjenTermosProProgress>(getDjenTermosProProgress);
-  const [isRunning, setIsRunning] = useState(isDjenTermosProRunning);
+  const [progress, setProgress] = useState<DjenTermosFlashProgress>(getDjenTermosFlashProgress);
+  const [isRunning, setIsRunning] = useState(isDjenTermosFlashRunning);
 
   useEffect(() => {
-    const unsubscribe = subscribeDjenTermosPro((p) => {
+    const unsubscribe = subscribeDjenTermosFlash((p) => {
       setProgress(p);
-      setIsRunning(isDjenTermosProRunning());
+      setIsRunning(isDjenTermosFlashRunning());
       
       if (p.status === 'concluido') {
         queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] });
@@ -39,44 +39,44 @@ export function useDjenTermosPro() {
         queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
         
         if (p.novas > 0) {
-          toast.success(`DJEN Pro: ${p.novas} novas publicações encontradas!`);
+          toast.success(`DJEN Flash: ${p.novas} novas publicações encontradas!`);
         }
       }
       
       if (p.status === 'erro') {
-        toast.error(p.mensagem || 'Erro na execução DJEN Pro');
+        toast.error(p.mensagem || 'Erro na execução DJEN Flash');
       }
     });
     return unsubscribe;
   }, [queryClient]);
 
-  const checkpoint = getCheckpointPro();
+  const checkpoint = getCheckpointFlash();
   const canResume = !!checkpoint && progress.status !== 'executando';
 
   const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string, coordenacaoId?: string, monitoramentoIds?: string[]) => {
-    executarDjenTermosPro(dataInicioYmd, dataFimYmd, false, coordenacaoId, monitoramentoIds);
-    toast.info('DJEN Termos Pro iniciado');
+    executarDjenTermosFlash(dataInicioYmd, dataFimYmd, false, coordenacaoId, monitoramentoIds);
+    toast.info('DJEN Termos Flash iniciado');
   }, []);
 
   const retomar = useCallback((coordenacaoId?: string, monitoramentoIds?: string[]) => {
     if (!checkpoint) return;
-    executarDjenTermosPro(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, coordenacaoId, monitoramentoIds);
-    toast.info('DJEN Termos Pro retomando de onde parou...');
+    executarDjenTermosFlash(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, coordenacaoId, monitoramentoIds);
+    toast.info('DJEN Termos Flash retomando de onde parou...');
   }, [checkpoint]);
 
   const cancelar = useCallback(() => {
-    cancelarDjenTermosPro();
+    cancelarDjenTermosFlash();
   }, []);
 
   const limpar = useCallback(() => {
-    limparEstadoDjenTermosPro();
+    limparEstadoDjenTermosFlash();
   }, []);
 
   const forceKill = useCallback((clearCheckpoint = false) => {
-    forceKillDjenTermosPro(clearCheckpoint);
+    forceKillDjenTermosFlash(clearCheckpoint);
     toast.success(clearCheckpoint 
-      ? 'DJEN Pro finalizado e checkpoint limpo' 
-      : 'DJEN Pro parado. Use Executar para retomar.'
+      ? 'DJEN Flash finalizado e checkpoint limpo' 
+      : 'DJEN Flash parado. Use Executar para retomar.'
     );
   }, []);
 
