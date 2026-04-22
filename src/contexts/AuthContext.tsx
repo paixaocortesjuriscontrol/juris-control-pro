@@ -25,6 +25,35 @@ const defaultAuthContext: AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>(defaultAuthContext);
 
+// Registra o acesso no histórico, deduplicando por dia/usuário usando localStorage
+// para não criar múltiplos registros quando a sessão é restaurada várias vezes ao dia.
+async function registrarAcessoSeNecessario(userId: string, email: string | undefined) {
+  try {
+    const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const chave = `historico_login:${userId}:${hoje}`;
+    if (typeof window !== "undefined" && window.localStorage.getItem(chave)) {
+      return; // já registrado hoje neste dispositivo
+    }
+
+    const { error } = await supabase.from("historico_login").insert({
+      user_id: userId,
+      email: email ?? null,
+      user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+    });
+
+    if (error) {
+      console.error("Erro ao registrar histórico de login:", error);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(chave, "1");
+    }
+  } catch (e) {
+    console.error("Falha ao registrar histórico de login:", e);
+  }
+}
+
 // Check if user is active in the profiles table
 async function checkUserActive(userId: string): Promise<boolean> {
   const { data, error } = await supabase
