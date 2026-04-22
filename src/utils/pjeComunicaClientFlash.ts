@@ -563,8 +563,13 @@ export async function buscarPjeComunicaNoBrowser(
   throw lastErr || new Error("Falha ao buscar no PJE Comunica");
 }
 
-// Versão paginada (essencial para o monitoramento), com limite de páginas por segurança.
-// PARÂMETROS CONSERVADORES v1.1.0: baseado em execuções bem-sucedidas (~5-6min para 118 termos)
+// Versão paginada FLASH — paginação inteligente (otimização principal do motor Flash).
+// Política:
+//  1) Se a página 1 retorna totalExpected conhecido e items.length >= totalExpected → para.
+//  2) Se items.length < pageSize → não há próxima página, para.
+//  3) Se totalExpected ausente E items.length === pageSize:
+//      - continueUntilEmpty=true: paginar até página vazia (cobre SANTANDER 62+ páginas).
+//      - caso contrário: respeita hasMore retornado pela API.
 export async function buscarPjeComunicaPaginado(
   params: PjeComunicaSearchParams,
   options?: {
@@ -599,6 +604,7 @@ export async function buscarPjeComunicaPaginado(
   let rateLimitHits = 0;
   let failedPages = 0;
   let lastError: string | null = null;
+  let pagesAvoided = 0;
 
   // Helper para fetch com retry e backoff exponencial
   const fetchWithRetry = async (page: number): Promise<PjeComunicaResponse> => {
@@ -663,10 +669,31 @@ export async function buscarPjeComunicaPaginado(
         }
       }
 
+      // ========= FLASH: paginação inteligente =========
       if (resp.items.length === 0) break;
+
+      // Heurística 1: API confirma que essa foi a última página (items < pageSize)
+      if (resp.items.length < pageSize) {
+        pagesAvoided += 1;
+        break;
+      }
+
+      // Heurística 2: totalExpected conhecido — sabemos exatamente quantas páginas são necessárias
+      const totalExpected = resp.totalElements;
+      if (typeof totalExpected === 'number' && totalExpected > 0) {
+        const totalSoFar = (p - startPage + 1) * pageSize;
+        if (totalSoFar >= totalExpected) {
+          pagesAvoided += 1;
+          break;
+        }
+      }
+
+      // Caso geral: respeita hasMore quando NÃO está em modo continueUntilEmpty
       if (!continueUntilEmpty && !resp.hasMore) break;
+
+      // continueUntilEmpty: para se a página não trouxe nenhum item NOVO (anti-loop)
       if (continueUntilEmpty && addedOnPage === 0) {
-        console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
+        console.warn(`[PJE Flash] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
         break;
       }
 
@@ -679,12 +706,18 @@ export async function buscarPjeComunicaPaginado(
       // Para outros erros, logar e continuar para próxima página
       failedPages += 1;
       lastError = String(e?.message ?? 'Falha ao buscar página');
-      console.warn(`[PJE Comunica] Falha na página ${p} após retries:`, e?.message);
+      console.warn(`[PJE Flash] Falha na página ${p} após retries:`, e?.message);
       break;
     }
   }
 
-  if (last?.hasMore) truncated = true;
+  if (last?.hasMore && !pagesAvoided) truncated = true;
+  if (truncated) {
+    console.warn(
+      `[PJE Flash] ⚠️ TRUNCADO após ${pagesFetched} páginas. ` +
+      `A API ainda tinha hasMore=true. Pode haver publicações faltando.`
+    );
+  }
   const partial = truncated || failedPages > 0;
 
   // Se por algum motivo não tivemos página alguma, ainda assim garantimos formato.
