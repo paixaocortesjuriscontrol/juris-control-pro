@@ -59,6 +59,7 @@ export const STATUS_AUDIENCIA_LABELS: Record<StatusAudiencia, string> = {
 };
 
 export interface NovaAudiencia {
+  processo_id?: string;
   processo_numero: string;
   data_audiencia: string;
   hora?: string;
@@ -227,6 +228,7 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         .from('audiencias_detectadas')
         .insert({
           ...dadosAudiencia,
+          processo_id: dadosAudiencia.processo_id || null,
           data_audiencia: dataAudienciaISO,
           origem: 'manual',
           criado_por: user.id,

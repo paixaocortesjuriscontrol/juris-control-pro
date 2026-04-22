@@ -119,6 +119,10 @@ type AreaAtuacao = Database["public"]["Enums"]["area_atuacao"];
 
 type ViewMode = "detalhes" | "editar";
 
+type AudienciaProcessoItem = AudienciaDetectada & {
+  _duplicateIds?: string[];
+};
+
 const areaLabels: Record<string, string> = {
   civil: "Cível",
   trabalhista: "Trabalhista",
@@ -140,6 +144,28 @@ const isTarefaAudiencia = (tipo: string | null | undefined) => {
   if (!tipo) return false;
   const lower = tipo.toLowerCase().trim();
   return lower === 'audiência' || lower === 'audiencia' || lower === 'preparação audiência' || lower === 'preparacao audiencia';
+};
+
+const normalizeAudienciaKeyPart = (value: string | null | undefined) =>
+  (value ?? "").toString().trim().toLowerCase();
+
+const getAudienciaBusinessKey = (audiencia: Partial<AudienciaDetectada>) => {
+  const dataBase = audiencia.data_audiencia
+    ? new Date(audiencia.data_audiencia).toISOString().split("T")[0]
+    : "";
+
+  return [
+    normalizeAudienciaKeyPart(audiencia.processo_id ?? null),
+    normalizeAudienciaKeyPart(audiencia.processo_numero ?? null),
+    dataBase,
+    normalizeAudienciaKeyPart(audiencia.hora),
+    normalizeAudienciaKeyPart(audiencia.hora_local),
+    normalizeAudienciaKeyPart(audiencia.hora_brasilia),
+    normalizeAudienciaKeyPart(audiencia.tipo_audiencia),
+    normalizeAudienciaKeyPart(audiencia.vara_camara),
+    normalizeAudienciaKeyPart(audiencia.comarca),
+    normalizeAudienciaKeyPart(audiencia.origem),
+  ].join("|");
 };
 
 export default function ProcessoDetalhes() {
@@ -225,17 +251,62 @@ export default function ProcessoDetalhes() {
   // Outras queries usam lazy loading baseado na aba ativa
 
   // Audiências query - carrega sempre pois é usada no card de pendências
-  const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery({
+  const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery<AudienciaProcessoItem[]>({
     queryKey: ["audiencias-processo", id, processo?.numero],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audiencias_detectadas")
-        .select("*")
-        .or(`processo_id.eq.${id},processo_numero.eq.${processo?.numero}`)
-        .order("data_audiencia", { ascending: false });
+      const [porProcessoId, porNumeroProcesso] = await Promise.all([
+        supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("processo_id", id!)
+          .order("data_audiencia", { ascending: false }),
+        supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("processo_numero", processo?.numero)
+          .order("data_audiencia", { ascending: false }),
+      ]);
+
+      const error = porProcessoId.error || porNumeroProcesso.error;
+
+      const merged = [...(porProcessoId.data || []), ...(porNumeroProcesso.data || [])];
+      const unicasPorId = Array.from(new Map(merged.map((aud) => [aud.id, aud])).values());
+      const audienciasAgrupadas = new Map<string, AudienciaProcessoItem>();
+
+      for (const audiencia of unicasPorId) {
+        const businessKey = getAudienciaBusinessKey(audiencia);
+        const existente = audienciasAgrupadas.get(businessKey);
+        const duplicateIds = Array.from(
+          new Set([...(existente?._duplicateIds || []), audiencia.id])
+        );
+
+        if (!existente) {
+          audienciasAgrupadas.set(businessKey, {
+            ...audiencia,
+            _duplicateIds: duplicateIds,
+          });
+          continue;
+        }
+
+        const existenteTs = new Date(existente.updated_at || existente.created_at).getTime();
+        const atualTs = new Date(audiencia.updated_at || audiencia.created_at).getTime();
+        const preferida = atualTs >= existenteTs ? audiencia : existente;
+
+        audienciasAgrupadas.set(businessKey, {
+          ...preferida,
+          _duplicateIds: duplicateIds,
+        });
+      }
+
+      const deduplicadas = Array.from(audienciasAgrupadas.values());
+      deduplicadas.sort((a, b) => {
+        const dateA = a.data_audiencia ? new Date(a.data_audiencia).getTime() : 0;
+        const dateB = b.data_audiencia ? new Date(b.data_audiencia).getTime() : 0;
+        return dateB - dateA;
+      });
 
       if (error) throw error;
-      return data || [];
+      return deduplicadas;
     },
     enabled: !!id && !!processo?.numero,
   });

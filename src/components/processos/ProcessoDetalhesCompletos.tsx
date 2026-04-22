@@ -1476,6 +1476,9 @@ export function ProcessoDetalhesCompletos({
                       {audiencias.map((aud) => {
                         const handleAlterarStatus = async (novoStatus: string) => {
                           try {
+                            const idsParaAtualizar = Array.isArray(aud._duplicateIds) && aud._duplicateIds.length > 0
+                              ? aud._duplicateIds
+                              : [aud.id];
                             const updates: Record<string, unknown> = { status: novoStatus };
                             if (novoStatus === 'tratado' || novoStatus === 'ignorado') {
                               updates.tratado_por = user?.id;
@@ -1484,7 +1487,7 @@ export function ProcessoDetalhesCompletos({
                             const { error } = await supabase
                               .from('audiencias_detectadas')
                               .update(updates)
-                              .eq('id', aud.id);
+                              .in('id', idsParaAtualizar);
                             if (error) throw error;
                             if (audienciaInvalidateKey) {
                               queryClient.invalidateQueries({ queryKey: audienciaInvalidateKey });

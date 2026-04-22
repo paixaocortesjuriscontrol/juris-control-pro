@@ -64,6 +64,7 @@ export function CriarAudienciaProcessoDialog({
 
     await criarAudiencia.mutateAsync({
       ...formData,
+      processo_id: processoId,
       processo_numero: processoNumero,
       advogados_ids: advogadosSelecionados,
     });
