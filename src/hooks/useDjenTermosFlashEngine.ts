@@ -1065,7 +1065,11 @@ async function _processarTermoFlashInterno(
     }
     
     // 3. Validar termo (usando metadados estruturados)
-    if (!validarTermo(pub, mon)) {
+    // OTIMIZAÇÃO 6 (Flash): para "parte" e "advogado", a API já filtrou pelo
+    // nomeParte/numeroOab/nomeAdvogado nativos — confiar no filtro nativo
+    // reduz drasticamente o descarte por "termo_nao_encontrado".
+    const confiarFiltroNativo = (mon.tipo === 'parte' || mon.tipo === 'advogado');
+    if (!confiarFiltroNativo && !validarTermo(pub, mon)) {
       descartadas++;
       console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
