@@ -15,7 +15,6 @@ import { Loader2, Plus } from "lucide-react";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 import { useAuth } from "@/contexts/AuthContext";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CriarAudienciaProcessoDialogProps {
   open: boolean;
@@ -76,14 +75,14 @@ export function CriarAudienciaProcessoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] p-0">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] p-0 flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>Nova Audiência</DialogTitle>
           <DialogDescription>
             Processo: {processoNumero}
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] px-6 pb-6">
+        <div className="overflow-y-auto px-6 pb-6 flex-1">
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Data e Tipo */}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -263,7 +262,7 @@ export function CriarAudienciaProcessoDialog({
               </Button>
             </div>
           </form>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
