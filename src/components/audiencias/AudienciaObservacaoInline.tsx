@@ -66,7 +66,7 @@ export function AudienciaObservacaoInline({
           Observação do advogado
         </label>
         {justSaved && !dirty && (
-          <span className="text-[11px] text-emerald-600 flex items-center gap-1">
+          <span className="text-[11px] text-primary flex items-center gap-1">
             <Check className="h-3 w-3" /> Salvo
           </span>
         )}
