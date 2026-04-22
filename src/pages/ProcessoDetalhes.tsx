@@ -921,6 +921,39 @@ export default function ProcessoDetalhes() {
     }
   };
 
+  const handleAlterarStatusAudiencia = async (audienciaId: string, novoStatus: string) => {
+    setUpdatingAudiencia(audienciaId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const updateData: Record<string, unknown> = { status: novoStatus };
+      if (novoStatus === 'tratado' || novoStatus === 'ignorado') {
+        updateData.tratado_por = user?.id;
+        updateData.tratado_em = new Date().toISOString();
+      } else {
+        updateData.tratado_por = null;
+        updateData.tratado_em = null;
+      }
+
+      const { error } = await supabase
+        .from("audiencias_detectadas")
+        .update(updateData)
+        .eq("id", audienciaId);
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
+      toast({ title: "Situação atualizada" });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAudiencia(null);
+    }
+  };
+
   // Handlers for intimações
   const handleMarcarIntimacaoTratado = async (intimacaoId: string) => {
     setUpdatingIntimacao(intimacaoId);
@@ -1463,7 +1496,23 @@ export default function ProcessoDetalhes() {
                           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {getAudienciaStatusBadge(aud.status)}
+                                <Select
+                                  value={aud.status || 'pendente'}
+                                  onValueChange={(v) => handleAlterarStatusAudiencia(aud.id, v)}
+                                  disabled={updatingAudiencia === aud.id}
+                                >
+                                  <SelectTrigger className="h-7 w-[160px] text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                                    <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                                    <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                                    <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                                    <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                                  </SelectContent>
+                                </Select>
                                 {getOrigemBadge(aud.origem)}
                                 {aud.tipo_audiencia && (
                                   <Badge variant="secondary">{aud.tipo_audiencia}</Badge>
