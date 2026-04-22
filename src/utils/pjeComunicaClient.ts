@@ -567,14 +567,16 @@ export async function buscarPjeComunicaPaginado(
   params: PjeComunicaSearchParams,
   options?: {
     signal?: AbortSignal;
-    maxPages?: number;
+    maxPages?: number | null;
     delayMs?: number;
     maxRetries?: number;
     retryBaseDelay?: number;
+    continueUntilEmpty?: boolean;
     onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
-  const maxPages = options?.maxPages ?? 999;
+  const maxPages = options?.maxPages;
+  const continueUntilEmpty = options?.continueUntilEmpty ?? false;
   // Delay entre páginas: 800ms (valor original que funcionava na semana passada)
   const delayMs = Math.max(options?.delayMs ?? 800, 0);
   // Retry com backoff exponencial
@@ -637,11 +639,17 @@ export async function buscarPjeComunicaPaginado(
     throw lastErr || new Error(`Falha após ${maxRetries} tentativas`);
   };
 
-  for (let p = startPage; p < startPage + maxPages; p++) {
+  for (let p = startPage; ; p++) {
+    if (typeof maxPages === 'number' && Number.isFinite(maxPages) && p >= startPage + maxPages) {
+      truncated = true;
+      break;
+    }
+
     try {
       const resp = await fetchWithRetry(p);
       last = resp;
       pagesFetched += 1;
+      let addedOnPage = 0;
 
       for (const item of resp.items) {
         const id = String(item?.id ?? "");
@@ -649,10 +657,16 @@ export async function buscarPjeComunicaPaginado(
         if (!seen.has(key)) {
           seen.add(key);
           all.push(item);
+          addedOnPage += 1;
         }
       }
 
-      if (!resp.hasMore || resp.items.length === 0) break;
+      if (resp.items.length === 0) break;
+      if (!continueUntilEmpty && !resp.hasMore) break;
+      if (continueUntilEmpty && addedOnPage === 0) {
+        console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
+        break;
+      }
 
       if (delayMs > 0) {
         await new Promise((r) => setTimeout(r, delayMs));
