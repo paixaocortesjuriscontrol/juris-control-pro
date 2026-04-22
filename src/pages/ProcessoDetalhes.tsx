@@ -84,6 +84,7 @@ import {
 } from "lucide-react";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
+import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
 import { ProcessoAgendaTab } from "@/components/processos/ProcessoAgendaTab";
 import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentosTab";
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
@@ -1308,8 +1309,8 @@ export default function ProcessoDetalhes() {
         >
           <Gavel className="w-4 h-4" />
           <span className="hidden sm:inline">Audiências</span>
-          {(audiencias.length + tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa)).length) > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length + tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa)).length}</Badge>
+          {audiencias.length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{audiencias.length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
@@ -1493,8 +1494,9 @@ export default function ProcessoDetalhes() {
                     {audiencias.map((aud) => (
                       <Card key={aud.id} className="hover:shadow-md transition-shadow">
                         <CardContent className="p-4">
-                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* Coluna esquerda: dados da audiência */}
+                            <div className="space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <Select
                                   value={aud.status || 'pendente'}
@@ -1530,27 +1532,36 @@ export default function ProcessoDetalhes() {
                               {aud.resumo_objeto && (
                                 <p className="text-sm text-muted-foreground line-clamp-2">{aud.resumo_objeto}</p>
                               )}
+                              <div className="flex gap-2 flex-wrap pt-1">
+                                <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Editar
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  Detalhes
+                                </Button>
+                                {aud.status === 'pendente' && (
+                                  <>
+                                    <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Tratado
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex gap-2 flex-wrap">
-                              <Button variant="outline" size="sm" onClick={() => setEditingAudiencia(aud as AudienciaDetectada)}>
-                                <Pencil className="h-4 w-4 mr-1" />
-                                Editar
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
-                                <Eye className="h-4 w-4 mr-1" />
-                                Detalhes
-                              </Button>
-                              {aud.status === 'pendente' && (
-                                <>
-                                  <Button variant="default" size="sm" onClick={() => handleMarcarAudienciaTratado(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Tratado
-                                  </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleIgnorarAudiencia(aud.id)} disabled={updatingAudiencia === aud.id}>
-                                    <XCircle className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
+
+                            {/* Coluna direita: observação editável inline */}
+                            <div className="lg:border-l lg:pl-4">
+                              <AudienciaObservacaoInline
+                                audienciaId={aud.id}
+                                initialValue={aud.observacoes ?? null}
+                                invalidateKey={["audiencias-processo", id, processo?.numero]}
+                              />
                             </div>
                           </div>
                         </CardContent>
@@ -1566,65 +1577,6 @@ export default function ProcessoDetalhes() {
               )}
             </CardContent>
           </Card>
-
-          {/* Tarefas classificadas como AUDIÊNCIA */}
-          {(() => {
-            const tarefasAudiencia = tarefas.filter(t => isTarefaAudiencia(t.tipo_tarefa));
-            if (tarefasAudiencia.length === 0) return null;
-            return (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ClipboardList className="w-4 h-4 text-amber-600" />
-                    Tarefas de Audiência
-                    <Badge variant="secondary">{tarefasAudiencia.length}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {tarefasAudiencia.map((tarefa) => (
-                      <Card
-                        key={tarefa.id}
-                        className="hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => { setSelectedTarefaId(tarefa.id); setActiveTab("tarefas"); }}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-1">
-                              <p className="font-medium">{tarefa.titulo}</p>
-                              {tarefa.descricao && (
-                                <p className="text-sm text-muted-foreground line-clamp-2">{tarefa.descricao}</p>
-                              )}
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                                {tarefa.data_vencimento && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {formatDate(tarefa.data_vencimento)}
-                                  </span>
-                                )}
-                                {tarefa.responsavel?.nome && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="h-3 w-3" />
-                                    {tarefa.responsavel.nome}
-                                  </span>
-                                )}
-                                <Badge variant="outline" className="text-[10px] h-4 px-1.5 text-amber-700 border-amber-300 bg-amber-50">
-                                  {tarefa.tipo_tarefa}
-                                </Badge>
-                              </div>
-                            </div>
-                            <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'}>
-                              {tarefa.status}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
         </div>
       </TabsContent>
 

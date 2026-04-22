@@ -6155,6 +6155,8 @@ export type Database = {
           nome: string
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       strip_destinatarios: { Args: { content: string }; Returns: string }
       subtrair_dias_uteis: {
         Args: { data_base: string; dias_uteis_subtrair: number }
