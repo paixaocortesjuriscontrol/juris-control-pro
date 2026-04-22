@@ -1,7 +1,9 @@
-// Busca de comunicações no PJE Comunica.
-// Estratégia: browser-only.
-// IMPORTANTE: evitamos fallback para Edge Function `buscar-djen` porque ela pode estourar
-// WORKER_LIMIT (546) sob carga/termos com alto volume.
+// Busca de comunicações no PJE Comunica — versão FLASH (otimizada).
+// Diferenças em relação ao client Pro:
+//  - Paginação inteligente: por padrão NÃO faz uma página extra "para confirmar fim".
+//    Encerra após a página 1 quando items < pageSize OU totalExpected é satisfeito.
+//  - continueUntilEmpty=true continua disponível como fallback explícito (caso SANTANDER).
+//  - Mantém browser-only com fallback para edge function em CORS.
 
 export type PjeSearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
