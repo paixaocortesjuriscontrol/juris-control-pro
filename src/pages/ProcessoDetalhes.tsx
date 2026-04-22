@@ -162,6 +162,7 @@ export default function ProcessoDetalhes() {
   // States for audiências and intimações actions
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
   const [selectedIntimacao, setSelectedIntimacao] = useState<any>(null);
   const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
   const [updatingIntimacao, setUpdatingIntimacao] = useState<string | null>(null);
