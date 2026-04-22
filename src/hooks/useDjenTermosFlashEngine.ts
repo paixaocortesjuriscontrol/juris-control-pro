@@ -628,16 +628,49 @@ async function _processarTermoFlashInterno(
     ultimoErroBusca: null as string | null,
   };
 
+  // ===== Telemetria Flash =====
+  const telemetria = {
+    chamadasApi: 0,
+    paginasEvitadas: 0,
+    complementaresPuladas: 0,
+    tribunaisPulados429: 0,
+  };
+
+  // ===== Circuit breaker (otimização 5) =====
+  // Após N 429s no mesmo termo, paramos de tentar tribunais novos.
+  const CIRCUIT_BREAKER_429_LIMIT = 3;
+  const tribuniaisComResultados = new Set<string>(); // tribunais que retornaram >0 resultados na primária
+  let circuitOpen = false;
+  const checkCircuit = (): boolean => {
+    if (circuitOpen) return true;
+    if (diagnostico.rateLimitHits >= CIRCUIT_BREAKER_429_LIMIT) {
+      circuitOpen = true;
+      console.warn(
+        `[DJEN Flash] 🛑 Circuit breaker aberto para "${mon.termo_busca}" ` +
+        `após ${diagnostico.rateLimitHits} 429s. Pulando tribunais restantes.`
+      );
+    }
+    return circuitOpen;
+  };
+
   const executarBusca = async (
     params: Parameters<typeof buscarPjeComunicaPaginado>[0],
     tribunal: string | undefined,
     contexto: string,
   ) => {
+    if (checkCircuit()) {
+      telemetria.tribunaisPulados429 += 1;
+      return null;
+    }
+    telemetria.chamadasApi += 1;
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
         signal,
+        // Flash: paginação inteligente — sem continueUntilEmpty por padrão.
+        // Só ativamos quando a primeira página vem cheia E totalExpected ausente
+        // (a lógica disso já está no client Flash; aqui só desligamos o flag).
         maxPages: null,
-        continueUntilEmpty: true,
+        continueUntilEmpty: false,
         delayMs: CONFIG.delay_between_pages,
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
