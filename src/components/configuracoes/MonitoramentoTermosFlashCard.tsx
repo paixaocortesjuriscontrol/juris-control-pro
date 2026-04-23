@@ -38,8 +38,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermosFlash } from "@/hooks/useDjenTermosFlash";
+import { contarPublicacoesConfirmadasFlash } from "@/hooks/useDjenTermosFlashEngine";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
+import { Link as RouterLink } from "react-router-dom";
+import { ExternalLink, Database } from "lucide-react";
 
 interface Props {
   coordenacaoId: string;
