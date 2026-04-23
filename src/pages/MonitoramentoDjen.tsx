@@ -82,9 +82,7 @@ const MonitoramentoDjen = () => {
   const tribunaisDisponiveis = useMemo(() => {
     const tribunaisSet = new Set<string>();
     todosMonitoramentos.forEach((m) => {
-      if (m.tribunais && Array.isArray(m.tribunais)) {
-        m.tribunais.forEach((t: string) => tribunaisSet.add(t));
-      }
+      (normalizeTribunais(m.tribunais) ?? []).forEach((t: string) => tribunaisSet.add(t));
     });
     return Array.from(tribunaisSet).sort();
   }, [todosMonitoramentos]);
@@ -101,6 +99,8 @@ const MonitoramentoDjen = () => {
   // Aplicar todos os filtros
   const monitoramentos = useMemo(() => {
     return todosMonitoramentos.filter((m) => {
+      const tribunaisNormalizados = normalizeTribunais(m.tribunais) ?? [];
+
       // Filtro por coordenação
       if (coordenacaoFilter !== "todas" && m.coordenacao_id !== coordenacaoFilter) {
         return false;
@@ -120,9 +120,9 @@ const MonitoramentoDjen = () => {
       // Filtro por tribunal
       if (tribunalFilter !== "todos") {
         if (tribunalFilter === "sem-tribunal") {
-          if (m.tribunais && m.tribunais.length > 0) return false;
+          if (tribunaisNormalizados.length > 0) return false;
         } else {
-          if (!m.tribunais || !m.tribunais.includes(tribunalFilter)) return false;
+          if (!tribunaisNormalizados.includes(tribunalFilter)) return false;
         }
       }
       
