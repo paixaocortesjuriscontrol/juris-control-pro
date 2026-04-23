@@ -1,103 +1,64 @@
 
 
-# DJEN Termos Flash — novo motor otimizado (sem alterar o Pro)
+## Reconciliar números: Planilha vs Sistema (Distribuição TST)
 
-## Objetivo
+### Divergências reportadas pela análise externa
 
-Criar um motor independente **DJEN Termos Flash** que aplique todas as otimizações do plano anterior (paginação inteligente, busca global por UF=TODAS, complementar condicional, circuit breaker, validação por metadados, dedupe de termos_or), sem tocar no DJEN Termos Pro. Disponibilizar um card próprio na tela de Configurações, ao lado do card do Pro.
+| Métrica | Sistema | Planilha | Diferença |
+|---|---|---|---|
+| Processos únicos | 3.591 | 3.604 | -13 |
+| Benner = SIM | 414 | 349 | +65 |
 
-## Estratégia: duplicar tudo do Pro com sufixo `Flash`
+### Etapa 1 — Diagnóstico (somente leitura no banco)
 
-Nenhum arquivo do Pro será alterado. Todos os artefatos abaixo são novos.
+Antes de qualquer correção, preciso confirmar no banco o que de fato foi importado. Vou rodar consultas SELECT em `public.dados_benner` (escopo `tribunal = 'TST'` ou `aba_origem IS NOT NULL`):
 
-### Arquivos novos (duplicados do Pro)
+1. **Total bruto de linhas** vs **processos distintos** vs **(processo, dossie) distintos**.
+2. **Distribuição de valores na coluna `analise_quarteirizado`** (campo "Benner") — listar todos os valores normalizados (`upper(btrim(...))`) com contagem para identificar `-----`, `Não localizei`, vazios, etc.
+3. **Quantos processos distintos têm pelo menos uma linha com Benner = SIM** (DISTINCT processo) vs **quantas linhas totais têm Benner = SIM** — isso confirma a hipótese do usuário (414 = linhas; 349 = processos distintos).
+4. **Processos repetidos** (mesmo `processo` com 2+ linhas em abas diferentes) — listar os top 20 com contagem.
+5. **Linhas com `processo` ainda fora do padrão CNJ** (após o cleanup feito antes), para identificar os 13 que talvez estejam faltando ou com formato inválido.
 
-```text
-src/hooks/useDjenTermosFlashEngine.ts   ← cópia de useDjenTermosProEngine.ts
-src/hooks/useDjenTermosFlash.ts         ← cópia de useDjenTermosPro.ts
-src/components/configuracoes/MonitoramentoTermosFlashCard.tsx
-                                        ← cópia de MonitoramentoTermosCard.tsx (versão Pro)
-src/utils/pjeComunicaClientFlash.ts     ← cópia enxuta de pjeComunicaClient.ts (paginação inteligente)
-```
+### Etapa 2 — Apresentar conclusão ao usuário
 
-Storage keys, nomes de singleton, channels do Supabase Realtime e identificadores de checkpoint serão renomeados para `*_flash` / `djen-termos-flash-*` para garantir que **Pro e Flash rodem em paralelo sem colidir**.
+Com base nos resultados, vou produzir um relatório curto explicando:
 
-### Tabelas / configurações
+- Se a diferença de **65** vem realmente de duplicidade entre abas (1 processo em 2 abas, ambas SIM, contado 2x). A regra correta é: **contar processos distintos, não linhas**.
+- Se a diferença de **13** vem de:
+  - (a) registros descartados na importação (linhas sem CNJ válido), ou
+  - (b) processos da planilha que ficaram fora porque o número não bateu com o regex CNJ, ou
+  - (c) duplicidade na própria planilha que o sistema deduplicou corretamente.
+- Tratamento de valores inválidos na coluna Benner (`-----`, `Não localizei`): hoje qualquer string ≠ vazio fica salva como veio. Vou propor normalizar para `NULL` (ou manter explícito) conforme a preferência.
 
-- Reaproveitar a tabela `configuracoes_monitoramento` adicionando o tipo `'termos_flash'` (em paralelo a `'termos'`).
-- Não alterar a constraint do CHECK de `execucoes_agendadas` (o Flash usa o mesmo `'termos'` no logging interno do Pro? Não — o Flash terá seu próprio bucket de log. Detalhes técnicos abaixo).
+### Etapa 3 — Plano de correção (a executar APÓS aprovação do diagnóstico)
 
-## Otimizações aplicadas no Flash (não no Pro)
+Dependendo do que o diagnóstico mostrar, as ações possíveis são:
 
-1. **Paginação inteligente em `pjeComunicaClientFlash.buscarPjeComunicaPaginado`**
-   - `continueUntilEmpty=false` por padrão.
-   - Encerra após página 1 se `items.length < pageSize` E `totalExpected` foi satisfeito.
-   - Mantém `maxPages: null` + `continueUntilEmpty=true` apenas como *fallback* quando `totalExpected` está ausente e a primeira página veio cheia (preserva o caso SANTANDER 62 páginas).
-   - Loga `⚠️ TRUNCADO` se parar com `hasMore=true`.
+**A) Corrigir contagem de "Benner = SIM" na UI**
+- Localizar onde a tela `/distribuicao-tst` calcula o KPI "Benner SIM".
+- Ajustar a query/agregação para usar `COUNT(DISTINCT processo)` em vez de `COUNT(*)`, garantindo que processos em múltiplas abas contem 1x.
 
-2. **Advogado UF=TODAS: 1 chamada global**
-   - Quando `mon.uf === 'TODAS'` e há lista de tribunais, busca **sem `siglaTribunal`** por `nomeAdvogado` (e por OAB se existir), depois filtra localmente pelos tribunais permitidos.
-   - Retry por tribunal só dispara se a busca global vier vazia.
+**B) Normalizar valores inválidos da coluna Benner**
+- Migration para converter `analise_quarteirizado` em `NULL` quando o valor for `-----`, `--`, `Não localizei`, vazio ou variações sem significado.
+- Atualizar o importador (`DistribuicaoTstImport.tsx`) para fazer essa limpeza no momento da importação.
 
-3. **Complementar `palavraChave` para `parte`: condicional por tribunal**
-   - Roda apenas nos tribunais onde `nomeParte` retornou 0 resultados. Cobertura SANTANDER/TST mantida.
+**C) Recuperar os 13 processos faltantes**
+- Se forem processos da planilha rejeitados por formato CNJ inválido: pedir ao usuário para reimportar a planilha original (já com a versão atual do parser corrigido) ou listar os números problemáticos para correção manual.
+- Se forem deduplicações legítimas, apenas documentar — não há correção a fazer.
 
-4. **Dedupe de termos_or**
-   - Agrupa por OAB e por nome. Não busca OAB do mesmo advogado se o nome já trouxe resultado.
-   - Para UF=TODAS, aplica regra global (item 2) também aos termos_or.
+### Detalhes técnicos
 
-5. **Circuit breaker por termo**
-   - Após 3 ocorrências de 429 no mesmo termo, pula tribunais restantes desse termo e marca como "parcial" em `ultimoErroBusca`.
-   - Aumenta `globalCooldownUntil` para no mínimo 12s em 429 reincidente; respeita `retry-after`.
+- Tabela: `public.dados_benner`, escopo TST identificado por `tribunal = 'TST'` (preferencial) ou `aba_origem IS NOT NULL`.
+- Campo "Benner" da planilha → coluna `analise_quarteirizado` (conforme `DistribuicaoTstImport`).
+- Identificador único funcional: `(processo, dossie)` (memo `dados-benner-uniqueness`).
+- Toda contagem de processos deve usar `COUNT(DISTINCT processo)`; toda contagem de registros importados pode usar `COUNT(*)`. Documentar essa distinção na UI dos KPIs.
+- Migration necessária apenas se decidirmos normalizar `analise_quarteirizado` no banco; mudanças de UI não precisam de migration.
 
-6. **Validação confiando em filtros nativos da API**
-   - `parte`: aceita publicação trazida via `nomeParte=X` sem re-validar texto (mantém apenas filtros de exclusão e tribunal).
-   - `advogado`: aceita via `numeroOab=X` sem exigir nome no texto.
-   - Validação rigorosa por texto continua para `palavra-chave` e `palavraChave` complementar.
+### O que será entregue agora (após aprovação)
 
-7. **Telemetria no resumo final**
-   - Por termo: `chamadas_api`, `paginas_extras_evitadas`, `complementares_puladas`, `descartes_por_motivo`, `tribunais_pulados_429`.
+1. Rodar as 5 consultas SELECT da Etapa 1 e apresentar tabela com os resultados reais.
+2. Conclusão objetiva sobre cada divergência (-13 e +65).
+3. Lista priorizada das correções (A/B/C) com recomendação do que aplicar.
 
-## UI — Configurações
-
-- Novo card `MonitoramentoTermosFlashCard` adicionado na mesma página onde o `MonitoramentoTermosCard` (Pro) já é renderizado.
-- Mesma estética e mesmos controles do card Pro: switch ativo, frequência (diário/2x/semanal), horário agendado, última execução, painel ao vivo, botão Executar/Cancelar/Retomar, link "Ver alertas".
-- Título: **"Monitoração 360º Flash"** com descrição "Versão otimizada e mais rápida da varredura de termos estratégicos".
-
-## Detalhes técnicos
-
-### Renomeações no Flash (engine + hook)
-
-- Singleton: `djenTermosFlashState` (em vez de `djenTermosProState`).
-- Storage keys: `djen-termos-flash-checkpoint`, `djen-termos-flash-progress`.
-- Subscriber API: `subscribeDjenTermosFlash`, `executarDjenTermosFlash`, `cancelarDjenTermosFlash`, `getCheckpointFlash`, etc.
-- React Query invalidations idênticas às do Pro (mesmas keys: `publicacoes-djen`, `publicacoes-unificadas`, `notificacoes-counts`).
-- Toasts: prefixo "DJEN Flash:".
-
-### Configuração no banco
-
-- Em `configuracoes_monitoramento`, criar registro com `tipo='termos_flash'` por coordenação (lazy-create no primeiro acesso ao card, padrão do `useConfiguracoesMonitoramento`).
-- Ajuste em `useConfiguracoesMonitoramento`: adicionar getter `configuracaoTermosFlash` análogo a `configuracaoTermos` (esta é uma alteração mínima e necessária — não é arquivo do Pro).
-- `useExecutarMonitoramento({ tipo: 'termos_flash' })`: aceitar o novo tipo. Se a edge function de execução agendada não suportar, manter execução **somente manual** no Flash inicialmente (cron agendado fica como follow-up).
-
-### Constraints e migrations
-
-- `execucoes_agendadas.tipo` CHECK precisa aceitar `'termos_flash'` se o logging do Flash gravar nessa tabela. Migration: ampliar o CHECK para incluir o novo valor (sem remover os existentes).
-- `configuracoes_monitoramento.tipo` recebe o novo valor `'termos_flash'` (verificar se há CHECK; se houver, ampliar).
-
-### Não alterado
-
-- `useDjenTermosProEngine.ts`, `useDjenTermosPro.ts`, `MonitoramentoTermosCard.tsx`, `pjeComunicaClient.ts` e qualquer ponto que o Pro use permanecem intactos.
-
-## Critérios de aceitação
-
-- Card "Monitoração 360º Flash" visível em Configurações ao lado do card Pro.
-- Executar Flash não interrompe nem afeta o estado do Pro (e vice-versa) — checkpoints e progresso isolados.
-- Para a coordenação Dr. Thomas, execução Flash conclui com **redução perceptível de tempo e de descartes** vs. Pro, com logs `[DJEN Flash]` no console mostrando `chamadas_api` e `complementares_puladas`.
-- Caso SANTANDER/TST de 62+ páginas continua sendo capturado integralmente.
-
-## Estimativa
-
-- Duplicação dos arquivos + renomeações: rápido.
-- Aplicar otimizações 1–7 no engine Flash + ajuste no `useConfiguracoesMonitoramento` + migration: trabalho focado em 4 arquivos novos e 1 ajuste pequeno.
+Nenhuma alteração em dados ou código é feita nesta etapa — só leitura e relatório. As correções vêm em mensagem seguinte, com sua aprovação por item.
 
