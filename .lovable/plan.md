@@ -1,83 +1,60 @@
 
 
-## Corrigir Barra de Progresso e Totalizadores do DJEN Termos Flash
+# Reduzir 429 no DJEN Termos Pro
 
-### Problemas identificados
+## Diagnóstico
 
-**1. Barra de progresso não acompanha a evolução real da busca**
+Logs reais (execução agora) mostram **32 hits 429 em ~10 min, parado no termo 109/236**. Causa raiz:
 
-Atualmente a porcentagem é calculada por unidades de trabalho `(dias × termos)`, e só avança **após** terminar 100% do processamento de um termo (que pode levar minutos por causa da iteração de tribunais, páginas e variantes). Resultado: a barra fica parada longos períodos e depois "salta".
+1. **Delays muito agressivos para a API atual**: `delay_between_terms = 1200ms` e `delay_between_pages = 1000ms`. Como cada termo dispara 1-N tribunais × 1-N páginas, isso gera ~50 requisições/minuto contra a API PJE Comunica de um único IP (browser do usuário).
+2. **Backoff não "respeita" Retry-After do servidor**: o cliente lê `retry-after` em alguns pontos mas o engine Pro usa apenas backoff exponencial fixo (8s, 16s, 32s) — frequentemente **menor** que o cooldown real exigido.
+3. **Cooldown global não bloqueia o próximo termo**: quando uma página recebe 429, `setGlobalCooldown` é chamado, mas o loop principal de termos **não chama `awaitGlobalCooldown`** antes de iniciar o próximo termo. Resultado: o próximo termo bate a API ainda quente e dispara novo 429 em cascata.
+4. **Sem adaptação de ritmo**: quando 429 acontece, o sistema mantém a mesma cadência. Não há "slow-down" automático.
 
-Localização: `src/hooks/useDjenTermosFlashEngine.ts`, linhas ~1410-1449.
+## Solução em 4 camadas
 
-```ts
-const completedBefore = diaIdx * monitoramentos.length + termoIdx;
-const percentageBefore = round((completedBefore / totalOps) * 100); // antes do termo
-// ... processarTermoPro (longo) ...
-const percentageAfter  = round((globalCurrent / totalOps) * 100); // depois do termo
+### 1. Honrar Retry-After do servidor (fonte da verdade)
+No retry de 429 dentro de `pjeComunicaClient.ts`, ler o header `Retry-After` da resposta 429 e usá-lo como **piso mínimo** do tempo de espera (já existe a função `parseRetryAfterMs`, basta plumá-la até o catch do `fetchWithRetry` paginado). Se o servidor pede 30s, esperar 30s — não 8s.
+
+### 2. Cooldown global respeitado entre termos
+No engine Pro (`useDjenTermosProEngine.ts`), antes de iniciar cada termo no loop principal, fazer `await awaitGlobalCooldown()`. Isso impede que termo N+1 dispare requisições enquanto a API ainda está em janela de bloqueio causada pelo termo N. Expor a função do client (já existe internamente — só precisa ser exportada).
+
+### 3. Delay adaptativo (auto slow-down)
+Manter um contador de 429 dos últimos 60s. Multiplicar `delay_between_terms`, `delay_between_pages` e `delay_between_tribunais` dinamicamente:
+
+```text
+hits_60s = 0     → multiplier = 1.0  (1200ms / 1000ms / 1200ms)
+hits_60s = 3-5   → multiplier = 1.8  (~2160 / 1800 / 2160 ms)
+hits_60s = 6-10  → multiplier = 3.0  (~3600 / 3000 / 3600 ms)
+hits_60s > 10    → multiplier = 5.0  (~6000 / 5000 / 6000 ms)
 ```
 
-Além disso, `processarTermoPro` itera `tribunais × variantes (termos_or)` internamente sem reportar progresso parcial — então o card só vê movimento entre termos.
+Quando a janela limpa (sem 429 nos últimos 60s), multiplier volta gradualmente para 1.0. Isso elimina cascatas sem nunca pular termos.
 
-**2. Totalizadores não batem com a tela Análise DJEN**
+### 4. Defaults mais conservadores na configuração base
+Subir os valores padrão do `CONFIG` no engine Pro para o nível que comprovadamente passou em janeiro (era ~1500/1500/1500ms antes das otimizações). Novos defaults:
 
-O contador "✓ encontradas (não lidas)" do card mostra `progress.novas`, que é incrementado a cada `INSERT` em `publicacoes_djen` durante a execução. Discrepâncias com `/analise-djen` ocorrem por três razões reais:
+- `delay_between_terms: 1500` (era 1200)
+- `delay_between_pages: 1200` (era 1000)
+- `delay_between_tribunais: 1500` (era 1200)
+- `retry_base_delay: 12000` (era 8000) — alinhado ao que o servidor PJE costuma exigir
 
-- **Escopo diferente**: a tela Análise DJEN lista `publicacoes_djen` filtradas por coordenação/monitoramento/termo de busca, e por padrão ordena por `created_at` com **limite de 500 registros** (ver `useAnaliseDjen.ts` linha 95). O card Flash conta tudo que ele inseriu na sessão — sem filtro de coordenação, sem limite.
-- **Momento da contagem**: `progress.novas` acumula apenas inserts feitos **nessa execução** do Flash. Se o usuário entra na Análise DJEN, ele vê a soma histórica + execuções de outros engines (Pro, scheduler backend, busca direta), por isso é normal o número da tela ser maior.
-- **Filtros do Flash não refletidos**: quando o usuário roda o Flash com `coordenacaoId`/`monitoramentoIds`, o `progress.novas` ignora esses filtros para fins comparativos — não há um KPI "novas para esta coordenação no período" que possa ser confrontado diretamente com a tela Análise DJEN.
+Em condição normal o impacto no tempo total é pequeno (+15-20%), mas elimina o "ponto de virada" onde a API começa a bloquear em massa e o sistema fica preso 1h no mesmo termo.
 
-### Correções propostas
+## Arquivos afetados
 
-**A) Progresso fluido (granularidade fina)**
+- `src/utils/pjeComunicaClient.ts` — usar `Retry-After` no retry; exportar `awaitGlobalCooldown`
+- `src/utils/pjeComunicaClientFlash.ts` — mesma mudança (mantém paridade Flash/Pro)
+- `src/hooks/useDjenTermosProEngine.ts` — `awaitGlobalCooldown` antes de cada termo + delay adaptativo + novos defaults do `CONFIG`
 
-Sub-progresso dentro de cada termo. Em `processarTermoPro` (e funções correlatas), reportar progresso parcial entre tribunais/variantes:
+## Pontos técnicos
 
-1. Calcular `subUnits = tribunais.length * (variantesEsperadas)` antes de iniciar o termo.
-2. A cada tribunal/variante concluída, calcular:
-   ```
-   percentage = round( ( (completedBefore + subDone/subUnits) / totalOps ) * 100 )
-   ```
-   e chamar `updateProgress({ percentage, mensagem: '...' })`.
-3. Adicionar campo opcional `subProgress: { current, total }` no `DjenTermosFlashProgress` e mostrar no card uma linha auxiliar tipo "Tribunal 4/12 • TRT5".
+- **Nenhum termo é pulado** em nenhuma camada — apenas espera mais quando a API pede.
+- **UI continua mostrando o motivo**: a mensagem "Rate limit aguardando Xs" e o `diagnostico.rateLimitHits` que já aparecem no card permanecem; passamos a exibir também o multiplier ativo (ex.: "ritmo reduzido a 33% por pressão da API").
+- **Reversível**: o multiplier é puramente em memória; reiniciar o engine reseta para o ritmo padrão.
+- **Não toca em `monitorar-djen` (Edge Function)** — esta é exclusivamente uma melhoria do engine cliente que roda no browser.
 
-Resultado: barra avança continuamente (sem saltos) e o usuário vê em tempo real qual tribunal está sendo varrido.
+## Resultado esperado
 
-**B) Reconciliação dos totalizadores**
-
-Para o card Flash bater com a tela Análise DJEN, alinhar duas coisas:
-
-1. **No card Flash** — junto ao "✓ N encontradas (não lidas)", mostrar a janela e os filtros aplicados em texto pequeno: "no período `dd/mm` → `dd/mm`, coordenação X, termo Y". Isso deixa claro que o número se refere à execução em curso, não ao total histórico.
-2. **Nova consulta de reconciliação** após a conclusão (ou durante, a cada N termos): contar diretamente em `publicacoes_djen`:
-   ```sql
-   SELECT count(*)
-   FROM publicacoes_djen p
-   JOIN monitoramentos_djen m ON m.id = p.monitoramento_id
-   WHERE p.created_at BETWEEN <run_start> AND now()
-     AND (m.coordenacao_id = <coord> OR <coord> IS NULL)
-     AND (p.monitoramento_id = ANY(<ids>) OR <ids> IS NULL)
-   ```
-   Exibir no card como "Confirmado no banco: N" ao lado de "✓ N encontradas". Se houver divergência ≥ 1, exibir um aviso e um botão "Recontar".
-3. **Botão "Abrir na Análise DJEN"** no card Flash, que navega para `/analise-djen?coord=<id>&dataInicio=<run_start>&dataFim=<run_end>` já com os mesmos filtros aplicados — para o usuário comparar visualmente.
-4. **Opcional**: aumentar o limite de 500 da `useAnaliseDjen.ts` (ou paginar) para garantir que períodos com muitas publicações não sejam truncados na tela.
-
-### Detalhes técnicos
-
-- **Arquivos a alterar**:
-  - `src/hooks/useDjenTermosFlashEngine.ts` — adicionar callback de sub-progresso em `processarTermoPro`; opcionalmente expor `subProgress` no tipo.
-  - `src/components/configuracoes/MonitoramentoTermosFlashCard.tsx` — exibir tribunal atual, contagem confirmada do banco, link para Análise DJEN.
-  - `src/hooks/useAnaliseDjen.ts` — reavaliar `limit(500)` (paginação ou aumento controlado).
-- **Sem migrations**: ajustes só de UI/lógica frontend.
-- **Compatibilidade**: o tipo `DjenTermosFlashProgress` ganha campos opcionais — não quebra consumidores existentes.
-- **Complexidade**: Média. A parte mais delicada é instrumentar `processarTermoPro` sem alterar sua lógica de busca.
-
-### O que será entregue após aprovação
-
-1. Sub-progresso por tribunal dentro de cada termo, com a barra avançando suavemente.
-2. Linha auxiliar no card mostrando "Tribunal X/Y • SIGLA".
-3. Contador "Confirmado no banco" calculado por SELECT real em `publicacoes_djen`, exibido junto ao "✓ encontradas".
-4. Botão para abrir a tela Análise DJEN já com os mesmos filtros (coordenação + período).
-5. Decisão sobre o `limit(500)` da Análise DJEN (paginar ou ampliar).
-
-Aprove para eu implementar, ou me diga qual subitem priorizar primeiro (ex.: só barra de progresso; só reconciliação dos totalizadores).
+Na execução atual (236 termos, 1 dia), com a API em estado de pressão observado nos logs, o tempo total deve cair de "indeterminado / travado em 46%" para ~25-35 min, mantendo 100% de cobertura.
 
