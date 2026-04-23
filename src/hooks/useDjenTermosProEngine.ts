@@ -1411,6 +1411,22 @@ async function executarLoop(
         const completedBefore = diaIdx * monitoramentos.length + termoIdx;
         const globalCurrent = completedBefore + 1;
         const percentageBefore = Math.min(99, Math.max(0, Math.round((completedBefore / totalOps) * 100)));
+
+        // Cooldown global: se a API ainda está bloqueando o IP (Retry-After
+        // recebido em termo anterior), aguardar antes de iniciar o próximo termo.
+        // Isso evita cascata de 429 entre termos consecutivos.
+        const cooldownMs = getPjeComunicaGlobalCooldownRemainingMs();
+        if (cooldownMs > 250) {
+          const segs = Math.round(cooldownMs / 1000);
+          updateProgress({
+            mensagem: `⏸ Aguardando ${segs}s (cooldown PJE) antes do próximo termo...`,
+          });
+          syncExecutionProgress({
+            mensagem: `⏸ Aguardando ${segs}s (cooldown PJE) antes do próximo termo...`,
+          }, true);
+          await awaitPjeComunicaGlobalCooldown();
+          if (signal.aborted) break;
+        }
         
         updateProgress({
           diaAtualYmd: diaYmd,
