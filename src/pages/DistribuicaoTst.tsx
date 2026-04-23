@@ -797,6 +797,7 @@ export default function DistribuicaoTst() {
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
+            <BennerSimGabrielaImport onUpdated={handleRefresh} />
             {isAdmin && (
             <Button
               variant="destructive"
