@@ -203,13 +203,16 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       // === STEP 1: Parse Excel ===
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
+      // cellDates: true converte células-data em Date objects nativos.
+      // dateNF preserva formato dd/mm/yyyy ao serializar caso fique como string.
+      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true, dateNF: 'dd/mm/yyyy' });
 
       const allRows: ImportPlanRow[] = [];
       let capturedHeader: string[] = [];
       for (const [sheetOrder, sheetName] of wb.SheetNames.entries()) {
         const ws = wb.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
+        // raw: true mantém Date objects e números nativos (em vez de strings reformatadas).
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" }) as any[][];
         let headerIdx = -1;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
           if (json[i]?.some(c => /n[uú]mero.*processo/i.test(String(c ?? "")) || /dossi[eê]/i.test(String(c ?? "")))) {
