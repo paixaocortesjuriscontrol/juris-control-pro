@@ -187,6 +187,44 @@ export default function TermosDjen() {
     setDialogOpen(true);
   };
 
+  const handleGerarRelatorio = () => {
+    if (monitoramentosFiltrados.length === 0) {
+      toast.error("Não há termos para incluir no relatório com os filtros atuais.");
+      return;
+    }
+    const filtrosDesc: string[] = [];
+    if (coordenacaoFiltro !== "__all__") {
+      const nome = coordNomeMap.get(coordenacaoFiltro) || coordenacaoFiltro;
+      filtrosDesc.push(`Coordenação: ${nome}`);
+    }
+    if (tipoFiltro !== "todos") filtrosDesc.push(`Tipo: ${tipoFiltro}`);
+    if (tribunalFiltro !== "todos") {
+      filtrosDesc.push(`Tribunal: ${tribunalFiltro === "sem-tribunal" ? "Sem tribunal (todos)" : tribunalFiltro}`);
+    }
+    if (statusFiltro !== "todos") filtrosDesc.push(`Status: ${statusFiltro === "ativo" ? "Ativos" : "Pausados"}`);
+    if (termoBusca.trim()) filtrosDesc.push(`Busca: "${termoBusca.trim()}"`);
+
+    let tituloCoord = "Todas as coordenações";
+    if (coordenacaoFiltro !== "__all__") {
+      tituloCoord = coordNomeMap.get(coordenacaoFiltro) || "Coordenação";
+    } else if (!isAdmin && coordenacoes.length === 1) {
+      tituloCoord = (coordenacoes[0] as any).nome;
+    }
+
+    try {
+      gerarRelatorioTermosDjen({
+        monitoramentos: monitoramentosFiltrados,
+        coordNomeMap,
+        filtrosDescricao: filtrosDesc,
+        tituloCoordenacao: tituloCoord,
+      });
+      toast.success("Relatório gerado com sucesso");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao gerar relatório: " + (e?.message || "desconhecido"));
+    }
+  };
+
   return (
     <MainLayout
       title="Termos DJEN"
