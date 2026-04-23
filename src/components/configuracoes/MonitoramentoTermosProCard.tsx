@@ -141,6 +141,12 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     percentage: number;
     mensagem: string;
     novas: number;
+    duplicadas: number;
+    descartadas: number;
+    termoAtual: string;
+    diaAtualYmd: string | null;
+    diaAtualIndice: number | null;
+    totalDias: number | null;
     tempoDecorrido: number;
   } | null>(null);
 
@@ -166,11 +172,23 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         const percentage = det?.percentage ?? det?.progress?.percentage ?? 0;
         const mensagem = det?.mensagem || det?.etapaAtual || 'Executando no backend...';
         const novas = det?.novas ?? det?.totalNovas ?? 0;
+        const duplicadas = det?.duplicadas ?? det?.totalDuplicadas ?? 0;
+        const descartadas = det?.descartadas ?? det?.totalDescartadas ?? 0;
+        const termoAtual = det?.termoAtual ?? '';
+        const diaAtualYmd = det?.diaAtualYmd ?? null;
+        const diaAtualIndice = det?.diaAtualIndice ?? null;
+        const totalDias = det?.totalDias ?? null;
         const iniciadoEm = row.iniciado_em ? new Date(row.iniciado_em).getTime() : Date.now();
         setBackendActive({
           percentage: Math.max(0, Math.min(100, Number(percentage) || 0)),
           mensagem,
           novas: Number(novas) || 0,
+          duplicadas: Number(duplicadas) || 0,
+          descartadas: Number(descartadas) || 0,
+          termoAtual: String(termoAtual || ''),
+          diaAtualYmd: diaAtualYmd ? String(diaAtualYmd) : null,
+          diaAtualIndice: diaAtualIndice != null ? Number(diaAtualIndice) : null,
+          totalDias: totalDias != null ? Number(totalDias) : null,
           tempoDecorrido: Math.floor((Date.now() - iniciadoEm) / 1000),
         });
       } catch {
