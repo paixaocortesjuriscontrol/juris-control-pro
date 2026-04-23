@@ -352,6 +352,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
 
       const existingPairs = new Set<string>();
+      const juditPairs = new Set<string>(); // pares processo||dossie com judit_preenchido=true (não sobrescrever)
       const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
 
       for (let i = 0; i < dedupedRecordsComDossie.length; i += EXISTING_CHECK_BATCH_SIZE) {
@@ -363,7 +364,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         if (processos.length === 0 || dossies.length === 0) continue;
 
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("processo, dossie")
+          .select("processo, dossie, judit_preenchido")
           .in("processo", processos)
           .in("dossie", dossies)
           .limit(EXISTING_CHECK_BATCH_SIZE * 3);
@@ -378,13 +379,19 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         }
 
         (data || []).forEach((record: any) => {
-          existingPairs.add(`${record.processo}||${record.dossie}`);
+          const key = `${record.processo}||${record.dossie}`;
+          existingPairs.add(key);
+          if (record.judit_preenchido === true) juditPairs.add(key);
         });
       }
 
+      // Registros preenchidos pela Judit: não sobrescrever campos do dados_benner (mas atualizar responsável depois)
       const recordsComDossieNovos = dedupedRecordsComDossie.filter(record => !existingPairs.has(`${record.processo}||${record.dossie}`));
       const recordsComDossieExistentes = dedupedRecordsComDossie
-        .filter(record => existingPairs.has(`${record.processo}||${record.dossie}`))
+        .filter(record => {
+          const key = `${record.processo}||${record.dossie}`;
+          return existingPairs.has(key) && !juditPairs.has(key);
+        })
         .map(({ data_distribuicao_real, ...record }) => record);
 
       let totalUpserted = 0;
