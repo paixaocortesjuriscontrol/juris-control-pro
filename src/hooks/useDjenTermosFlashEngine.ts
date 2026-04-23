@@ -751,6 +751,7 @@ async function _processarTermoFlashInterno(
       }
 
       addResults(resp.items, tribunal);
+      reportSub(tribunal ? `${tribunal} • ${resp.items.length} itens` : `global • ${resp.items.length} itens`);
       return resp;
     } catch (e: any) {
       if (e?.name === 'AbortError') throw e;
@@ -761,6 +762,7 @@ async function _processarTermoFlashInterno(
         mensagem: `⚠️ Falha de busca: ${contexto}`,
         ultimoErroBusca: diagnostico.ultimoErroBusca,
       });
+      reportSub(tribunal ? `falha • ${tribunal}` : 'falha');
       return null;
     }
   };
