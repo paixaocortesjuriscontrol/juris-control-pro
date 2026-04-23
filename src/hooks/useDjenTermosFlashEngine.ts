@@ -854,17 +854,49 @@ async function _processarTermoFlashInterno(
         `[DJEN Flash] 🌐 Busca global tipo=${tipo} termo="${mon.termo_busca}" UF=TODAS: ` +
         `${respGlobal.items.length} resultados, pages=${respGlobal.pagesFetched} (substitui ${tribunais.length} chamadas por tribunal)`
       );
-      // Marcar como "achou em todos" — a validação local por tribunal cuidará do filtro.
-      // Não precisamos do retry por tribunal a menos que a global tenha vindo vazia.
-      if (respGlobal.items.length > 0) {
-        for (const t of tribunais) tribuniaisComResultados.add(t);
+      // Mudança 1: detectar quais tribunais APARECERAM no retorno global.
+      // Para os ausentes, fazer 1 chamada individual (fallback) — garante cobertura
+      // sem multiplicar por N quando tudo veio na global (caso normal).
+      const tribunaisPresentes = new Set<string>();
+      for (const item of respGlobal.items) {
+        const sigla = getSiglaTribunal(item);
+        if (sigla && tribunais.includes(sigla)) tribunaisPresentes.add(sigla);
       }
+      const tribunaisAusentes = tribunais.filter(t => !tribunaisPresentes.has(t));
+      if (tribunaisAusentes.length > 0) {
+        console.log(
+          `[DJEN Flash] 🔁 Fallback UF=TODAS: ${tribunaisAusentes.length}/${tribunais.length} ` +
+          `tribunais ausentes na global, buscando individualmente: ${tribunaisAusentes.join(',')}`
+        );
+        for (const trib of tribunaisAusentes) {
+          if (signal.aborted) break;
+          if (checkCircuit()) {
+            telemetria.tribunaisPulados429 += 1;
+            tribunaisSoftSkip.add(trib);
+            continue;
+          }
+          const respFb = await executarBusca(
+            { ...baseParams, siglaTribunal: trib, page: 1 },
+            trib,
+            `fallback UF=TODAS | ${tipo} | ${mon.termo_busca} | ${trib}`,
+          );
+          if (respFb && respFb.items.length > 0) {
+            telemetria.tribunaisResgatadosFallback += 1;
+            tribuniaisComResultados.add(trib);
+            console.log(`[DJEN Flash] ✓ Resgatados ${respFb.items.length} itens de ${trib} via fallback`);
+          }
+          await delay(CONFIG.delay_between_tribunais);
+        }
+      }
+      // Tribunais com itens na global também contam como "OK" para complementares
+      for (const t of tribunaisPresentes) tribuniaisComResultados.add(t);
     }
   } else {
     for (const trib of tribLoop) {
       if (signal.aborted) break;
       if (checkCircuit()) {
         telemetria.tribunaisPulados429 += 1;
+        if (trib) tribunaisSoftSkip.add(trib);
         continue;
       }
 
@@ -883,6 +915,40 @@ async function _processarTermoFlashInterno(
       }
 
       if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+    }
+  }
+
+  // ===== Mudança 3: retomada soft-skip do circuit breaker =====
+  // Tribunais adiados pelo circuit breaker ganham uma 2ª chance ao final do termo,
+  // depois que a janela de pressão da API passou. Aplicamos delay reforçado.
+  if (tribunaisSoftSkip.size > 0 && !signal.aborted) {
+    const adiados = Array.from(tribunaisSoftSkip);
+    console.log(`[DJEN Flash] 🔄 Soft-skip retry: tentando ${adiados.length} tribunais adiados após pressão 429: ${adiados.join(',')}`);
+    // Reset do circuit para permitir nova rodada
+    circuitOpen = false;
+    diagnostico.rateLimitHits = 0;
+    // Aguarda janela de cooldown (delay reforçado: 2× o normal)
+    await delay(CONFIG.delay_between_tribunais * 2);
+    for (const trib of adiados) {
+      if (signal.aborted) break;
+      // Se o circuito reabrir aqui, paramos definitivamente
+      if (circuitOpen) {
+        console.warn(`[DJEN Flash] Soft-skip retry interrompido — circuito reabriu em ${trib}`);
+        break;
+      }
+      const respRetry = await executarBusca(
+        { ...baseParams, siglaTribunal: trib, page: 1 },
+        trib,
+        `soft-skip retry | ${tipo} | ${mon.termo_busca} | ${trib}`,
+      );
+      if (respRetry) {
+        telemetria.tribunaisRetomadosCircuit += 1;
+        if (respRetry.items.length > 0) {
+          tribuniaisComResultados.add(trib);
+          console.log(`[DJEN Flash] ✓ Retomados ${respRetry.items.length} itens de ${trib} (soft-skip)`);
+        }
+      }
+      await delay(CONFIG.delay_between_tribunais * 2);
     }
   }
   
