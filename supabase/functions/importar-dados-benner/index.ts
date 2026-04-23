@@ -34,26 +34,40 @@ function getCompositeKey(row: JsonRecord) {
 }
 
 function dedupeRowsByCompositeKey(rows: JsonRecord[]) {
-  const uniqueRows = new Map<string, JsonRecord>();
-
+  // Group rows by processo+dossie key
+  const groups = new Map<string, JsonRecord[]>();
   for (const row of rows) {
-    const processo = getProcesso(row);
-    const dossie = getDossie(row);
     const key = getCompositeKey(row);
     if (!key) continue;
-
-    const previous = uniqueRows.get(key) || {};
-    const merged: JsonRecord = { ...previous, processo, dossie };
-
-    for (const [key, value] of Object.entries(row)) {
-      if (value === null || value === undefined || value === "") continue;
-      merged[key] = value;
-    }
-
-    uniqueRows.set(key, merged);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(row);
   }
 
-  return Array.from(uniqueRows.values());
+  const result: JsonRecord[] = [];
+  for (const [key, groupRows] of groups) {
+    // Priority: rows with benner_atualizado === true come FIRST (their values win on conflict)
+    const sorted = [...groupRows].sort((a, b) => {
+      const aBenner = a.benner_atualizado === true || String(a.benner_atualizado).toUpperCase() === "SIM" ? 1 : 0;
+      const bBenner = b.benner_atualizado === true || String(b.benner_atualizado).toUpperCase() === "SIM" ? 1 : 0;
+      return bBenner - aBenner; // benner SIM first
+    });
+
+    const processo = getProcesso(sorted[0]);
+    const dossie = getDossie(sorted[0]);
+    const merged: JsonRecord = { processo, dossie };
+
+    // Merge in REVERSE order so the highest priority (benner SIM, first in sorted) overwrites last
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      for (const [k, value] of Object.entries(sorted[i])) {
+        if (value === null || value === undefined || value === "") continue;
+        merged[k] = value;
+      }
+    }
+
+    result.push(merged);
+  }
+
+  return result;
 }
 
 async function insertBatchWithFallback(serviceClient: ReturnType<typeof createClient>, batch: JsonRecord[]) {
