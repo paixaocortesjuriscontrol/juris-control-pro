@@ -1129,15 +1129,16 @@ async function _processarTermoProInterno(
     );
   }
 
-  if (shouldShortCircuit()) {
+  if (isHighRateLimitPressure()) {
+    const aviso = `⚠️ Alta pressão da API (${diagnostico.rateLimitHits} × 429) em "${mon.descricao || mon.termo_busca}" — termo concluído mesmo assim.`;
     updateProgress({
-      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      mensagem: aviso,
       ultimoErroBusca: diagnostico.ultimoErroBusca,
       falhasBusca: state.progress.falhasBusca + diagnostico.falhasBusca,
       buscasParciais: state.progress.buscasParciais + diagnostico.buscasParciais,
     });
     syncExecutionProgress({
-      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      mensagem: aviso,
       ultimoErroBusca: diagnostico.ultimoErroBusca,
     }, true);
   }
