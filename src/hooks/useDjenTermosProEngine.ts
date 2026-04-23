@@ -868,8 +868,10 @@ async function _processarTermoProInterno(
     }
   };
 
-  const shouldShortCircuit = () => diagnostico.rateLimitHits >= 12 || diagnostico.falhasBusca >= 6;
-  
+  // IMPORTANTE: nunca pular termos. Esta flag é usada apenas para alertar o usuário
+  // (e elevar o delay adaptativo entre tribunais), nunca para abortar a busca.
+  const isHighRateLimitPressure = () => diagnostico.rateLimitHits >= 12 || diagnostico.falhasBusca >= 6;
+
   // Configurar parâmetros base
   const baseParams: any = {
     tipo,
@@ -913,7 +915,7 @@ async function _processarTermoProInterno(
   
   for (const trib of tribLoop) {
     if (signal.aborted) break;
-    if (shouldShortCircuit()) break;
+
     
     const resp = await executarBusca(
       { ...baseParams, siglaTribunal: trib, page: 1 },
@@ -940,7 +942,7 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
-        if (shouldShortCircuit()) break;
+
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -975,12 +977,12 @@ async function _processarTermoProInterno(
 
     for (const termoExtra of termosExtras) {
       if (signal.aborted) break;
-      if (shouldShortCircuit()) break;
+
       console.log(`[DJEN Pro] Busca termos_or palavra-chave: "${termoExtra}"`);
 
       for (const trib of tribLoop) {
         if (signal.aborted) break;
-        if (shouldShortCircuit()) break;
+
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -1022,7 +1024,7 @@ async function _processarTermoProInterno(
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
-      if (shouldShortCircuit()) break;
+
       console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
       await executarBusca(
         {
@@ -1060,7 +1062,7 @@ async function _processarTermoProInterno(
     
     for (const parsed of parsedOr) {
       if (signal.aborted) break;
-      if (shouldShortCircuit()) break;
+
       const nomeNorm = normalizar(parsed.nome);
       if (nomesJaBuscados.has(nomeNorm)) continue;
       nomesJaBuscados.add(nomeNorm);
@@ -1075,7 +1077,7 @@ async function _processarTermoProInterno(
       
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
-        if (shouldShortCircuit()) break;
+
         const resp = await executarBusca(
           {
             tipo: 'advogado' as PjeSearchType,
@@ -1099,7 +1101,7 @@ async function _processarTermoProInterno(
       if (parsed.oabDigits && !signal.aborted) {
         for (const trib of textTribLoop) {
           if (signal.aborted) break;
-          if (shouldShortCircuit()) break;
+
           await executarBusca(
             {
               tipo: 'advogado' as PjeSearchType,
@@ -1127,15 +1129,16 @@ async function _processarTermoProInterno(
     );
   }
 
-  if (shouldShortCircuit()) {
+  if (isHighRateLimitPressure()) {
+    const aviso = `⚠️ Alta pressão da API (${diagnostico.rateLimitHits} × 429) em "${mon.descricao || mon.termo_busca}" — termo concluído mesmo assim.`;
     updateProgress({
-      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      mensagem: aviso,
       ultimoErroBusca: diagnostico.ultimoErroBusca,
       falhasBusca: state.progress.falhasBusca + diagnostico.falhasBusca,
       buscasParciais: state.progress.buscasParciais + diagnostico.buscasParciais,
     });
     syncExecutionProgress({
-      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      mensagem: aviso,
       ultimoErroBusca: diagnostico.ultimoErroBusca,
     }, true);
   }
