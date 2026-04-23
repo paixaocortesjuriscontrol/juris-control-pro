@@ -349,12 +349,20 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const dedupedRecordsComDossie = Array.from(
         new Map(recordsComDossie.map(record => [`${record.processo}||${record.dossie}`, record])).values()
       );
-      const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
+      // Dedup por processo apenas (dossie NULL é tratado como mesmo valor pela constraint NULLS NOT DISTINCT)
+      const recordsSemDossie = Array.from(
+        new Map(
+          upsertRecords
+            .filter(r => !r.dossie)
+            .map(record => [`${record.processo}||__NULL__`, record])
+        ).values()
+      );
 
       const existingPairs = new Set<string>();
       const juditPairs = new Set<string>(); // pares processo||dossie com judit_preenchido=true (não sobrescrever)
       const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
 
+      // Verifica registros existentes (e flag Judit) — apenas para os que têm dossiê
       for (let i = 0; i < dedupedRecordsComDossie.length; i += EXISTING_CHECK_BATCH_SIZE) {
         if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
         const batch = dedupedRecordsComDossie.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
@@ -394,6 +402,25 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         })
         .map(({ data_distribuicao_real, ...record }) => record);
 
+      // Verifica também os registros SEM dossiê (Judit pode tê-los preenchido)
+      const semDossieJudit = new Set<string>();
+      const semDossieExistentes = new Set<string>();
+      const semDossieProcessos = [...new Set(recordsSemDossie.map(r => r.processo))];
+      for (let i = 0; i < semDossieProcessos.length; i += EXISTING_CHECK_BATCH_SIZE) {
+        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
+        const batch = semDossieProcessos.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
+        const { data, error } = await (supabase.from("dados_benner") as any)
+          .select("processo, dossie, judit_preenchido")
+          .in("processo", batch)
+          .is("dossie", null);
+        if (error) { console.error("Erro ao verificar dados_benner sem dossiê:", error); continue; }
+        (data || []).forEach((r: any) => {
+          semDossieExistentes.add(r.processo);
+          if (r.judit_preenchido === true) semDossieJudit.add(r.processo);
+        });
+      }
+      const recordsSemDossieFiltrados = recordsSemDossie.filter(r => !semDossieJudit.has(r.processo));
+
       let totalUpserted = 0;
       let totalErrors = 0;
       let firstError: string | null = null;
@@ -432,7 +459,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return true;
       };
 
-      const okComDossieNovos = await processBatch(recordsComDossieNovos, "insert");
+      // Tudo via UPSERT para resolver duplicatas internas e colisões com banco
+      const okComDossieNovos = await processBatch(recordsComDossieNovos, "upsert");
       if (!okComDossieNovos) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
@@ -446,7 +474,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         resetState();
         return;
       }
-      const okSemDossie = await processBatch(recordsSemDossie, "insert");
+      const okSemDossie = await processBatch(recordsSemDossieFiltrados, "upsert");
       if (!okSemDossie) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
@@ -475,25 +503,26 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       let respAtualizados = 0;
       if (respByPair.size > 0) {
         const pairs = [...respByPair.keys()];
-        // Buscar IDs de dados_benner para esses pares
+        // Buscar IDs de dados_benner para esses pares (apenas filtrando por processo,
+        // evitando IN cruzado que estoura limite de URL do PostgREST → Bad Request)
         const pairProcessos = [...new Set(pairs.map(k => k.split("||")[0]))];
-        const pairDossies = [...new Set(pairs.map(k => k.split("||")[1]))];
+        const wantedPairs = new Set(pairs);
         const pairToBennerId = new Map<string, string>();
 
-        const LOOKUP_BATCH = 200;
+        const LOOKUP_BATCH = 100;
         for (let i = 0; i < pairProcessos.length; i += LOOKUP_BATCH) {
           if (cancelRef.current) break;
           const batchProc = pairProcessos.slice(i, i + LOOKUP_BATCH);
           const { data, error } = await (supabase.from("dados_benner") as any)
             .select("id, processo, dossie")
-            .in("processo", batchProc)
-            .in("dossie", pairDossies);
+            .in("processo", batchProc);
           if (error) {
             console.error("Erro ao buscar IDs dados_benner para responsáveis:", error);
             continue;
           }
           (data || []).forEach((row: any) => {
-            pairToBennerId.set(`${row.processo}||${row.dossie}`, row.id);
+            const key = `${row.processo}||${row.dossie ?? ""}`;
+            if (wantedPairs.has(key)) pairToBennerId.set(key, row.id);
           });
         }
 
