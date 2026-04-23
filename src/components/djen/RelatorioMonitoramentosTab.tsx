@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeTribunais } from "@/utils/djenTribunais";
 
 interface Props {
   monitoramentos: any[];
@@ -116,9 +117,7 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
   const tribunaisDisponiveis = useMemo(() => {
     const set = new Set<string>();
     monitoramentos.forEach((m) => {
-      if (m.tribunais && Array.isArray(m.tribunais)) {
-        m.tribunais.forEach((t: string) => set.add(t));
-      }
+      (normalizeTribunais(m.tribunais) ?? []).forEach((t: string) => set.add(t));
     });
     return Array.from(set).sort();
   }, [monitoramentos]);
@@ -134,6 +133,8 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
   // Aplicar filtros aos monitoramentos
   const monitoramentosFiltrados = useMemo(() => {
     return monitoramentos.filter((m) => {
+      const tribunaisNormalizados = normalizeTribunais(m.tribunais) ?? [];
+
       if (coordenacaoFilter !== "todas" && m.coordenacao_id !== coordenacaoFilter) {
         return false;
       }
@@ -146,9 +147,9 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
       }
       if (tribunalFilter !== "todos") {
         if (tribunalFilter === "sem-tribunal") {
-          if (m.tribunais && m.tribunais.length > 0) return false;
+          if (tribunaisNormalizados.length > 0) return false;
         } else {
-          if (!m.tribunais || !m.tribunais.includes(tribunalFilter)) return false;
+          if (!tribunaisNormalizados.includes(tribunalFilter)) return false;
         }
       }
       if (termoSearch.trim()) {
@@ -211,7 +212,7 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
       m.tipo,
       m.oab && m.uf ? `${m.oab}/${m.uf}` : "",
       m.coordenacaoNome,
-      m.tribunais?.join(", ") || "Todos",
+      normalizeTribunais(m.tribunais)?.join(", ") || "Todos",
       m.ativo ? "Ativo" : "Pausado",
       m.totalPublicacoes,
     ]);
@@ -416,8 +417,10 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dadosRelatorio.map((m) => (
-                  <TableRow key={m.id}>
+                {dadosRelatorio.map((m) => {
+                  const tribunaisNormalizados = normalizeTribunais(m.tribunais) ?? [];
+
+                  return <TableRow key={m.id}>
                     <TableCell className="pl-6">
                       <div className="max-w-[200px]">
                         <div className="font-medium truncate">{m.termo_busca}</div>
@@ -436,10 +439,10 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{m.coordenacaoNome}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {m.tribunais && m.tribunais.length > 0 ? (
+                      {tribunaisNormalizados.length > 0 ? (
                         <div className="flex flex-wrap gap-1 max-w-[120px]">
-                          {m.tribunais.length <= 2 ? (
-                            m.tribunais.map((t: string) => (
+                          {tribunaisNormalizados.length <= 2 ? (
+                            tribunaisNormalizados.map((t: string) => (
                               <Badge key={t} variant="secondary" className="text-xs">
                                 {t}
                               </Badge>
@@ -447,10 +450,10 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
                           ) : (
                             <>
                               <Badge variant="secondary" className="text-xs">
-                                {m.tribunais[0]}
+                                {tribunaisNormalizados[0]}
                               </Badge>
                               <Badge variant="secondary" className="text-xs">
-                                +{m.tribunais.length - 1}
+                                +{tribunaisNormalizados.length - 1}
                               </Badge>
                             </>
                           )}
@@ -473,8 +476,8 @@ export function RelatorioMonitoramentosTab({ monitoramentos, coordenacoes }: Pro
                         {m.totalPublicacoes}
                       </span>
                     </TableCell>
-                  </TableRow>
-                ))}
+                  </TableRow>;
+                })}
                 {dadosRelatorio.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
