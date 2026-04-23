@@ -867,6 +867,8 @@ async function _processarTermoProInterno(
       return null;
     }
   };
+
+  const shouldShortCircuit = () => diagnostico.rateLimitHits >= 12 || diagnostico.falhasBusca >= 6;
   
   // Configurar parâmetros base
   const baseParams: any = {
@@ -911,6 +913,7 @@ async function _processarTermoProInterno(
   
   for (const trib of tribLoop) {
     if (signal.aborted) break;
+    if (shouldShortCircuit()) break;
     
     const resp = await executarBusca(
       { ...baseParams, siglaTribunal: trib, page: 1 },
@@ -937,6 +940,7 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
+        if (shouldShortCircuit()) break;
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -971,10 +975,12 @@ async function _processarTermoProInterno(
 
     for (const termoExtra of termosExtras) {
       if (signal.aborted) break;
+      if (shouldShortCircuit()) break;
       console.log(`[DJEN Pro] Busca termos_or palavra-chave: "${termoExtra}"`);
 
       for (const trib of tribLoop) {
         if (signal.aborted) break;
+        if (shouldShortCircuit()) break;
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
