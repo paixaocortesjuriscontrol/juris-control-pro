@@ -193,7 +193,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       // === STEP 1: Parse Excel ===
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
+      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
 
       const allRows: ImportPlanRow[] = [];
       let capturedHeader: string[] = [];
