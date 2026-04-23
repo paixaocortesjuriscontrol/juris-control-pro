@@ -15,6 +15,7 @@ import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
+import { BennerSimGabrielaImport } from "@/components/distribuicao-tst/BennerSimGabrielaImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
