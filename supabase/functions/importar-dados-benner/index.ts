@@ -189,11 +189,12 @@ Deno.serve(async (req) => {
     const existingMap = new Map<string, { id: string; updated_at?: string | null }>();
     const failures: Failure[] = [];
 
+    const existingBennerSim = new Set<string>();
     for (let i = 0; i < processos.length; i += 500) {
       const batch = processos.slice(i, i + 500);
       const { data, error } = await serviceClient
         .from("dados_benner")
-        .select("id, processo, dossie, updated_at")
+        .select("id, processo, dossie, updated_at, benner_atualizado")
         .in("processo", batch);
 
       if (error) {
@@ -214,6 +215,9 @@ Deno.serve(async (req) => {
         if (!current || (item.updated_at && (!current.updated_at || item.updated_at > current.updated_at))) {
           existingMap.set(key, { id: item.id, updated_at: item.updated_at });
         }
+        if ((item as any).benner_atualizado === true) {
+          existingBennerSim.add(key);
+        }
       }
     }
 
@@ -230,14 +234,21 @@ Deno.serve(async (req) => {
 
       if (existingMap.has(compositeKey)) {
         const updateRow: JsonRecord = { id: existingMap.get(compositeKey)!.id };
+        const incomingBennerSim = row.benner_atualizado === true || String(row.benner_atualizado).toUpperCase() === "SIM";
+        const dbHasBennerSim = existingBennerSim.has(compositeKey);
         for (const [key, value] of Object.entries(row)) {
           if (key === "id" || preserveFields.includes(key)) continue;
           // Skip empty/null values to avoid overwriting existing data
           if (value === null || value === undefined || value === "") continue;
+          // If DB record already has BENNER=SIM and incoming row does NOT, do not overwrite (preserve BENNER=SIM data)
+          if (dbHasBennerSim && !incomingBennerSim) continue;
           // Keep boolean false values (they are intentional)
           updateRow[key] = value;
         }
-        toUpdate.push(updateRow);
+        // Only push update if there's something beyond id to update
+        if (Object.keys(updateRow).length > 1) {
+          toUpdate.push(updateRow);
+        }
       } else {
         toInsert.push(row);
       }
