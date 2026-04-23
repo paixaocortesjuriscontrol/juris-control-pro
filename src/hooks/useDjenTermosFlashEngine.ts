@@ -610,16 +610,18 @@ async function processarTermoPro(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
+  allMonitoramentos?: Monitoramento[],
   onSubProgress?: (done: number, total: number, label?: string) => void,
 ): Promise<TermoFlashResult> {
   if (signal.aborted) return emptyTermoFlashResult();
-  return await _processarTermoFlashInterno(mon, diaYmd, signal, onSubProgress);
+  return await _processarTermoFlashInterno(mon, diaYmd, signal, allMonitoramentos, onSubProgress);
 }
 
 async function _processarTermoFlashInterno(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
+  allMonitoramentos?: Monitoramento[],
   onSubProgress?: (done: number, total: number, label?: string) => void,
 ): Promise<TermoFlashResult> {
   if (signal.aborted) return emptyTermoFlashResult();
@@ -1219,6 +1221,33 @@ async function _processarTermoFlashInterno(
     
     // 4. Condição concomitante
     if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
+      let resgatado = false;
+      if (allMonitoramentos?.length) {
+        for (const cand of allMonitoramentos) {
+          if (cand.id === mon.id) continue;
+          if (cand.condicao_concomitante?.trim()) continue;
+
+          const tribunaisCand = expandirTribunais(cand.tribunais);
+          const siglaCand = getSiglaTribunal(pub);
+          if (tribunaisCand.length > 0 && (!siglaCand || !tribunaisCand.includes(siglaCand))) continue;
+
+          if (temExclusao(pub, cand.exclusoes)) continue;
+          if (!validarTermo(pub, cand)) continue;
+
+          pub._rescuedToMonitoramentoId = cand.id;
+          resgatado = true;
+          console.log(
+            `[DJEN Flash]   🔄 [${idx}] proc=${procNum} resgatado: ${mon.termo_busca} → ${cand.termo_busca} (${cand.id})`
+          );
+          break;
+        }
+      }
+
+      if (resgatado) {
+        console.log(`[DJEN Flash]   ✅ [${idx}] proc=${procNum} VÁLIDA (resgatada)`);
+        return true;
+      }
+
       descartadas++;
       console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: condição concomitante não atendida`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
@@ -1243,18 +1272,19 @@ async function _processarTermoFlashInterno(
   const pubsUnicas = Array.from(hashMap.values());
   
   // Verificar duplicatas no banco
+  const monitoramentoDestinoIds = Array.from(new Set(pubsUnicas.map((p: any) => p._rescuedToMonitoramentoId || mon.id)));
   const hashes = pubsUnicas.map(p => p.hash_conteudo);
   let existentes = new Set<string>();
-  if (hashes.length > 0) {
+  if (hashes.length > 0 && monitoramentoDestinoIds.length > 0) {
     const { data } = await supabase
       .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('monitoramento_id', mon.id)
+      .select('monitoramento_id, hash_conteudo')
+      .in('monitoramento_id', monitoramentoDestinoIds)
       .in('hash_conteudo', hashes);
-    existentes = new Set((data || []).map(d => d.hash_conteudo));
+    existentes = new Set((data || []).map(d => `${d.monitoramento_id}|${d.hash_conteudo}`));
   }
   
-  const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+  const novas = pubsUnicas.filter((p: any) => !existentes.has(`${p._rescuedToMonitoramentoId || mon.id}|${p.hash_conteudo}`));
   const duplicadasBanco = pubsUnicas.length - novas.length;
   
   const dedupHashLocal = pubsValidas.length - pubsUnicas.length;
@@ -1278,7 +1308,7 @@ async function _processarTermoFlashInterno(
       const partes = extrairPartesEstruturadas(pub);
       
       return {
-        monitoramento_id: mon.id,
+        monitoramento_id: pub._rescuedToMonitoramentoId || mon.id,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo || null,
         conteudo: conteudoFormatado,
@@ -1580,7 +1610,7 @@ async function executarLoop(
           tempoInicio, dataInicioYmd, dataFimYmd,
         });
 
-        const resultado = await processarTermoPro(mon, diaYmd, signal, (subDone, subTotal, label) => {
+        const resultado = await processarTermoPro(mon, diaYmd, signal, monitoramentos, (subDone, subTotal, label) => {
           // Granularidade fina: barra avança de forma contínua entre tribunais/variantes
           const safeTotal = Math.max(1, subTotal);
           const safeDone = Math.min(subDone, safeTotal);
