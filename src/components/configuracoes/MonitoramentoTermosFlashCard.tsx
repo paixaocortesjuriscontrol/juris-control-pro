@@ -339,6 +339,53 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
     }
   }, [forceKill, limpar, getDataYmd, dataInicio, dataFim, queryClient]);
 
+  // ============================================================
+  // Reconciliação com banco (vs. Análise DJEN)
+  // ============================================================
+  const [confirmadoBanco, setConfirmadoBanco] = useState<number | null>(null);
+  const [recontando, setRecontando] = useState(false);
+
+  const recontarConfirmados = useCallback(async () => {
+    const runStartIso = (progress as any).runStartIso as string | undefined;
+    if (!runStartIso) {
+      toast.info('Nenhuma execução em andamento ou recente para reconciliar.');
+      return;
+    }
+    setRecontando(true);
+    try {
+      const total = await contarPublicacoesConfirmadasFlash({
+        runStartIso,
+        coordenacaoId: (progress as any).coordenacaoIdFiltro ?? null,
+        monitoramentoIds: (progress as any).monitoramentoIdsFiltro ?? null,
+      });
+      setConfirmadoBanco(total);
+    } finally {
+      setRecontando(false);
+    }
+  }, [progress]);
+
+  // Auto-reconcilia ao concluir
+  useEffect(() => {
+    if (effectiveStatus === 'concluido' && (progress as any).runStartIso) {
+      recontarConfirmados();
+    }
+  }, [effectiveStatus, recontarConfirmados, progress]);
+
+  // Link para Análise DJEN com filtros aplicados
+  const analiseDjenHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const coord = (progress as any).coordenacaoIdFiltro ?? filtroCoordenacaoId;
+    const di = progress.dataInicioYmd ?? (dataInicio ? getDataYmd(dataInicio) : undefined);
+    const df = progress.dataFimYmd ?? (dataFim ? getDataYmd(dataFim) : undefined);
+    if (coord) params.set('coord', coord);
+    if (di) params.set('dataInicio', di);
+    if (df) params.set('dataFim', df);
+    const qs = params.toString();
+    return `/analise-djen${qs ? `?${qs}` : ''}`;
+  }, [progress, filtroCoordenacaoId, dataInicio, dataFim, getDataYmd]);
+
+  const subProgress = (progress as any).subProgress as { current: number; total: number; label?: string } | null | undefined;
+
   return (
     <>
       <Card className={cn("relative overflow-hidden", effectiveIsRunning && "ring-2 ring-primary/30")}>
