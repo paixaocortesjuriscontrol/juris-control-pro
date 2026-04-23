@@ -1022,6 +1022,7 @@ async function _processarTermoProInterno(
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
+      if (shouldShortCircuit()) break;
       console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
       await executarBusca(
         {
@@ -1059,6 +1060,7 @@ async function _processarTermoProInterno(
     
     for (const parsed of parsedOr) {
       if (signal.aborted) break;
+      if (shouldShortCircuit()) break;
       const nomeNorm = normalizar(parsed.nome);
       if (nomesJaBuscados.has(nomeNorm)) continue;
       nomesJaBuscados.add(nomeNorm);
@@ -1073,6 +1075,7 @@ async function _processarTermoProInterno(
       
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
+        if (shouldShortCircuit()) break;
         const resp = await executarBusca(
           {
             tipo: 'advogado' as PjeSearchType,
@@ -1096,6 +1099,7 @@ async function _processarTermoProInterno(
       if (parsed.oabDigits && !signal.aborted) {
         for (const trib of textTribLoop) {
           if (signal.aborted) break;
+          if (shouldShortCircuit()) break;
           await executarBusca(
             {
               tipo: 'advogado' as PjeSearchType,
@@ -1121,6 +1125,19 @@ async function _processarTermoProInterno(
         `429=${diagnostico.rateLimitHits}, falhas=${diagnostico.falhasBusca}, parciais=${diagnostico.buscasParciais}` +
         `${diagnostico.ultimoErroBusca ? `, último erro=${diagnostico.ultimoErroBusca}` : ''}`
     );
+  }
+
+  if (shouldShortCircuit()) {
+    updateProgress({
+      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      ultimoErroBusca: diagnostico.ultimoErroBusca,
+      falhasBusca: state.progress.falhasBusca + diagnostico.falhasBusca,
+      buscasParciais: state.progress.buscasParciais + diagnostico.buscasParciais,
+    });
+    syncExecutionProgress({
+      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      ultimoErroBusca: diagnostico.ultimoErroBusca,
+    }, true);
   }
   
   if (signal.aborted || resultados.length === 0) {
