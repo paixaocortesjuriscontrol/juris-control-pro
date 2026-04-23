@@ -13,7 +13,12 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
+import {
+  buscarPjeComunicaPaginado,
+  awaitPjeComunicaGlobalCooldown,
+  getPjeComunicaGlobalCooldownRemainingMs,
+  type PjeSearchType,
+} from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
