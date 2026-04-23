@@ -141,6 +141,12 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     percentage: number;
     mensagem: string;
     novas: number;
+    duplicadas: number;
+    descartadas: number;
+    termoAtual: string;
+    diaAtualYmd: string | null;
+    diaAtualIndice: number | null;
+    totalDias: number | null;
     tempoDecorrido: number;
   } | null>(null);
 
@@ -166,11 +172,23 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         const percentage = det?.percentage ?? det?.progress?.percentage ?? 0;
         const mensagem = det?.mensagem || det?.etapaAtual || 'Executando no backend...';
         const novas = det?.novas ?? det?.totalNovas ?? 0;
+        const duplicadas = det?.duplicadas ?? det?.totalDuplicadas ?? 0;
+        const descartadas = det?.descartadas ?? det?.totalDescartadas ?? 0;
+        const termoAtual = det?.termoAtual ?? '';
+        const diaAtualYmd = det?.diaAtualYmd ?? null;
+        const diaAtualIndice = det?.diaAtualIndice ?? null;
+        const totalDias = det?.totalDias ?? null;
         const iniciadoEm = row.iniciado_em ? new Date(row.iniciado_em).getTime() : Date.now();
         setBackendActive({
           percentage: Math.max(0, Math.min(100, Number(percentage) || 0)),
           mensagem,
           novas: Number(novas) || 0,
+          duplicadas: Number(duplicadas) || 0,
+          descartadas: Number(descartadas) || 0,
+          termoAtual: String(termoAtual || ''),
+          diaAtualYmd: diaAtualYmd ? String(diaAtualYmd) : null,
+          diaAtualIndice: diaAtualIndice != null ? Number(diaAtualIndice) : null,
+          totalDias: totalDias != null ? Number(totalDias) : null,
           tempoDecorrido: Math.floor((Date.now() - iniciadoEm) / 1000),
         });
       } catch {
@@ -294,6 +312,19 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     const clamped = Math.min(100, Math.max(0, raw));
     return effectiveIsRunning ? Math.min(99, clamped) : clamped;
   }, [progress.percentage, progress.status, backendActive, effectiveIsRunning, effectiveStatus]);
+
+  // Fonte unificada para totalizadores e textos:
+  // se o singleton local está idle mas o backend está ativo, lemos do snapshot do banco.
+  const useBackendData = progress.status === 'idle' && !!backendActive;
+  const dispNovas = useBackendData ? backendActive!.novas : progress.novas;
+  const dispDuplicadas = useBackendData ? backendActive!.duplicadas : progress.duplicadas;
+  const dispDescartadas = useBackendData ? backendActive!.descartadas : progress.descartadas;
+  const dispDiaAtualYmd = useBackendData ? backendActive!.diaAtualYmd : progress.diaAtualYmd;
+  const dispDiaAtualIndice = useBackendData ? backendActive!.diaAtualIndice : progress.diaAtualIndice;
+  const dispTotalDias = useBackendData ? backendActive!.totalDias : progress.totalDias;
+  const dispTermoAtual = useBackendData ? backendActive!.termoAtual : progress.termoAtual;
+  const dispMensagem = useBackendData ? backendActive!.mensagem : progress.mensagem;
+  const dispTempoDecorrido = useBackendData ? backendActive!.tempoDecorrido : progress.tempoDecorrido;
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
@@ -492,20 +523,20 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  {progress.diaAtualYmd && (
+                  {dispDiaAtualYmd && (
                     <span className="font-medium">
-                      📅 Dia {progress.diaAtualIndice}/{progress.totalDias} •
+                      📅 Dia {dispDiaAtualIndice}/{dispTotalDias} •
                     </span>
                   )}
-                  {progress.termoAtual && (
-                    <span className="ml-1 break-words">{progress.termoAtual}</span>
+                  {dispTermoAtual && (
+                    <span className="ml-1 break-words">{dispTermoAtual}</span>
                   )}
                 </span>
                 <span className="font-mono font-medium">{displayedPercentage}%</span>
               </div>
               <Progress value={displayedPercentage} className="h-2" />
-              {!!progress.mensagem && (
-                <p className="text-xs text-muted-foreground">{progress.mensagem}</p>
+              {!!dispMensagem && (
+                <p className="text-xs text-muted-foreground">{dispMensagem}</p>
               )}
             </div>
           )}
@@ -513,13 +544,13 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           {/* Totalizadores */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span className="text-primary">
-              ✓ {progress.novas} encontradas (não lidas)
+              ✓ {dispNovas} encontradas (não lidas)
             </span>
             <span className="text-muted-foreground">
-              ↔ {progress.duplicadas} duplicadas
+              ↔ {dispDuplicadas} duplicadas
             </span>
             <span className="text-destructive">
-              ✗ {progress.descartadas} descartadas
+              ✗ {dispDescartadas} descartadas
             </span>
           </div>
 
@@ -583,10 +614,10 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           </div>
 
           {/* Tempo */}
-          {progress.tempoDecorrido > 0 && (
+          {dispTempoDecorrido > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              <span>{formatDuration(progress.tempoDecorrido)}</span>
+              <span>{formatDuration(dispTempoDecorrido)}</span>
             </div>
           )}
 
