@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { normalizeTribunais } from "@/utils/djenTribunais";
 
 export interface MonitoramentoDjen {
   id: string;
@@ -69,7 +70,10 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as MonitoramentoDjen[];
+      return (data as MonitoramentoDjen[]).map((item) => ({
+        ...item,
+        tribunais: normalizeTribunais(item.tribunais) ?? undefined,
+      }));
     },
     enabled: !!user?.id && enabled,
   });
@@ -136,13 +140,16 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
     mutationFn: async (dados: Omit<MonitoramentoDjen, 'id' | 'criado_por' | 'created_at' | 'updated_at' | 'ativo'>) => {
       if (!user?.id) throw new Error("Usuário não autenticado");
       
+      const payload = {
+        ...dados,
+        tribunais: normalizeTribunais(dados.tribunais) ?? null,
+        criado_por: user.id,
+        ativo: true,
+      };
+
       const { data, error } = await supabase
         .from('monitoramentos_djen')
-        .insert({
-          ...dados,
-          criado_por: user.id,
-          ativo: true,
-        })
+        .insert(payload)
         .select()
         .single();
 
@@ -160,9 +167,16 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
 
   const atualizarMonitoramento = useMutation({
     mutationFn: async ({ id, ...dados }: Partial<MonitoramentoDjen> & { id: string }) => {
+      const payload = {
+        ...dados,
+        ...(Object.prototype.hasOwnProperty.call(dados, 'tribunais')
+          ? { tribunais: normalizeTribunais(dados.tribunais) }
+          : {}),
+      };
+
       const { error } = await supabase
         .from('monitoramentos_djen')
-        .update(dados)
+        .update(payload)
         .eq('id', id);
 
       if (error) throw error;
