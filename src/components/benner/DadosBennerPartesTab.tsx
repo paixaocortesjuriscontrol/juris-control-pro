@@ -88,29 +88,38 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
 
       if (error) {
         // supabase-js encapsula non-2xx como FunctionsHttpError.
-        // Tenta ler o corpo da resposta (que contém o erro real da Judit).
+        // O corpo real da resposta fica em error.context (Response).
         let bodyErr: any = null;
         try {
           const ctx: any = (error as any).context;
-          if (ctx && typeof ctx.json === "function") {
+          if (ctx instanceof Response) {
+            const t = await ctx.clone().text();
+            try { bodyErr = JSON.parse(t); } catch { bodyErr = { error: t }; }
+          } else if (ctx && typeof ctx.json === "function") {
             bodyErr = await ctx.json();
           } else if (ctx && typeof ctx.text === "function") {
             const t = await ctx.text();
             try { bodyErr = JSON.parse(t); } catch { bodyErr = { error: t }; }
+          } else if (typeof ctx === "string") {
+            try { bodyErr = JSON.parse(ctx); } catch { bodyErr = { error: ctx }; }
+          } else if (ctx && typeof ctx === "object") {
+            bodyErr = ctx;
           }
         } catch { /* ignore parse errors */ }
 
-        const judit = bodyErr?.judit_error || "";
-        const msg = bodyErr?.error || data?.error || error.message || "Erro desconhecido";
+        const rawMsg = `${bodyErr?.error || ""} ${bodyErr?.judit_error || ""} ${error.message || ""}`;
+        const isPlanoEsgotado =
+          bodyErr?.judit_error === "USER_REACHED_PLAN_MAX_CONSUMPTION" ||
+          /USER_REACHED_PLAN_MAX_CONSUMPTION/i.test(rawMsg) ||
+          /limite do plano/i.test(rawMsg);
 
-        if (judit === "USER_REACHED_PLAN_MAX_CONSUMPTION" || /limite do plano/i.test(msg)) {
+        if (isPlanoEsgotado) {
           toast.error("Limite do plano Judit atingido. Verifique seu consumo no painel Judit.", {
             duration: 6000,
           });
-          setBuscando(false);
-          return;
+          return; // finally restabelece setBuscando(false)
         }
-        throw new Error(msg);
+        throw new Error(bodyErr?.error || error.message || "Erro desconhecido");
       }
       const partiesDetail = data?.parties_detail;
       if (!Array.isArray(partiesDetail) || partiesDetail.length === 0) {
