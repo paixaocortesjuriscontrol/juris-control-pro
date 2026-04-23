@@ -652,6 +652,31 @@ async function _processarTermoFlashInterno(
     tribunaisPulados429: 0,
   };
 
+  // ===== Sub-progresso (granularidade fina) =====
+  // Estimamos quantas "unidades de busca" o termo terá:
+  //  - busca primária: 1 (UF=TODAS) ou tribunais.length
+  //  - parte: + tribunais.length (complementar palavraChave, no pior caso)
+  //  - palavra-chave com termos_or: + termosOrCount * tribunais.length
+  //  - advogado com termos_or: + termosOrCount * tribunais.length * (oab ? 2 : 1)
+  // Esta é uma estimativa pessimista — o real costuma ser menor (otimizações pulam unidades).
+  const tribCount = Math.max(1, tribunais.length);
+  const ufTodasEstim = tipo === 'advogado' && (String(mon.uf || '').toUpperCase() === 'TODAS' || !mon.uf) && tribunais.length > 0;
+  const termosOrCount = mon.termos_or?.length ?? 0;
+  let subUnitsEstim = ufTodasEstim ? 1 : tribCount;
+  if (tipo === 'parte') subUnitsEstim += tribCount;
+  if (tipo === 'palavra-chave' && termosOrCount > 0) subUnitsEstim += termosOrCount * tribCount;
+  if (tipo === 'advogado' && termosOrCount > 0) {
+    // nome + (oab ? oab : 0) por termo_or, * tribunais
+    subUnitsEstim += termosOrCount * tribCount * 2;
+  }
+  let subDone = 0;
+  const reportSub = (label?: string) => {
+    subDone += 1;
+    if (onSubProgress) {
+      onSubProgress(Math.min(subDone, subUnitsEstim), subUnitsEstim, label);
+    }
+  };
+
   // ===== Circuit breaker (otimização 5) =====
   // Após N 429s no mesmo termo, paramos de tentar tribunais novos.
   const CIRCUIT_BREAKER_429_LIMIT = 3;
@@ -676,6 +701,7 @@ async function _processarTermoFlashInterno(
   ) => {
     if (checkCircuit()) {
       telemetria.tribunaisPulados429 += 1;
+      reportSub(tribunal ? `pulado(429) • ${tribunal}` : 'pulado(429)');
       return null;
     }
     telemetria.chamadasApi += 1;
