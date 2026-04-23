@@ -92,7 +92,9 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
         query = query.eq('lida', false);
       }
 
-      const { data, error } = await query.limit(500);
+      // Aumentado de 500 → 5000 para evitar truncamento em períodos com muitas publicações.
+      // Os filtros de coordenação/monitoramento/termo são aplicados em seguida no client.
+      const { data, error } = await query.limit(5000);
 
       if (error) throw error;
 

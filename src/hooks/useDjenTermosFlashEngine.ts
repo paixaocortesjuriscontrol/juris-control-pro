@@ -51,6 +51,15 @@ export interface DjenTermosFlashProgress {
   complementaresPuladas: number;
   /** Telemetria Flash: tribunais pulados pelo circuit breaker (429) */
   tribunaisPulados429: number;
+  /** Sub-progresso dentro do termo atual (ex: tribunal X/Y) */
+  subProgress?: { current: number; total: number; label?: string } | null;
+  /** Sigla do tribunal atualmente sendo varrido */
+  tribunalAtual?: string | null;
+  /** Filtros aplicados nesta execução (para reconciliação) */
+  coordenacaoIdFiltro?: string | null;
+  monitoramentoIdsFiltro?: string[] | null;
+  /** Timestamp ISO do início da execução (para reconciliação no banco) */
+  runStartIso?: string | null;
 }
 
 interface Monitoramento {
@@ -142,6 +151,11 @@ function createDefaultProgress(): DjenTermosFlashProgress {
     paginasEvitadas: 0,
     complementaresPuladas: 0,
     tribunaisPulados429: 0,
+    subProgress: null,
+    tribunalAtual: null,
+    coordenacaoIdFiltro: null,
+    monitoramentoIdsFiltro: null,
+    runStartIso: null,
   };
 }
 
@@ -576,15 +590,17 @@ async function processarTermoPro(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
+  onSubProgress?: (done: number, total: number, label?: string) => void,
 ): Promise<TermoFlashResult> {
   if (signal.aborted) return emptyTermoFlashResult();
-  return await _processarTermoFlashInterno(mon, diaYmd, signal);
+  return await _processarTermoFlashInterno(mon, diaYmd, signal, onSubProgress);
 }
 
 async function _processarTermoFlashInterno(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
+  onSubProgress?: (done: number, total: number, label?: string) => void,
 ): Promise<TermoFlashResult> {
   if (signal.aborted) return emptyTermoFlashResult();
   
@@ -636,6 +652,31 @@ async function _processarTermoFlashInterno(
     tribunaisPulados429: 0,
   };
 
+  // ===== Sub-progresso (granularidade fina) =====
+  // Estimamos quantas "unidades de busca" o termo terá:
+  //  - busca primária: 1 (UF=TODAS) ou tribunais.length
+  //  - parte: + tribunais.length (complementar palavraChave, no pior caso)
+  //  - palavra-chave com termos_or: + termosOrCount * tribunais.length
+  //  - advogado com termos_or: + termosOrCount * tribunais.length * (oab ? 2 : 1)
+  // Esta é uma estimativa pessimista — o real costuma ser menor (otimizações pulam unidades).
+  const tribCount = Math.max(1, tribunais.length);
+  const ufTodasEstim = tipo === 'advogado' && (String(mon.uf || '').toUpperCase() === 'TODAS' || !mon.uf) && tribunais.length > 0;
+  const termosOrCount = mon.termos_or?.length ?? 0;
+  let subUnitsEstim = ufTodasEstim ? 1 : tribCount;
+  if (tipo === 'parte') subUnitsEstim += tribCount;
+  if (tipo === 'palavra-chave' && termosOrCount > 0) subUnitsEstim += termosOrCount * tribCount;
+  if (tipo === 'advogado' && termosOrCount > 0) {
+    // nome + (oab ? oab : 0) por termo_or, * tribunais
+    subUnitsEstim += termosOrCount * tribCount * 2;
+  }
+  let subDone = 0;
+  const reportSub = (label?: string) => {
+    subDone += 1;
+    if (onSubProgress) {
+      onSubProgress(Math.min(subDone, subUnitsEstim), subUnitsEstim, label);
+    }
+  };
+
   // ===== Circuit breaker (otimização 5) =====
   // Após N 429s no mesmo termo, paramos de tentar tribunais novos.
   const CIRCUIT_BREAKER_429_LIMIT = 3;
@@ -660,6 +701,7 @@ async function _processarTermoFlashInterno(
   ) => {
     if (checkCircuit()) {
       telemetria.tribunaisPulados429 += 1;
+      reportSub(tribunal ? `pulado(429) • ${tribunal}` : 'pulado(429)');
       return null;
     }
     telemetria.chamadasApi += 1;
@@ -709,6 +751,7 @@ async function _processarTermoFlashInterno(
       }
 
       addResults(resp.items, tribunal);
+      reportSub(tribunal ? `${tribunal} • ${resp.items.length} itens` : `global • ${resp.items.length} itens`);
       return resp;
     } catch (e: any) {
       if (e?.name === 'AbortError') throw e;
@@ -719,6 +762,7 @@ async function _processarTermoFlashInterno(
         mensagem: `⚠️ Falha de busca: ${contexto}`,
         ultimoErroBusca: diagnostico.ultimoErroBusca,
       });
+      reportSub(tribunal ? `falha • ${tribunal}` : 'falha');
       return null;
     }
   };
@@ -1396,6 +1440,9 @@ async function executarLoop(
       buscasParciais: acumBuscasParciais,
       ultimoErroBusca: null,
       mensagem: 'Iniciando DJEN Termos Pro...',
+      runStartIso: new Date(tempoInicio).toISOString(),
+      coordenacaoIdFiltro: coordenacaoId ?? null,
+      monitoramentoIdsFiltro: monitoramentoIds ?? null,
     });
     
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
@@ -1419,6 +1466,8 @@ async function executarLoop(
           globalCurrent: completedBefore,
           percentage: percentageBefore,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+          subProgress: { current: 0, total: 1, label: 'iniciando...' },
+          tribunalAtual: null,
         });
 
         console.log(`[DJEN Flash] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
@@ -1431,7 +1480,18 @@ async function executarLoop(
           tempoInicio, dataInicioYmd, dataFimYmd,
         });
 
-        const resultado = await processarTermoPro(mon, diaYmd, signal);
+        const resultado = await processarTermoPro(mon, diaYmd, signal, (subDone, subTotal, label) => {
+          // Granularidade fina: barra avança de forma contínua entre tribunais/variantes
+          const safeTotal = Math.max(1, subTotal);
+          const safeDone = Math.min(subDone, safeTotal);
+          const fineGlobal = completedBefore + (safeDone / safeTotal);
+          const finePct = Math.min(99, Math.max(0, Math.round((fineGlobal / totalOps) * 100)));
+          updateProgress({
+            percentage: finePct,
+            subProgress: { current: safeDone, total: safeTotal, label },
+            tribunalAtual: label?.split('•')[0]?.trim() || null,
+          });
+        });
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
         acumDescartadas += resultado.descartadas;
@@ -1454,6 +1514,8 @@ async function executarLoop(
           falhasBusca: acumFalhasBusca,
           buscasParciais: acumBuscasParciais,
           ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
+          subProgress: null,
+          tribunalAtual: null,
         });
         
         // Checkpoint
@@ -1637,4 +1699,42 @@ export function getCheckpointFlash(): Checkpoint | null {
 export function subscribeDjenTermosFlash(listener: (p: DjenTermosFlashProgress) => void): () => void {
   state.listeners.add(listener);
   return () => { state.listeners.delete(listener); };
+}
+
+/**
+ * Conta diretamente em publicacoes_djen quantos registros foram inseridos
+ * desde `runStartIso`, opcionalmente filtrando por coordenação e/ou
+ * monitoramentos. Usado pelo card para reconciliar com a tela Análise DJEN.
+ */
+export async function contarPublicacoesConfirmadasFlash(opts: {
+  runStartIso: string;
+  coordenacaoId?: string | null;
+  monitoramentoIds?: string[] | null;
+}): Promise<number> {
+  try {
+    let query = supabase
+      .from('publicacoes_djen')
+      .select('id, monitoramento:monitoramentos_djen(coordenacao_id)', { count: 'exact', head: false })
+      .gte('created_at', opts.runStartIso);
+
+    if (opts.monitoramentoIds && opts.monitoramentoIds.length > 0) {
+      query = query.in('monitoramento_id', opts.monitoramentoIds);
+    }
+
+    const { data, error, count } = await query.limit(10000);
+    if (error) {
+      console.warn('[DJEN Flash] Erro ao contar publicações confirmadas:', error.message);
+      return 0;
+    }
+    let rows = (data || []) as any[];
+    if (opts.coordenacaoId) {
+      rows = rows.filter((r) => r?.monitoramento?.coordenacao_id === opts.coordenacaoId);
+      return rows.length;
+    }
+    // Sem filtro de coordenação: usar count exato quando disponível
+    return typeof count === 'number' ? count : rows.length;
+  } catch (e) {
+    console.warn('[DJEN Flash] Erro inesperado em contarPublicacoesConfirmadasFlash:', e);
+    return 0;
+  }
 }

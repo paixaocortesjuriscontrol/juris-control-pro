@@ -38,8 +38,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermosFlash } from "@/hooks/useDjenTermosFlash";
+import { contarPublicacoesConfirmadasFlash } from "@/hooks/useDjenTermosFlashEngine";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
+import { Link as RouterLink } from "react-router-dom";
+import { ExternalLink, Database } from "lucide-react";
 
 interface Props {
   coordenacaoId: string;
@@ -336,6 +339,53 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
     }
   }, [forceKill, limpar, getDataYmd, dataInicio, dataFim, queryClient]);
 
+  // ============================================================
+  // Reconciliação com banco (vs. Análise DJEN)
+  // ============================================================
+  const [confirmadoBanco, setConfirmadoBanco] = useState<number | null>(null);
+  const [recontando, setRecontando] = useState(false);
+
+  const recontarConfirmados = useCallback(async () => {
+    const runStartIso = (progress as any).runStartIso as string | undefined;
+    if (!runStartIso) {
+      toast.info('Nenhuma execução em andamento ou recente para reconciliar.');
+      return;
+    }
+    setRecontando(true);
+    try {
+      const total = await contarPublicacoesConfirmadasFlash({
+        runStartIso,
+        coordenacaoId: (progress as any).coordenacaoIdFiltro ?? null,
+        monitoramentoIds: (progress as any).monitoramentoIdsFiltro ?? null,
+      });
+      setConfirmadoBanco(total);
+    } finally {
+      setRecontando(false);
+    }
+  }, [progress]);
+
+  // Auto-reconcilia ao concluir
+  useEffect(() => {
+    if (effectiveStatus === 'concluido' && (progress as any).runStartIso) {
+      recontarConfirmados();
+    }
+  }, [effectiveStatus, recontarConfirmados, progress]);
+
+  // Link para Análise DJEN com filtros aplicados
+  const analiseDjenHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const coord = (progress as any).coordenacaoIdFiltro ?? filtroCoordenacaoId;
+    const di = progress.dataInicioYmd ?? (dataInicio ? getDataYmd(dataInicio) : undefined);
+    const df = progress.dataFimYmd ?? (dataFim ? getDataYmd(dataFim) : undefined);
+    if (coord) params.set('coord', coord);
+    if (di) params.set('dataInicio', di);
+    if (df) params.set('dataFim', df);
+    const qs = params.toString();
+    return `/analise-djen${qs ? `?${qs}` : ''}`;
+  }, [progress, filtroCoordenacaoId, dataInicio, dataFim, getDataYmd]);
+
+  const subProgress = (progress as any).subProgress as { current: number; total: number; label?: string } | null | undefined;
+
   return (
     <>
       <Card className={cn("relative overflow-hidden", effectiveIsRunning && "ring-2 ring-primary/30")}>
@@ -451,6 +501,14 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
               {!!progress.mensagem && (
                 <p className="text-xs text-muted-foreground">{progress.mensagem}</p>
               )}
+              {effectiveIsRunning && subProgress && subProgress.total > 0 && (
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="truncate">
+                    🏛️ Sub-busca {subProgress.current}/{subProgress.total}
+                    {subProgress.label ? <> • {subProgress.label}</> : null}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -465,6 +523,52 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
             <span className="text-destructive">
               ✗ {progress.descartadas} descartadas
             </span>
+            {confirmadoBanco !== null && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1",
+                  Math.abs(confirmadoBanco - progress.novas) > 0
+                    ? "text-amber-600"
+                    : "text-emerald-600"
+                )}
+              >
+                <Database className="h-3 w-3" />
+                Confirmado no banco: {confirmadoBanco}
+              </span>
+            )}
+          </div>
+
+          {/* Janela e filtros aplicados (para reconciliação) */}
+          {(progress.dataInicioYmd || progress.dataFimYmd || (progress as any).coordenacaoIdFiltro) && (
+            <div className="text-[11px] text-muted-foreground">
+              Período: {progress.dataInicioYmd ?? '—'} → {progress.dataFimYmd ?? '—'}
+              {(progress as any).coordenacaoIdFiltro && (
+                <> • Coord: {coordenacoes.find(c => c.id === (progress as any).coordenacaoIdFiltro)?.nome ?? '—'}</>
+              )}
+              {(progress as any).monitoramentoIdsFiltro?.length === 1 && (
+                <> • 1 termo</>
+              )}
+            </div>
+          )}
+
+          {/* Ações de reconciliação */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={recontarConfirmados}
+              disabled={recontando || !(progress as any).runStartIso}
+              className="text-xs"
+            >
+              {recontando ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Database className="h-3 w-3 mr-1" />}
+              Recontar no banco
+            </Button>
+            <Button asChild variant="outline" size="sm" className="text-xs">
+              <RouterLink to={analiseDjenHref}>
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Abrir na Análise DJEN
+              </RouterLink>
+            </Button>
           </div>
 
           {/* Indicadores de estratégia */}
