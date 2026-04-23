@@ -282,6 +282,26 @@ function buildCheckpointFromProgress(): Checkpoint | null {
   };
 }
 
+function serializeCheckpoint(checkpoint: Checkpoint | null) {
+  if (!checkpoint) return null;
+  return {
+    runKey: checkpoint.runKey,
+    diaIndice: checkpoint.diaIndice,
+    termoIndice: checkpoint.termoIndice,
+    novas: checkpoint.novas,
+    duplicadas: checkpoint.duplicadas,
+    descartadas: checkpoint.descartadas,
+    tempoInicio: checkpoint.tempoInicio,
+    dataInicioYmd: checkpoint.dataInicioYmd,
+    dataFimYmd: checkpoint.dataFimYmd,
+    globalCurrent: checkpoint.globalCurrent ?? null,
+    globalTotal: checkpoint.globalTotal ?? null,
+    percentage: checkpoint.percentage ?? null,
+    totalDias: checkpoint.totalDias ?? null,
+    totalTermos: checkpoint.totalTermos ?? null,
+  };
+}
+
 function notifyListeners() {
   for (const listener of state.listeners) listener(state.progress);
 }
@@ -1507,6 +1527,7 @@ async function executarLoop(
         const finalCheckpoint = finalStatus === 'concluido'
           ? null
           : (state.checkpoint || buildCheckpointFromProgress());
+        const serializedFinalCheckpoint = serializeCheckpoint(finalCheckpoint);
         await supabase
           .from('execucoes_agendadas')
           .update({
@@ -1529,7 +1550,7 @@ async function executarLoop(
               termoAtualNoDia: state.progress.termoAtualNoDia,
               termoAtual: state.progress.termoAtual,
               mensagem: state.progress.mensagem,
-              checkpoint: finalCheckpoint,
+              checkpoint: serializedFinalCheckpoint,
               diagnostico: {
                 rateLimitHits: state.progress.rateLimitHits,
                 falhasBusca: state.progress.falhasBusca,
@@ -1577,6 +1598,7 @@ export function cancelarDjenTermosPro() {
     updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
   }
   const checkpoint = state.checkpoint || buildCheckpointFromProgress();
+  const serializedCheckpoint = serializeCheckpoint(checkpoint);
   const updatePayload: Record<string, any> = {
     status: 'cancelado',
     finalizado_em: new Date().toISOString(),
@@ -1600,7 +1622,7 @@ export function cancelarDjenTermosPro() {
       termoAtualNoDia: state.progress.termoAtualNoDia,
       termoAtual: state.progress.termoAtual,
       mensagem: 'Cancelado pelo usuário',
-      checkpoint,
+      checkpoint: serializedCheckpoint,
       diagnostico: {
         rateLimitHits: state.progress.rateLimitHits,
         falhasBusca: state.progress.falhasBusca,
