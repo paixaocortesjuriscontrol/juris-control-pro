@@ -459,7 +459,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return true;
       };
 
-      const okComDossieNovos = await processBatch(recordsComDossieNovos, "insert");
+      // Tudo via UPSERT para resolver duplicatas internas e colisões com banco
+      const okComDossieNovos = await processBatch(recordsComDossieNovos, "upsert");
       if (!okComDossieNovos) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
@@ -473,7 +474,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         resetState();
         return;
       }
-      const okSemDossie = await processBatch(recordsSemDossie, "insert");
+      const okSemDossie = await processBatch(recordsSemDossieFiltrados, "upsert");
       if (!okSemDossie) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
