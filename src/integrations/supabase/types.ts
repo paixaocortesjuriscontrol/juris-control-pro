@@ -5450,6 +5450,81 @@ export type Database = {
           },
         ]
       }
+      publicacoes_stf: {
+        Row: {
+          coordenacao_id: string | null
+          created_at: string
+          data_divulgacao: string | null
+          data_publicacao: string | null
+          fonte: string
+          hash_conteudo: string
+          id: string
+          lida: boolean
+          monitoramento_id: string
+          processo_numero: string | null
+          relator: string | null
+          resumo_gerado_em: string | null
+          resumo_ia: string | null
+          stf_id: string | null
+          texto_html: string | null
+          texto_limpo: string | null
+          tipo: string | null
+        }
+        Insert: {
+          coordenacao_id?: string | null
+          created_at?: string
+          data_divulgacao?: string | null
+          data_publicacao?: string | null
+          fonte?: string
+          hash_conteudo: string
+          id?: string
+          lida?: boolean
+          monitoramento_id: string
+          processo_numero?: string | null
+          relator?: string | null
+          resumo_gerado_em?: string | null
+          resumo_ia?: string | null
+          stf_id?: string | null
+          texto_html?: string | null
+          texto_limpo?: string | null
+          tipo?: string | null
+        }
+        Update: {
+          coordenacao_id?: string | null
+          created_at?: string
+          data_divulgacao?: string | null
+          data_publicacao?: string | null
+          fonte?: string
+          hash_conteudo?: string
+          id?: string
+          lida?: boolean
+          monitoramento_id?: string
+          processo_numero?: string | null
+          relator?: string | null
+          resumo_gerado_em?: string | null
+          resumo_ia?: string | null
+          stf_id?: string | null
+          texto_html?: string | null
+          texto_limpo?: string | null
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_stf_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_stf_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repositorio_conversas: {
         Row: {
           created_at: string
