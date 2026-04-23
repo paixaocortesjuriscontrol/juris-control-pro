@@ -107,6 +107,13 @@ const awaitGlobalCooldown = async () => {
     await new Promise(r => setTimeout(r, wait));
   }
 };
+const getGlobalCooldownRemainingMs = (): number => {
+  return Math.max(0, globalCooldownUntil - Date.now());
+};
+
+/** Exportado para uso pelo engine Flash (await entre termos). */
+export const awaitPjeComunicaFlashGlobalCooldown = awaitGlobalCooldown;
+export const getPjeComunicaFlashGlobalCooldownRemainingMs = getGlobalCooldownRemainingMs;
 function optimizeItem(item: any) {
   // IMPORTANTE:
   // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
