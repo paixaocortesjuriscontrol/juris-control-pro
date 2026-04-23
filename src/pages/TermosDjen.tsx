@@ -245,10 +245,23 @@ export default function TermosDjen() {
                     : `Exibindo monitoramentos das suas coordenações • ${monitoramentosFiltrados.length} de ${todosMonitoramentos.filter(m => m.coordenacao_id && coordenacoesPermitidas.has(m.coordenacao_id)).length}`}
                 </CardDescription>
               </div>
-              <Button onClick={handleNovo} size="sm" className="gap-2 w-full sm:w-auto">
-                <Plus className="h-4 w-4" />
-                Novo Monitoramento
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleGerarRelatorio}
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 w-full sm:w-auto"
+                  disabled={isLoading || monitoramentosFiltrados.length === 0}
+                  title="Gerar PDF dos termos exibidos (respeita os filtros)"
+                >
+                  <FileText className="h-4 w-4" />
+                  Gerar Relatório PDF
+                </Button>
+                <Button onClick={handleNovo} size="sm" className="gap-2 w-full sm:w-auto">
+                  <Plus className="h-4 w-4" />
+                  Novo Monitoramento
+                </Button>
+              </div>
             </div>
 
             {/* Linha de Filtros */}
