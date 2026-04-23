@@ -720,6 +720,8 @@ async function _processarTermoFlashInterno(
   ) => {
     if (checkCircuit()) {
       telemetria.tribunaisPulados429 += 1;
+      // Adiar tribunal específico para retomada (mudança 3: soft-skip)
+      if (tribunal) tribunaisSoftSkip.add(tribunal);
       reportSub(tribunal ? `pulado(429) • ${tribunal}` : 'pulado(429)');
       return null;
     }
@@ -727,11 +729,13 @@ async function _processarTermoFlashInterno(
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
         signal,
-        // Flash: paginação inteligente — sem continueUntilEmpty por padrão.
-        // Só ativamos quando a primeira página vem cheia E totalExpected ausente
-        // (a lógica disso já está no client Flash; aqui só desligamos o flag).
+        // Flash: paginação inteligente — confirmação ambígua ATIVA.
+        // O client agora roda uma página adicional somente quando a última
+        // página retornou pageSize itens E o servidor não enviou totalExpected/hasMore=false.
+        // Casos com poucos itens continuam parando imediatamente.
         maxPages: null,
-        continueUntilEmpty: false,
+        continueUntilEmpty: false, // o client decide internamente via confirmAmbiguous
+        confirmAmbiguous: true,
         delayMs: CONFIG.delay_between_pages,
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
@@ -743,6 +747,11 @@ async function _processarTermoFlashInterno(
           updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
         },
       });
+
+      // Telemetria: páginas confirmadas pelo modo ambíguo
+      if ((resp as any).confirmedPages) {
+        telemetria.paginasConfirmadas += (resp as any).confirmedPages;
+      }
 
       const failedPages = resp.failedPages ?? 0;
       const buscaParcial = !!resp.partial || !!resp.truncated || failedPages > 0;
