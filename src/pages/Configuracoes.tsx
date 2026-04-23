@@ -14,6 +14,7 @@ import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/Monit
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { MonitoramentoTermosProCard } from "@/components/configuracoes/MonitoramentoTermosProCard";
 import { MonitoramentoTermosFlashCard } from "@/components/configuracoes/MonitoramentoTermosFlashCard";
+import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
@@ -68,6 +69,10 @@ export default function Configuracoes() {
           <TabsTrigger value="djen-termos-flash" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Flash</span>
+          </TabsTrigger>
+          <TabsTrigger value="stf-termos" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            <span className="hidden sm:inline">STF Termos</span>
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -213,6 +218,18 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoTermosFlashCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba STF Termos */}
+        <TabsContent value="stf-termos" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">STF Termos</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca direta no portal público do STF (<code>digital.stf.jus.br/publico/publicacoes</code>).
+              Reaproveita os mesmos monitoramentos do DJEN (termos, exclusões e condição concomitante).
+            </p>
+          </div>
+          <StfTermosDashboardCard />
         </TabsContent>
 
         {/* Aba Relatórios de Monitoramento */}
