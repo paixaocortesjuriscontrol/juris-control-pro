@@ -956,39 +956,7 @@ async function _processarTermoFlashInterno(
     }
   }
 
-  // ===== Mudança 3: retomada soft-skip do circuit breaker =====
-  // Tribunais adiados pelo circuit breaker ganham uma 2ª chance ao final do termo,
-  // depois que a janela de pressão da API passou. Aplicamos delay reforçado.
-  if (tribunaisSoftSkip.size > 0 && !signal.aborted) {
-    const adiados = Array.from(tribunaisSoftSkip);
-    console.log(`[DJEN Flash] 🔄 Soft-skip retry: tentando ${adiados.length} tribunais adiados após pressão 429: ${adiados.join(',')}`);
-    // Reset do circuit para permitir nova rodada
-    circuitOpen = false;
-    diagnostico.rateLimitHits = 0;
-    // Aguarda janela de cooldown (delay reforçado: 2× o normal)
-    await delay(CONFIG.delay_between_tribunais * 2);
-    for (const trib of adiados) {
-      if (signal.aborted) break;
-      // Se o circuito reabrir aqui, paramos definitivamente
-      if (circuitOpen) {
-        console.warn(`[DJEN Flash] Soft-skip retry interrompido — circuito reabriu em ${trib}`);
-        break;
-      }
-      const respRetry = await executarBusca(
-        { ...baseParams, siglaTribunal: trib, page: 1 },
-        trib,
-        `soft-skip retry | ${tipo} | ${mon.termo_busca} | ${trib}`,
-      );
-      if (respRetry) {
-        telemetria.tribunaisRetomadosCircuit += 1;
-        if (respRetry.items.length > 0) {
-          tribuniaisComResultados.add(trib);
-          console.log(`[DJEN Flash] ✓ Retomados ${respRetry.items.length} itens de ${trib} (soft-skip)`);
-        }
-      }
-      await delay(CONFIG.delay_between_tribunais * 2);
-    }
-  }
+  // (Soft-skip retry removido — modo cauteloso já garante zero pulo na 1ª passada)
   
   // ===== OTIMIZAÇÃO 3: Complementar palavraChave para "parte" — CONDICIONAL =====
   // Só roda nos tribunais onde a primária por nomeParte trouxe 0 resultados.
