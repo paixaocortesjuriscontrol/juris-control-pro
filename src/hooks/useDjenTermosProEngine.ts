@@ -915,7 +915,7 @@ async function _processarTermoProInterno(
   
   for (const trib of tribLoop) {
     if (signal.aborted) break;
-    if (shouldShortCircuit()) break;
+
     
     const resp = await executarBusca(
       { ...baseParams, siglaTribunal: trib, page: 1 },
@@ -942,7 +942,7 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
-        if (shouldShortCircuit()) break;
+
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -977,12 +977,12 @@ async function _processarTermoProInterno(
 
     for (const termoExtra of termosExtras) {
       if (signal.aborted) break;
-      if (shouldShortCircuit()) break;
+
       console.log(`[DJEN Pro] Busca termos_or palavra-chave: "${termoExtra}"`);
 
       for (const trib of tribLoop) {
         if (signal.aborted) break;
-        if (shouldShortCircuit()) break;
+
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -1024,7 +1024,7 @@ async function _processarTermoProInterno(
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
-      if (shouldShortCircuit()) break;
+
       console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
       await executarBusca(
         {
@@ -1062,7 +1062,7 @@ async function _processarTermoProInterno(
     
     for (const parsed of parsedOr) {
       if (signal.aborted) break;
-      if (shouldShortCircuit()) break;
+
       const nomeNorm = normalizar(parsed.nome);
       if (nomesJaBuscados.has(nomeNorm)) continue;
       nomesJaBuscados.add(nomeNorm);
@@ -1077,7 +1077,7 @@ async function _processarTermoProInterno(
       
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
-        if (shouldShortCircuit()) break;
+
         const resp = await executarBusca(
           {
             tipo: 'advogado' as PjeSearchType,
@@ -1101,7 +1101,7 @@ async function _processarTermoProInterno(
       if (parsed.oabDigits && !signal.aborted) {
         for (const trib of textTribLoop) {
           if (signal.aborted) break;
-          if (shouldShortCircuit()) break;
+
           await executarBusca(
             {
               tipo: 'advogado' as PjeSearchType,
