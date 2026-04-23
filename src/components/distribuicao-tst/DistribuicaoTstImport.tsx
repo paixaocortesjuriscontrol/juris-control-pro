@@ -349,12 +349,20 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const dedupedRecordsComDossie = Array.from(
         new Map(recordsComDossie.map(record => [`${record.processo}||${record.dossie}`, record])).values()
       );
-      const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
+      // Dedup por processo apenas (dossie NULL é tratado como mesmo valor pela constraint NULLS NOT DISTINCT)
+      const recordsSemDossie = Array.from(
+        new Map(
+          upsertRecords
+            .filter(r => !r.dossie)
+            .map(record => [`${record.processo}||__NULL__`, record])
+        ).values()
+      );
 
       const existingPairs = new Set<string>();
       const juditPairs = new Set<string>(); // pares processo||dossie com judit_preenchido=true (não sobrescrever)
       const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
 
+      // Verifica registros existentes (e flag Judit) — apenas para os que têm dossiê
       for (let i = 0; i < dedupedRecordsComDossie.length; i += EXISTING_CHECK_BATCH_SIZE) {
         if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
         const batch = dedupedRecordsComDossie.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
@@ -393,6 +401,25 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           return existingPairs.has(key) && !juditPairs.has(key);
         })
         .map(({ data_distribuicao_real, ...record }) => record);
+
+      // Verifica também os registros SEM dossiê (Judit pode tê-los preenchido)
+      const semDossieJudit = new Set<string>();
+      const semDossieExistentes = new Set<string>();
+      const semDossieProcessos = [...new Set(recordsSemDossie.map(r => r.processo))];
+      for (let i = 0; i < semDossieProcessos.length; i += EXISTING_CHECK_BATCH_SIZE) {
+        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
+        const batch = semDossieProcessos.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
+        const { data, error } = await (supabase.from("dados_benner") as any)
+          .select("processo, dossie, judit_preenchido")
+          .in("processo", batch)
+          .is("dossie", null);
+        if (error) { console.error("Erro ao verificar dados_benner sem dossiê:", error); continue; }
+        (data || []).forEach((r: any) => {
+          semDossieExistentes.add(r.processo);
+          if (r.judit_preenchido === true) semDossieJudit.add(r.processo);
+        });
+      }
+      const recordsSemDossieFiltrados = recordsSemDossie.filter(r => !semDossieJudit.has(r.processo));
 
       let totalUpserted = 0;
       let totalErrors = 0;
