@@ -1499,6 +1499,8 @@ async function executarLoop(
       ultimoErroBusca: null,
       mensagem: 'Iniciando DJEN Termos Pro...',
     });
+    state.lastExecutionSyncAt = 0;
+    syncExecutionProgress({ mensagem: 'Iniciando DJEN Termos Pro...' }, true);
     
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
       if (signal.aborted) break;
@@ -1522,6 +1524,12 @@ async function executarLoop(
           percentage: percentageBefore,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
         });
+        syncExecutionProgress({
+          mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+          termoAtual: mon.descricao || mon.termo_busca,
+          diaAtualYmd: diaYmd,
+          diaAtualIndice: diaIdx + 1,
+        }, true);
 
         console.log(`[DJEN Pro] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
         
@@ -1559,38 +1567,13 @@ async function executarLoop(
         } satisfies Checkpoint;
 
         saveCheckpoint(currentCheckpoint);
-
-        // Persistir progresso no DB a cada termo (banner/cards externos
-        // dependem disto para refletir contadores e barra em tempo real
-        // quando a aba está em background ou o singleton foi resetado).
-        if (executionId) {
-          supabase
-            .from('execucoes_agendadas')
-            .update({
-              detalhes: {
-                novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
-                percentage: percentageAfter,
-                termoAtual: mon.descricao || mon.termo_busca,
-                mensagem: `Dia ${diaIdx + 1}/${datas.length} • ${mon.descricao || mon.termo_busca}`,
-                diaAtualYmd: diaYmd,
-                diaAtualIndice: diaIdx + 1,
-                totalTermos: monitoramentos.length,
-                totalDias: datas.length,
-                globalCurrent,
-                totalOps,
-                dataInicioYmd, dataFimYmd,
-                checkpoint: currentCheckpoint,
-                diagnostico: {
-                  rateLimitHits: acumRateLimitHits,
-                  falhasBusca: acumFalhasBusca,
-                  buscasParciais: acumBuscasParciais,
-                  ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
-                },
-              },
-            })
-            .eq('id', executionId)
-            .then(() => {});
-        }
+        syncExecutionProgress({
+          mensagem: `Dia ${diaIdx + 1}/${datas.length} • ${mon.descricao || mon.termo_busca}`,
+          termoAtual: mon.descricao || mon.termo_busca,
+          diaAtualYmd: diaYmd,
+          diaAtualIndice: diaIdx + 1,
+          checkpoint: currentCheckpoint,
+        }, true);
         
         await delay(CONFIG.delay_between_terms);
         
