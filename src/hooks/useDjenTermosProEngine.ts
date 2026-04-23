@@ -847,9 +847,9 @@ async function _processarTermoProInterno(
         signal,
         maxPages: null,
         continueUntilEmpty: true,
-        delayMs: CONFIG.delay_between_pages,
+        delayMs: adaptive(CONFIG.delay_between_pages),
         maxRetries: CONFIG.max_retries,
-        retryBaseDelay: CONFIG.retry_base_delay,
+        retryBaseDelay: adaptive(CONFIG.retry_base_delay),
         onRateLimit: (waitMs, attempt, page) => {
           diagnostico.rateLimitHits += 1;
           recordRateLimitHit();
