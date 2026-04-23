@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
+import { getCheckpointFromExecutionDetails, persistCheckpointPro } from "@/hooks/useDjenTermosProEngine";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
 
@@ -165,10 +166,30 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         if (cancelled) return;
         const row = data?.[0];
         if (!row) {
+          const { data: lastInterrupted } = await supabase
+            .from('execucoes_agendadas')
+            .select('detalhes')
+            .eq('tipo', 'djen_pro')
+            .in('status', ['cancelado', 'erro'])
+            .order('finalizado_em', { ascending: false })
+            .limit(1);
+
+          if (cancelled) return;
+
+          const resumeDetails = (lastInterrupted?.[0]?.detalhes as any) || null;
+          const resumedCheckpoint = getCheckpointFromExecutionDetails(resumeDetails);
+          if (resumedCheckpoint) {
+            persistCheckpointPro(resumedCheckpoint);
+          }
+
           setBackendActive(null);
           return;
         }
         const det = (row.detalhes as any) || {};
+        const hydratedCheckpoint = getCheckpointFromExecutionDetails(det);
+        if (hydratedCheckpoint) {
+          persistCheckpointPro(hydratedCheckpoint);
+        }
         const percentage = det?.percentage ?? det?.progress?.percentage ?? 0;
         const mensagem = det?.mensagem || det?.etapaAtual || 'Executando no backend...';
         const novas = det?.novas ?? det?.totalNovas ?? 0;

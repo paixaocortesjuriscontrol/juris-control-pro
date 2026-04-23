@@ -69,6 +69,11 @@ interface Checkpoint {
   tempoInicio: number;
   dataInicioYmd: string;
   dataFimYmd: string;
+  globalCurrent?: number;
+  globalTotal?: number;
+  percentage?: number;
+  totalDias?: number;
+  totalTermos?: number;
 }
 
 // ============================================================================
@@ -170,6 +175,131 @@ function loadCheckpoint(): Checkpoint | null {
     }
     return parsed;
   } catch { return null; }
+}
+
+function toFiniteNumber(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildCheckpointFromExecutionDetails(details: Record<string, any> | null | undefined): Checkpoint | null {
+  if (!details || typeof details !== 'object') return null;
+
+  const nested = details.checkpoint && typeof details.checkpoint === 'object'
+    ? details.checkpoint as Record<string, any>
+    : null;
+
+  const dataInicioYmd = String(
+    nested?.dataInicioYmd ?? details.dataInicioYmd ?? details.data_inicio ?? ''
+  ).trim();
+  const dataFimYmd = String(
+    nested?.dataFimYmd ?? details.dataFimYmd ?? details.data_fim ?? ''
+  ).trim();
+
+  const runKey = String(
+    nested?.runKey ?? details.runKey ?? details.run_key ?? (dataInicioYmd && dataFimYmd ? `${dataInicioYmd}..${dataFimYmd}` : '')
+  ).trim();
+
+  if (!runKey || !dataInicioYmd || !dataFimYmd) return null;
+
+  const totalTermos = Math.max(0, toFiniteNumber(nested?.totalTermos ?? details.totalTermos));
+  const totalDias = Math.max(0, toFiniteNumber(nested?.totalDias ?? details.totalDias));
+  const globalCurrent = Math.max(0, toFiniteNumber(
+    nested?.globalCurrent ?? details.globalCurrent ?? details.current ?? details.progress?.current
+  ));
+  const globalTotal = Math.max(
+    0,
+    toFiniteNumber(nested?.globalTotal ?? details.globalTotal ?? details.totalOps ?? details.total ?? details.progress?.total) ||
+      (totalDias > 0 && totalTermos > 0 ? totalDias * totalTermos : 0)
+  );
+
+  if (globalCurrent <= 0 && !nested?.termoIndice && !details.termoIndice) return null;
+
+  const diaIndice = Math.max(
+    0,
+    toFiniteNumber(
+      nested?.diaIndice ?? details.diaIndice ??
+      ((toFiniteNumber(details.diaAtualIndice) > 0 ? toFiniteNumber(details.diaAtualIndice) - 1 : undefined) ??
+        (totalTermos > 0 ? Math.floor(globalCurrent / totalTermos) : 0))
+    )
+  );
+
+  const termoIndice = Math.max(
+    0,
+    toFiniteNumber(
+      nested?.termoIndice ?? details.termoIndice ??
+      (totalTermos > 0 ? globalCurrent % totalTermos : 0)
+    )
+  );
+
+  const percentage = Math.max(
+    0,
+    Math.min(
+      100,
+      toFiniteNumber(nested?.percentage ?? details.percentage ?? details.progress?.percentage) ||
+        (globalTotal > 0 ? Math.round((globalCurrent / globalTotal) * 100) : 0)
+    )
+  );
+
+  return {
+    runKey,
+    diaIndice,
+    termoIndice,
+    novas: Math.max(0, toFiniteNumber(nested?.novas ?? details.novas)),
+    duplicadas: Math.max(0, toFiniteNumber(nested?.duplicadas ?? details.duplicadas)),
+    descartadas: Math.max(0, toFiniteNumber(nested?.descartadas ?? details.descartadas)),
+    tempoInicio: Math.max(0, toFiniteNumber(nested?.tempoInicio ?? details.tempoInicio)) || Date.now(),
+    dataInicioYmd,
+    dataFimYmd,
+    globalCurrent,
+    globalTotal,
+    percentage,
+    totalDias,
+    totalTermos,
+  };
+}
+
+function buildCheckpointFromProgress(): Checkpoint | null {
+  const { dataInicioYmd, dataFimYmd, globalCurrent, globalTotal, diaAtualIndice, totalTermos } = state.progress;
+  if (!dataInicioYmd || !dataFimYmd) return null;
+  if (globalCurrent <= 0 && globalTotal <= 0) return null;
+
+  return {
+    runKey: `${dataInicioYmd}..${dataFimYmd}`,
+    diaIndice: Math.max(0, (diaAtualIndice || 1) - 1),
+    termoIndice: Math.max(0, totalTermos > 0 ? globalCurrent % totalTermos : 0),
+    novas: state.progress.novas,
+    duplicadas: state.progress.duplicadas,
+    descartadas: state.progress.descartadas,
+    tempoInicio: Date.now() - (state.progress.tempoDecorrido * 1000),
+    dataInicioYmd,
+    dataFimYmd,
+    globalCurrent,
+    globalTotal,
+    percentage: state.progress.percentage,
+    totalDias: state.progress.totalDias,
+    totalTermos: state.progress.totalTermos,
+  };
+}
+
+function serializeCheckpoint(checkpoint: Checkpoint | null) {
+  if (!checkpoint) return null;
+  return {
+    runKey: checkpoint.runKey,
+    diaIndice: checkpoint.diaIndice,
+    termoIndice: checkpoint.termoIndice,
+    novas: checkpoint.novas,
+    duplicadas: checkpoint.duplicadas,
+    descartadas: checkpoint.descartadas,
+    tempoInicio: checkpoint.tempoInicio,
+    dataInicioYmd: checkpoint.dataInicioYmd,
+    dataFimYmd: checkpoint.dataFimYmd,
+    globalCurrent: checkpoint.globalCurrent ?? null,
+    globalTotal: checkpoint.globalTotal ?? null,
+    percentage: checkpoint.percentage ?? null,
+    totalDias: checkpoint.totalDias ?? null,
+    totalTermos: checkpoint.totalTermos ?? null,
+  };
 }
 
 function notifyListeners() {
@@ -1233,14 +1363,14 @@ async function executarLoop(
     
     // Registrar execução no banco
     try {
-      const { data: inserted, error: insertErr } = await supabase
+        const { data: inserted, error: insertErr } = await supabase
         .from('execucoes_agendadas')
         .insert({
           tipo: 'djen_pro',
           status: 'executando',
           job_name: 'DJEN Termos Pro',
           iniciado_em: new Date().toISOString(),
-          detalhes: { totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
+            detalhes: { runKey, totalTermos: monitoramentos.length, totalDias: datas.length, dataInicioYmd, dataFimYmd },
         })
         .select('id');
       if (insertErr) {
@@ -1320,11 +1450,18 @@ async function executarLoop(
         });
         
         // Checkpoint
-        saveCheckpoint({
+        const currentCheckpoint = {
           runKey, diaIndice: diaIdx, termoIndice: termoIdx + 1,
           novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
           tempoInicio, dataInicioYmd, dataFimYmd,
-        });
+          globalCurrent,
+          globalTotal: totalOps,
+          percentage: percentageAfter,
+          totalDias: datas.length,
+          totalTermos: monitoramentos.length,
+        } satisfies Checkpoint;
+
+        saveCheckpoint(currentCheckpoint);
 
         // Persistir progresso no DB a cada termo (banner/cards externos
         // dependem disto para refletir contadores e barra em tempo real
@@ -1345,6 +1482,7 @@ async function executarLoop(
                 globalCurrent,
                 totalOps,
                 dataInicioYmd, dataFimYmd,
+                checkpoint: currentCheckpoint,
                 diagnostico: {
                   rateLimitHits: acumRateLimitHits,
                   falhasBusca: acumFalhasBusca,
@@ -1386,19 +1524,33 @@ async function executarLoop(
     if (executionId) {
       try {
         const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
+        const finalCheckpoint = finalStatus === 'concluido'
+          ? null
+          : (state.checkpoint || buildCheckpointFromProgress());
+        const serializedFinalCheckpoint = serializeCheckpoint(finalCheckpoint);
         await supabase
           .from('execucoes_agendadas')
           .update({
             status: finalStatus,
             finalizado_em: new Date().toISOString(),
             detalhes: {
+              runKey: finalCheckpoint?.runKey ?? `${dataInicioYmd}..${dataFimYmd}`,
+              dataInicioYmd,
+              dataFimYmd,
+              totalDias: state.progress.totalDias,
+              totalTermos: state.progress.totalTermos,
+              globalCurrent: state.progress.globalCurrent,
+              globalTotal: state.progress.globalTotal,
               novas: state.progress.novas,
               duplicadas: state.progress.duplicadas,
               descartadas: state.progress.descartadas,
               percentage: state.progress.percentage,
+              diaAtualYmd: state.progress.diaAtualYmd,
+              diaAtualIndice: state.progress.diaAtualIndice,
+              termoAtualNoDia: state.progress.termoAtualNoDia,
+              termoAtual: state.progress.termoAtual,
               mensagem: state.progress.mensagem,
-              dataInicioYmd,
-              dataFimYmd,
+              checkpoint: serializedFinalCheckpoint,
               diagnostico: {
                 rateLimitHits: state.progress.rateLimitHits,
                 falhasBusca: state.progress.falhasBusca,
@@ -1445,27 +1597,46 @@ export function cancelarDjenTermosPro() {
     state.abortController.abort();
     updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
   }
+  const checkpoint = state.checkpoint || buildCheckpointFromProgress();
+  const serializedCheckpoint = serializeCheckpoint(checkpoint);
+  const updatePayload: Record<string, any> = {
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+  };
+
+  if (checkpoint) {
+    updatePayload.detalhes = {
+      runKey: checkpoint.runKey,
+      dataInicioYmd: checkpoint.dataInicioYmd,
+      dataFimYmd: checkpoint.dataFimYmd,
+      totalDias: checkpoint.totalDias ?? state.progress.totalDias,
+      totalTermos: checkpoint.totalTermos ?? state.progress.totalTermos,
+      globalCurrent: checkpoint.globalCurrent ?? state.progress.globalCurrent,
+      globalTotal: checkpoint.globalTotal ?? state.progress.globalTotal,
+      novas: state.progress.novas || checkpoint.novas,
+      duplicadas: state.progress.duplicadas || checkpoint.duplicadas,
+      descartadas: state.progress.descartadas || checkpoint.descartadas,
+      percentage: checkpoint.percentage ?? state.progress.percentage,
+      diaAtualYmd: state.progress.diaAtualYmd,
+      diaAtualIndice: state.progress.diaAtualIndice,
+      termoAtualNoDia: state.progress.termoAtualNoDia,
+      termoAtual: state.progress.termoAtual,
+      mensagem: 'Cancelado pelo usuário',
+      checkpoint: serializedCheckpoint,
+      diagnostico: {
+        rateLimitHits: state.progress.rateLimitHits,
+        falhasBusca: state.progress.falhasBusca,
+        buscasParciais: state.progress.buscasParciais,
+        ultimoErroBusca: state.progress.ultimoErroBusca,
+      },
+    };
+  }
+
   // Finalizar qualquer execução ativa no banco imediatamente (mesmo sem executionId local).
   // Isso cobre casos de modo background/híbrido, scheduler e estados órfãos entre abas.
   supabase
     .from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      detalhes: {
-        novas: state.progress.novas,
-        duplicadas: state.progress.duplicadas,
-        descartadas: state.progress.descartadas,
-        percentage: state.progress.percentage,
-        mensagem: 'Cancelado pelo usuário',
-        diagnostico: {
-          rateLimitHits: state.progress.rateLimitHits,
-          falhasBusca: state.progress.falhasBusca,
-          buscasParciais: state.progress.buscasParciais,
-          ultimoErroBusca: state.progress.ultimoErroBusca,
-        },
-      },
-    })
+    .update(updatePayload)
     .eq('tipo', 'djen_pro')
     .eq('status', 'executando')
     .then(({ error }) => {
@@ -1502,6 +1673,14 @@ export function isDjenTermosProRunning(): boolean {
 
 export function getCheckpointPro(): Checkpoint | null {
   return state.checkpoint || loadCheckpoint();
+}
+
+export function persistCheckpointPro(cp: Checkpoint | null) {
+  saveCheckpoint(cp);
+}
+
+export function getCheckpointFromExecutionDetails(details: Record<string, any> | null | undefined): Checkpoint | null {
+  return buildCheckpointFromExecutionDetails(details);
 }
 
 export function subscribeDjenTermosPro(listener: (p: DjenTermosProProgress) => void): () => void {
