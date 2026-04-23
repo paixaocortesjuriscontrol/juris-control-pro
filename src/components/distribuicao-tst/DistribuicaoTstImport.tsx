@@ -46,6 +46,48 @@ function toBool(val: unknown): boolean {
   return t === "S" || t === "SIM" || t === "X" || t === "TRUE";
 }
 
+function normalizeDossie(val: unknown): string {
+  return norm(val).replace(/\s+/g, " ");
+}
+
+function isValidDossie(val: unknown): boolean {
+  const raw = normalizeDossie(val);
+  if (!raw) return false;
+
+  const normalized = normalizeName(raw);
+  if (!normalized) return false;
+
+  const invalidPatterns = [
+    "dossie nao localizado",
+    "nao localizado",
+    "não localizado",
+    "nao encontrado",
+    "não encontrado",
+    "n/localizado",
+    "sem acesso ao benner",
+    "caso encerrado no benner",
+    "dossie nao localizado sem acesso ao benner",
+    "dossie nao localizado nao encontrado no benner",
+  ];
+
+  return !invalidPatterns.some((pattern) => normalized.includes(normalizeName(pattern)));
+}
+
+function isExplicitNoResponsavel(val: unknown): boolean {
+  const normalized = normalizeName(val);
+  return normalized === "sem responsavel" || normalized === "s responsavel";
+}
+
+function isMoreRecentRow(
+  next: { hasValidDossie: boolean; sortKey: number; sheetOrder: number; rowIndex: number },
+  current: { hasValidDossie: boolean; sortKey: number; sheetOrder: number; rowIndex: number }
+): boolean {
+  if (next.hasValidDossie !== current.hasValidDossie) return next.hasValidDossie;
+  if (next.sortKey !== current.sortKey) return next.sortKey > current.sortKey;
+  if (next.sheetOrder !== current.sheetOrder) return next.sheetOrder > current.sheetOrder;
+  return next.rowIndex > current.rowIndex;
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
   const m = Math.floor(seconds / 60);
@@ -66,6 +108,15 @@ interface DuplicateRow {
   processo: string;
   dossie: string;
   row: string[];
+}
+
+interface ImportPlanRow {
+  sheetName: string;
+  sheetOrder: number;
+  rowIndex: number;
+  processoNumero: string;
+  row: string[];
+  responsavelRaw: string;
 }
 
 export function DistribuicaoTstImport({ onImported }: Props) {
@@ -125,9 +176,9 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[]; responsavelRaw: string }[] = [];
+      const allRows: ImportPlanRow[] = [];
       let capturedHeader: string[] = [];
-      for (const sheetName of wb.SheetNames) {
+      for (const [sheetOrder, sheetName] of wb.SheetNames.entries()) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
         let headerIdx = -1;
@@ -146,7 +197,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           if (!num || num.length < 7) continue;
           // Coluna AB = índice 27 (Responsável)
           const responsavelRaw = norm(r[27]);
-          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r, responsavelRaw });
+          allRows.push({ sheetName, sheetOrder, rowIndex: i, processoNumero: num, row: r, responsavelRaw });
         }
       }
 
@@ -194,6 +245,34 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       };
 
       const responsavelNaoEncontrados = new Set<string>();
+      const latestResponsavelByProcess = new Map<string, { raw: string; userId: string | null; clear: boolean }>();
+
+      for (const rec of allRows) {
+        const raw = rec.responsavelRaw;
+        if (!raw) continue;
+
+        const sortKey = Date.parse(String(rec.row[0] ?? "")) || 0;
+        const nextMeta = {
+          hasValidDossie: isValidDossie(rec.row[2]),
+          sortKey,
+          sheetOrder: rec.sheetOrder,
+          rowIndex: rec.rowIndex,
+        };
+
+        const current = latestResponsavelByProcess.get(rec.processoNumero) as any;
+        if (current && !isMoreRecentRow(nextMeta, current.meta)) continue;
+
+        let userId: string | null = null;
+        let clear = false;
+        if (isExplicitNoResponsavel(raw)) {
+          clear = true;
+        } else {
+          userId = resolveResponsavel(raw);
+          if (!userId) responsavelNaoEncontrados.add(raw);
+        }
+
+        latestResponsavelByProcess.set(rec.processoNumero, { raw, userId, clear, meta: nextMeta } as any);
+      }
 
       // === Detectar duplicados (mesmo processo+dossie aparecendo mais de uma vez) ===
       const counts = new Map<string, number>();
@@ -221,10 +300,33 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       }
 
       // === STEP 2: Upsert processos (bulk, no lookup needed) ===
-      const uniqueNumeros = [...new Set(allRows.map(r => r.processoNumero))];
-      const firstOcc = new Map<string, string[]>();
+      const latestRowByProcess = new Map<string, ImportPlanRow>();
       for (const rec of allRows) {
-        if (!firstOcc.has(rec.processoNumero)) firstOcc.set(rec.processoNumero, rec.row);
+        const current = latestRowByProcess.get(rec.processoNumero);
+        if (!current) {
+          latestRowByProcess.set(rec.processoNumero, rec);
+          continue;
+        }
+
+        const nextMeta = {
+          hasValidDossie: isValidDossie(rec.row[2]),
+          sortKey: Date.parse(String(rec.row[0] ?? "")) || 0,
+          sheetOrder: rec.sheetOrder,
+          rowIndex: rec.rowIndex,
+        };
+        const currentMeta = {
+          hasValidDossie: isValidDossie(current.row[2]),
+          sortKey: Date.parse(String(current.row[0] ?? "")) || 0,
+          sheetOrder: current.sheetOrder,
+          rowIndex: current.rowIndex,
+        };
+        if (isMoreRecentRow(nextMeta, currentMeta)) latestRowByProcess.set(rec.processoNumero, rec);
+      }
+
+      const uniqueNumeros = [...latestRowByProcess.keys()];
+      const firstOcc = new Map<string, string[]>();
+      for (const [processoNumero, rec] of latestRowByProcess.entries()) {
+        firstOcc.set(processoNumero, rec.row);
       }
 
       // Step 1: Lookup existing processos to know which are new vs updated
@@ -299,12 +401,12 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       setStatusText("Etapa 3/3: Salvando distribuições em Dados Benner");
       startTimeRef.current = Date.now();
 
-      const upsertRecords = allRows
+      const upsertRecords = [...latestRowByProcess.values()]
         .filter(rec => processoIdMap.has(rec.processoNumero) && rec.processoNumero)
         .map(({ sheetName, processoNumero, row: r }) => {
           const relatorFav = norm(r[7]).toLowerCase();
           const turmaFav = norm(r[9]).toLowerCase();
-          const dossieVal = norm(r[2]);
+          const dossieVal = isValidDossie(r[2]) ? normalizeDossie(r[2]) : null;
           const dataPlanilha = parseDateBR(r[0]);
           return {
             processo: processoNumero,
@@ -345,86 +447,48 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           };
         });
 
-      const recordsComDossie = upsertRecords.filter(r => r.dossie);
-      const dedupedRecordsComDossie = Array.from(
-        new Map(recordsComDossie.map(record => [`${record.processo}||${record.dossie}`, record])).values()
-      );
-      // Dedup por processo apenas (dossie NULL é tratado como mesmo valor pela constraint NULLS NOT DISTINCT)
-      const recordsSemDossie = Array.from(
-        new Map(
-          upsertRecords
-            .filter(r => !r.dossie)
-            .map(record => [`${record.processo}||__NULL__`, record])
-        ).values()
-      );
+      const existingRowsByProcess = new Map<string, { id: string; dossie: string | null; judit_preenchido: boolean | null }[]>();
+      for (let i = 0; i < uniqueNumeros.length; i += EXISTING_CHECK_BATCH_SIZE) {
+        const batch = uniqueNumeros.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
+        const { data, error } = await (supabase.from("dados_benner") as any)
+          .select("id, processo, dossie, judit_preenchido")
+          .eq("tribunal", "TST")
+          .in("processo", batch);
+        if (error) throw error;
+        (data || []).forEach((row: any) => {
+          const list = existingRowsByProcess.get(row.processo) || [];
+          list.push(row);
+          existingRowsByProcess.set(row.processo, list);
+        });
+      }
+
+      const recordsToPersist = upsertRecords.filter((record) => {
+        const existingRows = existingRowsByProcess.get(record.processo) || [];
+        if (existingRows.some((row) => row.judit_preenchido === true)) return false;
+        if (!record.dossie && existingRows.some((row) => !!row.dossie)) return false;
+        return true;
+      });
 
       const existingPairs = new Set<string>();
       const juditPairs = new Set<string>(); // pares processo||dossie com judit_preenchido=true (não sobrescrever)
-      const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
+      const recordKeys = recordsToPersist.map(record => `${record.processo}||${record.dossie ?? ""}`);
 
-      // Verifica registros existentes (e flag Judit) — apenas para os que têm dossiê
-      for (let i = 0; i < dedupedRecordsComDossie.length; i += EXISTING_CHECK_BATCH_SIZE) {
-        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
-        const batch = dedupedRecordsComDossie.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
-        const processos = [...new Set(batch.map(record => record.processo).filter(Boolean))];
-        const dossies = [...new Set(batch.map(record => record.dossie).filter(Boolean))];
-
-        if (processos.length === 0 || dossies.length === 0) continue;
-
-        const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("processo, dossie, judit_preenchido")
-          .in("processo", processos)
-          .in("dossie", dossies)
-          .limit(EXISTING_CHECK_BATCH_SIZE * 3);
-
-        if (error) {
-          console.error("Erro ao verificar distribuições existentes:", error, {
-            processos: processos.length,
-            dossies: dossies.length,
-            batchSize: batch.length,
-          });
-          throw error;
-        }
-
-        (data || []).forEach((record: any) => {
-          const key = `${record.processo}||${record.dossie}`;
+      recordsToPersist.forEach((record) => {
+        const key = `${record.processo}||${record.dossie ?? ""}`;
+        if ((existingRowsByProcess.get(record.processo) || []).some((row) => normalizeDossie(row.dossie) === normalizeDossie(record.dossie))) {
           existingPairs.add(key);
-          if (record.judit_preenchido === true) juditPairs.add(key);
+        }
+      });
+      existingRowsByProcess.forEach((rows, processo) => {
+        rows.filter((row) => row.judit_preenchido === true).forEach((row) => {
+          juditPairs.add(`${processo}||${row.dossie ?? ""}`);
         });
-      }
-
-      // Registros preenchidos pela Judit: não sobrescrever campos do dados_benner (mas atualizar responsável depois)
-      const recordsComDossieNovos = dedupedRecordsComDossie.filter(record => !existingPairs.has(`${record.processo}||${record.dossie}`));
-      const recordsComDossieExistentes = dedupedRecordsComDossie
-        .filter(record => {
-          const key = `${record.processo}||${record.dossie}`;
-          return existingPairs.has(key) && !juditPairs.has(key);
-        })
-        .map(({ data_distribuicao_real, ...record }) => record);
-
-      // Verifica também os registros SEM dossiê (Judit pode tê-los preenchido)
-      const semDossieJudit = new Set<string>();
-      const semDossieExistentes = new Set<string>();
-      const semDossieProcessos = [...new Set(recordsSemDossie.map(r => r.processo))];
-      for (let i = 0; i < semDossieProcessos.length; i += EXISTING_CHECK_BATCH_SIZE) {
-        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
-        const batch = semDossieProcessos.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
-        const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("processo, dossie, judit_preenchido")
-          .in("processo", batch)
-          .is("dossie", null);
-        if (error) { console.error("Erro ao verificar dados_benner sem dossiê:", error); continue; }
-        (data || []).forEach((r: any) => {
-          semDossieExistentes.add(r.processo);
-          if (r.judit_preenchido === true) semDossieJudit.add(r.processo);
-        });
-      }
-      const recordsSemDossieFiltrados = recordsSemDossie.filter(r => !semDossieJudit.has(r.processo));
+      });
 
       let totalUpserted = 0;
       let totalErrors = 0;
       let firstError: string | null = null;
-      const totalRecords = recordKeys.length + recordsSemDossie.length;
+      const totalRecords = recordsToPersist.length;
 
       const processBatch = async (records: any[], mode: "insert" | "upsert") => {
         for (let i = 0; i < records.length; i += BATCH_SIZE) {
@@ -459,23 +523,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return true;
       };
 
-      // Tudo via UPSERT para resolver duplicatas internas e colisões com banco
-      const okComDossieNovos = await processBatch(recordsComDossieNovos, "upsert");
-      if (!okComDossieNovos) {
-        toast.info(`Cancelado. ${totalUpserted} registros processados.`);
-        onImported();
-        resetState();
-        return;
-      }
-      const okComDossieExistentes = await processBatch(recordsComDossieExistentes, "upsert");
-      if (!okComDossieExistentes) {
-        toast.info(`Cancelado. ${totalUpserted} registros processados.`);
-        onImported();
-        resetState();
-        return;
-      }
-      const okSemDossie = await processBatch(recordsSemDossieFiltrados, "upsert");
-      if (!okSemDossie) {
+      const okPersist = await processBatch(recordsToPersist, "upsert");
+      if (!okPersist) {
         toast.info(`Cancelado. ${totalUpserted} registros processados.`);
         onImported();
         resetState();
@@ -486,67 +535,67 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       // Constrói mapa (processo||dossie) -> responsavel_user_id a partir das linhas da planilha
       // Apenas linhas com célula AB preenchida e nome resolvido entram (vazio = mantém o que está no Supabase)
       setStatusText("Atualizando responsáveis");
-      const respByPair = new Map<string, string>();
-      for (const rec of allRows) {
-        const dossie = norm(rec.row[2]);
-        if (!dossie) continue;
-        const raw = rec.responsavelRaw;
-        if (!raw) continue;
-        const userId = resolveResponsavel(raw);
-        if (!userId) {
-          responsavelNaoEncontrados.add(raw);
-          continue;
-        }
-        respByPair.set(`${rec.processoNumero}||${dossie}`, userId);
-      }
-
       let respAtualizados = 0;
-      if (respByPair.size > 0) {
-        const pairs = [...respByPair.keys()];
-        // Buscar IDs de dados_benner para esses pares (apenas filtrando por processo,
-        // evitando IN cruzado que estoura limite de URL do PostgREST → Bad Request)
-        const pairProcessos = [...new Set(pairs.map(k => k.split("||")[0]))];
-        const wantedPairs = new Set(pairs);
-        const pairToBennerId = new Map<string, string>();
-
+      if (latestResponsavelByProcess.size > 0) {
+        const processosComResponsavel = [...latestResponsavelByProcess.keys()];
+        const processToBennerId = new Map<string, string>();
         const LOOKUP_BATCH = 100;
-        for (let i = 0; i < pairProcessos.length; i += LOOKUP_BATCH) {
+        for (let i = 0; i < processosComResponsavel.length; i += LOOKUP_BATCH) {
           if (cancelRef.current) break;
-          const batchProc = pairProcessos.slice(i, i + LOOKUP_BATCH);
+          const batchProc = processosComResponsavel.slice(i, i + LOOKUP_BATCH);
           const { data, error } = await (supabase.from("dados_benner") as any)
-            .select("id, processo, dossie")
+            .select("id, processo, dossie, updated_at, created_at")
+            .eq("tribunal", "TST")
             .in("processo", batchProc);
           if (error) {
             console.error("Erro ao buscar IDs dados_benner para responsáveis:", error);
             continue;
           }
+          const grouped = new Map<string, any[]>();
           (data || []).forEach((row: any) => {
-            const key = `${row.processo}||${row.dossie ?? ""}`;
-            if (wantedPairs.has(key)) pairToBennerId.set(key, row.id);
+            const list = grouped.get(row.processo) || [];
+            list.push(row);
+            grouped.set(row.processo, list);
+          });
+          grouped.forEach((rows, processo) => {
+            rows.sort((a, b) => {
+              const aValid = !!a.dossie;
+              const bValid = !!b.dossie;
+              if (aValid !== bValid) return aValid ? -1 : 1;
+              return String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at));
+            });
+            processToBennerId.set(processo, rows[0].id);
           });
         }
 
-        // Substitui responsáveis: deleta existentes do dados_benner_id e insere o único da planilha
-        const bennerIdsParaSubstituir: { bennerId: string; userId: string }[] = [];
-        for (const [pair, userId] of respByPair.entries()) {
-          const bennerId = pairToBennerId.get(pair);
-          if (bennerId) bennerIdsParaSubstituir.push({ bennerId, userId });
+        const bennerIdsParaLimpar: string[] = [];
+        const insertRows: { dados_benner_id: string; usuario_id: string }[] = [];
+        for (const [processo, payload] of latestResponsavelByProcess.entries()) {
+          const bennerId = processToBennerId.get(processo);
+          if (!bennerId) continue;
+          bennerIdsParaLimpar.push(bennerId);
+          if (!payload.clear && payload.userId) {
+            insertRows.push({ dados_benner_id: bennerId, usuario_id: payload.userId });
+          }
         }
 
         const DEL_BATCH = 200;
-        for (let i = 0; i < bennerIdsParaSubstituir.length; i += DEL_BATCH) {
+        for (let i = 0; i < bennerIdsParaLimpar.length; i += DEL_BATCH) {
           if (cancelRef.current) break;
-          const slice = bennerIdsParaSubstituir.slice(i, i + DEL_BATCH);
-          const ids = slice.map(s => s.bennerId);
+          const ids = bennerIdsParaLimpar.slice(i, i + DEL_BATCH);
           const { error: delErr } = await (supabase.from("dados_benner_responsaveis" as any) as any)
             .delete()
             .in("dados_benner_id", ids);
           if (delErr) { console.error("Erro ao limpar responsáveis:", delErr); continue; }
-          const insertRows = slice.map(s => ({ dados_benner_id: s.bennerId, usuario_id: s.userId }));
+        }
+
+        for (let i = 0; i < insertRows.length; i += DEL_BATCH) {
+          if (cancelRef.current) break;
+          const slice = insertRows.slice(i, i + DEL_BATCH);
           const { error: insErr } = await (supabase.from("dados_benner_responsaveis" as any) as any)
-            .insert(insertRows as any);
+            .insert(slice as any);
           if (insErr) { console.error("Erro ao inserir responsáveis:", insErr); continue; }
-          respAtualizados += insertRows.length;
+          respAtualizados += slice.length;
         }
       }
 
