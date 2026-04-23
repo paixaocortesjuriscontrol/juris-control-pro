@@ -503,25 +503,26 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       let respAtualizados = 0;
       if (respByPair.size > 0) {
         const pairs = [...respByPair.keys()];
-        // Buscar IDs de dados_benner para esses pares
+        // Buscar IDs de dados_benner para esses pares (apenas filtrando por processo,
+        // evitando IN cruzado que estoura limite de URL do PostgREST → Bad Request)
         const pairProcessos = [...new Set(pairs.map(k => k.split("||")[0]))];
-        const pairDossies = [...new Set(pairs.map(k => k.split("||")[1]))];
+        const wantedPairs = new Set(pairs);
         const pairToBennerId = new Map<string, string>();
 
-        const LOOKUP_BATCH = 200;
+        const LOOKUP_BATCH = 100;
         for (let i = 0; i < pairProcessos.length; i += LOOKUP_BATCH) {
           if (cancelRef.current) break;
           const batchProc = pairProcessos.slice(i, i + LOOKUP_BATCH);
           const { data, error } = await (supabase.from("dados_benner") as any)
             .select("id, processo, dossie")
-            .in("processo", batchProc)
-            .in("dossie", pairDossies);
+            .in("processo", batchProc);
           if (error) {
             console.error("Erro ao buscar IDs dados_benner para responsáveis:", error);
             continue;
           }
           (data || []).forEach((row: any) => {
-            pairToBennerId.set(`${row.processo}||${row.dossie}`, row.id);
+            const key = `${row.processo}||${row.dossie ?? ""}`;
+            if (wantedPairs.has(key)) pairToBennerId.set(key, row.id);
           });
         }
 
