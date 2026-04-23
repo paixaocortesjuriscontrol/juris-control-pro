@@ -807,7 +807,16 @@ async function _processarTermoProInterno(
           diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
           const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
           console.warn(`[DJEN Pro] ${aviso} | ${contexto}`);
-          updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
+          updateProgress({
+            mensagem: aviso,
+            ultimoErroBusca: diagnostico.ultimoErroBusca,
+            rateLimitHits: state.progress.rateLimitHits + 1,
+          });
+          syncExecutionProgress({
+            mensagem: aviso,
+            termoAtual: state.progress.termoAtual,
+            ultimoErroBusca: diagnostico.ultimoErroBusca,
+          }, true);
         },
       });
 
@@ -826,6 +835,10 @@ async function _processarTermoProInterno(
           mensagem: `⚠️ Busca parcial: ${contexto}`,
           ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
         });
+        syncExecutionProgress({
+          mensagem: `⚠️ Busca parcial: ${contexto}`,
+          ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
+        }, true);
       }
 
       // Log explícito quando a busca termina em truncamento (paginação não foi até o fim)
@@ -847,6 +860,10 @@ async function _processarTermoProInterno(
         mensagem: `⚠️ Falha de busca: ${contexto}`,
         ultimoErroBusca: diagnostico.ultimoErroBusca,
       });
+      syncExecutionProgress({
+        mensagem: `⚠️ Falha de busca: ${contexto}`,
+        ultimoErroBusca: diagnostico.ultimoErroBusca,
+      }, true);
       return null;
     }
   };
