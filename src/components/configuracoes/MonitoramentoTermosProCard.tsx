@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
+import { getCheckpointFromExecutionDetails, persistCheckpointPro } from "@/hooks/useDjenTermosProEngine";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
 
@@ -169,6 +170,10 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           return;
         }
         const det = (row.detalhes as any) || {};
+        const hydratedCheckpoint = getCheckpointFromExecutionDetails(det);
+        if (hydratedCheckpoint) {
+          persistCheckpointPro(hydratedCheckpoint);
+        }
         const percentage = det?.percentage ?? det?.progress?.percentage ?? 0;
         const mensagem = det?.mensagem || det?.etapaAtual || 'Executando no backend...';
         const novas = det?.novas ?? det?.totalNovas ?? 0;
