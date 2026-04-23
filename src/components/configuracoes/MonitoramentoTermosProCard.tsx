@@ -166,6 +166,22 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         if (cancelled) return;
         const row = data?.[0];
         if (!row) {
+          const { data: lastInterrupted } = await supabase
+            .from('execucoes_agendadas')
+            .select('detalhes')
+            .eq('tipo', 'djen_pro')
+            .in('status', ['cancelado', 'erro'])
+            .order('finalizado_em', { ascending: false })
+            .limit(1);
+
+          if (cancelled) return;
+
+          const resumeDetails = (lastInterrupted?.[0]?.detalhes as any) || null;
+          const resumedCheckpoint = getCheckpointFromExecutionDetails(resumeDetails);
+          if (resumedCheckpoint) {
+            persistCheckpointPro(resumedCheckpoint);
+          }
+
           setBackendActive(null);
           return;
         }
