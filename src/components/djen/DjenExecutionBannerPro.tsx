@@ -5,6 +5,10 @@
  * Inclui detecção de execução travada (stale) para mobile/tablet onde
  * o browser pode suspender a aba em background.
  * Também valida contra o backend ao montar/retornar do background.
+ *
+ * Hidratação por backend: ao reabrir o sistema (singleton resetado),
+ * o banner consulta `execucoes_agendadas` (tipo='djen_pro', status='executando')
+ * e exibe o progresso a partir de `detalhes` mesmo sem estado local.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -14,6 +18,8 @@ import { Loader2, Zap, Clock, CheckCircle2 } from "lucide-react";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { getDjenTermosProLastUpdatedAt } from "@/hooks/useDjenTermosProEngine";
 import { fetchDjenBackendResumeSnapshot } from "@/hooks/djen/djenBackendResume";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -24,6 +30,13 @@ function formatDuration(seconds: number): string {
 /** Tempo máximo sem atualização antes de considerar a execução travada (ms) */
 const STALE_THRESHOLD_MS = 45_000; // 45 segundos (antes era 2 min — muito lento para mobile)
 const STALE_CHECK_INTERVAL_MS = 5_000; // Verificar a cada 5s (antes era 15s)
+
+type ExecucaoProBackend = {
+  id: string;
+  iniciado_em: string;
+  finalizado_em: string | null;
+  detalhes: Record<string, any> | null;
+};
 
 export function DjenExecutionBannerPro() {
   const { progress, isRunning } = useDjenTermosPro();
