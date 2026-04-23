@@ -852,8 +852,11 @@ async function _processarTermoProInterno(
         retryBaseDelay: CONFIG.retry_base_delay,
         onRateLimit: (waitMs, attempt, page) => {
           diagnostico.rateLimitHits += 1;
+          recordRateLimitHit();
           diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
-          const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
+          const mult = getAdaptiveMultiplier();
+          const multTxt = mult > 1.05 ? ` • ritmo ${Math.round(100 / mult)}%` : '';
+          const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})${multTxt}`;
           console.warn(`[DJEN Pro] ${aviso} | ${contexto}`);
           updateProgress({
             mensagem: aviso,
