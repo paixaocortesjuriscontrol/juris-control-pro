@@ -580,6 +580,37 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
             {!backgroundOnly && !hybridMode && <Badge variant="secondary">Modo navegador</Badge>}
           </div>
 
+          {/* Telemetria de cobertura (paridade Flash×Pro) */}
+          {(progress.chamadasApi > 0 ||
+            progress.tribunaisResgatadosFallback > 0 ||
+            progress.tribunaisRetomadosCircuit > 0 ||
+            progress.paginasConfirmadas > 0) && (
+            <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground space-y-1">
+              <div className="font-medium text-foreground/80">Cobertura Flash</div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                <span>Chamadas API: <span className="text-foreground">{progress.chamadasApi}</span></span>
+                <span>Páginas evitadas: <span className="text-foreground">{progress.paginasEvitadas}</span></span>
+                <span>Páginas confirmadas: <span className="text-foreground">{progress.paginasConfirmadas}</span></span>
+                <span>Complementares puladas: <span className="text-foreground">{progress.complementaresPuladas}</span></span>
+                {progress.tribunaisResgatadosFallback > 0 && (
+                  <span className="text-emerald-600">
+                    Resgatados (fallback UF=TODAS): {progress.tribunaisResgatadosFallback}
+                  </span>
+                )}
+                {progress.tribunaisRetomadosCircuit > 0 && (
+                  <span className="text-emerald-600">
+                    Retomados (soft-skip 429): {progress.tribunaisRetomadosCircuit}
+                  </span>
+                )}
+                {progress.tribunaisPulados429 > 0 && (
+                  <span className="text-amber-600">
+                    Adiados por 429: {progress.tribunaisPulados429}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Modo híbrido */}
           <div className="flex items-center justify-between rounded-md border px-3 py-2">
             <div className="flex items-center gap-2">
