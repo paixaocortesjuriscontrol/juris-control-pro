@@ -1,16 +1,11 @@
 /**
  * Cliente HTTP para o portal público STF Digital.
  *
- * Endpoints (oficiais, públicos, sem autenticação):
- *  - GET  /decisoes-publicacoes/api/public/ultimo-dje
- *  - POST /decisoes-publicacoes/api/public/publicacoes
- *
- * Estratégia anti-WAF: requisições feitas direto do navegador do usuário,
- * mesmo padrão usado por pjeComunicaClient.ts no DJEN. O próprio IP do
- * usuário resolve naturalmente o desafio AWS WAF (cookie aws-waf-token).
+ * As chamadas vão pela Edge Function `stf-proxy` (server-side) para
+ * resolver o bloqueio CORS do portal `digital.stf.jus.br`.
  */
 
-const BASE = 'https://digital.stf.jus.br/decisoes-publicacoes/api/public';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface StfPublicacao {
   id?: string | number;
@@ -56,24 +51,13 @@ function ymdToEpochMs(ymd: string, endOfDay = false): number {
   return Date.UTC(y, (m - 1), d, 3, 0, 0, 0);
 }
 
-const COMMON_HEADERS: Record<string, string> = {
-  'Accept': 'application/json, text/plain, */*',
-  'Content-Type': 'application/json',
-  'X-Requested-With': 'XMLHttpRequest',
-  'Referer': 'https://digital.stf.jus.br/publico/publicacoes',
-};
-
 /** Última data de DJE disponível no portal STF (ms epoch). */
 export async function getUltimoDjeStf(signal?: AbortSignal): Promise<number | null> {
   try {
-    const resp = await fetch(`${BASE}/ultimo-dje`, {
-      method: 'GET',
-      headers: COMMON_HEADERS,
-      credentials: 'include',
-      signal,
+    const { data, error } = await supabase.functions.invoke('stf-proxy', {
+      body: { action: 'ultimo-dje' },
     });
-    if (!resp.ok) return null;
-    const data = await resp.json().catch(() => null);
+    if (error) return null;
     if (typeof data === 'number') return data;
     if (data && typeof data?.data === 'number') return data.data;
     if (data && typeof data?.ultimoDje === 'number') return data.ultimoDje;
@@ -92,10 +76,9 @@ export async function buscarPublicacoesStf(params: BuscarStfParams): Promise<Stf
     pagina = 1,
     quantidade = 50,
     tipoPesquisa = ['PUBLICACAO', 'DIVULGACAO'],
-    signal,
   } = params;
 
-  const body = {
+  const payload = {
     termo: String(termo || '').trim(),
     processo: '',
     pagina,
@@ -106,21 +89,14 @@ export async function buscarPublicacoesStf(params: BuscarStfParams): Promise<Stf
     filtros: { Tipo: [], Relator: [], 'Sessão': [], Colegiado: [] },
   };
 
-  const resp = await fetch(`${BASE}/publicacoes`, {
-    method: 'POST',
-    headers: COMMON_HEADERS,
-    credentials: 'include',
-    body: JSON.stringify(body),
-    signal,
+  const { data, error } = await supabase.functions.invoke('stf-proxy', {
+    body: { action: 'publicacoes', payload },
   });
 
-  if (!resp.ok) {
-    let detalhe = '';
-    try { detalhe = (await resp.text()).slice(0, 200); } catch { /* ignore */ }
-    throw new Error(`STF API HTTP ${resp.status} (pág ${pagina}): ${detalhe}`);
+  if (error) {
+    throw new Error(`STF proxy erro (pág ${pagina}): ${error.message ?? String(error)}`);
   }
 
-  const data = await resp.json().catch(() => ({}));
   const publicacoes: StfPublicacao[] =
     (Array.isArray(data?.publicacoes) && data.publicacoes) ||
     (Array.isArray(data?.content) && data.content) ||

@@ -167,3 +167,7 @@ verify_jwt = false
 
 [functions.baixar-autos-judit]
 verify_jwt = true
+
+[functions.stf-proxy]
+verify_jwt = false
+
