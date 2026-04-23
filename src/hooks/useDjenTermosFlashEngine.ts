@@ -1463,6 +1463,8 @@ async function executarLoop(
           globalCurrent: completedBefore,
           percentage: percentageBefore,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+          subProgress: { current: 0, total: 1, label: 'iniciando...' },
+          tribunalAtual: null,
         });
 
         console.log(`[DJEN Flash] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
@@ -1475,7 +1477,18 @@ async function executarLoop(
           tempoInicio, dataInicioYmd, dataFimYmd,
         });
 
-        const resultado = await processarTermoPro(mon, diaYmd, signal);
+        const resultado = await processarTermoPro(mon, diaYmd, signal, (subDone, subTotal, label) => {
+          // Granularidade fina: barra avança de forma contínua entre tribunais/variantes
+          const safeTotal = Math.max(1, subTotal);
+          const safeDone = Math.min(subDone, safeTotal);
+          const fineGlobal = completedBefore + (safeDone / safeTotal);
+          const finePct = Math.min(99, Math.max(0, Math.round((fineGlobal / totalOps) * 100)));
+          updateProgress({
+            percentage: finePct,
+            subProgress: { current: safeDone, total: safeTotal, label },
+            tribunalAtual: label?.split('•')[0]?.trim() || null,
+          });
+        });
         acumNovas += resultado.novas;
         acumDuplicadas += resultado.duplicadas;
         acumDescartadas += resultado.descartadas;
@@ -1498,6 +1511,8 @@ async function executarLoop(
           falhasBusca: acumFalhasBusca,
           buscasParciais: acumBuscasParciais,
           ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
+          subProgress: null,
+          tribunalAtual: null,
         });
         
         // Checkpoint
