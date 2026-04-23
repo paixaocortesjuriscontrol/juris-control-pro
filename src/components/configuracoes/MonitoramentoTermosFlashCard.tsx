@@ -501,6 +501,14 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
               {!!progress.mensagem && (
                 <p className="text-xs text-muted-foreground">{progress.mensagem}</p>
               )}
+              {effectiveIsRunning && subProgress && subProgress.total > 0 && (
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="truncate">
+                    🏛️ Sub-busca {subProgress.current}/{subProgress.total}
+                    {subProgress.label ? <> • {subProgress.label}</> : null}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -515,6 +523,52 @@ export function MonitoramentoTermosFlashCard({ coordenacaoId }: Props) {
             <span className="text-destructive">
               ✗ {progress.descartadas} descartadas
             </span>
+            {confirmadoBanco !== null && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1",
+                  Math.abs(confirmadoBanco - progress.novas) > 0
+                    ? "text-amber-600"
+                    : "text-emerald-600"
+                )}
+              >
+                <Database className="h-3 w-3" />
+                Confirmado no banco: {confirmadoBanco}
+              </span>
+            )}
+          </div>
+
+          {/* Janela e filtros aplicados (para reconciliação) */}
+          {(progress.dataInicioYmd || progress.dataFimYmd || (progress as any).coordenacaoIdFiltro) && (
+            <div className="text-[11px] text-muted-foreground">
+              Período: {progress.dataInicioYmd ?? '—'} → {progress.dataFimYmd ?? '—'}
+              {(progress as any).coordenacaoIdFiltro && (
+                <> • Coord: {coordenacoes.find(c => c.id === (progress as any).coordenacaoIdFiltro)?.nome ?? '—'}</>
+              )}
+              {(progress as any).monitoramentoIdsFiltro?.length === 1 && (
+                <> • 1 termo</>
+              )}
+            </div>
+          )}
+
+          {/* Ações de reconciliação */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={recontarConfirmados}
+              disabled={recontando || !(progress as any).runStartIso}
+              className="text-xs"
+            >
+              {recontando ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Database className="h-3 w-3 mr-1" />}
+              Recontar no banco
+            </Button>
+            <Button asChild variant="outline" size="sm" className="text-xs">
+              <RouterLink to={analiseDjenHref}>
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Abrir na Análise DJEN
+              </RouterLink>
+            </Button>
           </div>
 
           {/* Indicadores de estratégia */}
