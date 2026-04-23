@@ -1440,6 +1440,9 @@ async function executarLoop(
       buscasParciais: acumBuscasParciais,
       ultimoErroBusca: null,
       mensagem: 'Iniciando DJEN Termos Pro...',
+      runStartIso: new Date(tempoInicio).toISOString(),
+      coordenacaoIdFiltro: coordenacaoId ?? null,
+      monitoramentoIdsFiltro: monitoramentoIds ?? null,
     });
     
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
