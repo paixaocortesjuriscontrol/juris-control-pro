@@ -1485,6 +1485,9 @@ async function executarLoop(
     let acumPaginasEvitadas = 0;
     let acumComplementaresPuladas = 0;
     let acumTribunaisPulados429 = 0;
+    let acumTribunaisResgatadosFallback = 0;
+    let acumTribunaisRetomadosCircuit = 0;
+    let acumPaginasConfirmadas = 0;
     
     if (cp && cp.runKey === runKey) {
       startDiaIdx = cp.diaIndice;
@@ -1596,6 +1599,9 @@ async function executarLoop(
         acumPaginasEvitadas += resultado.paginasEvitadas;
         acumComplementaresPuladas += resultado.complementaresPuladas;
         acumTribunaisPulados429 += resultado.tribunaisPulados429;
+        acumTribunaisResgatadosFallback += resultado.tribunaisResgatadosFallback;
+        acumTribunaisRetomadosCircuit += resultado.tribunaisRetomadosCircuit;
+        acumPaginasConfirmadas += resultado.paginasConfirmadas;
         const percentageAfter = Math.min(99, Math.max(0, Math.round((globalCurrent / totalOps) * 100)));
         
         updateProgress({
@@ -1610,6 +1616,13 @@ async function executarLoop(
           ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
           subProgress: null,
           tribunalAtual: null,
+          chamadasApi: acumChamadasApi,
+          paginasEvitadas: acumPaginasEvitadas,
+          complementaresPuladas: acumComplementaresPuladas,
+          tribunaisPulados429: acumTribunaisPulados429,
+          tribunaisResgatadosFallback: acumTribunaisResgatadosFallback,
+          tribunaisRetomadosCircuit: acumTribunaisRetomadosCircuit,
+          paginasConfirmadas: acumPaginasConfirmadas,
         });
         
         // Checkpoint
@@ -1653,7 +1666,7 @@ async function executarLoop(
         percentage: 100,
         globalCurrent: totalOps,
         mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas` +
-          ` • Flash: chamadasApi=${acumChamadasApi}, pgEvitadas=${acumPaginasEvitadas}, complPuladas=${acumComplementaresPuladas}, tribPulados429=${acumTribunaisPulados429}` +
+          ` • Flash: chamadasApi=${acumChamadasApi}, pgEvitadas=${acumPaginasEvitadas}, pgConfirmadas=${acumPaginasConfirmadas}, complPuladas=${acumComplementaresPuladas}, tribResgatados=${acumTribunaisResgatadosFallback}, tribRetomados=${acumTribunaisRetomadosCircuit}, tribPulados429=${acumTribunaisPulados429}` +
           ((acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''),
       });
     } else {
