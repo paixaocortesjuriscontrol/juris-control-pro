@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { HorarioAgendadoInfo } from "./HorarioAgendadoInfo";
 import { withTimeout } from "@/utils/withTimeout";
+import { normalizeTribunalId, normalizeTribunais } from "@/utils/djenTribunais";
 
 interface Props {
   coordenacaoId: string;
@@ -404,10 +405,10 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
 
   const termosPorTribunal = useMemo(() => {
     const map = new Map<string, number>();
-    const keyOf = (tribunal: string | null) => tribunal ?? "__ALL__";
+    const keyOf = (tribunal: string | null) => normalizeTribunalId(tribunal) ?? "__ALL__";
 
     for (const row of monitoramentosTribunais ?? []) {
-      const tribunais = row.tribunais && row.tribunais.length > 0 ? row.tribunais : [null];
+      const tribunais = normalizeTribunais(row.tribunais) ?? [null];
       for (const t of tribunais) {
         const key = keyOf(t);
         map.set(key, (map.get(key) ?? 0) + 1);
@@ -418,7 +419,7 @@ export function MonitoramentoDjenCard({ coordenacaoId }: Props) {
   }, [monitoramentosTribunais]);
 
   const linhasTribunais = useMemo(() => {
-    const keyOf = (tribunal: string | null) => tribunal ?? "__ALL__";
+    const keyOf = (tribunal: string | null) => normalizeTribunalId(tribunal) ?? "__ALL__";
 
     const execMap = new Map<string, TribunalStat>();
     for (const ts of statsToShow?.tribunaisStats ?? []) {

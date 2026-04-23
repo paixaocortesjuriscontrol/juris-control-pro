@@ -36,6 +36,7 @@ import { RelatorioMonitoramentosTab } from "@/components/djen/RelatorioMonitoram
 import { BotaoSincronizarDjen } from "@/components/djen/BotaoSincronizarDjen";
 import { useMonitoramentosDjen } from "@/hooks/useMonitoramentosDjen";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeTribunais } from "@/utils/djenTribunais";
 
 const MonitoramentoDjen = () => {
   const queryClient = useQueryClient();
@@ -81,9 +82,7 @@ const MonitoramentoDjen = () => {
   const tribunaisDisponiveis = useMemo(() => {
     const tribunaisSet = new Set<string>();
     todosMonitoramentos.forEach((m) => {
-      if (m.tribunais && Array.isArray(m.tribunais)) {
-        m.tribunais.forEach((t: string) => tribunaisSet.add(t));
-      }
+      (normalizeTribunais(m.tribunais) ?? []).forEach((t: string) => tribunaisSet.add(t));
     });
     return Array.from(tribunaisSet).sort();
   }, [todosMonitoramentos]);
@@ -100,6 +99,8 @@ const MonitoramentoDjen = () => {
   // Aplicar todos os filtros
   const monitoramentos = useMemo(() => {
     return todosMonitoramentos.filter((m) => {
+      const tribunaisNormalizados = normalizeTribunais(m.tribunais) ?? [];
+
       // Filtro por coordenação
       if (coordenacaoFilter !== "todas" && m.coordenacao_id !== coordenacaoFilter) {
         return false;
@@ -119,9 +120,9 @@ const MonitoramentoDjen = () => {
       // Filtro por tribunal
       if (tribunalFilter !== "todos") {
         if (tribunalFilter === "sem-tribunal") {
-          if (m.tribunais && m.tribunais.length > 0) return false;
+          if (tribunaisNormalizados.length > 0) return false;
         } else {
-          if (!m.tribunais || !m.tribunais.includes(tribunalFilter)) return false;
+          if (!tribunaisNormalizados.includes(tribunalFilter)) return false;
         }
       }
       
@@ -331,6 +332,8 @@ const MonitoramentoDjen = () => {
                     const pubCount = contagem?.total || 0;
                     const naoLidas = contagem?.nao_lidas || 0;
                     
+                    const tribunaisNormalizados = normalizeTribunais(mon.tribunais) ?? [];
+
                     return (
                       <TableRow key={mon.id}>
                         <TableCell className="pl-6">
@@ -346,16 +349,16 @@ const MonitoramentoDjen = () => {
                           {mon.oab && mon.uf ? `${mon.oab}/${mon.uf}` : '-'}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {mon.tribunais && mon.tribunais.length > 0 ? (
+                          {tribunaisNormalizados.length > 0 ? (
                             <div className="flex flex-wrap gap-1 max-w-[150px]">
-                              {mon.tribunais.length <= 2 ? (
-                                mon.tribunais.map((t: string) => (
+                              {tribunaisNormalizados.length <= 2 ? (
+                                tribunaisNormalizados.map((t: string) => (
                                   <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
                                 ))
                               ) : (
                                 <>
-                                  <Badge variant="secondary" className="text-xs">{mon.tribunais[0]}</Badge>
-                                  <Badge variant="secondary" className="text-xs">+{mon.tribunais.length - 1}</Badge>
+                                  <Badge variant="secondary" className="text-xs">{tribunaisNormalizados[0]}</Badge>
+                                  <Badge variant="secondary" className="text-xs">+{tribunaisNormalizados.length - 1}</Badge>
                                 </>
                               )}
                             </div>

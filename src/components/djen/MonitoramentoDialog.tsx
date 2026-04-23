@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { normalizeTribunais } from "@/utils/djenTribunais";
 
 const UFS = [
   'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
@@ -135,7 +136,9 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const [novaCondicao, setNovaCondicao] = useState('');
   const [termosOr, setTermosOr] = useState<string[]>(fonte?.termos_or || []);
   const [novoTermoOr, setNovoTermoOr] = useState('');
-  const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(fonte?.tribunais || []);
+  const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(
+    normalizeTribunais(fonte?.tribunais) ?? []
+  );
 
   useEffect(() => {
     const src = monitoramento ?? duplicateFrom ?? null;
@@ -155,7 +158,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setTermosOr(src.termos_or || []);
       
       // Expandir IDs sintéticos ao carregar
-      let tribunaisCarregados = src.tribunais || [];
+      const tribunaisCarregados = normalizeTribunais(src.tribunais) ?? [];
       const expandidos: string[] = [];
       for (const t of tribunaisCarregados) {
         if (t === 'TODOS_TRT') {
@@ -166,7 +169,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
           expandidos.push(t);
         }
       }
-      setTribunaisSelecionados([...new Set(expandidos)]);
+      setTribunaisSelecionados(normalizeTribunais(expandidos) ?? []);
       
       if (src.uf) {
         if (src.uf === 'TODAS') {
@@ -326,7 +329,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
       termos_or: termosOr.length > 0 ? termosOr : undefined,
       // IMPORTANT: ao limpar seleção, precisamos atualizar o campo no DB (undefined não atualiza)
-      tribunais: tribunaisSelecionados.length > 0 ? tribunaisSelecionados : null,
+      tribunais: tribunaisSelecionados.length > 0 ? normalizeTribunais(tribunaisSelecionados) : null,
     };
 
     if (monitoramento) {
