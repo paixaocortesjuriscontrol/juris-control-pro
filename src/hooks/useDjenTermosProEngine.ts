@@ -89,6 +89,8 @@ const CONFIG = {
   retry_base_delay: 8000,
 };
 
+const EXECUTION_SYNC_INTERVAL_MS = 15000;
+
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // ============================================================================
@@ -104,6 +106,7 @@ let state: {
   timerInterval: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number;
   executionId: string | null;
+  lastExecutionSyncAt: number;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -113,6 +116,7 @@ let state: {
   timerInterval: null,
   lastUpdatedAt: 0,
   executionId: null,
+  lastExecutionSyncAt: 0,
 };
 
 const STORAGE_KEY = 'djen-termos-pro-checkpoint-v1';
@@ -314,6 +318,59 @@ function updateProgress(partial: Partial<DjenTermosProProgress>) {
 
 export function getDjenTermosProLastUpdatedAt(): number {
   return state.lastUpdatedAt;
+}
+
+function buildExecutionDetailsSnapshot(overrides: Record<string, any> = {}) {
+  const checkpoint = state.checkpoint || buildCheckpointFromProgress();
+
+  return {
+    runKey: checkpoint?.runKey ?? (state.progress.dataInicioYmd && state.progress.dataFimYmd
+      ? `${state.progress.dataInicioYmd}..${state.progress.dataFimYmd}`
+      : null),
+    dataInicioYmd: state.progress.dataInicioYmd,
+    dataFimYmd: state.progress.dataFimYmd,
+    totalDias: state.progress.totalDias,
+    totalTermos: state.progress.totalTermos,
+    globalCurrent: state.progress.globalCurrent,
+    globalTotal: state.progress.globalTotal,
+    totalOps: state.progress.globalTotal,
+    novas: state.progress.novas,
+    duplicadas: state.progress.duplicadas,
+    descartadas: state.progress.descartadas,
+    percentage: state.progress.percentage,
+    diaAtualYmd: state.progress.diaAtualYmd,
+    diaAtualIndice: state.progress.diaAtualIndice,
+    termoAtualNoDia: state.progress.termoAtualNoDia,
+    termoAtual: state.progress.termoAtual,
+    mensagem: state.progress.mensagem,
+    checkpoint: serializeCheckpoint(checkpoint),
+    heartbeat_at: new Date().toISOString(),
+    diagnostico: {
+      rateLimitHits: state.progress.rateLimitHits,
+      falhasBusca: state.progress.falhasBusca,
+      buscasParciais: state.progress.buscasParciais,
+      ultimoErroBusca: state.progress.ultimoErroBusca,
+    },
+    ...overrides,
+  };
+}
+
+function syncExecutionProgress(overrides: Record<string, any> = {}, force = false) {
+  if (!state.executionId) return;
+
+  const now = Date.now();
+  if (!force && now - state.lastExecutionSyncAt < EXECUTION_SYNC_INTERVAL_MS) return;
+  state.lastExecutionSyncAt = now;
+
+  void supabase
+    .from('execucoes_agendadas')
+    .update({ detalhes: buildExecutionDetailsSnapshot(overrides) })
+    .eq('id', state.executionId)
+    .then(({ error }) => {
+      if (error) {
+        console.warn('[DJEN Pro] Erro ao sincronizar progresso no banco:', error.message);
+      }
+    });
 }
 
 // ============================================================================
@@ -750,7 +807,16 @@ async function _processarTermoProInterno(
           diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
           const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
           console.warn(`[DJEN Pro] ${aviso} | ${contexto}`);
-          updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
+          updateProgress({
+            mensagem: aviso,
+            ultimoErroBusca: diagnostico.ultimoErroBusca,
+            rateLimitHits: state.progress.rateLimitHits + 1,
+          });
+          syncExecutionProgress({
+            mensagem: aviso,
+            termoAtual: state.progress.termoAtual,
+            ultimoErroBusca: diagnostico.ultimoErroBusca,
+          }, true);
         },
       });
 
@@ -769,6 +835,10 @@ async function _processarTermoProInterno(
           mensagem: `⚠️ Busca parcial: ${contexto}`,
           ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
         });
+        syncExecutionProgress({
+          mensagem: `⚠️ Busca parcial: ${contexto}`,
+          ultimoErroBusca: resp.lastError ?? diagnostico.ultimoErroBusca,
+        }, true);
       }
 
       // Log explícito quando a busca termina em truncamento (paginação não foi até o fim)
@@ -790,9 +860,15 @@ async function _processarTermoProInterno(
         mensagem: `⚠️ Falha de busca: ${contexto}`,
         ultimoErroBusca: diagnostico.ultimoErroBusca,
       });
+      syncExecutionProgress({
+        mensagem: `⚠️ Falha de busca: ${contexto}`,
+        ultimoErroBusca: diagnostico.ultimoErroBusca,
+      }, true);
       return null;
     }
   };
+
+  const shouldShortCircuit = () => diagnostico.rateLimitHits >= 12 || diagnostico.falhasBusca >= 6;
   
   // Configurar parâmetros base
   const baseParams: any = {
@@ -837,6 +913,7 @@ async function _processarTermoProInterno(
   
   for (const trib of tribLoop) {
     if (signal.aborted) break;
+    if (shouldShortCircuit()) break;
     
     const resp = await executarBusca(
       { ...baseParams, siglaTribunal: trib, page: 1 },
@@ -863,6 +940,7 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
       for (const trib of tribLoop) {
         if (signal.aborted) break;
+        if (shouldShortCircuit()) break;
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -897,10 +975,12 @@ async function _processarTermoProInterno(
 
     for (const termoExtra of termosExtras) {
       if (signal.aborted) break;
+      if (shouldShortCircuit()) break;
       console.log(`[DJEN Pro] Busca termos_or palavra-chave: "${termoExtra}"`);
 
       for (const trib of tribLoop) {
         if (signal.aborted) break;
+        if (shouldShortCircuit()) break;
         const resp = await executarBusca(
           {
             tipo: 'palavra-chave' as PjeSearchType,
@@ -942,6 +1022,7 @@ async function _processarTermoProInterno(
     
     for (const trib of tribunaisRetry) {
       if (signal.aborted) break;
+      if (shouldShortCircuit()) break;
       console.log(`[DJEN Pro] Retry sem ufOab para ${trib}, buscando por nome: ${nomeNormalizado}`);
       await executarBusca(
         {
@@ -979,6 +1060,7 @@ async function _processarTermoProInterno(
     
     for (const parsed of parsedOr) {
       if (signal.aborted) break;
+      if (shouldShortCircuit()) break;
       const nomeNorm = normalizar(parsed.nome);
       if (nomesJaBuscados.has(nomeNorm)) continue;
       nomesJaBuscados.add(nomeNorm);
@@ -993,6 +1075,7 @@ async function _processarTermoProInterno(
       
       for (const trib of textTribLoop) {
         if (signal.aborted) break;
+        if (shouldShortCircuit()) break;
         const resp = await executarBusca(
           {
             tipo: 'advogado' as PjeSearchType,
@@ -1016,6 +1099,7 @@ async function _processarTermoProInterno(
       if (parsed.oabDigits && !signal.aborted) {
         for (const trib of textTribLoop) {
           if (signal.aborted) break;
+          if (shouldShortCircuit()) break;
           await executarBusca(
             {
               tipo: 'advogado' as PjeSearchType,
@@ -1041,6 +1125,19 @@ async function _processarTermoProInterno(
         `429=${diagnostico.rateLimitHits}, falhas=${diagnostico.falhasBusca}, parciais=${diagnostico.buscasParciais}` +
         `${diagnostico.ultimoErroBusca ? `, último erro=${diagnostico.ultimoErroBusca}` : ''}`
     );
+  }
+
+  if (shouldShortCircuit()) {
+    updateProgress({
+      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      ultimoErroBusca: diagnostico.ultimoErroBusca,
+      falhasBusca: state.progress.falhasBusca + diagnostico.falhasBusca,
+      buscasParciais: state.progress.buscasParciais + diagnostico.buscasParciais,
+    });
+    syncExecutionProgress({
+      mensagem: `⚠️ Muitas respostas 429 para "${mon.descricao || mon.termo_busca}". Pulando para o próximo termo.`,
+      ultimoErroBusca: diagnostico.ultimoErroBusca,
+    }, true);
   }
   
   if (signal.aborted || resultados.length === 0) {
@@ -1402,6 +1499,8 @@ async function executarLoop(
       ultimoErroBusca: null,
       mensagem: 'Iniciando DJEN Termos Pro...',
     });
+    state.lastExecutionSyncAt = 0;
+    syncExecutionProgress({ mensagem: 'Iniciando DJEN Termos Pro...' }, true);
     
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
       if (signal.aborted) break;
@@ -1425,6 +1524,12 @@ async function executarLoop(
           percentage: percentageBefore,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
         });
+        syncExecutionProgress({
+          mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+          termoAtual: mon.descricao || mon.termo_busca,
+          diaAtualYmd: diaYmd,
+          diaAtualIndice: diaIdx + 1,
+        }, true);
 
         console.log(`[DJEN Pro] ▶️ ${globalCurrent}/${totalOps} | ${diaYmd} | ${mon.descricao || mon.termo_busca}`);
         
@@ -1462,38 +1567,13 @@ async function executarLoop(
         } satisfies Checkpoint;
 
         saveCheckpoint(currentCheckpoint);
-
-        // Persistir progresso no DB a cada termo (banner/cards externos
-        // dependem disto para refletir contadores e barra em tempo real
-        // quando a aba está em background ou o singleton foi resetado).
-        if (executionId) {
-          supabase
-            .from('execucoes_agendadas')
-            .update({
-              detalhes: {
-                novas: acumNovas, duplicadas: acumDuplicadas, descartadas: acumDescartadas,
-                percentage: percentageAfter,
-                termoAtual: mon.descricao || mon.termo_busca,
-                mensagem: `Dia ${diaIdx + 1}/${datas.length} • ${mon.descricao || mon.termo_busca}`,
-                diaAtualYmd: diaYmd,
-                diaAtualIndice: diaIdx + 1,
-                totalTermos: monitoramentos.length,
-                totalDias: datas.length,
-                globalCurrent,
-                totalOps,
-                dataInicioYmd, dataFimYmd,
-                checkpoint: currentCheckpoint,
-                diagnostico: {
-                  rateLimitHits: acumRateLimitHits,
-                  falhasBusca: acumFalhasBusca,
-                  buscasParciais: acumBuscasParciais,
-                  ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
-                },
-              },
-            })
-            .eq('id', executionId)
-            .then(() => {});
-        }
+        syncExecutionProgress({
+          mensagem: `Dia ${diaIdx + 1}/${datas.length} • ${mon.descricao || mon.termo_busca}`,
+          termoAtual: mon.descricao || mon.termo_busca,
+          diaAtualYmd: diaYmd,
+          diaAtualIndice: diaIdx + 1,
+          checkpoint: currentCheckpoint,
+        }, true);
         
         await delay(CONFIG.delay_between_terms);
         

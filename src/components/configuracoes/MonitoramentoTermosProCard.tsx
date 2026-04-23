@@ -149,6 +149,10 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
     diaAtualIndice: number | null;
     totalDias: number | null;
     tempoDecorrido: number;
+    heartbeatAt: number | null;
+    ultimoErroBusca: string | null;
+    rateLimitHits: number;
+    stale: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -200,6 +204,8 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
         const diaAtualIndice = det?.diaAtualIndice ?? null;
         const totalDias = det?.totalDias ?? null;
         const iniciadoEm = row.iniciado_em ? new Date(row.iniciado_em).getTime() : Date.now();
+        const heartbeatRaw = det?.heartbeat_at ? new Date(det.heartbeat_at).getTime() : null;
+        const diagnostico = (det?.diagnostico as Record<string, any> | undefined) || {};
         setBackendActive({
           percentage: Math.max(0, Math.min(100, Number(percentage) || 0)),
           mensagem,
@@ -211,6 +217,10 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
           diaAtualIndice: diaAtualIndice != null ? Number(diaAtualIndice) : null,
           totalDias: totalDias != null ? Number(totalDias) : null,
           tempoDecorrido: Math.floor((Date.now() - iniciadoEm) / 1000),
+          heartbeatAt: heartbeatRaw,
+          ultimoErroBusca: typeof diagnostico?.ultimoErroBusca === 'string' ? diagnostico.ultimoErroBusca : null,
+          rateLimitHits: Number(diagnostico?.rateLimitHits) || 0,
+          stale: !!heartbeatRaw && Date.now() - heartbeatRaw > 90_000,
         });
       } catch {
         // silencioso
@@ -346,6 +356,8 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
   const dispTermoAtual = useBackendData ? backendActive!.termoAtual : progress.termoAtual;
   const dispMensagem = useBackendData ? backendActive!.mensagem : progress.mensagem;
   const dispTempoDecorrido = useBackendData ? backendActive!.tempoDecorrido : progress.tempoDecorrido;
+  const dispUltimoErroBusca = useBackendData ? backendActive!.ultimoErroBusca : progress.ultimoErroBusca;
+  const dispRateLimitHits = useBackendData ? backendActive!.rateLimitHits : progress.rateLimitHits;
   const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.idle;
   const StatusIcon = statusConfig.icon;
 
@@ -558,6 +570,16 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
               <Progress value={displayedPercentage} className="h-2" />
               {!!dispMensagem && (
                 <p className="text-xs text-muted-foreground">{dispMensagem}</p>
+              )}
+              {useBackendData && backendActive?.stale && (
+                <p className="text-xs text-amber-600">
+                  Sem heartbeat recente do backend. Se continuar assim, use Reset Total para liberar uma execução órfã.
+                </p>
+              )}
+              {dispRateLimitHits > 0 && dispUltimoErroBusca && (
+                <p className="text-xs text-amber-600">
+                  API do PJE limitando a busca ({dispRateLimitHits}x 429). Último aviso: {dispUltimoErroBusca}
+                </p>
               )}
             </div>
           )}
