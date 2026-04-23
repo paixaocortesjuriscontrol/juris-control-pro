@@ -1010,7 +1010,7 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+        if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
       }
     }
   }
