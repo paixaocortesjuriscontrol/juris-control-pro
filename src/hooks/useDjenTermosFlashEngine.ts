@@ -1610,7 +1610,7 @@ async function executarLoop(
           tempoInicio, dataInicioYmd, dataFimYmd,
         });
 
-        const resultado = await processarTermoPro(mon, diaYmd, signal, (subDone, subTotal, label) => {
+        const resultado = await processarTermoPro(mon, diaYmd, signal, monitoramentos, (subDone, subTotal, label) => {
           // Granularidade fina: barra avança de forma contínua entre tribunais/variantes
           const safeTotal = Math.max(1, subTotal);
           const safeDone = Math.min(subDone, safeTotal);
