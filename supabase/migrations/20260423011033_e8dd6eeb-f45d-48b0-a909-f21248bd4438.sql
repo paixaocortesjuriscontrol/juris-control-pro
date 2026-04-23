@@ -1,0 +1,1 @@
+DELETE FROM public.dados_benner WHERE aba_origem IS NOT NULL;
