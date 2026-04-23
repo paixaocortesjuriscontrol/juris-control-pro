@@ -10,6 +10,23 @@ function norm(val: unknown): string {
   return String(val ?? "").trim();
 }
 
+function normalizeName(val: unknown): string {
+  return String(val ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+
+// Apelidos curtos -> nome completo na coordenação Dra. Renata
+const NAME_ALIASES: Record<string, string> = {
+  "anna": "anna luiza brandao",
+  "priscila": "priscila brandt",
+};
+
 function parseDateBR(val: unknown): string | null {
   const t = String(val ?? "").trim();
   if (!t) return null;
