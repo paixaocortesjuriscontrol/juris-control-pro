@@ -46,6 +46,48 @@ function toBool(val: unknown): boolean {
   return t === "S" || t === "SIM" || t === "X" || t === "TRUE";
 }
 
+function normalizeDossie(val: unknown): string {
+  return norm(val).replace(/\s+/g, " ");
+}
+
+function isValidDossie(val: unknown): boolean {
+  const raw = normalizeDossie(val);
+  if (!raw) return false;
+
+  const normalized = normalizeName(raw);
+  if (!normalized) return false;
+
+  const invalidPatterns = [
+    "dossie nao localizado",
+    "nao localizado",
+    "não localizado",
+    "nao encontrado",
+    "não encontrado",
+    "n/localizado",
+    "sem acesso ao benner",
+    "caso encerrado no benner",
+    "dossie nao localizado sem acesso ao benner",
+    "dossie nao localizado nao encontrado no benner",
+  ];
+
+  return !invalidPatterns.some((pattern) => normalized.includes(normalizeName(pattern)));
+}
+
+function isExplicitNoResponsavel(val: unknown): boolean {
+  const normalized = normalizeName(val);
+  return normalized === "sem responsavel" || normalized === "s responsavel";
+}
+
+function isMoreRecentRow(
+  next: { hasValidDossie: boolean; sortKey: number; sheetOrder: number; rowIndex: number },
+  current: { hasValidDossie: boolean; sortKey: number; sheetOrder: number; rowIndex: number }
+): boolean {
+  if (next.hasValidDossie !== current.hasValidDossie) return next.hasValidDossie;
+  if (next.sortKey !== current.sortKey) return next.sortKey > current.sortKey;
+  if (next.sheetOrder !== current.sheetOrder) return next.sheetOrder > current.sheetOrder;
+  return next.rowIndex > current.rowIndex;
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
   const m = Math.floor(seconds / 60);
@@ -66,6 +108,15 @@ interface DuplicateRow {
   processo: string;
   dossie: string;
   row: string[];
+}
+
+interface ImportPlanRow {
+  sheetName: string;
+  sheetOrder: number;
+  rowIndex: number;
+  processoNumero: string;
+  row: string[];
+  responsavelRaw: string;
 }
 
 export function DistribuicaoTstImport({ onImported }: Props) {
