@@ -1397,6 +1397,7 @@ async function executarLoop(
       mensagem: 'Iniciando DJEN Termos Pro...',
     });
     state.lastExecutionSyncAt = 0;
+    resetAdaptiveDelay();
     syncExecutionProgress({ mensagem: 'Iniciando DJEN Termos Pro...' }, true);
     
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
