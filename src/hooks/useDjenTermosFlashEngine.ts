@@ -700,25 +700,42 @@ async function _processarTermoFlashInterno(
     }
   };
 
-  // ===== Circuit breaker (otimização 5) =====
-  // Após N 429s no mesmo termo, deixamos de bater na API IMEDIATAMENTE
-  // mas guardamos os tribunais "soft-skip" para uma retomada no fim do termo
-  // (depois que a janela de pressão da API passou).
-  const CIRCUIT_BREAKER_429_LIMIT = 3;
+  // ===== Modo Cauteloso (FIX OSMAR MENDES — zero perda) =====
+  // Antes: circuit breaker PULAVA tribunais após N 429s. Isso causava perdas reais
+  // quando a publicação estava num tribunal pulado (ex: TRT4 na lista do OSMAR MENDES).
+  // Agora: ao detectar pressão de 429, entramos em "modo cauteloso" — ampliamos delays
+  // e fazemos cooldown, mas NUNCA pulamos tribunal. Toda chamada acontece.
   const tribuniaisComResultados = new Set<string>(); // tribunais que retornaram >0 resultados na primária
-  const tribunaisSoftSkip = new Set<string>(); // tribunais adiados pelo circuit breaker
-  let circuitOpen = false;
-  const checkCircuit = (): boolean => {
-    if (circuitOpen) return true;
-    if (diagnostico.rateLimitHits >= CIRCUIT_BREAKER_429_LIMIT) {
-      circuitOpen = true;
+  const tribunaisSoftSkip = new Set<string>(); // mantido por compat (sem uso ativo no novo modelo)
+  let cautiousMode = false;
+  let lastRateLimitHits = 0;
+  const ensureCautious = async () => {
+    if (cautiousMode) return;
+    if (diagnostico.rateLimitHits >= CONFIG.cautious_mode_429_threshold) {
+      cautiousMode = true;
       console.warn(
-        `[DJEN Flash] 🛑 Circuit breaker aberto para "${mon.termo_busca}" ` +
-        `após ${diagnostico.rateLimitHits} 429s. Adiando tribunais restantes para retomada no fim do termo.`
+        `[DJEN Flash] 🐢 Modo CAUTELOSO ativado para "${mon.termo_busca}" ` +
+        `após ${diagnostico.rateLimitHits} 429s. Delays ampliados, ZERO tribunal pulado. ` +
+        `Cooldown ${CONFIG.cautious_cooldown_ms}ms.`
       );
+      updateProgress({
+        mensagem: `🐢 Modo cauteloso (rate limit) — aguardando ${Math.round(CONFIG.cautious_cooldown_ms/1000)}s`,
+      });
+      await delay(CONFIG.cautious_cooldown_ms);
     }
-    return circuitOpen;
   };
+  // Cooldown adicional toda vez que NOVOS 429s acontecem em modo cauteloso
+  const cooldownIfNewRateLimit = async () => {
+    if (cautiousMode && diagnostico.rateLimitHits > lastRateLimitHits) {
+      lastRateLimitHits = diagnostico.rateLimitHits;
+      console.warn(`[DJEN Flash] 🧊 Cooldown ${CONFIG.cautious_cooldown_ms}ms após novo 429`);
+      await delay(CONFIG.cautious_cooldown_ms);
+    }
+  };
+  const tribunalDelay = () =>
+    cautiousMode ? CONFIG.cautious_delay_between_tribunais : CONFIG.delay_between_tribunais;
+  const pageDelay = () =>
+    cautiousMode ? CONFIG.cautious_delay_between_pages : CONFIG.delay_between_pages;
 
   const executarBusca = async (
     params: Parameters<typeof buscarPjeComunicaPaginado>[0],
