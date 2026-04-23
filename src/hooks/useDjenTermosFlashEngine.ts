@@ -51,6 +51,12 @@ export interface DjenTermosFlashProgress {
   complementaresPuladas: number;
   /** Telemetria Flash: tribunais pulados pelo circuit breaker (429) */
   tribunaisPulados429: number;
+  /** Telemetria Flash: tribunais resgatados pelo fallback UF=TODAS (ausentes na busca global) */
+  tribunaisResgatadosFallback: number;
+  /** Telemetria Flash: tribunais retomados via soft-skip após pressão 429 */
+  tribunaisRetomadosCircuit: number;
+  /** Telemetria Flash: páginas confirmadas (paginação ambígua) */
+  paginasConfirmadas: number;
   /** Sub-progresso dentro do termo atual (ex: tribunal X/Y) */
   subProgress?: { current: number; total: number; label?: string } | null;
   /** Sigla do tribunal atualmente sendo varrido */
@@ -151,6 +157,9 @@ function createDefaultProgress(): DjenTermosFlashProgress {
     paginasEvitadas: 0,
     complementaresPuladas: 0,
     tribunaisPulados429: 0,
+    tribunaisResgatadosFallback: 0,
+    tribunaisRetomadosCircuit: 0,
+    paginasConfirmadas: 0,
     subProgress: null,
     tribunalAtual: null,
     coordenacaoIdFiltro: null,
@@ -579,11 +588,15 @@ type TermoFlashResult = {
   ultimoErroBusca: string | null;
   chamadasApi: number; paginasEvitadas: number;
   complementaresPuladas: number; tribunaisPulados429: number;
+  tribunaisResgatadosFallback: number;
+  tribunaisRetomadosCircuit: number;
+  paginasConfirmadas: number;
 };
 
 function emptyTermoFlashResult(): TermoFlashResult {
   return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0,
-    ultimoErroBusca: null, chamadasApi: 0, paginasEvitadas: 0, complementaresPuladas: 0, tribunaisPulados429: 0 };
+    ultimoErroBusca: null, chamadasApi: 0, paginasEvitadas: 0, complementaresPuladas: 0, tribunaisPulados429: 0,
+    tribunaisResgatadosFallback: 0, tribunaisRetomadosCircuit: 0, paginasConfirmadas: 0 };
 }
 
 async function processarTermoPro(
@@ -650,6 +663,9 @@ async function _processarTermoFlashInterno(
     paginasEvitadas: 0,
     complementaresPuladas: 0,
     tribunaisPulados429: 0,
+    tribunaisResgatadosFallback: 0,
+    tribunaisRetomadosCircuit: 0,
+    paginasConfirmadas: 0,
   };
 
   // ===== Sub-progresso (granularidade fina) =====
@@ -678,9 +694,12 @@ async function _processarTermoFlashInterno(
   };
 
   // ===== Circuit breaker (otimização 5) =====
-  // Após N 429s no mesmo termo, paramos de tentar tribunais novos.
+  // Após N 429s no mesmo termo, deixamos de bater na API IMEDIATAMENTE
+  // mas guardamos os tribunais "soft-skip" para uma retomada no fim do termo
+  // (depois que a janela de pressão da API passou).
   const CIRCUIT_BREAKER_429_LIMIT = 3;
   const tribuniaisComResultados = new Set<string>(); // tribunais que retornaram >0 resultados na primária
+  const tribunaisSoftSkip = new Set<string>(); // tribunais adiados pelo circuit breaker
   let circuitOpen = false;
   const checkCircuit = (): boolean => {
     if (circuitOpen) return true;
@@ -688,7 +707,7 @@ async function _processarTermoFlashInterno(
       circuitOpen = true;
       console.warn(
         `[DJEN Flash] 🛑 Circuit breaker aberto para "${mon.termo_busca}" ` +
-        `após ${diagnostico.rateLimitHits} 429s. Pulando tribunais restantes.`
+        `após ${diagnostico.rateLimitHits} 429s. Adiando tribunais restantes para retomada no fim do termo.`
       );
     }
     return circuitOpen;
@@ -701,6 +720,8 @@ async function _processarTermoFlashInterno(
   ) => {
     if (checkCircuit()) {
       telemetria.tribunaisPulados429 += 1;
+      // Adiar tribunal específico para retomada (mudança 3: soft-skip)
+      if (tribunal) tribunaisSoftSkip.add(tribunal);
       reportSub(tribunal ? `pulado(429) • ${tribunal}` : 'pulado(429)');
       return null;
     }
@@ -708,11 +729,13 @@ async function _processarTermoFlashInterno(
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
         signal,
-        // Flash: paginação inteligente — sem continueUntilEmpty por padrão.
-        // Só ativamos quando a primeira página vem cheia E totalExpected ausente
-        // (a lógica disso já está no client Flash; aqui só desligamos o flag).
+        // Flash: paginação inteligente — confirmação ambígua ATIVA.
+        // O client agora roda uma página adicional somente quando a última
+        // página retornou pageSize itens E o servidor não enviou totalExpected/hasMore=false.
+        // Casos com poucos itens continuam parando imediatamente.
         maxPages: null,
-        continueUntilEmpty: false,
+        continueUntilEmpty: false, // o client decide internamente via confirmAmbiguous
+        confirmAmbiguous: true,
         delayMs: CONFIG.delay_between_pages,
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
@@ -724,6 +747,11 @@ async function _processarTermoFlashInterno(
           updateProgress({ mensagem: aviso, ultimoErroBusca: diagnostico.ultimoErroBusca });
         },
       });
+
+      // Telemetria: páginas confirmadas pelo modo ambíguo
+      if ((resp as any).confirmedPages) {
+        telemetria.paginasConfirmadas += (resp as any).confirmedPages;
+      }
 
       const failedPages = resp.failedPages ?? 0;
       const buscaParcial = !!resp.partial || !!resp.truncated || failedPages > 0;
@@ -826,17 +854,49 @@ async function _processarTermoFlashInterno(
         `[DJEN Flash] 🌐 Busca global tipo=${tipo} termo="${mon.termo_busca}" UF=TODAS: ` +
         `${respGlobal.items.length} resultados, pages=${respGlobal.pagesFetched} (substitui ${tribunais.length} chamadas por tribunal)`
       );
-      // Marcar como "achou em todos" — a validação local por tribunal cuidará do filtro.
-      // Não precisamos do retry por tribunal a menos que a global tenha vindo vazia.
-      if (respGlobal.items.length > 0) {
-        for (const t of tribunais) tribuniaisComResultados.add(t);
+      // Mudança 1: detectar quais tribunais APARECERAM no retorno global.
+      // Para os ausentes, fazer 1 chamada individual (fallback) — garante cobertura
+      // sem multiplicar por N quando tudo veio na global (caso normal).
+      const tribunaisPresentes = new Set<string>();
+      for (const item of respGlobal.items) {
+        const sigla = getSiglaTribunal(item);
+        if (sigla && tribunais.includes(sigla)) tribunaisPresentes.add(sigla);
       }
+      const tribunaisAusentes = tribunais.filter(t => !tribunaisPresentes.has(t));
+      if (tribunaisAusentes.length > 0) {
+        console.log(
+          `[DJEN Flash] 🔁 Fallback UF=TODAS: ${tribunaisAusentes.length}/${tribunais.length} ` +
+          `tribunais ausentes na global, buscando individualmente: ${tribunaisAusentes.join(',')}`
+        );
+        for (const trib of tribunaisAusentes) {
+          if (signal.aborted) break;
+          if (checkCircuit()) {
+            telemetria.tribunaisPulados429 += 1;
+            tribunaisSoftSkip.add(trib);
+            continue;
+          }
+          const respFb = await executarBusca(
+            { ...baseParams, siglaTribunal: trib, page: 1 },
+            trib,
+            `fallback UF=TODAS | ${tipo} | ${mon.termo_busca} | ${trib}`,
+          );
+          if (respFb && respFb.items.length > 0) {
+            telemetria.tribunaisResgatadosFallback += 1;
+            tribuniaisComResultados.add(trib);
+            console.log(`[DJEN Flash] ✓ Resgatados ${respFb.items.length} itens de ${trib} via fallback`);
+          }
+          await delay(CONFIG.delay_between_tribunais);
+        }
+      }
+      // Tribunais com itens na global também contam como "OK" para complementares
+      for (const t of tribunaisPresentes) tribuniaisComResultados.add(t);
     }
   } else {
     for (const trib of tribLoop) {
       if (signal.aborted) break;
       if (checkCircuit()) {
         telemetria.tribunaisPulados429 += 1;
+        if (trib) tribunaisSoftSkip.add(trib);
         continue;
       }
 
@@ -855,6 +915,40 @@ async function _processarTermoFlashInterno(
       }
 
       if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+    }
+  }
+
+  // ===== Mudança 3: retomada soft-skip do circuit breaker =====
+  // Tribunais adiados pelo circuit breaker ganham uma 2ª chance ao final do termo,
+  // depois que a janela de pressão da API passou. Aplicamos delay reforçado.
+  if (tribunaisSoftSkip.size > 0 && !signal.aborted) {
+    const adiados = Array.from(tribunaisSoftSkip);
+    console.log(`[DJEN Flash] 🔄 Soft-skip retry: tentando ${adiados.length} tribunais adiados após pressão 429: ${adiados.join(',')}`);
+    // Reset do circuit para permitir nova rodada
+    circuitOpen = false;
+    diagnostico.rateLimitHits = 0;
+    // Aguarda janela de cooldown (delay reforçado: 2× o normal)
+    await delay(CONFIG.delay_between_tribunais * 2);
+    for (const trib of adiados) {
+      if (signal.aborted) break;
+      // Se o circuito reabrir aqui, paramos definitivamente
+      if (circuitOpen) {
+        console.warn(`[DJEN Flash] Soft-skip retry interrompido — circuito reabriu em ${trib}`);
+        break;
+      }
+      const respRetry = await executarBusca(
+        { ...baseParams, siglaTribunal: trib, page: 1 },
+        trib,
+        `soft-skip retry | ${tipo} | ${mon.termo_busca} | ${trib}`,
+      );
+      if (respRetry) {
+        telemetria.tribunaisRetomadosCircuit += 1;
+        if (respRetry.items.length > 0) {
+          tribuniaisComResultados.add(trib);
+          console.log(`[DJEN Flash] ✓ Retomados ${respRetry.items.length} itens de ${trib} (soft-skip)`);
+        }
+      }
+      await delay(CONFIG.delay_between_tribunais * 2);
     }
   }
   
@@ -1391,6 +1485,9 @@ async function executarLoop(
     let acumPaginasEvitadas = 0;
     let acumComplementaresPuladas = 0;
     let acumTribunaisPulados429 = 0;
+    let acumTribunaisResgatadosFallback = 0;
+    let acumTribunaisRetomadosCircuit = 0;
+    let acumPaginasConfirmadas = 0;
     
     if (cp && cp.runKey === runKey) {
       startDiaIdx = cp.diaIndice;
@@ -1502,6 +1599,9 @@ async function executarLoop(
         acumPaginasEvitadas += resultado.paginasEvitadas;
         acumComplementaresPuladas += resultado.complementaresPuladas;
         acumTribunaisPulados429 += resultado.tribunaisPulados429;
+        acumTribunaisResgatadosFallback += resultado.tribunaisResgatadosFallback;
+        acumTribunaisRetomadosCircuit += resultado.tribunaisRetomadosCircuit;
+        acumPaginasConfirmadas += resultado.paginasConfirmadas;
         const percentageAfter = Math.min(99, Math.max(0, Math.round((globalCurrent / totalOps) * 100)));
         
         updateProgress({
@@ -1516,6 +1616,13 @@ async function executarLoop(
           ultimoErroBusca: resultado.ultimoErroBusca ?? state.progress.ultimoErroBusca,
           subProgress: null,
           tribunalAtual: null,
+          chamadasApi: acumChamadasApi,
+          paginasEvitadas: acumPaginasEvitadas,
+          complementaresPuladas: acumComplementaresPuladas,
+          tribunaisPulados429: acumTribunaisPulados429,
+          tribunaisResgatadosFallback: acumTribunaisResgatadosFallback,
+          tribunaisRetomadosCircuit: acumTribunaisRetomadosCircuit,
+          paginasConfirmadas: acumPaginasConfirmadas,
         });
         
         // Checkpoint
@@ -1559,7 +1666,7 @@ async function executarLoop(
         percentage: 100,
         globalCurrent: totalOps,
         mensagem: `Concluído! ${acumNovas} novas, ${acumDuplicadas} duplicadas, ${acumDescartadas} descartadas` +
-          ` • Flash: chamadasApi=${acumChamadasApi}, pgEvitadas=${acumPaginasEvitadas}, complPuladas=${acumComplementaresPuladas}, tribPulados429=${acumTribunaisPulados429}` +
+          ` • Flash: chamadasApi=${acumChamadasApi}, pgEvitadas=${acumPaginasEvitadas}, pgConfirmadas=${acumPaginasConfirmadas}, complPuladas=${acumComplementaresPuladas}, tribResgatados=${acumTribunaisResgatadosFallback}, tribRetomados=${acumTribunaisRetomadosCircuit}, tribPulados429=${acumTribunaisPulados429}` +
           ((acumRateLimitHits || acumFalhasBusca || acumBuscasParciais) ? ` • avisos: 429=${acumRateLimitHits}, falhas=${acumFalhasBusca}, parciais=${acumBuscasParciais}` : ''),
       });
     } else {
