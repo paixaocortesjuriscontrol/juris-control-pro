@@ -694,9 +694,12 @@ async function _processarTermoFlashInterno(
   };
 
   // ===== Circuit breaker (otimização 5) =====
-  // Após N 429s no mesmo termo, paramos de tentar tribunais novos.
+  // Após N 429s no mesmo termo, deixamos de bater na API IMEDIATAMENTE
+  // mas guardamos os tribunais "soft-skip" para uma retomada no fim do termo
+  // (depois que a janela de pressão da API passou).
   const CIRCUIT_BREAKER_429_LIMIT = 3;
   const tribuniaisComResultados = new Set<string>(); // tribunais que retornaram >0 resultados na primária
+  const tribunaisSoftSkip = new Set<string>(); // tribunais adiados pelo circuit breaker
   let circuitOpen = false;
   const checkCircuit = (): boolean => {
     if (circuitOpen) return true;
@@ -704,7 +707,7 @@ async function _processarTermoFlashInterno(
       circuitOpen = true;
       console.warn(
         `[DJEN Flash] 🛑 Circuit breaker aberto para "${mon.termo_busca}" ` +
-        `após ${diagnostico.rateLimitHits} 429s. Pulando tribunais restantes.`
+        `após ${diagnostico.rateLimitHits} 429s. Adiando tribunais restantes para retomada no fim do termo.`
       );
     }
     return circuitOpen;
