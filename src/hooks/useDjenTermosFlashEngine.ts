@@ -742,13 +742,10 @@ async function _processarTermoFlashInterno(
     tribunal: string | undefined,
     contexto: string,
   ) => {
-    if (checkCircuit()) {
-      telemetria.tribunaisPulados429 += 1;
-      // Adiar tribunal específico para retomada (mudança 3: soft-skip)
-      if (tribunal) tribunaisSoftSkip.add(tribunal);
-      reportSub(tribunal ? `pulado(429) • ${tribunal}` : 'pulado(429)');
-      return null;
-    }
+    // Modo cauteloso (zero pulo): se houve pressão de 429, aguarda cooldown
+    // antes de chamar — mas SEMPRE chama. Nenhum tribunal é descartado.
+    await ensureCautious();
+    await cooldownIfNewRateLimit();
     telemetria.chamadasApi += 1;
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
@@ -760,7 +757,7 @@ async function _processarTermoFlashInterno(
         maxPages: null,
         continueUntilEmpty: false, // o client decide internamente via confirmAmbiguous
         confirmAmbiguous: true,
-        delayMs: CONFIG.delay_between_pages,
+        delayMs: pageDelay(),
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
         onRateLimit: (waitMs, attempt, page) => {
