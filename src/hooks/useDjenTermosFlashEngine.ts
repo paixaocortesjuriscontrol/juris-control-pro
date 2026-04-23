@@ -590,15 +590,17 @@ async function processarTermoPro(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
+  onSubProgress?: (done: number, total: number, label?: string) => void,
 ): Promise<TermoFlashResult> {
   if (signal.aborted) return emptyTermoFlashResult();
-  return await _processarTermoFlashInterno(mon, diaYmd, signal);
+  return await _processarTermoFlashInterno(mon, diaYmd, signal, onSubProgress);
 }
 
 async function _processarTermoFlashInterno(
   mon: Monitoramento,
   diaYmd: string,
   signal: AbortSignal,
+  onSubProgress?: (done: number, total: number, label?: string) => void,
 ): Promise<TermoFlashResult> {
   if (signal.aborted) return emptyTermoFlashResult();
   
