@@ -104,8 +104,15 @@ const CONFIG = {
   delay_between_pages: 1000,
   delay_between_tribunais: 1200,
   delay_between_termos_or: 1000,
-  max_retries: 3,
+  max_retries: 6,            // ↑ 3 → 6: nunca desistir do tribunal por 429
   retry_base_delay: 8000,
+  // FIX OSMAR MENDES (zero perda): após N 429s no termo, em vez de PULAR tribunal
+  // entramos em "modo cauteloso" — ampliamos delays e seguimos chamando todos os
+  // tribunais. Nenhum tribunal é descartado por 429.
+  cautious_mode_429_threshold: 2,
+  cautious_delay_between_tribunais: 4500,
+  cautious_delay_between_pages: 3000,
+  cautious_cooldown_ms: 12000,
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
