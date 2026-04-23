@@ -636,8 +636,14 @@ export async function buscarPjeComunicaPaginado(
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
           // 429 precisa de backoff maior para evitar “loop de bloqueio”.
           const baseDelay = is429 ? Math.max(retryBaseDelay, 8000) : retryBaseDelay;
-          const waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
+          let waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
           if (is429) {
+            // Honrar Retry-After do servidor: doRequest já leu o header e setou
+            // o cooldown global. Usar esse valor como piso mínimo do retry.
+            const serverHint = getGlobalCooldownRemainingMs();
+            if (serverHint > waitTime) {
+              waitTime = serverHint;
+            }
             rateLimitHits += 1;
             setGlobalCooldown(waitTime);
             options?.onRateLimit?.(waitTime, attempt + 1, page);
