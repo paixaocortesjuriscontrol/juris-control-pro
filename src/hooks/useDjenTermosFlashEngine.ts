@@ -916,11 +916,7 @@ async function _processarTermoFlashInterno(
         );
         for (const trib of tribunaisAusentes) {
           if (signal.aborted) break;
-          if (checkCircuit()) {
-            telemetria.tribunaisPulados429 += 1;
-            tribunaisSoftSkip.add(trib);
-            continue;
-          }
+          // ZERO PULO: o cooldown acontece dentro de executarBusca via ensureCautious()
           const respFb = await executarBusca(
             { ...baseParams, siglaTribunal: trib, page: 1 },
             trib,
@@ -931,7 +927,7 @@ async function _processarTermoFlashInterno(
             tribuniaisComResultados.add(trib);
             console.log(`[DJEN Flash] ✓ Resgatados ${respFb.items.length} itens de ${trib} via fallback`);
           }
-          await delay(CONFIG.delay_between_tribunais);
+          await delay(tribunalDelay());
         }
       }
       // Tribunais com itens na global também contam como "OK" para complementares
@@ -940,11 +936,7 @@ async function _processarTermoFlashInterno(
   } else {
     for (const trib of tribLoop) {
       if (signal.aborted) break;
-      if (checkCircuit()) {
-        telemetria.tribunaisPulados429 += 1;
-        if (trib) tribunaisSoftSkip.add(trib);
-        continue;
-      }
+      // ZERO PULO: cooldown via ensureCautious() em executarBusca
 
       const resultadosAntes = resultados.length;
       const resp = await executarBusca(
@@ -960,7 +952,7 @@ async function _processarTermoFlashInterno(
         }
       }
 
-      if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+      if (tribLoop.length > 1) await delay(tribunalDelay());
     }
   }
 
