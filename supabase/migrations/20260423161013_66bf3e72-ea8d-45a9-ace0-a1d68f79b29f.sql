@@ -1,0 +1,85 @@
+
+WITH eduardo AS (
+  SELECT id FROM public.profiles_basic WHERE nome ILIKE '%eduardo torres%' LIMIT 1
+),
+fonte AS (
+  SELECT DISTINCT ON (t.processo)
+    t.*
+  FROM public.dados_benner_judit_temp t
+  JOIN public.dados_benner_judit_temp_responsaveis r ON r.dados_benner_id = t.id
+  JOIN eduardo e ON e.id = r.usuario_id
+  WHERE t.processo IS NOT NULL AND t.processo <> ''
+  ORDER BY t.processo, t.updated_at DESC NULLS LAST
+)
+UPDATE public.dados_benner db SET
+  tribunal = f.tribunal,
+  tipo_recurso = f.tipo_recurso,
+  data_distribuicao_planilha = f.data_distribuicao_planilha,
+  turma = f.turma,
+  relator = f.relator,
+  analise_quarteirizado = f.analise_quarteirizado,
+  risco_midia = f.risco_midia,
+  risco_descricao = f.risco_descricao,
+  provas_digitais = f.provas_digitais,
+  tem_data_julgamento = f.tem_data_julgamento,
+  data_julgamento = f.data_julgamento,
+  horario_julgamento = f.horario_julgamento,
+  tipo_julgamento = f.tipo_julgamento,
+  materia_honra = f.materia_honra,
+  entrega_memoriais = f.entrega_memoriais,
+  sustentacao_oral = f.sustentacao_oral,
+  resultado_sem_transcendencia = f.resultado_sem_transcendencia,
+  resultado_nao_conhecido = f.resultado_nao_conhecido,
+  resultado_conhecido_provido = f.resultado_conhecido_provido,
+  resultado_conhecido_nao_provido = f.resultado_conhecido_nao_provido,
+  resultado_outra = f.resultado_outra,
+  observacoes = f.observacoes,
+  ganhamos = f.ganhamos,
+  perdemos = f.perdemos,
+  processo_baixado = f.processo_baixado,
+  recorrente = f.recorrente,
+  posicao_turma_favoravel = f.posicao_turma_favoravel,
+  posicao_turma_desfavoravel = f.posicao_turma_desfavoravel,
+  posicao_relator_favoravel = f.posicao_relator_favoravel,
+  posicao_relator_desfavoravel = f.posicao_relator_desfavoravel,
+  recurso_bem_aparelhado = f.recurso_bem_aparelhado,
+  recurso_mal_aparelhado = f.recurso_mal_aparelhado,
+  chance_exito = f.chance_exito,
+  situacao_processo = f.situacao_processo,
+  tipo_recurso_auto = f.tipo_recurso_auto,
+  confianca_transito = f.confianca_transito,
+  data_transito_julgado = f.data_transito_julgado,
+  notas = f.notas,
+  aba_origem = f.aba_origem,
+  equipe = f.equipe,
+  reclamante = f.reclamante,
+  reclamada = f.reclamada,
+  tipo_recurso_reclamante = f.tipo_recurso_reclamante,
+  materias_recurso_reclamante = f.materias_recurso_reclamante,
+  aparelhamento_reclamante = f.aparelhamento_reclamante,
+  chance_exito_reclamante = f.chance_exito_reclamante,
+  tipo_recurso_banco = f.tipo_recurso_banco,
+  materias_recurso_banco = f.materias_recurso_banco,
+  aparelhamento_banco = f.aparelhamento_banco,
+  chance_exito_banco = f.chance_exito_banco,
+  honra = f.honra,
+  tema = f.tema,
+  execucao = f.execucao,
+  midia_negativa = f.midia_negativa,
+  decisao_quarteirizado = f.decisao_quarteirizado,
+  recurso_terceiros = f.recurso_terceiros,
+  benner_atualizado = f.benner_atualizado,
+  transito_julgado = f.transito_julgado,
+  judit_preenchido = f.judit_preenchido,
+  judit_preenchido_em = f.judit_preenchido_em,
+  judit_preenchido_por = f.judit_preenchido_por,
+  parte_recorrente_origem = f.parte_recorrente_origem,
+  data_distribuicao_real = f.data_distribuicao_real,
+  data_distribuicao = f.data_distribuicao,
+  observacao_advogado = f.observacao_advogado,
+  erro_judit = COALESCE(f.erro_judit, false),
+  status = COALESCE(f.status, db.status),
+  coordenacao_id = COALESCE(f.coordenacao_id, db.coordenacao_id),
+  updated_at = now()
+FROM fonte f
+WHERE db.processo = f.processo;
