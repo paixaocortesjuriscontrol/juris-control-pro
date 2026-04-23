@@ -1700,3 +1700,41 @@ export function subscribeDjenTermosFlash(listener: (p: DjenTermosFlashProgress) 
   state.listeners.add(listener);
   return () => { state.listeners.delete(listener); };
 }
+
+/**
+ * Conta diretamente em publicacoes_djen quantos registros foram inseridos
+ * desde `runStartIso`, opcionalmente filtrando por coordenação e/ou
+ * monitoramentos. Usado pelo card para reconciliar com a tela Análise DJEN.
+ */
+export async function contarPublicacoesConfirmadasFlash(opts: {
+  runStartIso: string;
+  coordenacaoId?: string | null;
+  monitoramentoIds?: string[] | null;
+}): Promise<number> {
+  try {
+    let query = supabase
+      .from('publicacoes_djen')
+      .select('id, monitoramento:monitoramentos_djen(coordenacao_id)', { count: 'exact', head: false })
+      .gte('created_at', opts.runStartIso);
+
+    if (opts.monitoramentoIds && opts.monitoramentoIds.length > 0) {
+      query = query.in('monitoramento_id', opts.monitoramentoIds);
+    }
+
+    const { data, error, count } = await query.limit(10000);
+    if (error) {
+      console.warn('[DJEN Flash] Erro ao contar publicações confirmadas:', error.message);
+      return 0;
+    }
+    let rows = (data || []) as any[];
+    if (opts.coordenacaoId) {
+      rows = rows.filter((r) => r?.monitoramento?.coordenacao_id === opts.coordenacaoId);
+      return rows.length;
+    }
+    // Sem filtro de coordenação: usar count exato quando disponível
+    return typeof count === 'number' ? count : rows.length;
+  } catch (e) {
+    console.warn('[DJEN Flash] Erro inesperado em contarPublicacoesConfirmadasFlash:', e);
+    return 0;
+  }
+}
