@@ -868,8 +868,10 @@ async function _processarTermoProInterno(
     }
   };
 
-  const shouldShortCircuit = () => diagnostico.rateLimitHits >= 12 || diagnostico.falhasBusca >= 6;
-  
+  // IMPORTANTE: nunca pular termos. Esta flag é usada apenas para alertar o usuário
+  // (e elevar o delay adaptativo entre tribunais), nunca para abortar a busca.
+  const isHighRateLimitPressure = () => diagnostico.rateLimitHits >= 12 || diagnostico.falhasBusca >= 6;
+
   // Configurar parâmetros base
   const baseParams: any = {
     tipo,
