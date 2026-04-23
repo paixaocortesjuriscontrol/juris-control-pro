@@ -588,11 +588,15 @@ type TermoFlashResult = {
   ultimoErroBusca: string | null;
   chamadasApi: number; paginasEvitadas: number;
   complementaresPuladas: number; tribunaisPulados429: number;
+  tribunaisResgatadosFallback: number;
+  tribunaisRetomadosCircuit: number;
+  paginasConfirmadas: number;
 };
 
 function emptyTermoFlashResult(): TermoFlashResult {
   return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, falhasBusca: 0, buscasParciais: 0,
-    ultimoErroBusca: null, chamadasApi: 0, paginasEvitadas: 0, complementaresPuladas: 0, tribunaisPulados429: 0 };
+    ultimoErroBusca: null, chamadasApi: 0, paginasEvitadas: 0, complementaresPuladas: 0, tribunaisPulados429: 0,
+    tribunaisResgatadosFallback: 0, tribunaisRetomadosCircuit: 0, paginasConfirmadas: 0 };
 }
 
 async function processarTermoPro(
@@ -659,6 +663,9 @@ async function _processarTermoFlashInterno(
     paginasEvitadas: 0,
     complementaresPuladas: 0,
     tribunaisPulados429: 0,
+    tribunaisResgatadosFallback: 0,
+    tribunaisRetomadosCircuit: 0,
+    paginasConfirmadas: 0,
   };
 
   // ===== Sub-progresso (granularidade fina) =====
