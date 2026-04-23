@@ -31,13 +31,17 @@ function parseDateBR(val: unknown): string | null {
   if (val === null || val === undefined) return null;
   // Date object nativo (quando cellDates: true)
   if (val instanceof Date && !isNaN(val.getTime())) {
-    return val.toISOString().slice(0, 10);
+    // Usa componentes locais para evitar shift de timezone
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, "0");
+    const d = String(val.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   }
   const raw = String(val).trim();
   if (!raw) return null;
   // Remove parte de hora se houver (ex: "01/12/2024 14:30:00")
   const t = raw.split(/[\sT]/)[0];
-  // dd/mm/yyyy ou dd-mm-yyyy ou dd.mm.yyyy
+  // ESTRITAMENTE dd/mm/yyyy (formato da planilha)
   const m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
   if (m) {
     const dia = m[1].padStart(2, "0");
@@ -47,15 +51,21 @@ function parseDateBR(val: unknown): string | null {
       const n = Number(ano);
       ano = (n >= 70 ? 1900 + n : 2000 + n).toString();
     }
+    // Validação básica
+    if (Number(mes) < 1 || Number(mes) > 12) return null;
+    if (Number(dia) < 1 || Number(dia) > 31) return null;
     return `${ano}-${mes}-${dia}`;
   }
-  // ISO yyyy-mm-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-  // Serial Excel
+  // Serial Excel (número puro)
   const n = Number(raw);
   if (!isNaN(n) && n > 30000 && n < 100000) {
     const d = new Date(Math.round((n - 25569) * 86400 * 1000));
-    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    if (!isNaN(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}-${mm}-${dd}`;
+    }
   }
   return null;
 }
@@ -193,13 +203,16 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       // === STEP 1: Parse Excel ===
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
+      // cellDates: true converte células-data em Date objects nativos.
+      // dateNF preserva formato dd/mm/yyyy ao serializar caso fique como string.
+      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true, dateNF: 'dd/mm/yyyy' });
 
       const allRows: ImportPlanRow[] = [];
       let capturedHeader: string[] = [];
       for (const [sheetOrder, sheetName] of wb.SheetNames.entries()) {
         const ws = wb.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
+        // raw: true mantém Date objects e números nativos (em vez de strings reformatadas).
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" }) as any[][];
         let headerIdx = -1;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
           if (json[i]?.some(c => /n[uú]mero.*processo/i.test(String(c ?? "")) || /dossi[eê]/i.test(String(c ?? "")))) {
