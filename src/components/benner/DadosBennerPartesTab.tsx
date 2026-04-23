@@ -87,8 +87,29 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
       });
 
       if (error) {
-        // supabase-js wraps non-2xx as FunctionsHttpError; try to read body
-        const msg = data?.error || error.message || "Erro desconhecido";
+        // supabase-js encapsula non-2xx como FunctionsHttpError.
+        // Tenta ler o corpo da resposta (que contém o erro real da Judit).
+        let bodyErr: any = null;
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            bodyErr = await ctx.json();
+          } else if (ctx && typeof ctx.text === "function") {
+            const t = await ctx.text();
+            try { bodyErr = JSON.parse(t); } catch { bodyErr = { error: t }; }
+          }
+        } catch { /* ignore parse errors */ }
+
+        const judit = bodyErr?.judit_error || "";
+        const msg = bodyErr?.error || data?.error || error.message || "Erro desconhecido";
+
+        if (judit === "USER_REACHED_PLAN_MAX_CONSUMPTION" || /limite do plano/i.test(msg)) {
+          toast.error("Limite do plano Judit atingido. Verifique seu consumo no painel Judit.", {
+            duration: 6000,
+          });
+          setBuscando(false);
+          return;
+        }
         throw new Error(msg);
       }
       const partiesDetail = data?.parties_detail;
