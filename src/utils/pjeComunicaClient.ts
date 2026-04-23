@@ -105,6 +105,16 @@ const awaitGlobalCooldown = async () => {
     await new Promise(r => setTimeout(r, wait));
   }
 };
+const getGlobalCooldownRemainingMs = (): number => {
+  return Math.max(0, globalCooldownUntil - Date.now());
+};
+
+/**
+ * Exportado para que engines (DJEN Pro/Flash) possam aguardar o cooldown global
+ * ANTES de iniciar um novo termo, evitando cascata de 429 entre termos consecutivos.
+ */
+export const awaitPjeComunicaGlobalCooldown = awaitGlobalCooldown;
+export const getPjeComunicaGlobalCooldownRemainingMs = getGlobalCooldownRemainingMs;
 function optimizeItem(item: any) {
   // IMPORTANTE:
   // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
