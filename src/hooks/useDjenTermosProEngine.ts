@@ -89,6 +89,8 @@ const CONFIG = {
   retry_base_delay: 8000,
 };
 
+const EXECUTION_SYNC_INTERVAL_MS = 15000;
+
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // ============================================================================
@@ -104,6 +106,7 @@ let state: {
   timerInterval: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number;
   executionId: string | null;
+  lastExecutionSyncAt: number;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -113,6 +116,7 @@ let state: {
   timerInterval: null,
   lastUpdatedAt: 0,
   executionId: null,
+  lastExecutionSyncAt: 0,
 };
 
 const STORAGE_KEY = 'djen-termos-pro-checkpoint-v1';
@@ -314,6 +318,59 @@ function updateProgress(partial: Partial<DjenTermosProProgress>) {
 
 export function getDjenTermosProLastUpdatedAt(): number {
   return state.lastUpdatedAt;
+}
+
+function buildExecutionDetailsSnapshot(overrides: Record<string, any> = {}) {
+  const checkpoint = state.checkpoint || buildCheckpointFromProgress();
+
+  return {
+    runKey: checkpoint?.runKey ?? (state.progress.dataInicioYmd && state.progress.dataFimYmd
+      ? `${state.progress.dataInicioYmd}..${state.progress.dataFimYmd}`
+      : null),
+    dataInicioYmd: state.progress.dataInicioYmd,
+    dataFimYmd: state.progress.dataFimYmd,
+    totalDias: state.progress.totalDias,
+    totalTermos: state.progress.totalTermos,
+    globalCurrent: state.progress.globalCurrent,
+    globalTotal: state.progress.globalTotal,
+    totalOps: state.progress.globalTotal,
+    novas: state.progress.novas,
+    duplicadas: state.progress.duplicadas,
+    descartadas: state.progress.descartadas,
+    percentage: state.progress.percentage,
+    diaAtualYmd: state.progress.diaAtualYmd,
+    diaAtualIndice: state.progress.diaAtualIndice,
+    termoAtualNoDia: state.progress.termoAtualNoDia,
+    termoAtual: state.progress.termoAtual,
+    mensagem: state.progress.mensagem,
+    checkpoint: serializeCheckpoint(checkpoint),
+    heartbeat_at: new Date().toISOString(),
+    diagnostico: {
+      rateLimitHits: state.progress.rateLimitHits,
+      falhasBusca: state.progress.falhasBusca,
+      buscasParciais: state.progress.buscasParciais,
+      ultimoErroBusca: state.progress.ultimoErroBusca,
+    },
+    ...overrides,
+  };
+}
+
+function syncExecutionProgress(overrides: Record<string, any> = {}, force = false) {
+  if (!state.executionId) return;
+
+  const now = Date.now();
+  if (!force && now - state.lastExecutionSyncAt < EXECUTION_SYNC_INTERVAL_MS) return;
+  state.lastExecutionSyncAt = now;
+
+  void supabase
+    .from('execucoes_agendadas')
+    .update({ detalhes: buildExecutionDetailsSnapshot(overrides) })
+    .eq('id', state.executionId)
+    .then(({ error }) => {
+      if (error) {
+        console.warn('[DJEN Pro] Erro ao sincronizar progresso no banco:', error.message);
+      }
+    });
 }
 
 // ============================================================================
