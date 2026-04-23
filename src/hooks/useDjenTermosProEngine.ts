@@ -86,17 +86,60 @@ interface Checkpoint {
 // ============================================================================
 
 const CONFIG = {
-  delay_between_terms: 1200,
-  delay_between_pages: 1000,
-  delay_between_tribunais: 1200,
+  // Defaults conservadores: comprovadamente estáveis em janeiro/2026 (~1500ms).
+  // Valores menores disparam cascata de 429 da API PJE Comunica.
+  delay_between_terms: 1500,
+  delay_between_pages: 1200,
+  delay_between_tribunais: 1500,
   delay_between_termos_or: 1000,
   max_retries: 3,
-  retry_base_delay: 8000,
+  // Alinhado ao Retry-After típico do servidor PJE em janelas de pressão.
+  retry_base_delay: 12000,
 };
 
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ============================================================================
+// DELAY ADAPTATIVO (auto slow-down)
+// ----------------------------------------------------------------------------
+// Mantém um histórico dos timestamps de 429 nos últimos 60s e calcula um
+// multiplicador de delay (1x..5x) aplicado a delay_between_terms,
+// delay_between_pages e delay_between_tribunais. Quando a janela limpa, volta
+// gradualmente para 1.0. Nenhum termo é pulado — apenas espera mais.
+// ============================================================================
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitHistory: number[] = [];
+
+function recordRateLimitHit() {
+  rateLimitHistory.push(Date.now());
+}
+
+function pruneRateLimitHistory() {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  while (rateLimitHistory.length > 0 && rateLimitHistory[0] < cutoff) {
+    rateLimitHistory.shift();
+  }
+}
+
+function getAdaptiveMultiplier(): number {
+  pruneRateLimitHistory();
+  const hits = rateLimitHistory.length;
+  if (hits === 0) return 1.0;
+  if (hits <= 2) return 1.0;
+  if (hits <= 5) return 1.8;
+  if (hits <= 10) return 3.0;
+  return 5.0;
+}
+
+function adaptive(baseMs: number): number {
+  return Math.round(baseMs * getAdaptiveMultiplier());
+}
+
+function resetAdaptiveDelay() {
+  rateLimitHistory.length = 0;
+}
 
 // ============================================================================
 // SINGLETON STATE
