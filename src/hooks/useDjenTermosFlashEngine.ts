@@ -862,11 +862,36 @@ async function _processarTermoFlashInterno(
         const sigla = getSiglaTribunal(item);
         if (sigla && tribunais.includes(sigla)) tribunaisPresentes.add(sigla);
       }
-      const tribunaisAusentes = tribunais.filter(t => !tribunaisPresentes.has(t));
+      // Mudança 1b (FIX OSMAR MENDES): mesmo quando o tribunal "aparece" na global,
+      // se a paginação foi ambígua/truncada/parcial significa que a global pode ter
+      // entregado APENAS UMA AMOSTRA daquele tribunal — não a cobertura completa.
+      // Nesse caso, fazemos fallback individual para TODOS os tribunais configurados,
+      // garantindo zero perda. No caso "feliz" (página única, sem truncar) só os
+      // ausentes recebem fallback (comportamento original, otimizado).
+      const coberturaIncompleta =
+        respGlobal.truncated === true ||
+        respGlobal.partial === true ||
+        (respGlobal.confirmedPages ?? 0) > 0 ||
+        // sinal forte: múltiplas páginas + sem totalElements confiável
+        (respGlobal.pagesFetched > 1 &&
+          (!respGlobal.totalElements || respGlobal.totalElements <= 0));
+      const tribunaisAusentes = coberturaIncompleta
+        ? [...tribunais]
+        : tribunais.filter(t => !tribunaisPresentes.has(t));
+      if (coberturaIncompleta) {
+        console.warn(
+          `[DJEN Flash] ⚠️ Cobertura GLOBAL incompleta para "${mon.termo_busca}" ` +
+          `(truncated=${respGlobal.truncated} partial=${respGlobal.partial} ` +
+          `confirmedPages=${respGlobal.confirmedPages ?? 0} pagesFetched=${respGlobal.pagesFetched} ` +
+          `totalElements=${respGlobal.totalElements ?? 'N/A'}). ` +
+          `Forçando fallback individual em TODOS os ${tribunais.length} tribunais para evitar perda.`
+        );
+      }
       if (tribunaisAusentes.length > 0) {
         console.log(
           `[DJEN Flash] 🔁 Fallback UF=TODAS: ${tribunaisAusentes.length}/${tribunais.length} ` +
-          `tribunais ausentes na global, buscando individualmente: ${tribunaisAusentes.join(',')}`
+          `tribunais para fallback individual ` +
+          `(${coberturaIncompleta ? 'cobertura incompleta' : 'ausentes na global'}): ${tribunaisAusentes.join(',')}`
         );
         for (const trib of tribunaisAusentes) {
           if (signal.aborted) break;
