@@ -1,64 +1,83 @@
 
 
-## Reconciliar números: Planilha vs Sistema (Distribuição TST)
+## Corrigir Barra de Progresso e Totalizadores do DJEN Termos Flash
 
-### Divergências reportadas pela análise externa
+### Problemas identificados
 
-| Métrica | Sistema | Planilha | Diferença |
-|---|---|---|---|
-| Processos únicos | 3.591 | 3.604 | -13 |
-| Benner = SIM | 414 | 349 | +65 |
+**1. Barra de progresso não acompanha a evolução real da busca**
 
-### Etapa 1 — Diagnóstico (somente leitura no banco)
+Atualmente a porcentagem é calculada por unidades de trabalho `(dias × termos)`, e só avança **após** terminar 100% do processamento de um termo (que pode levar minutos por causa da iteração de tribunais, páginas e variantes). Resultado: a barra fica parada longos períodos e depois "salta".
 
-Antes de qualquer correção, preciso confirmar no banco o que de fato foi importado. Vou rodar consultas SELECT em `public.dados_benner` (escopo `tribunal = 'TST'` ou `aba_origem IS NOT NULL`):
+Localização: `src/hooks/useDjenTermosFlashEngine.ts`, linhas ~1410-1449.
 
-1. **Total bruto de linhas** vs **processos distintos** vs **(processo, dossie) distintos**.
-2. **Distribuição de valores na coluna `analise_quarteirizado`** (campo "Benner") — listar todos os valores normalizados (`upper(btrim(...))`) com contagem para identificar `-----`, `Não localizei`, vazios, etc.
-3. **Quantos processos distintos têm pelo menos uma linha com Benner = SIM** (DISTINCT processo) vs **quantas linhas totais têm Benner = SIM** — isso confirma a hipótese do usuário (414 = linhas; 349 = processos distintos).
-4. **Processos repetidos** (mesmo `processo` com 2+ linhas em abas diferentes) — listar os top 20 com contagem.
-5. **Linhas com `processo` ainda fora do padrão CNJ** (após o cleanup feito antes), para identificar os 13 que talvez estejam faltando ou com formato inválido.
+```ts
+const completedBefore = diaIdx * monitoramentos.length + termoIdx;
+const percentageBefore = round((completedBefore / totalOps) * 100); // antes do termo
+// ... processarTermoPro (longo) ...
+const percentageAfter  = round((globalCurrent / totalOps) * 100); // depois do termo
+```
 
-### Etapa 2 — Apresentar conclusão ao usuário
+Além disso, `processarTermoPro` itera `tribunais × variantes (termos_or)` internamente sem reportar progresso parcial — então o card só vê movimento entre termos.
 
-Com base nos resultados, vou produzir um relatório curto explicando:
+**2. Totalizadores não batem com a tela Análise DJEN**
 
-- Se a diferença de **65** vem realmente de duplicidade entre abas (1 processo em 2 abas, ambas SIM, contado 2x). A regra correta é: **contar processos distintos, não linhas**.
-- Se a diferença de **13** vem de:
-  - (a) registros descartados na importação (linhas sem CNJ válido), ou
-  - (b) processos da planilha que ficaram fora porque o número não bateu com o regex CNJ, ou
-  - (c) duplicidade na própria planilha que o sistema deduplicou corretamente.
-- Tratamento de valores inválidos na coluna Benner (`-----`, `Não localizei`): hoje qualquer string ≠ vazio fica salva como veio. Vou propor normalizar para `NULL` (ou manter explícito) conforme a preferência.
+O contador "✓ encontradas (não lidas)" do card mostra `progress.novas`, que é incrementado a cada `INSERT` em `publicacoes_djen` durante a execução. Discrepâncias com `/analise-djen` ocorrem por três razões reais:
 
-### Etapa 3 — Plano de correção (a executar APÓS aprovação do diagnóstico)
+- **Escopo diferente**: a tela Análise DJEN lista `publicacoes_djen` filtradas por coordenação/monitoramento/termo de busca, e por padrão ordena por `created_at` com **limite de 500 registros** (ver `useAnaliseDjen.ts` linha 95). O card Flash conta tudo que ele inseriu na sessão — sem filtro de coordenação, sem limite.
+- **Momento da contagem**: `progress.novas` acumula apenas inserts feitos **nessa execução** do Flash. Se o usuário entra na Análise DJEN, ele vê a soma histórica + execuções de outros engines (Pro, scheduler backend, busca direta), por isso é normal o número da tela ser maior.
+- **Filtros do Flash não refletidos**: quando o usuário roda o Flash com `coordenacaoId`/`monitoramentoIds`, o `progress.novas` ignora esses filtros para fins comparativos — não há um KPI "novas para esta coordenação no período" que possa ser confrontado diretamente com a tela Análise DJEN.
 
-Dependendo do que o diagnóstico mostrar, as ações possíveis são:
+### Correções propostas
 
-**A) Corrigir contagem de "Benner = SIM" na UI**
-- Localizar onde a tela `/distribuicao-tst` calcula o KPI "Benner SIM".
-- Ajustar a query/agregação para usar `COUNT(DISTINCT processo)` em vez de `COUNT(*)`, garantindo que processos em múltiplas abas contem 1x.
+**A) Progresso fluido (granularidade fina)**
 
-**B) Normalizar valores inválidos da coluna Benner**
-- Migration para converter `analise_quarteirizado` em `NULL` quando o valor for `-----`, `--`, `Não localizei`, vazio ou variações sem significado.
-- Atualizar o importador (`DistribuicaoTstImport.tsx`) para fazer essa limpeza no momento da importação.
+Sub-progresso dentro de cada termo. Em `processarTermoPro` (e funções correlatas), reportar progresso parcial entre tribunais/variantes:
 
-**C) Recuperar os 13 processos faltantes**
-- Se forem processos da planilha rejeitados por formato CNJ inválido: pedir ao usuário para reimportar a planilha original (já com a versão atual do parser corrigido) ou listar os números problemáticos para correção manual.
-- Se forem deduplicações legítimas, apenas documentar — não há correção a fazer.
+1. Calcular `subUnits = tribunais.length * (variantesEsperadas)` antes de iniciar o termo.
+2. A cada tribunal/variante concluída, calcular:
+   ```
+   percentage = round( ( (completedBefore + subDone/subUnits) / totalOps ) * 100 )
+   ```
+   e chamar `updateProgress({ percentage, mensagem: '...' })`.
+3. Adicionar campo opcional `subProgress: { current, total }` no `DjenTermosFlashProgress` e mostrar no card uma linha auxiliar tipo "Tribunal 4/12 • TRT5".
+
+Resultado: barra avança continuamente (sem saltos) e o usuário vê em tempo real qual tribunal está sendo varrido.
+
+**B) Reconciliação dos totalizadores**
+
+Para o card Flash bater com a tela Análise DJEN, alinhar duas coisas:
+
+1. **No card Flash** — junto ao "✓ N encontradas (não lidas)", mostrar a janela e os filtros aplicados em texto pequeno: "no período `dd/mm` → `dd/mm`, coordenação X, termo Y". Isso deixa claro que o número se refere à execução em curso, não ao total histórico.
+2. **Nova consulta de reconciliação** após a conclusão (ou durante, a cada N termos): contar diretamente em `publicacoes_djen`:
+   ```sql
+   SELECT count(*)
+   FROM publicacoes_djen p
+   JOIN monitoramentos_djen m ON m.id = p.monitoramento_id
+   WHERE p.created_at BETWEEN <run_start> AND now()
+     AND (m.coordenacao_id = <coord> OR <coord> IS NULL)
+     AND (p.monitoramento_id = ANY(<ids>) OR <ids> IS NULL)
+   ```
+   Exibir no card como "Confirmado no banco: N" ao lado de "✓ N encontradas". Se houver divergência ≥ 1, exibir um aviso e um botão "Recontar".
+3. **Botão "Abrir na Análise DJEN"** no card Flash, que navega para `/analise-djen?coord=<id>&dataInicio=<run_start>&dataFim=<run_end>` já com os mesmos filtros aplicados — para o usuário comparar visualmente.
+4. **Opcional**: aumentar o limite de 500 da `useAnaliseDjen.ts` (ou paginar) para garantir que períodos com muitas publicações não sejam truncados na tela.
 
 ### Detalhes técnicos
 
-- Tabela: `public.dados_benner`, escopo TST identificado por `tribunal = 'TST'` (preferencial) ou `aba_origem IS NOT NULL`.
-- Campo "Benner" da planilha → coluna `analise_quarteirizado` (conforme `DistribuicaoTstImport`).
-- Identificador único funcional: `(processo, dossie)` (memo `dados-benner-uniqueness`).
-- Toda contagem de processos deve usar `COUNT(DISTINCT processo)`; toda contagem de registros importados pode usar `COUNT(*)`. Documentar essa distinção na UI dos KPIs.
-- Migration necessária apenas se decidirmos normalizar `analise_quarteirizado` no banco; mudanças de UI não precisam de migration.
+- **Arquivos a alterar**:
+  - `src/hooks/useDjenTermosFlashEngine.ts` — adicionar callback de sub-progresso em `processarTermoPro`; opcionalmente expor `subProgress` no tipo.
+  - `src/components/configuracoes/MonitoramentoTermosFlashCard.tsx` — exibir tribunal atual, contagem confirmada do banco, link para Análise DJEN.
+  - `src/hooks/useAnaliseDjen.ts` — reavaliar `limit(500)` (paginação ou aumento controlado).
+- **Sem migrations**: ajustes só de UI/lógica frontend.
+- **Compatibilidade**: o tipo `DjenTermosFlashProgress` ganha campos opcionais — não quebra consumidores existentes.
+- **Complexidade**: Média. A parte mais delicada é instrumentar `processarTermoPro` sem alterar sua lógica de busca.
 
-### O que será entregue agora (após aprovação)
+### O que será entregue após aprovação
 
-1. Rodar as 5 consultas SELECT da Etapa 1 e apresentar tabela com os resultados reais.
-2. Conclusão objetiva sobre cada divergência (-13 e +65).
-3. Lista priorizada das correções (A/B/C) com recomendação do que aplicar.
+1. Sub-progresso por tribunal dentro de cada termo, com a barra avançando suavemente.
+2. Linha auxiliar no card mostrando "Tribunal X/Y • SIGLA".
+3. Contador "Confirmado no banco" calculado por SELECT real em `publicacoes_djen`, exibido junto ao "✓ encontradas".
+4. Botão para abrir a tela Análise DJEN já com os mesmos filtros (coordenação + período).
+5. Decisão sobre o `limit(500)` da Análise DJEN (paginar ou ampliar).
 
-Nenhuma alteração em dados ou código é feita nesta etapa — só leitura e relatório. As correções vêm em mensagem seguinte, com sua aprovação por item.
+Aprove para eu implementar, ou me diga qual subitem priorizar primeiro (ex.: só barra de progresso; só reconciliação dos totalizadores).
 
