@@ -104,8 +104,15 @@ const CONFIG = {
   delay_between_pages: 1000,
   delay_between_tribunais: 1200,
   delay_between_termos_or: 1000,
-  max_retries: 3,
+  max_retries: 6,            // ↑ 3 → 6: nunca desistir do tribunal por 429
   retry_base_delay: 8000,
+  // FIX OSMAR MENDES (zero perda): após N 429s no termo, em vez de PULAR tribunal
+  // entramos em "modo cauteloso" — ampliamos delays e seguimos chamando todos os
+  // tribunais. Nenhum tribunal é descartado por 429.
+  cautious_mode_429_threshold: 2,
+  cautious_delay_between_tribunais: 4500,
+  cautious_delay_between_pages: 3000,
+  cautious_cooldown_ms: 12000,
 };
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -693,38 +700,52 @@ async function _processarTermoFlashInterno(
     }
   };
 
-  // ===== Circuit breaker (otimização 5) =====
-  // Após N 429s no mesmo termo, deixamos de bater na API IMEDIATAMENTE
-  // mas guardamos os tribunais "soft-skip" para uma retomada no fim do termo
-  // (depois que a janela de pressão da API passou).
-  const CIRCUIT_BREAKER_429_LIMIT = 3;
+  // ===== Modo Cauteloso (FIX OSMAR MENDES — zero perda) =====
+  // Antes: circuit breaker PULAVA tribunais após N 429s. Isso causava perdas reais
+  // quando a publicação estava num tribunal pulado (ex: TRT4 na lista do OSMAR MENDES).
+  // Agora: ao detectar pressão de 429, entramos em "modo cauteloso" — ampliamos delays
+  // e fazemos cooldown, mas NUNCA pulamos tribunal. Toda chamada acontece.
   const tribuniaisComResultados = new Set<string>(); // tribunais que retornaram >0 resultados na primária
-  const tribunaisSoftSkip = new Set<string>(); // tribunais adiados pelo circuit breaker
-  let circuitOpen = false;
-  const checkCircuit = (): boolean => {
-    if (circuitOpen) return true;
-    if (diagnostico.rateLimitHits >= CIRCUIT_BREAKER_429_LIMIT) {
-      circuitOpen = true;
+  const tribunaisSoftSkip = new Set<string>(); // mantido por compat (sem uso ativo no novo modelo)
+  let cautiousMode = false;
+  let lastRateLimitHits = 0;
+  const ensureCautious = async () => {
+    if (cautiousMode) return;
+    if (diagnostico.rateLimitHits >= CONFIG.cautious_mode_429_threshold) {
+      cautiousMode = true;
       console.warn(
-        `[DJEN Flash] 🛑 Circuit breaker aberto para "${mon.termo_busca}" ` +
-        `após ${diagnostico.rateLimitHits} 429s. Adiando tribunais restantes para retomada no fim do termo.`
+        `[DJEN Flash] 🐢 Modo CAUTELOSO ativado para "${mon.termo_busca}" ` +
+        `após ${diagnostico.rateLimitHits} 429s. Delays ampliados, ZERO tribunal pulado. ` +
+        `Cooldown ${CONFIG.cautious_cooldown_ms}ms.`
       );
+      updateProgress({
+        mensagem: `🐢 Modo cauteloso (rate limit) — aguardando ${Math.round(CONFIG.cautious_cooldown_ms/1000)}s`,
+      });
+      await delay(CONFIG.cautious_cooldown_ms);
     }
-    return circuitOpen;
   };
+  // Cooldown adicional toda vez que NOVOS 429s acontecem em modo cauteloso
+  const cooldownIfNewRateLimit = async () => {
+    if (cautiousMode && diagnostico.rateLimitHits > lastRateLimitHits) {
+      lastRateLimitHits = diagnostico.rateLimitHits;
+      console.warn(`[DJEN Flash] 🧊 Cooldown ${CONFIG.cautious_cooldown_ms}ms após novo 429`);
+      await delay(CONFIG.cautious_cooldown_ms);
+    }
+  };
+  const tribunalDelay = () =>
+    cautiousMode ? CONFIG.cautious_delay_between_tribunais : CONFIG.delay_between_tribunais;
+  const pageDelay = () =>
+    cautiousMode ? CONFIG.cautious_delay_between_pages : CONFIG.delay_between_pages;
 
   const executarBusca = async (
     params: Parameters<typeof buscarPjeComunicaPaginado>[0],
     tribunal: string | undefined,
     contexto: string,
   ) => {
-    if (checkCircuit()) {
-      telemetria.tribunaisPulados429 += 1;
-      // Adiar tribunal específico para retomada (mudança 3: soft-skip)
-      if (tribunal) tribunaisSoftSkip.add(tribunal);
-      reportSub(tribunal ? `pulado(429) • ${tribunal}` : 'pulado(429)');
-      return null;
-    }
+    // Modo cauteloso (zero pulo): se houve pressão de 429, aguarda cooldown
+    // antes de chamar — mas SEMPRE chama. Nenhum tribunal é descartado.
+    await ensureCautious();
+    await cooldownIfNewRateLimit();
     telemetria.chamadasApi += 1;
     try {
       const resp = await buscarPjeComunicaPaginado(params, {
@@ -736,7 +757,7 @@ async function _processarTermoFlashInterno(
         maxPages: null,
         continueUntilEmpty: false, // o client decide internamente via confirmAmbiguous
         confirmAmbiguous: true,
-        delayMs: CONFIG.delay_between_pages,
+        delayMs: pageDelay(),
         maxRetries: CONFIG.max_retries,
         retryBaseDelay: CONFIG.retry_base_delay,
         onRateLimit: (waitMs, attempt, page) => {
@@ -895,11 +916,7 @@ async function _processarTermoFlashInterno(
         );
         for (const trib of tribunaisAusentes) {
           if (signal.aborted) break;
-          if (checkCircuit()) {
-            telemetria.tribunaisPulados429 += 1;
-            tribunaisSoftSkip.add(trib);
-            continue;
-          }
+          // ZERO PULO: o cooldown acontece dentro de executarBusca via ensureCautious()
           const respFb = await executarBusca(
             { ...baseParams, siglaTribunal: trib, page: 1 },
             trib,
@@ -910,7 +927,7 @@ async function _processarTermoFlashInterno(
             tribuniaisComResultados.add(trib);
             console.log(`[DJEN Flash] ✓ Resgatados ${respFb.items.length} itens de ${trib} via fallback`);
           }
-          await delay(CONFIG.delay_between_tribunais);
+          await delay(tribunalDelay());
         }
       }
       // Tribunais com itens na global também contam como "OK" para complementares
@@ -919,11 +936,7 @@ async function _processarTermoFlashInterno(
   } else {
     for (const trib of tribLoop) {
       if (signal.aborted) break;
-      if (checkCircuit()) {
-        telemetria.tribunaisPulados429 += 1;
-        if (trib) tribunaisSoftSkip.add(trib);
-        continue;
-      }
+      // ZERO PULO: cooldown via ensureCautious() em executarBusca
 
       const resultadosAntes = resultados.length;
       const resp = await executarBusca(
@@ -939,43 +952,11 @@ async function _processarTermoFlashInterno(
         }
       }
 
-      if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+      if (tribLoop.length > 1) await delay(tribunalDelay());
     }
   }
 
-  // ===== Mudança 3: retomada soft-skip do circuit breaker =====
-  // Tribunais adiados pelo circuit breaker ganham uma 2ª chance ao final do termo,
-  // depois que a janela de pressão da API passou. Aplicamos delay reforçado.
-  if (tribunaisSoftSkip.size > 0 && !signal.aborted) {
-    const adiados = Array.from(tribunaisSoftSkip);
-    console.log(`[DJEN Flash] 🔄 Soft-skip retry: tentando ${adiados.length} tribunais adiados após pressão 429: ${adiados.join(',')}`);
-    // Reset do circuit para permitir nova rodada
-    circuitOpen = false;
-    diagnostico.rateLimitHits = 0;
-    // Aguarda janela de cooldown (delay reforçado: 2× o normal)
-    await delay(CONFIG.delay_between_tribunais * 2);
-    for (const trib of adiados) {
-      if (signal.aborted) break;
-      // Se o circuito reabrir aqui, paramos definitivamente
-      if (circuitOpen) {
-        console.warn(`[DJEN Flash] Soft-skip retry interrompido — circuito reabriu em ${trib}`);
-        break;
-      }
-      const respRetry = await executarBusca(
-        { ...baseParams, siglaTribunal: trib, page: 1 },
-        trib,
-        `soft-skip retry | ${tipo} | ${mon.termo_busca} | ${trib}`,
-      );
-      if (respRetry) {
-        telemetria.tribunaisRetomadosCircuit += 1;
-        if (respRetry.items.length > 0) {
-          tribuniaisComResultados.add(trib);
-          console.log(`[DJEN Flash] ✓ Retomados ${respRetry.items.length} itens de ${trib} (soft-skip)`);
-        }
-      }
-      await delay(CONFIG.delay_between_tribunais * 2);
-    }
-  }
+  // (Soft-skip retry removido — modo cauteloso já garante zero pulo na 1ª passada)
   
   // ===== OTIMIZAÇÃO 3: Complementar palavraChave para "parte" — CONDICIONAL =====
   // Só roda nos tribunais onde a primária por nomeParte trouxe 0 resultados.
@@ -1005,10 +986,7 @@ async function _processarTermoFlashInterno(
         );
         for (const trib of tribunaisParaComplementar) {
           if (signal.aborted) break;
-          if (checkCircuit()) {
-            telemetria.tribunaisPulados429 += 1;
-            continue;
-          }
+          // ZERO PULO: cooldown via ensureCautious() em executarBusca
           const resp = await executarBusca(
             {
               tipo: 'palavra-chave' as PjeSearchType,
@@ -1025,7 +1003,7 @@ async function _processarTermoFlashInterno(
           if (resp) {
             console.log(`[DJEN Flash] Complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
           }
-          if (tribunaisParaComplementar.length > 1) await delay(CONFIG.delay_between_tribunais);
+          if (tribunaisParaComplementar.length > 1) await delay(tribunalDelay());
         }
       } else {
         console.log(`[DJEN Flash] Complementar parte pulada totalmente — primária OK em todos os ${tribLoop.length} tribunais`);
