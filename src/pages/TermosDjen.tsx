@@ -141,6 +141,14 @@ export default function TermosDjen() {
       }
 
       return true;
+    }).sort((a, b) => {
+      const da = (a.descricao || '').trim().toLowerCase();
+      const db = (b.descricao || '').trim().toLowerCase();
+      // Itens sem descrição vão para o final
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da.localeCompare(db, 'pt-BR');
     });
   }, [todosMonitoramentos, isAdmin, coordenacoesPermitidas, coordenacaoFiltro, tipoFiltro, statusFiltro, tribunalFiltro, termoBusca]);
 
