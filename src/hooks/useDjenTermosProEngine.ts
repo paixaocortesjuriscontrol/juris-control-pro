@@ -977,7 +977,7 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
     }
     
-    if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+    if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave.
