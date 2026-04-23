@@ -10,6 +10,23 @@ function norm(val: unknown): string {
   return String(val ?? "").trim();
 }
 
+function normalizeName(val: unknown): string {
+  return String(val ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+
+// Apelidos curtos -> nome completo na coordenação Dra. Renata
+const NAME_ALIASES: Record<string, string> = {
+  "anna": "anna luiza brandao",
+  "priscila": "priscila brandt",
+};
+
 function parseDateBR(val: unknown): string | null {
   const t = String(val ?? "").trim();
   if (!t) return null;
@@ -108,7 +125,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[] }[] = [];
+      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[]; responsavelRaw: string }[] = [];
       let capturedHeader: string[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
@@ -127,7 +144,9 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
           const num = norm(r[1]);
           if (!num || num.length < 7) continue;
-          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r });
+          // Coluna AB = índice 27 (Responsável)
+          const responsavelRaw = norm(r[27]);
+          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r, responsavelRaw });
         }
       }
 
@@ -136,6 +155,45 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         resetState();
         return;
       }
+
+      // === Carregar membros da coordenação Dra. Renata para resolver responsáveis ===
+      const { data: membrosRows } = await supabase
+        .from("membros_coordenacao" as any)
+        .select("usuario_id")
+        .eq("coordenacao_id", RENATA_COORDENACAO_ID);
+      const membroIds = ((membrosRows as any[]) || []).map(m => m.usuario_id);
+      const nameToUserId = new Map<string, string>();
+      if (membroIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", membroIds);
+        ((profs as any[]) || []).forEach(p => {
+          const key = normalizeName(p.nome);
+          if (key) nameToUserId.set(key, p.id);
+        });
+      }
+
+      const resolveResponsavel = (raw: string): string | null => {
+        if (!raw) return null;
+        const key = normalizeName(raw);
+        if (!key) return null;
+        // Match exato pelo nome completo
+        if (nameToUserId.has(key)) return nameToUserId.get(key)!;
+        // Apelido (primeiro nome) -> nome completo
+        const aliasTarget = NAME_ALIASES[key];
+        if (aliasTarget && nameToUserId.has(aliasTarget)) return nameToUserId.get(aliasTarget)!;
+        // Tenta casar primeiro nome único na coordenação
+        const firstName = key.split(" ")[0];
+        const candidates: string[] = [];
+        for (const [fullName, id] of nameToUserId.entries()) {
+          if (fullName.split(" ")[0] === firstName) candidates.push(id);
+        }
+        if (candidates.length === 1) return candidates[0];
+        return null;
+      };
+
+      const responsavelNaoEncontrados = new Set<string>();
 
       // === Detectar duplicados (mesmo processo+dossie aparecendo mais de uma vez) ===
       const counts = new Map<string, number>();
@@ -294,6 +352,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const recordsSemDossie = upsertRecords.filter(r => !r.dossie);
 
       const existingPairs = new Set<string>();
+      const juditPairs = new Set<string>(); // pares processo||dossie com judit_preenchido=true (não sobrescrever)
       const recordKeys = dedupedRecordsComDossie.map(record => `${record.processo}||${record.dossie}`);
 
       for (let i = 0; i < dedupedRecordsComDossie.length; i += EXISTING_CHECK_BATCH_SIZE) {
@@ -305,7 +364,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         if (processos.length === 0 || dossies.length === 0) continue;
 
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("processo, dossie")
+          .select("processo, dossie, judit_preenchido")
           .in("processo", processos)
           .in("dossie", dossies)
           .limit(EXISTING_CHECK_BATCH_SIZE * 3);
@@ -320,13 +379,19 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         }
 
         (data || []).forEach((record: any) => {
-          existingPairs.add(`${record.processo}||${record.dossie}`);
+          const key = `${record.processo}||${record.dossie}`;
+          existingPairs.add(key);
+          if (record.judit_preenchido === true) juditPairs.add(key);
         });
       }
 
+      // Registros preenchidos pela Judit: não sobrescrever campos do dados_benner (mas atualizar responsável depois)
       const recordsComDossieNovos = dedupedRecordsComDossie.filter(record => !existingPairs.has(`${record.processo}||${record.dossie}`));
       const recordsComDossieExistentes = dedupedRecordsComDossie
-        .filter(record => existingPairs.has(`${record.processo}||${record.dossie}`))
+        .filter(record => {
+          const key = `${record.processo}||${record.dossie}`;
+          return existingPairs.has(key) && !juditPairs.has(key);
+        })
         .map(({ data_distribuicao_real, ...record }) => record);
 
       let totalUpserted = 0;
@@ -389,6 +454,73 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         return;
       }
 
+      // === STEP 4: Atualizar responsável (coluna AB) ===
+      // Constrói mapa (processo||dossie) -> responsavel_user_id a partir das linhas da planilha
+      // Apenas linhas com célula AB preenchida e nome resolvido entram (vazio = mantém o que está no Supabase)
+      setStatusText("Atualizando responsáveis");
+      const respByPair = new Map<string, string>();
+      for (const rec of allRows) {
+        const dossie = norm(rec.row[2]);
+        if (!dossie) continue;
+        const raw = rec.responsavelRaw;
+        if (!raw) continue;
+        const userId = resolveResponsavel(raw);
+        if (!userId) {
+          responsavelNaoEncontrados.add(raw);
+          continue;
+        }
+        respByPair.set(`${rec.processoNumero}||${dossie}`, userId);
+      }
+
+      let respAtualizados = 0;
+      if (respByPair.size > 0) {
+        const pairs = [...respByPair.keys()];
+        // Buscar IDs de dados_benner para esses pares
+        const pairProcessos = [...new Set(pairs.map(k => k.split("||")[0]))];
+        const pairDossies = [...new Set(pairs.map(k => k.split("||")[1]))];
+        const pairToBennerId = new Map<string, string>();
+
+        const LOOKUP_BATCH = 200;
+        for (let i = 0; i < pairProcessos.length; i += LOOKUP_BATCH) {
+          if (cancelRef.current) break;
+          const batchProc = pairProcessos.slice(i, i + LOOKUP_BATCH);
+          const { data, error } = await (supabase.from("dados_benner") as any)
+            .select("id, processo, dossie")
+            .in("processo", batchProc)
+            .in("dossie", pairDossies);
+          if (error) {
+            console.error("Erro ao buscar IDs dados_benner para responsáveis:", error);
+            continue;
+          }
+          (data || []).forEach((row: any) => {
+            pairToBennerId.set(`${row.processo}||${row.dossie}`, row.id);
+          });
+        }
+
+        // Substitui responsáveis: deleta existentes do dados_benner_id e insere o único da planilha
+        const bennerIdsParaSubstituir: { bennerId: string; userId: string }[] = [];
+        for (const [pair, userId] of respByPair.entries()) {
+          const bennerId = pairToBennerId.get(pair);
+          if (bennerId) bennerIdsParaSubstituir.push({ bennerId, userId });
+        }
+
+        const DEL_BATCH = 200;
+        for (let i = 0; i < bennerIdsParaSubstituir.length; i += DEL_BATCH) {
+          if (cancelRef.current) break;
+          const slice = bennerIdsParaSubstituir.slice(i, i + DEL_BATCH);
+          const ids = slice.map(s => s.bennerId);
+          const { error: delErr } = await (supabase.from("dados_benner_responsaveis" as any) as any)
+            .delete()
+            .in("dados_benner_id", ids);
+          if (delErr) { console.error("Erro ao limpar responsáveis:", delErr); continue; }
+          const insertRows = slice.map(s => ({ dados_benner_id: s.bennerId, usuario_id: s.userId }));
+          const { error: insErr } = await (supabase.from("dados_benner_responsaveis" as any) as any)
+            .insert(insertRows as any);
+          if (insErr) { console.error("Erro ao inserir responsáveis:", insErr); continue; }
+          respAtualizados += insertRows.length;
+        }
+      }
+
       setProgress(100);
       setStatusText("Concluído!");
 
@@ -396,8 +528,17 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         const parts: string[] = [`${totalUpserted} distribuições salvas`];
         if (newProcessos > 0) parts.push(`${newProcessos} processos novos`);
         if (updatedProcessos > 0) parts.push(`${updatedProcessos} processos atualizados`);
+        if (juditPairs.size > 0) parts.push(`${juditPairs.size} preservados (Judit)`);
+        if (respAtualizados > 0) parts.push(`${respAtualizados} responsáveis atualizados`);
         if (totalErrors > 0) parts.push(`${totalErrors} erros`);
         toast.success(parts.join(", ") + "!");
+        if (responsavelNaoEncontrados.size > 0) {
+          const lista = [...responsavelNaoEncontrados].slice(0, 10).join(", ");
+          toast.warning(
+            `Responsáveis não encontrados na coordenação Dra. Renata: ${lista}${responsavelNaoEncontrados.size > 10 ? "..." : ""}`,
+            { duration: 15000 }
+          );
+        }
         onImported();
       } else {
         toast.error(
