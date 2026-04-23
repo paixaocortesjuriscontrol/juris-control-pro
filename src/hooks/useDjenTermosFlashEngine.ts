@@ -51,6 +51,15 @@ export interface DjenTermosFlashProgress {
   complementaresPuladas: number;
   /** Telemetria Flash: tribunais pulados pelo circuit breaker (429) */
   tribunaisPulados429: number;
+  /** Sub-progresso dentro do termo atual (ex: tribunal X/Y) */
+  subProgress?: { current: number; total: number; label?: string } | null;
+  /** Sigla do tribunal atualmente sendo varrido */
+  tribunalAtual?: string | null;
+  /** Filtros aplicados nesta execução (para reconciliação) */
+  coordenacaoIdFiltro?: string | null;
+  monitoramentoIdsFiltro?: string[] | null;
+  /** Timestamp ISO do início da execução (para reconciliação no banco) */
+  runStartIso?: string | null;
 }
 
 interface Monitoramento {
