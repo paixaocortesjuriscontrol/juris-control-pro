@@ -43,6 +43,8 @@ export interface PjeComunicaPaginatedResponse extends PjeComunicaResponse {
   failedPages?: number;
   partial?: boolean;
   lastError?: string | null;
+  /** Páginas adicionais consumidas para confirmar fim ambíguo de paginação. */
+  confirmedPages?: number;
 }
 
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1";
@@ -586,11 +588,19 @@ export async function buscarPjeComunicaPaginado(
     maxRetries?: number;
     retryBaseDelay?: number;
     continueUntilEmpty?: boolean;
+    /**
+     * Quando true (Flash novo): se a última página vem CHEIA (items === pageSize)
+     * E o servidor NÃO enviou totalExpected e NÃO marcou hasMore=false,
+     * roda 1 página adicional para confirmar fim de paginação. Custo médio: ~0.2 página/busca.
+     * Garante que não percamos publicações em casos de paginação ambígua.
+     */
+    confirmAmbiguous?: boolean;
     onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
   const continueUntilEmpty = options?.continueUntilEmpty ?? false;
+  const confirmAmbiguous = options?.confirmAmbiguous ?? false;
   // Delay entre páginas: 800ms (valor original que funcionava na semana passada)
   const delayMs = Math.max(options?.delayMs ?? 800, 0);
   // Retry com backoff exponencial
@@ -612,6 +622,7 @@ export async function buscarPjeComunicaPaginado(
   let failedPages = 0;
   let lastError: string | null = null;
   let pagesAvoided = 0;
+  let confirmedPages = 0;
 
   // Helper para fetch com retry e backoff exponencial
   const fetchWithRetry = async (page: number): Promise<PjeComunicaResponse> => {
@@ -702,7 +713,23 @@ export async function buscarPjeComunicaPaginado(
       }
 
       // Caso geral: respeita hasMore quando NÃO está em modo continueUntilEmpty
-      if (!continueUntilEmpty && !resp.hasMore) break;
+      // EXCETO no modo confirmAmbiguous: se a página veio CHEIA e o servidor não
+      // forneceu totalExpected, rodamos UMA página adicional para confirmar fim.
+      if (!continueUntilEmpty && !resp.hasMore) {
+        const totalKnown = typeof totalExpected === 'number' && totalExpected > 0;
+        const ambiguous = confirmAmbiguous
+          && resp.items.length === pageSize
+          && !totalKnown;
+        if (ambiguous) {
+          // Marca esta como página confirmada e tenta a próxima
+          confirmedPages += 1;
+          if (delayMs > 0) {
+            await new Promise((r) => setTimeout(r, delayMs));
+          }
+          continue;
+        }
+        break;
+      }
 
       // continueUntilEmpty: para se a página não trouxe nenhum item NOVO (anti-loop)
       if (continueUntilEmpty && addedOnPage === 0) {
@@ -762,6 +789,7 @@ export async function buscarPjeComunicaPaginado(
     failedPages,
     partial,
     lastError,
+    confirmedPages,
   };
 }
 
