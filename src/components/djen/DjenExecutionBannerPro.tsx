@@ -5,6 +5,10 @@
  * Inclui detecção de execução travada (stale) para mobile/tablet onde
  * o browser pode suspender a aba em background.
  * Também valida contra o backend ao montar/retornar do background.
+ *
+ * Hidratação por backend: ao reabrir o sistema (singleton resetado),
+ * o banner consulta `execucoes_agendadas` (tipo='djen_pro', status='executando')
+ * e exibe o progresso a partir de `detalhes` mesmo sem estado local.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -14,6 +18,8 @@ import { Loader2, Zap, Clock, CheckCircle2 } from "lucide-react";
 import { useDjenTermosPro } from "@/hooks/useDjenTermosPro";
 import { getDjenTermosProLastUpdatedAt } from "@/hooks/useDjenTermosProEngine";
 import { fetchDjenBackendResumeSnapshot } from "@/hooks/djen/djenBackendResume";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -25,10 +31,39 @@ function formatDuration(seconds: number): string {
 const STALE_THRESHOLD_MS = 45_000; // 45 segundos (antes era 2 min — muito lento para mobile)
 const STALE_CHECK_INTERVAL_MS = 5_000; // Verificar a cada 5s (antes era 15s)
 
+type ExecucaoProBackend = {
+  id: string;
+  iniciado_em: string;
+  finalizado_em: string | null;
+  detalhes: Record<string, any> | null;
+};
+
 export function DjenExecutionBannerPro() {
   const { progress, isRunning } = useDjenTermosPro();
   const [isStale, setIsStale] = useState(false);
   const [backendDismissed, setBackendDismissed] = useState(false);
+
+  // Hidratação a partir do backend: busca execução ativa de djen_pro
+  // para que ao reabrir o sistema o banner reapareça com o progresso atual.
+  const { data: backendExec } = useQuery({
+    queryKey: ["djen-termos-pro-banner-backend"],
+    queryFn: async (): Promise<ExecucaoProBackend | null> => {
+      const { data, error } = await supabase
+        .from("execucoes_agendadas")
+        .select("id, iniciado_em, finalizado_em, detalhes")
+        .eq("tipo", "djen_pro")
+        .eq("status", "executando")
+        .is("finalizado_em", null)
+        .order("iniciado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return (data as ExecucaoProBackend | null) ?? null;
+    },
+    refetchInterval: 8000,
+    refetchOnWindowFocus: true,
+    staleTime: 4000,
+  });
 
   // Verificar periodicamente se a execução está travada (mobile/tablet background)
   const checkStale = useCallback(() => {
@@ -100,9 +135,32 @@ export function DjenExecutionBannerPro() {
 
   // Esconder se não está executando, se está travado (stale), ou se backend confirmou fim
   if (isStale || backendDismissed) return null;
-  if (!isRunning && progress.status !== 'executando') return null;
 
-  const pct = Math.max(0, Math.min(99, Math.round(progress.percentage)));
+  // Decidir fonte: estado local OU backend. Backend cobre o caso "fechei e abri o sistema".
+  const localActive = isRunning || progress.status === 'executando';
+  const backendActive = !!backendExec && (progress.status !== 'concluido' && progress.status !== 'cancelado' && progress.status !== 'erro');
+  if (!localActive && !backendActive) return null;
+
+  // Quando o local está parado mas o backend tem execução ativa, usar dados do backend.
+  const beDet = (backendExec?.detalhes || {}) as Record<string, any>;
+  const useBackend = !localActive && backendActive;
+
+  const pctRaw = useBackend
+    ? (typeof beDet.percentage === 'number' ? beDet.percentage : 0)
+    : progress.percentage;
+  const pct = Math.max(0, Math.min(99, Math.round(pctRaw)));
+
+  const novas = useBackend ? Number(beDet.novas) || 0 : progress.novas;
+  const duplicadas = useBackend ? Number(beDet.duplicadas) || 0 : progress.duplicadas;
+  const descartadas = useBackend ? Number(beDet.descartadas) || 0 : progress.descartadas;
+  const termoAtual = useBackend ? (beDet.termoAtual || beDet.mensagem || 'Processando...') : (progress.termoAtual || progress.mensagem || 'Processando...');
+  const diaAtualYmd = useBackend ? (beDet.diaAtualYmd || null) : progress.diaAtualYmd;
+  const diaAtualIndice = useBackend ? (beDet.diaAtualIndice || beDet.diaIndice || '?') : progress.diaAtualIndice;
+  const totalDias = useBackend ? (beDet.totalDias || '?') : progress.totalDias;
+
+  const tempoDecorrido = useBackend && backendExec?.iniciado_em
+    ? Math.max(0, Math.floor((Date.now() - new Date(backendExec.iniciado_em).getTime()) / 1000))
+    : progress.tempoDecorrido;
 
   return (
     <div className="rounded-lg border bg-amber-500/5 border-amber-500/20 p-4">
@@ -122,10 +180,10 @@ export function DjenExecutionBannerPro() {
             </div>
 
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {progress.tempoDecorrido > 0 && (
+              {tempoDecorrido > 0 && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {formatDuration(progress.tempoDecorrido)}
+                  {formatDuration(tempoDecorrido)}
                 </span>
               )}
             </div>
@@ -135,28 +193,28 @@ export function DjenExecutionBannerPro() {
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="truncate max-w-[60%]">
-              {progress.diaAtualYmd && (
+              {diaAtualYmd && (
                 <span className="mr-2">
-                  📅 Dia {progress.diaAtualIndice}/{progress.totalDias}
+                  📅 Dia {diaAtualIndice}/{totalDias}
                 </span>
               )}
               <span className="text-foreground/70">
-                {progress.termoAtual || progress.mensagem || 'Processando...'}
+                {termoAtual}
               </span>
             </span>
 
             <div className="flex items-center gap-3 flex-shrink-0">
-              {progress.novas > 0 && (
+              {novas > 0 && (
                 <span className="text-amber-600 flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3" />
-                  {progress.novas} novas
+                  {novas} novas
                 </span>
               )}
-              {progress.duplicadas > 0 && (
-                <span>↔ {progress.duplicadas} dup.</span>
+              {duplicadas > 0 && (
+                <span>↔ {duplicadas} dup.</span>
               )}
-              {progress.descartadas > 0 && (
-                <span>✗ {progress.descartadas} desc.</span>
+              {descartadas > 0 && (
+                <span>✗ {descartadas} desc.</span>
               )}
             </div>
           </div>
