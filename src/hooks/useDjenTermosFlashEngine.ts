@@ -51,6 +51,12 @@ export interface DjenTermosFlashProgress {
   complementaresPuladas: number;
   /** Telemetria Flash: tribunais pulados pelo circuit breaker (429) */
   tribunaisPulados429: number;
+  /** Telemetria Flash: tribunais resgatados pelo fallback UF=TODAS (ausentes na busca global) */
+  tribunaisResgatadosFallback: number;
+  /** Telemetria Flash: tribunais retomados via soft-skip após pressão 429 */
+  tribunaisRetomadosCircuit: number;
+  /** Telemetria Flash: páginas confirmadas (paginação ambígua) */
+  paginasConfirmadas: number;
   /** Sub-progresso dentro do termo atual (ex: tribunal X/Y) */
   subProgress?: { current: number; total: number; label?: string } | null;
   /** Sigla do tribunal atualmente sendo varrido */
@@ -151,6 +157,9 @@ function createDefaultProgress(): DjenTermosFlashProgress {
     paginasEvitadas: 0,
     complementaresPuladas: 0,
     tribunaisPulados429: 0,
+    tribunaisResgatadosFallback: 0,
+    tribunaisRetomadosCircuit: 0,
+    paginasConfirmadas: 0,
     subProgress: null,
     tribunalAtual: null,
     coordenacaoIdFiltro: null,
