@@ -125,7 +125,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[] }[] = [];
+      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[]; responsavelRaw: string }[] = [];
       let capturedHeader: string[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
@@ -144,7 +144,9 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
           const num = norm(r[1]);
           if (!num || num.length < 7) continue;
-          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r });
+          // Coluna AB = índice 27 (Responsável)
+          const responsavelRaw = norm(r[27]);
+          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r, responsavelRaw });
         }
       }
 
@@ -153,6 +155,45 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         resetState();
         return;
       }
+
+      // === Carregar membros da coordenação Dra. Renata para resolver responsáveis ===
+      const { data: membrosRows } = await supabase
+        .from("membros_coordenacao" as any)
+        .select("usuario_id")
+        .eq("coordenacao_id", RENATA_COORDENACAO_ID);
+      const membroIds = ((membrosRows as any[]) || []).map(m => m.usuario_id);
+      const nameToUserId = new Map<string, string>();
+      if (membroIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", membroIds);
+        ((profs as any[]) || []).forEach(p => {
+          const key = normalizeName(p.nome);
+          if (key) nameToUserId.set(key, p.id);
+        });
+      }
+
+      const resolveResponsavel = (raw: string): string | null => {
+        if (!raw) return null;
+        const key = normalizeName(raw);
+        if (!key) return null;
+        // Match exato pelo nome completo
+        if (nameToUserId.has(key)) return nameToUserId.get(key)!;
+        // Apelido (primeiro nome) -> nome completo
+        const aliasTarget = NAME_ALIASES[key];
+        if (aliasTarget && nameToUserId.has(aliasTarget)) return nameToUserId.get(aliasTarget)!;
+        // Tenta casar primeiro nome único na coordenação
+        const firstName = key.split(" ")[0];
+        const candidates: string[] = [];
+        for (const [fullName, id] of nameToUserId.entries()) {
+          if (fullName.split(" ")[0] === firstName) candidates.push(id);
+        }
+        if (candidates.length === 1) return candidates[0];
+        return null;
+      };
+
+      const responsavelNaoEncontrados = new Set<string>();
 
       // === Detectar duplicados (mesmo processo+dossie aparecendo mais de uma vez) ===
       const counts = new Map<string, number>();
