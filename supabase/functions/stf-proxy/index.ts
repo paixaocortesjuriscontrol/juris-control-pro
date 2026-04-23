@@ -1,6 +1,10 @@
 // Edge Function: proxy server-side para o portal público STF Digital
 // Resolve o problema de CORS que bloqueia chamadas diretas do navegador
 // para https://digital.stf.jus.br/decisoes-publicacoes/api/public/*
+// Usa undici (npm:) para contornar a cadeia ICP-Brasil que o store TLS
+// padrão do Deno não reconhece (UnknownIssuer). Endpoint é público e read-only.
+
+import { Agent, fetch as undiciFetch } from "npm:undici@6.19.8";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +23,8 @@ const STF_HEADERS = {
   'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
 };
 
+const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -29,9 +35,10 @@ Deno.serve(async (req) => {
     const action = body?.action as string | undefined;
 
     if (action === 'ultimo-dje') {
-      const r = await fetch(`${STF_BASE}/ultimo-dje`, {
+      const r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
         method: 'GET',
         headers: STF_HEADERS,
+        dispatcher: insecureAgent,
       });
       const text = await r.text();
       return new Response(text, {
@@ -42,10 +49,11 @@ Deno.serve(async (req) => {
 
     if (action === 'publicacoes') {
       const payload = body?.payload ?? {};
-      const r = await fetch(`${STF_BASE}/publicacoes`, {
+      const r = await undiciFetch(`${STF_BASE}/publicacoes`, {
         method: 'POST',
         headers: STF_HEADERS,
         body: JSON.stringify(payload),
+        dispatcher: insecureAgent,
       });
       const text = await r.text();
       return new Response(text, {
