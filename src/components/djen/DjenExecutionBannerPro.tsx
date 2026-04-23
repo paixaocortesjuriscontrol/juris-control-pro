@@ -43,6 +43,28 @@ export function DjenExecutionBannerPro() {
   const [isStale, setIsStale] = useState(false);
   const [backendDismissed, setBackendDismissed] = useState(false);
 
+  // Hidratação a partir do backend: busca execução ativa de djen_pro
+  // para que ao reabrir o sistema o banner reapareça com o progresso atual.
+  const { data: backendExec } = useQuery({
+    queryKey: ["djen-termos-pro-banner-backend"],
+    queryFn: async (): Promise<ExecucaoProBackend | null> => {
+      const { data, error } = await supabase
+        .from("execucoes_agendadas")
+        .select("id, iniciado_em, finalizado_em, detalhes")
+        .eq("tipo", "djen_pro")
+        .eq("status", "executando")
+        .is("finalizado_em", null)
+        .order("iniciado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return (data as ExecucaoProBackend | null) ?? null;
+    },
+    refetchInterval: 8000,
+    refetchOnWindowFocus: true,
+    staleTime: 4000,
+  });
+
   // Verificar periodicamente se a execução está travada (mobile/tablet background)
   const checkStale = useCallback(() => {
     if (!isRunning && progress.status !== 'executando') {
