@@ -176,9 +176,9 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      const allRows: { sheetName: string; rowIndex: number; processoNumero: string; row: string[]; responsavelRaw: string }[] = [];
+      const allRows: ImportPlanRow[] = [];
       let capturedHeader: string[] = [];
-      for (const sheetName of wb.SheetNames) {
+      for (const [sheetOrder, sheetName] of wb.SheetNames.entries()) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
         let headerIdx = -1;
@@ -197,7 +197,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           if (!num || num.length < 7) continue;
           // Coluna AB = índice 27 (Responsável)
           const responsavelRaw = norm(r[27]);
-          allRows.push({ sheetName, rowIndex: i, processoNumero: num, row: r, responsavelRaw });
+          allRows.push({ sheetName, sheetOrder, rowIndex: i, processoNumero: num, row: r, responsavelRaw });
         }
       }
 
@@ -245,6 +245,34 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       };
 
       const responsavelNaoEncontrados = new Set<string>();
+      const latestResponsavelByProcess = new Map<string, { raw: string; userId: string | null; clear: boolean }>();
+
+      for (const rec of allRows) {
+        const raw = rec.responsavelRaw;
+        if (!raw) continue;
+
+        const sortKey = Date.parse(String(rec.row[0] ?? "")) || 0;
+        const nextMeta = {
+          hasValidDossie: isValidDossie(rec.row[2]),
+          sortKey,
+          sheetOrder: rec.sheetOrder,
+          rowIndex: rec.rowIndex,
+        };
+
+        const current = latestResponsavelByProcess.get(rec.processoNumero) as any;
+        if (current && !isMoreRecentRow(nextMeta, current.meta)) continue;
+
+        let userId: string | null = null;
+        let clear = false;
+        if (isExplicitNoResponsavel(raw)) {
+          clear = true;
+        } else {
+          userId = resolveResponsavel(raw);
+          if (!userId) responsavelNaoEncontrados.add(raw);
+        }
+
+        latestResponsavelByProcess.set(rec.processoNumero, { raw, userId, clear, meta: nextMeta } as any);
+      }
 
       // === Detectar duplicados (mesmo processo+dossie aparecendo mais de uma vez) ===
       const counts = new Map<string, number>();
