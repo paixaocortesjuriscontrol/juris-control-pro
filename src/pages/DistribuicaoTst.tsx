@@ -1105,7 +1105,17 @@ export default function DistribuicaoTst() {
                         </button>
                         <CopyButton value={d.dossie} label="Dossiê" />
                       </span>
-                    ) : "—"}
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-orange-500 hover:underline italic disabled:opacity-50"
+                        onClick={() => handleOpenBenner(d)}
+                        disabled={loadingBenner === d.id}
+                        title="Abrir Dados Benner"
+                      >
+                        Não localizado
+                      </button>
+                    )}
                   </TableCell>
                   <TableCell className={cn("text-xs align-middle", relatorClass)}>{d.relator || "—"}</TableCell>
                   <TableCell className={cn("text-xs align-middle", turmaClass)}>
