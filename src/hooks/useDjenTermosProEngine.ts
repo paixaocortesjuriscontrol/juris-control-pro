@@ -1488,7 +1488,7 @@ async function executarLoop(
           checkpoint: currentCheckpoint,
         }, true);
         
-        await delay(CONFIG.delay_between_terms);
+        await delay(adaptive(CONFIG.delay_between_terms));
         
       }
     }
