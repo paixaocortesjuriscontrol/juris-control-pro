@@ -151,6 +151,11 @@ function createDefaultProgress(): DjenTermosFlashProgress {
     paginasEvitadas: 0,
     complementaresPuladas: 0,
     tribunaisPulados429: 0,
+    subProgress: null,
+    tribunalAtual: null,
+    coordenacaoIdFiltro: null,
+    monitoramentoIdsFiltro: null,
+    runStartIso: null,
   };
 }
 
