@@ -986,10 +986,7 @@ async function _processarTermoFlashInterno(
         );
         for (const trib of tribunaisParaComplementar) {
           if (signal.aborted) break;
-          if (checkCircuit()) {
-            telemetria.tribunaisPulados429 += 1;
-            continue;
-          }
+          // ZERO PULO: cooldown via ensureCautious() em executarBusca
           const resp = await executarBusca(
             {
               tipo: 'palavra-chave' as PjeSearchType,
@@ -1006,7 +1003,7 @@ async function _processarTermoFlashInterno(
           if (resp) {
             console.log(`[DJEN Flash] Complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
           }
-          if (tribunaisParaComplementar.length > 1) await delay(CONFIG.delay_between_tribunais);
+          if (tribunaisParaComplementar.length > 1) await delay(tribunalDelay());
         }
       } else {
         console.log(`[DJEN Flash] Complementar parte pulada totalmente — primária OK em todos os ${tribLoop.length} tribunais`);
