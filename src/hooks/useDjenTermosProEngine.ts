@@ -13,7 +13,12 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClient";
+import {
+  buscarPjeComunicaPaginado,
+  awaitPjeComunicaGlobalCooldown,
+  getPjeComunicaGlobalCooldownRemainingMs,
+  type PjeSearchType,
+} from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
@@ -81,17 +86,60 @@ interface Checkpoint {
 // ============================================================================
 
 const CONFIG = {
-  delay_between_terms: 1200,
-  delay_between_pages: 1000,
-  delay_between_tribunais: 1200,
+  // Defaults conservadores: comprovadamente estáveis em janeiro/2026 (~1500ms).
+  // Valores menores disparam cascata de 429 da API PJE Comunica.
+  delay_between_terms: 1500,
+  delay_between_pages: 1200,
+  delay_between_tribunais: 1500,
   delay_between_termos_or: 1000,
   max_retries: 3,
-  retry_base_delay: 8000,
+  // Alinhado ao Retry-After típico do servidor PJE em janelas de pressão.
+  retry_base_delay: 12000,
 };
 
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ============================================================================
+// DELAY ADAPTATIVO (auto slow-down)
+// ----------------------------------------------------------------------------
+// Mantém um histórico dos timestamps de 429 nos últimos 60s e calcula um
+// multiplicador de delay (1x..5x) aplicado a delay_between_terms,
+// delay_between_pages e delay_between_tribunais. Quando a janela limpa, volta
+// gradualmente para 1.0. Nenhum termo é pulado — apenas espera mais.
+// ============================================================================
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitHistory: number[] = [];
+
+function recordRateLimitHit() {
+  rateLimitHistory.push(Date.now());
+}
+
+function pruneRateLimitHistory() {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  while (rateLimitHistory.length > 0 && rateLimitHistory[0] < cutoff) {
+    rateLimitHistory.shift();
+  }
+}
+
+function getAdaptiveMultiplier(): number {
+  pruneRateLimitHistory();
+  const hits = rateLimitHistory.length;
+  if (hits === 0) return 1.0;
+  if (hits <= 2) return 1.0;
+  if (hits <= 5) return 1.8;
+  if (hits <= 10) return 3.0;
+  return 5.0;
+}
+
+function adaptive(baseMs: number): number {
+  return Math.round(baseMs * getAdaptiveMultiplier());
+}
+
+function resetAdaptiveDelay() {
+  rateLimitHistory.length = 0;
+}
 
 // ============================================================================
 // SINGLETON STATE
@@ -799,13 +847,16 @@ async function _processarTermoProInterno(
         signal,
         maxPages: null,
         continueUntilEmpty: true,
-        delayMs: CONFIG.delay_between_pages,
+        delayMs: adaptive(CONFIG.delay_between_pages),
         maxRetries: CONFIG.max_retries,
-        retryBaseDelay: CONFIG.retry_base_delay,
+        retryBaseDelay: adaptive(CONFIG.retry_base_delay),
         onRateLimit: (waitMs, attempt, page) => {
           diagnostico.rateLimitHits += 1;
+          recordRateLimitHit();
           diagnostico.ultimoErroBusca = `HTTP 429 na página ${page} (${attempt}ª tentativa)`;
-          const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})`;
+          const mult = getAdaptiveMultiplier();
+          const multTxt = mult > 1.05 ? ` • ritmo ${Math.round(100 / mult)}%` : '';
+          const aviso = `⚠️ Rate limit no DJEN Pro: aguardando ${Math.round(waitMs / 1000)}s (pág. ${page})${multTxt}`;
           console.warn(`[DJEN Pro] ${aviso} | ${contexto}`);
           updateProgress({
             mensagem: aviso,
@@ -926,7 +977,7 @@ async function _processarTermoProInterno(
       console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
     }
     
-    if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+    if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
   }
   
   // Busca complementar para tipo "parte": buscar também por palavraChave.
@@ -959,7 +1010,7 @@ async function _processarTermoProInterno(
         if (resp) {
           console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
         }
-        if (tribLoop.length > 1) await delay(CONFIG.delay_between_tribunais);
+        if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
       }
     }
   }
@@ -1346,6 +1397,7 @@ async function executarLoop(
       mensagem: 'Iniciando DJEN Termos Pro...',
     });
     state.lastExecutionSyncAt = 0;
+    resetAdaptiveDelay();
     syncExecutionProgress({ mensagem: 'Iniciando DJEN Termos Pro...' }, true);
     
     for (let diaIdx = startDiaIdx; diaIdx < datas.length; diaIdx++) {
@@ -1360,6 +1412,22 @@ async function executarLoop(
         const completedBefore = diaIdx * monitoramentos.length + termoIdx;
         const globalCurrent = completedBefore + 1;
         const percentageBefore = Math.min(99, Math.max(0, Math.round((completedBefore / totalOps) * 100)));
+
+        // Cooldown global: se a API ainda está bloqueando o IP (Retry-After
+        // recebido em termo anterior), aguardar antes de iniciar o próximo termo.
+        // Isso evita cascata de 429 entre termos consecutivos.
+        const cooldownMs = getPjeComunicaGlobalCooldownRemainingMs();
+        if (cooldownMs > 250) {
+          const segs = Math.round(cooldownMs / 1000);
+          updateProgress({
+            mensagem: `⏸ Aguardando ${segs}s (cooldown PJE) antes do próximo termo...`,
+          });
+          syncExecutionProgress({
+            mensagem: `⏸ Aguardando ${segs}s (cooldown PJE) antes do próximo termo...`,
+          }, true);
+          await awaitPjeComunicaGlobalCooldown();
+          if (signal.aborted) break;
+        }
         
         updateProgress({
           diaAtualYmd: diaYmd,
@@ -1421,7 +1489,7 @@ async function executarLoop(
           checkpoint: currentCheckpoint,
         }, true);
         
-        await delay(CONFIG.delay_between_terms);
+        await delay(adaptive(CONFIG.delay_between_terms));
         
       }
     }

@@ -107,6 +107,13 @@ const awaitGlobalCooldown = async () => {
     await new Promise(r => setTimeout(r, wait));
   }
 };
+const getGlobalCooldownRemainingMs = (): number => {
+  return Math.max(0, globalCooldownUntil - Date.now());
+};
+
+/** Exportado para uso pelo engine Flash (await entre termos). */
+export const awaitPjeComunicaFlashGlobalCooldown = awaitGlobalCooldown;
+export const getPjeComunicaFlashGlobalCooldownRemainingMs = getGlobalCooldownRemainingMs;
 function optimizeItem(item: any) {
   // IMPORTANTE:
   // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
@@ -629,8 +636,14 @@ export async function buscarPjeComunicaPaginado(
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
           // 429 precisa de backoff maior para evitar “loop de bloqueio”.
           const baseDelay = is429 ? Math.max(retryBaseDelay, 8000) : retryBaseDelay;
-          const waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
+          let waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
           if (is429) {
+            // Honrar Retry-After do servidor: doRequest já leu o header e setou
+            // o cooldown global. Usar esse valor como piso mínimo do retry.
+            const serverHint = getGlobalCooldownRemainingMs();
+            if (serverHint > waitTime) {
+              waitTime = serverHint;
+            }
             rateLimitHits += 1;
             setGlobalCooldown(waitTime);
             options?.onRateLimit?.(waitTime, attempt + 1, page);
