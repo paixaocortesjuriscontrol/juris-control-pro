@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff, Copy, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentosDjen, MonitoramentoDjen } from "@/hooks/useMonitoramentosDjen";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { gerarRelatorioTermosDjen } from "@/utils/gerarRelatorioTermosDjen";
+import { toast } from "sonner";
 
 // Hook para buscar coordenações do usuário logado (ou todas se admin)
 function useCoordenacoesFiltradas(isAdmin: boolean, userId: string | undefined) {
@@ -185,6 +187,44 @@ export default function TermosDjen() {
     setDialogOpen(true);
   };
 
+  const handleGerarRelatorio = () => {
+    if (monitoramentosFiltrados.length === 0) {
+      toast.error("Não há termos para incluir no relatório com os filtros atuais.");
+      return;
+    }
+    const filtrosDesc: string[] = [];
+    if (coordenacaoFiltro !== "__all__") {
+      const nome = coordNomeMap.get(coordenacaoFiltro) || coordenacaoFiltro;
+      filtrosDesc.push(`Coordenação: ${nome}`);
+    }
+    if (tipoFiltro !== "todos") filtrosDesc.push(`Tipo: ${tipoFiltro}`);
+    if (tribunalFiltro !== "todos") {
+      filtrosDesc.push(`Tribunal: ${tribunalFiltro === "sem-tribunal" ? "Sem tribunal (todos)" : tribunalFiltro}`);
+    }
+    if (statusFiltro !== "todos") filtrosDesc.push(`Status: ${statusFiltro === "ativo" ? "Ativos" : "Pausados"}`);
+    if (termoBusca.trim()) filtrosDesc.push(`Busca: "${termoBusca.trim()}"`);
+
+    let tituloCoord = "Todas as coordenações";
+    if (coordenacaoFiltro !== "__all__") {
+      tituloCoord = coordNomeMap.get(coordenacaoFiltro) || "Coordenação";
+    } else if (!isAdmin && coordenacoes.length === 1) {
+      tituloCoord = (coordenacoes[0] as any).nome;
+    }
+
+    try {
+      gerarRelatorioTermosDjen({
+        monitoramentos: monitoramentosFiltrados,
+        coordNomeMap,
+        filtrosDescricao: filtrosDesc,
+        tituloCoordenacao: tituloCoord,
+      });
+      toast.success("Relatório gerado com sucesso");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao gerar relatório: " + (e?.message || "desconhecido"));
+    }
+  };
+
   return (
     <MainLayout
       title="Termos DJEN"
@@ -205,10 +245,23 @@ export default function TermosDjen() {
                     : `Exibindo monitoramentos das suas coordenações • ${monitoramentosFiltrados.length} de ${todosMonitoramentos.filter(m => m.coordenacao_id && coordenacoesPermitidas.has(m.coordenacao_id)).length}`}
                 </CardDescription>
               </div>
-              <Button onClick={handleNovo} size="sm" className="gap-2 w-full sm:w-auto">
-                <Plus className="h-4 w-4" />
-                Novo Monitoramento
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleGerarRelatorio}
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 w-full sm:w-auto"
+                  disabled={isLoading || monitoramentosFiltrados.length === 0}
+                  title="Gerar PDF dos termos exibidos (respeita os filtros)"
+                >
+                  <FileText className="h-4 w-4" />
+                  Gerar Relatório PDF
+                </Button>
+                <Button onClick={handleNovo} size="sm" className="gap-2 w-full sm:w-auto">
+                  <Plus className="h-4 w-4" />
+                  Novo Monitoramento
+                </Button>
+              </div>
             </div>
 
             {/* Linha de Filtros */}
