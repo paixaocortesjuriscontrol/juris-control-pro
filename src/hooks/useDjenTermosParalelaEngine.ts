@@ -26,6 +26,8 @@ import {
   isDjenProxyPoolEnabled,
   loadDjenProxyPool,
   DIRECT_SLOT_ID,
+  getDjenProxySlotsRuntime,
+  clearDjenProxyOfflineMark,
 } from "@/utils/djenProxyPool";
 
 // ============================================================================
@@ -1392,6 +1394,44 @@ export function forceKillDjenTermosParalela(clearCheckpoint = false) {
     .eq('tipo', 'djen_paralela')
     .eq('status', 'executando')
     .is('finalizado_em', null);
+  state.progress = createDefaultProgress();
+  notifyListeners();
+}
+
+/**
+ * Reset TOTAL — limpa absolutamente tudo: estado em memória, checkpoint local,
+ * execuções órfãs no banco, stats do pool de proxies e marcações de offline
+ * de slots. Use quando uma execução anterior travou em um estado inconsistente
+ * (ex.: tribunais marcados como "concluído 100%" porque a VPS deu 404 antes
+ * de processar de verdade).
+ */
+export function resetTotalDjenTermosParalela() {
+  // 1) Para qualquer execução em curso e zera flags
+  cancelarDjenTermosParalela();
+  state.isRunning = false;
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+  // 2) Apaga checkpoint local
+  saveCheckpoint(null);
+  state.checkpoint = null;
+  // 3) Cancela execuções órfãs no banco
+  void supabase.from('execucoes_agendadas')
+    .update({
+      status: 'cancelado',
+      finalizado_em: new Date().toISOString(),
+      detalhes: { mensagem: 'Reset Total pelo usuário' },
+    })
+    .eq('tipo', 'djen_paralela')
+    .eq('status', 'executando')
+    .is('finalizado_em', null);
+  // 4) Zera stats do pool e libera slots offline (para reavaliar VPS na próxima)
+  try {
+    resetDjenProxyPoolStats();
+    getDjenProxySlotsRuntime().forEach(s => clearDjenProxyOfflineMark(s.id));
+  } catch { /* noop */ }
+  // 5) Reseta progress e notifica UI
   state.progress = createDefaultProgress();
   notifyListeners();
 }

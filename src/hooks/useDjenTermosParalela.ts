@@ -12,6 +12,7 @@ import {
   cancelarDjenTermosParalela,
   limparEstadoDjenTermosParalela,
   forceKillDjenTermosParalela,
+  resetTotalDjenTermosParalela,
   getDjenTermosParalelaProgress,
   isDjenTermosParalelaRunning,
   getCheckpointParalela,
@@ -62,6 +63,11 @@ export function useDjenTermosParalela() {
     toast.success(clearCheckpoint ? 'Paralela finalizada e checkpoint limpo' : 'Paralela parada.');
   }, []);
 
+  const resetTotal = useCallback(() => {
+    resetTotalDjenTermosParalela();
+    toast.success('Reset Total: estado, checkpoint, execuções órfãs e stats foram limpos.');
+  }, []);
+
   return {
     progress,
     isRunning,
@@ -72,5 +78,6 @@ export function useDjenTermosParalela() {
     cancelar,
     limpar,
     forceKill,
+    resetTotal,
   };
 }
