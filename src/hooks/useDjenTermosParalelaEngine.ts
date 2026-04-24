@@ -986,16 +986,28 @@ async function executarLoop(
       .eq('status', 'executando')
       .is('finalizado_em', null);
     if (running && running.length > 0) {
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-      const stale = running.filter(r => r.iniciado_em && r.iniciado_em < twoHoursAgo);
+      // Considera órfã qualquer execução iniciada há mais de 5 min sem finalizar
+      // (cancelamentos travados costumam deixar registros assim).
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const stale = running.filter(r => r.iniciado_em && r.iniciado_em < fiveMinAgo);
       if (stale.length > 0) {
         for (const s of stale) {
           await supabase.from('execucoes_agendadas')
-            .update({ status: 'cancelado', finalizado_em: new Date().toISOString(), detalhes: { mensagem: 'Cancelado: órfã (>2h)' } })
+            .update({ status: 'cancelado', finalizado_em: new Date().toISOString(), detalhes: { mensagem: 'Cancelado: órfã (>5min)' } })
             .eq('id', s.id);
         }
-        if (stale.length !== running.length) return;
+        if (stale.length !== running.length) {
+          updateProgress({
+            status: 'erro',
+            mensagem: 'Já existe outra execução DJEN Paralela ativa (iniciada há menos de 5 min). Aguarde ou use "Forçar Parada".',
+          });
+          return;
+        }
       } else {
+        updateProgress({
+          status: 'erro',
+          mensagem: 'Já existe outra execução DJEN Paralela ativa (iniciada há menos de 5 min). Aguarde ou use "Forçar Parada".',
+        });
         return;
       }
     }
@@ -1281,6 +1293,17 @@ export function forceKillDjenTermosParalela(clearCheckpoint = false) {
     state.timerInterval = null;
   }
   if (clearCheckpoint) saveCheckpoint(null);
+  // Limpa qualquer execução órfã do tipo djen_paralela no banco para
+  // garantir que o próximo "Executar" não fique bloqueado.
+  void supabase.from('execucoes_agendadas')
+    .update({
+      status: 'cancelado',
+      finalizado_em: new Date().toISOString(),
+      detalhes: { mensagem: 'Cancelado: forceKill pelo usuário' },
+    })
+    .eq('tipo', 'djen_paralela')
+    .eq('status', 'executando')
+    .is('finalizado_em', null);
   state.progress = createDefaultProgress();
   notifyListeners();
 }
