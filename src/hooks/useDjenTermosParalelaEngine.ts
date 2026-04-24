@@ -19,6 +19,11 @@ import {
   type PjeSearchType,
 } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+import {
+  resetDjenProxyPoolStats,
+  getDjenProxyPoolStats,
+  isDjenProxyPoolEnabled,
+} from "@/utils/djenProxyPool";
 
 // ============================================================================
 // TIPOS
@@ -976,6 +981,10 @@ async function executarLoop(
     console.warn('[DJEN Paralela] Já existe execução local em andamento');
     return;
   }
+
+  // POC pool de proxies: zera estatísticas a cada nova execução para
+  // permitir comparar antes/depois com clareza.
+  resetDjenProxyPoolStats();
 
   // Verificar execução no banco
   try {
