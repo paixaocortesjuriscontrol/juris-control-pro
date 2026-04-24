@@ -24,6 +24,8 @@ import {
   resetDjenProxyPoolStats,
   getDjenProxyPoolStats,
   isDjenProxyPoolEnabled,
+  loadDjenProxyPool,
+  DIRECT_SLOT_ID,
 } from "@/utils/djenProxyPool";
 
 // ============================================================================
