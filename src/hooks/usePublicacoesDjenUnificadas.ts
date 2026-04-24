@@ -987,10 +987,124 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   // Marcar como lida - per-user tracking + legacy global flag via RPC
   const marcarComoLida = useMutation({
     mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
-      const termos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
-      const processos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
-      const descartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
-      const datajudIds = items.filter(i => i.tipo_origem === 'datajud').map(i => i.id);
+      // ============================================================
+      // EXPANSÃO POR DEDUP: a tela exibe publicações DEDUPLICADAS,
+      // ou seja, várias linhas "irmãs" (mesma coordenação + processo +
+      // data + conteúdo) viram 1 só visualmente. Quando o usuário marca
+      // como lida, precisamos marcar TODAS as irmãs no cache atual,
+      // senão o próximo dedup pode escolher uma irmã ainda não-lida e
+      // a publicação reaparece como não lida.
+      // ============================================================
+      const idsSelecionados = new Set(items.map(i => i.id));
+      const cached = queryClient.getQueriesData<PublicacaoUnificada[]>({ queryKey: ['publicacoes-unificadas'] });
+      const allCachedPubs: PublicacaoUnificada[] = [];
+      for (const [, data] of cached) {
+        if (Array.isArray(data)) allCachedPubs.push(...data);
+      }
+      // Mapa: id selecionado -> publicação
+      const pubById = new Map<string, PublicacaoUnificada>();
+      allCachedPubs.forEach(p => pubById.set(p.id, p));
+
+      // Construir chave de dedup leve (coordenacao|processo_digits|data|head)
+      const buildKey = (p: PublicacaoUnificada): string => {
+        const coord = p.coordenacao_id ?? 'sem_coord';
+        const proc = (p.processo_numero ?? '').replace(/\D/g, '');
+        const date = (p.data_disponibilizacao || p.data_publicacao || p.created_at || '').slice(0, 10);
+        const head = (p.conteudo ?? '').replace(/<[^>]*>/g, ' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 300);
+        return `${coord}|${proc}|${date}|${head}`;
+      };
+
+      // Buscar TODAS as irmãs no banco para os representantes selecionados.
+      // Estratégia: para cada item selecionado, pegamos a publicação no cache,
+      // construímos sua chave de dedup, e procuramos todas as publicações no
+      // banco com mesma coordenação+processo+data, depois normalizamos head no client.
+      const expanded: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[] = [...items];
+      const expandedIds = new Set(items.map(i => i.id));
+
+      // Agrupar selecionados por (coordenacao_id, processo_numero_digits, data) para minimizar queries
+      type GroupKey = string;
+      const groupsToFetch = new Map<GroupKey, { coord: string | null; processoDigits: string; date: string; pubs: PublicacaoUnificada[] }>();
+      for (const it of items) {
+        if (it.tipo_origem === 'datajud') continue;
+        const pub = pubById.get(it.id);
+        if (!pub || !pub.processo_numero) continue;
+        const procDigits = pub.processo_numero.replace(/\D/g, '');
+        const date = (pub.data_disponibilizacao || pub.data_publicacao || '').slice(0, 10);
+        if (!procDigits || !date) continue;
+        const gk = `${pub.coordenacao_id || 'null'}|${procDigits}|${date}`;
+        if (!groupsToFetch.has(gk)) {
+          groupsToFetch.set(gk, { coord: pub.coordenacao_id, processoDigits: procDigits, date, pubs: [] });
+        }
+        groupsToFetch.get(gk)!.pubs.push(pub);
+      }
+
+      // Para cada grupo, buscar irmãs nas tabelas de termos e processos
+      for (const [, group] of groupsToFetch) {
+        const targetKeys = new Set(group.pubs.map(buildKey));
+        const dayStart = `${group.date}T00:00:00Z`;
+        const dayEnd = `${group.date}T23:59:59.999Z`;
+
+        // termos
+        try {
+          const { data } = await (supabase
+            .from('publicacoes_djen') as any)
+            .select('id, conteudo, processo_numero, data_publicacao, data_disponibilizacao, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)')
+            .gte('data_disponibilizacao', dayStart)
+            .lte('data_disponibilizacao', dayEnd)
+            .eq(group.coord ? 'monitoramento.coordenacao_id' : 'id', group.coord || '00000000-0000-0000-0000-000000000000')
+            .limit(500);
+          (data || []).forEach((row: any) => {
+            if (expandedIds.has(row.id)) return;
+            const candidate: PublicacaoUnificada = {
+              ...row,
+              coordenacao_id: row.monitoramento?.coordenacao_id ?? group.coord,
+            } as any;
+            if (!candidate.processo_numero) return;
+            if (candidate.processo_numero.replace(/\D/g, '') !== group.processoDigits) return;
+            if (targetKeys.has(buildKey(candidate))) {
+              expanded.push({ id: row.id, tipo_origem: 'termo' });
+              expandedIds.add(row.id);
+            }
+          });
+        } catch (e) {
+          console.warn('[DJEN] Falha ao expandir irmãs (termos):', e);
+        }
+
+        // processos
+        try {
+          const { data } = await (supabase
+            .from('publicacoes_djen_processos') as any)
+            .select('id, conteudo, processo_numero, data_publicacao, data_disponibilizacao, created_at, processo:processos!inner(coordenacao_id)')
+            .gte('data_disponibilizacao', dayStart)
+            .lte('data_disponibilizacao', dayEnd)
+            .eq(group.coord ? 'processo.coordenacao_id' : 'id', group.coord || '00000000-0000-0000-0000-000000000000')
+            .limit(500);
+          (data || []).forEach((row: any) => {
+            if (expandedIds.has(row.id)) return;
+            const candidate: PublicacaoUnificada = {
+              ...row,
+              coordenacao_id: row.processo?.coordenacao_id ?? group.coord,
+            } as any;
+            if (!candidate.processo_numero) return;
+            if (candidate.processo_numero.replace(/\D/g, '') !== group.processoDigits) return;
+            if (targetKeys.has(buildKey(candidate))) {
+              expanded.push({ id: row.id, tipo_origem: 'processo' });
+              expandedIds.add(row.id);
+            }
+          });
+        } catch (e) {
+          console.warn('[DJEN] Falha ao expandir irmãs (processos):', e);
+        }
+      }
+
+      const totalSelecionado = items.filter(i => i.tipo_origem !== 'datajud').length;
+      const totalExpandido = expanded.filter(i => i.tipo_origem !== 'datajud').length;
+      console.log(`[DJEN] Marcação: ${totalSelecionado} selecionada(s) → ${totalExpandido} com irmãs (dedup)`);
+
+      const termos = expanded.filter(i => i.tipo_origem === 'termo').map(i => i.id);
+      const processos = expanded.filter(i => i.tipo_origem === 'processo').map(i => i.id);
+      const descartadas = expanded.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
+      const datajudIds = expanded.filter(i => i.tipo_origem === 'datajud').map(i => i.id);
 
       // Helper: divide um array em chunks de tamanho fixo (evita timeout em lotes grandes)
       const chunk = <T,>(arr: T[], size: number): T[][] => {
@@ -1049,7 +1163,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         .maybeSingle();
       const userName = profileData?.nome || user?.email || 'Desconhecido';
 
-      const leiturasToInsert = items
+      const leiturasToInsert = expanded
         .filter(i => i.tipo_origem !== 'datajud')
         .map(i => ({
           publicacao_id: i.id,
@@ -1072,7 +1186,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       console.log('[DJEN] Publicações marcadas (RPC agregado):', rpcAggregate);
-      return { rpcResult: rpcAggregate, itemIds: items.map(i => i.id) };
+      return {
+        rpcResult: rpcAggregate,
+        itemIds: expanded.map(i => i.id),
+        totalSelecionado,
+        totalExpandido,
+      };
     },
     // Optimistic update: marca imediatamente na UI antes do servidor responder
     onMutate: async (items) => {
@@ -1103,10 +1222,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
-      
-      const data = result.rpcResult;
-      const total = (data?.termos_atualizados || 0) + (data?.processos_atualizados || 0) + (data?.descartadas_atualizados || 0);
-      toast.success(`${total} publicação(ões) marcada(s) como lida(s)`);
+
+      // Mensagem baseada no que o USUÁRIO pediu para marcar (linhas da tela),
+      // não no agregado da RPC legacy (que pode falhar/parcial).
+      const sel = result.totalSelecionado || 0;
+      const exp = result.totalExpandido || sel;
+      if (exp > sel) {
+        toast.success(`${sel} publicação(ões) marcada(s) como lida(s) (${exp} registros incluindo duplicatas)`);
+      } else {
+        toast.success(`${sel} publicação(ões) marcada(s) como lida(s)`);
+      }
     },
     onError: (error, _variables, context) => {
       // Reverter ao estado anterior em caso de erro
