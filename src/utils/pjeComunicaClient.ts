@@ -99,6 +99,35 @@ const setGlobalCooldown = (ms: number) => {
   const until = Date.now() + ms;
   globalCooldownUntil = Math.max(globalCooldownUntil, until);
 };
+
+/**
+ * Sleep que respeita AbortSignal — interrompe imediatamente quando o signal
+ * é abortado (em vez de aguardar o setTimeout completo). Crítico para
+ * cancelamento responsivo em motores que sofrem retries longos por 429.
+ */
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((r) => setTimeout(r, ms));
+  if (signal.aborted) {
+    const err: any = new Error('Aborted');
+    err.name = 'AbortError';
+    return Promise.reject(err);
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      const err: any = new Error('Aborted');
+      err.name = 'AbortError';
+      reject(err);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 const awaitGlobalCooldown = async () => {
   const wait = globalCooldownUntil - Date.now();
   if (wait > 0) {
@@ -613,6 +642,12 @@ export async function buscarPjeComunicaPaginado(
     let lastErr: any = null;
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Verificação imediata de cancelamento antes de tentar fetch
+      if (options?.signal?.aborted) {
+        const err: any = new Error('Aborted');
+        err.name = 'AbortError';
+        throw err;
+      }
       try {
         const resp = await buscarPjeComunicaNoBrowser(
           { ...params, page, pageSize },
@@ -647,7 +682,8 @@ export async function buscarPjeComunicaPaginado(
             `[PJE Comunica] ${is429 ? 'Rate limit (429)' : 'Erro'} na página ${page}. ` +
               `Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`
           );
-          await new Promise(r => setTimeout(r, waitTime));
+          // Sleep abortável: se o usuário cancelar, interrompe imediatamente
+          await abortableSleep(waitTime, options?.signal);
         }
       }
     }
@@ -685,7 +721,7 @@ export async function buscarPjeComunicaPaginado(
       }
 
       if (delayMs > 0) {
-        await new Promise((r) => setTimeout(r, delayMs));
+        await abortableSleep(delayMs, options?.signal);
       }
     } catch (e: any) {
       // Se foi cancelado, parar imediatamente

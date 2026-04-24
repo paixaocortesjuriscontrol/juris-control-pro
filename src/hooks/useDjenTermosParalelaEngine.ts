@@ -128,6 +128,24 @@ const EXECUTION_SYNC_INTERVAL_MS = 15000;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+/** Sleep abortável — usa o AbortSignal para interromper imediatamente. */
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((r) => setTimeout(r, ms));
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 // ============================================================================
 // ORDEM DE PRIORIDADE DE TRIBUNAIS
 // ============================================================================
@@ -666,7 +684,7 @@ async function processarTribunalTrack(
         });
 
         syncExecutionProgress();
-        await delay(CONFIG.delay_between_terms);
+        await abortableDelay(CONFIG.delay_between_terms, signal);
       }
     }
 
@@ -1133,7 +1151,7 @@ async function executarLoop(
         if (!trib) {
           // Nenhum tribunal disponível neste momento porque o(s) bucket(s) estão
           // saturados. Aguarda um pouco e tenta de novo.
-          await delay(500);
+          await abortableDelay(500, signal);
           continue;
         }
         const bucket = getHostBucket(trib);
@@ -1224,8 +1242,21 @@ export function executarDjenTermosParalela(
 export function cancelarDjenTermosParalela() {
   if (state.abortController) {
     state.abortController.abort();
-    updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
   }
+  // Marcar todos os tracks ativos como cancelando para feedback visual imediato
+  const tracks = state.progress.tracks.map(t =>
+    t.status === 'executando' || t.status === 'pendente'
+      ? { ...t, status: 'cancelado' as TrackStatus, mensagem: 'Cancelado pelo usuário', finishedAt: Date.now() }
+      : t
+  );
+  state.progress = {
+    ...state.progress,
+    tracks,
+    status: 'cancelado',
+    mensagem: 'Cancelado pelo usuário',
+  };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
   void supabase.from('execucoes_agendadas')
     .update({
       status: 'cancelado',
