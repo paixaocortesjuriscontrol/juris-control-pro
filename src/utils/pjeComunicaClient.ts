@@ -262,7 +262,12 @@ function buildTextoParam(params: PjeComunicaSearchParams): string | null {
 
 export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
-  options?: { signal?: AbortSignal; onPoolVia?: (via: PoolViaInfo) => void }
+  options?: {
+    signal?: AbortSignal;
+    onPoolVia?: (via: PoolViaInfo) => void;
+    forceVia?: string;
+    fallbackToDirect?: boolean;
+  }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
   console.log('[PJE Comunica] 🚀 buscarPjeComunicaNoBrowser params:', {
@@ -404,11 +409,17 @@ export async function buscarPjeComunicaNoBrowser(
     try {
       // Roteamento via pool quando habilitado em Configurações; caso contrário
       // cai direto no fetch padrão (mesmo comportamento de antes).
-      const resp = await fetchDjenViaPool(url, {
-        method: "GET",
-        headers: requestHeaders,
-        signal: combinedSignal,
-      });
+      const resp = await fetchDjenViaPool(
+        url,
+        {
+          method: "GET",
+          headers: requestHeaders,
+          signal: combinedSignal,
+        },
+        options?.forceVia
+          ? { forceVia: options.forceVia, fallbackToDirect: options.fallbackToDirect }
+          : undefined,
+      );
       clearTimeout(timeoutId);
 
       // Repassa para o chamador qual rota (direto/proxy) atendeu esta página.
