@@ -411,6 +411,14 @@ export async function buscarPjeComunicaNoBrowser(
       });
       clearTimeout(timeoutId);
 
+      // Repassa para o chamador qual rota (direto/proxy) atendeu esta página.
+      try {
+        const via = readPoolViaFromResponse(resp);
+        if (via && options?.onPoolVia) options.onPoolVia(via);
+      } catch {
+        /* noop */
+      }
+
       const contentType = resp.headers.get("content-type") || "";
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");
