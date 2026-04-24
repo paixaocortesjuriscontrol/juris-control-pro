@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     if (action === 'ultimo-dje') {
       const r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
         method: 'GET',
-        headers: STF_HEADERS,
+        headers: STF_HEADERS_BROWSER,
         dispatcher: insecureAgent,
       });
       const text = await r.text();
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       const payload = body?.payload ?? {};
       const r = await undiciFetch(`${STF_BASE}/publicacoes`, {
         method: 'POST',
-        headers: STF_HEADERS,
+        headers: STF_HEADERS_BROWSER,
         body: JSON.stringify(payload),
         dispatcher: insecureAgent,
       });
