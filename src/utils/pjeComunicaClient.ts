@@ -630,6 +630,7 @@ export async function buscarPjeComunicaPaginado(
     retryBaseDelay?: number;
     continueUntilEmpty?: boolean;
     onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
+    onPoolVia?: (via: PoolViaInfo) => void;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
@@ -669,7 +670,7 @@ export async function buscarPjeComunicaPaginado(
       try {
         const resp = await buscarPjeComunicaNoBrowser(
           { ...params, page, pageSize },
-          { signal: options?.signal }
+          { signal: options?.signal, onPoolVia: options?.onPoolVia }
         );
         return resp;
       } catch (e: any) {
