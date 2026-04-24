@@ -826,7 +826,7 @@ async function processarTermoEmTribunal(
       },
       onPoolVia: (via) => registrarViaTrack(tribunal, via),
       forceVia: viaId,
-      fallbackToDirect: true,
+      fallbackToDirect: viaId === DIRECT_SLOT_ID,
     });
     addResults(resp.items);
     if (resp.lastError) ultimoErro = resp.lastError;
@@ -858,7 +858,7 @@ async function processarTermoEmTribunal(
           onRateLimit: () => { rateLimitHits++; },
           onPoolVia: (via) => registrarViaTrack(tribunal, via),
           forceVia: viaId,
-          fallbackToDirect: true,
+          fallbackToDirect: viaId === DIRECT_SLOT_ID,
         });
         addResults(resp.items);
       } catch (e: any) {
@@ -1214,7 +1214,9 @@ async function executarLoop(
     const vias: ViaSpec[] = [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
     if (isDjenProxyPoolEnabled()) {
       for (const slot of loadDjenProxyPool()) {
-        if (slot.enabled) vias.push({ id: slot.id, label: slot.label || slot.baseUrl });
+        if (slot.enabled && slot.id && slot.baseUrl && slot.token) {
+          vias.push({ id: slot.id, label: slot.label || slot.baseUrl });
+        }
       }
     }
 
