@@ -40,6 +40,47 @@ const STF_HEADERS_BROWSER = {
 
 const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
+/**
+ * Tenta múltiplas estratégias para alcançar o STF:
+ * 1) fetch nativo do Deno (com cadeia TLS oficial)
+ * 2) undici com TLS relaxado (fallback para ICP-Brasil)
+ */
+async function tentarFetch(url: string, method: 'GET' | 'POST', body?: string) {
+  // Estratégia 1: fetch nativo (Deno)
+  try {
+    const r = await fetch(url, {
+      method,
+      headers: STF_HEADERS_BROWSER,
+      body,
+    });
+    const text = await r.text();
+    if (r.status < 500) {
+      return {
+        text,
+        status: r.status,
+        contentType: r.headers.get('content-type') ?? 'application/json',
+      };
+    }
+    console.log(`[stf-proxy] fetch nativo retornou ${r.status}, tentando undici...`);
+  } catch (e) {
+    console.log(`[stf-proxy] fetch nativo falhou: ${(e as Error).message}, tentando undici...`);
+  }
+
+  // Estratégia 2: undici com TLS relaxado
+  const r = await undiciFetch(url, {
+    method,
+    headers: STF_HEADERS_BROWSER,
+    body,
+    dispatcher: insecureAgent,
+  });
+  const text = await r.text();
+  return {
+    text,
+    status: r.status,
+    contentType: r.headers.get('content-type') ?? 'application/json',
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
