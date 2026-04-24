@@ -98,6 +98,7 @@ const parseRetryAfterMs = (resp: Response): number | null => {
 const setGlobalCooldown = (ms: number) => {
   const until = Date.now() + ms;
   globalCooldownUntil = Math.max(globalCooldownUntil, until);
+};
 
 /**
  * Sleep que respeita AbortSignal — interrompe imediatamente quando o signal
@@ -112,10 +113,6 @@ function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
     return Promise.reject(err);
   }
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
     const onAbort = () => {
       clearTimeout(timer);
       signal.removeEventListener('abort', onAbort);
@@ -123,10 +120,14 @@ function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
       err.name = 'AbortError';
       reject(err);
     };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
     signal.addEventListener('abort', onAbort, { once: true });
   });
 }
-};
+
 const awaitGlobalCooldown = async () => {
   const wait = globalCooldownUntil - Date.now();
   if (wait > 0) {
