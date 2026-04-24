@@ -50,30 +50,19 @@ Deno.serve(async (req) => {
     const action = body?.action as string | undefined;
 
     if (action === 'ultimo-dje') {
-      const r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
-        method: 'GET',
-        headers: STF_HEADERS_BROWSER,
-        dispatcher: insecureAgent,
-      });
-      const text = await r.text();
+      const { text, status, contentType } = await tentarFetch(`${STF_BASE}/ultimo-dje`, 'GET');
       return new Response(text, {
-        status: r.status,
-        headers: { ...corsHeaders, 'Content-Type': r.headers.get('content-type') ?? 'application/json' },
+        status,
+        headers: { ...corsHeaders, 'Content-Type': contentType },
       });
     }
 
     if (action === 'publicacoes') {
       const payload = body?.payload ?? {};
-      const r = await undiciFetch(`${STF_BASE}/publicacoes`, {
-        method: 'POST',
-        headers: STF_HEADERS_BROWSER,
-        body: JSON.stringify(payload),
-        dispatcher: insecureAgent,
-      });
-      const text = await r.text();
+      const { text, status, contentType } = await tentarFetch(`${STF_BASE}/publicacoes`, 'POST', JSON.stringify(payload));
       return new Response(text, {
-        status: r.status,
-        headers: { ...corsHeaders, 'Content-Type': r.headers.get('content-type') ?? 'application/json' },
+        status,
+        headers: { ...corsHeaders, 'Content-Type': contentType },
       });
     }
 
