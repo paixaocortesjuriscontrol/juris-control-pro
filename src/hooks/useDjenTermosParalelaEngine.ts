@@ -46,6 +46,13 @@ export interface TrackProgress {
   ultimoErro: string | null;
   startedAt: number | null;
   finishedAt: number | null;
+  /** Última rota usada (Direto vs VPS-X) — para feedback de roteamento. */
+  lastViaId: string | null;
+  lastViaLabel: string | null;
+  lastViaKind: 'direct' | 'proxy' | null;
+  /** Contagem total por rota dentro deste tribunal. */
+  callsDirect: number;
+  callsByProxy: Record<string, number>;
 }
 
 export interface DjenTermosParalelaProgress {
