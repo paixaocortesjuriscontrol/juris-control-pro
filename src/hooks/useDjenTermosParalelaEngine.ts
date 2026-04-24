@@ -684,7 +684,7 @@ async function processarTribunalTrack(
         });
 
         syncExecutionProgress();
-        await delay(CONFIG.delay_between_terms);
+        await abortableDelay(CONFIG.delay_between_terms, signal);
       }
     }
 
@@ -1151,7 +1151,7 @@ async function executarLoop(
         if (!trib) {
           // Nenhum tribunal disponível neste momento porque o(s) bucket(s) estão
           // saturados. Aguarda um pouco e tenta de novo.
-          await delay(500);
+          await abortableDelay(500, signal);
           continue;
         }
         const bucket = getHostBucket(trib);
