@@ -992,25 +992,53 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const descartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
       const datajudIds = items.filter(i => i.tipo_origem === 'datajud').map(i => i.id);
 
-      // Mark DataJud items directly
+      // Helper: divide um array em chunks de tamanho fixo (evita timeout em lotes grandes)
+      const chunk = <T,>(arr: T[], size: number): T[][] => {
+        const out: T[][] = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+      };
+
+      // Mark DataJud items directly (em chunks)
       if (datajudIds.length > 0) {
-        await supabase
-          .from('movimentacoes_datajud')
-          .update({ lida: true })
-          .in('id', datajudIds);
+        for (const c of chunk(datajudIds, 200)) {
+          await supabase.from('movimentacoes_datajud').update({ lida: true }).in('id', c);
+        }
       }
 
-      // Legacy: marca global flag via RPC (backwards compat)
-      const { data, error } = await (supabase as any).rpc('marcar_publicacoes_lidas_por_dedup', {
-        p_ids_termos: termos.length > 0 ? termos : null,
-        p_ids_processos: processos.length > 0 ? processos : null,
-        p_ids_descartadas: descartadas.length > 0 ? descartadas : null,
-      });
+      // Legacy: marca global flag via RPC (backwards compat) — agora em CHUNKS e best-effort.
+      // A flag global `lida` na tabela é redundante com `publicacoes_djen_leituras` (per-user),
+      // então se a RPC falhar (timeout em lotes muito grandes) seguimos em frente — a UI usa
+      // a leitura per-user para mostrar status correto.
+      const RPC_CHUNK = 100;
+      const rpcAggregate = { termos_atualizados: 0, processos_atualizados: 0, descartadas_atualizados: 0 };
+      const callRpc = async (
+        t: string[] | null,
+        p: string[] | null,
+        d: string[] | null,
+      ) => {
+        try {
+          const { data, error } = await (supabase as any).rpc('marcar_publicacoes_lidas_por_dedup', {
+            p_ids_termos: t,
+            p_ids_processos: p,
+            p_ids_descartadas: d,
+          });
+          if (error) {
+            console.warn('[DJEN] RPC marcar lidas falhou (best-effort, ignorado):', error.message);
+            return;
+          }
+          rpcAggregate.termos_atualizados += data?.termos_atualizados || 0;
+          rpcAggregate.processos_atualizados += data?.processos_atualizados || 0;
+          rpcAggregate.descartadas_atualizados += data?.descartadas_atualizados || 0;
+        } catch (e: any) {
+          console.warn('[DJEN] RPC marcar lidas exceção (best-effort, ignorado):', e?.message || e);
+        }
+      };
 
-      if (error) {
-        console.error('Erro ao marcar publicações lidas via RPC:', error);
-        throw new Error(error.message);
-      }
+      // Processa cada origem em chunks separados
+      for (const c of chunk(termos, RPC_CHUNK)) await callRpc(c, null, null);
+      for (const c of chunk(processos, RPC_CHUNK)) await callRpc(null, c, null);
+      for (const c of chunk(descartadas, RPC_CHUNK)) await callRpc(null, null, c);
 
       // Per-user tracking: insert into leituras table
       // Get user's name from profiles
@@ -1031,13 +1059,20 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }));
 
       if (leiturasToInsert.length > 0) {
-        await (supabase as any)
-          .from('publicacoes_djen_leituras')
-          .upsert(leiturasToInsert, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
+        // Upsert per-user em chunks também (evita payloads enormes)
+        for (const c of chunk(leiturasToInsert, 500)) {
+          const { error: upErr } = await (supabase as any)
+            .from('publicacoes_djen_leituras')
+            .upsert(c, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
+          if (upErr) {
+            console.error('[DJEN] Erro ao salvar leitura per-user:', upErr.message);
+            throw new Error(upErr.message);
+          }
+        }
       }
 
-      console.log('[DJEN] Publicações marcadas via dedup:', data);
-      return { rpcResult: data, itemIds: items.map(i => i.id) };
+      console.log('[DJEN] Publicações marcadas (RPC agregado):', rpcAggregate);
+      return { rpcResult: rpcAggregate, itemIds: items.map(i => i.id) };
     },
     // Optimistic update: marca imediatamente na UI antes do servidor responder
     onMutate: async (items) => {
