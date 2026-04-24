@@ -1242,8 +1242,21 @@ export function executarDjenTermosParalela(
 export function cancelarDjenTermosParalela() {
   if (state.abortController) {
     state.abortController.abort();
-    updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
   }
+  // Marcar todos os tracks ativos como cancelando para feedback visual imediato
+  const tracks = state.progress.tracks.map(t =>
+    t.status === 'executando' || t.status === 'pendente'
+      ? { ...t, status: 'cancelado' as TrackStatus, mensagem: 'Cancelado pelo usuário', finishedAt: Date.now() }
+      : t
+  );
+  state.progress = {
+    ...state.progress,
+    tracks,
+    status: 'cancelado',
+    mensagem: 'Cancelado pelo usuário',
+  };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
   void supabase.from('execucoes_agendadas')
     .update({
       status: 'cancelado',
