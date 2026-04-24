@@ -264,10 +264,6 @@ export async function fetchDjenViaPool(
 
   // Modo "via forçada": ignora round-robin e usa exatamente a via pedida.
   if (routing?.forceVia) {
-    const queryString = fullDirectUrl.includes("?")
-      ? fullDirectUrl.slice(fullDirectUrl.indexOf("?") + 1)
-      : "";
-
     const callDirect = async (): Promise<Response> => {
       sessionStats.total++;
       sessionStats.direct++;
@@ -289,7 +285,11 @@ export async function fetchDjenViaPool(
 
     try {
       sessionStats.total++;
-      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/djen?${queryString}`;
+      // Formato esperado pela VPS djen-proxy-paralelo:
+      //   GET /proxy?url=<URL-COMPLETA-ENCODADA>  (com header X-Proxy-Token)
+      // A VPS devolve a resposta crua do upstream (não envelope).
+      const targetEncoded = encodeURIComponent(fullDirectUrl);
+      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/proxy?url=${targetEncoded}`;
       const headers = new Headers(init.headers || {});
       headers.set("X-Proxy-Token", slot.token);
       const proxyResp = await fetch(proxyUrl, {
@@ -305,9 +305,9 @@ export async function fetchDjenViaPool(
         if (routing.fallbackToDirect) return callDirect();
         throw new Error(`VPS ${slot.label} respondeu HTTP ${proxyResp.status}`);
       }
-      const envelope = await proxyResp.json();
-      const upstreamStatus: number = envelope?.status ?? 0;
-      const upstreamBody: string = envelope?.body ?? "";
+      // Resposta crua do upstream — status real vem em proxyResp.status.
+      const upstreamStatus = proxyResp.status;
+      const upstreamBody = await proxyResp.text();
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
           (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
@@ -328,11 +328,6 @@ export async function fetchDjenViaPool(
     }
   }
 
-  // Extrai a query string da URL direta para repassar ao proxy.
-  const queryString = fullDirectUrl.includes("?")
-    ? fullDirectUrl.slice(fullDirectUrl.indexOf("?") + 1)
-    : "";
-
   const order = buildAttemptOrder();
   let lastErr: any = null;
 
@@ -348,7 +343,8 @@ export async function fetchDjenViaPool(
         return annotateVia(resp, DIRECT_SLOT_ID, "Direto (browser)", "direct");
       }
 
-      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/djen?${queryString}`;
+      const targetEncoded = encodeURIComponent(fullDirectUrl);
+      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/proxy?url=${targetEncoded}`;
       const headers = new Headers(init.headers || {});
       headers.set("X-Proxy-Token", slot.token);
 
@@ -368,10 +364,9 @@ export async function fetchDjenViaPool(
         continue;
       }
 
-      const envelope = await proxyResp.json();
-      // O proxy devolve { status, body, elapsed_ms } onde body é a string crua do upstream.
-      const upstreamStatus: number = envelope?.status ?? 0;
-      const upstreamBody: string = envelope?.body ?? "";
+      // VPS devolve resposta crua do upstream — status real vem em proxyResp.status.
+      const upstreamStatus = proxyResp.status;
+      const upstreamBody = await proxyResp.text();
 
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
