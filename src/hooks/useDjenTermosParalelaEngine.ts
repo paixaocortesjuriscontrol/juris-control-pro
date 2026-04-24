@@ -17,6 +17,7 @@ import {
   awaitPjeComunicaGlobalCooldown,
   getPjeComunicaGlobalCooldownRemainingMs,
   type PjeSearchType,
+  type PoolViaInfo,
 } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 import {
