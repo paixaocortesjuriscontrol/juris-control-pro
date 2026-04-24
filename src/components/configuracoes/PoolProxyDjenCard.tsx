@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle } from "lucide-react";
+import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle, BarChart3, RotateCcw } from "lucide-react";
 import {
   loadDjenProxyPool,
   saveDjenProxyPool,
@@ -16,6 +16,9 @@ import {
   getDjenProxySlotsRuntime,
   clearDjenProxyOfflineMark,
   generateProxySlotId,
+  getDjenProxyPoolStats,
+  resetDjenProxyPoolStats,
+  type PoolSessionStats,
   type ProxySlotConfig,
 } from "@/utils/djenProxyPool";
 
@@ -32,6 +35,7 @@ export default function PoolProxyDjenCard() {
   const [slots, setSlots] = useState<SlotState[]>([]);
   const [form, setForm] = useState({ label: "", baseUrl: "", token: "" });
   const [testing, setTesting] = useState(false);
+  const [stats, setStats] = useState<PoolSessionStats>(() => getDjenProxyPoolStats());
 
   function refreshFromStorage() {
     const runtime = getDjenProxySlotsRuntime();
@@ -41,6 +45,10 @@ export default function PoolProxyDjenCard() {
   useEffect(() => {
     setEnabled(isDjenProxyPoolEnabled());
     refreshFromStorage();
+    const id = window.setInterval(() => {
+      setStats(getDjenProxyPoolStats());
+    }, 1500);
+    return () => window.clearInterval(id);
   }, []);
 
   function handleToggle(value: boolean) {
@@ -171,6 +179,67 @@ export default function PoolProxyDjenCard() {
             </p>
           </div>
           <Switch id="pool-toggle" checked={enabled} onCheckedChange={handleToggle} />
+        </div>
+
+        {/* Estatísticas da sessão */}
+        <div className="rounded-lg border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Estatísticas da sessão
+            </h4>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                resetDjenProxyPoolStats();
+                setStats(getDjenProxyPoolStats());
+              }}
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Zerar
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">Total de chamadas</p>
+              <p className="text-2xl font-bold">{stats.total}</p>
+            </div>
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">Diretas (navegador)</p>
+              <p className="text-2xl font-bold">{stats.direct}</p>
+            </div>
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">Via proxy (VPS)</p>
+              <p className="text-2xl font-bold text-green-600">
+                {Object.values(stats.byProxy).reduce((a, b) => a + b, 0)}
+              </p>
+            </div>
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">429 via proxy</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {Object.values(stats.rateLimitsByProxy).reduce((a, b) => a + b, 0)}
+              </p>
+            </div>
+          </div>
+          {slots.length > 0 && (
+            <div className="space-y-1 pt-2 border-t">
+              <p className="text-xs font-medium text-muted-foreground">Por VPS:</p>
+              {slots.map((s) => (
+                <div key={s.id} className="flex items-center justify-between text-xs">
+                  <span className="font-medium">{s.label}</span>
+                  <span className="text-muted-foreground">
+                    {stats.byProxy[s.id] || 0} chamadas •{" "}
+                    <span className="text-amber-600">{stats.rateLimitsByProxy[s.id] || 0} × 429</span> •{" "}
+                    <span className="text-destructive">{stats.errorsByProxy[s.id] || 0} erros</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Atualiza a cada 1.5s. Os contadores zeram ao recarregar a página.
+          </p>
         </div>
 
         {/* Lista de slots */}
