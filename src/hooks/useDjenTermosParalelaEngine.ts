@@ -1362,3 +1362,54 @@ export function subscribeDjenTermosParalela(
 }
 
 export { MAX_CONCURRENCY };
+
+// ============================================================================
+// HIDRATAÇÃO INICIAL — restaura progresso visual após F5/reload
+// ============================================================================
+// Quando o módulo carrega (ex.: após F5), se houver checkpoint salvo no
+// localStorage, reconstruímos um snapshot do progress para que a UI mostre:
+// - status "cancelado" (execução foi interrompida pelo reload)
+// - contadores agregados (novas/duplicadas/descartadas)
+// - tribunais já concluídos como tracks com status "concluido"
+// Isso evita a sensação de que "perdeu tudo" quando na verdade o checkpoint
+// está intacto e o botão Retomar funciona.
+(function hydrateFromCheckpoint() {
+  try {
+    const cp = loadCheckpoint();
+    if (!cp) return;
+    state.checkpoint = cp;
+    const concluidos = Array.isArray(cp.tribunaisConcluidos) ? cp.tribunaisConcluidos : [];
+    const tracks: TrackProgress[] = ordenarTribunais(concluidos).map((trib) => ({
+      tribunal: trib,
+      status: 'concluido',
+      current: 0,
+      total: 0,
+      novas: 0,
+      duplicadas: 0,
+      descartadas: 0,
+      mensagem: 'Concluído (checkpoint)',
+      termoAtual: null,
+      diaAtual: null,
+      rateLimitHits: 0,
+      ultimoErro: null,
+      startedAt: null,
+      finishedAt: null,
+    }));
+    state.progress = {
+      ...createDefaultProgress(),
+      status: 'cancelado',
+      tracks,
+      totalTribunais: concluidos.length,
+      tribunaisConcluidos: concluidos.length,
+      novas: cp.novas || 0,
+      duplicadas: cp.duplicadas || 0,
+      descartadas: cp.descartadas || 0,
+      percentage: 0,
+      mensagem: `Execução interrompida — ${concluidos.length} tribunal(is) já concluído(s). Clique em Retomar para continuar.`,
+      dataInicioYmd: cp.dataInicioYmd,
+      dataFimYmd: cp.dataFimYmd,
+    };
+  } catch {
+    // ignore — hidratação é best-effort
+  }
+})();
