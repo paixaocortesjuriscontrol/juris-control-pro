@@ -19,6 +19,11 @@ import {
   type PjeSearchType,
 } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+import {
+  resetDjenProxyPoolStats,
+  getDjenProxyPoolStats,
+  isDjenProxyPoolEnabled,
+} from "@/utils/djenProxyPool";
 
 // ============================================================================
 // TIPOS
@@ -977,6 +982,10 @@ async function executarLoop(
     return;
   }
 
+  // POC pool de proxies: zera estatísticas a cada nova execução para
+  // permitir comparar antes/depois com clareza.
+  resetDjenProxyPoolStats();
+
   // Verificar execução no banco
   try {
     const { data: running } = await supabase
@@ -1231,6 +1240,31 @@ async function executarLoop(
     }
     state.lastUpdatedAt = Date.now();
     notifyListeners();
+
+    // POC pool: imprime resumo de roteamento desta execução.
+    if (isDjenProxyPoolEnabled()) {
+      const stats = getDjenProxyPoolStats();
+      console.log('[DJEN Paralela] 📊 Pool de Proxies — resumo da execução:');
+      console.table({
+        'Total de chamadas': stats.total,
+        'Chamada direta (browser)': stats.direct,
+        'Via proxies (soma)': stats.total - stats.direct,
+      });
+      if (Object.keys(stats.byProxy).length > 0) {
+        console.table(
+          Object.fromEntries(
+            Object.entries(stats.byProxy).map(([id, count]) => [
+              id,
+              {
+                chamadas: count,
+                rate_limits_429: stats.rateLimitsByProxy[id] || 0,
+                erros_proxy: stats.errorsByProxy[id] || 0,
+              },
+            ]),
+          ),
+        );
+      }
+    }
   }
 }
 

@@ -1,0 +1,12 @@
+{
+  "name": "djen-comunica-proxy",
+  "version": "1.0.0",
+  "description": "Proxy minimo para repassar GETs ao PJE Comunica de um IP diferente do navegador.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
