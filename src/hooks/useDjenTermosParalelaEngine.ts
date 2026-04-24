@@ -1110,11 +1110,38 @@ async function executarLoop(
     const queue = [...tribunaisPendentes];
     const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
 
+    // Contadores de uso por bucket (host) — garantem que não estouramos o limite
+    // de chamadas simultâneas ao mesmo host (anti HTTP 429).
+    const bucketInUse: Record<HostBucket, number> = { 'pje-comunica': 0, 'outro': 0 };
+
+    function tryReserveNext(): string | null {
+      for (let i = 0; i < queue.length; i++) {
+        const t = queue[i];
+        const bucket = getHostBucket(t);
+        if (bucketInUse[bucket] < HOST_BUCKET_LIMITS[bucket]) {
+          queue.splice(i, 1);
+          bucketInUse[bucket]++;
+          return t;
+        }
+      }
+      return null;
+    }
+
     const worker = async () => {
       while (queue.length > 0 && !signal.aborted) {
-        const trib = queue.shift();
-        if (!trib) break;
-        await processarTribunalTrack(trib, monitoramentos, datas, signal);
+        const trib = tryReserveNext();
+        if (!trib) {
+          // Nenhum tribunal disponível neste momento porque o(s) bucket(s) estão
+          // saturados. Aguarda um pouco e tenta de novo.
+          await delay(500);
+          continue;
+        }
+        const bucket = getHostBucket(trib);
+        try {
+          await processarTribunalTrack(trib, monitoramentos, datas, signal);
+        } finally {
+          bucketInUse[bucket]--;
+        }
         tribunaisConcluidosLista.push(trib);
 
         // Atualizar checkpoint
