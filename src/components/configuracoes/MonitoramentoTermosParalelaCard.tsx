@@ -145,8 +145,13 @@ export function MonitoramentoTermosParalelaCard() {
       return;
     }
     const filters = getFilterParams();
+    console.log('[Paralela] handleExecutar', {
+      coordenacaoId: filters.coordenacaoId,
+      monitoramentoIdsCount: filters.monitoramentoIds?.length ?? 0,
+      monitoramentosCarregados: monitoramentos.length,
+    });
     executar(getDataYmd(dataInicio), getDataYmd(dataFim), filters.coordenacaoId, filters.monitoramentoIds);
-  }, [dataInicio, dataFim, executar, getFilterParams]);
+  }, [dataInicio, dataFim, executar, getFilterParams, monitoramentos.length]);
 
   const handleRetomar = useCallback(() => {
     if (!checkpoint) return;
