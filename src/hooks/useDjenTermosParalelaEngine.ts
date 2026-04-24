@@ -825,6 +825,8 @@ async function processarTermoEmTribunal(
         ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
       },
       onPoolVia: (via) => registrarViaTrack(tribunal, via),
+      forceVia: viaId,
+      fallbackToDirect: true,
     });
     addResults(resp.items);
     if (resp.lastError) ultimoErro = resp.lastError;
@@ -855,6 +857,8 @@ async function processarTermoEmTribunal(
           retryBaseDelay: CONFIG.retry_base_delay,
           onRateLimit: () => { rateLimitHits++; },
           onPoolVia: (via) => registrarViaTrack(tribunal, via),
+          forceVia: viaId,
+          fallbackToDirect: true,
         });
         addResults(resp.items);
       } catch (e: any) {
