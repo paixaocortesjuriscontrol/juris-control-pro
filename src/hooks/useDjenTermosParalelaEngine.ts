@@ -1091,7 +1091,16 @@ async function executarLoop(
     const { data: termos, error } = await query;
     if (error) throw error;
     if (!termos?.length) {
-      updateProgress({ status: 'erro', mensagem: 'Nenhum monitoramento ativo encontrado.', percentage: 0 });
+      console.error('[DJEN Paralela] Nenhum monitoramento retornado', {
+        coordenacaoId,
+        monitoramentoIdsCount: monitoramentoIds?.length ?? 0,
+        monitoramentoIdsSample: monitoramentoIds?.slice(0, 3),
+        error,
+      });
+      const detalhe = coordenacaoId
+        ? ` (coordenação ${coordenacaoId.slice(0, 8)}…${monitoramentoIds?.length ? `, ${monitoramentoIds.length} IDs filtrados` : ''})`
+        : '';
+      updateProgress({ status: 'erro', mensagem: `Nenhum monitoramento ativo encontrado${detalhe}.`, percentage: 0 });
       return;
     }
 
