@@ -23,6 +23,21 @@ const STF_HEADERS = {
   'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
 };
 
+// Headers extras para simular um navegador real (passar por AWS WAF challenge)
+const STF_HEADERS_BROWSER = {
+  ...STF_HEADERS,
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'X-Requested-With': 'XMLHttpRequest',
+};
+
 const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 Deno.serve(async (req) => {
