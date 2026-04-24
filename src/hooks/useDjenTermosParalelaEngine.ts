@@ -1406,6 +1406,11 @@ export { MAX_CONCURRENCY };
       ultimoErro: null,
       startedAt: null,
       finishedAt: null,
+      lastViaId: null,
+      lastViaLabel: null,
+      lastViaKind: null,
+      callsDirect: 0,
+      callsByProxy: {},
     }));
     state.progress = {
       ...createDefaultProgress(),
