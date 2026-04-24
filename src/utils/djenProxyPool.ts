@@ -20,6 +20,10 @@ const STORAGE_POOL = "djen_proxy_pool";
 const STORAGE_ENABLED = "djen_proxy_pool_enabled";
 const OFFLINE_COOLDOWN_MS = 60_000;
 
+// Importa o cliente Supabase de forma lazy para evitar ciclo de import
+// e permitir que o pool funcione mesmo se a conexão falhar (cai pro cache local).
+import { supabase } from "@/integrations/supabase/client";
+
 export interface ProxySlotConfig {
   /** Identificador estável (uuid simples). */
   id: string;
@@ -144,6 +148,130 @@ export function loadDjenProxyPool(): ProxySlotConfig[] {
 export function saveDjenProxyPool(slots: ProxySlotConfig[]): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_POOL, JSON.stringify(slots));
+}
+
+// ---------------------------------------------------------------------------
+// Persistência REMOTA (Supabase) — fonte da verdade
+// ---------------------------------------------------------------------------
+// O cadastro das VPS agora vive na tabela `djen_proxy_pool` (RLS: admin/coord).
+// O localStorage continua sendo usado como cache em memória durante a sessão
+// para não bloquear chamadas do round-robin enquanto o fetch está em andamento.
+
+/** Carrega do Supabase e atualiza o cache local. Retorna a lista atual. */
+export async function syncDjenProxyPoolFromSupabase(): Promise<ProxySlotConfig[]> {
+  try {
+    const { data, error } = await (supabase as any)
+      .from("djen_proxy_pool")
+      .select("id, label, base_url, token, enabled, pool_enabled_global")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const slots: ProxySlotConfig[] = rows.map((r: any) => ({
+      id: r.id,
+      label: r.label,
+      baseUrl: r.base_url,
+      token: r.token,
+      enabled: !!r.enabled,
+    }));
+    saveDjenProxyPool(slots);
+    // Toggle global: se houver pelo menos uma linha, usa o flag dela; caso
+    // contrário, mantém o estado local atual.
+    if (rows.length > 0) {
+      const globalOn = rows.some((r: any) => r.pool_enabled_global !== false);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_ENABLED, globalOn ? "1" : "0");
+      }
+    }
+    return slots;
+  } catch (e) {
+    console.warn("[djenProxyPool] Falha ao sincronizar do Supabase:", e);
+    return loadDjenProxyPool();
+  }
+}
+
+/** Insere uma nova VPS no Supabase e atualiza o cache local. */
+export async function addProxySlotRemote(
+  input: { label: string; baseUrl: string; token: string },
+): Promise<ProxySlotConfig> {
+  const payload = {
+    label: input.label,
+    base_url: input.baseUrl,
+    token: input.token,
+    enabled: true,
+  };
+  const { data, error } = await (supabase as any)
+    .from("djen_proxy_pool")
+    .insert(payload)
+    .select("id, label, base_url, token, enabled")
+    .single();
+  if (error) throw error;
+  const slot: ProxySlotConfig = {
+    id: data.id,
+    label: data.label,
+    baseUrl: data.base_url,
+    token: data.token,
+    enabled: !!data.enabled,
+  };
+  saveDjenProxyPool([...loadDjenProxyPool(), slot]);
+  return slot;
+}
+
+/** Atualiza um slot (label/baseUrl/token/enabled) no Supabase. */
+export async function updateProxySlotRemote(
+  id: string,
+  patch: Partial<{ label: string; baseUrl: string; token: string; enabled: boolean }>,
+): Promise<void> {
+  const update: Record<string, any> = {};
+  if (patch.label !== undefined) update.label = patch.label;
+  if (patch.baseUrl !== undefined) update.base_url = patch.baseUrl;
+  if (patch.token !== undefined) update.token = patch.token;
+  if (patch.enabled !== undefined) update.enabled = patch.enabled;
+  const { error } = await (supabase as any)
+    .from("djen_proxy_pool")
+    .update(update)
+    .eq("id", id);
+  if (error) throw error;
+  const next = loadDjenProxyPool().map((s) =>
+    s.id === id
+      ? {
+          ...s,
+          ...(patch.label !== undefined ? { label: patch.label } : {}),
+          ...(patch.baseUrl !== undefined ? { baseUrl: patch.baseUrl } : {}),
+          ...(patch.token !== undefined ? { token: patch.token } : {}),
+          ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+        }
+      : s,
+  );
+  saveDjenProxyPool(next);
+}
+
+/** Remove um slot do Supabase e do cache local. */
+export async function removeProxySlotRemote(id: string): Promise<void> {
+  const { error } = await (supabase as any)
+    .from("djen_proxy_pool")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+  saveDjenProxyPool(loadDjenProxyPool().filter((s) => s.id !== id));
+}
+
+/**
+ * Atualiza o flag global "pool ligado" no Supabase (gravado em todas as linhas
+ * para manter simples — a coluna pool_enabled_global é o "switch" único).
+ */
+export async function setPoolEnabledRemote(enabled: boolean): Promise<void> {
+  setDjenProxyPoolEnabled(enabled);
+  try {
+    const slots = loadDjenProxyPool();
+    if (slots.length === 0) return;
+    const { error } = await (supabase as any)
+      .from("djen_proxy_pool")
+      .update({ pool_enabled_global: enabled })
+      .in("id", slots.map((s) => s.id));
+    if (error) throw error;
+  } catch (e) {
+    console.warn("[djenProxyPool] Falha ao salvar toggle global no Supabase:", e);
+  }
 }
 
 export function isDjenProxyPoolEnabled(): boolean {
