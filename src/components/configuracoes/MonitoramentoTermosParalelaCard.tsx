@@ -124,7 +124,7 @@ export function MonitoramentoTermosParalelaCard() {
             <Zap className="h-5 w-5 text-primary" />
             <CardTitle>DJEN Termos Paralela</CardTitle>
             <Badge variant="outline" className="text-xs">
-              Beta — {progress.concorrencia} tribunais simultâneos
+              {progress.concorrencia} worker{progress.concorrencia > 1 ? 's' : ''} (1 por IP)
             </Badge>
             {poolEnabled ? (
               <Badge className="bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 text-xs gap-1">
