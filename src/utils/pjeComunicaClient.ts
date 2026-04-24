@@ -7,7 +7,9 @@
 // mitigar 429 do PJE Comunica. Quando o pool está desabilitado (default),
 // o comportamento é idêntico ao histórico — não afeta Pro / Flash / STF Flash.
 
-import { fetchDjenViaPool } from "./djenProxyPool";
+import { fetchDjenViaPool, readPoolViaFromResponse, type PoolViaInfo } from "./djenProxyPool";
+
+export type { PoolViaInfo };
 
 export type PjeSearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
@@ -260,7 +262,7 @@ function buildTextoParam(params: PjeComunicaSearchParams): string | null {
 
 export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; onPoolVia?: (via: PoolViaInfo) => void }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
   console.log('[PJE Comunica] 🚀 buscarPjeComunicaNoBrowser params:', {
