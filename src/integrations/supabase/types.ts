@@ -2548,6 +2548,42 @@ export type Database = {
           },
         ]
       }
+      djen_proxy_pool: {
+        Row: {
+          base_url: string
+          created_at: string
+          criado_por: string | null
+          enabled: boolean
+          id: string
+          label: string
+          pool_enabled_global: boolean
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          base_url: string
+          created_at?: string
+          criado_por?: string | null
+          enabled?: boolean
+          id?: string
+          label: string
+          pool_enabled_global?: boolean
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          criado_por?: string | null
+          enabled?: boolean
+          id?: string
+          label?: string
+          pool_enabled_global?: boolean
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       djen_runs: {
         Row: {
           created_at: string
