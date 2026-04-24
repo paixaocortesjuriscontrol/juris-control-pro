@@ -613,6 +613,12 @@ export async function buscarPjeComunicaPaginado(
     let lastErr: any = null;
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Verificação imediata de cancelamento antes de tentar fetch
+      if (options?.signal?.aborted) {
+        const err: any = new Error('Aborted');
+        err.name = 'AbortError';
+        throw err;
+      }
       try {
         const resp = await buscarPjeComunicaNoBrowser(
           { ...params, page, pageSize },
@@ -647,7 +653,8 @@ export async function buscarPjeComunicaPaginado(
             `[PJE Comunica] ${is429 ? 'Rate limit (429)' : 'Erro'} na página ${page}. ` +
               `Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`
           );
-          await new Promise(r => setTimeout(r, waitTime));
+          // Sleep abortável: se o usuário cancelar, interrompe imediatamente
+          await abortableSleep(waitTime, options?.signal);
         }
       }
     }
@@ -685,7 +692,7 @@ export async function buscarPjeComunicaPaginado(
       }
 
       if (delayMs > 0) {
-        await new Promise((r) => setTimeout(r, delayMs));
+        await abortableSleep(delayMs, options?.signal);
       }
     } catch (e: any) {
       // Se foi cancelado, parar imediatamente
