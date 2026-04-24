@@ -11,13 +11,17 @@ import {
   loadDjenProxyPool,
   saveDjenProxyPool,
   isDjenProxyPoolEnabled,
-  setDjenProxyPoolEnabled,
   checkDjenProxyHealth,
   getDjenProxySlotsRuntime,
   clearDjenProxyOfflineMark,
   generateProxySlotId,
   getDjenProxyPoolStats,
   resetDjenProxyPoolStats,
+  syncDjenProxyPoolFromSupabase,
+  addProxySlotRemote,
+  updateProxySlotRemote,
+  removeProxySlotRemote,
+  setPoolEnabledRemote,
   type PoolSessionStats,
   type ProxySlotConfig,
 } from "@/utils/djenProxyPool";
@@ -35,6 +39,7 @@ export default function PoolProxyDjenCard() {
   const [slots, setSlots] = useState<SlotState[]>([]);
   const [form, setForm] = useState({ label: "", baseUrl: "", token: "" });
   const [testing, setTesting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PoolSessionStats>(() => getDjenProxyPoolStats());
 
   function refreshFromStorage() {
@@ -43,16 +48,28 @@ export default function PoolProxyDjenCard() {
   }
 
   useEffect(() => {
-    setEnabled(isDjenProxyPoolEnabled());
-    refreshFromStorage();
+    let alive = true;
+    (async () => {
+      try {
+        await syncDjenProxyPoolFromSupabase();
+      } finally {
+        if (!alive) return;
+        setEnabled(isDjenProxyPoolEnabled());
+        refreshFromStorage();
+        setLoading(false);
+      }
+    })();
     const id = window.setInterval(() => {
       setStats(getDjenProxyPoolStats());
     }, 1500);
-    return () => window.clearInterval(id);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
   }, []);
 
-  function handleToggle(value: boolean) {
-    setDjenProxyPoolEnabled(value);
+  async function handleToggle(value: boolean) {
+    await setPoolEnabledRemote(value);
     setEnabled(value);
     toast({
       title: value ? "Pool de proxies ativado" : "Pool de proxies desativado",
@@ -97,15 +114,20 @@ export default function PoolProxyDjenCard() {
         return;
       }
 
-      const next: ProxySlotConfig = {
-        id: generateProxySlotId(),
-        label,
-        baseUrl,
-        token,
-        enabled: true,
-      };
-      const all = [...loadDjenProxyPool(), next];
-      saveDjenProxyPool(all);
+      try {
+        await addProxySlotRemote({ label, baseUrl, token });
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        const isDup = /duplicate|already exists|unique/i.test(msg);
+        toast({
+          title: isDup ? "VPS já cadastrada" : "Erro ao salvar no Supabase",
+          description: isDup
+            ? "Essa URL base já existe no pool — edite a VPS atual em vez de duplicar."
+            : msg,
+          variant: "destructive",
+        });
+        return;
+      }
       setForm({ label: "", baseUrl: "", token: "" });
       refreshFromStorage();
       toast({
@@ -117,18 +139,30 @@ export default function PoolProxyDjenCard() {
     }
   }
 
-  function handleRemove(id: string) {
-    const all = loadDjenProxyPool().filter((s) => s.id !== id);
-    saveDjenProxyPool(all);
-    refreshFromStorage();
+  async function handleRemove(id: string) {
+    try {
+      await removeProxySlotRemote(id);
+      refreshFromStorage();
+    } catch (e: any) {
+      toast({
+        title: "Erro ao remover VPS",
+        description: e?.message || String(e),
+        variant: "destructive",
+      });
+    }
   }
 
-  function handleToggleSlot(id: string, value: boolean) {
-    const all = loadDjenProxyPool().map((s) =>
-      s.id === id ? { ...s, enabled: value } : s,
-    );
-    saveDjenProxyPool(all);
-    refreshFromStorage();
+  async function handleToggleSlot(id: string, value: boolean) {
+    try {
+      await updateProxySlotRemote(id, { enabled: value });
+      refreshFromStorage();
+    } catch (e: any) {
+      toast({
+        title: "Erro ao atualizar VPS",
+        description: e?.message || String(e),
+        variant: "destructive",
+      });
+    }
   }
 
   async function handleRecheck(slot: SlotState) {
