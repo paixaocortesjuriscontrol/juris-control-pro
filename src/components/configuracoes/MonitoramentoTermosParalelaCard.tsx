@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Loader2, Zap, PlayCircle, StopCircle,
   CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull,
-  Server, Globe, Wifi, WifiOff,
+  Server, Globe, Wifi, WifiOff, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermosParalela } from "@/hooks/useDjenTermosParalela";
@@ -60,6 +60,7 @@ export function MonitoramentoTermosParalelaCard() {
     retomar,
     cancelar,
     forceKill,
+    resetTotal,
   } = useDjenTermosParalela();
 
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
@@ -201,6 +202,20 @@ export function MonitoramentoTermosParalelaCard() {
           <Button onClick={() => forceKill(true)} variant="ghost" size="sm" className="gap-2 ml-auto">
             <Skull className="h-4 w-4" />
             Forçar Parada
+          </Button>
+          <Button
+            onClick={() => {
+              if (confirm('Reset Total: apaga TUDO (checkpoint, progresso, stats, execuções órfãs no banco). Continuar?')) {
+                resetTotal();
+              }
+            }}
+            variant="destructive"
+            size="sm"
+            className="gap-2"
+            title="Limpa absolutamente tudo: checkpoint, progresso, stats do pool e execuções órfãs no banco"
+          >
+            <Trash2 className="h-4 w-4" />
+            Reset Total
           </Button>
         </div>
 
