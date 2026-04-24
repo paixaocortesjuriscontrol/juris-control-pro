@@ -17,10 +17,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Loader2, Zap, PlayCircle, StopCircle,
   CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull,
+  Server, Globe, Wifi, WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermosParalela } from "@/hooks/useDjenTermosParalela";
 import { toast } from "sonner";
+import {
+  getDjenProxyPoolStats,
+  isDjenProxyPoolEnabled,
+  getDjenProxySlotsRuntime,
+} from "@/utils/djenProxyPool";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   idle: { label: 'Aguardando', color: 'text-muted-foreground', bg: 'bg-muted/50' },
@@ -59,6 +65,22 @@ export function MonitoramentoTermosParalelaCard() {
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
 
+  // Estatísticas vivas do pool (para o painel de roteamento)
+  const [poolStats, setPoolStats] = useState(() => getDjenProxyPoolStats());
+  const [poolEnabled, setPoolEnabled] = useState(() => isDjenProxyPoolEnabled());
+  const [poolSlots, setPoolSlots] = useState(() => getDjenProxySlotsRuntime());
+
+  useEffect(() => {
+    const tick = () => {
+      setPoolStats(getDjenProxyPoolStats());
+      setPoolEnabled(isDjenProxyPoolEnabled());
+      setPoolSlots(getDjenProxySlotsRuntime());
+    };
+    tick();
+    const id = window.setInterval(tick, 1500);
+    return () => window.clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!dataInicio && !dataFim) {
       const hoje = new Date();
@@ -85,6 +107,15 @@ export function MonitoramentoTermosParalelaCard() {
     retomar();
   }, [checkpoint, retomar]);
 
+  // Mapa id→label dos slots para exibir contadores legíveis
+  const slotLabelById: Record<string, string> = {};
+  poolSlots.forEach(s => { slotLabelById[s.id] = s.label || s.baseUrl; });
+
+  const totalProxyCalls = Object.values(poolStats.byProxy).reduce((a, b) => a + b, 0);
+  const totalRateLimits = Object.values(poolStats.rateLimitsByProxy).reduce((a, b) => a + b, 0);
+  const proxiesOnline = poolSlots.filter(s => s.enabled && s.online).length;
+  const proxiesTotal = poolSlots.filter(s => s.enabled).length;
+
   return (
     <Card>
       <CardHeader>
@@ -95,6 +126,15 @@ export function MonitoramentoTermosParalelaCard() {
             <Badge variant="outline" className="text-xs">
               Beta — {progress.concorrencia} tribunais simultâneos
             </Badge>
+            {poolEnabled ? (
+              <Badge className="bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 text-xs gap-1">
+                <Server className="h-3 w-3" /> Pool VPS ativo · {proxiesOnline}/{proxiesTotal}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs gap-1">
+                <Globe className="h-3 w-3" /> Direto (browser)
+              </Badge>
+            )}
           </div>
           <div className={cn("px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2", statusConfig.bg, statusConfig.color)}>
             {progress.status === 'executando' && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -187,6 +227,79 @@ export function MonitoramentoTermosParalelaCard() {
           </div>
         )}
 
+        {/* Painel de roteamento (Pool VPS) */}
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Server className="h-4 w-4 text-primary" />
+              Roteamento da sessão
+            </div>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {poolStats.total} chamadas
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-md border bg-background p-2">
+              <div className="text-muted-foreground flex items-center gap-1">
+                <Globe className="h-3 w-3" /> Direto (browser)
+              </div>
+              <div className="text-base font-bold tabular-nums">{poolStats.direct}</div>
+            </div>
+            <div className="rounded-md border bg-background p-2">
+              <div className="text-muted-foreground flex items-center gap-1">
+                <Server className="h-3 w-3" /> Via VPS
+              </div>
+              <div className="text-base font-bold tabular-nums text-primary">
+                {totalProxyCalls}
+              </div>
+            </div>
+            <div className="rounded-md border bg-background p-2">
+              <div className="text-muted-foreground">Rate-limits (429)</div>
+              <div className={cn(
+                "text-base font-bold tabular-nums",
+                totalRateLimits > 0 ? "text-amber-600" : ""
+              )}>{totalRateLimits}</div>
+            </div>
+            <div className="rounded-md border bg-background p-2">
+              <div className="text-muted-foreground">VPS online</div>
+              <div className="text-base font-bold tabular-nums">
+                {proxiesOnline}/{proxiesTotal}
+              </div>
+            </div>
+          </div>
+          {poolSlots.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {poolSlots.map(s => {
+                const calls = poolStats.byProxy[s.id] || 0;
+                const rl = poolStats.rateLimitsByProxy[s.id] || 0;
+                return (
+                  <Badge
+                    key={s.id}
+                    variant="outline"
+                    className={cn(
+                      "text-[11px] gap-1 font-mono",
+                      s.online
+                        ? "border-emerald-500/40 text-emerald-700 bg-emerald-500/5"
+                        : "border-destructive/40 text-destructive bg-destructive/5"
+                    )}
+                    title={s.online ? `Online — ${s.baseUrl}` : `Offline — ${s.lastError ?? ''}`}
+                  >
+                    {s.online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                    {s.label}
+                    <span className="opacity-70">· {calls}</span>
+                    {rl > 0 && <span className="text-amber-600">⚠ {rl}</span>}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+          {!poolEnabled && (
+            <p className="text-[11px] text-muted-foreground italic">
+              Pool VPS desabilitado — todas as chamadas estão indo direto do navegador.
+            </p>
+          )}
+        </div>
+
         {/* Tracks por tribunal */}
         {progress.tracks.length > 0 && (
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
@@ -198,6 +311,9 @@ export function MonitoramentoTermosParalelaCard() {
                 ? Math.min(100, Math.round((track.current / track.total) * 100))
                 : 0;
               const colorClass = TRACK_COLORS[track.status] || TRACK_COLORS.pendente;
+              const totalCallsTrack =
+                track.callsDirect +
+                Object.values(track.callsByProxy || {}).reduce((a, b) => a + b, 0);
               return (
                 <div
                   key={track.tribunal}
@@ -211,6 +327,24 @@ export function MonitoramentoTermosParalelaCard() {
                       </Badge>
                       {track.status === 'executando' && (
                         <Loader2 className="h-3 w-3 animate-spin" />
+                      )}
+                      {/* Última rota usada (só relevante quando executou algo) */}
+                      {track.lastViaKind && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] gap-1 font-mono",
+                            track.lastViaKind === 'proxy'
+                              ? "border-primary/50 text-primary bg-primary/10"
+                              : "border-muted-foreground/30 text-muted-foreground bg-muted/40"
+                          )}
+                          title={`Última chamada via ${track.lastViaLabel}`}
+                        >
+                          {track.lastViaKind === 'proxy'
+                            ? <Server className="h-3 w-3" />
+                            : <Globe className="h-3 w-3" />}
+                          {track.lastViaLabel}
+                        </Badge>
                       )}
                     </div>
                     <div className="text-xs tabular-nums whitespace-nowrap">
@@ -226,6 +360,25 @@ export function MonitoramentoTermosParalelaCard() {
                       ✅{track.novas} ♻️{track.duplicadas} ❌{track.descartadas}
                     </span>
                   </div>
+                  {/* Detalhamento de uso por rota neste tribunal */}
+                  {totalCallsTrack > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1 text-[10px]">
+                      {track.callsDirect > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-background/60 border font-mono inline-flex items-center gap-1">
+                          <Globe className="h-2.5 w-2.5" /> Direto · {track.callsDirect}
+                        </span>
+                      )}
+                      {Object.entries(track.callsByProxy || {}).map(([id, n]) => (
+                        <span
+                          key={id}
+                          className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary font-mono inline-flex items-center gap-1"
+                        >
+                          <Server className="h-2.5 w-2.5" />
+                          {slotLabelById[id] || id} · {n}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {track.ultimoErro && (
                     <p className="text-xs text-destructive italic">⚠ {track.ultimoErro}</p>
                   )}
