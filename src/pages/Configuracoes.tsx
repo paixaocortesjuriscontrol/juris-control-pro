@@ -14,6 +14,7 @@ import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/Monit
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { MonitoramentoTermosProCard } from "@/components/configuracoes/MonitoramentoTermosProCard";
 import { MonitoramentoTermosFlashCard } from "@/components/configuracoes/MonitoramentoTermosFlashCard";
+import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
 import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
@@ -69,6 +70,10 @@ export default function Configuracoes() {
           <TabsTrigger value="djen-termos-flash" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Flash</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen-termos-paralela" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN Termos Paralela</span>
           </TabsTrigger>
           <TabsTrigger value="stf-termos" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
@@ -218,6 +223,18 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoTermosFlashCard coordenacaoId="" />
+        </TabsContent>
+
+        {/* Aba DJEN Termos Paralela */}
+        <TabsContent value="djen-termos-paralela" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">DJEN Termos Paralela</h2>
+            <p className="text-sm text-muted-foreground">
+              Execução paralela por tribunal: até 5 tribunais simultâneos com fila por
+              prioridade (TST → STF → STJ → TRFs → TRTs → TJs) e progresso individual.
+            </p>
+          </div>
+          <MonitoramentoTermosParalelaCard />
         </TabsContent>
 
         {/* Aba STF Termos */}
