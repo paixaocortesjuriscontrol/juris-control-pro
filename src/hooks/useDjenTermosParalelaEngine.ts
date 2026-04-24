@@ -98,6 +98,30 @@ const CONFIG = {
   retry_base_delay: 12000,
 };
 
+// ============================================================================
+// AGRUPAMENTO POR HOST (anti rate-limit 429)
+// ============================================================================
+// Todos os tribunais conhecidos hoje usam o mesmo backend (comunicaapi.pje.jus.br),
+// então rodar 5 tribunais em paralelo gera HTTP 429 em massa. Esta tabela mapeia
+// cada tribunal para um "bucket" (host lógico) e limitamos quantos workers podem
+// rodar simultaneamente em cada bucket. Se no futuro algum tribunal migrar para
+// um endpoint próprio, basta movê-lo de bucket para liberar paralelismo.
+
+type HostBucket = 'pje-comunica' | 'outro';
+
+function getHostBucket(_tribunal: string): HostBucket {
+  // Hoje TODOS os tribunais (TST, STF, STJ, TRFs, TRTs, TJs) consultam o
+  // mesmo host comunicaapi.pje.jus.br via buscarPjeComunicaPaginado.
+  return 'pje-comunica';
+}
+
+// Limite por bucket: máx. simultâneos no MESMO host PJE Comunica.
+// Manter 2 reduz drasticamente o 429 sem matar o paralelismo.
+const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
+  'pje-comunica': 2,
+  'outro': 5,
+};
+
 const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
