@@ -17,6 +17,7 @@ import {
   awaitPjeComunicaGlobalCooldown,
   getPjeComunicaGlobalCooldownRemainingMs,
   type PjeSearchType,
+  type PoolViaInfo,
 } from "@/utils/pjeComunicaClient";
 import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 import {
@@ -46,6 +47,13 @@ export interface TrackProgress {
   ultimoErro: string | null;
   startedAt: number | null;
   finishedAt: number | null;
+  /** Última rota usada (Direto vs VPS-X) — para feedback de roteamento. */
+  lastViaId: string | null;
+  lastViaLabel: string | null;
+  lastViaKind: 'direct' | 'proxy' | null;
+  /** Contagem total por rota dentro deste tribunal. */
+  callsDirect: number;
+  callsByProxy: Record<string, number>;
 }
 
 export interface DjenTermosParalelaProgress {
@@ -272,6 +280,35 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
     tribunaisConcluidos: concluidos,
     percentage,
   };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
+}
+
+/**
+ * Registra a rota (Direto/VPS) usada pela última chamada feita pelo tribunal.
+ * Atualiza tanto o "lastVia" (mostrado em destaque na UI) quanto os contadores
+ * acumulados por rota para um painel de uso por tribunal.
+ */
+function registrarViaTrack(tribunal: string, via: PoolViaInfo) {
+  const tracks = state.progress.tracks.map(t => {
+    if (t.tribunal !== tribunal) return t;
+    const callsByProxy = { ...t.callsByProxy };
+    let callsDirect = t.callsDirect;
+    if (via.kind === 'direct') {
+      callsDirect = callsDirect + 1;
+    } else {
+      callsByProxy[via.id] = (callsByProxy[via.id] || 0) + 1;
+    }
+    return {
+      ...t,
+      lastViaId: via.id,
+      lastViaLabel: via.label,
+      lastViaKind: via.kind,
+      callsDirect,
+      callsByProxy,
+    };
+  });
+  state.progress = { ...state.progress, tracks };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
 }
@@ -783,6 +820,7 @@ async function processarTermoEmTribunal(
         rateLimitHits++;
         ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
       },
+      onPoolVia: (via) => registrarViaTrack(tribunal, via),
     });
     addResults(resp.items);
     if (resp.lastError) ultimoErro = resp.lastError;
@@ -812,6 +850,7 @@ async function processarTermoEmTribunal(
           maxRetries: CONFIG.max_retries,
           retryBaseDelay: CONFIG.retry_base_delay,
           onRateLimit: () => { rateLimitHits++; },
+          onPoolVia: (via) => registrarViaTrack(tribunal, via),
         });
         addResults(resp.items);
       } catch (e: any) {
@@ -1105,6 +1144,11 @@ async function executarLoop(
       ultimoErro: null,
       startedAt: null,
       finishedAt: tribunaisJaConcluidos.has(trib) ? Date.now() : null,
+      lastViaId: null,
+      lastViaLabel: null,
+      lastViaKind: null,
+      callsDirect: 0,
+      callsByProxy: {},
     }));
 
     updateProgress({
@@ -1394,6 +1438,11 @@ export { MAX_CONCURRENCY };
       ultimoErro: null,
       startedAt: null,
       finishedAt: null,
+      lastViaId: null,
+      lastViaLabel: null,
+      lastViaKind: null,
+      callsDirect: 0,
+      callsByProxy: {},
     }));
     state.progress = {
       ...createDefaultProgress(),
@@ -1404,7 +1453,11 @@ export { MAX_CONCURRENCY };
       novas: cp.novas || 0,
       duplicadas: cp.duplicadas || 0,
       descartadas: cp.descartadas || 0,
-      percentage: 0,
+      // Mostra "X de X concluídos" como 100% das tracks que conseguimos
+      // recuperar do checkpoint. Quando o usuário clicar em Retomar, o engine
+      // recalcula totalTribunais com a lista completa e o percentual cai para
+      // refletir os tribunais que ainda faltam.
+      percentage: concluidos.length > 0 ? 100 : 0,
       mensagem: `Execução interrompida — ${concluidos.length} tribunal(is) já concluído(s). Clique em Retomar para continuar.`,
       dataInicioYmd: cp.dataInicioYmd,
       dataFimYmd: cp.dataFimYmd,

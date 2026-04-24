@@ -50,6 +50,50 @@ export interface PoolSessionStats {
   errorsByProxy: Record<string, number>;
 }
 
+/** Identificação da rota usada por cada chamada (para a UI). */
+export interface PoolViaInfo {
+  id: string;          // DIRECT_SLOT_ID ou slot.id
+  label: string;       // texto curto pra UI
+  kind: "direct" | "proxy";
+}
+
+/**
+ * Anota a Response com headers identificando qual slot atendeu a chamada.
+ * Usamos um Response novo porque headers de respostas opacas/cross-origin
+ * podem ser readonly no browser.
+ */
+function annotateVia(
+  resp: Response,
+  id: string,
+  label: string,
+  kind: "direct" | "proxy"
+): Response {
+  try {
+    const headers = new Headers(resp.headers);
+    headers.set("x-djen-via-id", id);
+    headers.set("x-djen-via-label", label);
+    headers.set("x-djen-via-kind", kind);
+    // Evita reler body — clonamos e devolvemos. Para responses já consumidas
+    // (caso do envelope reconstruído), basta criar um novo Response com o body.
+    return new Response(resp.body, {
+      status: resp.status,
+      statusText: resp.statusText,
+      headers,
+    });
+  } catch {
+    return resp;
+  }
+}
+
+/** Lê os headers anotados em uma Response — usado pelo cliente PJE Comunica. */
+export function readPoolViaFromResponse(resp: Response): PoolViaInfo | null {
+  const id = resp.headers.get("x-djen-via-id");
+  const label = resp.headers.get("x-djen-via-label");
+  const kind = resp.headers.get("x-djen-via-kind");
+  if (!id || !label || (kind !== "direct" && kind !== "proxy")) return null;
+  return { id, label, kind };
+}
+
 let sessionStats: PoolSessionStats = createEmptyStats();
 
 function createEmptyStats(): PoolSessionStats {
@@ -204,7 +248,8 @@ export async function fetchDjenViaPool(
   if (!isDjenProxyPoolEnabled()) {
     sessionStats.total++;
     sessionStats.direct++;
-    return fetch(fullDirectUrl, init);
+    const r = await fetch(fullDirectUrl, init);
+    return annotateVia(r, DIRECT_SLOT_ID, "Direto (browser)", "direct");
   }
 
   // Extrai a query string da URL direta para repassar ao proxy.
@@ -224,7 +269,7 @@ export async function fetchDjenViaPool(
         sessionStats.direct++;
         const resp = await fetch(fullDirectUrl, init);
         // Se direct deu 429, ainda é informação útil para o motor — devolve.
-        return resp;
+        return annotateVia(resp, DIRECT_SLOT_ID, "Direto (browser)", "direct");
       }
 
       const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/djen?${queryString}`;
@@ -259,10 +304,11 @@ export async function fetchDjenViaPool(
       sessionStats.byProxy[slot.id] = (sessionStats.byProxy[slot.id] || 0) + 1;
 
       // Reconstroi uma Response equivalente à direta para o cliente consumir.
-      return new Response(upstreamBody, {
+      const rebuilt = new Response(upstreamBody, {
         status: upstreamStatus || 200,
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
+      return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
     } catch (err: any) {
       lastErr = err;
       if (err?.name === "AbortError") throw err;

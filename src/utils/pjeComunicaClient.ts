@@ -7,7 +7,9 @@
 // mitigar 429 do PJE Comunica. Quando o pool está desabilitado (default),
 // o comportamento é idêntico ao histórico — não afeta Pro / Flash / STF Flash.
 
-import { fetchDjenViaPool } from "./djenProxyPool";
+import { fetchDjenViaPool, readPoolViaFromResponse, type PoolViaInfo } from "./djenProxyPool";
+
+export type { PoolViaInfo };
 
 export type PjeSearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
@@ -260,7 +262,7 @@ function buildTextoParam(params: PjeComunicaSearchParams): string | null {
 
 export async function buscarPjeComunicaNoBrowser(
   params: PjeComunicaSearchParams,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; onPoolVia?: (via: PoolViaInfo) => void }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
   console.log('[PJE Comunica] 🚀 buscarPjeComunicaNoBrowser params:', {
@@ -408,6 +410,14 @@ export async function buscarPjeComunicaNoBrowser(
         signal: combinedSignal,
       });
       clearTimeout(timeoutId);
+
+      // Repassa para o chamador qual rota (direto/proxy) atendeu esta página.
+      try {
+        const via = readPoolViaFromResponse(resp);
+        if (via && options?.onPoolVia) options.onPoolVia(via);
+      } catch {
+        /* noop */
+      }
 
       const contentType = resp.headers.get("content-type") || "";
       if (!resp.ok) {
@@ -620,6 +630,7 @@ export async function buscarPjeComunicaPaginado(
     retryBaseDelay?: number;
     continueUntilEmpty?: boolean;
     onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
+    onPoolVia?: (via: PoolViaInfo) => void;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
@@ -659,7 +670,7 @@ export async function buscarPjeComunicaPaginado(
       try {
         const resp = await buscarPjeComunicaNoBrowser(
           { ...params, page, pageSize },
-          { signal: options?.signal }
+          { signal: options?.signal, onPoolVia: options?.onPoolVia }
         );
         return resp;
       } catch (e: any) {
