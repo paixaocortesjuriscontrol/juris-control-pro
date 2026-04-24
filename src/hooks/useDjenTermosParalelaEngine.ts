@@ -1,0 +1,1225 @@
+/**
+ * DJEN Termos Paralela Engine v1.0
+ *
+ * Motor independente derivado do DJEN Termos Pro.
+ * Inverte o loop: ao invés de (dia → termo → tribunal), processa
+ * (tribunal → dia × termo) em paralelo, com até MAX_CONCURRENCY
+ * tribunais executando simultaneamente.
+ *
+ * Cada tribunal é uma "track" com sua própria barra de progresso.
+ * Mantém validação por metadados estruturados, dedup e persistência
+ * idênticas ao Pro (compartilha tabela publicacoes_djen).
+ */
+
+import { supabase } from "@/integrations/supabase/client";
+import {
+  buscarPjeComunicaPaginado,
+  awaitPjeComunicaGlobalCooldown,
+  getPjeComunicaGlobalCooldownRemainingMs,
+  type PjeSearchType,
+} from "@/utils/pjeComunicaClient";
+import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+
+// ============================================================================
+// TIPOS
+// ============================================================================
+
+export type TrackStatus = 'pendente' | 'executando' | 'concluido' | 'erro' | 'cancelado';
+
+export interface TrackProgress {
+  tribunal: string;
+  status: TrackStatus;
+  current: number; // termos processados (no tribunal × dias)
+  total: number;   // total termos × dias para esse tribunal
+  novas: number;
+  duplicadas: number;
+  descartadas: number;
+  mensagem: string;
+  termoAtual: string | null;
+  diaAtual: string | null;
+  rateLimitHits: number;
+  ultimoErro: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+export interface DjenTermosParalelaProgress {
+  status: 'idle' | 'executando' | 'concluido' | 'cancelado' | 'erro';
+  tracks: TrackProgress[];
+  totalTribunais: number;
+  tribunaisConcluidos: number;
+  novas: number;
+  duplicadas: number;
+  descartadas: number;
+  percentage: number;
+  mensagem: string;
+  tempoDecorrido: number;
+  dataInicioYmd: string | null;
+  dataFimYmd: string | null;
+  concorrencia: number;
+}
+
+interface Monitoramento {
+  id: string;
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
+  termo_busca: string;
+  oab?: string;
+  uf?: string;
+  ativo: boolean;
+  exclusoes?: string[];
+  tribunais?: string[];
+  termos_or?: string[];
+  descricao?: string | null;
+  condicao_concomitante?: string | null;
+  coordenacao_id?: string | null;
+}
+
+interface Checkpoint {
+  runKey: string;
+  dataInicioYmd: string;
+  dataFimYmd: string;
+  tribunaisConcluidos: string[];
+  novas: number;
+  duplicadas: number;
+  descartadas: number;
+  tempoInicio: number;
+}
+
+// ============================================================================
+// CONFIGURAÇÃO
+// ============================================================================
+
+const MAX_CONCURRENCY = 5;
+const CONFIG = {
+  delay_between_terms: 1500,
+  delay_between_pages: 1200,
+  delay_between_termos_or: 1000,
+  max_retries: 3,
+  retry_base_delay: 12000,
+};
+
+const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
+const BR_TZ = 'America/Sao_Paulo';
+const EXECUTION_SYNC_INTERVAL_MS = 15000;
+
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ============================================================================
+// ORDEM DE PRIORIDADE DE TRIBUNAIS
+// ============================================================================
+
+const TRIBUNAL_PRIORITY_ORDER: string[] = [
+  'TST', 'STF', 'STJ',
+  'TRF1', 'TRF2', 'TRF3', 'TRF4', 'TRF5', 'TRF6',
+  'TRT1', 'TRT2', 'TRT3', 'TRT4', 'TRT5', 'TRT6', 'TRT7', 'TRT8', 'TRT9',
+  'TRT10', 'TRT11', 'TRT12', 'TRT13', 'TRT14', 'TRT15', 'TRT16', 'TRT17',
+  'TRT18', 'TRT19', 'TRT20', 'TRT21', 'TRT22', 'TRT23', 'TRT24',
+  'TJAC', 'TJAL', 'TJAM', 'TJAP', 'TJBA', 'TJCE', 'TJDFT', 'TJES', 'TJGO',
+  'TJMA', 'TJMG', 'TJMS', 'TJMT', 'TJPA', 'TJPB', 'TJPE', 'TJPI', 'TJPR',
+  'TJRJ', 'TJRN', 'TJRO', 'TJRR', 'TJRS', 'TJSC', 'TJSE', 'TJSP', 'TJTO',
+];
+
+function ordenarTribunais(tribunais: string[]): string[] {
+  const indexMap = new Map<string, number>();
+  TRIBUNAL_PRIORITY_ORDER.forEach((t, i) => indexMap.set(t, i));
+  return [...tribunais].sort((a, b) => {
+    const ia = indexMap.has(a) ? indexMap.get(a)! : 9999;
+    const ib = indexMap.has(b) ? indexMap.get(b)! : 9999;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b);
+  });
+}
+
+const TODOS_CIVEIS = ['TJAC','TJAL','TJAM','TJAP','TJBA','TJCE','TJDFT','TJES','TJGO','TJMA','TJMG','TJMS','TJMT','TJPA','TJPB','TJPE','TJPI','TJPR','TJRJ','TJRN','TJRO','TJRR','TJRS','TJSC','TJSE','TJSP','TJTO'];
+const TODOS_TRT = ['TST','TRT1','TRT2','TRT3','TRT4','TRT5','TRT6','TRT7','TRT8','TRT9','TRT10','TRT11','TRT12','TRT13','TRT14','TRT15','TRT16','TRT17','TRT18','TRT19','TRT20','TRT21','TRT22','TRT23','TRT24'];
+
+function expandirTribunaisDoMon(tribunais?: string[]): string[] {
+  if (!tribunais?.length) return [];
+  const set = new Set<string>();
+  for (const t of tribunais) {
+    if (t === 'TODOS_CIVEIS') TODOS_CIVEIS.forEach(x => set.add(x));
+    else if (t === 'TODOS_TRT') TODOS_TRT.forEach(x => set.add(x));
+    else set.add(t.toUpperCase());
+  }
+  return Array.from(set);
+}
+
+// ============================================================================
+// SINGLETON STATE
+// ============================================================================
+
+let state: {
+  isRunning: boolean;
+  progress: DjenTermosParalelaProgress;
+  checkpoint: Checkpoint | null;
+  abortController: AbortController | null;
+  listeners: Set<(p: DjenTermosParalelaProgress) => void>;
+  timerInterval: ReturnType<typeof setInterval> | null;
+  lastUpdatedAt: number;
+  executionId: string | null;
+  lastExecutionSyncAt: number;
+} = {
+  isRunning: false,
+  progress: createDefaultProgress(),
+  checkpoint: null,
+  abortController: null,
+  listeners: new Set(),
+  timerInterval: null,
+  lastUpdatedAt: 0,
+  executionId: null,
+  lastExecutionSyncAt: 0,
+};
+
+function createDefaultProgress(): DjenTermosParalelaProgress {
+  return {
+    status: 'idle',
+    tracks: [],
+    totalTribunais: 0,
+    tribunaisConcluidos: 0,
+    novas: 0,
+    duplicadas: 0,
+    descartadas: 0,
+    percentage: 0,
+    mensagem: '',
+    tempoDecorrido: 0,
+    dataInicioYmd: null,
+    dataFimYmd: null,
+    concorrencia: MAX_CONCURRENCY,
+  };
+}
+
+function notifyListeners() {
+  for (const l of state.listeners) l(state.progress);
+}
+
+function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
+  state.progress = { ...state.progress, ...partial };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
+}
+
+function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
+  const tracks = state.progress.tracks.map(t =>
+    t.tribunal === tribunal ? { ...t, ...partial } : t
+  );
+  // Recalcular agregados
+  let novas = 0, duplicadas = 0, descartadas = 0, concluidos = 0;
+  let totalCurrent = 0, totalGlobal = 0;
+  for (const t of tracks) {
+    novas += t.novas;
+    duplicadas += t.duplicadas;
+    descartadas += t.descartadas;
+    if (t.status === 'concluido' || t.status === 'erro' || t.status === 'cancelado') concluidos++;
+    totalCurrent += t.current;
+    totalGlobal += t.total;
+  }
+  const percentage = totalGlobal > 0
+    ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
+    : 0;
+  state.progress = {
+    ...state.progress,
+    tracks,
+    novas,
+    duplicadas,
+    descartadas,
+    tribunaisConcluidos: concluidos,
+    percentage,
+  };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
+}
+
+// ============================================================================
+// CHECKPOINT
+// ============================================================================
+
+function saveCheckpoint(cp: Checkpoint | null) {
+  if (cp) localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cp, savedAt: Date.now() }));
+  else localStorage.removeItem(STORAGE_KEY);
+  state.checkpoint = cp;
+}
+
+function loadCheckpoint(): Checkpoint | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function ymdBrasilia(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BR_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  return `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}`;
+}
+
+function gerarListaDatas(inicio: string, fim: string): string[] {
+  const datas: string[] = [];
+  const d = new Date(`${inicio}T12:00:00`);
+  const end = new Date(`${fim}T12:00:00`);
+  while (d <= end) {
+    datas.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return datas;
+}
+
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[&\/\\]/g, ' ').replace(/[^0-9A-Za-z\s]/g, ' ')
+    .replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function contemFrase(textoNorm: string, fraseNorm: string): boolean {
+  if (!fraseNorm) return true;
+  const escaped = fraseNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(textoNorm);
+}
+
+function contemFraseComAnd(textoNorm: string, termoRaw: string): boolean {
+  if (!termoRaw) return true;
+  if (!termoRaw.includes('+')) return contemFrase(textoNorm, normalizar(termoRaw));
+  const partes = termoRaw.split('+').map(p => p.trim()).filter(Boolean);
+  return partes.every(p => {
+    if (/^OAB\s/i.test(p)) return true;
+    const pNorm = normalizar(p);
+    return !pNorm || contemFrase(textoNorm, pNorm);
+  });
+}
+
+function encurtarParaApi(termo: string): string {
+  if (!termo?.trim()) return termo;
+  const limpo = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const palavras = limpo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\.,]+$/.test(p));
+  if (palavras.length <= 2) return limpo;
+  return palavras.slice(0, 2).join(' ');
+}
+
+function getSiglaTribunal(item: any): string | null {
+  const raw = item?.siglaTribunal || item?.tribunal || item?.nomeOrgao || null;
+  if (!raw || typeof raw !== 'string') return null;
+  const m = raw.toUpperCase().match(/\b(TJ\w+|TRT\d+|TRF\d+|TST|STJ|STF)\b/);
+  return m?.[1] ?? raw.trim().toUpperCase();
+}
+
+function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
+  const proc = (processoNumero || '').replace(/[^0-9]/g, '');
+  const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
+  let h1 = 0, h2 = 0x9e3779b9;
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i);
+    h1 = ((h1 << 5) - h1) + c; h1 = h1 & h1;
+    h2 = ((h2 << 7) ^ h2) + c; h2 = h2 & h2;
+  }
+  return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
+}
+
+function calcularProximoDiaUtil(dataBase: Date): Date {
+  const r = new Date(dataBase);
+  while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
+  const mes = r.getMonth(), dia = r.getDate();
+  if ((mes === 11 && dia >= 20) || (mes === 0 && dia <= 6)) {
+    if (mes === 11) r.setFullYear(r.getFullYear() + 1);
+    r.setMonth(0); r.setDate(7);
+    while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
+  }
+  return r;
+}
+
+function calcularDataPublicacao(dataDispYmd: string): string {
+  const base = new Date(`${dataDispYmd}T12:00:00`);
+  base.setDate(base.getDate() + 1);
+  return calcularProximoDiaUtil(base).toISOString().slice(0, 10);
+}
+
+interface ParsedTermoOr { nome: string; oabDigits?: string; }
+
+function parsearTermoOr(raw: string): ParsedTermoOr | null {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+  const oabNomeMatch = trimmed.match(/^(\d{3,6})\s*\/\s*(.+)$/);
+  if (oabNomeMatch) return { oabDigits: oabNomeMatch[1], nome: oabNomeMatch[2].trim() };
+  const nomeOabMatch = trimmed.match(/^(.+?)\s*\/\s*(\d{3,6})$/);
+  if (nomeOabMatch) return { oabDigits: nomeOabMatch[2], nome: nomeOabMatch[1].trim() };
+  let clean = trimmed;
+  clean = clean.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, '');
+  clean = clean.replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, '');
+  clean = clean.replace(/^Adv\.?\s*/i, '');
+  clean = clean.trim();
+  if (!clean) return null;
+  return { nome: clean };
+}
+
+function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolean {
+  const advs = pub?.destinatarioadvogados;
+  if (!Array.isArray(advs) || advs.length === 0) return false;
+  const oabDigits = oab ? String(oab).replace(/\D/g, '') : '';
+  const nomeNorm = nome ? normalizar(nome) : '';
+  for (const entry of advs) {
+    const adv = entry?.advogado || entry;
+    if (!adv) continue;
+    if (oabDigits && adv.numero_oab) {
+      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) return true;
+    }
+    if (nomeNorm && adv.nome) {
+      const advNorm = normalizar(adv.nome);
+      if (advNorm === nomeNorm || advNorm.includes(nomeNorm) || nomeNorm.includes(advNorm)) return true;
+    }
+  }
+  return false;
+}
+
+function validarParteMetadados(pub: any, nomeParte: string): boolean {
+  const dests = pub?.destinatarios;
+  if (!Array.isArray(dests) || dests.length === 0) return false;
+  const nomeNorm = normalizar(nomeParte);
+  if (!nomeNorm) return false;
+  for (const d of dests) {
+    if (!d?.nome) continue;
+    const destNorm = normalizar(d.nome);
+    if (destNorm.includes(nomeNorm) || nomeNorm.includes(destNorm)) return true;
+  }
+  return false;
+}
+
+function buildTextoCompleto(pub: any): string {
+  const partes: string[] = [];
+  const texto = pub?.texto || pub?.conteudo || pub?.teor || '';
+  if (texto) partes.push(texto);
+  if (Array.isArray(pub?.destinatarios)) for (const d of pub.destinatarios) if (d?.nome) partes.push(d.nome);
+  if (Array.isArray(pub?.destinatarioadvogados)) {
+    for (const e of pub.destinatarioadvogados) {
+      const adv = e?.advogado || e;
+      if (adv?.nome) partes.push(adv.nome);
+      if (adv?.numero_oab) partes.push(`OAB ${adv.uf_oab || ''} ${adv.numero_oab}`);
+    }
+  }
+  return partes.join('\n');
+}
+
+function temExclusao(pub: any, exclusoes?: string[]): string | null {
+  if (!exclusoes?.length) return null;
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  for (const exc of exclusoes) {
+    const excNorm = normalizar(exc);
+    if (excNorm && textoNorm.includes(excNorm)) return exc;
+  }
+  return null;
+}
+
+function condicaoConcomitanteAtendida(pub: any, condicao?: string | null): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao).split('|').map(g => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  return grupos.some(g => {
+    const ts = g.split(',').map(t => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every(t => contemFrase(textoNorm, normalizar(t)));
+  });
+}
+
+function validarTermo(pub: any, mon: Monitoramento): boolean {
+  const tipo = mon.tipo;
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  if (tipo === 'advogado') {
+    if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
+    const nomeNorm = normalizar(mon.termo_busca);
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    if (mon.oab) {
+      const od = String(mon.oab).replace(/\D/g, '');
+      if (od.length >= 3 && textoNorm.includes(od)) return true;
+    }
+    if (mon.termos_or?.length) {
+      for (const t of mon.termos_or) {
+        const p = parsearTermoOr(t);
+        if (!p) continue;
+        if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
+        const nn = normalizar(p.nome);
+        if (nn && contemFrase(textoNorm, nn)) return true;
+        if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+      }
+    }
+    return false;
+  }
+  if (tipo === 'parte') {
+    if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    const nn = normalizar(mon.termo_busca);
+    if (nn && contemFrase(textoNorm, nn)) return true;
+    return false;
+  }
+  if (tipo === 'processo') {
+    const nd = mon.termo_busca.replace(/\D/g, '');
+    const pn = String(pub?.numero_processo || pub?.numeroProcesso || pub?.processo || '').replace(/\D/g, '');
+    return pn.includes(nd);
+  }
+  if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
+  if (mon.termos_or?.length) {
+    for (const t of mon.termos_or) {
+      const p = parsearTermoOr(t);
+      if (!p) continue;
+      if (contemFraseComAnd(textoNorm, p.nome)) return true;
+    }
+  }
+  return false;
+}
+
+function extrairAdvogadosEstruturados(pub: any): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  if (Array.isArray(pub?.destinatarioadvogados)) {
+    for (const e of pub.destinatarioadvogados) {
+      const adv = e?.advogado || e;
+      if (!adv?.nome) continue;
+      const key = `${adv.nome}|${adv.numero_oab || ''}`.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const oabStr = adv.numero_oab ? ` - OAB ${adv.uf_oab || ''}${adv.numero_oab}` : '';
+      result.push(`${adv.nome}${oabStr}`);
+    }
+  }
+  return result;
+}
+
+function extrairPartesEstruturadas(pub: any): string[] {
+  if (!Array.isArray(pub?.destinatarios)) return [];
+  return pub.destinatarios.filter((d: any) => d?.nome).map((d: any) => {
+    const polo = d.polo === 'A' ? 'Reclamante' : d.polo === 'P' ? 'Reclamado' : d.polo || '';
+    return polo ? `[${polo}] ${d.nome}` : d.nome;
+  });
+}
+
+// ============================================================================
+// EXECUTION SYNC
+// ============================================================================
+
+function buildSnapshot(overrides: Record<string, any> = {}) {
+  return {
+    runKey: state.progress.dataInicioYmd && state.progress.dataFimYmd
+      ? `${state.progress.dataInicioYmd}..${state.progress.dataFimYmd}`
+      : null,
+    dataInicioYmd: state.progress.dataInicioYmd,
+    dataFimYmd: state.progress.dataFimYmd,
+    totalTribunais: state.progress.totalTribunais,
+    tribunaisConcluidos: state.progress.tribunaisConcluidos,
+    novas: state.progress.novas,
+    duplicadas: state.progress.duplicadas,
+    descartadas: state.progress.descartadas,
+    percentage: state.progress.percentage,
+    mensagem: state.progress.mensagem,
+    tracks: state.progress.tracks.map(t => ({
+      tribunal: t.tribunal,
+      status: t.status,
+      current: t.current,
+      total: t.total,
+      novas: t.novas,
+      duplicadas: t.duplicadas,
+      descartadas: t.descartadas,
+      termoAtual: t.termoAtual,
+      diaAtual: t.diaAtual,
+      rateLimitHits: t.rateLimitHits,
+      ultimoErro: t.ultimoErro,
+    })),
+    heartbeat_at: new Date().toISOString(),
+    concorrencia: state.progress.concorrencia,
+    ...overrides,
+  };
+}
+
+function syncExecutionProgress(overrides: Record<string, any> = {}, force = false) {
+  if (!state.executionId) return;
+  const now = Date.now();
+  if (!force && now - state.lastExecutionSyncAt < EXECUTION_SYNC_INTERVAL_MS) return;
+  state.lastExecutionSyncAt = now;
+  void supabase
+    .from('execucoes_agendadas')
+    .update({ detalhes: buildSnapshot(overrides) })
+    .eq('id', state.executionId)
+    .then(({ error }) => {
+      if (error) console.warn('[DJEN Paralela] Sync error:', error.message);
+    });
+}
+
+// ============================================================================
+// PROCESSAMENTO POR TRIBUNAL (TRACK)
+// ============================================================================
+
+/**
+ * Processa um tribunal: percorre todos os dias × termos para esse tribunal.
+ * Chamada concorrentemente para múltiplos tribunais via semáforo.
+ */
+async function processarTribunalTrack(
+  tribunal: string,
+  monitoramentos: Monitoramento[],
+  datas: string[],
+  signal: AbortSignal,
+) {
+  const track = state.progress.tracks.find(t => t.tribunal === tribunal);
+  if (!track) return;
+
+  // Filtrar monitoramentos que devem ser executados nesse tribunal
+  const monsParaEsseTrib = monitoramentos.filter(mon => {
+    const tribs = expandirTribunaisDoMon(mon.tribunais);
+    // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
+    if (tribs.length === 0) return true;
+    return tribs.includes(tribunal);
+  });
+
+  const total = monsParaEsseTrib.length * datas.length;
+  updateTrack(tribunal, {
+    status: 'executando',
+    total,
+    current: 0,
+    startedAt: Date.now(),
+    mensagem: `Iniciando ${monsParaEsseTrib.length} termos × ${datas.length} dias`,
+  });
+
+  if (total === 0) {
+    updateTrack(tribunal, {
+      status: 'concluido',
+      finishedAt: Date.now(),
+      mensagem: 'Sem termos aplicáveis a este tribunal',
+    });
+    return;
+  }
+
+  let acumNovas = 0, acumDup = 0, acumDesc = 0, rateLimitHits = 0;
+  let ultimoErro: string | null = null;
+  let processed = 0;
+
+  try {
+    for (const diaYmd of datas) {
+      if (signal.aborted) break;
+
+      for (const mon of monsParaEsseTrib) {
+        if (signal.aborted) break;
+
+        // Cooldown global PJE
+        const cooldown = getPjeComunicaGlobalCooldownRemainingMs();
+        if (cooldown > 250) {
+          updateTrack(tribunal, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` });
+          await awaitPjeComunicaGlobalCooldown();
+          if (signal.aborted) break;
+        }
+
+        updateTrack(tribunal, {
+          termoAtual: mon.descricao || mon.termo_busca,
+          diaAtual: diaYmd,
+          mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+        });
+
+        try {
+          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal);
+          acumNovas += r.novas;
+          acumDup += r.duplicadas;
+          acumDesc += r.descartadas;
+          rateLimitHits += r.rateLimitHits;
+          if (r.ultimoErro) ultimoErro = r.ultimoErro;
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          ultimoErro = e?.message || String(e);
+          console.warn(`[DJEN Paralela][${tribunal}] erro termo:`, e?.message);
+        }
+
+        processed++;
+        updateTrack(tribunal, {
+          current: processed,
+          novas: acumNovas,
+          duplicadas: acumDup,
+          descartadas: acumDesc,
+          rateLimitHits,
+          ultimoErro,
+        });
+
+        syncExecutionProgress();
+        await delay(CONFIG.delay_between_terms);
+      }
+    }
+
+    updateTrack(tribunal, {
+      status: signal.aborted ? 'cancelado' : 'concluido',
+      current: total,
+      finishedAt: Date.now(),
+      mensagem: signal.aborted
+        ? 'Cancelado'
+        : `Concluído: ${acumNovas} novas, ${acumDup} duplicadas, ${acumDesc} descartadas`,
+    });
+  } catch (e: any) {
+    updateTrack(tribunal, {
+      status: 'erro',
+      finishedAt: Date.now(),
+      ultimoErro: e?.message || String(e),
+      mensagem: `Erro: ${e?.message || 'desconhecido'}`,
+    });
+  }
+}
+
+/**
+ * Processa um termo num tribunal específico (uma data).
+ * Versão simplificada do processarTermoPro do engine Pro.
+ */
+async function processarTermoEmTribunal(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+  signal: AbortSignal,
+): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
+  if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
+
+  const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
+  const resultados: any[] = [];
+  const seen = new Set<string>();
+  const seenContent = new Set<string>();
+  let rateLimitHits = 0;
+  let ultimoErro: string | null = null;
+
+  const addResults = (items: any[]) => {
+    for (const item of items) {
+      const id = String(item?.id ?? '');
+      const k = id || JSON.stringify(item).slice(0, 400);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const conteudo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
+      const proc = String(item?.numeroProcesso ?? '').replace(/\D/g, '');
+      const ck = `${proc}|${conteudo.slice(0, 300).toLowerCase().trim()}`;
+      if (ck.length > 5 && seenContent.has(ck)) continue;
+      if (ck.length > 5) seenContent.add(ck);
+      resultados.push({ ...item, siglaTribunal: item?.siglaTribunal ?? tribunal });
+    }
+  };
+
+  const baseParams: any = {
+    tipo,
+    dataInicio: diaYmd,
+    dataFim: diaYmd,
+    pageSize: 50,
+    siglaTribunal: tribunal,
+  };
+
+  if (tipo === 'parte') {
+    baseParams.nomeParte = mon.termo_busca;
+  } else if (tipo === 'advogado') {
+    baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
+    baseParams.nomeAdvogado = mon.termo_busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    baseParams.uf = mon.uf;
+  } else if (tipo === 'processo') {
+    baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
+  } else {
+    if (mon.termo_busca.includes('+')) {
+      const partes = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean).filter(p => !/^OAB\s/i.test(p));
+      const maior = partes.sort((a, b) => b.length - a.length)[0] || mon.termo_busca;
+      baseParams.palavraChave = encurtarParaApi(maior);
+    } else {
+      baseParams.palavraChave = encurtarParaApi(mon.termo_busca);
+    }
+  }
+
+  try {
+    const resp = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
+      signal,
+      maxPages: null,
+      continueUntilEmpty: true,
+      delayMs: CONFIG.delay_between_pages,
+      maxRetries: CONFIG.max_retries,
+      retryBaseDelay: CONFIG.retry_base_delay,
+      onRateLimit: (waitMs, attempt, page) => {
+        rateLimitHits++;
+        ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
+      },
+    });
+    addResults(resp.items);
+    if (resp.lastError) ultimoErro = resp.lastError;
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e;
+    ultimoErro = e?.message || 'Falha de busca';
+  }
+
+  // Busca complementar para "parte"
+  if (tipo === 'parte' && !signal.aborted) {
+    const txt = mon.termo_busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (txt) {
+      try {
+        const resp = await buscarPjeComunicaPaginado({
+          tipo: 'palavra-chave' as PjeSearchType,
+          palavraChave: txt,
+          siglaTribunal: tribunal,
+          dataInicio: diaYmd,
+          dataFim: diaYmd,
+          pageSize: 50,
+          page: 1,
+        }, {
+          signal,
+          maxPages: null,
+          continueUntilEmpty: true,
+          delayMs: CONFIG.delay_between_pages,
+          maxRetries: CONFIG.max_retries,
+          retryBaseDelay: CONFIG.retry_base_delay,
+          onRateLimit: () => { rateLimitHits++; },
+        });
+        addResults(resp.items);
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+      }
+    }
+  }
+
+  if (signal.aborted || resultados.length === 0) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  // Filtros declarados pelo monitoramento
+  const tribunaisMon = expandirTribunaisDoMon(mon.tribunais);
+  let descartadas = 0;
+  const pubsDescartadas: any[] = [];
+
+  const pubsValidas = resultados.filter(pub => {
+    if (tribunaisMon.length > 0) {
+      const sig = getSiglaTribunal(pub);
+      if (!sig || !tribunaisMon.includes(sig)) {
+        descartadas++;
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'tribunal_nao_permitido' });
+        return false;
+      }
+    }
+    const exc = temExclusao(pub, mon.exclusoes);
+    if (exc) {
+      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${exc}` });
+      return false;
+    }
+    if (!validarTermo(pub, mon)) {
+      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
+      return false;
+    }
+    if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
+      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+      return false;
+    }
+    return true;
+  });
+
+  const hashMap = new Map<string, any>();
+  for (const pub of pubsValidas) {
+    const conteudo = pub.texto || pub.conteudo || pub.teor || '';
+    const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+    const hash = gerarHash(conteudo, dataDisp, procNum);
+    if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
+  }
+  const pubsUnicas = Array.from(hashMap.values());
+
+  const hashes = pubsUnicas.map(p => p.hash_conteudo);
+  let existentes = new Set<string>();
+  if (hashes.length > 0) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('hash_conteudo')
+      .eq('monitoramento_id', mon.id)
+      .in('hash_conteudo', hashes);
+    existentes = new Set((data || []).map(d => d.hash_conteudo));
+  }
+
+  const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+  const duplicadasBanco = pubsUnicas.length - novas.length;
+
+  if (novas.length > 0) {
+    const payload = novas.map(pub => {
+      const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
+      const conteudoFormatado = buildDjenLikeConteudo({
+        pub, diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
+      const dataDisp = pub.data_disponibilizacao_ymd;
+      const dataPub = calcularDataPublicacao(dataDisp);
+      const advogados = extrairAdvogadosEstruturados(pub);
+      const partes = extrairPartesEstruturadas(pub);
+      return {
+        monitoramento_id: mon.id,
+        hash_conteudo: pub.hash_conteudo,
+        processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo || null,
+        conteudo: conteudoFormatado,
+        data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+        data_publicacao: `${dataPub}T12:00:00.000Z`,
+        tribunal: getSiglaTribunal(pub),
+        fonte: pub.siglaTribunal || pub.tribunal || 'DJEN-PARALELA',
+        lida: false,
+        orgao: pub.nomeOrgao || pub.nome_orgao || null,
+        tipo_comunicacao: pub.tipoComunicacao || null,
+        meio: pub.meio || pub.meiocompleto || null,
+        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
+        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
+      };
+    });
+
+    const { error: upsertError } = await supabase
+      .from('publicacoes_djen')
+      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
+    if (upsertError) console.error(`[DJEN Paralela][${tribunal}] upsert error:`, upsertError);
+  }
+
+  // Persistir descartadas (limit 200)
+  let descartadasEfetivas = 0;
+  if (pubsDescartadas.length > 0) {
+    const descMap = new Map<string, any>();
+    for (const pub of pubsDescartadas) {
+      const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || '';
+      const conteudoFormatado = buildDjenLikeConteudo({
+        pub, diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
+      const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+      const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+      const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
+      if (descMap.has(hash)) continue;
+      const advogados = extrairAdvogadosEstruturados(pub);
+      const partes = extrairPartesEstruturadas(pub);
+      descMap.set(hash, {
+        monitoramento_id: mon.id,
+        hash_conteudo: hash,
+        processo_numero: pub.numeroProcesso || pub.numero_processo || null,
+        conteudo: conteudoFormatado.slice(0, 100000),
+        data_publicacao: `${calcularDataPublicacao(dataDisp)}T12:00:00.000Z`,
+        data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
+        tribunal: getSiglaTribunal(pub),
+        fonte: pub.siglaTribunal || 'DJEN-PARALELA',
+        motivo_descarte: pub.motivo_descarte || 'desconhecido',
+        orgao: pub.nomeOrgao || null,
+        tipo_comunicacao: pub.tipoComunicacao || null,
+        meio: pub.meio || null,
+        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
+        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
+      });
+    }
+    const payloadDesc = Array.from(descMap.values()).slice(0, 200);
+    descartadasEfetivas = payloadDesc.length;
+    await supabase.from('publicacoes_djen_descartadas')
+      .upsert(payloadDesc, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
+  }
+
+  return {
+    novas: novas.length,
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length),
+    descartadas: descartadasEfetivas,
+    rateLimitHits,
+    ultimoErro,
+  };
+}
+
+// ============================================================================
+// SEMÁFORO + LOOP PRINCIPAL
+// ============================================================================
+
+async function executarLoop(
+  dataInicioYmd: string,
+  dataFimYmd: string,
+  retomar: boolean,
+  coordenacaoId?: string,
+  monitoramentoIds?: string[],
+) {
+  if (state.isRunning) {
+    console.warn('[DJEN Paralela] Já existe execução local em andamento');
+    return;
+  }
+
+  // Verificar execução no banco
+  try {
+    const { data: running } = await supabase
+      .from('execucoes_agendadas')
+      .select('id, iniciado_em')
+      .eq('tipo', 'djen_paralela')
+      .eq('status', 'executando')
+      .is('finalizado_em', null);
+    if (running && running.length > 0) {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const stale = running.filter(r => r.iniciado_em && r.iniciado_em < twoHoursAgo);
+      if (stale.length > 0) {
+        for (const s of stale) {
+          await supabase.from('execucoes_agendadas')
+            .update({ status: 'cancelado', finalizado_em: new Date().toISOString(), detalhes: { mensagem: 'Cancelado: órfã (>2h)' } })
+            .eq('id', s.id);
+        }
+        if (stale.length !== running.length) return;
+      } else {
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[DJEN Paralela] Erro ao checar execuções no banco:', e);
+  }
+
+  state.isRunning = true;
+  state.abortController = new AbortController();
+  const signal = state.abortController.signal;
+  const tempoInicio = Date.now();
+  let executionId: string | null = null;
+
+  state.timerInterval = setInterval(() => {
+    updateProgress({ tempoDecorrido: Math.floor((Date.now() - tempoInicio) / 1000) });
+  }, 1000);
+
+  try {
+    // Carregar monitoramentos
+    let query = supabase.from('monitoramentos_djen').select('*').eq('ativo', true);
+    if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
+    if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
+    const { data: termos, error } = await query;
+    if (error) throw error;
+    if (!termos?.length) {
+      updateProgress({ status: 'erro', mensagem: 'Nenhum monitoramento ativo encontrado.', percentage: 0 });
+      return;
+    }
+
+    const monitoramentos: Monitoramento[] = termos.map((t: any) => ({
+      id: t.id, tipo: t.tipo, termo_busca: t.termo_busca,
+      oab: t.oab, uf: t.uf, ativo: t.ativo,
+      exclusoes: t.exclusoes, tribunais: t.tribunais,
+      termos_or: t.termos_or, descricao: t.descricao,
+      condicao_concomitante: t.condicao_concomitante,
+      coordenacao_id: t.coordenacao_id,
+    }));
+
+    // Coletar conjunto único de tribunais a partir dos monitoramentos.
+    // Se algum monitoramento não tem tribunais (= todos), incluir TODOS_TRT + TODOS_CIVEIS + STF/STJ.
+    const tribSet = new Set<string>();
+    let temTodos = false;
+    for (const m of monitoramentos) {
+      const tribs = expandirTribunaisDoMon(m.tribunais);
+      if (tribs.length === 0) temTodos = true;
+      else for (const t of tribs) tribSet.add(t);
+    }
+    if (temTodos) {
+      TODOS_TRT.forEach(t => tribSet.add(t));
+      TODOS_CIVEIS.forEach(t => tribSet.add(t));
+      ['STF', 'STJ', 'TRF1', 'TRF2', 'TRF3', 'TRF4', 'TRF5', 'TRF6'].forEach(t => tribSet.add(t));
+    }
+
+    const tribunais = ordenarTribunais(Array.from(tribSet));
+    if (tribunais.length === 0) {
+      updateProgress({ status: 'erro', mensagem: 'Nenhum tribunal a processar.', percentage: 0 });
+      return;
+    }
+
+    const datas = gerarListaDatas(dataInicioYmd, dataFimYmd);
+    if (datas.length === 0) {
+      updateProgress({ status: 'erro', mensagem: 'Período inválido.', percentage: 0 });
+      return;
+    }
+
+    // Checkpoint
+    const cp = retomar ? loadCheckpoint() : null;
+    const runKey = `${dataInicioYmd}..${dataFimYmd}`;
+    const tribunaisJaConcluidos = new Set<string>(
+      cp && cp.runKey === runKey ? cp.tribunaisConcluidos : []
+    );
+
+    // Inicializar tracks
+    const tracks: TrackProgress[] = tribunais.map(trib => ({
+      tribunal: trib,
+      status: tribunaisJaConcluidos.has(trib) ? 'concluido' : 'pendente',
+      current: 0,
+      total: 0,
+      novas: 0,
+      duplicadas: 0,
+      descartadas: 0,
+      mensagem: tribunaisJaConcluidos.has(trib) ? 'Já processado (checkpoint)' : 'Aguardando slot...',
+      termoAtual: null,
+      diaAtual: null,
+      rateLimitHits: 0,
+      ultimoErro: null,
+      startedAt: null,
+      finishedAt: tribunaisJaConcluidos.has(trib) ? Date.now() : null,
+    }));
+
+    updateProgress({
+      status: 'executando',
+      tracks,
+      totalTribunais: tribunais.length,
+      tribunaisConcluidos: tribunaisJaConcluidos.size,
+      novas: cp?.novas || 0,
+      duplicadas: cp?.duplicadas || 0,
+      descartadas: cp?.descartadas || 0,
+      dataInicioYmd,
+      dataFimYmd,
+      mensagem: `Iniciando: ${tribunais.length} tribunais, ${MAX_CONCURRENCY} em paralelo`,
+      concorrencia: MAX_CONCURRENCY,
+    });
+
+    // Registrar execução no banco
+    try {
+      const { data: inserted, error: insErr } = await supabase
+        .from('execucoes_agendadas')
+        .insert({
+          tipo: 'djen_paralela',
+          status: 'executando',
+          job_name: 'DJEN Termos Paralela',
+          iniciado_em: new Date().toISOString(),
+          detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: MAX_CONCURRENCY },
+        })
+        .select('id');
+      if (insErr) console.error('[DJEN Paralela] Falha registrar execução:', insErr.message);
+      else if (inserted && inserted.length > 0) {
+        executionId = inserted[0].id;
+        state.executionId = executionId;
+      }
+    } catch (e) {
+      console.error('[DJEN Paralela] Erro inesperado registrar execução:', e);
+    }
+    state.lastExecutionSyncAt = 0;
+    syncExecutionProgress({}, true);
+
+    // SEMÁFORO MANUAL: processar tribunais em paralelo limitado a MAX_CONCURRENCY
+    const tribunaisPendentes = tribunais.filter(t => !tribunaisJaConcluidos.has(t));
+    const queue = [...tribunaisPendentes];
+    const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
+
+    const worker = async () => {
+      while (queue.length > 0 && !signal.aborted) {
+        const trib = queue.shift();
+        if (!trib) break;
+        await processarTribunalTrack(trib, monitoramentos, datas, signal);
+        tribunaisConcluidosLista.push(trib);
+
+        // Atualizar checkpoint
+        saveCheckpoint({
+          runKey,
+          dataInicioYmd,
+          dataFimYmd,
+          tribunaisConcluidos: tribunaisConcluidosLista,
+          novas: state.progress.novas,
+          duplicadas: state.progress.duplicadas,
+          descartadas: state.progress.descartadas,
+          tempoInicio,
+        });
+        syncExecutionProgress({}, true);
+      }
+    };
+
+    const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tribunaisPendentes.length) }, () => worker());
+    await Promise.all(workers);
+
+    if (signal.aborted) {
+      updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
+    } else {
+      saveCheckpoint(null);
+      updateProgress({
+        status: 'concluido',
+        percentage: 100,
+        mensagem: `Concluído! ${state.progress.novas} novas, ${state.progress.duplicadas} duplicadas, ${state.progress.descartadas} descartadas em ${tribunais.length} tribunais`,
+      });
+    }
+  } catch (err: any) {
+    console.error('[DJEN Paralela] Erro:', err);
+    updateProgress({ status: 'erro', mensagem: `Erro: ${err?.message || String(err)}` });
+  } finally {
+    state.isRunning = false;
+    if (state.timerInterval) {
+      clearInterval(state.timerInterval);
+      state.timerInterval = null;
+    }
+    if (executionId) {
+      try {
+        const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
+        await supabase.from('execucoes_agendadas')
+          .update({
+            status: finalStatus,
+            finalizado_em: new Date().toISOString(),
+            detalhes: buildSnapshot({ finalStatus }),
+          })
+          .eq('id', executionId);
+      } catch (e) {
+        console.warn('[DJEN Paralela] Erro finalizar execução:', e);
+      }
+      state.executionId = null;
+    }
+    if (state.progress.status === 'executando') {
+      state.progress = { ...state.progress, status: 'concluido' };
+    }
+    state.lastUpdatedAt = Date.now();
+    notifyListeners();
+  }
+}
+
+// ============================================================================
+// API PÚBLICA (singleton)
+// ============================================================================
+
+export function executarDjenTermosParalela(
+  dataInicioYmd?: string,
+  dataFimYmd?: string,
+  retomar = false,
+  coordenacaoId?: string,
+  monitoramentoIds?: string[],
+) {
+  const hoje = ymdBrasilia();
+  const inicio = dataInicioYmd || hoje;
+  const fim = dataFimYmd || hoje;
+  void executarLoop(inicio, fim, retomar, coordenacaoId, monitoramentoIds);
+}
+
+export function cancelarDjenTermosParalela() {
+  if (state.abortController) {
+    state.abortController.abort();
+    updateProgress({ status: 'cancelado', mensagem: 'Cancelando...' });
+  }
+  void supabase.from('execucoes_agendadas')
+    .update({
+      status: 'cancelado',
+      finalizado_em: new Date().toISOString(),
+      detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
+    })
+    .eq('tipo', 'djen_paralela')
+    .eq('status', 'executando');
+  state.executionId = null;
+}
+
+export function limparEstadoDjenTermosParalela() {
+  state.progress = createDefaultProgress();
+  notifyListeners();
+}
+
+export function forceKillDjenTermosParalela(clearCheckpoint = false) {
+  cancelarDjenTermosParalela();
+  state.isRunning = false;
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+  if (clearCheckpoint) saveCheckpoint(null);
+  state.progress = createDefaultProgress();
+  notifyListeners();
+}
+
+export function getDjenTermosParalelaProgress(): DjenTermosParalelaProgress {
+  return state.progress;
+}
+
+export function isDjenTermosParalelaRunning(): boolean {
+  return state.isRunning;
+}
+
+export function getCheckpointParalela(): Checkpoint | null {
+  return state.checkpoint || loadCheckpoint();
+}
+
+export function subscribeDjenTermosParalela(
+  listener: (p: DjenTermosParalelaProgress) => void,
+): () => void {
+  state.listeners.add(listener);
+  return () => { state.listeners.delete(listener); };
+}
+
+export { MAX_CONCURRENCY };
