@@ -284,6 +284,35 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
   notifyListeners();
 }
 
+/**
+ * Registra a rota (Direto/VPS) usada pela última chamada feita pelo tribunal.
+ * Atualiza tanto o "lastVia" (mostrado em destaque na UI) quanto os contadores
+ * acumulados por rota para um painel de uso por tribunal.
+ */
+function registrarViaTrack(tribunal: string, via: PoolViaInfo) {
+  const tracks = state.progress.tracks.map(t => {
+    if (t.tribunal !== tribunal) return t;
+    const callsByProxy = { ...t.callsByProxy };
+    let callsDirect = t.callsDirect;
+    if (via.kind === 'direct') {
+      callsDirect = callsDirect + 1;
+    } else {
+      callsByProxy[via.id] = (callsByProxy[via.id] || 0) + 1;
+    }
+    return {
+      ...t,
+      lastViaId: via.id,
+      lastViaLabel: via.label,
+      lastViaKind: via.kind,
+      callsDirect,
+      callsByProxy,
+    };
+  });
+  state.progress = { ...state.progress, tracks };
+  state.lastUpdatedAt = Date.now();
+  notifyListeners();
+}
+
 // ============================================================================
 // CHECKPOINT
 // ============================================================================
