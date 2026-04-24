@@ -208,7 +208,7 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     tempoDecorrido: 0,
     dataInicioYmd: null,
     dataFimYmd: null,
-    concorrencia: MAX_CONCURRENCY,
+    concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
   };
 }
 
