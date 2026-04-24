@@ -29,6 +29,7 @@ import {
   getDjenProxyPoolStats,
   isDjenProxyPoolEnabled,
   getDjenProxySlotsRuntime,
+  syncDjenProxyPoolFromSupabase,
 } from "@/utils/djenProxyPool";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -118,7 +119,9 @@ export function MonitoramentoTermosParalelaCard() {
       setPoolEnabled(isDjenProxyPoolEnabled());
       setPoolSlots(getDjenProxySlotsRuntime());
     };
-    tick();
+    // Sincroniza do Supabase ao montar (caso este navegador ainda não tenha
+    // o cache local populado) e depois aplica o tick.
+    syncDjenProxyPoolFromSupabase().finally(tick);
     const id = window.setInterval(tick, 1500);
     return () => window.clearInterval(id);
   }, []);
