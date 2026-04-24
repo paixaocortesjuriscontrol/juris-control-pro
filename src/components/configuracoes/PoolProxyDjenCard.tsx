@@ -304,11 +304,16 @@ export default function PoolProxyDjenCard() {
         {/* Form de cadastro */}
         <div className="space-y-3 rounded-lg border p-4">
           <h4 className="text-sm font-semibold">Adicionar VPS</h4>
+          {/* autoComplete="off" + name aleatório evitam o Chrome preencher
+              esses campos com email/senha salvos do gerenciador. */}
+          <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleAddSlot(); }}>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1">
               <Label htmlFor="slot-label">Label</Label>
               <Input
                 id="slot-label"
+                name="proxy-label-no-autofill"
+                autoComplete="off"
                 placeholder="Hostinger #1"
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
@@ -318,6 +323,10 @@ export default function PoolProxyDjenCard() {
               <Label htmlFor="slot-url">URL base</Label>
               <Input
                 id="slot-url"
+                name="proxy-url-no-autofill"
+                autoComplete="off"
+                type="url"
+                inputMode="url"
                 placeholder="https://meudominio.com/djen-proxy"
                 value={form.baseUrl}
                 onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
@@ -328,17 +337,20 @@ export default function PoolProxyDjenCard() {
             <Label htmlFor="slot-token">Token (PROXY_TOKEN do setup.sh)</Label>
             <Input
               id="slot-token"
+              name="proxy-token-no-autofill"
+              autoComplete="new-password"
               type="password"
               placeholder="cole aqui o token impresso no setup.sh"
               value={form.token}
               onChange={(e) => setForm({ ...form, token: e.target.value })}
             />
           </div>
-          <div className="flex justify-end">
-            <Button onClick={handleAddSlot} disabled={testing}>
+          <div className="flex justify-end pt-3">
+            <Button type="submit" disabled={testing}>
               {testing ? "Testando..." : "Testar e salvar"}
             </Button>
           </div>
+          </form>
         </div>
 
         <p className="text-xs text-muted-foreground">
