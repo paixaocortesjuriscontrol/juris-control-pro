@@ -243,13 +243,87 @@ function buildAttemptOrder(): Array<ProxySlotConfig | null> {
  */
 export async function fetchDjenViaPool(
   fullDirectUrl: string,
-  init: RequestInit
+  init: RequestInit,
+  routing?: {
+    /**
+     * Força uma via específica (DIRECT_SLOT_ID ou slot.id). Quando definido,
+     * desabilita o round-robin e tenta APENAS essa via. Se ela falhar e
+     * `fallbackToDirect` for true, cai para Direto. Usado pelo motor Paralela
+     * para criar workers dedicados por IP (1 worker = 1 via).
+     */
+    forceVia?: string;
+    fallbackToDirect?: boolean;
+  }
 ): Promise<Response> {
-  if (!isDjenProxyPoolEnabled()) {
+  if (!isDjenProxyPoolEnabled() && !routing?.forceVia) {
     sessionStats.total++;
     sessionStats.direct++;
     const r = await fetch(fullDirectUrl, init);
     return annotateVia(r, DIRECT_SLOT_ID, "Direto (browser)", "direct");
+  }
+
+  // Modo "via forçada": ignora round-robin e usa exatamente a via pedida.
+  if (routing?.forceVia) {
+    const queryString = fullDirectUrl.includes("?")
+      ? fullDirectUrl.slice(fullDirectUrl.indexOf("?") + 1)
+      : "";
+
+    const callDirect = async (): Promise<Response> => {
+      sessionStats.total++;
+      sessionStats.direct++;
+      const r = await fetch(fullDirectUrl, init);
+      return annotateVia(r, DIRECT_SLOT_ID, "Direto (browser)", "direct");
+    };
+
+    if (routing.forceVia === DIRECT_SLOT_ID) {
+      return callDirect();
+    }
+
+    const slot = loadDjenProxyPool().find((s) => s.id === routing.forceVia);
+    if (!slot || !slot.enabled) {
+      // Slot pedido não existe mais ou foi desabilitado — cai para direto.
+      return callDirect();
+    }
+
+    try {
+      sessionStats.total++;
+      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/djen?${queryString}`;
+      const headers = new Headers(init.headers || {});
+      headers.set("X-Proxy-Token", slot.token);
+      const proxyResp = await fetch(proxyUrl, {
+        method: "GET",
+        headers,
+        signal: init.signal,
+      });
+      if (!proxyResp.ok) {
+        const txt = await proxyResp.text().catch(() => "");
+        markOffline(slot.id, `proxy HTTP ${proxyResp.status} ${txt.slice(0, 80)}`);
+        sessionStats.errorsByProxy[slot.id] =
+          (sessionStats.errorsByProxy[slot.id] || 0) + 1;
+        if (routing.fallbackToDirect) return callDirect();
+        throw new Error(`VPS ${slot.label} respondeu HTTP ${proxyResp.status}`);
+      }
+      const envelope = await proxyResp.json();
+      const upstreamStatus: number = envelope?.status ?? 0;
+      const upstreamBody: string = envelope?.body ?? "";
+      if (upstreamStatus === 429) {
+        sessionStats.rateLimitsByProxy[slot.id] =
+          (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
+      }
+      sessionStats.byProxy[slot.id] = (sessionStats.byProxy[slot.id] || 0) + 1;
+      const rebuilt = new Response(upstreamBody, {
+        status: upstreamStatus || 200,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
+      return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
+    } catch (err: any) {
+      if (err?.name === "AbortError") throw err;
+      markOffline(slot.id, err?.message || String(err));
+      sessionStats.errorsByProxy[slot.id] =
+        (sessionStats.errorsByProxy[slot.id] || 0) + 1;
+      if (routing.fallbackToDirect) return callDirect();
+      throw err;
+    }
   }
 
   // Extrai a query string da URL direta para repassar ao proxy.
