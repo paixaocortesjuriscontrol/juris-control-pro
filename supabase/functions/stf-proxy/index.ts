@@ -23,7 +23,63 @@ const STF_HEADERS = {
   'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
 };
 
+// Headers extras para simular um navegador real (passar por AWS WAF challenge)
+const STF_HEADERS_BROWSER = {
+  ...STF_HEADERS,
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'X-Requested-With': 'XMLHttpRequest',
+};
+
 const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
+
+/**
+ * Tenta múltiplas estratégias para alcançar o STF:
+ * 1) fetch nativo do Deno (com cadeia TLS oficial)
+ * 2) undici com TLS relaxado (fallback para ICP-Brasil)
+ */
+async function tentarFetch(url: string, method: 'GET' | 'POST', body?: string) {
+  // Estratégia 1: fetch nativo (Deno)
+  try {
+    const r = await fetch(url, {
+      method,
+      headers: STF_HEADERS_BROWSER,
+      body,
+    });
+    const text = await r.text();
+    if (r.status < 500) {
+      return {
+        text,
+        status: r.status,
+        contentType: r.headers.get('content-type') ?? 'application/json',
+      };
+    }
+    console.log(`[stf-proxy] fetch nativo retornou ${r.status}, tentando undici...`);
+  } catch (e) {
+    console.log(`[stf-proxy] fetch nativo falhou: ${(e as Error).message}, tentando undici...`);
+  }
+
+  // Estratégia 2: undici com TLS relaxado
+  const r = await undiciFetch(url, {
+    method,
+    headers: STF_HEADERS_BROWSER,
+    body,
+    dispatcher: insecureAgent,
+  });
+  const text = await r.text();
+  return {
+    text,
+    status: r.status,
+    contentType: r.headers.get('content-type') ?? 'application/json',
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -35,30 +91,19 @@ Deno.serve(async (req) => {
     const action = body?.action as string | undefined;
 
     if (action === 'ultimo-dje') {
-      const r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
-        method: 'GET',
-        headers: STF_HEADERS,
-        dispatcher: insecureAgent,
-      });
-      const text = await r.text();
+      const { text, status, contentType } = await tentarFetch(`${STF_BASE}/ultimo-dje`, 'GET');
       return new Response(text, {
-        status: r.status,
-        headers: { ...corsHeaders, 'Content-Type': r.headers.get('content-type') ?? 'application/json' },
+        status,
+        headers: { ...corsHeaders, 'Content-Type': contentType },
       });
     }
 
     if (action === 'publicacoes') {
       const payload = body?.payload ?? {};
-      const r = await undiciFetch(`${STF_BASE}/publicacoes`, {
-        method: 'POST',
-        headers: STF_HEADERS,
-        body: JSON.stringify(payload),
-        dispatcher: insecureAgent,
-      });
-      const text = await r.text();
+      const { text, status, contentType } = await tentarFetch(`${STF_BASE}/publicacoes`, 'POST', JSON.stringify(payload));
       return new Response(text, {
-        status: r.status,
-        headers: { ...corsHeaders, 'Content-Type': r.headers.get('content-type') ?? 'application/json' },
+        status,
+        headers: { ...corsHeaders, 'Content-Type': contentType },
       });
     }
 
