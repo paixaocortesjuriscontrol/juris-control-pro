@@ -1169,8 +1169,8 @@ async function executarLoop(
       descartadas: cp?.descartadas || 0,
       dataInicioYmd,
       dataFimYmd,
-      mensagem: `Iniciando: ${tribunais.length} tribunais, máx. ${HOST_BUCKET_LIMITS['pje-comunica']} simultâneos no PJE Comunica`,
-      concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
+      mensagem: `Preparando workers para ${tribunais.length} tribunais...`,
+      concorrencia: 1,
     });
 
     // Registrar execução no banco
