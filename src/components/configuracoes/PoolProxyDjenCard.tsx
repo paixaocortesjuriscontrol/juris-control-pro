@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle } from "lucide-react";
+import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle, BarChart3, RotateCcw } from "lucide-react";
 import {
   loadDjenProxyPool,
   saveDjenProxyPool,
@@ -16,6 +16,9 @@ import {
   getDjenProxySlotsRuntime,
   clearDjenProxyOfflineMark,
   generateProxySlotId,
+  getDjenProxyPoolStats,
+  resetDjenProxyPoolStats,
+  type PoolSessionStats,
   type ProxySlotConfig,
 } from "@/utils/djenProxyPool";
 
@@ -32,6 +35,7 @@ export default function PoolProxyDjenCard() {
   const [slots, setSlots] = useState<SlotState[]>([]);
   const [form, setForm] = useState({ label: "", baseUrl: "", token: "" });
   const [testing, setTesting] = useState(false);
+  const [stats, setStats] = useState<PoolSessionStats>(() => getDjenProxyPoolStats());
 
   function refreshFromStorage() {
     const runtime = getDjenProxySlotsRuntime();
@@ -41,6 +45,10 @@ export default function PoolProxyDjenCard() {
   useEffect(() => {
     setEnabled(isDjenProxyPoolEnabled());
     refreshFromStorage();
+    const id = window.setInterval(() => {
+      setStats(getDjenProxyPoolStats());
+    }, 1500);
+    return () => window.clearInterval(id);
   }, []);
 
   function handleToggle(value: boolean) {
