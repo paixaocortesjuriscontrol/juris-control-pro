@@ -1103,7 +1103,6 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const userName = profileData?.nome || user?.email || 'Desconhecido';
 
       const leiturasToInsert = expanded
-        .filter(i => i.tipo_origem !== 'datajud')
         .map(i => ({
           publicacao_id: i.id,
           tabela_origem: i.tipo_origem,
