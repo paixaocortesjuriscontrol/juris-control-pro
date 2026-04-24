@@ -1196,46 +1196,46 @@ async function executarLoop(
     state.lastExecutionSyncAt = 0;
     syncExecutionProgress({}, true);
 
-    // SEMÁFORO MANUAL: processar tribunais em paralelo limitado a MAX_CONCURRENCY
+    // ========================================================================
+    // ESTRATÉGIA "1 WORKER POR VIA" (Browser + cada VPS habilitada)
+    // ========================================================================
+    // Cada via (Direto + cada VPS configurada/habilitada) representa um IP
+    // independente perante o PJE Comunica. Spawnamos um worker por via que
+    // força sua via no fetch — assim o paralelismo escala com o número de
+    // VPSs SEM gerar 429 (pois cada IP tem seu próprio rate-limit).
+    // Quando o pool está desabilitado, cai automaticamente para 1 worker
+    // (Direto) — comportamento equivalente a uma execução sequencial segura.
+
     const tribunaisPendentes = tribunais.filter(t => !tribunaisJaConcluidos.has(t));
     const queue = [...tribunaisPendentes];
     const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
 
-    // Contadores de uso por bucket (host) — garantem que não estouramos o limite
-    // de chamadas simultâneas ao mesmo host (anti HTTP 429).
-    const bucketInUse: Record<HostBucket, number> = { 'pje-comunica': 0, 'outro': 0 };
-
-    function tryReserveNext(): string | null {
-      for (let i = 0; i < queue.length; i++) {
-        const t = queue[i];
-        const bucket = getHostBucket(t);
-        if (bucketInUse[bucket] < HOST_BUCKET_LIMITS[bucket]) {
-          queue.splice(i, 1);
-          bucketInUse[bucket]++;
-          return t;
-        }
+    type ViaSpec = { id: string; label: string };
+    const vias: ViaSpec[] = [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
+    if (isDjenProxyPoolEnabled()) {
+      for (const slot of loadDjenProxyPool()) {
+        if (slot.enabled) vias.push({ id: slot.id, label: slot.label || slot.baseUrl });
       }
-      return null;
     }
 
-    const worker = async () => {
+    // Concorrência efetiva = mín(nº vias, nº tribunais pendentes).
+    const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, tribunaisPendentes.length || 1));
+    updateProgress({
+      concorrencia: concorrenciaEfetiva,
+      mensagem: `Executando: ${tribunais.length} tribunais, ${concorrenciaEfetiva} workers (${vias.map(v => v.label).join(' + ')})`,
+    });
+
+    const worker = async (via: ViaSpec) => {
       while (queue.length > 0 && !signal.aborted) {
-        const trib = tryReserveNext();
-        if (!trib) {
-          // Nenhum tribunal disponível neste momento porque o(s) bucket(s) estão
-          // saturados. Aguarda um pouco e tenta de novo.
-          await abortableDelay(500, signal);
-          continue;
-        }
-        const bucket = getHostBucket(trib);
+        const trib = queue.shift();
+        if (!trib) break;
         try {
-          await processarTribunalTrack(trib, monitoramentos, datas, signal);
-        } finally {
-          bucketInUse[bucket]--;
+          await processarTribunalTrack(trib, monitoramentos, datas, signal, via.id);
+        } catch (e) {
+          console.error(`[DJEN Paralela][worker ${via.label}] erro tribunal ${trib}:`, e);
         }
         tribunaisConcluidosLista.push(trib);
 
-        // Atualizar checkpoint
         saveCheckpoint({
           runKey,
           dataInicioYmd,
@@ -1250,8 +1250,8 @@ async function executarLoop(
       }
     };
 
-    const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tribunaisPendentes.length) }, () => worker());
-    await Promise.all(workers);
+    const workersToRun = vias.slice(0, concorrenciaEfetiva).map(v => worker(v));
+    await Promise.all(workersToRun);
 
     if (signal.aborted) {
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
