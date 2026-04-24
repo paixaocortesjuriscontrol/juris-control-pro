@@ -98,6 +98,30 @@ const CONFIG = {
   retry_base_delay: 12000,
 };
 
+// ============================================================================
+// AGRUPAMENTO POR HOST (anti rate-limit 429)
+// ============================================================================
+// Todos os tribunais conhecidos hoje usam o mesmo backend (comunicaapi.pje.jus.br),
+// então rodar 5 tribunais em paralelo gera HTTP 429 em massa. Esta tabela mapeia
+// cada tribunal para um "bucket" (host lógico) e limitamos quantos workers podem
+// rodar simultaneamente em cada bucket. Se no futuro algum tribunal migrar para
+// um endpoint próprio, basta movê-lo de bucket para liberar paralelismo.
+
+type HostBucket = 'pje-comunica' | 'outro';
+
+function getHostBucket(_tribunal: string): HostBucket {
+  // Hoje TODOS os tribunais (TST, STF, STJ, TRFs, TRTs, TJs) consultam o
+  // mesmo host comunicaapi.pje.jus.br via buscarPjeComunicaPaginado.
+  return 'pje-comunica';
+}
+
+// Limite por bucket: máx. simultâneos no MESMO host PJE Comunica.
+// Manter 2 reduz drasticamente o 429 sem matar o paralelismo.
+const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
+  'pje-comunica': 2,
+  'outro': 5,
+};
+
 const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
@@ -184,7 +208,7 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     tempoDecorrido: 0,
     dataInicioYmd: null,
     dataFimYmd: null,
-    concorrencia: MAX_CONCURRENCY,
+    concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
   };
 }
 
@@ -1054,8 +1078,8 @@ async function executarLoop(
       descartadas: cp?.descartadas || 0,
       dataInicioYmd,
       dataFimYmd,
-      mensagem: `Iniciando: ${tribunais.length} tribunais, ${MAX_CONCURRENCY} em paralelo`,
-      concorrencia: MAX_CONCURRENCY,
+      mensagem: `Iniciando: ${tribunais.length} tribunais, máx. ${HOST_BUCKET_LIMITS['pje-comunica']} simultâneos no PJE Comunica`,
+      concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
     });
 
     // Registrar execução no banco
@@ -1067,7 +1091,7 @@ async function executarLoop(
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
           iniciado_em: new Date().toISOString(),
-          detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: MAX_CONCURRENCY },
+          detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'] },
         })
         .select('id');
       if (insErr) console.error('[DJEN Paralela] Falha registrar execução:', insErr.message);
@@ -1086,11 +1110,38 @@ async function executarLoop(
     const queue = [...tribunaisPendentes];
     const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
 
+    // Contadores de uso por bucket (host) — garantem que não estouramos o limite
+    // de chamadas simultâneas ao mesmo host (anti HTTP 429).
+    const bucketInUse: Record<HostBucket, number> = { 'pje-comunica': 0, 'outro': 0 };
+
+    function tryReserveNext(): string | null {
+      for (let i = 0; i < queue.length; i++) {
+        const t = queue[i];
+        const bucket = getHostBucket(t);
+        if (bucketInUse[bucket] < HOST_BUCKET_LIMITS[bucket]) {
+          queue.splice(i, 1);
+          bucketInUse[bucket]++;
+          return t;
+        }
+      }
+      return null;
+    }
+
     const worker = async () => {
       while (queue.length > 0 && !signal.aborted) {
-        const trib = queue.shift();
-        if (!trib) break;
-        await processarTribunalTrack(trib, monitoramentos, datas, signal);
+        const trib = tryReserveNext();
+        if (!trib) {
+          // Nenhum tribunal disponível neste momento porque o(s) bucket(s) estão
+          // saturados. Aguarda um pouco e tenta de novo.
+          await delay(500);
+          continue;
+        }
+        const bucket = getHostBucket(trib);
+        try {
+          await processarTribunalTrack(trib, monitoramentos, datas, signal);
+        } finally {
+          bucketInUse[bucket]--;
+        }
         tribunaisConcluidosLista.push(trib);
 
         // Atualizar checkpoint
