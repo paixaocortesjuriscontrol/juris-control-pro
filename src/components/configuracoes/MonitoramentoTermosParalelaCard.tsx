@@ -192,6 +192,50 @@ export function MonitoramentoTermosParalelaCard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Filtros: Coordenação e Termos */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Coordenação</label>
+            <select
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+              value={filtroCoordenacaoId}
+              onChange={(e) => setFiltroCoordenacaoId(e.target.value)}
+              disabled={isRunning}
+            >
+              <option value="">Todos</option>
+              {coordenacoes.map((c) => (
+                <option key={c.id} value={c.id}>{c.nome}</option>
+              ))}
+            </select>
+          </div>
+          {coordenacaoFiltroEfetivo && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Termo</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroMonitoramentoId}
+                onChange={(e) => setFiltroMonitoramentoId(e.target.value)}
+                disabled={isRunning}
+              >
+                <option value="">Todos</option>
+                {monitoramentos.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        {isRunning && (filtroCoordenacaoId || filtroMonitoramentoId) && (
+          <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
+            Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? 'Todas'}
+            {filtroMonitoramentoId && (
+              <> • {monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.descricao || monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.termo_busca || 'Termo'}</>
+            )}
+          </div>
+        )}
+
         {/* Seleção de datas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
