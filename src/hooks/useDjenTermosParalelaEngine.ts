@@ -1453,7 +1453,11 @@ export { MAX_CONCURRENCY };
       novas: cp.novas || 0,
       duplicadas: cp.duplicadas || 0,
       descartadas: cp.descartadas || 0,
-      percentage: 0,
+      // Mostra "X de X concluídos" como 100% das tracks que conseguimos
+      // recuperar do checkpoint. Quando o usuário clicar em Retomar, o engine
+      // recalcula totalTribunais com a lista completa e o percentual cai para
+      // refletir os tribunais que ainda faltam.
+      percentage: concluidos.length > 0 ? 100 : 0,
       mensagem: `Execução interrompida — ${concluidos.length} tribunal(is) já concluído(s). Clique em Retomar para continuar.`,
       dataInicioYmd: cp.dataInicioYmd,
       dataFimYmd: cp.dataFimYmd,
