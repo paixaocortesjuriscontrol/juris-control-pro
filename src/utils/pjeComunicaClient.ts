@@ -2,6 +2,12 @@
 // Estratégia: browser-only.
 // IMPORTANTE: evitamos fallback para Edge Function `buscar-djen` porque ela pode estourar
 // WORKER_LIMIT (546) sob carga/termos com alto volume.
+//
+// POC: opcionalmente roteia chamadas via pool de VPS (djenProxyPool) para
+// mitigar 429 do PJE Comunica. Quando o pool está desabilitado (default),
+// o comportamento é idêntico ao histórico — não afeta Pro / Flash / STF Flash.
+
+import { fetchDjenViaPool } from "./djenProxyPool";
 
 export type PjeSearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
@@ -394,7 +400,9 @@ export async function buscarPjeComunicaNoBrowser(
       : timeoutController.signal;
     
     try {
-      const resp = await fetch(url, {
+      // Roteamento via pool quando habilitado em Configurações; caso contrário
+      // cai direto no fetch padrão (mesmo comportamento de antes).
+      const resp = await fetchDjenViaPool(url, {
         method: "GET",
         headers: requestHeaders,
         signal: combinedSignal,
