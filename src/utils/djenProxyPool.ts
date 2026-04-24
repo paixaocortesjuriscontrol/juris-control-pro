@@ -281,8 +281,10 @@ export async function fetchDjenViaPool(
 
     const slot = loadDjenProxyPool().find((s) => s.id === routing.forceVia);
     if (!slot || !slot.enabled) {
-      // Slot pedido não existe mais ou foi desabilitado — cai para direto.
-      return callDirect();
+      if (routing.fallbackToDirect) {
+        return callDirect();
+      }
+      throw new Error(`Via forçada indisponível: ${routing.forceVia}`);
     }
 
     try {
