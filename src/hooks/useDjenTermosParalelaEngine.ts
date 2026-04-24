@@ -1112,6 +1112,11 @@ async function executarLoop(
       ultimoErro: null,
       startedAt: null,
       finishedAt: tribunaisJaConcluidos.has(trib) ? Date.now() : null,
+      lastViaId: null,
+      lastViaLabel: null,
+      lastViaKind: null,
+      callsDirect: 0,
+      callsByProxy: {},
     }));
 
     updateProgress({
