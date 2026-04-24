@@ -391,7 +391,7 @@ export function MonitoramentoTermosParalelaCard() {
         {progress.tracks.length === 0 && progress.status === 'idle' && (
           <p className="text-sm text-muted-foreground text-center py-6">
             Selecione o período e clique em <strong>Executar Paralela</strong> para iniciar.
-            Até {progress.concorrencia} tribunais serão processados simultaneamente.
+            Cada IP (Direto + cada VPS) processa 1 tribunal por vez em paralelo.
           </p>
         )}
       </CardContent>
