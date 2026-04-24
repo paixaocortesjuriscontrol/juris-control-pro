@@ -264,10 +264,6 @@ export async function fetchDjenViaPool(
 
   // Modo "via forçada": ignora round-robin e usa exatamente a via pedida.
   if (routing?.forceVia) {
-    const queryString = fullDirectUrl.includes("?")
-      ? fullDirectUrl.slice(fullDirectUrl.indexOf("?") + 1)
-      : "";
-
     const callDirect = async (): Promise<Response> => {
       sessionStats.total++;
       sessionStats.direct++;
@@ -331,11 +327,6 @@ export async function fetchDjenViaPool(
       throw err;
     }
   }
-
-  // Extrai a query string da URL direta para repassar ao proxy.
-  const queryString = fullDirectUrl.includes("?")
-    ? fullDirectUrl.slice(fullDirectUrl.indexOf("?") + 1)
-    : "";
 
   const order = buildAttemptOrder();
   let lastErr: any = null;
