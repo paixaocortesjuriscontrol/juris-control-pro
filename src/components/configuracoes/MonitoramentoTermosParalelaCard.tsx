@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermosParalela } from "@/hooks/useDjenTermosParalela";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   getDjenProxyPoolStats,
@@ -66,6 +69,44 @@ export function MonitoramentoTermosParalelaCard() {
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
 
+  // Filtros: Coordenação e Termos (igual ao Pro)
+  const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
+  const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
+
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
+
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ['monitoramentos-djen-coord-termos-paralela', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [];
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .select('id, termo_busca, descricao, tipo, oab, uf')
+        .eq('coordenacao_id', coordenacaoFiltroEfetivo)
+        .eq('ativo', true);
+      if (error) throw error;
+      const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
+      const getLabel = (m: typeof list[0]) =>
+        m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
+      return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+  });
+
+  useEffect(() => {
+    if (!filtroCoordenacaoId) setFiltroMonitoramentoId('');
+  }, [filtroCoordenacaoId]);
+
+  const getFilterParams = useCallback(() => ({
+    coordenacaoId: filtroCoordenacaoId || undefined,
+    monitoramentoIds: filtroMonitoramentoId
+      ? [filtroMonitoramentoId]
+      : (filtroCoordenacaoId && monitoramentos.length > 0
+          ? monitoramentos.map((m) => m.id)
+          : undefined),
+  }), [filtroCoordenacaoId, filtroMonitoramentoId, monitoramentos]);
+
   // Estatísticas vivas do pool (para o painel de roteamento)
   const [poolStats, setPoolStats] = useState(() => getDjenProxyPoolStats());
   const [poolEnabled, setPoolEnabled] = useState(() => isDjenProxyPoolEnabled());
@@ -100,13 +141,15 @@ export function MonitoramentoTermosParalelaCard() {
       toast.error('Selecione data de início e fim');
       return;
     }
-    executar(getDataYmd(dataInicio), getDataYmd(dataFim));
-  }, [dataInicio, dataFim, executar]);
+    const filters = getFilterParams();
+    executar(getDataYmd(dataInicio), getDataYmd(dataFim), filters.coordenacaoId, filters.monitoramentoIds);
+  }, [dataInicio, dataFim, executar, getFilterParams]);
 
   const handleRetomar = useCallback(() => {
     if (!checkpoint) return;
-    retomar();
-  }, [checkpoint, retomar]);
+    const filters = getFilterParams();
+    retomar(filters.coordenacaoId, filters.monitoramentoIds);
+  }, [checkpoint, retomar, getFilterParams]);
 
   // Mapa id→label dos slots para exibir contadores legíveis
   const slotLabelById: Record<string, string> = {};
