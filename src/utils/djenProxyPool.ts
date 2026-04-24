@@ -204,7 +204,8 @@ export async function fetchDjenViaPool(
   if (!isDjenProxyPoolEnabled()) {
     sessionStats.total++;
     sessionStats.direct++;
-    return fetch(fullDirectUrl, init);
+    const r = await fetch(fullDirectUrl, init);
+    return annotateVia(r, DIRECT_SLOT_ID, "Direto (browser)", "direct");
   }
 
   // Extrai a query string da URL direta para repassar ao proxy.
@@ -224,7 +225,7 @@ export async function fetchDjenViaPool(
         sessionStats.direct++;
         const resp = await fetch(fullDirectUrl, init);
         // Se direct deu 429, ainda é informação útil para o motor — devolve.
-        return resp;
+        return annotateVia(resp, DIRECT_SLOT_ID, "Direto (browser)", "direct");
       }
 
       const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/djen?${queryString}`;
@@ -259,10 +260,11 @@ export async function fetchDjenViaPool(
       sessionStats.byProxy[slot.id] = (sessionStats.byProxy[slot.id] || 0) + 1;
 
       // Reconstroi uma Response equivalente à direta para o cliente consumir.
-      return new Response(upstreamBody, {
+      const rebuilt = new Response(upstreamBody, {
         status: upstreamStatus || 200,
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
+      return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
     } catch (err: any) {
       lastErr = err;
       if (err?.name === "AbortError") throw err;
