@@ -1078,8 +1078,8 @@ async function executarLoop(
       descartadas: cp?.descartadas || 0,
       dataInicioYmd,
       dataFimYmd,
-      mensagem: `Iniciando: ${tribunais.length} tribunais, ${MAX_CONCURRENCY} em paralelo`,
-      concorrencia: MAX_CONCURRENCY,
+      mensagem: `Iniciando: ${tribunais.length} tribunais, máx. ${HOST_BUCKET_LIMITS['pje-comunica']} simultâneos no PJE Comunica`,
+      concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
     });
 
     // Registrar execução no banco
@@ -1091,7 +1091,7 @@ async function executarLoop(
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
           iniciado_em: new Date().toISOString(),
-          detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: MAX_CONCURRENCY },
+          detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'] },
         })
         .select('id');
       if (insErr) console.error('[DJEN Paralela] Falha registrar execução:', insErr.message);
