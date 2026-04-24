@@ -649,6 +649,7 @@ async function processarTribunalTrack(
   monitoramentos: Monitoramento[],
   datas: string[],
   signal: AbortSignal,
+  viaId?: string,
 ) {
   const track = state.progress.tracks.find(t => t.tribunal === tribunal);
   if (!track) return;
@@ -705,7 +706,7 @@ async function processarTribunalTrack(
         });
 
         try {
-          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal);
+          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
