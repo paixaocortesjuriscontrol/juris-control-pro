@@ -26,6 +26,8 @@ import {
   isDjenProxyPoolEnabled,
   loadDjenProxyPool,
   DIRECT_SLOT_ID,
+  getDjenProxySlotsRuntime,
+  clearDjenProxyOfflineMark,
 } from "@/utils/djenProxyPool";
 
 // ============================================================================
