@@ -6444,6 +6444,17 @@ export type Database = {
           total: number
         }[]
       }
+      get_publicacoes_relacionadas_por_dedup: {
+        Args: {
+          p_ids_descartadas?: string[]
+          p_ids_processos?: string[]
+          p_ids_termos?: string[]
+        }
+        Returns: {
+          publicacao_id: string
+          tabela_origem: string
+        }[]
+      }
       get_relatorio_andamentos: { Args: never; Returns: Json }
       get_relatorio_atividades: { Args: never; Returns: Json }
       get_relatorio_clientes: { Args: never; Returns: Json }
