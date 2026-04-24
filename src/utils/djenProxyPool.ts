@@ -148,7 +148,19 @@ export function saveDjenProxyPool(slots: ProxySlotConfig[]): void {
 
 export function isDjenProxyPoolEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(STORAGE_ENABLED) === "1";
+  const stored = window.localStorage.getItem(STORAGE_ENABLED);
+  // Se o usuário nunca tocou no toggle (valor null), liga automaticamente
+  // quando houver pelo menos 1 VPS configurada e habilitada. Isso evita o
+  // caso "VPS cadastradas mas pool desligado por esquecimento".
+  if (stored === null) {
+    try {
+      const slots = loadDjenProxyPool();
+      return slots.some((s) => s.enabled);
+    } catch {
+      return false;
+    }
+  }
+  return stored === "1";
 }
 
 export function setDjenProxyPoolEnabled(enabled: boolean): void {
