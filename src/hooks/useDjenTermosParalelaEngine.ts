@@ -1293,6 +1293,17 @@ export function forceKillDjenTermosParalela(clearCheckpoint = false) {
     state.timerInterval = null;
   }
   if (clearCheckpoint) saveCheckpoint(null);
+  // Limpa qualquer execução órfã do tipo djen_paralela no banco para
+  // garantir que o próximo "Executar" não fique bloqueado.
+  void supabase.from('execucoes_agendadas')
+    .update({
+      status: 'cancelado',
+      finalizado_em: new Date().toISOString(),
+      detalhes: { mensagem: 'Cancelado: forceKill pelo usuário' },
+    })
+    .eq('tipo', 'djen_paralela')
+    .eq('status', 'executando')
+    .is('finalizado_em', null);
   state.progress = createDefaultProgress();
   notifyListeners();
 }
