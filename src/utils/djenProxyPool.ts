@@ -330,43 +330,124 @@ export async function checkDjenProxyHealth(
 const DIRECT_SLOT_ID = "__direct__";
 
 /**
- * Constrói a URL do endpoint /djen da VPS replicando os query params da
- * chamada direta ao PJE Comunica. O server.js da VPS lê os params com
- * `parsedUrl.searchParams` e os repassa ao upstream.
+ * Existem DUAS versões de server.js em produção:
+ *  - "v1" (Hostinger): GET /djen?<params>  → envelope { status, body, elapsed_ms }
+ *  - "v3" (Google):    GET /proxy?url=<URL> → resposta CRUA do upstream
+ * Detectamos via /health (campo "service" e/ou "version") e cacheamos em memória.
  */
-function buildProxyDjenUrl(baseUrl: string, fullDirectUrl: string): string {
+type ProxyDialect = "v1-djen" | "v3-proxy";
+const dialectCache: Record<string, ProxyDialect> = {};
+
+async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
+  const cached = dialectCache[slot.id];
+  if (cached) return cached;
+  try {
+    const resp = await fetch(`${slot.baseUrl.replace(/\/$/, "")}/health`, {
+      method: "GET",
+    });
+    if (resp.ok) {
+      const j: any = await resp.json().catch(() => null);
+      const service = String(j?.service || "");
+      const version = String(j?.version || "");
+      const isV3 =
+        service === "djen-vps-proxy" ||
+        version.startsWith("3.") ||
+        version.includes("https");
+      const detected: ProxyDialect = isV3 ? "v3-proxy" : "v1-djen";
+      dialectCache[slot.id] = detected;
+      return detected;
+    }
+  } catch {
+    // ignora — usa default
+  }
+  // Default: v1-djen (mantém comportamento da Hostinger).
+  dialectCache[slot.id] = "v1-djen";
+  return "v1-djen";
+}
+
+/** Limpa o cache de dialeto — chamar quando o usuário edita a baseUrl. */
+export function invalidateProxyDialectCache(slotId?: string): void {
+  if (slotId) delete dialectCache[slotId];
+  else for (const k of Object.keys(dialectCache)) delete dialectCache[k];
+}
+
+/** v1: GET /djen?<params-do-upstream> */
+function buildV1DjenUrl(baseUrl: string, fullDirectUrl: string): string {
   const base = baseUrl.replace(/\/$/, "");
   try {
     const u = new URL(fullDirectUrl);
     const qs = u.searchParams.toString();
     return qs ? `${base}/djen?${qs}` : `${base}/djen`;
   } catch {
-    // fallback: assume que veio só a query string ou URL malformada
     const idx = fullDirectUrl.indexOf("?");
     const qs = idx >= 0 ? fullDirectUrl.slice(idx + 1) : "";
     return qs ? `${base}/djen?${qs}` : `${base}/djen`;
   }
 }
 
+/** v3: GET /proxy?url=<URL-completa-encodada> */
+function buildV3ProxyUrl(baseUrl: string, fullDirectUrl: string): string {
+  const base = baseUrl.replace(/\/$/, "");
+  return `${base}/proxy?url=${encodeURIComponent(fullDirectUrl)}`;
+}
+
 /**
- * Desempacota o envelope JSON `{ status, body, elapsed_ms }` retornado pelo
- * server.js da VPS. Se a resposta não for JSON ou não tiver o formato
- * esperado, devolve o texto cru com status 200 (compatibilidade defensiva).
+ * Faz a chamada à VPS no dialeto correto e devolve { status, body } do upstream.
+ * - v1-djen: desempacota envelope { status, body, elapsed_ms }
+ * - v3-proxy: usa proxyResp.status e proxyResp.text() diretamente
+ * Pode lançar — o caller trata fallback/offline.
  */
-async function parseProxyEnvelope(
-  resp: Response,
+async function callProxySlot(
+  slot: ProxySlotConfig,
+  fullDirectUrl: string,
+  init: RequestInit,
 ): Promise<{ status: number; body: string }> {
-  const text = await resp.text();
+  const dialect = await detectDialect(slot);
+  const url =
+    dialect === "v3-proxy"
+      ? buildV3ProxyUrl(slot.baseUrl, fullDirectUrl)
+      : buildV1DjenUrl(slot.baseUrl, fullDirectUrl);
+  const headers = new Headers(init.headers || {});
+  headers.set("X-Proxy-Token", slot.token);
+
+  const proxyResp = await fetch(url, {
+    method: "GET",
+    headers,
+    signal: init.signal,
+  });
+
+  if (dialect === "v3-proxy") {
+    // v3 devolve a resposta crua do upstream — status real vem em proxyResp.status.
+    // Se o próprio proxy falhar (401 token errado, 403 host bloqueado, 502 upstream)
+    // o status também vem aqui — propagamos para o caller decidir.
+    if (!proxyResp.ok && proxyResp.status !== 429) {
+      const txt = await proxyResp.text().catch(() => "");
+      throw new Error(
+        `VPS ${slot.label} respondeu HTTP ${proxyResp.status}${txt ? ` ${txt.slice(0, 80)}` : ""}`,
+      );
+    }
+    const body = await proxyResp.text();
+    return { status: proxyResp.status || 200, body };
+  }
+
+  // v1-djen
+  if (!proxyResp.ok) {
+    const txt = await proxyResp.text().catch(() => "");
+    throw new Error(
+      `VPS ${slot.label} respondeu HTTP ${proxyResp.status}${txt ? ` ${txt.slice(0, 80)}` : ""}`,
+    );
+  }
+  const text = await proxyResp.text();
   try {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === "object" && "body" in parsed) {
       const status = typeof parsed.status === "number" ? parsed.status : 200;
-      const body = typeof parsed.body === "string"
-        ? parsed.body
-        : JSON.stringify(parsed.body ?? null);
+      const body =
+        typeof parsed.body === "string"
+          ? parsed.body
+          : JSON.stringify(parsed.body ?? null);
       return { status, body };
     }
-    // JSON sem envelope — devolve como body cru
     return { status: 200, body: text };
   } catch {
     return { status: 200, body: text };
