@@ -42,6 +42,8 @@ interface SlotRuntimeState {
   lastError: string | null;
 }
 
+type ProxyFailureKind = "offline" | "config";
+
 const runtime: Record<string, SlotRuntimeState> = {};
 let cursor = 0;
 
@@ -243,6 +245,8 @@ export async function updateProxySlotRemote(
       : s,
   );
   saveDjenProxyPool(next);
+  clearProxyRuntimeState(id);
+  invalidateProxyDialectCache(id);
 }
 
 /** Remove um slot do Supabase e do cache local. */
@@ -253,6 +257,8 @@ export async function removeProxySlotRemote(id: string): Promise<void> {
     .eq("id", id);
   if (error) throw error;
   saveDjenProxyPool(loadDjenProxyPool().filter((s) => s.id !== id));
+  clearProxyRuntimeState(id);
+  invalidateProxyDialectCache(id);
 }
 
 /**
@@ -504,6 +510,34 @@ function markOffline(slotId: string, error: string) {
   };
 }
 
+function markConfigError(slotId: string, error: string) {
+  runtime[slotId] = {
+    offlineUntil: 0,
+    lastError: error,
+  };
+}
+
+function clearProxyRuntimeState(slotId: string) {
+  delete runtime[slotId];
+  delete dialectAutoSwapped[slotId];
+}
+
+function classifyProxyFailure(message: string): ProxyFailureKind {
+  const msg = String(message || "").toLowerCase();
+  if (
+    msg.includes("http 401") ||
+    msg.includes("http 403") ||
+    msg.includes("unauthorized") ||
+    msg.includes("forbidden") ||
+    msg.includes("http 404") ||
+    msg.includes("not_found") ||
+    msg.includes("not found")
+  ) {
+    return "config";
+  }
+  return "offline";
+}
+
 /**
  * Devolve a sequência ordenada de slots a tentar, na rodada atual,
  * começando pelo cursor. Inclui sempre o slot DIRETO ao final (fallback
@@ -596,6 +630,7 @@ export async function fetchDjenViaPool(
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
         await callProxySlot(slot, fullDirectUrl, init);
+      clearProxyRuntimeState(slot.id);
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
           (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
@@ -608,7 +643,9 @@ export async function fetchDjenViaPool(
       return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
     } catch (err: any) {
       if (err?.name === "AbortError") throw err;
-      markOffline(slot.id, err?.message || String(err));
+      const message = err?.message || String(err);
+      if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+      else markOffline(slot.id, message);
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
       if (routing.fallbackToDirect) return callDirect();
@@ -634,6 +671,7 @@ export async function fetchDjenViaPool(
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
         await callProxySlot(slot, fullDirectUrl, init);
+      clearProxyRuntimeState(slot.id);
 
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
@@ -651,7 +689,9 @@ export async function fetchDjenViaPool(
       lastErr = err;
       if (err?.name === "AbortError") throw err;
       if (slot) {
-        markOffline(slot.id, err?.message || String(err));
+        const message = err?.message || String(err);
+        if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+        else markOffline(slot.id, message);
         sessionStats.errorsByProxy[slot.id] =
           (sessionStats.errorsByProxy[slot.id] || 0) + 1;
       }
@@ -680,7 +720,7 @@ export function getDjenProxySlotsRuntime(): Array<
 }
 
 export function clearDjenProxyOfflineMark(slotId: string): void {
-  delete runtime[slotId];
+  clearProxyRuntimeState(slotId);
 }
 
 /** Helper para gerar id único leve (sem uuid). */
