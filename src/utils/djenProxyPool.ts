@@ -245,6 +245,8 @@ export async function updateProxySlotRemote(
       : s,
   );
   saveDjenProxyPool(next);
+  clearProxyRuntimeState(id);
+  invalidateProxyDialectCache(id);
 }
 
 /** Remove um slot do Supabase e do cache local. */
@@ -255,6 +257,8 @@ export async function removeProxySlotRemote(id: string): Promise<void> {
     .eq("id", id);
   if (error) throw error;
   saveDjenProxyPool(loadDjenProxyPool().filter((s) => s.id !== id));
+  clearProxyRuntimeState(id);
+  invalidateProxyDialectCache(id);
 }
 
 /**
