@@ -25,6 +25,7 @@ import {
   getDjenProxyPoolStats,
   isDjenProxyPoolEnabled,
   loadDjenProxyPool,
+  syncDjenProxyPoolFromSupabase,
   DIRECT_SLOT_ID,
   getDjenProxySlotsRuntime,
   clearDjenProxyOfflineMark,
@@ -1220,6 +1221,14 @@ async function executarLoop(
     const tribunaisPendentes = tribunais.filter(t => !tribunaisJaConcluidos.has(t));
     const queue = [...tribunaisPendentes];
     const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
+
+    if (isDjenProxyPoolEnabled()) {
+      try {
+        await syncDjenProxyPoolFromSupabase();
+      } catch (e) {
+        console.warn('[DJEN Paralela] Falha ao sincronizar pool de proxies antes da execução:', e);
+      }
+    }
 
     type ViaSpec = { id: string; label: string };
     const vias: ViaSpec[] = [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
