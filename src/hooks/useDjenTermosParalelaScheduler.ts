@@ -167,12 +167,20 @@ class DjenTermosParalelaScheduler {
     }
 
     try {
-      const todayStart = `${todayYmd}T00:00:00.000Z`;
+      // Considera apenas execuções iniciadas a partir do horário alvo (BRT)
+      // para que execuções manuais feitas antes do horário não bloqueiem o agendamento.
+      // BRT = UTC-3 → ex: 05:00 BRT = 08:00 UTC
+      const targetUtcHour = (this.targetHour + 3) % 24;
+      const dayOffset = this.targetHour + 3 >= 24 ? 1 : 0;
+      const targetDate = new Date(`${todayYmd}T00:00:00.000Z`);
+      targetDate.setUTCDate(targetDate.getUTCDate() + dayOffset);
+      targetDate.setUTCHours(targetUtcHour, this.targetMinute, 0, 0);
+      const targetStartIso = targetDate.toISOString();
       const { data, error } = await supabase
         .from('execucoes_agendadas')
         .select('id, status')
         .eq('tipo', 'djen_paralela')
-        .gte('created_at', todayStart)
+        .gte('created_at', targetStartIso)
         .in('status', ['executando', 'concluido'])
         .limit(1);
 
