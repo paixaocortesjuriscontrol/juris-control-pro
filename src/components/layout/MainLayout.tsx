@@ -30,6 +30,8 @@ export function MainLayout({ children, title, subtitle, headerActions, className
     void import('@/hooks/useDjenTermosProScheduler').then(m => m.getDjenTermosProSchedulerStatus());
     // Processos scheduler: mesmo pattern — auto-inicia do DB se ativo
     void import('@/hooks/useDjenProcessosScheduler').then(m => m.getDjenProcessosSchedulerStatus());
+    // Paralela scheduler: mesmo pattern — auto-inicia do DB se ativo
+    void import('@/hooks/useDjenTermosParalelaScheduler').then(m => m.getDjenTermosParalelaSchedulerStatus());
     return () => {
       stopDjenTermosScheduler();
       // NÃO parar o scheduler Pro no unmount, para não persistir ativo=false ao fechar/reabrir navegador
