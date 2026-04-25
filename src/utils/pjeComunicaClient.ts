@@ -451,6 +451,12 @@ export async function buscarPjeComunicaNoBrowser(
           const baseWait = retryAfterMs ?? 10000;
           setGlobalCooldown(jitterMs(baseWait));
         }
+        // 504 (Cloudflare Gateway Timeout) = origem PJE Comunica lenta. Aplicar
+        // cooldown global curto para dar fôlego à API antes do próximo retry,
+        // evitando martelar a origem e cascata de timeouts em paralelo.
+        if (resp.status === 504 || resp.status === 502 || resp.status === 503) {
+          setGlobalCooldown(jitterMs(4000));
+        }
         throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
       }
 
