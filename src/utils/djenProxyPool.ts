@@ -337,6 +337,8 @@ const DIRECT_SLOT_ID = "__direct__";
  */
 type ProxyDialect = "v1-djen" | "v3-proxy";
 const dialectCache: Record<string, ProxyDialect> = {};
+/** Marca slots em que já tentamos auto-corrigir o dialeto após um 404. */
+const dialectAutoSwapped: Record<string, boolean> = {};
 
 async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
   const cached = dialectCache[slot.id];
@@ -349,10 +351,17 @@ async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
       const j: any = await resp.json().catch(() => null);
       const service = String(j?.service || "");
       const version = String(j?.version || "");
+      // v1 (Hostinger original) usa /djen + envelope { status, body }.
+      // Qualquer outra variante recente (djen-vps-proxy, djen-proxy-paralelo,
+      // djen-https-proxy, etc.) é tratada como v3 (/proxy?url=... + cru).
+      // Regra: só é v1 quando o service indica explicitamente "comunica".
+      const isV1 = /comunica/i.test(service);
       const isV3 =
-        service === "djen-vps-proxy" ||
-        version.startsWith("3.") ||
-        version.includes("https");
+        !isV1 &&
+        (service === "djen-vps-proxy" ||
+          /proxy/i.test(service) ||
+          version.startsWith("3.") ||
+          version.includes("https"));
       const detected: ProxyDialect = isV3 ? "v3-proxy" : "v1-djen";
       dialectCache[slot.id] = detected;
       return detected;
@@ -360,9 +369,10 @@ async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
   } catch {
     // ignora — usa default
   }
-  // Default: v1-djen (mantém comportamento da Hostinger).
-  dialectCache[slot.id] = "v1-djen";
-  return "v1-djen";
+  // Default conservador: v3-proxy (formato mais comum nas VPS atuais).
+  // Se for v1 e errarmos, o auto-swap em callProxySlot corrige na 1ª 404.
+  dialectCache[slot.id] = "v3-proxy";
+  return "v3-proxy";
 }
 
 /** Limpa o cache de dialeto — chamar quando o usuário edita a baseUrl. */
@@ -416,6 +426,33 @@ async function callProxySlot(
     signal: init.signal,
   });
 
+  // Auto-swap: se a VPS devolveu 404, é quase certo que escolhemos a rota
+  // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
+  // o outro dialeto UMA vez por slot e cacheia o vencedor.
+  if (proxyResp.status === 404 && !dialectAutoSwapped[slot.id]) {
+    dialectAutoSwapped[slot.id] = true;
+    const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
+    dialectCache[slot.id] = swapped;
+    const swappedUrl =
+      swapped === "v3-proxy"
+        ? buildV3ProxyUrl(slot.baseUrl, fullDirectUrl)
+        : buildV1DjenUrl(slot.baseUrl, fullDirectUrl);
+    const retryResp = await fetch(swappedUrl, {
+      method: "GET",
+      headers,
+      signal: init.signal,
+    });
+    return parseProxyResponse(slot, swapped, retryResp);
+  }
+
+  return parseProxyResponse(slot, dialect, proxyResp);
+}
+
+async function parseProxyResponse(
+  slot: ProxySlotConfig,
+  dialect: ProxyDialect,
+  proxyResp: Response,
+): Promise<{ status: number; body: string }> {
   if (dialect === "v3-proxy") {
     // v3 devolve a resposta crua do upstream — status real vem em proxyResp.status.
     // Se o próprio proxy falhar (401 token errado, 403 host bloqueado, 502 upstream)
