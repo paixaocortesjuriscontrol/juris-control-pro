@@ -506,6 +506,34 @@ function markOffline(slotId: string, error: string) {
   };
 }
 
+function markConfigError(slotId: string, error: string) {
+  runtime[slotId] = {
+    offlineUntil: 0,
+    lastError: error,
+  };
+}
+
+function clearProxyRuntimeState(slotId: string) {
+  delete runtime[slotId];
+  delete dialectAutoSwapped[slotId];
+}
+
+function classifyProxyFailure(message: string): ProxyFailureKind {
+  const msg = String(message || "").toLowerCase();
+  if (
+    msg.includes("http 401") ||
+    msg.includes("http 403") ||
+    msg.includes("unauthorized") ||
+    msg.includes("forbidden") ||
+    msg.includes("http 404") ||
+    msg.includes("not_found") ||
+    msg.includes("not found")
+  ) {
+    return "config";
+  }
+  return "offline";
+}
+
 /**
  * Devolve a sequência ordenada de slots a tentar, na rodada atual,
  * começando pelo cursor. Inclui sempre o slot DIRETO ao final (fallback
