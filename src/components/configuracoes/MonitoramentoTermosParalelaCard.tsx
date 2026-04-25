@@ -266,6 +266,9 @@ export function MonitoramentoTermosParalelaCard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Agendamento automático */}
+        <SchedulerParalelaPanel />
+
         {/* Filtros: Coordenação e Termos */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
