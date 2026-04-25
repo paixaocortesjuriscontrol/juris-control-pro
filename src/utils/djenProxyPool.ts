@@ -547,6 +547,12 @@ export async function fetchDjenViaPool(
       }
       throw new Error(`Via forçada indisponível: ${routing.forceVia}`);
     }
+    if (!isOnline(slot)) {
+      if (routing.fallbackToDirect) {
+        return callDirect();
+      }
+      throw new Error(`Via forçada offline: ${slot.label || slot.baseUrl}`);
+    }
 
     try {
       sessionStats.total++;
