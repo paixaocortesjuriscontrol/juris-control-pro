@@ -630,6 +630,7 @@ export async function fetchDjenViaPool(
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
         await callProxySlot(slot, fullDirectUrl, init);
+      clearProxyRuntimeState(slot.id);
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
           (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
@@ -642,7 +643,9 @@ export async function fetchDjenViaPool(
       return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
     } catch (err: any) {
       if (err?.name === "AbortError") throw err;
-      markOffline(slot.id, err?.message || String(err));
+      const message = err?.message || String(err);
+      if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+      else markOffline(slot.id, message);
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
       if (routing.fallbackToDirect) return callDirect();
