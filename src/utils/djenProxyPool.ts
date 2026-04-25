@@ -432,10 +432,10 @@ async function callProxySlot(
     signal: init.signal,
   });
 
-  // Auto-swap: se a VPS devolveu 404, é quase certo que escolhemos a rota
-  // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
+  // Auto-swap: se a VPS devolveu 404/502, é provável que escolhemos a rota
+  // errada (ex.: chamamos /proxy num server v1 que só tem /djen). Tenta
   // o outro dialeto UMA vez por slot e cacheia o vencedor.
-  if (proxyResp.status === 404 && !dialectAutoSwapped[slot.id]) {
+  if ((proxyResp.status === 404 || proxyResp.status === 502) && !dialectAutoSwapped[slot.id]) {
     dialectAutoSwapped[slot.id] = true;
     const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
     dialectCache[slot.id] = swapped;
