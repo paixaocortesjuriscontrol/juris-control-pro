@@ -615,13 +615,6 @@ export async function fetchDjenViaPool(
       }
       throw new Error(`Via forçada indisponível: ${routing.forceVia}`);
     }
-    if (!isOnline(slot)) {
-      if (routing.fallbackToDirect) {
-        return callDirect();
-      }
-      throw new Error(`Via forçada offline: ${slot.label || slot.baseUrl}`);
-    }
-
     try {
       sessionStats.total++;
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
@@ -641,8 +634,14 @@ export async function fetchDjenViaPool(
     } catch (err: any) {
       if (err?.name === "AbortError") throw err;
       const message = err?.message || String(err);
-      if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
-      else markOffline(slot.id, message);
+      // Em via forçada (1 worker por VPS), não bloquear a VPS inteira no estado
+      // runtime: isso fazia os próximos tribunais começarem com "Via forçada
+      // offline" sem sequer tentar a requisição real. O retry/backoff da página
+      // já controla 429/504; aqui só registramos estatística/erro.
+      if (routing.fallbackToDirect) {
+        if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+        else markOffline(slot.id, message);
+      }
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
       if (routing.fallbackToDirect) return callDirect();
