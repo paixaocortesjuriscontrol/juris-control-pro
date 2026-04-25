@@ -713,7 +713,7 @@ async function processarTribunalTrack(
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
           rateLimitHits += r.rateLimitHits;
-          if (r.ultimoErro) ultimoErro = r.ultimoErro;
+          ultimoErro = r.ultimoErro ?? null;
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
           ultimoErro = e?.message || String(e);
@@ -831,7 +831,7 @@ async function processarTermoEmTribunal(
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
     });
     addResults(resp.items);
-    if (resp.lastError) ultimoErro = resp.lastError;
+    ultimoErro = resp.lastError ?? null;
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
