@@ -714,9 +714,17 @@ export async function buscarPjeComunicaPaginado(
         if (attempt < maxRetries - 1) {
           const msg = String(e?.message ?? '');
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
-          // 429 precisa de backoff maior para evitar “loop de bloqueio”.
-          const baseDelay = is429 ? Math.max(retryBaseDelay, 8000) : retryBaseDelay;
-          let waitTime = jitterMs(baseDelay * Math.pow(2, attempt));
+          const isGateway = msg.includes('HTTP 504') || msg.includes('HTTP 502') || msg.includes('HTTP 503');
+          // 429 precisa de backoff maior. 504/502/503 (Cloudflare gateway timeout)
+          // devem usar delay curto: a origem PJE estava lenta, não bloqueada.
+          const baseDelay = is429
+            ? Math.max(retryBaseDelay, 8000)
+            : isGateway
+              ? 3000
+              : retryBaseDelay;
+          let waitTime = isGateway
+            ? jitterMs(baseDelay * (attempt + 1))
+            : jitterMs(baseDelay * Math.pow(2, attempt));
           if (is429) {
             // Honrar Retry-After do servidor: se doRequest já leu o header e
             // setou o cooldown global, usar esse valor como PISO mínimo do retry.
@@ -729,7 +737,7 @@ export async function buscarPjeComunicaPaginado(
             options?.onRateLimit?.(waitTime, attempt + 1, page);
           }
           console.log(
-            `[PJE Comunica] ${is429 ? 'Rate limit (429)' : 'Erro'} na página ${page}. ` +
+            `[PJE Comunica] ${is429 ? 'Rate limit (429)' : isGateway ? 'Gateway timeout (504)' : 'Erro'} na página ${page}. ` +
               `Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`
           );
           // Sleep abortável: se o usuário cancelar, interrompe imediatamente
