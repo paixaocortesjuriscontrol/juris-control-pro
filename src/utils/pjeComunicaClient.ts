@@ -512,8 +512,15 @@ export async function buscarPjeComunicaNoBrowser(
       const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
       const nome = nomeAdvogado;
 
+      // UF=TODAS já usa a URL oficial cross-UF por nomeAdvogado.
+      // Não repetir a mesma página nem misturar `texto`/OAB, pois isso triplica
+      // chamadas, cria resultados inconsistentes e acelera 429 nas VPS.
+      if (!ufValida) {
+        return first;
+      }
+
       // 2a) Tentar adicionar `nomeAdvogado` junto com OAB (portal oficial usa isso)
-      if (nome && (oab || ufValida)) {
+      if (nome && oab) {
         const qp2 = new URLSearchParams(qp);
         qp2.set('nomeAdvogado', nome.trim());
         const second = await doRequest(qp2);
@@ -531,7 +538,7 @@ export async function buscarPjeComunicaNoBrowser(
       // 2c) ÚLTIMO RECURSO: buscar só por `texto` com nome do advogado.
       //     Já estamos usando texto na primeira tentativa, mas se falhou,
       //     tentar sem filtros de OAB/nomeAdvogado extras.
-      if (nome && (!oab || !ufValida)) {
+      if (nome && !oab) {
         const qp4 = new URLSearchParams();
         if (params.siglaTribunal) qp4.set('siglaTribunal', params.siglaTribunal);
         if (params.dataInicio) qp4.set('dataDisponibilizacaoInicio', params.dataInicio);
@@ -751,7 +758,9 @@ export async function buscarPjeComunicaPaginado(
       }
 
       if (resp.items.length === 0) break;
-      if (!continueUntilEmpty && !resp.hasMore) break;
+      // Se a API informou que não há próxima página, não buscar página 2 só
+      // para "confirmar vazio". Isso era a principal fonte de duplicidade/429.
+      if (!resp.hasMore || resp.items.length < pageSize) break;
       if (continueUntilEmpty && addedOnPage === 0) {
         console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
         break;
