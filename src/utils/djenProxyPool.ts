@@ -671,6 +671,7 @@ export async function fetchDjenViaPool(
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
         await callProxySlot(slot, fullDirectUrl, init);
+      clearProxyRuntimeState(slot.id);
 
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
@@ -688,7 +689,9 @@ export async function fetchDjenViaPool(
       lastErr = err;
       if (err?.name === "AbortError") throw err;
       if (slot) {
-        markOffline(slot.id, err?.message || String(err));
+        const message = err?.message || String(err);
+        if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+        else markOffline(slot.id, message);
         sessionStats.errorsByProxy[slot.id] =
           (sessionStats.errorsByProxy[slot.id] || 0) + 1;
       }
@@ -717,7 +720,7 @@ export function getDjenProxySlotsRuntime(): Array<
 }
 
 export function clearDjenProxyOfflineMark(slotId: string): void {
-  delete runtime[slotId];
+  clearProxyRuntimeState(slotId);
 }
 
 /** Helper para gerar id único leve (sem uuid). */
