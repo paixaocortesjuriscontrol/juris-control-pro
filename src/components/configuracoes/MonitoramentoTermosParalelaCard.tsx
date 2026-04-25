@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Loader2, Zap, PlayCircle, StopCircle,
   CheckCircle2, XCircle, Clock, CalendarIcon, RotateCcw, Skull,
@@ -21,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDjenTermosParalela } from "@/hooks/useDjenTermosParalela";
+import { useDjenTermosParalelaScheduler } from "@/hooks/useDjenTermosParalelaScheduler";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,6 +56,68 @@ function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// ----------------------------------------------------------------------------
+// Sub-componentes do agendador (isolados para suas próprias subscriptions)
+// ----------------------------------------------------------------------------
+function SchedulerParalelaPanel() {
+  const { ativo, horario, proximoHorario, start, stop, setTime } =
+    useDjenTermosParalelaScheduler();
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Clock className="h-4 w-4 text-primary" />
+          Agendamento automático
+        </div>
+        <Badge variant={ativo ? "default" : "secondary"}>
+          {ativo ? "Ativo" : "Inativo"}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+          <Label htmlFor="djen-paralela-scheduler-toggle" className="text-sm font-medium">
+            Ativar agendamento
+          </Label>
+          <Switch
+            id="djen-paralela-scheduler-toggle"
+            checked={ativo}
+            onCheckedChange={(checked) => {
+              if (checked) { start(); toast.success('Agendamento Paralela ativado'); }
+              else { stop(); toast.info('Agendamento Paralela desativado'); }
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+          <Label className="text-sm font-medium whitespace-nowrap">Horário (BRT)</Label>
+          <Input
+            type="time"
+            value={horario}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) {
+                const [h, m] = val.split(':').map(Number);
+                setTime(h, m);
+                toast.success(`Horário alterado para ${val}`);
+              }
+            }}
+            className="w-28 h-8"
+          />
+        </div>
+      </div>
+      {ativo && proximoHorario && (
+        <div className="flex items-center gap-2 rounded-md bg-background p-2 border">
+          <Clock className="h-4 w-4 text-primary flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground">Próxima execução</p>
+            <p className="text-sm font-medium">{proximoHorario}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function MonitoramentoTermosParalelaCard() {
