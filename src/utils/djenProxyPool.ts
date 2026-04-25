@@ -42,6 +42,8 @@ interface SlotRuntimeState {
   lastError: string | null;
 }
 
+type ProxyFailureKind = "offline" | "config";
+
 const runtime: Record<string, SlotRuntimeState> = {};
 let cursor = 0;
 
