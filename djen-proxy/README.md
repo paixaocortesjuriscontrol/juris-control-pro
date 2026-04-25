@@ -60,11 +60,9 @@ location /djen-proxy/ {
     proxy_read_timeout 120s;
     client_max_body_size 25m;
 
-    # CORS — necessário para o navegador chamar direto
-    add_header Access-Control-Allow-Origin  "*" always;
-    add_header Access-Control-Allow-Headers "content-type, x-proxy-token" always;
-    add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
-    if ($request_method = OPTIONS) { return 204; }
+    # Não trate CORS/OPTIONS aqui: o server.js já responde /health, /djen e OPTIONS
+    # com os headers corretos. Se o Nginx interceptar OPTIONS, o navegador bloqueia
+    # chamadas reais com X-Proxy-Token antes do GET chegar ao Node.
 }
 ```
 
@@ -78,6 +76,16 @@ Teste de fora:
 
 ```bash
 curl https://SEU_DOMINIO/djen-proxy/health
+```
+
+Teste também o preflight usado pelo navegador na chamada real:
+
+```bash
+curl -i -X OPTIONS https://SEU_DOMINIO/djen-proxy/djen \
+  -H "Origin: https://juriscontrol.adv.br" \
+  -H "Access-Control-Request-Method: GET" \
+  -H "Access-Control-Request-Headers: x-proxy-token"
+# Deve retornar Access-Control-Allow-Origin e Access-Control-Allow-Headers
 ```
 
 ---
