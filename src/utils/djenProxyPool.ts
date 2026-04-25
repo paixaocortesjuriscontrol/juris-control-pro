@@ -425,11 +425,11 @@ export async function fetchDjenViaPool(
 
     try {
       sessionStats.total++;
-      // Formato esperado pela VPS djen-proxy-paralelo:
-      //   GET /proxy?url=<URL-COMPLETA-ENCODADA>  (com header X-Proxy-Token)
-      // A VPS devolve a resposta crua do upstream (não envelope).
-      const targetEncoded = encodeURIComponent(fullDirectUrl);
-      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/proxy?url=${targetEncoded}`;
+      // Formato esperado pela VPS djen-proxy (server.js):
+      //   GET /djen?<query-params-do-upstream>  (com header X-Proxy-Token)
+      // A VPS devolve um ENVELOPE JSON: { status, body, elapsed_ms }.
+      // Reconstroi os query params a partir da URL direta do PJE Comunica.
+      const proxyUrl = buildProxyDjenUrl(slot.baseUrl, fullDirectUrl);
       const headers = new Headers(init.headers || {});
       headers.set("X-Proxy-Token", slot.token);
       const proxyResp = await fetch(proxyUrl, {
@@ -445,9 +445,10 @@ export async function fetchDjenViaPool(
         if (routing.fallbackToDirect) return callDirect();
         throw new Error(`VPS ${slot.label} respondeu HTTP ${proxyResp.status}`);
       }
-      // Resposta crua do upstream — status real vem em proxyResp.status.
-      const upstreamStatus = proxyResp.status;
-      const upstreamBody = await proxyResp.text();
+      // Desempacota o envelope { status, body, elapsed_ms } da VPS.
+      const envelope = await parseProxyEnvelope(proxyResp);
+      const upstreamStatus = envelope.status;
+      const upstreamBody = envelope.body;
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
           (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
@@ -483,8 +484,7 @@ export async function fetchDjenViaPool(
         return annotateVia(resp, DIRECT_SLOT_ID, "Direto (browser)", "direct");
       }
 
-      const targetEncoded = encodeURIComponent(fullDirectUrl);
-      const proxyUrl = `${slot.baseUrl.replace(/\/$/, "")}/proxy?url=${targetEncoded}`;
+      const proxyUrl = buildProxyDjenUrl(slot.baseUrl, fullDirectUrl);
       const headers = new Headers(init.headers || {});
       headers.set("X-Proxy-Token", slot.token);
 
@@ -504,9 +504,10 @@ export async function fetchDjenViaPool(
         continue;
       }
 
-      // VPS devolve resposta crua do upstream — status real vem em proxyResp.status.
-      const upstreamStatus = proxyResp.status;
-      const upstreamBody = await proxyResp.text();
+      // VPS devolve envelope { status, body, elapsed_ms } — desempacota.
+      const envelope = await parseProxyEnvelope(proxyResp);
+      const upstreamStatus = envelope.status;
+      const upstreamBody = envelope.body;
 
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
