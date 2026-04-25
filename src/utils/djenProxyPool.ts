@@ -343,8 +343,6 @@ const DIRECT_SLOT_ID = "__direct__";
  */
 type ProxyDialect = "v1-djen" | "v3-proxy";
 const dialectCache: Record<string, ProxyDialect> = {};
-/** Marca slots em que já tentamos auto-corrigir o dialeto após um 404. */
-const dialectAutoSwapped: Record<string, boolean> = {};
 
 async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
   const cached = dialectCache[slot.id];
@@ -433,10 +431,10 @@ async function callProxySlot(
   });
 
   // Auto-swap: se a VPS devolveu 404/502, é provável que escolhemos a rota
-  // errada (ex.: chamamos /proxy num server v1 que só tem /djen). Tenta
-  // o outro dialeto UMA vez por slot e cacheia o vencedor.
-  if ((proxyResp.status === 404 || proxyResp.status === 502) && !dialectAutoSwapped[slot.id]) {
-    dialectAutoSwapped[slot.id] = true;
+  // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
+  // o outro dialeto uma vez NESTA chamada e cacheia o vencedor. Não usamos
+  // trava global porque a VPS pode ser atualizada no meio de uma execução.
+  if (proxyResp.status === 404 || proxyResp.status === 502) {
     const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
     dialectCache[slot.id] = swapped;
     const swappedUrl =
@@ -519,7 +517,6 @@ function markConfigError(slotId: string, error: string) {
 
 function clearProxyRuntimeState(slotId: string) {
   delete runtime[slotId];
-  delete dialectAutoSwapped[slotId];
 }
 
 function classifyProxyFailure(message: string): ProxyFailureKind {
