@@ -550,30 +550,9 @@ export async function fetchDjenViaPool(
 
     try {
       sessionStats.total++;
-      // Formato esperado pela VPS djen-proxy (server.js):
-      //   GET /djen?<query-params-do-upstream>  (com header X-Proxy-Token)
-      // A VPS devolve um ENVELOPE JSON: { status, body, elapsed_ms }.
-      // Reconstroi os query params a partir da URL direta do PJE Comunica.
-      const proxyUrl = buildProxyDjenUrl(slot.baseUrl, fullDirectUrl);
-      const headers = new Headers(init.headers || {});
-      headers.set("X-Proxy-Token", slot.token);
-      const proxyResp = await fetch(proxyUrl, {
-        method: "GET",
-        headers,
-        signal: init.signal,
-      });
-      if (!proxyResp.ok) {
-        const txt = await proxyResp.text().catch(() => "");
-        markOffline(slot.id, `proxy HTTP ${proxyResp.status} ${txt.slice(0, 80)}`);
-        sessionStats.errorsByProxy[slot.id] =
-          (sessionStats.errorsByProxy[slot.id] || 0) + 1;
-        if (routing.fallbackToDirect) return callDirect();
-        throw new Error(`VPS ${slot.label} respondeu HTTP ${proxyResp.status}`);
-      }
-      // Desempacota o envelope { status, body, elapsed_ms } da VPS.
-      const envelope = await parseProxyEnvelope(proxyResp);
-      const upstreamStatus = envelope.status;
-      const upstreamBody = envelope.body;
+      // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
+      const { status: upstreamStatus, body: upstreamBody } =
+        await callProxySlot(slot, fullDirectUrl, init);
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
           (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
@@ -609,30 +588,9 @@ export async function fetchDjenViaPool(
         return annotateVia(resp, DIRECT_SLOT_ID, "Direto (browser)", "direct");
       }
 
-      const proxyUrl = buildProxyDjenUrl(slot.baseUrl, fullDirectUrl);
-      const headers = new Headers(init.headers || {});
-      headers.set("X-Proxy-Token", slot.token);
-
-      const proxyResp = await fetch(proxyUrl, {
-        method: "GET",
-        headers,
-        signal: init.signal,
-      });
-
-      if (!proxyResp.ok) {
-        // 4xx/5xx do proxy em si (ex: 401 token errado, 502 upstream caiu).
-        // Marca offline curto e tenta próximo slot.
-        const txt = await proxyResp.text().catch(() => "");
-        markOffline(slot.id, `proxy HTTP ${proxyResp.status} ${txt.slice(0, 80)}`);
-        sessionStats.errorsByProxy[slot.id] =
-          (sessionStats.errorsByProxy[slot.id] || 0) + 1;
-        continue;
-      }
-
-      // VPS devolve envelope { status, body, elapsed_ms } — desempacota.
-      const envelope = await parseProxyEnvelope(proxyResp);
-      const upstreamStatus = envelope.status;
-      const upstreamBody = envelope.body;
+      // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
+      const { status: upstreamStatus, body: upstreamBody } =
+        await callProxySlot(slot, fullDirectUrl, init);
 
       if (upstreamStatus === 429) {
         sessionStats.rateLimitsByProxy[slot.id] =
