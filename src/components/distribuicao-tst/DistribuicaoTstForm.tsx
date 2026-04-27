@@ -241,6 +241,21 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
           <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
           <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Distribuição" : "Nova Distribuição"}</h2>
         </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBuscarJudit}
+            disabled={buscandoJudit || !form.processo_numero?.trim()}
+            className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+          >
+            {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+            Judit
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar
+          </Button>
+        </div>
       </div>
 
       {/* SEÇÃO 1 - Rosa: Dados Básicos */}
