@@ -14,6 +14,12 @@ import { ResponsaveisSelector } from "@/components/distribuicao-tst/Responsaveis
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { Badge } from "@/components/ui/badge";
+import {
+  useTurmasTst,
+  useRelatoresTst,
+  classificarTurmaDB,
+  classificarRelatorDB,
+} from "@/hooks/useClassificacaoTst";
 
 interface Props {
   dado?: DistribuicaoTst | null;
@@ -73,6 +79,8 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const { data: turmasTst = [] } = useTurmasTst();
+  const { data: relatoresTst = [] } = useRelatoresTst();
   // Marca dinamicamente, durante a sessão, os campos preenchidos por esta busca Judit.
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
 
@@ -160,6 +168,19 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
         apply("data_distribuicao_planilha", data.data_distribuicao);
         apply("relator", data.relator);
         apply("turma", data.turma);
+        // Classificação automática (Turma / Relator) com base no cadastro TST
+        const turmaVal = next.turma;
+        if (turmaVal) {
+          const c = classificarTurmaDB(String(turmaVal), turmasTst);
+          if (c === "POSITIVO") { next.turma_favorabilidade = "POSITIVA"; filled.add("turma_favorabilidade"); }
+          else if (c === "NEGATIVO") { next.turma_favorabilidade = "NEGATIVA"; filled.add("turma_favorabilidade"); }
+        }
+        const relatorVal = next.relator;
+        if (relatorVal) {
+          const r = classificarRelatorDB(String(relatorVal), relatoresTst);
+          if (r?.classificacao === "POSITIVO") { next.relator_favorabilidade = "POSITIVO"; filled.add("relator_favorabilidade"); }
+          else if (r?.classificacao === "NEGATIVO") { next.relator_favorabilidade = "NEGATIVO"; filled.add("relator_favorabilidade"); }
+        }
         apply("reclamante", reclamanteJudit);
         apply("reclamada", reclamadaJudit);
         apply("parte_recorrente", data.recorrente);
