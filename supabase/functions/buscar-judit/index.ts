@@ -44,6 +44,8 @@ interface DataJudOrgao {
   dataDistribuicao: string | null;
   classe: string | null;
   orgaoJulgador: string | null;
+  steps: any[];
+  courts: any[];
 }
 
 async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
@@ -126,8 +128,18 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
       ? `${rawDataAjuiz.substring(0, 4)}-${rawDataAjuiz.substring(4, 6)}-${rawDataAjuiz.substring(6, 8)}`
       : rawDataAjuiz.substring(0, 10) || null;
 
+    const steps = movimentos.map((m: any) => ({
+      step_date: m?.dataHora || null,
+      date: m?.dataHora || null,
+      code: m?.codigo ?? null,
+      content: [m?.nome, m?.orgaoJulgador?.nome].filter(Boolean).join(" - "),
+      title: m?.nome || null,
+      orgao_julgador: m?.orgaoJulgador || null,
+    }));
+    const courts = nomeOrgao ? [{ code: orgaoRaiz?.codigo?.toString?.() || "TST", name: nomeOrgao }] : [];
+
     console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
-    return { relator, turma, dataDistribuicao: dataAjuiz, classe, orgaoJulgador: nomeOrgao || null };
+    return { relator, turma, dataDistribuicao: dataAjuiz, classe, orgaoJulgador: nomeOrgao || null, steps, courts };
   } catch (e) {
     console.log(`[buscar-judit][datajud] erro: ${(e as Error).message}`);
     return null;
