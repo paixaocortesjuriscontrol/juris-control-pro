@@ -548,7 +548,23 @@ function extrairRecursosPorParte(
         recursosBanco.push(sigla);
       }
     }
-    // Se ainda ambíguo, não atribui — evita ruído.
+    // Se ainda ambíguo: quando existe polo passivo conhecido (banco/empresa),
+    // assumimos que o recurso é da reclamada — na prática, em processos do
+    // banco, a maioria dos recursos ao TST é interposta pela reclamada e os
+    // movimentos da Judit frequentemente não nomeiam a parte autora do recurso.
+    else if (ladoAtivo && ladoPassivo) {
+      // Texto menciona ambos os lados: registra para os dois.
+      if (recursosReclamante[recursosReclamante.length - 1] !== sigla) {
+        recursosReclamante.push(sigla);
+      }
+      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
+        recursosBanco.push(sigla);
+      }
+    } else if (nomesPassivo.size > 0) {
+      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
+        recursosBanco.push(sigla);
+      }
+    }
   }
 
   return {
