@@ -12,6 +12,8 @@ import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
   dado?: DistribuicaoTst | null;
+  /** Aba a abrir inicialmente. Default "distribuicao". */
+  initialTab?: "distribuicao" | "benner";
   onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean>;
   onSaveBenner: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onClose: () => void;
@@ -25,10 +27,10 @@ interface Props {
  *
  * Evita que o usuário precise voltar à lista para alternar entre as visões.
  */
-export function DistribuicaoTstDetail({ dado, onSaveDistribuicao, onSaveBenner, onClose }: Props) {
+export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose }: Props) {
   const processoNumero = dado?.processo_numero || "";
 
-  const [tab, setTab] = useState<"distribuicao" | "benner">("distribuicao");
+  const [tab, setTab] = useState<"distribuicao" | "benner">(initialTab);
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
   const [bennerLoading, setBennerLoading] = useState(false);
   const [bennerLoaded, setBennerLoaded] = useState(false);
