@@ -416,30 +416,76 @@ function extrairRecursosPorParte(
   const recursosReclamante: string[] = [];
   const recursosBanco: string[] = [];
 
-  // Apenas movimentos que indicam interposição/protocolo de recurso.
-  const RX_INTERPOSICAO = /\b(interp[ôo][es]|interposi[çc][ãa]o|protocol(?:ad[oa]|izad[oa])|juntad[oa]\s+(?:de\s+)?petic[ãa]o.*recurso|recurso\s+(?:de\s+revista|ordin[áa]rio|extraordin[áa]rio|especial|interposto)|agravo\s+(?:de\s+instrumento|interno|regimental|de\s+peti[çc][ãa]o)\s+interposto)\b/i;
+  // Movimentos que indicam interposição/protocolo de recurso.
+  // Inclui padrões reais de tribunais: "JUNTADA A PETIÇÃO DE AGRAVO",
+  // "JUNTADA A PETIÇÃO DE EMBARGOS DE DECLARAÇÃO",
+  // "JUNTADA A PETIÇÃO DE RECURSO DE REVISTA", "INTERPOSTO RECURSO ...".
+  const RX_INTERPOSICAO =
+    /\b(interp[ôo][es]|interposi[çc][ãa]o|protocol(?:ad[oa]|izad[oa])|juntad[oa]\s+(?:a\s+|de\s+|do\s+)?peti[çc][ãa]o\s+(?:de|do|para)?\s*(?:agravo|embargos|recurso|revista|ordin[áa]rio|extraordin[áa]rio|especial)|recurso\s+(?:de\s+revista|ordin[áa]rio|extraordin[áa]rio|especial|interposto)|agravo\s+(?:de\s+instrumento|interno|regimental|de\s+peti[çc][ãa]o))\b/i;
 
-  for (const s of stepsOrdenados) {
+  // Exclui peças que NÃO são recurso interposto (resposta a recurso da outra parte).
+  const RX_NAO_RECURSO =
+    /\b(contraminuta|contrarraz[õo]es|contesta[çc][ãa]o|impugna[çc][ãa]o|manifesta[çc][ãa]o|habilita[çc][ãa]o|substabelecimento|peti[çc][ãa]o\s+intercorrente|petic[ãa]o\s+do\s+adv|memori|destaque|sustenta[çc][ãa]o|cota|provid[êe]ncias?)\b/i;
+
+  // Padrões para descobrir o autor do recurso em movimentos próximos.
+  // Após "JUNTADA A PETIÇÃO DE [recurso]" geralmente há "EXPEDIDO(A) INTIMAÇÃO A(O) <NOME>",
+  // intimando a parte CONTRÁRIA. Logo, o autor é o oposto.
+  const RX_INTIMACAO_DESTINATARIO =
+    /expedid[oa].*intima[çc][ãa]o\s+(?:a\s+|ao\s+|à\s+|para\s+)?[oa]?\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s\.\-&]{3,})/i;
+
+  const detectaLado = (texto: string): { ativo: boolean; passivo: boolean } => {
+    const upper = normalize(texto);
+    let ativo = RX_LADO_ATIVO.test(texto);
+    let passivo = RX_LADO_PASSIVO.test(texto);
+    if (!ativo) {
+      for (const tok of nomesAtivo) {
+        if (upper.includes(tok)) { ativo = true; break; }
+      }
+    }
+    if (!passivo) {
+      for (const tok of nomesPassivo) {
+        if (upper.includes(tok)) { passivo = true; break; }
+      }
+    }
+    return { ativo, passivo };
+  };
+
+  for (let i = 0; i < stepsOrdenados.length; i++) {
+    const s = stepsOrdenados[i];
     const content = (s?.content || s?.title || s?.description || "").toString();
     if (!content) continue;
+    if (RX_NAO_RECURSO.test(content)) continue;
     if (!RX_INTERPOSICAO.test(content)) continue;
 
     const sigla = classificarRecursoInterposto(content);
     if (!sigla) continue;
 
-    const upper = normalize(content);
-    let ladoAtivo = RX_LADO_ATIVO.test(content);
-    let ladoPassivo = RX_LADO_PASSIVO.test(content);
+    // 1) Tenta detectar pelo próprio texto.
+    let { ativo: ladoAtivo, passivo: ladoPassivo } = detectaLado(content);
 
-    // Cruzamento com nomes das partes (estratégia 1c).
-    if (!ladoAtivo) {
-      for (const tok of nomesAtivo) {
-        if (upper.includes(tok)) { ladoAtivo = true; break; }
-      }
-    }
-    if (!ladoPassivo) {
-      for (const tok of nomesPassivo) {
-        if (upper.includes(tok)) { ladoPassivo = true; break; }
+    // 2) Se ambíguo, olha movimentos vizinhos (±3) por menção a parte/intimação.
+    if (ladoAtivo === ladoPassivo) {
+      const janela = stepsOrdenados.slice(Math.max(0, i - 1), Math.min(stepsOrdenados.length, i + 4));
+      for (const v of janela) {
+        if (v === s) continue;
+        const tv = (v?.content || v?.title || "").toString();
+        if (!tv) continue;
+        // "EXPEDIDO INTIMAÇÃO A(O) <NOME>" → intimação à parte contrária do autor.
+        const m = tv.match(RX_INTIMACAO_DESTINATARIO);
+        if (m && m[1]) {
+          const destino = normalize(m[1]);
+          let destinoAtivo = false, destinoPassivo = false;
+          for (const tok of nomesAtivo) { if (destino.includes(tok)) { destinoAtivo = true; break; } }
+          for (const tok of nomesPassivo) { if (destino.includes(tok)) { destinoPassivo = true; break; } }
+          if (destinoAtivo && !destinoPassivo) { ladoPassivo = true; ladoAtivo = false; break; }
+          if (destinoPassivo && !destinoAtivo) { ladoAtivo = true; ladoPassivo = false; break; }
+        }
+        const lv = detectaLado(tv);
+        if (lv.ativo !== lv.passivo) {
+          ladoAtivo = lv.ativo;
+          ladoPassivo = lv.passivo;
+          break;
+        }
       }
     }
 
@@ -452,7 +498,7 @@ function extrairRecursosPorParte(
         recursosBanco.push(sigla);
       }
     }
-    // Se ambíguo (ambos ou nenhum), não atribui — evita ruído.
+    // Se ainda ambíguo, não atribui — evita ruído.
   }
 
   return {
