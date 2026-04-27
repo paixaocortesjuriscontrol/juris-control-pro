@@ -330,6 +330,8 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         ...f,
         dossie: data.dossie || f.dossie,
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
+        tipo_recurso_reclamante: data.tipo_recurso_reclamante || f.tipo_recurso_reclamante,
+        tipo_recurso_banco: data.tipo_recurso_banco || f.tipo_recurso_banco,
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
         turma: data.turma || f.turma,
@@ -351,6 +353,8 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       const filled = new Set<string>();
       if (data.dossie) filled.add("dossie");
       if (data.tipo_recurso) filled.add("tipo_recurso");
+      if (data.tipo_recurso_reclamante) filled.add("tipo_recurso_reclamante");
+      if (data.tipo_recurso_banco) filled.add("tipo_recurso_banco");
       if (data.data_distribuicao) filled.add("data_distribuicao");
       if (data.relator) filled.add("relator");
       if (data.turma) filled.add("turma");
