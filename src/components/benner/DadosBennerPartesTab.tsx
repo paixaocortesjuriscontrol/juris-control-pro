@@ -83,7 +83,7 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
     setBuscando(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero },
+        body: { numero_processo: processoNumero, tribunal: "TST" },
       });
 
       if (error) {
