@@ -143,24 +143,11 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
       const reclamadaJudit = nomesPorPolo("PASSIVE");
 
       const filled = new Set<string>(juditSessionFields);
-      const merge = (field: keyof DistribuicaoTstInsert, novo: any) => {
-        const atual = (form as any)[field];
-        // Só preenche se atual está vazio.
-        const isEmpty = atual === null || atual === undefined || String(atual).trim() === "";
-        if (isEmpty && novo !== null && novo !== undefined && String(novo).trim() !== "") {
-          (form as any)[field] = novo;
-          filled.add(field as string);
-          return novo;
-        }
-        return atual;
-      };
-
-      setForm(f => {
-        const next: any = { ...f };
+      const hasValue = (value: any) => value !== null && value !== undefined && String(value).trim() !== "";
+      const nextForm: DistribuicaoTstInsert = (() => {
+        const next: any = { ...form };
         const apply = (field: string, novo: any) => {
-          const atual = next[field];
-          const isEmpty = atual === null || atual === undefined || String(atual).trim() === "";
-          if (isEmpty && novo !== null && novo !== undefined && String(novo).trim() !== "") {
+          if (hasValue(novo) && next[field] !== novo) {
             next[field] = novo;
             filled.add(field);
           }
@@ -188,45 +175,37 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
           filled.add("transito_julgado");
         }
         return next;
-      });
+      })();
+
+      setForm(nextForm);
 
       setJuditSessionFields(filled);
 
       const preenchidos = filled.size;
       if (preenchidos > 0) {
         toast.success(`Judit preencheu ${preenchidos} campo(s). Salvando automaticamente...`);
-        // Auto-salva no banco e dispara recarga da aba Dados Benner.
-        // Lê o estado mais recente do form via setForm callback.
-        setForm(currentForm => {
-          void (async () => {
-            try {
-              const payload: DistribuicaoTstInsert = {
-                ...currentForm,
-                judit_preenchido: true,
-                judit_preenchido_em: new Date().toISOString(),
-              };
-              // Garante processo_id antes de salvar (mesma lógica de handleSave).
-              if (!payload.processo_id && payload.processo_numero?.trim()) {
-                const { data: proc } = await supabase
-                  .from("processos")
-                  .select("id")
-                  .eq("numero", payload.processo_numero.trim())
-                  .maybeSingle();
-                if (proc) payload.processo_id = proc.id;
-              }
-              if (payload.processo_id) {
-                const ok = await onSave(payload, dado?.id);
-                if (ok) {
-                  toast.success("Distribuição TST e Dados Benner sincronizados com Judit");
-                  onJuditSync?.();
-                }
-              }
-            } catch (e: any) {
-              console.error("Auto-save Judit falhou:", e);
-            }
-          })();
-          return currentForm;
-        });
+        try {
+          const payload: DistribuicaoTstInsert = {
+            ...nextForm,
+            judit_preenchido: true,
+            judit_preenchido_em: new Date().toISOString(),
+          };
+          if (!payload.processo_id && payload.processo_numero?.trim()) {
+            const { data: proc } = await supabase
+              .from("processos")
+              .select("id")
+              .eq("numero", payload.processo_numero.trim())
+              .maybeSingle();
+            if (proc) payload.processo_id = proc.id;
+          }
+          const ok = await onSave(payload, dado?.id);
+          if (ok) {
+            toast.success("Distribuição TST e Dados Benner sincronizados com Judit");
+            onJuditSync?.();
+          }
+        } catch (e: any) {
+          console.error("Auto-save Judit falhou:", e);
+        }
       } else {
         toast.info("Judit retornou dados, mas todos os campos já estavam preenchidos.");
       }
