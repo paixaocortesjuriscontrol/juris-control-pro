@@ -403,12 +403,12 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       // Auto-classificação interna de Turma e Relator (Positivo/Negativo) — usada
       // somente quando a Judit preencheu o respectivo campo. Seta os checkboxes
       // de "Posicionamento Turma/Relator" sem sobrescrever escolhas explícitas.
-      const classifTurma = classificarTurma(nextForm.turma as any);
+      const classifTurma = classificarTurmaDB(nextForm.turma as any, turmasTst);
       if (data.turma && classifTurma && classifTurma !== "IMPEDIDA") {
         nextForm.posicao_turma_favoravel = classifTurma === "POSITIVO";
         nextForm.posicao_turma_desfavoravel = classifTurma === "NEGATIVO";
       }
-      const classifRelatorRes = classificarRelator(nextForm.relator as any);
+      const classifRelatorRes = classificarRelatorDB(nextForm.relator as any, relatoresTst);
       if (data.relator && classifRelatorRes && classifRelatorRes.classificacao !== "IMPEDIDA") {
         nextForm.posicao_relator_favoravel = classifRelatorRes.classificacao === "POSITIVO";
         nextForm.posicao_relator_desfavoravel = classifRelatorRes.classificacao === "NEGATIVO";
@@ -908,7 +908,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               <JuditLabel field="turma"><Label>Turma (E)</Label></JuditLabel>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
               {(() => {
-                const c = classificarTurma(form.turma as any);
+                const c = classificarTurmaDB(form.turma as any, turmasTst);
                 if (!c) return null;
                 const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
                   : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
@@ -920,7 +920,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               <JuditLabel field="relator"><Label>Relator (F)</Label></JuditLabel>
               <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
               {(() => {
-                const r = classificarRelator(form.relator as any);
+                const r = classificarRelatorDB(form.relator as any, relatoresTst);
                 if (!r) return null;
                 const c = r.classificacao;
                 const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
@@ -928,7 +928,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
                   : "bg-amber-100 text-amber-800 border-amber-300";
                 return (
                   <Badge className={cn("border", cls)}>
-                    Classificação: {c}{r.ministro.observacao ? " ⚠" : ""}
+                    Classificação: {c}{r.relator.observacao ? " ⚠" : ""}
                   </Badge>
                 );
               })()}
