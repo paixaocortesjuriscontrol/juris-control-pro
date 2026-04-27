@@ -466,7 +466,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
           </div>
           <div className="space-y-2">
             <Label>Matérias Recurso do Banco</Label>
-            <Textarea value={form.materias_recurso_banco || ""} onChange={e => set("materias_recurso_banco", e.target.value)} rows={3} />
+            <MateriasMultiSelect
+              value={form.materias_recurso_banco || null}
+              onChange={(v) => set("materias_recurso_banco", v)}
+            />
           </div>
           <div className="space-y-2">
             <Label>Chance de Êxito</Label>
