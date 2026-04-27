@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Trash2 } from "lucide-react";
 
 interface Props {
   value: string | null | undefined;
@@ -71,6 +71,10 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
     commit(next.length ? next : [""]);
   };
 
+  const limparTudo = () => {
+    commit([""]);
+  };
+
   const add = () => {
     commit([...tipos, ""]);
   };
@@ -109,17 +113,37 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                 onChange={(e) => setAt(idx, e.target.value)}
               />
             )}
-            {tipos.length > 1 && (
+            {tipos.length > 1 ? (
               <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Remover">
                 <X className="h-4 w-4" />
               </Button>
+            ) : (
+              t.trim() && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Limpar">
+                  <X className="h-4 w-4" />
+                </Button>
+              )
             )}
           </div>
         );
       })}
-      <Button type="button" variant="outline" size="sm" onClick={add} className="gap-1">
-        <Plus className="h-3 w-3" /> Adicionar tipo de recurso
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={add} className="gap-1">
+          <Plus className="h-3 w-3" /> Adicionar tipo de recurso
+        </Button>
+        {tipos.some((t) => t.trim()) && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={limparTudo}
+            className="gap-1 text-destructive hover:text-destructive"
+            title="Remover todos os tipos de recurso"
+          >
+            <Trash2 className="h-3 w-3" /> Remover todos
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
