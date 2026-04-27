@@ -671,25 +671,6 @@ export default function DistribuicaoTst() {
     return pages;
   };
 
-  if (showBennerForm) {
-    return (
-      <MainLayout title="Distribuição TST - Dados Benner">
-        <div className="max-w-4xl mx-auto space-y-4">
-          <Button variant="ghost" size="sm" onClick={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); setMarkBennerCamposJudit(false); }}>
-            <ArrowLeft className="w-4 h-4 mr-1" /> Voltar para Distribuição TST
-          </Button>
-          <DadosBennerForm
-            dado={bennerDado}
-            initialData={bennerPreFill || undefined}
-            markExistingJuditFields={markBennerCamposJudit}
-            onSave={handleSaveBenner}
-            onCancel={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); setMarkBennerCamposJudit(false); }}
-          />
-        </div>
-      </MainLayout>
-    );
-  }
-
   if (showCarga) {
     return (
       <MainLayout title="Distribuição TST - Carga Benner">
@@ -725,10 +706,16 @@ export default function DistribuicaoTst() {
     return (
       <MainLayout title="Distribuição TST">
         <div className="max-w-4xl mx-auto">
-          <DistribuicaoTstForm
+          <DistribuicaoTstDetail
             dado={editando}
-            onSave={saveDado}
-            onCancel={() => { setShowForm(false); setEditando(null); }}
+            initialTab={detailInitialTab}
+            onSaveDistribuicao={saveDado}
+            onSaveBenner={handleSaveBenner}
+            onClose={() => {
+              setShowForm(false);
+              setEditando(null);
+              setDetailInitialTab("distribuicao");
+            }}
           />
         </div>
       </MainLayout>
