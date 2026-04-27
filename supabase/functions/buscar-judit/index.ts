@@ -282,6 +282,23 @@ function selecionarInstancia(pageData: any[], tribunalHint?: string | null): any
         return tstInd;
       }
     }
+    // Hint foi informado mas não bateu — match parcial por prefixo (ex: hint=TRT4 cobre TRT04)
+    const hintDigits = hint.replace(/\D/g, "");
+    const partial = rds.find((rd) => {
+      const t = (rd.tribunal_acronym || "").toUpperCase();
+      if (!t) return false;
+      if (t.startsWith(hint) || hint.startsWith(t)) return true;
+      const td = t.replace(/\D/g, "");
+      return hintDigits && td && (td === hintDigits || td.endsWith(hintDigits) || hintDigits.endsWith(td))
+        && t.replace(/\d/g, "") === hint.replace(/\d/g, "");
+    });
+    if (partial) {
+      console.log(`[buscar-judit] instância selecionada por hint parcial=${hint} -> ${partial.tribunal_acronym}`);
+      return partial;
+    }
+    // Hint informado mas não encontrado: NÃO cair em outro tribunal automaticamente.
+    console.log(`[buscar-judit] hint=${hint} não localizado entre instâncias [${rds.map(r=>r.tribunal_acronym).join(",")}] — retornando null`);
+    return null;
   }
 
   // 1) TST/STF/STJ explícito por acronym
@@ -679,18 +696,25 @@ serve(async (req) => {
       }
       
       if (!rd) {
-        // Se não achou instância TST mas tem cache, usar o cache como fallback
-        if (cachedRd) {
+        // Se não achou instância do tribunal solicitado mas tem cache que bate com o hint, usar
+        const cacheBateHint = cachedRd && (!tribunalHint ||
+          (cachedRd.tribunal_acronym || "").toUpperCase() === tribunalHint.toUpperCase() ||
+          (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd)));
+        if (cacheBateHint) {
           console.log(`[buscar-judit] TST não encontrado, usando cache como fallback`);
           rd = cachedRd;
         } else {
           return json(
             {
-              error: "Processo não encontrado na Judit",
+              error: tribunalHint
+                ? `Processo não encontrado na Judit para o tribunal ${tribunalHint}`
+                : "Processo não encontrado na Judit",
               _debug: {
                 request_id: requestId,
                 status_judit: envelope.request_status,
                 instancias_retornadas: pageData.length,
+                tribunais_disponiveis: pageData.map((i:any)=>i?.response_data?.tribunal_acronym).filter(Boolean),
+                tribunal_hint: tribunalHint,
               },
             },
             404,
