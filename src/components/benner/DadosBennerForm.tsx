@@ -367,11 +367,12 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             ? (f as any).reclamante
             : (
                 Array.isArray(data.parties_detail)
-                  ? data.parties_detail
-                      .filter((p: any) => (p?.side || "").toString().toUpperCase() === "ACTIVE" && (p?.person_type || "").toString().toUpperCase() !== "ADVOGADO")
-                      .map((p: any) => p?.name)
-                      .filter(Boolean)
-                      .join(" / ")
+                  ? [...new Set(
+                      data.parties_detail
+                        .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "ACTIVE" && !p?.is_advogado)
+                        .map((p: any) => String(p?.nome || "").trim())
+                        .filter(Boolean)
+                    )].join(" / ")
                   : ""
               ) || (f as any).reclamante || null,
         reclamada:
@@ -379,11 +380,12 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             ? (f as any).reclamada
             : (
                 Array.isArray(data.parties_detail)
-                  ? data.parties_detail
-                      .filter((p: any) => (p?.side || "").toString().toUpperCase() === "PASSIVE" && (p?.person_type || "").toString().toUpperCase() !== "ADVOGADO")
-                      .map((p: any) => p?.name)
-                      .filter(Boolean)
-                      .join(" / ")
+                  ? [...new Set(
+                      data.parties_detail
+                        .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "PASSIVE" && !p?.is_advogado)
+                        .map((p: any) => String(p?.nome || "").trim())
+                        .filter(Boolean)
+                    )].join(" / ")
                   : ""
               ) || (f as any).reclamada || null,
         relator: data.relator || f.relator,
