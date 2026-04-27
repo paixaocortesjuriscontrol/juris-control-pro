@@ -334,7 +334,19 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       setForm(f => ({
         ...f,
         dossie: data.dossie || f.dossie,
+        // Tipo de Recurso (C): formato "Reclamante - Reclamada".
+        // Sobrescreve apenas se a Judit retornou algo (preserva valor manual existente).
         tipo_recurso: data.tipo_recurso || f.tipo_recurso,
+        // Tipos por parte espelhados na tela Distribuição TST.
+        // Só preenche se ainda estiverem vazios (não sobrescreve o que o usuário já tem).
+        tipo_recurso_reclamante:
+          ((f as any).tipo_recurso_reclamante && String((f as any).tipo_recurso_reclamante).trim())
+            ? (f as any).tipo_recurso_reclamante
+            : (data.tipo_recurso_reclamante || (f as any).tipo_recurso_reclamante || null),
+        tipo_recurso_banco:
+          ((f as any).tipo_recurso_banco && String((f as any).tipo_recurso_banco).trim())
+            ? (f as any).tipo_recurso_banco
+            : (data.tipo_recurso_banco || (f as any).tipo_recurso_banco || null),
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
         relator: data.relator || f.relator,
         turma: data.turma || f.turma,
@@ -351,11 +363,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido || f.resultado_conhecido_nao_provido,
         resultado_outra: data.resultado_outra || f.resultado_outra,
         processo_baixado: data.processo_baixado || f.processo_baixado,
-      }));
+      } as any));
 
       const filled = new Set<string>();
       if (data.dossie) filled.add("dossie");
       if (data.tipo_recurso) filled.add("tipo_recurso");
+      if (data.tipo_recurso_reclamante) filled.add("tipo_recurso_reclamante");
+      if (data.tipo_recurso_banco) filled.add("tipo_recurso_banco");
       if (data.data_distribuicao) filled.add("data_distribuicao");
       if (data.relator) filled.add("relator");
       if (data.turma) filled.add("turma");
