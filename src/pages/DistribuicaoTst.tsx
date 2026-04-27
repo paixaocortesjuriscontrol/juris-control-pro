@@ -814,7 +814,7 @@ export default function DistribuicaoTst() {
               <Trash2 className="w-4 h-4 mr-2" /> Apagar Todos
             </Button>
             )}
-            <Button onClick={() => setShowForm(true)}>
+            <Button onClick={() => { setDetailInitialTab("distribuicao"); setShowForm(true); }}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
             <Link to="/dados-benner">
