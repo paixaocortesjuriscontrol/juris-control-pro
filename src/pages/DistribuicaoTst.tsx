@@ -13,6 +13,7 @@ import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioParte
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
+import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
@@ -66,6 +67,8 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
+  const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin } = useUserRole();
   const [showCarga, setShowCarga] = useState(false);
   
