@@ -320,39 +320,9 @@ export default function DistribuicaoTst() {
 
   // Open Dados Benner form for a distribuição row
   const handleOpenBenner = async (dist: DistTst) => {
-    setLoadingBenner(dist.id);
-    try {
-      setMarkBennerCamposJudit(!!dist.judit_preenchido);
-
-      // Look up existing dados_benner by processo number
-      const { data: existing } = await supabase
-        .from("dados_benner" as any)
-        .select("*")
-        .eq("processo", dist.processo_numero)
-        .limit(1);
-
-      if (existing && (existing as any[]).length > 0) {
-        setBennerDado((existing as any[])[0] as DadoBenner);
-        setBennerPreFill(null);
-      } else {
-        // Pre-fill from distribuição data
-        setBennerDado(null);
-        setBennerPreFill({
-          processo: dist.processo_numero,
-          dossie: dist.dossie || "",
-          turma: dist.turma || "",
-          relator: dist.relator || "",
-          data_distribuicao: dist.data_distribuicao_real || dist.data_distribuicao_planilha || null,
-          recorrente: dist.parte_recorrente || "",
-          status: "rascunho",
-        });
-      }
-      setShowBennerForm(true);
-    } catch (err) {
-      setMarkBennerCamposJudit(false);
-      toast.error("Erro ao buscar dados Benner");
-    }
-    setLoadingBenner(null);
+    // Abre o detalhe unificado já posicionado na aba "Dados Benner".
+    setDetailInitialTab("benner");
+    setEditando(dist);
   };
 
   // Save handler for Dados Benner form used from this page
