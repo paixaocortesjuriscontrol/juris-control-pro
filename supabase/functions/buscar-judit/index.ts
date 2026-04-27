@@ -334,6 +334,133 @@ const MAP_RECURSO: Array<[RegExp, string]> = [
   [/agravo/i, "Agravo"],
 ];
 
+// Mapeamento de tipos de recurso para abreviações usadas no campo combinado.
+const MAP_RECURSO_INTERPOSTO: Array<[RegExp, string]> = [
+  [/agravo\s+de\s+instrumento\s+em\s+recurso\s+de\s+revista|agravo\s+de\s+instrumento.*recurso\s+de\s+revista|\bAIRR\b/i, "AIRR"],
+  [/embargos?\s+de\s+declara[çc][ãa]o|\bED\b|\bEDcl\b/i, "ED"],
+  [/embargos?\s+(?:à|a)\s+execu[çc][ãa]o|\bEE\b/i, "EE"],
+  [/embargos\b/i, "E"],
+  [/recurso\s+de\s+revista|\bRR\b/i, "RR"],
+  [/recurso\s+ordin[áa]rio|\bRO\b/i, "RO"],
+  [/agravo\s+regimental|\bAgR\b|\bAGR\b/i, "AgR"],
+  [/agravo\s+de\s+petic[ãa]o|\bAP\b/i, "AP"],
+  [/agravo\s+interno|\bAgInt\b/i, "AgInt"],
+  [/agravo\s+de\s+instrumento|\bAI\b/i, "AI"],
+  [/agravo\b/i, "Ag"],
+  [/recurso\s+extraordin[áa]rio|\bRE\b/i, "RE"],
+  [/recurso\s+especial|\bREsp\b/i, "REsp"],
+];
+
+function classificarRecursoInterposto(texto: string): string | null {
+  const t = (texto || "").toString();
+  for (const [rx, sigla] of MAP_RECURSO_INTERPOSTO) {
+    if (rx.test(t)) return sigla;
+  }
+  return null;
+}
+
+/**
+ * Identifica recursos interpostos por reclamante e por reclamada/banco a partir
+ * dos steps (movimentos), em ordem cronológica. Estratégia (1c):
+ *  - Detecta o tipo de recurso pelo texto do movimento.
+ *  - Identifica o lado pelo texto ("reclamante"/"reclamada/banco") OU por
+ *    cruzamento com nomes do polo ativo/passivo presentes em parties.
+ * Estratégia (3b): concatena todos em ordem cronológica (ex: "RO + RR").
+ */
+function extrairRecursosPorParte(
+  steps: any[],
+  parties: any[],
+): { reclamante: string | null; banco: string | null } {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    return { reclamante: null, banco: null };
+  }
+
+  const normalize = (s: string) =>
+    (s || "")
+      .toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+
+  const nomesAtivo = new Set<string>();
+  const nomesPassivo = new Set<string>();
+  if (Array.isArray(parties)) {
+    for (const p of parties) {
+      const ptype = (p?.person_type || "").toString().toUpperCase();
+      if (ptype === "ADVOGADO") continue;
+      const side = (p?.side || "").toString().toUpperCase();
+      const nome = normalize(p?.name || "");
+      if (!nome || nome.length < 3) continue;
+      // Tokens significativos do nome (>3 chars) ajudam a casar com o texto do movimento.
+      const tokens = nome.split(/\s+/).filter((t) => t.length >= 4);
+      for (const tok of tokens) {
+        if (side === "ACTIVE") nomesAtivo.add(tok);
+        else if (side === "PASSIVE") nomesPassivo.add(tok);
+      }
+    }
+  }
+
+  // Padrões de identificação de lado pelo texto do movimento.
+  const RX_LADO_ATIVO = /\b(reclamante|exequente|autor(?:a)?|recorrente\s+reclamante|agravante\s+reclamante)\b/i;
+  const RX_LADO_PASSIVO = /\b(reclamad[oa]|executad[oa]|r[ée]u|r[ée]|banco|empresa|recorrente\s+reclamad[oa]|agravante\s+reclamad[oa])\b/i;
+
+  // Ordena por data ascendente.
+  const stepsOrdenados = [...steps]
+    .filter((s) => s && (s.step_date || s.date))
+    .sort((a, b) => {
+      const da = (a.step_date || a.date || "").toString();
+      const db = (b.step_date || b.date || "").toString();
+      return da.localeCompare(db);
+    });
+
+  const recursosReclamante: string[] = [];
+  const recursosBanco: string[] = [];
+
+  // Apenas movimentos que indicam interposição/protocolo de recurso.
+  const RX_INTERPOSICAO = /\b(interp[ôo][es]|interposi[çc][ãa]o|protocol(?:ad[oa]|izad[oa])|juntad[oa]\s+(?:de\s+)?petic[ãa]o.*recurso|recurso\s+(?:de\s+revista|ordin[áa]rio|extraordin[áa]rio|especial|interposto)|agravo\s+(?:de\s+instrumento|interno|regimental|de\s+peti[çc][ãa]o)\s+interposto)\b/i;
+
+  for (const s of stepsOrdenados) {
+    const content = (s?.content || s?.title || s?.description || "").toString();
+    if (!content) continue;
+    if (!RX_INTERPOSICAO.test(content)) continue;
+
+    const sigla = classificarRecursoInterposto(content);
+    if (!sigla) continue;
+
+    const upper = normalize(content);
+    let ladoAtivo = RX_LADO_ATIVO.test(content);
+    let ladoPassivo = RX_LADO_PASSIVO.test(content);
+
+    // Cruzamento com nomes das partes (estratégia 1c).
+    if (!ladoAtivo) {
+      for (const tok of nomesAtivo) {
+        if (upper.includes(tok)) { ladoAtivo = true; break; }
+      }
+    }
+    if (!ladoPassivo) {
+      for (const tok of nomesPassivo) {
+        if (upper.includes(tok)) { ladoPassivo = true; break; }
+      }
+    }
+
+    if (ladoAtivo && !ladoPassivo) {
+      if (recursosReclamante[recursosReclamante.length - 1] !== sigla) {
+        recursosReclamante.push(sigla);
+      }
+    } else if (ladoPassivo && !ladoAtivo) {
+      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
+        recursosBanco.push(sigla);
+      }
+    }
+    // Se ambíguo (ambos ou nenhum), não atribui — evita ruído.
+  }
+
+  return {
+    reclamante: recursosReclamante.length ? recursosReclamante.join(" + ") : null,
+    banco: recursosBanco.length ? recursosBanco.join(" + ") : null,
+  };
+}
+
 function extrairClassificacao(rd: any): string | null {
   // schema oficial: classifications é array
   const classes = Array.isArray(rd.classifications) ? rd.classifications : [];
