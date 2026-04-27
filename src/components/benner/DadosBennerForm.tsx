@@ -359,40 +359,36 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               .filter(Boolean)
           )].join(" / ")
         : "";
+      // Política: a Judit é fonte da verdade — quando retorna um valor,
+      // SEMPRE sobrescreve o que estiver no formulário (manual ou anterior).
+      // Só preserva o valor atual quando a Judit não retornou nada para o campo.
+      const pick = <T,>(novo: T, atual: T): T =>
+        (novo !== null && novo !== undefined && String(novo as any).trim() !== "" ? novo : atual);
       const nextForm = {
         ...form,
-        dossie: data.dossie || form.dossie,
-        // Tipo de Recurso (C): formato "Reclamante - Reclamada".
-        // Sobrescreve apenas se a Judit retornou algo (preserva valor manual existente).
-        tipo_recurso: data.tipo_recurso || form.tipo_recurso,
-        // Tipos por parte espelhados na tela Distribuição TST.
-        // Só preenche se ainda estiverem vazios (não sobrescreve o que o usuário já tem).
-        tipo_recurso_reclamante: data.tipo_recurso_reclamante || (form as any).tipo_recurso_reclamante || null,
-        tipo_recurso_banco: data.tipo_recurso_banco || (form as any).tipo_recurso_banco || null,
-        data_distribuicao: data.data_distribuicao || form.data_distribuicao,
-        // Espelho para a tela "Distribuição TST".
-        // data_distribuicao_real é a coluna dedicada à data vinda da Judit/manual,
-        // distinta de data_distribuicao_planilha (que vem da planilha importada).
-        data_distribuicao_real: data.data_distribuicao || (form as any).data_distribuicao_real || null,
-        // Reclamante / Reclamada extraídos das partes (polo ativo / passivo, ignorando advogados).
-        // Só preenche se estiverem vazios para preservar o que o usuário já digitou na outra tela.
-        reclamante: partesAtivas || (form as any).reclamante || null,
-        reclamada: partesPassivas || (form as any).reclamada || null,
-        relator: data.relator || form.relator,
-        turma: data.turma || form.turma,
-        tribunal: tribunalMapeado || form.tribunal,
-        recorrente: data.recorrente || form.recorrente,
-        situacao_processo: situacaoMapeada || form.situacao_processo,
-        tem_data_julgamento: data.tem_data_julgamento || form.tem_data_julgamento,
-        data_julgamento: data.data_julgamento || form.data_julgamento,
-        horario_julgamento: data.horario_julgamento || form.horario_julgamento,
-        tipo_julgamento: data.tipo_julgamento || form.tipo_julgamento,
-        resultado_sem_transcendencia: data.resultado_sem_transcendencia || form.resultado_sem_transcendencia,
-        resultado_nao_conhecido: data.resultado_nao_conhecido || form.resultado_nao_conhecido,
-        resultado_conhecido_provido: data.resultado_conhecido_provido || form.resultado_conhecido_provido,
-        resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido || form.resultado_conhecido_nao_provido,
-        resultado_outra: data.resultado_outra || form.resultado_outra,
-        processo_baixado: data.processo_baixado || form.processo_baixado,
+        dossie: pick(data.dossie, form.dossie),
+        tipo_recurso: pick(data.tipo_recurso, form.tipo_recurso),
+        tipo_recurso_reclamante: pick(data.tipo_recurso_reclamante, (form as any).tipo_recurso_reclamante ?? null),
+        tipo_recurso_banco: pick(data.tipo_recurso_banco, (form as any).tipo_recurso_banco ?? null),
+        data_distribuicao: pick(data.data_distribuicao, form.data_distribuicao),
+        data_distribuicao_real: pick(data.data_distribuicao, (form as any).data_distribuicao_real ?? null),
+        reclamante: pick(partesAtivas, (form as any).reclamante ?? null),
+        reclamada: pick(partesPassivas, (form as any).reclamada ?? null),
+        relator: pick(data.relator, form.relator),
+        turma: pick(data.turma, form.turma),
+        tribunal: pick(tribunalMapeado, form.tribunal),
+        recorrente: pick(data.recorrente, form.recorrente),
+        situacao_processo: pick(situacaoMapeada, form.situacao_processo),
+        tem_data_julgamento: pick(data.tem_data_julgamento, form.tem_data_julgamento),
+        data_julgamento: pick(data.data_julgamento, form.data_julgamento),
+        horario_julgamento: pick(data.horario_julgamento, form.horario_julgamento),
+        tipo_julgamento: pick(data.tipo_julgamento, form.tipo_julgamento),
+        resultado_sem_transcendencia: data.resultado_sem_transcendencia ?? form.resultado_sem_transcendencia,
+        resultado_nao_conhecido: data.resultado_nao_conhecido ?? form.resultado_nao_conhecido,
+        resultado_conhecido_provido: data.resultado_conhecido_provido ?? form.resultado_conhecido_provido,
+        resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido ?? form.resultado_conhecido_nao_provido,
+        resultado_outra: pick(data.resultado_outra, form.resultado_outra),
+        processo_baixado: pick(data.processo_baixado, form.processo_baixado),
       } as DadoBennerInsert;
 
       setForm(nextForm);
