@@ -56,6 +56,11 @@ const emptyForm: DadoBennerInsert = {
   // "Tipo de Recurso do Reclamante" e "Tipo de Recurso do Banco" da outra tela.
   tipo_recurso_reclamante: null,
   tipo_recurso_banco: null,
+  // Campos espelhados adicionais (preenchidos pela Judit, exibidos na tela Distribuição TST).
+  reclamante: null,
+  reclamada: null,
+  data_distribuicao_real: null,
+  data_distribuicao_planilha: null,
 } as any;
 
 const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
@@ -348,6 +353,41 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             ? (f as any).tipo_recurso_banco
             : (data.tipo_recurso_banco || (f as any).tipo_recurso_banco || null),
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
+        // Espelho para a tela "Distribuição TST".
+        // data_distribuicao_real é a coluna dedicada à data vinda da Judit/manual,
+        // distinta de data_distribuicao_planilha (que vem da planilha importada).
+        data_distribuicao_real:
+          ((f as any).data_distribuicao_real)
+            ? (f as any).data_distribuicao_real
+            : (data.data_distribuicao || (f as any).data_distribuicao_real || null),
+        // Reclamante / Reclamada extraídos das partes (polo ativo / passivo, ignorando advogados).
+        // Só preenche se estiverem vazios para preservar o que o usuário já digitou na outra tela.
+        reclamante:
+          ((f as any).reclamante && String((f as any).reclamante).trim())
+            ? (f as any).reclamante
+            : (
+                Array.isArray(data.parties_detail)
+                  ? [...new Set(
+                      data.parties_detail
+                        .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "ACTIVE" && !p?.is_advogado)
+                        .map((p: any) => String(p?.nome || "").trim())
+                        .filter(Boolean)
+                    )].join(" / ")
+                  : ""
+              ) || (f as any).reclamante || null,
+        reclamada:
+          ((f as any).reclamada && String((f as any).reclamada).trim())
+            ? (f as any).reclamada
+            : (
+                Array.isArray(data.parties_detail)
+                  ? [...new Set(
+                      data.parties_detail
+                        .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "PASSIVE" && !p?.is_advogado)
+                        .map((p: any) => String(p?.nome || "").trim())
+                        .filter(Boolean)
+                    )].join(" / ")
+                  : ""
+              ) || (f as any).reclamada || null,
         relator: data.relator || f.relator,
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,

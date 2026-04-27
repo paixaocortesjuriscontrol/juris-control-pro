@@ -13,6 +13,7 @@ import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioParte
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
+import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
@@ -66,14 +67,12 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
+  const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin } = useUserRole();
   const [showCarga, setShowCarga] = useState(false);
   
-  // Dados Benner form from distribuição
-  const [showBennerForm, setShowBennerForm] = useState(false);
-  const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
-  const [bennerPreFill, setBennerPreFill] = useState<Partial<DadoBennerInsert> | null>(null);
-  const [markBennerCamposJudit, setMarkBennerCamposJudit] = useState(false);
+  // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
   const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
   
   // Bulk Judit
@@ -111,17 +110,6 @@ export default function DistribuicaoTst() {
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
-
-  // Sempre que o formulário Benner abrir, rolar para o topo da página
-  useEffect(() => {
-    if (showBennerForm) {
-      // O scroll real fica no <main> do MainLayout (lg:overflow-y-auto)
-      requestAnimationFrame(() => {
-        document.querySelectorAll("main").forEach(m => m.scrollTo({ top: 0, behavior: "auto" }));
-        window.scrollTo({ top: 0, behavior: "auto" });
-      });
-    }
-  }, [showBennerForm]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -317,39 +305,9 @@ export default function DistribuicaoTst() {
 
   // Open Dados Benner form for a distribuição row
   const handleOpenBenner = async (dist: DistTst) => {
-    setLoadingBenner(dist.id);
-    try {
-      setMarkBennerCamposJudit(!!dist.judit_preenchido);
-
-      // Look up existing dados_benner by processo number
-      const { data: existing } = await supabase
-        .from("dados_benner" as any)
-        .select("*")
-        .eq("processo", dist.processo_numero)
-        .limit(1);
-
-      if (existing && (existing as any[]).length > 0) {
-        setBennerDado((existing as any[])[0] as DadoBenner);
-        setBennerPreFill(null);
-      } else {
-        // Pre-fill from distribuição data
-        setBennerDado(null);
-        setBennerPreFill({
-          processo: dist.processo_numero,
-          dossie: dist.dossie || "",
-          turma: dist.turma || "",
-          relator: dist.relator || "",
-          data_distribuicao: dist.data_distribuicao_real || dist.data_distribuicao_planilha || null,
-          recorrente: dist.parte_recorrente || "",
-          status: "rascunho",
-        });
-      }
-      setShowBennerForm(true);
-    } catch (err) {
-      setMarkBennerCamposJudit(false);
-      toast.error("Erro ao buscar dados Benner");
-    }
-    setLoadingBenner(null);
+    // Abre o detalhe unificado já posicionado na aba "Dados Benner".
+    setDetailInitialTab("benner");
+    setEditando(dist);
   };
 
   // Save handler for Dados Benner form used from this page
@@ -698,25 +656,6 @@ export default function DistribuicaoTst() {
     return pages;
   };
 
-  if (showBennerForm) {
-    return (
-      <MainLayout title="Distribuição TST - Dados Benner">
-        <div className="max-w-4xl mx-auto space-y-4">
-          <Button variant="ghost" size="sm" onClick={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); setMarkBennerCamposJudit(false); }}>
-            <ArrowLeft className="w-4 h-4 mr-1" /> Voltar para Distribuição TST
-          </Button>
-          <DadosBennerForm
-            dado={bennerDado}
-            initialData={bennerPreFill || undefined}
-            markExistingJuditFields={markBennerCamposJudit}
-            onSave={handleSaveBenner}
-            onCancel={() => { setShowBennerForm(false); setBennerDado(null); setBennerPreFill(null); setMarkBennerCamposJudit(false); }}
-          />
-        </div>
-      </MainLayout>
-    );
-  }
-
   if (showCarga) {
     return (
       <MainLayout title="Distribuição TST - Carga Benner">
@@ -752,10 +691,16 @@ export default function DistribuicaoTst() {
     return (
       <MainLayout title="Distribuição TST">
         <div className="max-w-4xl mx-auto">
-          <DistribuicaoTstForm
+          <DistribuicaoTstDetail
             dado={editando}
-            onSave={saveDado}
-            onCancel={() => { setShowForm(false); setEditando(null); }}
+            initialTab={detailInitialTab}
+            onSaveDistribuicao={saveDado}
+            onSaveBenner={handleSaveBenner}
+            onClose={() => {
+              setShowForm(false);
+              setEditando(null);
+              setDetailInitialTab("distribuicao");
+            }}
           />
         </div>
       </MainLayout>
@@ -841,7 +786,7 @@ export default function DistribuicaoTst() {
               <Trash2 className="w-4 h-4 mr-2" /> Apagar Todos
             </Button>
             )}
-            <Button onClick={() => setShowForm(true)}>
+            <Button onClick={() => { setDetailInitialTab("distribuicao"); setShowForm(true); }}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
             <Link to="/dados-benner">
@@ -1060,7 +1005,7 @@ export default function DistribuicaoTst() {
                     : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => setEditando(d)}>
+                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => { setDetailInitialTab("distribuicao"); setEditando(d); }}>
                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(d.id)}
