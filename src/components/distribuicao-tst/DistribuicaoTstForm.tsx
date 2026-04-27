@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Save, ArrowLeft, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, Loader2, Search } from "lucide-react";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -64,10 +64,13 @@ const emptyForm: DistribuicaoTstInsert = {
 export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
+  const [buscandoJudit, setBuscandoJudit] = useState(false);
+  // Marca dinamicamente, durante a sessão, os campos preenchidos por esta busca Judit.
+  const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
-    !!dado?.judit_preenchido && !!(value && String(value).trim());
+    (!!dado?.judit_preenchido || juditSessionFields.size > 0) && !!(value && String(value).trim());
   const juditClass = (value: any) =>
     isJuditFilled(value)
       ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all"
@@ -100,6 +103,88 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
+  const handleBuscarJudit = async () => {
+    const numero = (form.processo_numero || "").trim();
+    if (!numero) {
+      toast.warning("Informe o número do processo antes de buscar na Judit");
+      return;
+    }
+    setBuscandoJudit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+        body: { numero_processo: numero, tribunal: "TST" },
+      });
+      if (error) {
+        toast.error("Erro ao buscar na Judit: " + (error.message || "desconhecido"));
+        return;
+      }
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      // Extrai reclamante / reclamada das partes (polo ativo / passivo, sem advogados).
+      const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+      const nomesPorPolo = (poloUpper: string) =>
+        [...new Set(
+          partes
+            .filter((p: any) => (p?.polo || "").toString().toUpperCase() === poloUpper && !p?.is_advogado)
+            .map((p: any) => String(p?.nome || "").trim())
+            .filter(Boolean)
+        )].join(" / ");
+      const reclamanteJudit = nomesPorPolo("ACTIVE");
+      const reclamadaJudit = nomesPorPolo("PASSIVE");
+
+      const filled = new Set<string>(juditSessionFields);
+      const merge = (field: keyof DistribuicaoTstInsert, novo: any) => {
+        const atual = (form as any)[field];
+        // Só preenche se atual está vazio.
+        const isEmpty = atual === null || atual === undefined || String(atual).trim() === "";
+        if (isEmpty && novo !== null && novo !== undefined && String(novo).trim() !== "") {
+          (form as any)[field] = novo;
+          filled.add(field as string);
+          return novo;
+        }
+        return atual;
+      };
+
+      setForm(f => {
+        const next: any = { ...f };
+        const apply = (field: string, novo: any) => {
+          const atual = next[field];
+          const isEmpty = atual === null || atual === undefined || String(atual).trim() === "";
+          if (isEmpty && novo !== null && novo !== undefined && String(novo).trim() !== "") {
+            next[field] = novo;
+            filled.add(field);
+          }
+        };
+        apply("dossie", data.dossie);
+        apply("data_distribuicao_real", data.data_distribuicao);
+        apply("relator", data.relator);
+        apply("turma", data.turma);
+        apply("reclamante", reclamanteJudit);
+        apply("reclamada", reclamadaJudit);
+        apply("parte_recorrente", data.recorrente);
+        apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
+        apply("tipo_recurso_banco", data.tipo_recurso_banco);
+        return next;
+      });
+
+      setJuditSessionFields(filled);
+
+      const preenchidos = filled.size;
+      if (preenchidos > 0) {
+        toast.success(`Judit preencheu ${preenchidos} campo(s). Clique em Salvar para persistir.`);
+      } else {
+        toast.info("Judit retornou dados, mas todos os campos já estavam preenchidos.");
+      }
+    } catch (e: any) {
+      toast.error("Falha ao buscar na Judit: " + (e?.message || "erro desconhecido"));
+    } finally {
+      setBuscandoJudit(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.processo_numero?.trim()) {
       toast.warning("Informe o número do processo");
@@ -130,7 +215,15 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
       }
     }
 
-    const ok = await onSave(form, dado?.id);
+    // Se a sessão Judit preencheu campos, marca o registro como preenchido pela Judit.
+    const payload: DistribuicaoTstInsert = juditSessionFields.size > 0
+      ? {
+          ...form,
+          judit_preenchido: true,
+          judit_preenchido_em: new Date().toISOString(),
+        }
+      : form;
+    const ok = await onSave(payload, dado?.id);
     setSaving(false);
     if (ok) onCancel();
   };
