@@ -171,11 +171,8 @@ export function gerarRelatorioTermosDjen({
     const tribsUfs = asArray(d.tribunais_ufs);
     const exclusoes = asArray(d.exclusoes);
     const termosOr = asArray(d.termos_or);
-    const coordNome = d.coordenacao_id ? coordNomeMap.get(d.coordenacao_id) || "—" : "—";
     const tipoLabel = TIPO_LABEL[d.tipo || ""] || d.tipo || "—";
     const oabFmt = d.oab ? `${d.oab}${d.uf ? "/" + d.uf : ""}` : "—";
-    const buscarParteLabel =
-      d.buscar_parte === true ? "Sim" : d.buscar_parte === false ? "Não" : "—";
     const concomitante = (d.condicao_concomitante || "").trim() || "—";
 
     return [
@@ -187,10 +184,8 @@ export function gerarRelatorioTermosDjen({
       concomitante,
       exclusoes.length ? exclusoes.join(", ") : "—",
       oabFmt,
-      buscarParteLabel,
       tribs.length ? tribs.join(", ") : "Todos",
       tribsUfs.length ? tribsUfs.join(", ") : "Todas",
-      coordNome,
       d.ativo ? "Ativo" : "Inativo",
     ];
   });
@@ -207,10 +202,8 @@ export function gerarRelatorioTermosDjen({
         "Cond. concomitante",
         "Exclusões",
         "OAB/UF",
-        "Buscar parte",
         "Tribunais",
         "UFs",
-        "Coordenação",
         "Status",
       ],
     ],
@@ -218,7 +211,7 @@ export function gerarRelatorioTermosDjen({
     margin: { left: 10, right: 10, top: 22, bottom: 15 },
     styles: {
       font: "helvetica",
-      fontSize: 7,
+      fontSize: 7.5,
       cellPadding: 1.8,
       textColor: TEXT_DARK,
       lineColor: BORDER,
@@ -230,24 +223,22 @@ export function gerarRelatorioTermosDjen({
       fillColor: NAVY,
       textColor: [255, 255, 255],
       fontStyle: "bold",
-      fontSize: 7.5,
+      fontSize: 8,
       halign: "center",
     },
     alternateRowStyles: { fillColor: ROW_ALT },
     columnStyles: {
-      0: { cellWidth: 7, halign: "center" },
-      1: { cellWidth: 38, fontStyle: "bold" },
-      2: { cellWidth: 18 },
-      3: { cellWidth: 32 },
-      4: { cellWidth: 30 },
-      5: { cellWidth: 28 },
-      6: { cellWidth: 28 },
-      7: { cellWidth: 18 },
-      8: { cellWidth: 14, halign: "center" },
-      9: { cellWidth: 22 },
-      10: { cellWidth: 16 },
-      11: { cellWidth: "auto" },
-      12: { cellWidth: 14, halign: "center" },
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: 50, fontStyle: "bold" },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 38 },
+      4: { cellWidth: 35 },
+      5: { cellWidth: 32 },
+      6: { cellWidth: 32 },
+      7: { cellWidth: 22 },
+      8: { cellWidth: "auto" },
+      9: { cellWidth: 20 },
+      10: { cellWidth: 16, halign: "center" },
     },
     didDrawPage: () => {
       drawHeaderFooter(doc.getNumberOfPages());
