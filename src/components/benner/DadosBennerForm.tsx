@@ -819,7 +819,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("turma"))}>
               <JuditLabel field="turma"><Label>Turma (E)</Label></JuditLabel>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
@@ -828,10 +828,17 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
               <JuditLabel field="relator"><Label>Relator (F)</Label></JuditLabel>
               <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Análise Quarteirizado (G)</Label>
-              <Input value={form.analise_quarteirizado || ""} onChange={e => set("analise_quarteirizado", e.target.value)} />
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Análise Quarteirizado (G)</Label>
+            <Textarea
+              value={form.analise_quarteirizado || ""}
+              onChange={e => set("analise_quarteirizado", e.target.value)}
+              rows={5}
+              className="min-h-[120px] resize-y"
+              placeholder="Descreva a análise do quarteirizado (pode conter várias linhas)..."
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
