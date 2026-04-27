@@ -843,6 +843,63 @@ export type Database = {
         }
         Relationships: []
       }
+      classificacao_relatores_tst: {
+        Row: {
+          cargo: string | null
+          classificacao: Database["public"]["Enums"]["classificacao_tst_enum"]
+          created_at: string
+          id: string
+          nome: string
+          observacao: string | null
+          updated_at: string
+        }
+        Insert: {
+          cargo?: string | null
+          classificacao: Database["public"]["Enums"]["classificacao_tst_enum"]
+          created_at?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cargo?: string | null
+          classificacao?: Database["public"]["Enums"]["classificacao_tst_enum"]
+          created_at?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      classificacao_turmas_tst: {
+        Row: {
+          classificacao: Database["public"]["Enums"]["classificacao_tst_enum"]
+          created_at: string
+          id: string
+          nome: string
+          observacao: string | null
+          updated_at: string
+        }
+        Insert: {
+          classificacao: Database["public"]["Enums"]["classificacao_tst_enum"]
+          created_at?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          classificacao?: Database["public"]["Enums"]["classificacao_tst_enum"]
+          created_at?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clientes: {
         Row: {
           cpf_cnpj: string | null
@@ -6575,6 +6632,7 @@ export type Database = {
         | "secretaria"
         | "cliente"
       area_atuacao: "civil" | "trabalhista" | "empresarial" | "direito_privado"
+      classificacao_tst_enum: "POSITIVO" | "NEGATIVO" | "IMPEDIDA"
       prioridade_tarefa: "baixa" | "media" | "alta" | "urgente"
       status_processo:
         | "ativo"
@@ -6723,6 +6781,7 @@ export const Constants = {
         "cliente",
       ],
       area_atuacao: ["civil", "trabalhista", "empresarial", "direito_privado"],
+      classificacao_tst_enum: ["POSITIVO", "NEGATIVO", "IMPEDIDA"],
       prioridade_tarefa: ["baixa", "media", "alta", "urgente"],
       status_processo: [
         "ativo",
