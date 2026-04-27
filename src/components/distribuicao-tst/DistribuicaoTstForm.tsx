@@ -118,8 +118,9 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
     }
     setBuscandoJudit(true);
     try {
+      const tribunalHint = (form.tribunal && String(form.tribunal).trim()) || "TST";
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: numero, tribunal: "TST" },
+        body: { numero_processo: numero, tribunal: tribunalHint },
       });
       if (error) {
         toast.error("Erro ao buscar na Judit: " + (error.message || "desconhecido"));
