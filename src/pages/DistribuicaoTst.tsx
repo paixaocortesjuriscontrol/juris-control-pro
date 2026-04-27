@@ -539,6 +539,8 @@ export default function DistribuicaoTst() {
             recorrente: recorrenteJudit,
             tribunal: tribunalMapeado || "TST",
             tipo_recurso: juditData.tipo_recurso || null,
+            tipo_recurso_reclamante: juditData.tipo_recurso_reclamante || null,
+            tipo_recurso_banco: juditData.tipo_recurso_banco || null,
             situacao_processo: juditData.situacao_processo || null,
             tem_data_julgamento: juditData.tem_data_julgamento || null,
             data_julgamento: juditData.data_julgamento || null,
@@ -568,6 +570,20 @@ export default function DistribuicaoTst() {
             // Update only non-null judit fields
             const updateFields: any = {};
             if (juditData.tipo_recurso) updateFields.tipo_recurso = juditData.tipo_recurso;
+            // Tipos por parte: só preenche se ainda estiverem vazios na linha existente,
+            // para preservar o que o usuário já tenha digitado.
+            const existingId = (existingBenner as any[])[0].id;
+            const { data: existingRow } = await (supabase
+              .from("dados_benner" as any)
+              .select("tipo_recurso_reclamante, tipo_recurso_banco")
+              .eq("id", existingId)
+              .maybeSingle() as any);
+            if (juditData.tipo_recurso_reclamante && !((existingRow as any)?.tipo_recurso_reclamante || "").toString().trim()) {
+              updateFields.tipo_recurso_reclamante = juditData.tipo_recurso_reclamante;
+            }
+            if (juditData.tipo_recurso_banco && !((existingRow as any)?.tipo_recurso_banco || "").toString().trim()) {
+              updateFields.tipo_recurso_banco = juditData.tipo_recurso_banco;
+            }
             if (juditData.relator) updateFields.relator = juditData.relator;
             if (juditData.turma) updateFields.turma = juditData.turma;
             if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
