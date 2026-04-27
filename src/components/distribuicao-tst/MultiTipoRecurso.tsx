@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,13 +34,28 @@ const SEPARADOR = " + ";
  * tipo_recurso_banco) e com o backend (que já usa o mesmo separador).
  */
 export function MultiTipoRecurso({ value, onChange }: Props) {
-  const tipos = useMemo<string[]>(() => {
-    const raw = (value || "").toString().trim();
+  const parse = (v: string | null | undefined): string[] => {
+    const raw = (v || "").toString().trim();
     if (!raw) return [""];
-    return raw.split(/\s*\+\s*/).map((s) => s.trim()).filter((s, i, a) => s || a.length === 1);
+    const arr = raw.split(/\s*\+\s*/).map((s) => s.trim());
+    return arr.length ? arr : [""];
+  };
+
+  const [tipos, setTipos] = useState<string[]>(() => parse(value));
+
+  // Sincroniza quando o valor externo muda (ex.: preenchimento via Judit)
+  useEffect(() => {
+    const externo = parse(value);
+    const atualSemVazios = tipos.map((s) => s.trim()).filter(Boolean).join(SEPARADOR);
+    const externoStr = externo.filter(Boolean).join(SEPARADOR);
+    if (atualSemVazios !== externoStr) {
+      setTipos(externo);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const commit = (lista: string[]) => {
+    setTipos(lista);
     const limpo = lista.map((s) => s.trim()).filter(Boolean);
     onChange(limpo.length ? limpo.join(SEPARADOR) : null);
   };
