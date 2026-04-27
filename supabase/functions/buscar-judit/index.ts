@@ -1046,18 +1046,22 @@ serve(async (req) => {
     // do polo recorrente. Isso espelha a lógica do botão Judit individual e
     // garante que os campos `tipo_recurso_reclamante`/`tipo_recurso_banco`
     // sejam preenchidos sempre que houver recurso conhecido.
-    if (!recursosPorParte.reclamante && !recursosPorParte.banco && classificacao) {
+    if (classificacao) {
       const siglaFallback = classificarRecursoInterposto(classificacao);
       if (siglaFallback) {
-        // Heurística: recurso ao TST normalmente é interposto pela parte
-        // recorrente identificada (poloAtivo costuma ser o reclamante).
-        // Se houver polo ativo, atribuímos a ele; caso contrário, ao banco.
-        if (poloAtivo) {
+        // Preenche o lado que ainda estiver vazio. Em processos do banco
+        // chegando ao TST, é comum que ambos tenham interposto recurso
+        // (ex.: RR do reclamante e AIRR/RR do banco); quando os movimentos
+        // não permitem identificar o autor, garantimos pelo menos a sigla
+        // da classificação para os dois lados que tenham polo conhecido.
+        if (!recursosPorParte.reclamante && poloAtivo) {
           recursosPorParte.reclamante = siglaFallback;
-        } else if (poloPassivo) {
-          recursosPorParte.banco = siglaFallback;
+          console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
         }
-        console.log(`[buscar-judit] fallback recurso por classificação: ${siglaFallback} -> ${poloAtivo ? "reclamante" : "banco"}`);
+        if (!recursosPorParte.banco && poloPassivo) {
+          recursosPorParte.banco = siglaFallback;
+          console.log(`[buscar-judit] fallback classificação -> banco: ${siglaFallback}`);
+        }
       }
     }
 
