@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   dado?: DistribuicaoTst | null;
@@ -63,6 +64,20 @@ const emptyForm: DistribuicaoTstInsert = {
 export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
+
+  // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
+  const isJuditFilled = (value: any) =>
+    !!dado?.judit_preenchido && !!(value && String(value).trim());
+  const juditClass = (value: any) =>
+    isJuditFilled(value)
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all"
+      : "";
+  const JuditBadge = ({ show }: { show: boolean }) =>
+    show ? (
+      <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0 h-4 font-normal border-emerald-500 text-emerald-600 dark:text-emerald-400">
+        Judit
+      </Badge>
+    ) : null;
 
   useEffect(() => {
     const loadResponsaveis = async (id: string) => {
@@ -241,8 +256,11 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
         <SectionHeader title="Recurso Reclamante" color="bg-[#F9CB9C] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Tipo de Recurso do Reclamante</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditClass(form.tipo_recurso_reclamante))}>
+              <Label className="flex items-center">
+                Tipo de Recurso do Reclamante
+                <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
+              </Label>
               <Input value={form.tipo_recurso_reclamante || ""} onChange={e => set("tipo_recurso_reclamante", e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -282,8 +300,11 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
         <SectionHeader title="Recurso Banco" color="bg-[#B6D7A8] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Tipo de Recurso do Banco</Label>
+            <div className={cn("space-y-2 p-2 -m-2", juditClass(form.tipo_recurso_banco))}>
+              <Label className="flex items-center">
+                Tipo de Recurso do Banco
+                <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
+              </Label>
               <Input value={form.tipo_recurso_banco || ""} onChange={e => set("tipo_recurso_banco", e.target.value)} />
             </div>
             <div className="space-y-2">
