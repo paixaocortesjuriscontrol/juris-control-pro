@@ -392,6 +392,20 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         processo_baixado: pick(data.processo_baixado, form.processo_baixado),
       } as DadoBennerInsert;
 
+      // Auto-classificação interna de Turma e Relator (Positivo/Negativo) — usada
+      // somente quando a Judit preencheu o respectivo campo. Seta os checkboxes
+      // de "Posicionamento Turma/Relator" sem sobrescrever escolhas explícitas.
+      const classifTurma = classificarTurma(nextForm.turma as any);
+      if (data.turma && classifTurma && classifTurma !== "IMPEDIDA") {
+        nextForm.posicao_turma_favoravel = classifTurma === "POSITIVO";
+        nextForm.posicao_turma_desfavoravel = classifTurma === "NEGATIVO";
+      }
+      const classifRelatorRes = classificarRelator(nextForm.relator as any);
+      if (data.relator && classifRelatorRes && classifRelatorRes.classificacao !== "IMPEDIDA") {
+        nextForm.posicao_relator_favoravel = classifRelatorRes.classificacao === "POSITIVO";
+        nextForm.posicao_relator_desfavoravel = classifRelatorRes.classificacao === "NEGATIVO";
+      }
+
       setForm(nextForm);
 
       const filled = new Set<string>();
