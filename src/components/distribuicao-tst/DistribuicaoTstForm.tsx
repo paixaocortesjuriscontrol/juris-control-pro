@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
+import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 
 interface Props {
   dado?: DistribuicaoTst | null;
@@ -257,7 +258,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Matérias Recurso Reclamante</Label>
-            <Textarea value={form.materias_recurso_reclamante || ""} onChange={e => set("materias_recurso_reclamante", e.target.value)} rows={3} />
+            <MateriasMultiSelect
+              value={form.materias_recurso_reclamante || null}
+              onChange={(v) => set("materias_recurso_reclamante", v)}
+            />
           </div>
           <div className="space-y-2">
             <Label>Chance de Êxito</Label>

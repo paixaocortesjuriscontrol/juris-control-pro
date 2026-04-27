@@ -58,6 +58,7 @@ const menuItemsPublicos: MenuItem[] = [
   // Demais itens
   { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
+  { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },
   { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
   { icon: Upload, label: "Carga Benner", path: "/carga-benner", color: "text-sky-400" },
