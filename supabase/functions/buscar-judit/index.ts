@@ -548,23 +548,9 @@ function extrairRecursosPorParte(
         recursosBanco.push(sigla);
       }
     }
-    // Se ainda ambíguo: quando existe polo passivo conhecido (banco/empresa),
-    // assumimos que o recurso é da reclamada — na prática, em processos do
-    // banco, a maioria dos recursos ao TST é interposta pela reclamada e os
-    // movimentos da Judit frequentemente não nomeiam a parte autora do recurso.
-    else if (ladoAtivo && ladoPassivo) {
-      // Texto menciona ambos os lados: registra para os dois.
-      if (recursosReclamante[recursosReclamante.length - 1] !== sigla) {
-        recursosReclamante.push(sigla);
-      }
-      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
-        recursosBanco.push(sigla);
-      }
-    } else if (nomesPassivo.size > 0) {
-      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
-        recursosBanco.push(sigla);
-      }
-    }
+    // Se ambíguo (ambos ou nenhum lado identificado), NÃO atribui a nenhum
+    // lado — preferimos deixar vazio a classificar incorretamente. O usuário
+    // pode preencher manualmente.
   }
 
   return {
@@ -1046,19 +1032,18 @@ serve(async (req) => {
     // do polo recorrente. Isso espelha a lógica do botão Judit individual e
     // garante que os campos `tipo_recurso_reclamante`/`tipo_recurso_banco`
     // sejam preenchidos sempre que houver recurso conhecido.
-    if (classificacao) {
+    // Fallback de classificação: só usa quando NENHUM lado foi detectado pelos
+    // movimentos. Mesmo assim, NÃO replica a sigla nos dois lados — atribui
+    // apenas a um lado (preferindo o reclamante quando houver polo ativo,
+    // senão o banco). Evita preencher reclamante com recurso do banco e vice-
+    // versa, deixando para o usuário ajustar manualmente quando necessário.
+    if (classificacao && !recursosPorParte.reclamante && !recursosPorParte.banco) {
       const siglaFallback = classificarRecursoInterposto(classificacao);
       if (siglaFallback) {
-        // Preenche o lado que ainda estiver vazio. Em processos do banco
-        // chegando ao TST, é comum que ambos tenham interposto recurso
-        // (ex.: RR do reclamante e AIRR/RR do banco); quando os movimentos
-        // não permitem identificar o autor, garantimos pelo menos a sigla
-        // da classificação para os dois lados que tenham polo conhecido.
-        if (!recursosPorParte.reclamante && poloAtivo) {
+        if (poloAtivo) {
           recursosPorParte.reclamante = siglaFallback;
           console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
-        }
-        if (!recursosPorParte.banco && poloPassivo) {
+        } else if (poloPassivo) {
           recursosPorParte.banco = siglaFallback;
           console.log(`[buscar-judit] fallback classificação -> banco: ${siglaFallback}`);
         }
