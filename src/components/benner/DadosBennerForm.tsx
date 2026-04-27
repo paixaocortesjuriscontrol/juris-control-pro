@@ -14,6 +14,7 @@ import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { classificarTurma, classificarRelator, type ClassificacaoTst } from "@/constants/classificacaoTst";
 
 interface Props {
   dado?: DadoBenner | null;
