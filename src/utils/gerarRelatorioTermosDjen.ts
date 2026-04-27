@@ -42,7 +42,7 @@ export function gerarRelatorioTermosDjen({
   filtrosDescricao = [],
   tituloCoordenacao,
 }: GerarRelatorioParams) {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const agora = new Date();
@@ -165,8 +165,8 @@ export function gerarRelatorioTermosDjen({
   });
   cursorY += cardH + 6;
 
-  // Ficha detalhada por termo (uma sub-tabela por monitoramento, mostrando TODOS os atributos)
-  dados.forEach((d, idx) => {
+  // Tabela única (uma linha por termo) — landscape comporta todas as colunas
+  const body = dados.map((d, idx) => {
     const tribs = asArray(d.tribunais);
     const tribsUfs = asArray(d.tribunais_ufs);
     const exclusoes = asArray(d.exclusoes);
@@ -174,79 +174,84 @@ export function gerarRelatorioTermosDjen({
     const coordNome = d.coordenacao_id ? coordNomeMap.get(d.coordenacao_id) || "—" : "—";
     const tipoLabel = TIPO_LABEL[d.tipo || ""] || d.tipo || "—";
     const oabFmt = d.oab ? `${d.oab}${d.uf ? "/" + d.uf : ""}` : "—";
-    const statusLabel = d.ativo ? "Ativo" : "Inativo";
     const buscarParteLabel =
       d.buscar_parte === true ? "Sim" : d.buscar_parte === false ? "Não" : "—";
     const concomitante = (d.condicao_concomitante || "").trim() || "—";
 
-    const titulo = `${idx + 1}. ${(d.descricao || d.termo_busca || "Sem descrição").trim()}`;
+    return [
+      String(idx + 1),
+      (d.descricao || "—").trim(),
+      tipoLabel,
+      (d.termo_busca || "—").trim(),
+      termosOr.length ? termosOr.join(" | ") : "—",
+      concomitante,
+      exclusoes.length ? exclusoes.join(", ") : "—",
+      oabFmt,
+      buscarParteLabel,
+      tribs.length ? tribs.join(", ") : "Todos",
+      tribsUfs.length ? tribsUfs.join(", ") : "Todas",
+      coordNome,
+      d.ativo ? "Ativo" : "Inativo",
+    ];
+  });
 
-    autoTable(doc, {
-      startY: cursorY,
-      margin: { left: 15, right: 15, top: 22, bottom: 18 },
-      head: [
-        [
-          {
-            content: `${titulo}    [${tipoLabel}]    •    ${statusLabel}`,
-            colSpan: 2,
-            styles: {
-              fillColor: NAVY,
-              textColor: [255, 255, 255],
-              fontStyle: "bold",
-              fontSize: 9.5,
-              halign: "left",
-              cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
-            },
-          },
-        ],
+  autoTable(doc, {
+    startY: cursorY,
+    head: [
+      [
+        "#",
+        "Descrição",
+        "Tipo",
+        "Termo de busca",
+        "Termos OR",
+        "Cond. concomitante",
+        "Exclusões",
+        "OAB/UF",
+        "Buscar parte",
+        "Tribunais",
+        "UFs",
+        "Coordenação",
+        "Status",
       ],
-      body: [
-        ["Descrição", (d.descricao || "—").trim()],
-        ["Tipo", tipoLabel],
-        ["Termo de busca", (d.termo_busca || "—").trim()],
-        ["Termos alternativos (OR)", termosOr.length ? termosOr.join("  |  ") : "—"],
-        ["Condição concomitante", concomitante],
-        ["Exclusões (não conter)", exclusoes.length ? exclusoes.join(", ") : "—"],
-        ["OAB / UF", oabFmt],
-        ["Buscar também como parte", buscarParteLabel],
-        ["Tribunais", tribs.length ? tribs.join(", ") : "Todos"],
-        ["UFs dos tribunais", tribsUfs.length ? tribsUfs.join(", ") : "Todas"],
-        ["Coordenação", coordNome],
-        ["Status", statusLabel],
-      ],
-      styles: {
-        font: "helvetica",
-        fontSize: 8.5,
-        cellPadding: 2,
-        textColor: TEXT_DARK,
-        lineColor: BORDER,
-        lineWidth: 0.2,
-        valign: "top",
-        overflow: "linebreak",
-      },
-      columnStyles: {
-        0: {
-          cellWidth: 50,
-          fontStyle: "bold",
-          fillColor: [248, 250, 252],
-          textColor: NAVY,
-        },
-        1: { cellWidth: "auto" },
-      },
-      alternateRowStyles: { fillColor: [255, 255, 255] },
-      didDrawPage: () => {
-        drawHeaderFooter(doc.getNumberOfPages());
-      },
-    });
-
-    // @ts-ignore — lastAutoTable é injetado pelo plugin
-    cursorY = (doc as any).lastAutoTable.finalY + 5;
-
-    // Quebra de página se faltar espaço para próxima ficha
-    if (cursorY > pageHeight - 40 && idx < dados.length - 1) {
-      doc.addPage();
-      cursorY = 28;
-    }
+    ],
+    body,
+    margin: { left: 10, right: 10, top: 22, bottom: 15 },
+    styles: {
+      font: "helvetica",
+      fontSize: 7,
+      cellPadding: 1.8,
+      textColor: TEXT_DARK,
+      lineColor: BORDER,
+      lineWidth: 0.2,
+      valign: "top",
+      overflow: "linebreak",
+    },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 7.5,
+      halign: "center",
+    },
+    alternateRowStyles: { fillColor: ROW_ALT },
+    columnStyles: {
+      0: { cellWidth: 7, halign: "center" },
+      1: { cellWidth: 38, fontStyle: "bold" },
+      2: { cellWidth: 18 },
+      3: { cellWidth: 32 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 28 },
+      6: { cellWidth: 28 },
+      7: { cellWidth: 18 },
+      8: { cellWidth: 14, halign: "center" },
+      9: { cellWidth: 22 },
+      10: { cellWidth: 16 },
+      11: { cellWidth: "auto" },
+      12: { cellWidth: 14, halign: "center" },
+    },
+    didDrawPage: () => {
+      drawHeaderFooter(doc.getNumberOfPages());
+    },
   });
 
   const fileName = `Termos_DJEN_${(tituloCoordenacao || "Relatorio")
