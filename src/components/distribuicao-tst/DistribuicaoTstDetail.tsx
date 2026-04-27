@@ -77,6 +77,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     return result;
   };
 
+  /**
+   * Disparado pelos forms após auto-save do Judit. Força recarga do registro
+   * Benner para que a aba paralela exiba imediatamente os campos preenchidos.
+   */
+  const handleJuditSync = useCallback(() => {
+    setBennerLoaded(false);
+    if (processoNumero) {
+      void fetchBennerByProcesso();
+    }
+  }, [processoNumero, fetchBennerByProcesso]);
+
   const titulo = processoNumero ? `Processo ${processoNumero}` : "Novo registro";
   const bennerDisabled = !processoNumero;
 
@@ -102,6 +113,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             dado={dado || null}
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
+            onJuditSync={handleJuditSync}
           />
         </TabsContent>
 
@@ -116,6 +128,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               markExistingJuditFields={!!(bennerDado as any)?.judit_preenchido}
               onSave={handleSaveBennerLocal}
               onCancel={onClose}
+              onJuditSync={handleJuditSync}
             />
           ) : (
             <DadosBennerForm
@@ -131,6 +144,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               } as Partial<DadoBennerInsert>}
               onSave={handleSaveBennerLocal}
               onCancel={onClose}
+              onJuditSync={handleJuditSync}
             />
           )}
         </TabsContent>

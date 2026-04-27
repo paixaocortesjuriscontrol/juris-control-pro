@@ -21,6 +21,13 @@ interface Props {
   markExistingJuditFields?: boolean;
   onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
+  /**
+   * Callback chamado após o botão Judit preencher e auto-salvar com sucesso.
+   * Usado pelo container (DistribuicaoTstDetail) para recarregar a aba paralela
+   * "Distribuição TST" — assim os dados aparecem sincronizados sem precisar
+   * clicar em Salvar manualmente.
+   */
+  onJuditSync?: () => void;
 }
 
 type ParteJudit = {
@@ -88,7 +95,7 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
   return filled;
 };
 
-export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel }: Props) {
+export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync }: Props) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -453,7 +460,23 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
-        toast.success(`Judit: ${camposPreenchidos.length} campo(s) preenchidos — ${camposPreenchidos.join(", ")}`);
+        toast.success(`Judit: ${camposPreenchidos.length} campo(s) preenchidos — salvando automaticamente...`);
+        // Auto-salva no banco para sincronizar com a aba "Distribuição TST".
+        setForm(currentForm => {
+          void (async () => {
+            try {
+              const payload = { ...currentForm, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : (currentForm.status || "rascunho") } as DadoBennerInsert;
+              const result = await onSave(payload, dado?.id);
+              if (result) {
+                toast.success("Dados Benner e Distribuição TST sincronizados com Judit");
+                onJuditSync?.();
+              }
+            } catch (e: any) {
+              console.error("Auto-save Judit falhou:", e);
+            }
+          })();
+          return currentForm;
+        });
       } else {
         toast.info("Judit: processo encontrado, mas sem dados adicionais para preencher");
       }
