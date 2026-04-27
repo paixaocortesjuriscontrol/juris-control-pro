@@ -343,74 +343,59 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         : null;
       const situacaoMapeada = data.situacao_processo || null;
 
-      setForm(f => ({
-        ...f,
-        dossie: data.dossie || f.dossie,
+      const partesAtivas = Array.isArray(data.parties_detail)
+        ? [...new Set(
+            data.parties_detail
+              .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "ACTIVE" && !p?.is_advogado)
+              .map((p: any) => String(p?.nome || "").trim())
+              .filter(Boolean)
+          )].join(" / ")
+        : "";
+      const partesPassivas = Array.isArray(data.parties_detail)
+        ? [...new Set(
+            data.parties_detail
+              .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "PASSIVE" && !p?.is_advogado)
+              .map((p: any) => String(p?.nome || "").trim())
+              .filter(Boolean)
+          )].join(" / ")
+        : "";
+      const nextForm = {
+        ...form,
+        dossie: data.dossie || form.dossie,
         // Tipo de Recurso (C): formato "Reclamante - Reclamada".
         // Sobrescreve apenas se a Judit retornou algo (preserva valor manual existente).
-        tipo_recurso: data.tipo_recurso || f.tipo_recurso,
+        tipo_recurso: data.tipo_recurso || form.tipo_recurso,
         // Tipos por parte espelhados na tela Distribuição TST.
         // Só preenche se ainda estiverem vazios (não sobrescreve o que o usuário já tem).
-        tipo_recurso_reclamante:
-          ((f as any).tipo_recurso_reclamante && String((f as any).tipo_recurso_reclamante).trim())
-            ? (f as any).tipo_recurso_reclamante
-            : (data.tipo_recurso_reclamante || (f as any).tipo_recurso_reclamante || null),
-        tipo_recurso_banco:
-          ((f as any).tipo_recurso_banco && String((f as any).tipo_recurso_banco).trim())
-            ? (f as any).tipo_recurso_banco
-            : (data.tipo_recurso_banco || (f as any).tipo_recurso_banco || null),
-        data_distribuicao: data.data_distribuicao || f.data_distribuicao,
+        tipo_recurso_reclamante: data.tipo_recurso_reclamante || (form as any).tipo_recurso_reclamante || null,
+        tipo_recurso_banco: data.tipo_recurso_banco || (form as any).tipo_recurso_banco || null,
+        data_distribuicao: data.data_distribuicao || form.data_distribuicao,
         // Espelho para a tela "Distribuição TST".
         // data_distribuicao_real é a coluna dedicada à data vinda da Judit/manual,
         // distinta de data_distribuicao_planilha (que vem da planilha importada).
-        data_distribuicao_real:
-          ((f as any).data_distribuicao_real)
-            ? (f as any).data_distribuicao_real
-            : (data.data_distribuicao || (f as any).data_distribuicao_real || null),
+        data_distribuicao_real: data.data_distribuicao || (form as any).data_distribuicao_real || null,
         // Reclamante / Reclamada extraídos das partes (polo ativo / passivo, ignorando advogados).
         // Só preenche se estiverem vazios para preservar o que o usuário já digitou na outra tela.
-        reclamante:
-          ((f as any).reclamante && String((f as any).reclamante).trim())
-            ? (f as any).reclamante
-            : (
-                Array.isArray(data.parties_detail)
-                  ? [...new Set(
-                      data.parties_detail
-                        .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "ACTIVE" && !p?.is_advogado)
-                        .map((p: any) => String(p?.nome || "").trim())
-                        .filter(Boolean)
-                    )].join(" / ")
-                  : ""
-              ) || (f as any).reclamante || null,
-        reclamada:
-          ((f as any).reclamada && String((f as any).reclamada).trim())
-            ? (f as any).reclamada
-            : (
-                Array.isArray(data.parties_detail)
-                  ? [...new Set(
-                      data.parties_detail
-                        .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "PASSIVE" && !p?.is_advogado)
-                        .map((p: any) => String(p?.nome || "").trim())
-                        .filter(Boolean)
-                    )].join(" / ")
-                  : ""
-              ) || (f as any).reclamada || null,
-        relator: data.relator || f.relator,
-        turma: data.turma || f.turma,
-        tribunal: tribunalMapeado || f.tribunal,
-        recorrente: data.recorrente || f.recorrente,
-        situacao_processo: situacaoMapeada || f.situacao_processo,
-        tem_data_julgamento: data.tem_data_julgamento || f.tem_data_julgamento,
-        data_julgamento: data.data_julgamento || f.data_julgamento,
-        horario_julgamento: data.horario_julgamento || f.horario_julgamento,
-        tipo_julgamento: data.tipo_julgamento || f.tipo_julgamento,
-        resultado_sem_transcendencia: data.resultado_sem_transcendencia || f.resultado_sem_transcendencia,
-        resultado_nao_conhecido: data.resultado_nao_conhecido || f.resultado_nao_conhecido,
-        resultado_conhecido_provido: data.resultado_conhecido_provido || f.resultado_conhecido_provido,
-        resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido || f.resultado_conhecido_nao_provido,
-        resultado_outra: data.resultado_outra || f.resultado_outra,
-        processo_baixado: data.processo_baixado || f.processo_baixado,
-      } as any));
+        reclamante: partesAtivas || (form as any).reclamante || null,
+        reclamada: partesPassivas || (form as any).reclamada || null,
+        relator: data.relator || form.relator,
+        turma: data.turma || form.turma,
+        tribunal: tribunalMapeado || form.tribunal,
+        recorrente: data.recorrente || form.recorrente,
+        situacao_processo: situacaoMapeada || form.situacao_processo,
+        tem_data_julgamento: data.tem_data_julgamento || form.tem_data_julgamento,
+        data_julgamento: data.data_julgamento || form.data_julgamento,
+        horario_julgamento: data.horario_julgamento || form.horario_julgamento,
+        tipo_julgamento: data.tipo_julgamento || form.tipo_julgamento,
+        resultado_sem_transcendencia: data.resultado_sem_transcendencia || form.resultado_sem_transcendencia,
+        resultado_nao_conhecido: data.resultado_nao_conhecido || form.resultado_nao_conhecido,
+        resultado_conhecido_provido: data.resultado_conhecido_provido || form.resultado_conhecido_provido,
+        resultado_conhecido_nao_provido: data.resultado_conhecido_nao_provido || form.resultado_conhecido_nao_provido,
+        resultado_outra: data.resultado_outra || form.resultado_outra,
+        processo_baixado: data.processo_baixado || form.processo_baixado,
+      } as DadoBennerInsert;
+
+      setForm(nextForm);
 
       const filled = new Set<string>();
       if (data.dossie) filled.add("dossie");
