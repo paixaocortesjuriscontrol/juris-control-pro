@@ -66,6 +66,7 @@ import DistribuicaoTst from "./pages/DistribuicaoTst";
 import PautasTst from "./pages/PautasTst";
 import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
+import ClassificacaoTst from "./pages/ClassificacaoTst";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -152,6 +153,7 @@ function App() {
               <Route path="/distribuicao-tst" element={<ProtectedRoute><DistribuicaoTst /></ProtectedRoute>} />
               <Route path="/materias-benner" element={<ProtectedRoute><MateriasBenner /></ProtectedRoute>} />
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
+              <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
               <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
