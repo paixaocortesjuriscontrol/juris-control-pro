@@ -21,6 +21,13 @@ interface Props {
   markExistingJuditFields?: boolean;
   onSave: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
+  /**
+   * Callback chamado após o botão Judit preencher e auto-salvar com sucesso.
+   * Usado pelo container (DistribuicaoTstDetail) para recarregar a aba paralela
+   * "Distribuição TST" — assim os dados aparecem sincronizados sem precisar
+   * clicar em Salvar manualmente.
+   */
+  onJuditSync?: () => void;
 }
 
 type ParteJudit = {
@@ -88,7 +95,7 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
   return filled;
 };
 
-export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel }: Props) {
+export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync }: Props) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
