@@ -104,6 +104,8 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
 
 export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync }: Props) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
+  const { data: turmasTst = [] } = useTurmasTst();
+  const { data: relatoresTst = [] } = useRelatoresTst();
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
