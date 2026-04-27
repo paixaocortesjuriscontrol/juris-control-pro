@@ -168,7 +168,6 @@ export function gerarRelatorioTermosDjen({
   // Tabela única (uma linha por termo) — landscape comporta todas as colunas
   const body = dados.map((d) => {
     const tribs = asArray(d.tribunais);
-    const tribsUfs = asArray(d.tribunais_ufs);
     const exclusoes = asArray(d.exclusoes);
     const termosOr = asArray(d.termos_or);
     const tipoLabel = TIPO_LABEL[d.tipo || ""] || d.tipo || "—";
@@ -184,7 +183,6 @@ export function gerarRelatorioTermosDjen({
       exclusoes.length ? exclusoes.join(", ") : "—",
       oabFmt,
       tribs.length ? tribs.join(", ") : "Todos",
-      tribsUfs.length ? tribsUfs.join(", ") : "Todas",
     ];
   });
 
@@ -200,7 +198,6 @@ export function gerarRelatorioTermosDjen({
         "Exclusões",
         "OAB/UF",
         "Tribunais",
-        "UFs",
       ],
     ],
     body,
@@ -231,8 +228,7 @@ export function gerarRelatorioTermosDjen({
       4: { cellWidth: 35 }, // Cond. concomitante
       5: { cellWidth: 35 }, // Exclusões
       6: { cellWidth: 22 }, // OAB/UF
-      7: { cellWidth: 30 }, // Tribunais
-      8: { cellWidth: "auto" }, // UFs
+      7: { cellWidth: "auto" }, // Tribunais
     },
     didParseCell: (data) => {
       // Marca termo (e descrição) em vermelho quando inativo
