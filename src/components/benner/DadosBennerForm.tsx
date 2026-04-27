@@ -899,10 +899,31 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("turma"))}>
               <JuditLabel field="turma"><Label>Turma (E)</Label></JuditLabel>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
+              {(() => {
+                const c = classificarTurma(form.turma as any);
+                if (!c) return null;
+                const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
+                  : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300";
+                return <Badge className={cn("border", cls)}>Classificação: {c}</Badge>;
+              })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("relator"))}>
               <JuditLabel field="relator"><Label>Relator (F)</Label></JuditLabel>
               <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
+              {(() => {
+                const r = classificarRelator(form.relator as any);
+                if (!r) return null;
+                const c = r.classificacao;
+                const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
+                  : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300";
+                return (
+                  <Badge className={cn("border", cls)}>
+                    Classificação: {c}{r.ministro.observacao ? " ⚠" : ""}
+                  </Badge>
+                );
+              })()}
             </div>
           </div>
 
