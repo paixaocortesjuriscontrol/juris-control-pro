@@ -896,9 +896,22 @@ serve(async (req) => {
     const comarca = rd.county || null;
     const courts = rd.courts || null;
 
+    // Recursos por parte (1c + 3b): identifica recursos do reclamante e da reclamada
+    // pelo texto do andamento + cruzamento com nomes do polo, concatenando em ordem
+    // cronológica (ex: "RO + RR").
+    const recursosPorParte = extrairRecursosPorParte(steps, parties);
+    const tipoRecursoCombinado =
+      recursosPorParte.reclamante && recursosPorParte.banco
+        ? `${recursosPorParte.reclamante} - ${recursosPorParte.banco}`
+        : recursosPorParte.reclamante || recursosPorParte.banco || null;
+
     const result = {
       dossie: null, // Judit não tem dossiê Santander
-      tipo_recurso: classificacao,
+      // Quando há detecção por parte, usa o combinado "Reclamante - Reclamada".
+      // Caso contrário mantém a classificação clássica (classe processual).
+      tipo_recurso: tipoRecursoCombinado || classificacao,
+      tipo_recurso_reclamante: recursosPorParte.reclamante,
+      tipo_recurso_banco: recursosPorParte.banco,
       // o cliente Lovable espera yyyy-MM-dd no input de data; mantemos ISO.
       // Se quiser pt-BR, troque por dataDistribuicaoBR.
       data_distribuicao: dataDistribuicaoISO,
