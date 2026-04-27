@@ -51,7 +51,12 @@ const emptyForm: DadoBennerInsert = {
   confianca_transito: null,
   data_transito_julgado: null,
   notas: "",
-};
+  // Campos espelhados da tela "Distribuição TST" — armazenados na mesma linha de dados_benner.
+  // Não há UI dedicada aqui, mas precisam viajar no payload para que o Judit consiga preencher
+  // "Tipo de Recurso do Reclamante" e "Tipo de Recurso do Banco" da outra tela.
+  tipo_recurso_reclamante: null,
+  tipo_recurso_banco: null,
+} as any;
 
 const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
   const filled = new Set<string>();
