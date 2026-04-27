@@ -43,6 +43,7 @@ interface DataJudOrgao {
   turma: string | null;
   dataDistribuicao: string | null;
   classe: string | null;
+  orgaoJulgador: string | null;
 }
 
 async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
@@ -88,9 +89,17 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
     }
 
     const src = hits[0]._source;
-    const orgao = src?.orgaoJulgador || {};
-    const codigoOrgao = orgao?.codigoOrgao?.toString() || "";
-    const nomeOrgao = orgao?.nomeOrgao || "";
+    const movimentos = Array.isArray(src?.movimentos) ? src.movimentos : [];
+    const orgaos = movimentos
+      .map((m: any) => m?.orgaoJulgador?.nome)
+      .filter((nome: any) => typeof nome === "string" && nome.trim());
+    const orgaoRaiz = src?.orgaoJulgador || {};
+    const nomeOrgao =
+      orgaos.find((nome: string) => /gab\.?\s+d[ao]\s+ministr[ao]|ministr[ao]/i.test(nome)) ||
+      orgaos[0] ||
+      orgaoRaiz?.nomeOrgao ||
+      orgaoRaiz?.nome ||
+      "";
 
     // Extrair turma do nomeOrgao (ex: "6ª Turma", "Gabinete do Ministro X")
     let turma: string | null = null;
@@ -115,7 +124,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
     const dataAjuiz = src?.dataAjuizamento?.substring(0, 10) || null;
 
     console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
-    return { relator, turma, dataDistribuicao: dataAjuiz, classe };
+    return { relator, turma, dataDistribuicao: dataAjuiz, classe, orgaoJulgador: nomeOrgao || null };
   } catch (e) {
     console.log(`[buscar-judit][datajud] erro: ${(e as Error).message}`);
     return null;
