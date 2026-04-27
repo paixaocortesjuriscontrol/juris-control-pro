@@ -27,6 +27,15 @@ function formatarData(d: Date) {
   return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function asArray(v: unknown): string[] {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+  return String(v)
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function gerarRelatorioTermosDjen({
   monitoramentos,
   coordNomeMap,
@@ -156,65 +165,88 @@ export function gerarRelatorioTermosDjen({
   });
   cursorY += cardH + 6;
 
-  // Tabela
-  const body = dados.map((d, idx) => {
-    const detalhes: string[] = [];
-    if (d.oab) {
-      detalhes.push(`OAB: ${d.oab}${d.uf ? "/" + d.uf : ""}`);
-    }
-    const excl = (d.exclusoes || []) as string[];
-    if (excl.length > 0) detalhes.push(`Exclui: ${excl.join(", ")}`);
-    if (!d.ativo) detalhes.push("INATIVO");
-
-    const tribs = (d.tribunais || []) as string[];
+  // Ficha detalhada por termo (uma sub-tabela por monitoramento, mostrando TODOS os atributos)
+  dados.forEach((d, idx) => {
+    const tribs = asArray(d.tribunais);
+    const tribsUfs = asArray(d.tribunais_ufs);
+    const exclusoes = asArray(d.exclusoes);
+    const termosOr = asArray(d.termos_or);
     const coordNome = d.coordenacao_id ? coordNomeMap.get(d.coordenacao_id) || "—" : "—";
+    const tipoLabel = TIPO_LABEL[d.tipo || ""] || d.tipo || "—";
+    const oabFmt = d.oab ? `${d.oab}${d.uf ? "/" + d.uf : ""}` : "—";
+    const statusLabel = d.ativo ? "Ativo" : "Inativo";
+    const buscarParteLabel =
+      d.buscar_parte === true ? "Sim" : d.buscar_parte === false ? "Não" : "—";
+    const concomitante = (d.condicao_concomitante || "").trim() || "—";
 
-    return [
-      String(idx + 1),
-      (d.descricao || "—").trim(),
-      TIPO_LABEL[d.tipo || ""] || d.tipo || "—",
-      (d.termo_busca || "—").trim(),
-      tribs.length > 0 ? tribs.join(", ") : "Todos",
-      coordNome,
-      detalhes.join("\n") || "—",
-    ];
-  });
+    const titulo = `${idx + 1}. ${(d.descricao || d.termo_busca || "Sem descrição").trim()}`;
 
-  autoTable(doc, {
-    startY: cursorY,
-    head: [["#", "Descrição", "Tipo", "Termo de busca", "Tribunais", "Coordenação", "Detalhes"]],
-    body,
-    margin: { left: 15, right: 15, top: 22, bottom: 15 },
-    styles: {
-      font: "helvetica",
-      fontSize: 8,
-      cellPadding: 2.2,
-      textColor: TEXT_DARK,
-      lineColor: BORDER,
-      lineWidth: 0.2,
-      valign: "top",
-      overflow: "linebreak",
-    },
-    headStyles: {
-      fillColor: NAVY,
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      fontSize: 8.5,
-      halign: "center",
-    },
-    alternateRowStyles: { fillColor: ROW_ALT },
-    columnStyles: {
-      0: { cellWidth: 7, halign: "center" },
-      1: { cellWidth: 45, fontStyle: "bold" },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 38 },
-      4: { cellWidth: 25, fontSize: 7.5 },
-      5: { cellWidth: 28, fontSize: 7.5 },
-      6: { cellWidth: "auto", fontSize: 7.5, textColor: SLATE },
-    },
-    didDrawPage: (data) => {
-      drawHeaderFooter(doc.getNumberOfPages());
-    },
+    autoTable(doc, {
+      startY: cursorY,
+      margin: { left: 15, right: 15, top: 22, bottom: 18 },
+      head: [
+        [
+          {
+            content: `${titulo}    [${tipoLabel}]    •    ${statusLabel}`,
+            colSpan: 2,
+            styles: {
+              fillColor: NAVY,
+              textColor: [255, 255, 255],
+              fontStyle: "bold",
+              fontSize: 9.5,
+              halign: "left",
+              cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
+            },
+          },
+        ],
+      ],
+      body: [
+        ["Descrição", (d.descricao || "—").trim()],
+        ["Tipo", tipoLabel],
+        ["Termo de busca", (d.termo_busca || "—").trim()],
+        ["Termos alternativos (OR)", termosOr.length ? termosOr.join("  |  ") : "—"],
+        ["Condição concomitante", concomitante],
+        ["Exclusões (não conter)", exclusoes.length ? exclusoes.join(", ") : "—"],
+        ["OAB / UF", oabFmt],
+        ["Buscar também como parte", buscarParteLabel],
+        ["Tribunais", tribs.length ? tribs.join(", ") : "Todos"],
+        ["UFs dos tribunais", tribsUfs.length ? tribsUfs.join(", ") : "Todas"],
+        ["Coordenação", coordNome],
+        ["Status", statusLabel],
+      ],
+      styles: {
+        font: "helvetica",
+        fontSize: 8.5,
+        cellPadding: 2,
+        textColor: TEXT_DARK,
+        lineColor: BORDER,
+        lineWidth: 0.2,
+        valign: "top",
+        overflow: "linebreak",
+      },
+      columnStyles: {
+        0: {
+          cellWidth: 50,
+          fontStyle: "bold",
+          fillColor: [248, 250, 252],
+          textColor: NAVY,
+        },
+        1: { cellWidth: "auto" },
+      },
+      alternateRowStyles: { fillColor: [255, 255, 255] },
+      didDrawPage: () => {
+        drawHeaderFooter(doc.getNumberOfPages());
+      },
+    });
+
+    // @ts-ignore — lastAutoTable é injetado pelo plugin
+    cursorY = (doc as any).lastAutoTable.finalY + 5;
+
+    // Quebra de página se faltar espaço para próxima ficha
+    if (cursorY > pageHeight - 40 && idx < dados.length - 1) {
+      doc.addPage();
+      cursorY = 28;
+    }
   });
 
   const fileName = `Termos_DJEN_${(tituloCoordenacao || "Relatorio")
