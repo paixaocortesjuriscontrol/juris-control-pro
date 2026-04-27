@@ -761,6 +761,25 @@ serve(async (req) => {
       );
     }
 
+    const tribunalHintNormalizado = tribunalHint ? tribunalHint.toString().trim().toUpperCase() : null;
+    let datajudAutoritativo: DataJudOrgao | null = null;
+    if (tribunalHintNormalizado === "TST" && (rd?.tribunal_acronym || "").toString().toUpperCase() !== "TST") {
+      console.log(`[buscar-judit] Judit não retornou instância TST (selecionou ${rd?.tribunal_acronym || "null"}); consultando DataJud TST antes de preencher.`);
+      datajudAutoritativo = await consultarDataJud(cnj);
+      if (datajudAutoritativo && (datajudAutoritativo.relator || datajudAutoritativo.turma || datajudAutoritativo.classe)) {
+        rd = {
+          ...rd,
+          tribunal_acronym: "TST",
+          classifications: datajudAutoritativo.classe ? [{ name: datajudAutoritativo.classe }] : rd.classifications,
+          distribution_date: datajudAutoritativo.dataDistribuicao || rd.distribution_date,
+          judge: datajudAutoritativo.relator ? { name: datajudAutoritativo.relator } : rd.judge,
+          courts: datajudAutoritativo.courts?.length ? datajudAutoritativo.courts : rd.courts,
+          steps: datajudAutoritativo.steps?.length ? datajudAutoritativo.steps : rd.steps,
+        };
+        console.log(`[buscar-judit] Usando DataJud TST como fonte autoritativa: relator=${datajudAutoritativo.relator} turma=${datajudAutoritativo.turma}`);
+      }
+    }
+
     // ---- extração ----
     const tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
     let tribunal: string | null = null;
