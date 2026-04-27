@@ -166,7 +166,7 @@ export function gerarRelatorioTermosDjen({
   cursorY += cardH + 6;
 
   // Tabela única (uma linha por termo) — landscape comporta todas as colunas
-  const body = dados.map((d, idx) => {
+  const body = dados.map((d) => {
     const tribs = asArray(d.tribunais);
     const tribsUfs = asArray(d.tribunais_ufs);
     const exclusoes = asArray(d.exclusoes);
@@ -176,7 +176,6 @@ export function gerarRelatorioTermosDjen({
     const concomitante = (d.condicao_concomitante || "").trim() || "—";
 
     return [
-      String(idx + 1),
       (d.descricao || "—").trim(),
       tipoLabel,
       (d.termo_busca || "—").trim(),
@@ -186,7 +185,6 @@ export function gerarRelatorioTermosDjen({
       oabFmt,
       tribs.length ? tribs.join(", ") : "Todos",
       tribsUfs.length ? tribsUfs.join(", ") : "Todas",
-      d.ativo ? "Ativo" : "Inativo",
     ];
   });
 
@@ -194,7 +192,6 @@ export function gerarRelatorioTermosDjen({
     startY: cursorY,
     head: [
       [
-        "#",
         "Descrição",
         "Tipo",
         "Termo de busca",
@@ -204,7 +201,6 @@ export function gerarRelatorioTermosDjen({
         "OAB/UF",
         "Tribunais",
         "UFs",
-        "Status",
       ],
     ],
     body,
@@ -228,17 +224,27 @@ export function gerarRelatorioTermosDjen({
     },
     alternateRowStyles: { fillColor: ROW_ALT },
     columnStyles: {
-      0: { cellWidth: 8, halign: "center" },
-      1: { cellWidth: 50, fontStyle: "bold" },
-      2: { cellWidth: 20 },
-      3: { cellWidth: 38 },
-      4: { cellWidth: 35 },
-      5: { cellWidth: 32 },
-      6: { cellWidth: 32 },
-      7: { cellWidth: 22 },
-      8: { cellWidth: "auto" },
-      9: { cellWidth: 20 },
-      10: { cellWidth: 16, halign: "center" },
+      0: { cellWidth: 55, fontStyle: "bold" }, // Descrição
+      1: { cellWidth: 22 }, // Tipo
+      2: { cellWidth: 42 }, // Termo de busca
+      3: { cellWidth: 38 }, // Termos OR
+      4: { cellWidth: 35 }, // Cond. concomitante
+      5: { cellWidth: 35 }, // Exclusões
+      6: { cellWidth: 22 }, // OAB/UF
+      7: { cellWidth: 30 }, // Tribunais
+      8: { cellWidth: "auto" }, // UFs
+    },
+    didParseCell: (data) => {
+      // Marca termo (e descrição) em vermelho quando inativo
+      if (data.section === "body") {
+        const row = dados[data.row.index];
+        if (row && !row.ativo) {
+          // Descrição (col 0) e Termo de busca (col 2)
+          if (data.column.index === 0 || data.column.index === 2) {
+            data.cell.styles.textColor = [185, 28, 28];
+          }
+        }
+      }
     },
     didDrawPage: () => {
       drawHeaderFooter(doc.getNumberOfPages());
