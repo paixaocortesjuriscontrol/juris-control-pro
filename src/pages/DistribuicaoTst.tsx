@@ -696,6 +696,34 @@ export default function DistribuicaoTst() {
             initialTab={detailInitialTab}
             onSaveDistribuicao={saveDado}
             onSaveBenner={handleSaveBenner}
+            onAfterJuditSync={async () => {
+              // Após o auto-save do botão Judit, recarrega o registro atual
+              // do banco e atualiza `editando` para que `judit_preenchido=true`
+              // e os campos preenchidos fiquem destacados em verde mesmo
+              // após sair e voltar.
+              const id = editando?.id;
+              if (!id) return;
+              const { data } = await supabase
+                .from("dados_benner" as any)
+                .select("*")
+                .eq("id", id)
+                .maybeSingle();
+              if (data) {
+                const b: any = data;
+                const relatorFav = b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null;
+                const turmaFav = b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null;
+                setEditando({
+                  ...(editando as any),
+                  ...b,
+                  processo_numero: b.processo || editando?.processo_numero || "",
+                  parte_recorrente: b.recorrente ?? null,
+                  relator_favorabilidade: relatorFav,
+                  turma_favorabilidade: turmaFav,
+                  judit_preenchido: !!b.judit_preenchido,
+                } as any);
+              }
+              handleRefresh();
+            }}
             onClose={() => {
               setShowForm(false);
               setEditando(null);

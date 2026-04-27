@@ -17,6 +17,9 @@ interface Props {
   onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean>;
   onSaveBenner: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onClose: () => void;
+  /** Disparado após auto-save do botão Judit para que o parent recarregue
+   *  a referência de `dado` e mantenha o destaque verde após sair/voltar. */
+  onAfterJuditSync?: () => void | Promise<void>;
 }
 
 /**
@@ -27,7 +30,7 @@ interface Props {
  *
  * Evita que o usuário precise voltar à lista para alternar entre as visões.
  */
-export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose }: Props) {
+export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const processoNumero = dado?.processo_numero || "";
 
   const [tab, setTab] = useState<"distribuicao" | "benner">(initialTab);
@@ -86,7 +89,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     if (processoNumero) {
       void fetchBennerByProcesso();
     }
-  }, [processoNumero, fetchBennerByProcesso]);
+    void onAfterJuditSync?.();
+  }, [processoNumero, fetchBennerByProcesso, onAfterJuditSync]);
 
   const titulo = processoNumero ? `Processo ${processoNumero}` : "Novo registro";
   const bennerDisabled = !processoNumero;

@@ -166,6 +166,11 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     tribunal: "TST",
   };
   if (d.observacao_advogado !== undefined) payload.observacao_advogado = d.observacao_advogado;
+  // Passthrough de campos opcionais preenchidos pelo Judit que não fazem parte
+  // direta da interface DistribuicaoTst, mas existem em `dados_benner`.
+  const anyD = d as any;
+  if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
+  if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
 
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();

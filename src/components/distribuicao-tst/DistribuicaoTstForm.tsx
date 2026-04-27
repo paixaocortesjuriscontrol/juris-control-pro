@@ -167,6 +167,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
         };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
+        apply("data_distribuicao_planilha", data.data_distribuicao);
         apply("relator", data.relator);
         apply("turma", data.turma);
         apply("reclamante", reclamanteJudit);
@@ -174,6 +175,18 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
         apply("parte_recorrente", data.recorrente);
         apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
         apply("tipo_recurso_banco", data.tipo_recurso_banco);
+        // Campo combinado vai direto para a coluna `tipo_recurso` em dados_benner
+        // (passado adiante via distribuicaoToBenner — chave extra no payload).
+        apply("tipo_recurso", data.tipo_recurso);
+        // Situação do processo / trânsito em julgado
+        const situacao = (data.situacao_processo || "").toString();
+        if (situacao) apply("situacao_processo", situacao);
+        const baixado = (data.processo_baixado || "").toString().toUpperCase();
+        const ehTransito = /tr[âa]nsito/i.test(situacao) || baixado === "S";
+        if (ehTransito && next.transito_julgado !== true) {
+          next.transito_julgado = true;
+          filled.add("transito_julgado");
+        }
         return next;
       });
 
