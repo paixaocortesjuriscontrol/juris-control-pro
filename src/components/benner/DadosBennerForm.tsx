@@ -56,6 +56,11 @@ const emptyForm: DadoBennerInsert = {
   // "Tipo de Recurso do Reclamante" e "Tipo de Recurso do Banco" da outra tela.
   tipo_recurso_reclamante: null,
   tipo_recurso_banco: null,
+  // Campos espelhados adicionais (preenchidos pela Judit, exibidos na tela Distribuição TST).
+  reclamante: null,
+  reclamada: null,
+  data_distribuicao_real: null,
+  data_distribuicao_planilha: null,
 } as any;
 
 const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
