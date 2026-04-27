@@ -242,17 +242,26 @@ function sleep(ms: number) {
 // ---------- seleção de instância ------------------------------------------
 
 function temIndicioTST(rd: any): boolean {
+  // 0) Se o tribunal_acronym já existe e NÃO é TST, descartar imediatamente.
+  // Isso impede que instâncias TRT/TRF sejam confundidas com TST por causa
+  // de classificações compartilhadas (ex.: "RO" e "AIRR" também existem no TRT).
+  const acronym = (rd?.tribunal_acronym || "").toString().toUpperCase();
+  if (acronym && acronym !== "TST") return false;
+  if (acronym === "TST") return true;
+
   const courts = Array.isArray(rd.courts) ? rd.courts : [];
   for (const c of courts) {
     const nome = (c?.name || "").toString();
-    if (/ministro|min\./i.test(nome)) return true;
+    // "Ministro" só existe em tribunais superiores; exigir contexto TST
     if (/\bTST\b/i.test(nome)) return true;
+    if (/ministr[oa]/i.test(nome) && /TST|TRIBUNAL\s+SUPERIOR/i.test(nome)) return true;
   }
-  // classifications com "RR", "AIRR", "Ag-AIRR" etc indicam TST
+  // classifications EXCLUSIVAS de TST (RR/AIRR/Ag-AIRR/ARR/ED-RR/ED-AIRR)
+  // RO e ROAG existem também no TRT — NÃO usar como indicador.
   const classes = Array.isArray(rd.classifications) ? rd.classifications : [];
   for (const cl of classes) {
     const n = (cl?.name || "").toUpperCase();
-    if (/^(RR|AIRR|AG-AIRR|ARR|ED-RR|ED-AIRR|RO|ROAG)$/.test(n)) return true;
+    if (/^(RR|AIRR|AG-AIRR|ARR|ED-RR|ED-AIRR)$/.test(n)) return true;
   }
   return false;
 }
