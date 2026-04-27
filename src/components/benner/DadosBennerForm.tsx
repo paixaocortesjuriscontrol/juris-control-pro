@@ -460,7 +460,23 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       ].filter(Boolean);
 
       if (camposPreenchidos.length > 0) {
-        toast.success(`Judit: ${camposPreenchidos.length} campo(s) preenchidos — ${camposPreenchidos.join(", ")}`);
+        toast.success(`Judit: ${camposPreenchidos.length} campo(s) preenchidos — salvando automaticamente...`);
+        // Auto-salva no banco para sincronizar com a aba "Distribuição TST".
+        setForm(currentForm => {
+          void (async () => {
+            try {
+              const payload = { ...currentForm, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : (currentForm.status || "rascunho") } as DadoBennerInsert;
+              const result = await onSave(payload, dado?.id);
+              if (result) {
+                toast.success("Dados Benner e Distribuição TST sincronizados com Judit");
+                onJuditSync?.();
+              }
+            } catch (e: any) {
+              console.error("Auto-save Judit falhou:", e);
+            }
+          })();
+          return currentForm;
+        });
       } else {
         toast.info("Judit: processo encontrado, mas sem dados adicionais para preencher");
       }
