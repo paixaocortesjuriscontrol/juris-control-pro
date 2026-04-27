@@ -72,11 +72,7 @@ export default function DistribuicaoTst() {
   const { isAdmin } = useUserRole();
   const [showCarga, setShowCarga] = useState(false);
   
-  // Dados Benner form from distribuição
-  const [showBennerForm, setShowBennerForm] = useState(false);
-  const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
-  const [bennerPreFill, setBennerPreFill] = useState<Partial<DadoBennerInsert> | null>(null);
-  const [markBennerCamposJudit, setMarkBennerCamposJudit] = useState(false);
+  // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
   const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
   
   // Bulk Judit
@@ -114,17 +110,6 @@ export default function DistribuicaoTst() {
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
-
-  // Sempre que o formulário Benner abrir, rolar para o topo da página
-  useEffect(() => {
-    if (showBennerForm) {
-      // O scroll real fica no <main> do MainLayout (lg:overflow-y-auto)
-      requestAnimationFrame(() => {
-        document.querySelectorAll("main").forEach(m => m.scrollTo({ top: 0, behavior: "auto" }));
-        window.scrollTo({ top: 0, behavior: "auto" });
-      });
-    }
-  }, [showBennerForm]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
