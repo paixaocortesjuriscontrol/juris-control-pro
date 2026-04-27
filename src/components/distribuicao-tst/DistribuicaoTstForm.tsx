@@ -18,6 +18,13 @@ interface Props {
   dado?: DistribuicaoTst | null;
   onSave: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean>;
   onCancel: () => void;
+  /**
+   * Callback chamado após o botão Judit preencher e auto-salvar com sucesso.
+   * Usado pelo container (DistribuicaoTstDetail) para recarregar a aba paralela
+   * "Dados Benner" — assim os dados aparecem sincronizados sem precisar
+   * clicar em Salvar manualmente.
+   */
+  onJuditSync?: () => void;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -61,7 +68,7 @@ const emptyForm: DistribuicaoTstInsert = {
   observacao_advogado: null,
 };
 
-export function DistribuicaoTstForm({ dado, onSave, onCancel }: Props) {
+export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Props) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
