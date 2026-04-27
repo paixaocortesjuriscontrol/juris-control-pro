@@ -70,7 +70,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
       body: JSON.stringify({
         query: { match: { numeroProcesso: digits } },
         size: 1,
-        _source: ["orgaoJulgador", "classe", "dataAjuizamento", "relator"],
+        _source: ["orgaoJulgador", "classe", "dataAjuizamento", "relator", "movimentos"],
       }),
       signal: controller.signal,
     });
@@ -112,7 +112,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
 
     // Extrair relator do nomeOrgao (ex: "Gabinete do Ministro Antônio Fabrício...")
     let relator: string | null = null;
-    const mGab = nomeOrgao.match(/(?:Gabinete\s+[-–]?\s*d[oa]\s+)?(?:Ministro|Ministra|Min\.?|Desembargador(?:a)?)\s+(.+)/i);
+    const mGab = nomeOrgao.match(/(?:(?:Gabinete|Gab\.)\s+[-–]?\s*d[oa]\s+)?(?:Ministro|Ministra|Min\.?|Desembargador(?:a)?)\s+(.+)/i);
     if (mGab) {
       relator = mGab[1].trim().replace(/[.,;()\-]+$/, "");
     }
@@ -121,7 +121,10 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
     const classe = src?.classe?.nome || null;
 
     // Data
-    const dataAjuiz = src?.dataAjuizamento?.substring(0, 10) || null;
+    const rawDataAjuiz = (src?.dataAjuizamento || "").toString();
+    const dataAjuiz = /^\d{8}/.test(rawDataAjuiz)
+      ? `${rawDataAjuiz.substring(0, 4)}-${rawDataAjuiz.substring(4, 6)}-${rawDataAjuiz.substring(6, 8)}`
+      : rawDataAjuiz.substring(0, 10) || null;
 
     console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
     return { relator, turma, dataDistribuicao: dataAjuiz, classe, orgaoJulgador: nomeOrgao || null };
