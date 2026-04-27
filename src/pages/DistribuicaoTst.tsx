@@ -475,6 +475,22 @@ export default function DistribuicaoTst() {
           const recorrenteJudit = getJuditPartesResumo(juditData, proc.parte_recorrente);
           const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
 
+          // Mesma extração do formulário individual: nomes por polo (sem advogados)
+          const nomesPorPolo = (poloUpper: string) =>
+            [...new Set(
+              partiesDetail
+                .filter((p: any) => (p?.polo || "").toString().toUpperCase() === poloUpper && !p?.is_advogado)
+                .map((p: any) => String(p?.nome || "").trim())
+                .filter(Boolean)
+            )].join(" / ");
+          const reclamanteJudit = nomesPorPolo("ACTIVE");
+          const reclamadaJudit = nomesPorPolo("PASSIVE");
+
+          // Trânsito em julgado: situação contém "trânsito" OU processo_baixado === "S"
+          const situacaoStr = (juditData.situacao_processo || "").toString();
+          const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
+          const ehTransito = /tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S";
+
           // Build dados_benner record
           const tribunaisAceitos = ["TST", "STF", "STJ"];
           const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
@@ -494,12 +510,16 @@ export default function DistribuicaoTst() {
             turma: turmaFinal,
             relator: juditData.relator || proc.relator || "",
             data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
+            data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
             recorrente: recorrenteJudit,
+            reclamante: reclamanteJudit || null,
+            reclamada: reclamadaJudit || null,
             tribunal: tribunalMapeado || "TST",
             tipo_recurso: juditData.tipo_recurso || null,
             tipo_recurso_reclamante: juditData.tipo_recurso_reclamante || null,
             tipo_recurso_banco: juditData.tipo_recurso_banco || null,
             situacao_processo: juditData.situacao_processo || null,
+            transito_julgado: ehTransito || null,
             tem_data_julgamento: juditData.tem_data_julgamento || null,
             data_julgamento: juditData.data_julgamento || null,
             horario_julgamento: juditData.horario_julgamento || null,
@@ -525,29 +545,24 @@ export default function DistribuicaoTst() {
 
           if (existingBenner && (existingBenner as any[]).length > 0) {
             bennerId = (existingBenner as any[])[0].id;
-            // Update only non-null judit fields
+            // Mesma regra do formulário individual: SOBRESCREVER quando a Judit
+            // retornar um valor não-nulo. Não preservar valores antigos.
             const updateFields: any = {};
             if (juditData.tipo_recurso) updateFields.tipo_recurso = juditData.tipo_recurso;
-            // Tipos por parte: só preenche se ainda estiverem vazios na linha existente,
-            // para preservar o que o usuário já tenha digitado.
-            const existingId = (existingBenner as any[])[0].id;
-            const { data: existingRow } = await (supabase
-              .from("dados_benner" as any)
-              .select("tipo_recurso_reclamante, tipo_recurso_banco")
-              .eq("id", existingId)
-              .maybeSingle() as any);
-            if (juditData.tipo_recurso_reclamante && !((existingRow as any)?.tipo_recurso_reclamante || "").toString().trim()) {
-              updateFields.tipo_recurso_reclamante = juditData.tipo_recurso_reclamante;
-            }
-            if (juditData.tipo_recurso_banco && !((existingRow as any)?.tipo_recurso_banco || "").toString().trim()) {
-              updateFields.tipo_recurso_banco = juditData.tipo_recurso_banco;
-            }
+            if (juditData.tipo_recurso_reclamante) updateFields.tipo_recurso_reclamante = juditData.tipo_recurso_reclamante;
+            if (juditData.tipo_recurso_banco) updateFields.tipo_recurso_banco = juditData.tipo_recurso_banco;
             if (juditData.relator) updateFields.relator = juditData.relator;
             if (juditData.turma) updateFields.turma = juditData.turma;
             if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
             if (recorrenteJudit) updateFields.recorrente = recorrenteJudit;
+            if (reclamanteJudit) updateFields.reclamante = reclamanteJudit;
+            if (reclamadaJudit) updateFields.reclamada = reclamadaJudit;
             if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
-            if (juditData.data_distribuicao) updateFields.data_distribuicao_real = juditData.data_distribuicao;
+            if (ehTransito) updateFields.transito_julgado = true;
+            if (juditData.data_distribuicao) {
+              updateFields.data_distribuicao_real = juditData.data_distribuicao;
+              updateFields.data_distribuicao = juditData.data_distribuicao;
+            }
             if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
             if (juditData.data_julgamento) updateFields.data_julgamento = juditData.data_julgamento;
             if (juditData.horario_julgamento) updateFields.horario_julgamento = juditData.horario_julgamento;
