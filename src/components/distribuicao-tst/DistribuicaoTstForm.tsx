@@ -181,7 +181,39 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
 
       const preenchidos = filled.size;
       if (preenchidos > 0) {
-        toast.success(`Judit preencheu ${preenchidos} campo(s). Clique em Salvar para persistir.`);
+        toast.success(`Judit preencheu ${preenchidos} campo(s). Salvando automaticamente...`);
+        // Auto-salva no banco e dispara recarga da aba Dados Benner.
+        // Lê o estado mais recente do form via setForm callback.
+        setForm(currentForm => {
+          void (async () => {
+            try {
+              const payload: DistribuicaoTstInsert = {
+                ...currentForm,
+                judit_preenchido: true,
+                judit_preenchido_em: new Date().toISOString(),
+              };
+              // Garante processo_id antes de salvar (mesma lógica de handleSave).
+              if (!payload.processo_id && payload.processo_numero?.trim()) {
+                const { data: proc } = await supabase
+                  .from("processos")
+                  .select("id")
+                  .eq("numero", payload.processo_numero.trim())
+                  .maybeSingle();
+                if (proc) payload.processo_id = proc.id;
+              }
+              if (payload.processo_id) {
+                const ok = await onSave(payload, dado?.id);
+                if (ok) {
+                  toast.success("Distribuição TST e Dados Benner sincronizados com Judit");
+                  onJuditSync?.();
+                }
+              }
+            } catch (e: any) {
+              console.error("Auto-save Judit falhou:", e);
+            }
+          })();
+          return currentForm;
+        });
       } else {
         toast.info("Judit retornou dados, mas todos os campos já estavam preenchidos.");
       }
