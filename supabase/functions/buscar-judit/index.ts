@@ -43,6 +43,9 @@ interface DataJudOrgao {
   turma: string | null;
   dataDistribuicao: string | null;
   classe: string | null;
+  orgaoJulgador: string | null;
+  steps: any[];
+  courts: any[];
 }
 
 async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
@@ -69,7 +72,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
       body: JSON.stringify({
         query: { match: { numeroProcesso: digits } },
         size: 1,
-        _source: ["orgaoJulgador", "classe", "dataAjuizamento", "relator"],
+        _source: ["orgaoJulgador", "classe", "dataAjuizamento", "relator", "movimentos"],
       }),
       signal: controller.signal,
     });
@@ -88,9 +91,17 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
     }
 
     const src = hits[0]._source;
-    const orgao = src?.orgaoJulgador || {};
-    const codigoOrgao = orgao?.codigoOrgao?.toString() || "";
-    const nomeOrgao = orgao?.nomeOrgao || "";
+    const movimentos = Array.isArray(src?.movimentos) ? src.movimentos : [];
+    const orgaos = movimentos
+      .map((m: any) => m?.orgaoJulgador?.nome)
+      .filter((nome: any) => typeof nome === "string" && nome.trim());
+    const orgaoRaiz = src?.orgaoJulgador || {};
+    const nomeOrgao =
+      orgaos.find((nome: string) => /gab\.?\s+d[ao]\s+ministr[ao]|ministr[ao]/i.test(nome)) ||
+      orgaos[0] ||
+      orgaoRaiz?.nomeOrgao ||
+      orgaoRaiz?.nome ||
+      "";
 
     // Extrair turma do nomeOrgao (ex: "6ª Turma", "Gabinete do Ministro X")
     let turma: string | null = null;
@@ -103,7 +114,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
 
     // Extrair relator do nomeOrgao (ex: "Gabinete do Ministro Antônio Fabrício...")
     let relator: string | null = null;
-    const mGab = nomeOrgao.match(/(?:Gabinete\s+[-–]?\s*d[oa]\s+)?(?:Ministro|Ministra|Min\.?|Desembargador(?:a)?)\s+(.+)/i);
+    const mGab = nomeOrgao.match(/(?:(?:Gabinete|Gab\.)\s+[-–]?\s*d[oa]\s+)?(?:Ministro|Ministra|Min\.?|Desembargador(?:a)?)\s+(.+)/i);
     if (mGab) {
       relator = mGab[1].trim().replace(/[.,;()\-]+$/, "");
     }
@@ -112,10 +123,23 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
     const classe = src?.classe?.nome || null;
 
     // Data
-    const dataAjuiz = src?.dataAjuizamento?.substring(0, 10) || null;
+    const rawDataAjuiz = (src?.dataAjuizamento || "").toString();
+    const dataAjuiz = /^\d{8}/.test(rawDataAjuiz)
+      ? `${rawDataAjuiz.substring(0, 4)}-${rawDataAjuiz.substring(4, 6)}-${rawDataAjuiz.substring(6, 8)}`
+      : rawDataAjuiz.substring(0, 10) || null;
+
+    const steps = movimentos.map((m: any) => ({
+      step_date: m?.dataHora || null,
+      date: m?.dataHora || null,
+      code: m?.codigo ?? null,
+      content: [m?.nome, m?.orgaoJulgador?.nome].filter(Boolean).join(" - "),
+      title: m?.nome || null,
+      orgao_julgador: m?.orgaoJulgador || null,
+    }));
+    const courts = nomeOrgao ? [{ code: orgaoRaiz?.codigo?.toString?.() || "TST", name: nomeOrgao }] : [];
 
     console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
-    return { relator, turma, dataDistribuicao: dataAjuiz, classe };
+    return { relator, turma, dataDistribuicao: dataAjuiz, classe, orgaoJulgador: nomeOrgao || null, steps, courts };
   } catch (e) {
     console.log(`[buscar-judit][datajud] erro: ${(e as Error).message}`);
     return null;
@@ -735,6 +759,25 @@ serve(async (req) => {
       console.log(
         `[buscar-judit] selecionado: tribunal=${rd.tribunal_acronym} instance=${rd.instance}`,
       );
+    }
+
+    const tribunalHintNormalizado = tribunalHint ? tribunalHint.toString().trim().toUpperCase() : null;
+    let datajudAutoritativo: DataJudOrgao | null = null;
+    if (tribunalHintNormalizado === "TST" && (rd?.tribunal_acronym || "").toString().toUpperCase() !== "TST") {
+      console.log(`[buscar-judit] Judit não retornou instância TST (selecionou ${rd?.tribunal_acronym || "null"}); consultando DataJud TST antes de preencher.`);
+      datajudAutoritativo = await consultarDataJud(cnj);
+      if (datajudAutoritativo && (datajudAutoritativo.relator || datajudAutoritativo.turma || datajudAutoritativo.classe)) {
+        rd = {
+          ...rd,
+          tribunal_acronym: "TST",
+          classifications: datajudAutoritativo.classe ? [{ name: datajudAutoritativo.classe }] : rd.classifications,
+          distribution_date: datajudAutoritativo.dataDistribuicao || rd.distribution_date,
+          judge: datajudAutoritativo.relator ? { name: datajudAutoritativo.relator } : rd.judge,
+          courts: datajudAutoritativo.courts?.length ? datajudAutoritativo.courts : rd.courts,
+          steps: datajudAutoritativo.steps?.length ? datajudAutoritativo.steps : rd.steps,
+        };
+        console.log(`[buscar-judit] Usando DataJud TST como fonte autoritativa: relator=${datajudAutoritativo.relator} turma=${datajudAutoritativo.turma}`);
+      }
     }
 
     // ---- extração ----
