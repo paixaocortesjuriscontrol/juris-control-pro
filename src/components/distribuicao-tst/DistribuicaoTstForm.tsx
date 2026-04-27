@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
+import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { Badge } from "@/components/ui/badge";
 
 interface Props {
@@ -400,7 +401,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
                 Tipo de Recurso do Reclamante
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
               </Label>
-              <Input value={form.tipo_recurso_reclamante || ""} onChange={e => set("tipo_recurso_reclamante", e.target.value)} />
+              <MultiTipoRecurso
+                value={form.tipo_recurso_reclamante}
+                onChange={(v) => set("tipo_recurso_reclamante", v)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Aparelhamento</Label>
@@ -444,7 +448,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
                 Tipo de Recurso do Banco
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
               </Label>
-              <Input value={form.tipo_recurso_banco || ""} onChange={e => set("tipo_recurso_banco", e.target.value)} />
+              <MultiTipoRecurso
+                value={form.tipo_recurso_banco}
+                onChange={(v) => set("tipo_recurso_banco", v)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Aparelhamento</Label>
