@@ -348,6 +348,39 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             ? (f as any).tipo_recurso_banco
             : (data.tipo_recurso_banco || (f as any).tipo_recurso_banco || null),
         data_distribuicao: data.data_distribuicao || f.data_distribuicao,
+        // Espelho para a tela "Distribuição TST".
+        // data_distribuicao_real é a coluna dedicada à data vinda da Judit/manual,
+        // distinta de data_distribuicao_planilha (que vem da planilha importada).
+        data_distribuicao_real:
+          ((f as any).data_distribuicao_real)
+            ? (f as any).data_distribuicao_real
+            : (data.data_distribuicao || (f as any).data_distribuicao_real || null),
+        // Reclamante / Reclamada extraídos das partes (polo ativo / passivo, ignorando advogados).
+        // Só preenche se estiverem vazios para preservar o que o usuário já digitou na outra tela.
+        reclamante:
+          ((f as any).reclamante && String((f as any).reclamante).trim())
+            ? (f as any).reclamante
+            : (
+                Array.isArray(data.parties_detail)
+                  ? data.parties_detail
+                      .filter((p: any) => (p?.side || "").toString().toUpperCase() === "ACTIVE" && (p?.person_type || "").toString().toUpperCase() !== "ADVOGADO")
+                      .map((p: any) => p?.name)
+                      .filter(Boolean)
+                      .join(" / ")
+                  : ""
+              ) || (f as any).reclamante || null,
+        reclamada:
+          ((f as any).reclamada && String((f as any).reclamada).trim())
+            ? (f as any).reclamada
+            : (
+                Array.isArray(data.parties_detail)
+                  ? data.parties_detail
+                      .filter((p: any) => (p?.side || "").toString().toUpperCase() === "PASSIVE" && (p?.person_type || "").toString().toUpperCase() !== "ADVOGADO")
+                      .map((p: any) => p?.name)
+                      .filter(Boolean)
+                      .join(" / ")
+                  : ""
+              ) || (f as any).reclamada || null,
         relator: data.relator || f.relator,
         turma: data.turma || f.turma,
         tribunal: tribunalMapeado || f.tribunal,
