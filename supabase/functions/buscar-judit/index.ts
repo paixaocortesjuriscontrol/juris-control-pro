@@ -705,24 +705,25 @@ serve(async (req) => {
       }
       
       if (!rd) {
-        // Se não achou instância do tribunal solicitado mas tem cache que bate com o hint, usar
-        const cacheBateHint = cachedRd && (!tribunalHint ||
-          (cachedRd.tribunal_acronym || "").toUpperCase() === tribunalHint.toUpperCase() ||
-          (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd)));
-        if (cacheBateHint) {
-          console.log(`[buscar-judit] TST não encontrado, usando cache como fallback`);
+        // Hint não bateu — fazer fallback para a melhor instância disponível
+        // (preferindo a maior `instance`) ou para o cache, em vez de 404.
+        const rdsAll = pageData
+          .map((i: any) => i?.response_data)
+          .filter((x: any) => x && typeof x === "object");
+        if (rdsAll.length > 0) {
+          rd = rdsAll.reduce((a: any, b: any) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
+          console.log(`[buscar-judit] Hint=${tribunalHint} não localizado; usando melhor instância disponível: ${rd.tribunal_acronym}`);
+        } else if (cachedRd) {
           rd = cachedRd;
+          console.log(`[buscar-judit] Hint=${tribunalHint} não localizado e async vazio; usando cache (${cachedRd.tribunal_acronym})`);
         } else {
           return json(
             {
-              error: tribunalHint
-                ? `Processo não encontrado na Judit para o tribunal ${tribunalHint}`
-                : "Processo não encontrado na Judit",
+              error: "Processo não encontrado na Judit",
               _debug: {
                 request_id: requestId,
                 status_judit: envelope.request_status,
                 instancias_retornadas: pageData.length,
-                tribunais_disponiveis: pageData.map((i:any)=>i?.response_data?.tribunal_acronym).filter(Boolean),
                 tribunal_hint: tribunalHint,
               },
             },
