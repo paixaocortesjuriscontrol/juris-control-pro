@@ -148,7 +148,9 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
       const nextForm: DistribuicaoTstInsert = (() => {
         const next: any = { ...form };
         const apply = (field: string, novo: any) => {
-          if (hasValue(novo) && next[field] !== novo) {
+          // Política: a Judit é fonte da verdade — sempre sobrescreve
+          // qualquer valor existente quando retorna algo para o campo.
+          if (hasValue(novo)) {
             next[field] = novo;
             filled.add(field);
           }
