@@ -1033,7 +1033,7 @@ export default function DistribuicaoTst() {
                     : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => setEditando(d)}>
+                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => { setDetailInitialTab("distribuicao"); setEditando(d); }}>
                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(d.id)}
