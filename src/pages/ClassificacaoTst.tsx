@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -224,11 +223,8 @@ export default function ClassificacaoTst() {
   }, [relatores]);
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header title="Classificação TST" />
-        <main className="flex-1 p-4 md:p-6 space-y-6 overflow-x-hidden">
+    <MainLayout title="Classificação TST">
+      <div className="space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center">
               <Scale className="w-5 h-5 text-sky-700" />
@@ -328,8 +324,7 @@ export default function ClassificacaoTst() {
           <p className="text-xs text-muted-foreground">
             <ClassifBadge c="POSITIVO" /> &nbsp; <ClassifBadge c="NEGATIVO" /> &nbsp; <ClassifBadge c="IMPEDIDA" />
           </p>
-        </main>
       </div>
-    </div>
+    </MainLayout>
   );
 }
