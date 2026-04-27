@@ -24,7 +24,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -885,8 +885,8 @@ export default function DistribuicaoTst() {
             )}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
-            <Input placeholder="Processo" value={filtroProcesso} onChange={e => setFiltroProcesso(e.target.value)} className="h-8 text-xs" />
-            <Input placeholder="Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Processo" value={filtroProcesso} onChange={e => setFiltroProcesso(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))} className="h-8 text-xs" />
+            <Input placeholder="Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))} className="h-8 text-xs" />
             <Input placeholder="Turma" value={filtroTurma} onChange={e => setFiltroTurma(e.target.value)} className="h-8 text-xs" />
             <Input placeholder="Relator" value={filtroRelator} onChange={e => setFiltroRelator(e.target.value)} className="h-8 text-xs" />
             <Input placeholder="Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs" />
