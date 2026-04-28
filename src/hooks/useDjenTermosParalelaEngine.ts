@@ -1567,7 +1567,7 @@ export { MAX_CONCURRENCY };
 // recente já carregado em memória (lastUpdatedAt).
 export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
   try {
-    if (state.isRunning || state.progress.status === 'idle') return false;
+    if (state.isRunning) return false;
     const { data, error } = await supabase
       .from('execucoes_agendadas')
       .select('id, status, detalhes, created_at, finalizado_em, iniciado_em, lotes_processados, total_lotes, registros_processados, registros_encontrados')
