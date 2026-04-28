@@ -85,15 +85,18 @@ export function useDjenTermosParalela() {
     toast.info('DJEN Paralela retomando...');
   }, [checkpoint]);
 
-  const cancelar = useCallback(() => cancelarDjenTermosParalela(), []);
+  const cancelar = useCallback(async () => {
+    await cancelarDjenTermosParalela();
+    toast.info('DJEN Paralela cancelada.');
+  }, []);
   const limpar = useCallback(() => limparEstadoDjenTermosParalela(), []);
-  const forceKill = useCallback((clearCheckpoint = false) => {
-    forceKillDjenTermosParalela(clearCheckpoint);
+  const forceKill = useCallback(async (clearCheckpoint = false) => {
+    await forceKillDjenTermosParalela(clearCheckpoint);
     toast.success(clearCheckpoint ? 'Paralela finalizada e checkpoint limpo' : 'Paralela parada.');
   }, []);
 
-  const resetTotal = useCallback(() => {
-    resetTotalDjenTermosParalela();
+  const resetTotal = useCallback(async () => {
+    await resetTotalDjenTermosParalela();
     toast.success('Reset Total: estado, checkpoint, execuções órfãs e stats foram limpos.');
   }, []);
 
