@@ -249,21 +249,58 @@ const AnaliseDjen = () => {
     staleTime: 30_000,
   });
 
-  // Count DataJud for stats
-  const { data: totalDatajudHoje = 0 } = useQuery({
-    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo],
+  // Count DataJud for stats using the same filters as the list
+  const { data: datajudStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingDatajudStats } = useQuery({
+    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas, tipoOrigem],
     queryFn: async () => {
-      const today = new Date().toISOString().slice(0, 10);
-      let query = supabase
-        .from('movimentacoes_datajud')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', `${today}T00:00:00Z`);
-      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
-      const { count } = await query;
-      return count || 0;
+      if (!(tipoOrigem === 'datajud' || tipoOrigem === 'todos' || tipoOrigem === 'normal')) {
+        return { total: 0, naoLidas: 0 };
+      }
+      const applyFilters = (onlyUnread: boolean) => {
+        const today = new Date().toISOString().slice(0, 10);
+        let query = supabase
+          .from('movimentacoes_datajud')
+          .select('id', { count: 'exact', head: true });
+        if (apenasHoje) {
+          query = query.gte('created_at', `${today}T00:00:00Z`);
+        } else {
+          if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
+          if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
+        }
+        if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+        if (onlyUnread) query = query.eq('lida', false);
+        if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
+        if (termoBusca) {
+          const digits = termoBusca.replace(/\D/g, '');
+          if (digits.length >= 5) {
+            query = query.ilike('numero_processo', `%${digits}%`);
+          } else {
+            query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+          }
+        }
+        return query;
+      };
+
+      if (apenasNaoLidas) {
+        const { count } = await applyFilters(true);
+        const total = count || 0;
+        return { total, naoLidas: total };
+      }
+
+      const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([applyFilters(false), applyFilters(true)]);
+      return { total: totalCount || 0, naoLidas: unreadCount || 0 };
     },
     staleTime: 30_000,
   });
+  const totalDatajudHoje = datajudStats.total;
+  const naoLidasDatajudHoje = datajudStats.naoLidas;
+  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
+  const incluirTotaisDjen = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada';
+  const totalDjenFiltrado = incluirTotaisDjen ? totalHoje : 0;
+  const naoLidasDjenFiltrado = incluirTotaisDjen ? naoLidasHoje : 0;
+  const totalTermosFiltrado = incluirTotaisDjen ? totalTermosHoje : 0;
+  const totalProcessosFiltrado = incluirTotaisDjen ? totalProcessosHoje : 0;
+  const totalDescartadasFiltrado = tipoOrigem === 'descartada' ? totalDescartadasHoje : 0;
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
@@ -1503,8 +1540,8 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
                   <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
-                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                      totalHoje + totalDescartadasHoje + totalDatajudHoje
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                      totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje
                     )}
                   </p>
                 </div>
@@ -1519,8 +1556,8 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Não Lidas</p>
                   <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">
-                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      naoLidasHoje}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : 
+                      naoLidasDjenFiltrado + naoLidasDatajudHoje}
                   </p>
                 </div>
                 <Eye className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
@@ -1534,8 +1571,8 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Por Termos</p>
                   <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">
-                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      totalTermosHoje}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : 
+                      totalTermosFiltrado}
                   </p>
                 </div>
                 <FileSearch className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
@@ -1549,8 +1586,8 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Por Processos</p>
                   <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      totalProcessosHoje}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : 
+                      totalProcessosFiltrado}
                   </p>
                 </div>
                 <Gavel className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
@@ -1564,7 +1601,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-rose-600 dark:text-rose-400 truncate">Descartadas</p>
                   <p className="text-xl md:text-3xl font-bold text-rose-700 dark:text-rose-300">
-                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasHoje}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasFiltrado}
                   </p>
                 </div>
                 <Trash2 className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
@@ -1578,7 +1615,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-cyan-600 dark:text-cyan-400 truncate">DataJud (CNJ)</p>
                   <p className="text-xl md:text-3xl font-bold text-cyan-700 dark:text-cyan-300">
-                    {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudHoje}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudHoje}
                   </p>
                 </div>
                 <Database className="w-6 h-6 md:w-10 md:h-10 text-cyan-500/50 flex-shrink-0" />
