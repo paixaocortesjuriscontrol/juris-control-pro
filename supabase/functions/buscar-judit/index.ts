@@ -1335,7 +1335,14 @@ serve(async (req) => {
         documento: p?.main_document || null,
         tipo_pessoa: p?.person_type || null,
         polo: p?.side || null,
-        lado_efetivo: ladoEfetivo(p), // ACTIVE/PASSIVE derivado de person_type+side
+        // Lado efetivo CONSOLIDADO por parte (mesmo doc): respeita o lado
+        // original quando disponível, evitando que o frontend re-misture.
+        lado_efetivo: (() => {
+          const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+          const key = doc || (p?.name || "").toString().trim().toUpperCase();
+          const consolidado = ladoPorParte.get(key);
+          return consolidado ? consolidado.lado : ladoEfetivo(p);
+        })(),
         is_advogado: (p?.person_type || '').toUpperCase() === 'ADVOGADO',
       })),
       _debug: {
