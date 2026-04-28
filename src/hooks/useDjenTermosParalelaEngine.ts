@@ -598,6 +598,10 @@ function extrairPartesEstruturadas(pub: any): string[] {
 
 function buildSnapshot(overrides: Record<string, any> = {}): any {
   const poolStats = getDjenProxyPoolStats();
+  const iniciadoEm = state.progress.iniciadoEm;
+  const tempoDecorrido = iniciadoEm && state.progress.status === 'executando'
+    ? Math.floor(Math.max(0, Date.now() - new Date(iniciadoEm).getTime()) / 1000)
+    : state.progress.tempoDecorrido;
   return {
     progressStatus: state.progress.status,
     runKey: state.progress.dataInicioYmd && state.progress.dataFimYmd
@@ -612,8 +616,8 @@ function buildSnapshot(overrides: Record<string, any> = {}): any {
     descartadas: state.progress.descartadas,
     percentage: state.progress.percentage,
     mensagem: state.progress.mensagem,
-    tempoDecorrido: state.progress.tempoDecorrido,
-    iniciadoEm: state.progress.iniciadoEm,
+    tempoDecorrido,
+    iniciadoEm,
     tracks: state.progress.tracks.map(t => ({
       tribunal: t.tribunal,
       status: t.status,
