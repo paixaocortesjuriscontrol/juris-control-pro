@@ -185,6 +185,7 @@ const AnaliseDjen = () => {
     termoBusca: termoBusca || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
+    readStatus,
     apenasHoje,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
@@ -201,7 +202,7 @@ const AnaliseDjen = () => {
     setPage(1);
   }, [
     coordenacaoFiltroEfetivo, dataInicio, dataFim, dataDisponibilizacao,
-    termoBusca, monitoramentoId, apenasNaoLidas, apenasHoje, tipoOrigem,
+    termoBusca, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
   ]);
 
   // ===== DataJud (CNJ) query =====
