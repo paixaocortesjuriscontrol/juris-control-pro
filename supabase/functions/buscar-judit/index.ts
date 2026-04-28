@@ -1052,22 +1052,34 @@ serve(async (req) => {
       parties.push(p);
     }
     console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
-    const poloAtivo = parties
-      .filter((p: any) =>
-        (p?.side || "").toUpperCase() === "ACTIVE" &&
-        (p?.person_type || "").toUpperCase() !== "ADVOGADO"
-      )
-      .map((p: any) => p?.name)
-      .filter(Boolean)
-      .join(", ");
-    const poloPassivo = parties
-      .filter((p: any) =>
-        (p?.side || "").toUpperCase() === "PASSIVE" &&
-        (p?.person_type || "").toUpperCase() !== "ADVOGADO"
-      )
-      .map((p: any) => p?.name)
-      .filter(Boolean)
-      .join(", ");
+    // Lado efetivo de cada parte: prioriza person_type (RECLAMANTE/RECLAMADO/etc.)
+    // sobre o `side` da Judit, que reflete a posição na peça recursal e mistura
+    // banco/reclamante quando ambos figuram como AGRAVANTE/RECORRENTE.
+    const ladoEfetivo = (p: any): "ACTIVE" | "PASSIVE" | null => {
+      const ptype = (p?.person_type || "").toUpperCase();
+      if (ptype === "ADVOGADO") return null;
+      const porTipo = ladoPorPersonType(ptype);
+      if (porTipo) return porTipo;
+      const side = (p?.side || "").toUpperCase();
+      return side === "ACTIVE" || side === "PASSIVE" ? side : null;
+    };
+    // Deduplica por documento+lado para não repetir a mesma parte que aparece
+    // várias vezes na lista (uma por person_type).
+    const ativosUnicos = new Map<string, string>();
+    const passivosUnicos = new Map<string, string>();
+    for (const p of parties) {
+      const lado = ladoEfetivo(p);
+      if (!lado) continue;
+      const nome = (p?.name || "").toString().trim();
+      if (!nome) continue;
+      const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+      const key = doc || nome.toUpperCase();
+      if (lado === "ACTIVE" && !ativosUnicos.has(key)) ativosUnicos.set(key, nome);
+      else if (lado === "PASSIVE" && !passivosUnicos.has(key)) passivosUnicos.set(key, nome);
+    }
+    const poloAtivo = Array.from(ativosUnicos.values()).join(", ");
+    const poloPassivo = Array.from(passivosUnicos.values()).join(", ");
+    console.log(`[buscar-judit] polo_ativo="${poloAtivo}" polo_passivo="${poloPassivo}"`);
 
     // situação
     const rawStatus = rd.status || null;
