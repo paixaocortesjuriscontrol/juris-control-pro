@@ -73,6 +73,7 @@ export interface DjenTermosParalelaProgress {
   percentage: number;
   mensagem: string;
   tempoDecorrido: number;
+  iniciadoEm: string | null;
   dataInicioYmd: string | null;
   dataFimYmd: string | null;
   concorrencia: number;
@@ -244,6 +245,7 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     percentage: 0,
     mensagem: '',
     tempoDecorrido: 0,
+    iniciadoEm: null,
     dataInicioYmd: null,
     dataFimYmd: null,
     concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
