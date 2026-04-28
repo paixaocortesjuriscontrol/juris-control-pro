@@ -175,6 +175,8 @@ export interface PublicacaoUnificada {
   lido_por?: LeituraUsuario[];
 }
 
+export type FiltroLeituraDjen = 'lidas' | 'nao_lidas' | 'todas';
+
 export interface FiltrosUnificados {
   coordenacaoId?: string;
   dataInicio?: string;
@@ -182,6 +184,7 @@ export interface FiltrosUnificados {
   termoBusca?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
+  readStatus?: FiltroLeituraDjen;
   apenasHoje?: boolean;
   // `tipoOrigem` é o filtro do UI "Tipo de Origem":
   // - termo: publicações vindas de monitoramentos (palavra-chave / advogado / parte)
@@ -213,7 +216,7 @@ export interface EstatisticasCoordenacao {
 async function mergeWithLeituras(
   userId: string,
   results: PublicacaoUnificada[],
-  apenasNaoLidas: boolean
+  readStatus: FiltroLeituraDjen = 'todas'
 ): Promise<PublicacaoUnificada[]> {
   if (results.length === 0) return results;
 
@@ -240,8 +243,10 @@ async function mergeWithLeituras(
     lido_por: lidoPorMap.get(pub.id) || [],
   }));
 
-  if (apenasNaoLidas) {
+  if (readStatus === 'nao_lidas') {
     merged = merged.filter(pub => !pub.lida);
+  } else if (readStatus === 'lidas') {
+    merged = merged.filter(pub => pub.lida);
   }
 
   return merged;
@@ -250,6 +255,7 @@ async function mergeWithLeituras(
 export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const readStatus: FiltroLeituraDjen = filtros.readStatus ?? (filtros.apenasNaoLidas ? 'nao_lidas' : 'todas');
 
   // Query separada para contar descartadas NO MESMO CONTEXTO DE FILTROS (evita mostrar número incoerente)
   const { data: totalDescartadasHoje = 0 } = useQuery({
