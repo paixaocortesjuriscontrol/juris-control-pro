@@ -1404,38 +1404,10 @@ serve(async (req) => {
     // pelo texto do andamento + cruzamento com nomes do polo, concatenando em ordem
     // cronológica (ex: "RO + RR").
     const recursosPorParte = extrairRecursosPorParte(steps, parties);
-    const siglaClassificacao = classificacao ? classificarRecursoInterposto(classificacao) : null;
-    const recursosPorRecorrentes = inferirRecursosRecorrentesPorPartes(parties, siglaClassificacao);
-    if (!recursosPorParte.reclamante && recursosPorRecorrentes.reclamante) {
-      recursosPorParte.reclamante = recursosPorRecorrentes.reclamante;
-    }
-    if (!recursosPorParte.banco && recursosPorRecorrentes.banco) {
-      recursosPorParte.banco = recursosPorRecorrentes.banco;
-    }
-
-    // Fallback: quando não foi possível detectar o autor do recurso pelos
-    // movimentos (ex.: histórico no TST não traz a interposição feita na origem),
-    // usa a classificação do processo para inferir a sigla e atribui ao lado
-    // do polo recorrente. Isso espelha a lógica do botão Judit individual e
-    // garante que os campos `tipo_recurso_reclamante`/`tipo_recurso_banco`
-    // sejam preenchidos sempre que houver recurso conhecido.
-    // Fallback de classificação: só usa quando NENHUM lado foi detectado pelos
-    // movimentos. Mesmo assim, NÃO replica a sigla nos dois lados — atribui
-    // apenas a um lado (preferindo o reclamante quando houver polo ativo,
-    // senão o banco). Evita preencher reclamante com recurso do banco e vice-
-    // versa, deixando para o usuário ajustar manualmente quando necessário.
-    if (classificacao && !recursosPorParte.reclamante && !recursosPorParte.banco) {
-      const siglaFallback = siglaClassificacao;
-      if (siglaFallback) {
-        if (poloPassivo) {
-          recursosPorParte.banco = siglaFallback;
-          console.log(`[buscar-judit] fallback classificação -> banco: ${siglaFallback}`);
-        } else if (poloAtivo) {
-          recursosPorParte.reclamante = siglaFallback;
-          console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
-        }
-      }
-    }
+    // POLÍTICA: tipo de recurso vem APENAS de movimentos confirmados pela Judit
+    // (interposição explícita, com identificação de lado). Sem fallback por
+    // classificação da capa, sem inferência por person_type. Se a Judit não
+    // confirmar, os campos ficam null — o frontend sobrescreve valores antigos.
 
     recursosPorParte.reclamante = normalizarListaRecursos(recursosPorParte.reclamante);
     recursosPorParte.banco = normalizarListaRecursos(recursosPorParte.banco);
@@ -1447,13 +1419,26 @@ serve(async (req) => {
           : `${recursosPorParte.reclamante} - ${recursosPorParte.banco}`
         : recursosPorParte.reclamante || recursosPorParte.banco || null;
 
+    const fonteTipoRecurso: "judit" | "nenhuma" =
+      recursosPorParte.reclamante || recursosPorParte.banco ? "judit" : "nenhuma";
+    const motivoVazio: string | null = fonteTipoRecurso === "nenhuma"
+      ? "judit_sem_interposicao_identificada"
+      : null;
+    console.log(`[buscar-judit] tipo_recurso fonte=${fonteTipoRecurso} reclamante=${recursosPorParte.reclamante} banco=${recursosPorParte.banco}`);
+
     const result = {
       dossie: null, // Judit não tem dossiê Santander
-      // Quando há detecção por parte, usa o combinado "Reclamante - Reclamada".
-      // Caso contrário mantém a classificação clássica (classe processual).
-      tipo_recurso: tipoRecursoCombinado || classificacao,
+      // Tipo de recurso APENAS quando confirmado por movimento Judit.
+      // Sem fallback para `classificacao` (classe da capa) — esta é apenas
+      // a classe processual atual, não comprova quem interpôs o recurso.
+      tipo_recurso: tipoRecursoCombinado,
       tipo_recurso_reclamante: recursosPorParte.reclamante,
       tipo_recurso_banco: recursosPorParte.banco,
+      _judit_meta: {
+        fonte_tipo_recurso: fonteTipoRecurso,
+        motivo_vazio: motivoVazio,
+        classe_capa: classificacao ?? null,
+      },
       // o cliente Lovable espera yyyy-MM-dd no input de data; mantemos ISO.
       // Se quiser pt-BR, troque por dataDistribuicaoBR.
       data_distribuicao: dataDistribuicaoISO,

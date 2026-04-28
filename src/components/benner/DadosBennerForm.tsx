@@ -127,6 +127,10 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
+  // Quando a Judit não confirma nenhum recurso interposto, exibimos aviso
+  // amarelo abaixo do campo "Tipo de Recurso" para sinalizar que os campos
+  // foram intencionalmente apagados (e não estão vazios por engano).
+  const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState<boolean>(false);
   const [partesJudit, setPartesJudit] = useState<ParteJudit[]>([]);
 
   const carregarPartesPersistidas = useCallback(async (dadosBennerId?: string | null) => {
@@ -327,6 +331,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
     setModoTeste(false);
+    setTipoRecursoJuditVazio(false);
 
     try {
       // Respeita o tribunal informado no formulário; se vazio, usa TST como padrão
@@ -373,12 +378,16 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       // Só preserva o valor atual quando a Judit não retornou nada para o campo.
       const pick = <T,>(novo: T, atual: T): T =>
         (novo !== null && novo !== undefined && String(novo as any).trim() !== "" ? novo : atual);
+      // Para os campos de Tipo de Recurso, a Judit é fonte ÚNICA: quando ela
+      // não confirma, o valor antigo (possivelmente errado) é APAGADO. Sem
+      // fallback DataJud, sem chute por classe da capa.
+      const pickJuditOnly = <T,>(novo: T): T => (novo ?? null) as T;
       const nextForm = {
         ...form,
         dossie: pick(data.dossie, form.dossie),
-        tipo_recurso: pick(data.tipo_recurso, form.tipo_recurso),
-        tipo_recurso_reclamante: pick(data.tipo_recurso_reclamante, (form as any).tipo_recurso_reclamante ?? null),
-        tipo_recurso_banco: pick(data.tipo_recurso_banco, (form as any).tipo_recurso_banco ?? null),
+        tipo_recurso: pickJuditOnly(data.tipo_recurso),
+        tipo_recurso_reclamante: pickJuditOnly(data.tipo_recurso_reclamante),
+        tipo_recurso_banco: pickJuditOnly(data.tipo_recurso_banco),
         data_distribuicao: pick(data.data_distribuicao, form.data_distribuicao),
         data_distribuicao_real: pick(data.data_distribuicao, (form as any).data_distribuicao_real ?? null),
         reclamante: pick(partesAtivas, (form as any).reclamante ?? null),
@@ -439,6 +448,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       if (data.processo_baixado && data.processo_baixado !== "N") filled.add("processo_baixado");
 
       setCamposJudit(new Set(filled));
+
+      // Sinaliza visualmente quando a Judit não trouxe NENHUM recurso interposto
+      // (campos foram apagados intencionalmente — não preencher manualmente sem checar).
+      const meta = (data as any)?._judit_meta;
+      const semRecurso =
+        !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
+      setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
 
       // Capture parties_detail for display
       if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
@@ -895,6 +911,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tipo_recurso"))}>
               <JuditLabel field="tipo_recurso"><Label>Tipo de Recurso (C)</Label></JuditLabel>
               <Input value={form.tipo_recurso || ""} onChange={e => set("tipo_recurso", e.target.value)} />
+              {tipoRecursoJuditVazio && (
+                <div className="text-xs rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-1.5 leading-snug">
+                  ⚠ Judit não identificou recurso interposto neste processo. Os campos
+                  de Tipo de Recurso foram limpos. Preencha manualmente apenas se você
+                  confirmar a existência de um recurso pelo PJe/TST.
+                </div>
+              )}
             </div>
             {/* Data Distribuição (D) */}
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("data_distribuicao"))}>
