@@ -61,7 +61,7 @@ import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
 
-import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import { usePublicacoesDjenUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +76,7 @@ import { jsPDF } from "jspdf";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud';
+type FiltroDiaDjen = 'hoje' | 'todos';
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
@@ -113,10 +114,11 @@ const AnaliseDjen = () => {
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
-  const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
-  const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
+  const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
+  const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
-  const [apenasComProcesso, setApenasComProcesso] = useState(false);
+  const apenasHoje = filtroDia === 'hoje';
+  const apenasNaoLidas = readStatus === 'nao_lidas';
   // Paginação: 500 registros por página. Reset para 1 quando qualquer filtro muda.
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 500;
