@@ -2415,7 +2415,8 @@ const AnaliseDjen = () => {
                   </CollapsibleContent>
                 </Collapsible>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
 
