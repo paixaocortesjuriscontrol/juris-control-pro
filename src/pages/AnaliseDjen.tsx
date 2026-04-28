@@ -171,7 +171,8 @@ const AnaliseDjen = () => {
     marcarComoLida,
     totalHoje,
     naoLidasHoje,
-    totalDescartadasHoje
+    totalDescartadasHoje,
+    hasNextPage,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
@@ -186,7 +187,18 @@ const AnaliseDjen = () => {
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
+    page,
+    pageSize: PAGE_SIZE,
   });
+
+  // Reset página ao mudar qualquer filtro (evita ficar numa página vazia ao
+  // trocar de coordenação ou tirar um filtro).
+  useEffect(() => {
+    setPage(1);
+  }, [
+    coordenacaoFiltroEfetivo, dataInicio, dataFim, dataDisponibilizacao,
+    termoBusca, monitoramentoId, apenasNaoLidas, apenasHoje, tipoOrigem,
+  ]);
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
