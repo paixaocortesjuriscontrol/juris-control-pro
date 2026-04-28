@@ -1320,6 +1320,7 @@ serve(async (req) => {
         documento: p?.main_document || null,
         tipo_pessoa: p?.person_type || null,
         polo: p?.side || null,
+        lado_efetivo: ladoEfetivo(p), // ACTIVE/PASSIVE derivado de person_type+side
         is_advogado: (p?.person_type || '').toUpperCase() === 'ADVOGADO',
       })),
       _debug: {
