@@ -117,6 +117,9 @@ const AnaliseDjen = () => {
   const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const [apenasComProcesso, setApenasComProcesso] = useState(false);
+  // Paginação: 500 registros por página. Reset para 1 quando qualquer filtro muda.
+  const [page, setPage] = useState<number>(1);
+  const PAGE_SIZE = 500;
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
