@@ -127,6 +127,10 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
   const autosPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [camposJudit, setCamposJudit] = useState<Set<string>>(new Set());
+  // Quando a Judit não confirma nenhum recurso interposto, exibimos aviso
+  // amarelo abaixo do campo "Tipo de Recurso" para sinalizar que os campos
+  // foram intencionalmente apagados (e não estão vazios por engano).
+  const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState<boolean>(false);
   const [partesJudit, setPartesJudit] = useState<ParteJudit[]>([]);
 
   const carregarPartesPersistidas = useCallback(async (dadosBennerId?: string | null) => {
