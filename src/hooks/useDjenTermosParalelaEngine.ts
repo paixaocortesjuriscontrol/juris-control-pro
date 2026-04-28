@@ -73,6 +73,7 @@ export interface DjenTermosParalelaProgress {
   percentage: number;
   mensagem: string;
   tempoDecorrido: number;
+  iniciadoEm: string | null;
   dataInicioYmd: string | null;
   dataFimYmd: string | null;
   concorrencia: number;
@@ -244,6 +245,7 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     percentage: 0,
     mensagem: '',
     tempoDecorrido: 0,
+    iniciadoEm: null,
     dataInicioYmd: null,
     dataFimYmd: null,
     concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
@@ -275,6 +277,9 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
     totalCurrent += t.current;
     totalGlobal += t.total;
   }
+  const tempoDecorrido = state.progress.iniciadoEm && state.progress.status === 'executando'
+    ? Math.floor(Math.max(0, Date.now() - new Date(state.progress.iniciadoEm).getTime()) / 1000)
+    : state.progress.tempoDecorrido;
   const percentage = totalGlobal > 0
     ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
     : 0;
@@ -286,6 +291,7 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
     descartadas,
     tribunaisConcluidos: concluidos,
     percentage,
+    tempoDecorrido,
   };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
@@ -596,6 +602,10 @@ function extrairPartesEstruturadas(pub: any): string[] {
 
 function buildSnapshot(overrides: Record<string, any> = {}): any {
   const poolStats = getDjenProxyPoolStats();
+  const iniciadoEm = state.progress.iniciadoEm;
+  const tempoDecorrido = iniciadoEm && state.progress.status === 'executando'
+    ? Math.floor(Math.max(0, Date.now() - new Date(iniciadoEm).getTime()) / 1000)
+    : state.progress.tempoDecorrido;
   return {
     progressStatus: state.progress.status,
     runKey: state.progress.dataInicioYmd && state.progress.dataFimYmd
@@ -610,7 +620,8 @@ function buildSnapshot(overrides: Record<string, any> = {}): any {
     descartadas: state.progress.descartadas,
     percentage: state.progress.percentage,
     mensagem: state.progress.mensagem,
-    tempoDecorrido: state.progress.tempoDecorrido,
+    tempoDecorrido,
+    iniciadoEm,
     tracks: state.progress.tracks.map(t => ({
       tribunal: t.tribunal,
       status: t.status,
@@ -644,9 +655,17 @@ function syncExecutionProgress(overrides: Record<string, any> = {}, force = fals
   const now = Date.now();
   if (!force && now - state.lastExecutionSyncAt < EXECUTION_SYNC_INTERVAL_MS) return;
   state.lastExecutionSyncAt = now;
+  const erros = state.progress.tracks.filter(t => t.status === 'erro').length;
   void supabase
     .from('execucoes_agendadas')
-    .update({ detalhes: buildSnapshot(overrides) })
+    .update({
+      detalhes: buildSnapshot(overrides),
+      lotes_processados: state.progress.tribunaisConcluidos,
+      total_lotes: state.progress.totalTribunais,
+      registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+      registros_encontrados: state.progress.novas,
+      erros,
+    })
     .eq('id', state.executionId)
     .then(({ error }) => {
       if (error) console.warn('[DJEN Paralela] Sync error:', error.message);
@@ -1211,13 +1230,14 @@ async function executarLoop(
 
     // Registrar execução no banco
     try {
+      const iniciadoEm = new Date().toISOString();
       const { data: inserted, error: insErr } = await supabase
         .from('execucoes_agendadas')
         .insert({
           tipo: 'djen_paralela',
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
-          iniciado_em: new Date().toISOString(),
+          iniciado_em: iniciadoEm,
           detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'] },
         })
         .select('id');
@@ -1225,6 +1245,7 @@ async function executarLoop(
       else if (inserted && inserted.length > 0) {
         executionId = inserted[0].id;
         state.executionId = executionId;
+        updateProgress({ iniciadoEm });
       }
     } catch (e) {
       console.error('[DJEN Paralela] Erro inesperado registrar execução:', e);
@@ -1336,6 +1357,11 @@ async function executarLoop(
           .update({
             status: finalStatus,
             finalizado_em: new Date().toISOString(),
+            lotes_processados: state.progress.tribunaisConcluidos,
+            total_lotes: state.progress.totalTribunais,
+            registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+            registros_encontrados: state.progress.novas,
+            erros: state.progress.tracks.filter(t => t.status === 'erro').length,
             detalhes: buildSnapshot({ finalStatus }),
           })
           .eq('id', executionId);
@@ -1416,6 +1442,11 @@ export function cancelarDjenTermosParalela() {
     .update({
       status: 'cancelado',
       finalizado_em: new Date().toISOString(),
+      lotes_processados: state.progress.tribunaisConcluidos,
+      total_lotes: state.progress.totalTribunais,
+      registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+      registros_encontrados: state.progress.novas,
+      erros: state.progress.tracks.filter(t => t.status === 'erro').length,
       detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
     })
     .eq('tipo', 'djen_paralela')
@@ -1525,7 +1556,7 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     if (state.isRunning) return false;
     const { data, error } = await supabase
       .from('execucoes_agendadas')
-      .select('id, status, detalhes, created_at, finalizado_em, iniciado_em')
+      .select('id, status, detalhes, created_at, finalizado_em, iniciado_em, lotes_processados, total_lotes, registros_processados, registros_encontrados')
       .eq('tipo', 'djen_paralela')
       .order('created_at', { ascending: false })
       .limit(1)
@@ -1626,18 +1657,24 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
             ? Math.floor(Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime()) / 1000)
             : 0);
 
+    const registrosEncontrados = Number((data as any).registros_encontrados || 0);
+    const registrosProcessados = Number((data as any).registros_processados || 0);
+    const lotesProcessados = Number((data as any).lotes_processados || 0);
+    const totalLotes = Number((data as any).total_lotes || 0);
+
     state.progress = {
       ...createDefaultProgress(),
       status: finalStatus,
       tracks,
-      totalTribunais: Number(det.totalTribunais || tracks.length),
-      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos),
-      novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas),
+      totalTribunais: Math.max(Number(det.totalTribunais || 0), totalLotes, tracks.length),
+      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados),
+      novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas, registrosEncontrados),
       duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
-      descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas),
+      descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas, registrosProcessados),
       percentage: Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
+      iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
       dataInicioYmd: det.dataInicioYmd ?? null,
       dataFimYmd: det.dataFimYmd ?? null,
       concorrencia: Number(det.concorrencia || HOST_BUCKET_LIMITS['pje-comunica']),
