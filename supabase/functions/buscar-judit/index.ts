@@ -427,13 +427,18 @@ function classificarRecursoInterposto(texto: string): string | null {
 function ladoPorPersonType(personType: string): "ACTIVE" | "PASSIVE" | null {
   const t = (personType || "").toString().toUpperCase().trim();
   if (!t) return null;
-  if (/(RECLAMANTE|AUTOR|AUTORA|EXEQUENTE|REQUERENTE|IMPETRANTE|EMBARGANTE)/.test(t)) {
+  if (/(RECLAMANTE|AUTOR|AUTORA|EXEQUENTE|REQUERENTE|IMPETRANTE)/.test(t)) {
     return "ACTIVE";
   }
-  if (/(RECLAMAD|R[ÉE]U|R[ÉE]|EXECUTAD|REQUERID|IMPETRAD|EMBARGAD|LITISCONSORTE\s+PASSIV)/.test(t)) {
+  if (/(RECLAMAD|R[ÉE]U|R[ÉE]|EXECUTAD|REQUERID|IMPETRAD|LITISCONSORTE\s+PASSIV)/.test(t)) {
     return "PASSIVE";
   }
   return null;
+}
+
+function isParteBanco(nome: string): boolean {
+  const n = normalizePlain(nome || "");
+  return /\b(BANCO|SANTANDER|BRADESCO|ITAU|ITAÚ|CAIXA\s+ECONOMICA|CAIXA\s+ECONÔMICA|CEF|BANRISUL|SAFRA|BMG|C6\s+BANK|BANCO\s+DO\s+BRASIL)\b/.test(n);
 }
 
 /**
@@ -470,7 +475,7 @@ function extrairRecursosPorParte(
       // (ex.: o banco como AGRAVANTE vira "Active"), o que polui a
       // classificação. Usamos person_type quando ele é claro.
       const ladoOriginal = ladoPorPersonType(ptype);
-      const side = ladoOriginal || (p?.side || "").toString().toUpperCase();
+      const side = isParteBanco(p?.name || "") ? "PASSIVE" : ladoOriginal || (p?.side || "").toString().toUpperCase();
       const nome = normalize(p?.name || "");
       if (!nome || nome.length < 3) continue;
       // Tokens significativos do nome (>3 chars) ajudam a casar com o texto do movimento.
@@ -484,7 +489,7 @@ function extrairRecursosPorParte(
 
   // Padrões de identificação de lado pelo texto do movimento.
   const RX_LADO_ATIVO = /\b(reclamante|exequente|autor(?:a)?|recorrente\s+reclamante|agravante\s+reclamante)\b/i;
-  const RX_LADO_PASSIVO = /\b(reclamad[oa]|executad[oa]|r[ée]u|r[ée]|banco|empresa|recorrente\s+reclamad[oa]|agravante\s+reclamad[oa])\b/i;
+  const RX_LADO_PASSIVO = /\b(reclamad[oa]|executad[oa]|r[ée]u|r[ée]|banco|santander|bradesco|ita[uú]|caixa\s+econ[oô]mica|empresa|recorrente\s+reclamad[oa]|agravante\s+reclamad[oa])\b/i;
 
   // Ordena por data ascendente.
   const stepsOrdenados = [...steps]
