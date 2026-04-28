@@ -144,10 +144,27 @@ const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
 };
 
 const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
+const RESET_MARK_KEY = 'djen-termos-paralela-reset-at-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+function getResetMarkMs(): number {
+  try {
+    return Number(localStorage.getItem(RESET_MARK_KEY) || 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setResetMarkNow() {
+  try {
+    localStorage.setItem(RESET_MARK_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
 
 /** Sleep abortável — usa o AbortSignal para interromper imediatamente. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
