@@ -512,6 +512,75 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // PAGINAÇÃO REAL no servidor: uma única chamada para a página solicitada.
         // Antes carregávamos até 2000 linhas em loop, o que deixava lento e gerava
         // erros de renderização quando o advogado tirava todos os filtros.
+        if (filtros.apenasNaoLidas) {
+          const alvo = page * pageSize + 1;
+          const batchSize = 1000;
+          const naoLidasAcumuladas: PublicacaoUnificada[] = [];
+
+          for (let offset = 0; offset < 50000 && naoLidasAcumuladas.length < alvo; offset += batchSize) {
+            const { data: batchRows, error: batchError } = await (supabase as any)
+              .rpc('get_djen_publicacoes_unificadas', {
+                p_coordenacao_id: filtros.coordenacaoId,
+                p_inicio: dataInicioFiltro ?? null,
+                p_fim: dataFimFiltro ?? null,
+                p_apenas_nao_lidas: false,
+                p_search_query: filtros.termoBusca ?? null,
+                p_limit: batchSize,
+                p_offset: offset,
+                p_monitoramento_id: filtros.monitoramentoId ?? null,
+              });
+
+            if (batchError) {
+              throw new Error(`RPC get unread batch error: ${batchError.message || JSON.stringify(batchError)}`);
+            }
+
+            const mappedBatch: PublicacaoUnificada[] = ((batchRows || []) as any[]).map((r) => ({
+              id: r.id,
+              tipo_origem: r.tipo_origem,
+              processo_id: r.processo_id,
+              processo_numero: r.processo_numero,
+              conteudo: r.conteudo,
+              data_publicacao: r.data_publicacao,
+              data_disponibilizacao: r.data_disponibilizacao,
+              fonte: r.fonte,
+              lida: !!r.lida,
+              created_at: r.created_at,
+              monitoramento_id: r.monitoramento_id,
+              monitoramento_termo: r.monitoramento_termo,
+              monitoramento_descricao: r.monitoramento_descricao,
+              monitoramento_tipo: r.monitoramento_tipo,
+              monitoramento_oab: r.monitoramento_oab,
+              monitoramento_uf: r.monitoramento_uf,
+              coordenacao_id: r.coordenacao_id,
+              coordenacao_nome: r.coordenacao_nome,
+              polo_ativo: r.polo_ativo,
+              polo_passivo: r.polo_passivo,
+              tribunal: r.tribunal,
+              orgao: r.orgao || null,
+              tipo_comunicacao: r.tipo_comunicacao || null,
+              meio: r.meio || null,
+              advogados_json: parseJsonArraySafe(r.advogados_json),
+              partes_json: parseJsonArraySafe(r.partes_json),
+            }));
+
+            const typedBatch = filtros.tipoOrigem === 'termo'
+              ? mappedBatch.filter((p) => p.tipo_origem === 'termo')
+              : filtros.tipoOrigem === 'parte'
+                ? mappedBatch.filter((p) => p.tipo_origem === 'termo' && (p.monitoramento_tipo || '').toLowerCase() === 'parte')
+                : filtros.tipoOrigem === 'processo'
+                  ? mappedBatch.filter((p) => p.tipo_origem === 'processo')
+                  : mappedBatch;
+
+            const unreadBatch = await mergeWithLeituras(user!.id, typedBatch, true);
+            naoLidasAcumuladas.push(...unreadBatch);
+            if (mappedBatch.length < batchSize) break;
+          }
+
+          const rows = naoLidasAcumuladas.slice(offsetGlobal, offsetGlobal + pageSize);
+          const lastChunkSize = naoLidasAcumuladas.length > offsetGlobal + pageSize ? pageSize : rows.length;
+          return { rows, lastChunkSize };
+        }
+
         const { data: pageRows, error: pageError } = await (supabase as any)
           .rpc('get_djen_publicacoes_unificadas', {
             p_coordenacao_id: filtros.coordenacaoId,
