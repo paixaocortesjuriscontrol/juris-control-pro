@@ -1384,7 +1384,7 @@ async function executarLoop(
       clearInterval(state.timerInterval);
       state.timerInterval = null;
     }
-    if (executionId) {
+    if (executionId && !state.resetExecutionIds.has(executionId)) {
       try {
         const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
         await supabase.from('execucoes_agendadas')
@@ -1402,6 +1402,8 @@ async function executarLoop(
       } catch (e) {
         console.warn('[DJEN Paralela] Erro finalizar execução:', e);
       }
+      state.executionId = null;
+    } else if (executionId && state.executionId === executionId) {
       state.executionId = null;
     }
     if (state.progress.status === 'executando') {
