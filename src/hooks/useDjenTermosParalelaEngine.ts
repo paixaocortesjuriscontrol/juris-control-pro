@@ -1605,6 +1605,9 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       .maybeSingle();
     if (error || !data) return false;
     if (state.resetExecutionIds.has(String(data.id))) return false;
+    const resetMarkMs = getResetMarkMs();
+    const createdMs = data.created_at ? new Date(data.created_at).getTime() : 0;
+    if (resetMarkMs > 0 && createdMs > 0 && createdMs <= resetMarkMs) return false;
     const det: any = data.detalhes || {};
     if (!det || typeof det !== 'object') return false;
 
