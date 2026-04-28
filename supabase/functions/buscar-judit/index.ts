@@ -1347,6 +1347,14 @@ serve(async (req) => {
     // pelo texto do andamento + cruzamento com nomes do polo, concatenando em ordem
     // cronológica (ex: "RO + RR").
     const recursosPorParte = extrairRecursosPorParte(steps, parties);
+    const siglaClassificacao = classificacao ? classificarRecursoInterposto(classificacao) : null;
+    const recursosPorRecorrentes = inferirRecursosRecorrentesPorPartes(parties, siglaClassificacao);
+    if (!recursosPorParte.reclamante && recursosPorRecorrentes.reclamante) {
+      recursosPorParte.reclamante = recursosPorRecorrentes.reclamante;
+    }
+    if (!recursosPorParte.banco && recursosPorRecorrentes.banco) {
+      recursosPorParte.banco = recursosPorRecorrentes.banco;
+    }
 
     // Fallback: quando não foi possível detectar o autor do recurso pelos
     // movimentos (ex.: histórico no TST não traz a interposição feita na origem),
@@ -1360,14 +1368,14 @@ serve(async (req) => {
     // senão o banco). Evita preencher reclamante com recurso do banco e vice-
     // versa, deixando para o usuário ajustar manualmente quando necessário.
     if (classificacao && !recursosPorParte.reclamante && !recursosPorParte.banco) {
-      const siglaFallback = classificarRecursoInterposto(classificacao);
+      const siglaFallback = siglaClassificacao;
       if (siglaFallback) {
-        if (poloAtivo) {
-          recursosPorParte.reclamante = siglaFallback;
-          console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
-        } else if (poloPassivo) {
+        if (poloPassivo) {
           recursosPorParte.banco = siglaFallback;
           console.log(`[buscar-judit] fallback classificação -> banco: ${siglaFallback}`);
+        } else if (poloAtivo) {
+          recursosPorParte.reclamante = siglaFallback;
+          console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
         }
       }
     }
