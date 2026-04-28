@@ -1514,35 +1514,35 @@ export async function forceKillDjenTermosParalela(clearCheckpoint = false) {
  * (ex.: tribunais marcados como "concluído 100%" porque a VPS deu 404 antes
  * de processar de verdade).
  */
-export function resetTotalDjenTermosParalela() {
+export async function resetTotalDjenTermosParalela() {
   // 1) Para qualquer execução em curso e zera flags
-  cancelarDjenTermosParalela();
-  state.isRunning = false;
-  if (state.timerInterval) {
-    clearInterval(state.timerInterval);
-    state.timerInterval = null;
-  }
+  stopLocalExecution();
   // 2) Apaga checkpoint local
   saveCheckpoint(null);
   state.checkpoint = null;
-  // 3) Cancela execuções órfãs no banco
-  void supabase.from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      detalhes: { mensagem: 'Reset Total pelo usuário' },
-    })
-    .eq('tipo', 'djen_paralela')
-    .eq('status', 'executando')
-    .is('finalizado_em', null);
-  // 4) Zera stats do pool e libera slots offline (para reavaliar VPS na próxima)
+  state.executionId = null;
+  state.resetExecutionIds.clear();
+  // 3) Zera stats do pool e libera slots offline (para reavaliar VPS na próxima)
   try {
     resetDjenProxyPoolStats();
     getDjenProxySlotsRuntime().forEach(s => clearDjenProxyOfflineMark(s.id));
   } catch { /* noop */ }
-  // 5) Reseta progress e notifica UI
+  // 4) Reseta progress e notifica UI imediatamente — sem esperar banco/rede.
   state.progress = createDefaultProgress();
+  state.lastUpdatedAt = Date.now();
   notifyListeners();
+
+  // 5) Cancela execuções ativas no banco depois do reset visual.
+  await markActiveParalelaExecutions({
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+    lotes_processados: 0,
+    total_lotes: 0,
+    registros_processados: 0,
+    registros_encontrados: 0,
+    erros: 0,
+    detalhes: { mensagem: 'Reset Total pelo usuário' },
+  });
 }
 
 export function getDjenTermosParalelaProgress(): DjenTermosParalelaProgress {
