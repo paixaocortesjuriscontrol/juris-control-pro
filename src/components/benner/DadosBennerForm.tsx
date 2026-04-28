@@ -331,6 +331,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     const processoNumero = form.processo.trim();
     setBuscandoJudit(true);
     setModoTeste(false);
+    setTipoRecursoJuditVazio(false);
 
     try {
       // Respeita o tribunal informado no formulário; se vazio, usa TST como padrão
