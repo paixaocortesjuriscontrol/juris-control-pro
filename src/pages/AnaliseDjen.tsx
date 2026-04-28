@@ -2362,6 +2362,39 @@ const AnaliseDjen = () => {
           </div>
         )}
 
+        {/* Paginação — 500 registros por página, paginação real no servidor */}
+        {!isLoading && allPublicacoes.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
+            <div className="text-xs md:text-sm text-muted-foreground">
+              Página <strong>{page}</strong> · exibindo até {PAGE_SIZE} registros por página
+              {hasNextPage ? "" : " · última página"}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => {
+                  setPage((p) => Math.max(1, p - 1));
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!hasNextPage}
+                onClick={() => {
+                  setPage((p) => p + 1);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Dialog para criar tarefa a partir da publicação */}
         <CriarTarefaPublicacaoDialog
