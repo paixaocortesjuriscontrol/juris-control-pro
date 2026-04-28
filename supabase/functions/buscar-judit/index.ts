@@ -1120,19 +1120,19 @@ serve(async (req) => {
       const otherRd = item?.response_data;
       if (otherRd && otherRd !== rd) pushParties(otherRd.parties);
     }
-    // Deduplicar: chave = documento normalizado (se houver) OU name+side+person_type
+    // Deduplicar: chave = documento normalizado (se houver) OU nome. Não incluir
+    // side/person_type na chave: a mesma parte pode aparecer como AGRAVANTE,
+    // AGRAVADO, RECLAMANTE e RECORRENTE, mas deve ser enviada uma única vez ao
+    // frontend com lado_efetivo consolidado.
     const seen = new Set<string>();
     const parties: any[] = [];
     for (const p of partiesPool) {
       const doc = (p?.main_document || "").toString().replace(/\D/g, "");
       const name = (p?.name || "").toString().trim().toUpperCase();
-      const side = (p?.side || "").toString().toUpperCase();
-      const ptype = (p?.person_type || "").toString().toUpperCase();
-      const key = doc ? `doc:${doc}:${ptype}` : `nm:${name}:${side}:${ptype}`;
-      if (!key || key === "nm:::") continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      const key = doc ? `doc:${doc}` : `nm:${name}`;
+      if (!name || seen.has(key)) continue;
       parties.push(p);
+      seen.add(key);
     }
     console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
     // Lado efetivo de cada parte: prioriza person_type ORIGINAL
