@@ -1672,7 +1672,7 @@ const AnaliseDjen = () => {
                     const val = e.target.value;
                     setDataDisponibilizacao(val);
                     if (val && val !== new Date().toISOString().slice(0, 10)) {
-                      setApenasHoje(false);
+                      setFiltroDia('todos');
                     }
                   }}
                   className="h-9 md:h-10 text-sm"
@@ -1717,59 +1717,58 @@ const AnaliseDjen = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-3 md:mt-4">
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="apenasHoje"
-                  checked={apenasHoje}
-                  onCheckedChange={(checked) => setApenasHoje(checked as boolean)}
-                />
-                <Label htmlFor="apenasHoje" className="cursor-pointer text-xs md:text-sm font-medium">
-                  Hoje
-                </Label>
+            <div className="flex flex-wrap items-end gap-4 mt-3 md:mt-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Período</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant={filtroDia === 'hoje' ? 'default' : 'outline'} onClick={() => setFiltroDia('hoje')} disabled={tipoOrigem === 'descartada'}>
+                    Somente Hoje
+                  </Button>
+                  <Button type="button" size="sm" variant={filtroDia === 'todos' ? 'default' : 'outline'} onClick={() => setFiltroDia('todos')} disabled={tipoOrigem === 'descartada'}>
+                    Todos os dias
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="naoLidas"
-                  checked={apenasNaoLidas}
-                  onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
-                />
-                <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
-                  Não Lidas
-                </Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Leitura</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant={readStatus === 'lidas' ? 'default' : 'outline'} onClick={() => setReadStatus('lidas')} disabled={tipoOrigem === 'descartada'}>
+                    Lidas
+                  </Button>
+                  <Button type="button" size="sm" variant={readStatus === 'nao_lidas' ? 'default' : 'outline'} onClick={() => setReadStatus('nao_lidas')} disabled={tipoOrigem === 'descartada'}>
+                    Não Lidas
+                  </Button>
+                  <Button type="button" size="sm" variant={readStatus === 'todas' ? 'default' : 'outline'} onClick={() => setReadStatus('todas')} disabled={tipoOrigem === 'descartada'}>
+                    Todas
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="comProcesso"
-                  checked={apenasComProcesso}
-                  onCheckedChange={(checked) => setApenasComProcesso(checked as boolean)}
-                />
-                <Label htmlFor="comProcesso" className="cursor-pointer text-xs md:text-sm text-blue-600 dark:text-blue-400 font-medium">
-                  Com Processo
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="todasPublicacoes"
-                  checked={tipoOrigem === 'todos'}
-                  onCheckedChange={(checked) => {
-                    setTipoOrigem(checked ? 'todos' : 'normal');
-                  }}
-                />
-                <Label htmlFor="todasPublicacoes" className="cursor-pointer text-xs md:text-sm font-medium">
-                  Todas
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox 
+              <div className="flex items-center gap-2 pb-1">
+                <Checkbox
                   id="apenasDescartadas"
                   checked={tipoOrigem === 'descartada'}
                   onCheckedChange={(checked) => {
-                    setTipoOrigem(checked ? 'descartada' : 'normal');
+                    if (checked) {
+                      setTipoOrigem('descartada');
+                      setFiltroDia('todos');
+                      setReadStatus('todas');
+                      setDataInicio('');
+                      setDataFim('');
+                      setDataDisponibilizacao('');
+                      setTermoBusca('');
+                      setMonitoramentoId('');
+                    } else {
+                      setTipoOrigem('todos');
+                      setFiltroDia('hoje');
+                      setReadStatus('nao_lidas');
+                      setDataInicio('');
+                      setDataFim('');
+                      setDataDisponibilizacao('');
+                      setTermoBusca('');
+                      setMonitoramentoId('');
+                    }
                   }}
                 />
                 <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
