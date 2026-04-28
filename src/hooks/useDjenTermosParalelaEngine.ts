@@ -144,10 +144,27 @@ const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
 };
 
 const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
+const RESET_MARK_KEY = 'djen-termos-paralela-reset-at-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+function getResetMarkMs(): number {
+  try {
+    return Number(localStorage.getItem(RESET_MARK_KEY) || 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setResetMarkNow() {
+  try {
+    localStorage.setItem(RESET_MARK_KEY, String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
 
 /** Sleep abortável — usa o AbortSignal para interromper imediatamente. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
@@ -220,6 +237,7 @@ let state: {
   timerInterval: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number;
   executionId: string | null;
+  resetExecutionIds: Set<string>;
   lastExecutionSyncAt: number;
 } = {
   isRunning: false,
@@ -230,6 +248,7 @@ let state: {
   timerInterval: null,
   lastUpdatedAt: 0,
   executionId: null,
+  resetExecutionIds: new Set(),
   lastExecutionSyncAt: 0,
 };
 
@@ -260,6 +279,18 @@ function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
   state.progress = { ...state.progress, ...partial };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
+}
+
+function stopLocalExecution() {
+  if (state.abortController) {
+    state.abortController.abort();
+    state.abortController = null;
+  }
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+  state.isRunning = false;
 }
 
 function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
@@ -672,6 +703,24 @@ function syncExecutionProgress(overrides: Record<string, any> = {}, force = fals
     });
 }
 
+async function markActiveParalelaExecutions(payload: Record<string, any>): Promise<void> {
+  const activeId = state.executionId;
+  if (activeId) state.resetExecutionIds.add(activeId);
+  const { data, error } = await supabase
+    .from('execucoes_agendadas')
+    .update(payload)
+    .eq('tipo', 'djen_paralela')
+    .eq('status', 'executando')
+    .is('finalizado_em', null)
+    .select('id');
+
+  if (error) {
+    console.warn('[DJEN Paralela] Falha ao cancelar execução no banco:', error.message);
+    return;
+  }
+  for (const row of data || []) state.resetExecutionIds.add(String(row.id));
+}
+
 // ============================================================================
 // PROCESSAMENTO POR TRIBUNAL (TRACK)
 // ============================================================================
@@ -771,7 +820,7 @@ async function processarTribunalTrack(
 
     updateTrack(tribunal, {
       status: signal.aborted ? 'cancelado' : 'concluido',
-      current: total,
+      current: signal.aborted ? processed : total,
       finishedAt: Date.now(),
       mensagem: signal.aborted
         ? 'Cancelado'
@@ -1350,7 +1399,7 @@ async function executarLoop(
       clearInterval(state.timerInterval);
       state.timerInterval = null;
     }
-    if (executionId) {
+    if (executionId && !state.resetExecutionIds.has(executionId)) {
       try {
         const finalStatus = signal.aborted ? 'cancelado' : (state.progress.status === 'erro' ? 'erro' : 'concluido');
         await supabase.from('execucoes_agendadas')
@@ -1368,6 +1417,8 @@ async function executarLoop(
       } catch (e) {
         console.warn('[DJEN Paralela] Erro finalizar execução:', e);
       }
+      state.executionId = null;
+    } else if (executionId && state.executionId === executionId) {
       state.executionId = null;
     }
     if (state.progress.status === 'executando') {
@@ -1420,10 +1471,8 @@ export function executarDjenTermosParalela(
   void executarLoop(inicio, fim, retomar, coordenacaoId, monitoramentoIds);
 }
 
-export function cancelarDjenTermosParalela() {
-  if (state.abortController) {
-    state.abortController.abort();
-  }
+export async function cancelarDjenTermosParalela() {
+  stopLocalExecution();
   // Marcar todos os tracks ativos como cancelando para feedback visual imediato
   const tracks = state.progress.tracks.map(t =>
     t.status === 'executando' || t.status === 'pendente'
@@ -1438,19 +1487,16 @@ export function cancelarDjenTermosParalela() {
   };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
-  void supabase.from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      lotes_processados: state.progress.tribunaisConcluidos,
-      total_lotes: state.progress.totalTribunais,
-      registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
-      registros_encontrados: state.progress.novas,
-      erros: state.progress.tracks.filter(t => t.status === 'erro').length,
-      detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
-    })
-    .eq('tipo', 'djen_paralela')
-    .eq('status', 'executando');
+  await markActiveParalelaExecutions({
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+    lotes_processados: state.progress.tribunaisConcluidos,
+    total_lotes: state.progress.totalTribunais,
+    registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+    registros_encontrados: state.progress.novas,
+    erros: state.progress.tracks.filter(t => t.status === 'erro').length,
+    detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
+  });
   state.executionId = null;
 }
 
@@ -1459,27 +1505,23 @@ export function limparEstadoDjenTermosParalela() {
   notifyListeners();
 }
 
-export function forceKillDjenTermosParalela(clearCheckpoint = false) {
-  cancelarDjenTermosParalela();
-  state.isRunning = false;
-  if (state.timerInterval) {
-    clearInterval(state.timerInterval);
-    state.timerInterval = null;
+export async function forceKillDjenTermosParalela(clearCheckpoint = false) {
+  stopLocalExecution();
+  if (clearCheckpoint) {
+    saveCheckpoint(null);
+    setResetMarkNow();
   }
-  if (clearCheckpoint) saveCheckpoint(null);
   // Limpa qualquer execução órfã do tipo djen_paralela no banco para
   // garantir que o próximo "Executar" não fique bloqueado.
-  void supabase.from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      detalhes: { mensagem: 'Cancelado: forceKill pelo usuário' },
-    })
-    .eq('tipo', 'djen_paralela')
-    .eq('status', 'executando')
-    .is('finalizado_em', null);
   state.progress = createDefaultProgress();
+  state.lastUpdatedAt = Date.now();
   notifyListeners();
+  await markActiveParalelaExecutions({
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+    detalhes: { mensagem: 'Cancelado: forceKill pelo usuário' },
+  });
+  state.executionId = null;
 }
 
 /**
@@ -1489,35 +1531,36 @@ export function forceKillDjenTermosParalela(clearCheckpoint = false) {
  * (ex.: tribunais marcados como "concluído 100%" porque a VPS deu 404 antes
  * de processar de verdade).
  */
-export function resetTotalDjenTermosParalela() {
+export async function resetTotalDjenTermosParalela() {
   // 1) Para qualquer execução em curso e zera flags
-  cancelarDjenTermosParalela();
-  state.isRunning = false;
-  if (state.timerInterval) {
-    clearInterval(state.timerInterval);
-    state.timerInterval = null;
-  }
+  stopLocalExecution();
   // 2) Apaga checkpoint local
   saveCheckpoint(null);
+  setResetMarkNow();
   state.checkpoint = null;
-  // 3) Cancela execuções órfãs no banco
-  void supabase.from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      detalhes: { mensagem: 'Reset Total pelo usuário' },
-    })
-    .eq('tipo', 'djen_paralela')
-    .eq('status', 'executando')
-    .is('finalizado_em', null);
-  // 4) Zera stats do pool e libera slots offline (para reavaliar VPS na próxima)
+  state.executionId = null;
+  state.resetExecutionIds.clear();
+  // 3) Zera stats do pool e libera slots offline (para reavaliar VPS na próxima)
   try {
     resetDjenProxyPoolStats();
     getDjenProxySlotsRuntime().forEach(s => clearDjenProxyOfflineMark(s.id));
   } catch { /* noop */ }
-  // 5) Reseta progress e notifica UI
+  // 4) Reseta progress e notifica UI imediatamente — sem esperar banco/rede.
   state.progress = createDefaultProgress();
+  state.lastUpdatedAt = Date.now();
   notifyListeners();
+
+  // 5) Cancela execuções ativas no banco depois do reset visual.
+  await markActiveParalelaExecutions({
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+    lotes_processados: 0,
+    total_lotes: 0,
+    registros_processados: 0,
+    registros_encontrados: 0,
+    erros: 0,
+    detalhes: { mensagem: 'Reset Total pelo usuário' },
+  });
 }
 
 export function getDjenTermosParalelaProgress(): DjenTermosParalelaProgress {
@@ -1562,6 +1605,10 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       .limit(1)
       .maybeSingle();
     if (error || !data) return false;
+    if (state.resetExecutionIds.has(String(data.id))) return false;
+    const resetMarkMs = getResetMarkMs();
+    const createdMs = data.created_at ? new Date(data.created_at).getTime() : 0;
+    if (resetMarkMs > 0 && createdMs > 0 && createdMs <= resetMarkMs) return false;
     const det: any = data.detalhes || {};
     if (!det || typeof det !== 'object') return false;
 
