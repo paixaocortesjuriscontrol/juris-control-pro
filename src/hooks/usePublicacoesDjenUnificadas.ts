@@ -337,7 +337,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       },
     ],
     queryFn: async () => {
-      if (!user?.id) return { total: 0, naoLidas: 0 };
+      if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
 
       const hoje = new Date();
       const trintaDiasAtras = new Date(hoje);
