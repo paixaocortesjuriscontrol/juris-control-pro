@@ -1070,8 +1070,11 @@ async function executarLoop(
       });
       if (stale.length > 0) {
         for (const s of stale) {
+          const detalhes = s.detalhes && typeof s.detalhes === 'object' && !Array.isArray(s.detalhes)
+            ? s.detalhes
+            : {};
           await supabase.from('execucoes_agendadas')
-            .update({ status: 'erro', finalizado_em: new Date().toISOString(), detalhes: { ...(s.detalhes || {}), mensagem: 'Erro: execução órfã sem heartbeat recente' } })
+            .update({ status: 'erro', finalizado_em: new Date().toISOString(), detalhes: { ...detalhes, mensagem: 'Erro: execução órfã sem heartbeat recente' } })
             .eq('id', s.id);
         }
         if (stale.length !== running.length) {
