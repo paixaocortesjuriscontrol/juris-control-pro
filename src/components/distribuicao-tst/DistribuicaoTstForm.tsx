@@ -348,7 +348,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
               <Input value={form.processo_numero || ""} onChange={e => set("processo_numero", e.target.value)} placeholder="0000000-00.0000.0.00.0000" />
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Dossiê</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} />
@@ -357,14 +357,26 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
               <Label>Equipe</Label>
               <Input value={form.equipe || ""} onChange={e => set("equipe", e.target.value)} />
             </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Reclamante</Label>
-              <Input value={form.reclamante || ""} onChange={e => set("reclamante", e.target.value)} />
+              <Textarea
+                value={form.reclamante || ""}
+                onChange={e => set("reclamante", e.target.value || null)}
+                rows={2}
+                className="min-h-[76px] resize-y"
+              />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Reclamada</Label>
-            <Input value={form.reclamada || ""} onChange={e => set("reclamada", e.target.value)} />
+            <div className="space-y-2">
+              <Label>Reclamada</Label>
+              <Textarea
+                value={form.reclamada || ""}
+                onChange={e => set("reclamada", e.target.value || null)}
+                rows={2}
+                className="min-h-[76px] resize-y"
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Responsáveis</Label>
