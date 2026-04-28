@@ -1530,7 +1530,7 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     if (state.isRunning) return false;
     const { data, error } = await supabase
       .from('execucoes_agendadas')
-      .select('id, status, detalhes, created_at, finalizado_em, iniciado_em')
+      .select('id, status, detalhes, created_at, finalizado_em, iniciado_em, lotes_processados, total_lotes, registros_processados, registros_encontrados')
       .eq('tipo', 'djen_paralela')
       .order('created_at', { ascending: false })
       .limit(1)
