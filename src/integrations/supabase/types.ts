@@ -6433,7 +6433,9 @@ export type Database = {
           p_limit?: number
           p_monitoramento_id?: string
           p_offset?: number
+          p_read_status?: string
           p_search_query?: string
+          p_tipo_origem?: string
         }
         Returns: {
           advogados_json: Json
