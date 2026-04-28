@@ -281,9 +281,13 @@ const AnaliseDjen = () => {
         return query;
       };
 
-      const unreadQuery = applyFilters(true);
-      const totalQuery = apenasNaoLidas ? unreadQuery : applyFilters(false);
-      const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([totalQuery, unreadQuery]);
+      if (apenasNaoLidas) {
+        const { count } = await applyFilters(true);
+        const total = count || 0;
+        return { total, naoLidas: total };
+      }
+
+      const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([applyFilters(false), applyFilters(true)]);
       return { total: totalCount || 0, naoLidas: unreadCount || 0 };
     },
     staleTime: 30_000,
