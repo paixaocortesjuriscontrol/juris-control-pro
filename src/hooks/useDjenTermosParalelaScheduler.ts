@@ -211,15 +211,15 @@ class DjenTermosParalelaScheduler {
             })
             .eq('id', exec.id);
         } else {
-        if (exec.status === 'executando') {
-          this.showToast('DJEN Termos Paralela já está em execução no banco', 'info');
-        } else {
-          this.lastRunDate = todayYmd;
-          const key = `djen-paralela-scheduler-last-run-${todayYmd}`;
-          localStorage.setItem(key, String(Date.now()));
-          this.notifySubscribers();
-        }
-        return;
+          if (exec.status === 'executando') {
+            this.showToast('DJEN Termos Paralela já está em execução no banco', 'info');
+          } else {
+            this.lastRunDate = todayYmd;
+            const key = `djen-paralela-scheduler-last-run-${todayYmd}`;
+            localStorage.setItem(key, String(Date.now()));
+            this.notifySubscribers();
+          }
+          return;
         }
       }
     } catch (err) {
