@@ -191,6 +191,10 @@ export interface FiltrosUnificados {
   // - todos: (legado) mantido por compatibilidade
   tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'todos';
   incluirDescartadas?: boolean;
+  /** Página atual (1-based). Default: 1. */
+  page?: number;
+  /** Tamanho de página. Default: 500. */
+  pageSize?: number;
 }
 
 export interface EstatisticasCoordenacao {
