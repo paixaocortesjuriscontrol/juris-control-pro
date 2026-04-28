@@ -14,5 +14,8 @@ Proibido como fonte de tipo de recurso:
 
 Regras:
 - Quando a Judit não confirma, retornar `null` nos 3 campos + `_judit_meta.fonte_tipo_recurso='nenhuma'`.
-- Frontend usa `pickJuditOnly` (não `pick`) para os 3 campos: vazio da Judit APAGA valor antigo.
+- Frontend usa `pickJuditOnly`/`applyJuditOnly` (não `pick`/`apply`) para os 3 campos
+  em TODOS os formulários que consomem Judit — `DadosBennerForm.tsx` e
+  `DistribuicaoTstForm.tsx`. Vazio da Judit APAGA valor antigo (inclusive valor
+  herdado de planilha importada).
 - UI mostra aviso amarelo abaixo de "Tipo de Recurso" quando `_judit_meta.fonte_tipo_recurso='nenhuma'`.
