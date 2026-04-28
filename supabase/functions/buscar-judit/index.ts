@@ -814,7 +814,9 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       // A API pública frequentemente não lista processos de sessões PJE/virtuais,
       // embora a pauta agregada traga a janela correta. Para não voltar à data
       // de publicação (ex.: 26/03), aceita apenas candidato virtual próximo da
-      // publicação/inclusão em pauta; isso corrige casos como início 27/04/2026.
+      // publicação/inclusão em pauta. Havendo várias publicações próximas, usa a
+      // ÚLTIMA janela virtual encontrada após o andamento — é a remarcação mais
+      // recente e corrige casos como 27/04/2026 em vez de 06/04/2026.
       chosen = pool
         .filter((cand: any) =>
           String(cand.tipo || "").toUpperCase().includes("VIRTUAL") &&
@@ -822,9 +824,9 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
           cand.dataBase.getTime() > stepDate.getTime()
         )
         .sort((a: any, b: any) =>
+          b.dataBase.getTime() - a.dataBase.getTime() ||
           (String(b.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) -
-          (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) ||
-          a.dataBase.getTime() - b.dataBase.getTime()
+          (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0)
         )[0] || null;
       if (!chosen) {
         console.log(`[buscar-judit] CNJ ${cnj} não localizado em sessão verificada — sem data de julgamento confiável`);
