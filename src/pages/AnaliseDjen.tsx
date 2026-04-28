@@ -1607,7 +1607,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-rose-600 dark:text-rose-400 truncate">Descartadas</p>
                   <p className="text-xl md:text-3xl font-bold text-rose-700 dark:text-rose-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasFiltrado}
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasVisivel}
                   </p>
                 </div>
                 <Trash2 className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
@@ -1621,7 +1621,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-cyan-600 dark:text-cyan-400 truncate">DataJud (CNJ)</p>
                   <p className="text-xl md:text-3xl font-bold text-cyan-700 dark:text-cyan-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudHoje}
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudVisivel}
                   </p>
                 </div>
                 <Database className="w-6 h-6 md:w-10 md:h-10 text-cyan-500/50 flex-shrink-0" />
