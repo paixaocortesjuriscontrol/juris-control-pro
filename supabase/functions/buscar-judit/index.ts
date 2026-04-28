@@ -438,7 +438,12 @@ function extrairRecursosPorParte(
     for (const p of parties) {
       const ptype = (p?.person_type || "").toString().toUpperCase();
       if (ptype === "ADVOGADO") continue;
-      const side = (p?.side || "").toString().toUpperCase();
+      // Prioriza person_type para classificar o lado ORIGINAL da parte.
+      // O `side` da Judit reflete a posição na peça recursal corrente
+      // (ex.: o banco como AGRAVANTE vira "Active"), o que polui a
+      // classificação. Usamos person_type quando ele é claro.
+      const ladoOriginal = ladoPorPersonType(ptype);
+      const side = ladoOriginal || (p?.side || "").toString().toUpperCase();
       const nome = normalize(p?.name || "");
       if (!nome || nome.length < 3) continue;
       // Tokens significativos do nome (>3 chars) ajudam a casar com o texto do movimento.
