@@ -953,7 +953,23 @@ serve(async (req) => {
         const rdsAll = pageData
           .map((i: any) => i?.response_data)
           .filter((x: any) => x && typeof x === "object");
-        if (rdsAll.length > 0) {
+        if (tribunalHint?.toString().trim().toUpperCase() === "TST") {
+          console.log(`[buscar-judit] Hint=TST não localizado no async; usando DataJud TST em vez de cair em TRT.`);
+          const datajud = await consultarDataJud(cnj);
+          if (datajud && (datajud.relator || datajud.turma || datajud.classe || datajud.steps?.length)) {
+            rd = {
+              tribunal_acronym: "TST",
+              classifications: datajud.classe ? [{ name: datajud.classe }] : [],
+              distribution_date: datajud.dataDistribuicao,
+              judge: datajud.relator ? { name: datajud.relator } : null,
+              courts: datajud.courts || [],
+              steps: datajud.steps || [],
+              parties: cachedRd?.parties || [],
+              status: cachedRd?.status || null,
+            };
+          }
+        }
+        if (!rd && rdsAll.length > 0) {
           rd = rdsAll.reduce((a: any, b: any) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
           console.log(`[buscar-judit] Hint=${tribunalHint} não localizado; usando melhor instância disponível: ${rd.tribunal_acronym}`);
         } else if (cachedRd) {
