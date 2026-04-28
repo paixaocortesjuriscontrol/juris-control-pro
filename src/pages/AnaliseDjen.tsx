@@ -1543,6 +1543,10 @@ const AnaliseDjen = () => {
       naoLidas: naoLidasDjenFiltrado + naoLidasDatajudHoje,
     };
   };
+  const totalFiltradoGeral = apenasComProcesso
+    ? allPublicacoes.length
+    : totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje;
+  const totalExibidoNaPagina = allPublicacoes.length;
 
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
