@@ -1504,7 +1504,7 @@ const AnaliseDjen = () => {
           return { ...pub, processo_id: processoId };
         });
     }
-    return result;
+    return result.slice(0, PAGE_SIZE);
   }, [mergedPublicacoes, dataDisponibilizacao, apenasComProcesso, processosMapCadastrados]);
 
   // Agrupar publicações por coordenação
