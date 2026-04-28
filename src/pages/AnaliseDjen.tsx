@@ -1525,6 +1525,25 @@ const AnaliseDjen = () => {
     b.publicacoes.length - a.publicacoes.length
   );
 
+  const getGrupoContadores = (grupo: { coordenacao_id: string; publicacoes: PublicacaoUnificada[] }) => {
+    const usarTotaisDoFiltro = !!coordenacaoFiltroEfetivo && grupo.coordenacao_id === coordenacaoFiltroEfetivo && !apenasComProcesso;
+    if (!usarTotaisDoFiltro) {
+      return {
+        total: grupo.publicacoes.length,
+        termos: grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length,
+        processos: grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length,
+        naoLidas: grupo.publicacoes.filter(p => !p.lida).length,
+      };
+    }
+
+    return {
+      total: totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje,
+      termos: totalTermosFiltrado,
+      processos: totalProcessosFiltrado,
+      naoLidas: naoLidasDjenFiltrado + naoLidasDatajudHoje,
+    };
+  };
+
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
@@ -1972,7 +1991,9 @@ const AnaliseDjen = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {coordenacoesOrdenadas.map((grupo) => (
+            {coordenacoesOrdenadas.map((grupo) => {
+              const contadoresGrupo = getGrupoContadores(grupo);
+              return (
               <Card key={grupo.coordenacao_id}>
                 <Collapsible
                   open={expandedCoordenacoes.has(grupo.coordenacao_id) || expandedCoordenacoes.has('all')}
@@ -1992,13 +2013,13 @@ const AnaliseDjen = () => {
                             <CardTitle className="text-sm md:text-lg truncate">{grupo.coordenacao_nome}</CardTitle>
                             <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1">
                               <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
-                                {grupo.publicacoes.length} pub.
+                                {contadoresGrupo.total} pub.
                               </Badge>
                               <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
-                                {grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length} termos
+                                {contadoresGrupo.termos} termos
                               </Badge>
                               <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
-                                {grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length} proc.
+                                {contadoresGrupo.processos} proc.
                               </Badge>
                             </div>
                           </div>
@@ -2007,12 +2028,12 @@ const AnaliseDjen = () => {
                           variant="default" 
                           className={cn(
                             "flex-shrink-0 text-[10px] md:text-xs px-1.5 md:px-2",
-                            grupo.publicacoes.filter(p => !p.lida).length > 0 
+                            contadoresGrupo.naoLidas > 0 
                               ? "bg-amber-500" 
                               : "bg-green-500"
                           )}
                         >
-                          {grupo.publicacoes.filter(p => !p.lida).length}
+                          {contadoresGrupo.naoLidas}
                           <span className="hidden sm:inline ml-1">não lidas</span>
                         </Badge>
                       </div>
@@ -2394,7 +2415,8 @@ const AnaliseDjen = () => {
                   </CollapsibleContent>
                 </Collapsible>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
 
