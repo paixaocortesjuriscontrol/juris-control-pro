@@ -353,6 +353,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       const output: Record<string, any>[] = [];
       const rejected: RejeicaoRow[] = [];
       let matched = 0;
+      const warningsByType: Record<string, number> = {};
+      let warningsTotal = 0;
 
       // Count by aba
       const abaCount = new Map<string, number>();
@@ -379,15 +381,25 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         let motivo = getMotivoRejeicaoDossie(dossie, numProcesso);
         if (!motivo && !turmaRaw) motivo = "Turma não preenchida";
         if (motivo) {
-          rejected.push({
-            "Dossiê": dossie,
-            "Número do Processo": numProcesso,
-            "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
-            "Turma": d.turma || "",
-            "Relator": d.relator || "",
-            "Motivo": motivo,
-          });
-          continue;
+          // Em modo "seleção manual" o usuário escolheu cada linha conscientemente:
+          // não descartamos a linha; apenas registramos um aviso e seguimos preenchendo
+          // todos os campos (Tribunal, Tipo de Recurso, Data, Turma, Relator, etc.).
+          // Em modo "filtros em massa" mantemos o comportamento de rejeição original.
+          if (isManualSelection) {
+            warningsByType[motivo] = (warningsByType[motivo] || 0) + 1;
+            warningsTotal++;
+            // Continua o fluxo abaixo (não há "continue").
+          } else {
+            rejected.push({
+              "Dossiê": dossie,
+              "Número do Processo": numProcesso,
+              "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
+              "Turma": d.turma || "",
+              "Relator": d.relator || "",
+              "Motivo": motivo,
+            });
+            continue;
+          }
         }
 
         // Match with dados_benner
