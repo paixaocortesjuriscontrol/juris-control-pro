@@ -305,11 +305,18 @@ const AnaliseDjen = () => {
   const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
-  const incluirTotaisDjen = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada';
-  const totalDjenFiltrado = incluirTotaisDjen ? totalHoje : 0;
-  const naoLidasDjenFiltrado = incluirTotaisDjen ? naoLidasHoje : 0;
-  const totalTermosFiltrado = incluirTotaisDjen ? totalTermosHoje : 0;
-  const totalProcessosFiltrado = incluirTotaisDjen ? totalProcessosHoje : 0;
+  const totalGeralFiltrado = tipoOrigem === 'datajud'
+    ? totalDatajudHoje
+    : tipoOrigem === 'descartada'
+      ? totalDescartadasHoje
+      : totalHoje;
+  const naoLidasTotalFiltrado = tipoOrigem === 'datajud'
+    ? naoLidasDatajudHoje
+    : tipoOrigem === 'descartada'
+      ? 0
+      : naoLidasHoje;
+  const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
+  const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = tipoOrigem === 'descartada' ? totalDescartadasHoje : 0;
 
   // Map DataJud results to PublicacaoUnificada format
