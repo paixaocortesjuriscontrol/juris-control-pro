@@ -20,6 +20,8 @@ interface Stats {
   outputRows: number;
   sheetsBreakdown: { name: string; count: number }[];
   rejectionsByType: Record<string, number>;
+  warnings?: number;
+  warningsByType?: Record<string, number>;
 }
 
 interface RejeicaoRow {
