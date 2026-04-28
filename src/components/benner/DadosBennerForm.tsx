@@ -448,6 +448,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
 
       setCamposJudit(new Set(filled));
 
+      // Sinaliza visualmente quando a Judit não trouxe NENHUM recurso interposto
+      // (campos foram apagados intencionalmente — não preencher manualmente sem checar).
+      const meta = (data as any)?._judit_meta;
+      const semRecurso =
+        !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
+      setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
+
       // Capture parties_detail for display
       if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
         setPartesJudit(data.parties_detail);
