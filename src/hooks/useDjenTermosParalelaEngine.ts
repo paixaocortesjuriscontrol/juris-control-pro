@@ -655,9 +655,17 @@ function syncExecutionProgress(overrides: Record<string, any> = {}, force = fals
   const now = Date.now();
   if (!force && now - state.lastExecutionSyncAt < EXECUTION_SYNC_INTERVAL_MS) return;
   state.lastExecutionSyncAt = now;
+  const erros = state.progress.tracks.filter(t => t.status === 'erro').length;
   void supabase
     .from('execucoes_agendadas')
-    .update({ detalhes: buildSnapshot(overrides) })
+    .update({
+      detalhes: buildSnapshot(overrides),
+      lotes_processados: state.progress.tribunaisConcluidos,
+      total_lotes: state.progress.totalTribunais,
+      registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+      registros_encontrados: state.progress.novas,
+      erros,
+    })
     .eq('id', state.executionId)
     .then(({ error }) => {
       if (error) console.warn('[DJEN Paralela] Sync error:', error.message);
