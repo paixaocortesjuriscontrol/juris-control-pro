@@ -1522,6 +1522,29 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     const det: any = data.detalhes || {};
     if (!det || typeof det !== 'object') return false;
 
+    const execStatus = String(data.status || '').toLowerCase();
+
+    // Watchdog visual/banco: execução marcada como executando sem heartbeat
+    // recente não pode aparecer como concluída nem bloquear o agendamento.
+    const heartbeatMs = det.heartbeat_at ? new Date(det.heartbeat_at).getTime() : 0;
+    const iniciadoMs = data.iniciado_em ? new Date(data.iniciado_em).getTime() : 0;
+    const isStaleRunning = execStatus === 'executando' && (
+      heartbeatMs > 0
+        ? Date.now() - heartbeatMs > 5 * 60 * 1000
+        : iniciadoMs > 0 && Date.now() - iniciadoMs > 10 * 60 * 1000
+    );
+    if (isStaleRunning) {
+      await supabase.from('execucoes_agendadas')
+        .update({
+          status: 'erro',
+          finalizado_em: new Date().toISOString(),
+          detalhes: { ...det, mensagem: 'Erro: execução órfã sem heartbeat recente' },
+        })
+        .eq('id', data.id);
+      data.status = 'erro';
+      det.mensagem = 'Erro: execução órfã sem heartbeat recente';
+    }
+
     // Não regredir se memória já é mais nova que o snapshot do banco
     const snapTs = det.heartbeat_at ? new Date(det.heartbeat_at).getTime() : 0;
     if (state.lastUpdatedAt > 0 && snapTs > 0 && snapTs <= state.lastUpdatedAt) {
@@ -1542,21 +1565,21 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       diaAtual: t?.diaAtual ?? null,
       rateLimitHits: Number(t?.rateLimitHits || 0),
       ultimoErro: t?.ultimoErro ?? null,
-      startedAt: null,
-      finishedAt: null,
-      lastViaId: null,
-      lastViaLabel: null,
-      lastViaKind: null,
-      callsDirect: 0,
-      callsByProxy: {},
+      startedAt: t?.startedAt ?? null,
+      finishedAt: t?.finishedAt ?? null,
+      lastViaId: t?.lastViaId ?? null,
+      lastViaLabel: t?.lastViaLabel ?? null,
+      lastViaKind: t?.lastViaKind ?? null,
+      callsDirect: Number(t?.callsDirect || 0),
+      callsByProxy: t?.callsByProxy && typeof t.callsByProxy === 'object' ? t.callsByProxy : {},
     }));
 
     // Status do progress: se a execução agendada terminou, refletir 'concluido';
     // se ainda está em andamento mas a UI não está rodando, mostrar como 'concluido'
     // (visualização histórica) — o usuário pode clicar Retomar se quiser.
-    const execStatus = String(data.status || '').toLowerCase();
     const finalStatus: DjenTermosParalelaProgress['status'] =
-      execStatus === 'erro' ? 'erro'
+      String(data.status || '').toLowerCase() === 'executando' ? 'executando'
+      : String(data.status || '').toLowerCase() === 'erro' ? 'erro'
       : execStatus === 'cancelado' ? 'cancelado'
       : 'concluido';
 
@@ -1582,6 +1605,7 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       dataInicioYmd: det.dataInicioYmd ?? null,
       dataFimYmd: det.dataFimYmd ?? null,
       concorrencia: Number(det.concorrencia || HOST_BUCKET_LIMITS['pje-comunica']),
+      poolStats: det.pool_stats,
     };
     state.lastUpdatedAt = snapTs || Date.now();
     notifyListeners();
