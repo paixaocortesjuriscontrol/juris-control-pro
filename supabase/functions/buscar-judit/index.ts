@@ -1052,8 +1052,9 @@ serve(async (req) => {
       parties.push(p);
     }
     console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
-    // Lado efetivo de cada parte: prioriza person_type (RECLAMANTE/RECLAMADO/etc.)
-    // sobre o `side` da Judit, que reflete a posição na peça recursal e mistura
+    // Lado efetivo de cada parte: prioriza person_type ORIGINAL
+    // (RECLAMANTE/RECLAMADO/AUTOR/RÉU/EXEQUENTE/EXECUTADO) sobre o `side` da
+    // Judit. O `side` reflete a posição na peça recursal e mistura
     // banco/reclamante quando ambos figuram como AGRAVANTE/RECORRENTE.
     const ladoEfetivo = (p: any): "ACTIVE" | "PASSIVE" | null => {
       const ptype = (p?.person_type || "").toUpperCase();
@@ -1063,22 +1064,36 @@ serve(async (req) => {
       const side = (p?.side || "").toUpperCase();
       return side === "ACTIVE" || side === "PASSIVE" ? side : null;
     };
-    // Deduplica por documento+lado para não repetir a mesma parte que aparece
-    // várias vezes na lista (uma por person_type).
-    const ativosUnicos = new Map<string, string>();
-    const passivosUnicos = new Map<string, string>();
+    // Decide o lado FINAL de cada parte única (chave = documento). Quando a
+    // mesma parte aparece com vários person_type (ex.: RECLAMANTE + RECORRIDO),
+    // o lado original vence — registros com person_type = RECLAMANTE/RECLAMADO/
+    // AUTOR/RÉU/EXEQUENTE/EXECUTADO têm prioridade absoluta sobre rótulos de
+    // peça recursal (AGRAVANTE/AGRAVADO/RECORRENTE/RECORRIDO).
+    const ladoPorParte = new Map<string, { nome: string; lado: "ACTIVE" | "PASSIVE"; original: boolean }>();
     for (const p of parties) {
+      const ptype = (p?.person_type || "").toUpperCase();
+      if (ptype === "ADVOGADO") continue;
       const lado = ladoEfetivo(p);
       if (!lado) continue;
       const nome = (p?.name || "").toString().trim();
       if (!nome) continue;
       const doc = (p?.main_document || "").toString().replace(/\D/g, "");
       const key = doc || nome.toUpperCase();
-      if (lado === "ACTIVE" && !ativosUnicos.has(key)) ativosUnicos.set(key, nome);
-      else if (lado === "PASSIVE" && !passivosUnicos.has(key)) passivosUnicos.set(key, nome);
+      const original = ladoPorPersonType(ptype) !== null; // true para RECLAMANTE/RECLAMADO/etc.
+      const atual = ladoPorParte.get(key);
+      // Mantém o registro se ainda não existe, OU se o novo é "original" e o atual não é.
+      if (!atual || (original && !atual.original)) {
+        ladoPorParte.set(key, { nome, lado, original });
+      }
     }
-    const poloAtivo = Array.from(ativosUnicos.values()).join(", ");
-    const poloPassivo = Array.from(passivosUnicos.values()).join(", ");
+    const ativosUnicos: string[] = [];
+    const passivosUnicos: string[] = [];
+    for (const { nome, lado } of ladoPorParte.values()) {
+      if (lado === "ACTIVE") ativosUnicos.push(nome);
+      else passivosUnicos.push(nome);
+    }
+    const poloAtivo = ativosUnicos.join(", ");
+    const poloPassivo = passivosUnicos.join(", ");
     console.log(`[buscar-judit] polo_ativo="${poloAtivo}" polo_passivo="${poloPassivo}"`);
 
     // situação
