@@ -173,6 +173,8 @@ const AnaliseDjen = () => {
     naoLidasHoje,
     totalDescartadasHoje,
     hasNextPage,
+    totalTermosHoje,
+    totalProcessosHoje,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
@@ -1502,10 +1504,7 @@ const AnaliseDjen = () => {
                   <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
                   <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
                     {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                      estatisticas.reduce((acc, s) => acc + s.por_tipo.termo, 0) +
-                      estatisticas.reduce((acc, s) => acc + s.por_tipo.processo, 0) +
-                      totalDescartadasHoje +
-                      totalDatajudHoje
+                      totalHoje + totalDescartadasHoje + totalDatajudHoje
                     )}
                   </p>
                 </div>
@@ -1521,7 +1520,7 @@ const AnaliseDjen = () => {
                   <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Não Lidas</p>
                   <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">
                     {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      estatisticas.reduce((acc, s) => acc + s.nao_lidas, 0)}
+                      naoLidasHoje}
                   </p>
                 </div>
                 <Eye className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
@@ -1536,7 +1535,7 @@ const AnaliseDjen = () => {
                   <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Por Termos</p>
                   <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">
                     {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      estatisticas.reduce((acc, s) => acc + s.por_tipo.termo, 0)}
+                      totalTermosHoje}
                   </p>
                 </div>
                 <FileSearch className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
@@ -1551,7 +1550,7 @@ const AnaliseDjen = () => {
                   <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Por Processos</p>
                   <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">
                     {loadingStats ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      estatisticas.reduce((acc, s) => acc + s.por_tipo.processo, 0)}
+                      totalProcessosHoje}
                   </p>
                 </div>
                 <Gavel className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />

@@ -385,7 +385,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           tProc = t.count || 0;
           nProc = n.count || 0;
         }
-        return { total: tTermos + tProc, naoLidas: nTermos + nProc };
+        return {
+          total: tTermos + tProc,
+          naoLidas: nTermos + nProc,
+          totalTermos: tTermos,
+          totalProcessos: tProc,
+        };
       }
 
       const [tT, nT, tP, nP] = await Promise.all([
@@ -397,6 +402,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       return {
         total: (tT.count || 0) + (tP.count || 0),
         naoLidas: (nT.count || 0) + (nP.count || 0),
+        totalTermos: tT.count || 0,
+        totalProcessos: tP.count || 0,
       };
     },
     enabled: !!user?.id,
@@ -1211,8 +1218,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     loadingStats: isLoading,
     marcarComoLida,
-    totalHoje: publicacoes.length,
-    naoLidasHoje: publicacoes.filter(p => !p.lida).length,
+    // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
+    // Fallback para a contagem da página atual enquanto a query não carrega.
+    totalHoje: statsIndependentes?.total ?? publicacoes.length,
+    naoLidasHoje: statsIndependentes?.naoLidas ?? publicacoes.filter(p => !p.lida).length,
+    totalTermosHoje: statsIndependentes?.totalTermos ?? 0,
+    totalProcessosHoje: statsIndependentes?.totalProcessos ?? 0,
     totalDescartadasHoje,
     page,
     pageSize,
