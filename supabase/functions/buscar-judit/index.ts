@@ -688,41 +688,49 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       .map((p: any) => {
         const orgao = normalizePlain(p?.orgaoJudicante?.desOrgaoJudicante || "").replace(/\s+/g, " ");
         const tipo = mapMeioJulgamento(p?.codMeioJulgamento);
-        const dataBase = tipo === "Virtual"
-          ? (parseTstDate(p?.dtaInicioSessao) || parseTstDate(p?.dtaSessao))
-          : parseTstDate(p?.dtaSessao);
+        // Sempre usa dtaSessao como data de julgamento (data efetiva da sessão).
+        // dtaInicioSessao é apenas o início da janela de votação virtual.
+        const dataBase = parseTstDate(p?.dtaSessao) || parseTstDate(p?.dtaInicioSessao);
         const divulgacao = parseTstDate(p?.dtaDivulgacao);
         const publicacao = parseTstDate(p?.dtaPublicacao);
         const diffs = [divulgacao, publicacao].filter(Boolean).map((d: any) => Math.abs(d.getTime() - stepDate.getTime()));
         const pubDiff = diffs.length ? Math.min(...diffs) : Number.MAX_SAFE_INTEGER;
         return { p, orgao, tipo, dataBase, pubDiff };
       })
-      .filter((x: any) => x.dataBase && x.dataBase.getTime() > stepDate.getTime())
+      .filter((x: any) => x.dataBase && x.dataBase.getTime() >= stepDate.getTime())
       .filter((x: any) => x.orgao.includes(turmaNorm) || turmaNorm.includes(x.orgao));
-    const near = candidatos.filter((x: any) => x.pubDiff <= 10 * 24 * 60 * 60 * 1000);
-    const pool = near.length ? near : candidatos;
-    pool.sort((a: any, b: any) => a.pubDiff - b.pubDiff || a.dataBase.getTime() - b.dataBase.getTime());
-    let chosen = pool[0];
-    for (const cand of pool.slice(0, 5)) {
+    // Ordena: data da sessão mais próxima do stepDate primeiro (sessões futuras),
+    // empata por proximidade da publicação. Verifica presença do CNJ em CADA sessão
+    // antes de decidir — só usa pubDiff como desempate, nunca como critério único.
+    const pool = [...candidatos].sort((a: any, b: any) =>
+      a.dataBase.getTime() - b.dataBase.getTime() || a.pubDiff - b.pubDiff,
+    );
+    console.log(`[buscar-judit] pauta TST: ${pool.length} sessões candidatas para turma="${turma}" stepDate=${stepDateIso}`);
+    let chosen: any = null;
+    for (const cand of pool.slice(0, 25)) {
       const org = cand.p?.orgaoJudicante || {};
       const sessao = `${org.codOrgaoJudicante}-${cand.p?.anoPauta}-${cand.p?.numPauta}-${cand.p?.tipSessao}`;
       const pc = new AbortController();
-      const pt = setTimeout(() => pc.abort(), 2500);
+      const pt = setTimeout(() => pc.abort(), 3000);
       try {
         const pr = await fetch(`https://pautaws.tst.jus.br/rest/processospauta/tst?sessao=${encodeURIComponent(sessao)}`, { signal: pc.signal });
         if (pr.ok) {
           const items = await pr.json();
           if (digits && normalizePlain(JSON.stringify(items || [])).replace(/\D/g, "").includes(digits)) {
+            console.log(`[buscar-judit] CNJ ${cnj} encontrado em sessão ${sessao} (data=${cand.p?.dtaSessao}, meio=${cand.tipo})`);
             chosen = cand;
             break;
           }
         }
-      } catch (_) { /* mantém fallback por metadados da pauta */ }
+      } catch (_) { /* segue tentando próxima sessão */ }
       finally { clearTimeout(pt); }
     }
-    if (!chosen) return null;
+    if (!chosen) {
+      console.log(`[buscar-judit] CNJ ${cnj} não localizado em nenhuma sessão verificada — sem data de julgamento confiável`);
+      return null;
+    }
     const iso = chosen.dataBase.toISOString().slice(0, 10);
-    const rawDate = chosen.tipo === "Virtual" ? chosen.p?.dtaInicioSessao : chosen.p?.dtaSessao;
+    const rawDate = chosen.p?.dtaSessao || chosen.p?.dtaInicioSessao;
     const hm = String(rawDate ?? "").match(/\s(\d{2}):(\d{2})/);
     const horario = hm && hm[1] !== "00" ? `${hm[1]}:${hm[2]}` : null;
     return { data: iso, horario, tipo: chosen.tipo };
