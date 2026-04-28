@@ -330,6 +330,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
+        tipoOrigem: filtros.tipoOrigem ?? null,
+        termoBusca: filtros.termoBusca ?? null,
+        monitoramentoId: filtros.monitoramentoId ?? null,
       },
     ],
     queryFn: async () => {
@@ -354,10 +357,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
       // do usuário autenticado (espelhando o mergeWithLeituras no client),
       // para que o card bata com o badge de cada coordenação.
+      // Repassa também os filtros de tipo de origem, busca e monitoramento
+      // para que os totalizadores reflitam exatamente o que está filtrado.
       const { data, error } = await (supabase.rpc as any)('get_djen_stats_per_user', {
         p_coordenacao_id: filtros.coordenacaoId ?? null,
         p_inicio: di,
         p_fim: df,
+        p_tipo_origem: filtros.tipoOrigem && filtros.tipoOrigem !== 'descartada' && filtros.tipoOrigem !== 'todos'
+          ? filtros.tipoOrigem
+          : null,
+        p_search_query: filtros.termoBusca || null,
+        p_monitoramento_id: filtros.monitoramentoId || null,
       });
       if (error) {
         console.error('[stats-header] get_djen_stats_per_user error', error);
