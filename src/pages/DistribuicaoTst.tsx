@@ -545,12 +545,16 @@ export default function DistribuicaoTst() {
 
           if (existingBenner && (existingBenner as any[]).length > 0) {
             bennerId = (existingBenner as any[])[0].id;
-            // Mesma regra do formulário individual: SOBRESCREVER quando a Judit
-            // retornar um valor não-nulo. Não preservar valores antigos.
+            // Mesma regra do formulário individual: a Judit é fonte da verdade.
+            // Para os campos de Tipo de Recurso a Judit é fonte ÚNICA — quando
+            // ela não confirma um recurso, o valor antigo (possivelmente errado)
+            // é APAGADO (gravado como NULL). Para os demais campos, sobrescreve
+            // apenas quando a Judit retornou um valor.
             const updateFields: any = {};
-            if (juditData.tipo_recurso) updateFields.tipo_recurso = juditData.tipo_recurso;
-            if (juditData.tipo_recurso_reclamante) updateFields.tipo_recurso_reclamante = juditData.tipo_recurso_reclamante;
-            if (juditData.tipo_recurso_banco) updateFields.tipo_recurso_banco = juditData.tipo_recurso_banco;
+            // Tipos de recurso: sempre sobrescreve (inclui null para apagar).
+            updateFields.tipo_recurso = juditData.tipo_recurso ?? null;
+            updateFields.tipo_recurso_reclamante = juditData.tipo_recurso_reclamante ?? null;
+            updateFields.tipo_recurso_banco = juditData.tipo_recurso_banco ?? null;
             if (juditData.relator) updateFields.relator = juditData.relator;
             if (juditData.turma) updateFields.turma = juditData.turma;
             if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
