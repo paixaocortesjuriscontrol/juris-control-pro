@@ -1156,8 +1156,12 @@ serve(async (req) => {
     }
 
     function extractScheduledDate(content: string, stepDateIso: string | null): string | null {
+      const isPublicationOnly = /disponibiliza[çc][aã]o|publica[çc][aã]o|di[aá]rio\s+da\s+justi[çc]a|dje|dejt/i.test(content)
+        && !/inclu[ií]d[oa].*pauta|pautad[oa]|marcad[oa]|designad[oa]|sess[aã]o\s+de\s+julgamento|julgamento\s+(?:de|do\s+dia)/i.test(content);
+      if (isPublicationOnly) return null;
+
       // 1) Tenta achar data precedida por marcadores explícitos de agendamento.
-      const marcador = /(?:para(?:\s+(?:o\s+dia|a\s+sess[aã]o(?:\s+de)?|julgamento(?:\s+do\s+dia)?))?|dia|em|designad[oa](?:\s+para)?|sess[aã]o\s+de(?:\s+julgamento(?:\s+do\s+dia)?)?|julgamento\s+(?:de|do\s+dia)|pautad[oa]\s+para|marcad[oa]\s+para|agendad[oa]\s+para)\s+(?:o\s+dia\s+)?(\d{2}\/\d{2}\/\d{4})/i;
+      const marcador = /(?:para(?:\s+(?:o\s+dia|a\s+sess[aã]o(?:\s+de)?|julgamento(?:\s+do\s+dia)?))?|designad[oa](?:\s+para)?|sess[aã]o\s+de(?:\s+julgamento(?:\s+do\s+dia)?)?|julgamento\s+(?:de|do\s+dia)|pautad[oa]\s+para|marcad[oa]\s+para|agendad[oa]\s+para)\s+(?:o\s+dia\s+)?(\d{2}\/\d{2}\/\d{4})/i;
       const mm = content.match(marcador);
       if (mm) return mm[1];
 
@@ -1172,6 +1176,7 @@ serve(async (req) => {
           .sort((a, b) => a.d!.getTime() - b.d!.getTime());
         if (futuras.length > 0) return futuras[0].s;
       }
+      if (/disponibiliza[çc][aã]o|publica[çc][aã]o|di[aá]rio\s+da\s+justi[çc]a|dje|dejt/i.test(content)) return null;
       // 3) Última data mencionada como heurística final.
       return all[all.length - 1];
     }
