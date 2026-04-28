@@ -525,11 +525,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outputRows: outputFinal.length,
         sheetsBreakdown,
         rejectionsByType: rejByType,
+        warnings: warningsTotal,
+        warningsByType,
       });
 
       setPhase("Concluído!");
       setProgress(100);
-      toast.success(`Layout gerado com ${outputFinal.length} linhas, ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeições.`);
+      const warningSuffix = isManualSelection && warningsTotal > 0
+        ? `, ${warningsTotal} aviso(s)`
+        : "";
+      toast.success(`Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`);
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
       console.error("[CargaBennerFromDb] Error:", err);
