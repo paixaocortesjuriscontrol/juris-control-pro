@@ -1492,7 +1492,7 @@ export function getDjenTermosParalelaProgress(): DjenTermosParalelaProgress {
 }
 
 export function isDjenTermosParalelaRunning(): boolean {
-  return state.isRunning;
+  return state.isRunning || state.progress.status === 'executando';
 }
 
 export function getCheckpointParalela(): Checkpoint | null {
