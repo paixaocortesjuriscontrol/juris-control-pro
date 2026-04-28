@@ -295,6 +295,12 @@ const AnaliseDjen = () => {
   const totalDatajudHoje = datajudStats.total;
   const naoLidasDatajudHoje = datajudStats.naoLidas;
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
+  const incluirTotaisDjen = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada';
+  const totalDjenFiltrado = incluirTotaisDjen ? totalHoje : 0;
+  const naoLidasDjenFiltrado = incluirTotaisDjen ? naoLidasHoje : 0;
+  const totalTermosFiltrado = incluirTotaisDjen ? totalTermosHoje : 0;
+  const totalProcessosFiltrado = incluirTotaisDjen ? totalProcessosHoje : 0;
+  const totalDescartadasFiltrado = tipoOrigem === 'descartada' ? totalDescartadasHoje : 0;
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
