@@ -1536,6 +1536,7 @@ export async function resetTotalDjenTermosParalela() {
   stopLocalExecution();
   // 2) Apaga checkpoint local
   saveCheckpoint(null);
+  setResetMarkNow();
   state.checkpoint = null;
   state.executionId = null;
   state.resetExecutionIds.clear();
