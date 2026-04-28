@@ -646,6 +646,94 @@ function extrairRelator(rd: any): string | null {
   return null;
 }
 
+function normalizePlain(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+function parseTstDate(value: unknown): Date | null {
+  const raw = String(value ?? "").trim();
+  const m = raw.match(/^(\d{4})\/(\d{2})\/(\d{2})(?:\s+(\d{2}):(\d{2}))?/);
+  if (!m) return null;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] || "12"}:${m[5] || "00"}:00Z`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function mapMeioJulgamento(code: unknown): string | null {
+  const c = String(code ?? "").trim().toUpperCase();
+  if (c === "V" || c === "VIRTUAL") return "Virtual";
+  if (c === "T" || c === "TELEPRESENCIAL") return "Telepresencial";
+  if (c === "P" || c === "PRESENCIAL") return "Presencial";
+  if (c === "H" || c.includes("HIBRID") || c.includes("HÍBRID")) return "Híbrido";
+  return c || null;
+}
+
+async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepDateIso: string | null): Promise<{ data: string; horario: string | null; tipo: string | null } | null> {
+  if (!turma || !stepDateIso) return null;
+  const digits = cnj.replace(/\D/g, "");
+  const stepDate = new Date(stepDateIso.substring(0, 10) + "T12:00:00Z");
+  if (isNaN(stepDate.getTime())) return null;
+  const year = stepDate.getUTCFullYear();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const r = await fetch(`https://pautaws.tst.jus.br/rest/pautas/${year}`, { signal: controller.signal });
+    if (!r.ok) return null;
+    const pautas = await r.json();
+    if (!Array.isArray(pautas)) return null;
+    const turmaNorm = normalizePlain(turma).replace(/\s+/g, " ");
+    const candidatos = pautas
+      .map((p: any) => {
+        const orgao = normalizePlain(p?.orgaoJudicante?.desOrgaoJudicante || "").replace(/\s+/g, " ");
+        const tipo = mapMeioJulgamento(p?.codMeioJulgamento);
+        const dataBase = tipo === "Virtual"
+          ? (parseTstDate(p?.dtaInicioSessao) || parseTstDate(p?.dtaSessao))
+          : parseTstDate(p?.dtaSessao);
+        const divulgacao = parseTstDate(p?.dtaDivulgacao);
+        const publicacao = parseTstDate(p?.dtaPublicacao);
+        const diffs = [divulgacao, publicacao].filter(Boolean).map((d: any) => Math.abs(d.getTime() - stepDate.getTime()));
+        const pubDiff = diffs.length ? Math.min(...diffs) : Number.MAX_SAFE_INTEGER;
+        return { p, orgao, tipo, dataBase, pubDiff };
+      })
+      .filter((x: any) => x.dataBase && x.dataBase.getTime() > stepDate.getTime())
+      .filter((x: any) => x.orgao.includes(turmaNorm) || turmaNorm.includes(x.orgao));
+    const near = candidatos.filter((x: any) => x.pubDiff <= 10 * 24 * 60 * 60 * 1000);
+    const pool = near.length ? near : candidatos;
+    pool.sort((a: any, b: any) => a.pubDiff - b.pubDiff || a.dataBase.getTime() - b.dataBase.getTime());
+    let chosen = pool[0];
+    for (const cand of pool.slice(0, 5)) {
+      const org = cand.p?.orgaoJudicante || {};
+      const sessao = `${org.codOrgaoJudicante}-${cand.p?.anoPauta}-${cand.p?.numPauta}-${cand.p?.tipSessao}`;
+      const pc = new AbortController();
+      const pt = setTimeout(() => pc.abort(), 2500);
+      try {
+        const pr = await fetch(`https://pautaws.tst.jus.br/rest/processospauta/tst?sessao=${encodeURIComponent(sessao)}`, { signal: pc.signal });
+        if (pr.ok) {
+          const items = await pr.json();
+          if (digits && normalizePlain(JSON.stringify(items || [])).replace(/\D/g, "").includes(digits)) {
+            chosen = cand;
+            break;
+          }
+        }
+      } catch (_) { /* mantém fallback por metadados da pauta */ }
+      finally { clearTimeout(pt); }
+    }
+    if (!chosen) return null;
+    const iso = chosen.dataBase.toISOString().slice(0, 10);
+    const rawDate = chosen.tipo === "Virtual" ? chosen.p?.dtaInicioSessao : chosen.p?.dtaSessao;
+    const hm = String(rawDate ?? "").match(/\s(\d{2}):(\d{2})/);
+    const horario = hm && hm[1] !== "00" ? `${hm[1]}:${hm[2]}` : null;
+    return { data: iso, horario, tipo: chosen.tipo };
+  } catch (e) {
+    console.log(`[buscar-judit] pauta pública TST indisponível: ${(e as Error).message}`);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // ---------- handler --------------------------------------------------------
 
 serve(async (req) => {
