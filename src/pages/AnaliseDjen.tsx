@@ -1520,26 +1520,20 @@ const AnaliseDjen = () => {
   );
 
   const getGrupoContadores = (grupo: { coordenacao_id: string; publicacoes: PublicacaoUnificada[] }) => {
-    const usarTotaisDoFiltro = !!coordenacaoFiltroEfetivo && grupo.coordenacao_id === coordenacaoFiltroEfetivo && !apenasComProcesso;
-    if (!usarTotaisDoFiltro) {
-      return {
-        total: grupo.publicacoes.length,
-        termos: grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length,
-        processos: grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length,
-        naoLidas: grupo.publicacoes.filter(p => !p.lida).length,
-      };
-    }
-
     return {
-      total: totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje,
-      termos: totalTermosFiltrado,
-      processos: totalProcessosFiltrado,
-      naoLidas: naoLidasDjenFiltrado + naoLidasDatajudHoje,
+      total: grupo.publicacoes.length,
+      termos: grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length,
+      processos: grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length,
+      naoLidas: grupo.publicacoes.filter(p => !p.lida).length,
     };
   };
-  const totalFiltradoGeral = apenasComProcesso
-    ? allPublicacoes.length
-    : totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje;
+  const totalListaVisivel = allPublicacoes.length;
+  const totalNaoLidasVisivel = allPublicacoes.filter(p => !p.lida).length;
+  const totalTermosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'termo').length;
+  const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
+  const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
+  const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
+  const totalFiltradoGeral = totalListaVisivel;
   const totalExibidoNaPagina = allPublicacoes.length;
 
   return (
