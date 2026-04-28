@@ -1631,18 +1631,24 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
             ? Math.floor(Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime()) / 1000)
             : 0);
 
+    const registrosEncontrados = Number((data as any).registros_encontrados || 0);
+    const registrosProcessados = Number((data as any).registros_processados || 0);
+    const lotesProcessados = Number((data as any).lotes_processados || 0);
+    const totalLotes = Number((data as any).total_lotes || 0);
+
     state.progress = {
       ...createDefaultProgress(),
       status: finalStatus,
       tracks,
-      totalTribunais: Number(det.totalTribunais || tracks.length),
-      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos),
-      novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas),
+      totalTribunais: Math.max(Number(det.totalTribunais || 0), totalLotes, tracks.length),
+      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados),
+      novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas, registrosEncontrados),
       duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
-      descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas),
+      descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas, registrosProcessados),
       percentage: Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
+      iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
       dataInicioYmd: det.dataInicioYmd ?? null,
       dataFimYmd: det.dataFimYmd ?? null,
       concorrencia: Number(det.concorrencia || HOST_BUCKET_LIMITS['pje-comunica']),
