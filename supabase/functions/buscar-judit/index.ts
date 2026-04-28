@@ -417,6 +417,22 @@ function classificarRecursoInterposto(texto: string): string | null {
   return null;
 }
 
+function normalizarListaRecursos(value: string | null): string | null {
+  const parts = (value || "")
+    .split(/\s*\+\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const part of parts) {
+    const key = normalizePlain(part);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    clean.push(part);
+  }
+  return clean.length ? clean.join(" + ") : null;
+}
+
 /**
  * Mapeia o tipo_pessoa retornado pela Judit para o lado ORIGINAL no processo
  * (ACTIVE = polo ativo / reclamante; PASSIVE = polo passivo / reclamada).
@@ -438,7 +454,7 @@ function ladoPorPersonType(personType: string): "ACTIVE" | "PASSIVE" | null {
 
 function isParteBanco(nome: string): boolean {
   const n = normalizePlain(nome || "");
-  return /\b(BANCO|SANTANDER|BRADESCO|ITAU|ITAÚ|CAIXA\s+ECONOMICA|CAIXA\s+ECONÔMICA|CEF|BANRISUL|SAFRA|BMG|C6\s+BANK|BANCO\s+DO\s+BRASIL)\b/.test(n);
+  return /\b(BANCO|SANTANDER|BRADESCO|ITAU|ITAÚ|AYMORE|AYMOR[ÉE]|FINANCEIRA|CREDITO,?\s+FINANCIAMENTO|CAIXA\s+ECONOMICA|CAIXA\s+ECONÔMICA|CEF|BANRISUL|SAFRA|BMG|C6\s+BANK|BANCO\s+DO\s+BRASIL)\b/.test(n);
 }
 
 /**
@@ -576,14 +592,14 @@ function extrairRecursosPorParte(
       }
     }
 
+    const appendUnique = (arr: string[], valor: string) => {
+      if (!arr.some((item) => normalizePlain(item) === normalizePlain(valor))) arr.push(valor);
+    };
+
     if (ladoAtivo && !ladoPassivo) {
-      if (recursosReclamante[recursosReclamante.length - 1] !== sigla) {
-        recursosReclamante.push(sigla);
-      }
+      appendUnique(recursosReclamante, sigla);
     } else if (ladoPassivo && !ladoAtivo) {
-      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
-        recursosBanco.push(sigla);
-      }
+      appendUnique(recursosBanco, sigla);
     }
     // Se ambíguo (ambos ou nenhum lado identificado), NÃO atribui a nenhum
     // lado — preferimos deixar vazio a classificar incorretamente. O usuário
@@ -601,6 +617,15 @@ function inferirRecursosRecorrentesPorPartes(
   sigla: string | null,
 ): { reclamante: string | null; banco: string | null } {
   if (!sigla || !Array.isArray(parties)) return { reclamante: null, banco: null };
+  const ladoOriginalPorParte = new Map<string, "ACTIVE" | "PASSIVE">();
+  for (const p of parties) {
+    const nome = (p?.name || "").toString().trim();
+    if (!nome || (p?.person_type || "").toString().toUpperCase() === "ADVOGADO") continue;
+    const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+    const key = doc || normalizePlain(nome);
+    const lado = isParteBanco(nome) ? "PASSIVE" : ladoPorPersonType((p?.person_type || "").toString());
+    if (lado && !ladoOriginalPorParte.has(key)) ladoOriginalPorParte.set(key, lado);
+  }
   let reclamante = false;
   let banco = false;
   for (const p of parties) {
@@ -613,6 +638,11 @@ function inferirRecursosRecorrentesPorPartes(
       banco = true;
       continue;
     }
+    const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+    const key = doc || normalizePlain(nome);
+    const ladoConsolidado = ladoOriginalPorParte.get(key);
+    if (ladoConsolidado === "PASSIVE") { banco = true; continue; }
+    if (ladoConsolidado === "ACTIVE") { reclamante = true; continue; }
     const ladoOriginal = ladoPorPersonType(ptype);
     const side = (p?.side || "").toString().toUpperCase();
     if (ladoOriginal === "PASSIVE") banco = true;
@@ -798,7 +828,9 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       // A API pública frequentemente não lista processos de sessões PJE/virtuais,
       // embora a pauta agregada traga a janela correta. Para não voltar à data
       // de publicação (ex.: 26/03), aceita apenas candidato virtual próximo da
-      // publicação/inclusão em pauta; isso corrige casos como início 27/04/2026.
+      // publicação/inclusão em pauta. Havendo várias publicações próximas, usa a
+      // ÚLTIMA janela virtual encontrada após o andamento — é a remarcação mais
+      // recente e corrige casos como 27/04/2026 em vez de 06/04/2026.
       chosen = pool
         .filter((cand: any) =>
           String(cand.tipo || "").toUpperCase().includes("VIRTUAL") &&
@@ -806,9 +838,9 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
           cand.dataBase.getTime() > stepDate.getTime()
         )
         .sort((a: any, b: any) =>
+          b.dataBase.getTime() - a.dataBase.getTime() ||
           (String(b.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) -
-          (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) ||
-          a.dataBase.getTime() - b.dataBase.getTime()
+          (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0)
         )[0] || null;
       if (!chosen) {
         console.log(`[buscar-judit] CNJ ${cnj} não localizado em sessão verificada — sem data de julgamento confiável`);
@@ -921,7 +953,23 @@ serve(async (req) => {
         const rdsAll = pageData
           .map((i: any) => i?.response_data)
           .filter((x: any) => x && typeof x === "object");
-        if (rdsAll.length > 0) {
+        if (tribunalHint?.toString().trim().toUpperCase() === "TST") {
+          console.log(`[buscar-judit] Hint=TST não localizado no async; usando DataJud TST em vez de cair em TRT.`);
+          const datajud = await consultarDataJud(cnj);
+          if (datajud && (datajud.relator || datajud.turma || datajud.classe || datajud.steps?.length)) {
+            rd = {
+              tribunal_acronym: "TST",
+              classifications: datajud.classe ? [{ name: datajud.classe }] : [],
+              distribution_date: datajud.dataDistribuicao,
+              judge: datajud.relator ? { name: datajud.relator } : null,
+              courts: datajud.courts || [],
+              steps: datajud.steps || [],
+              parties: cachedRd?.parties || [],
+              status: cachedRd?.status || null,
+            };
+          }
+        }
+        if (!rd && rdsAll.length > 0) {
           rd = rdsAll.reduce((a: any, b: any) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
           console.log(`[buscar-judit] Hint=${tribunalHint} não localizado; usando melhor instância disponível: ${rd.tribunal_acronym}`);
         } else if (cachedRd) {
@@ -1102,19 +1150,28 @@ serve(async (req) => {
       const otherRd = item?.response_data;
       if (otherRd && otherRd !== rd) pushParties(otherRd.parties);
     }
-    // Deduplicar: chave = documento normalizado (se houver) OU name+side+person_type
-    const seen = new Set<string>();
+    // Deduplicar: chave = documento normalizado (se houver) OU nome. Não incluir
+    // side/person_type na chave: a mesma parte pode aparecer como AGRAVANTE,
+    // AGRAVADO, RECLAMANTE e RECORRENTE, mas deve ser enviada uma única vez ao
+    // frontend com lado_efetivo consolidado.
+    const seen = new Map<string, number>();
     const parties: any[] = [];
     for (const p of partiesPool) {
       const doc = (p?.main_document || "").toString().replace(/\D/g, "");
       const name = (p?.name || "").toString().trim().toUpperCase();
-      const side = (p?.side || "").toString().toUpperCase();
-      const ptype = (p?.person_type || "").toString().toUpperCase();
-      const key = doc ? `doc:${doc}:${ptype}` : `nm:${name}:${side}:${ptype}`;
-      if (!key || key === "nm:::") continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      parties.push(p);
+      const key = doc ? `doc:${doc}` : `nm:${name}`;
+      if (!name) continue;
+      const existingIdx = seen.get(key);
+      if (existingIdx === undefined) {
+        parties.push(p);
+        seen.set(key, parties.length - 1);
+        continue;
+      }
+      const currentType = (parties[existingIdx]?.person_type || "").toString().toUpperCase();
+      const newType = (p?.person_type || "").toString().toUpperCase();
+      if (ladoPorPersonType(newType) && !ladoPorPersonType(currentType)) {
+        parties[existingIdx] = p;
+      }
     }
     console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
     // Lado efetivo de cada parte: prioriza person_type ORIGINAL
@@ -1380,9 +1437,14 @@ serve(async (req) => {
       }
     }
 
+    recursosPorParte.reclamante = normalizarListaRecursos(recursosPorParte.reclamante);
+    recursosPorParte.banco = normalizarListaRecursos(recursosPorParte.banco);
+
     const tipoRecursoCombinado =
       recursosPorParte.reclamante && recursosPorParte.banco
-        ? `${recursosPorParte.reclamante} - ${recursosPorParte.banco}`
+        ? recursosPorParte.reclamante === recursosPorParte.banco
+          ? recursosPorParte.reclamante
+          : `${recursosPorParte.reclamante} - ${recursosPorParte.banco}`
         : recursosPorParte.reclamante || recursosPorParte.banco || null;
 
     const result = {
