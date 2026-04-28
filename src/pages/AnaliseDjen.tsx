@@ -173,6 +173,8 @@ const AnaliseDjen = () => {
     naoLidasHoje,
     totalDescartadasHoje,
     hasNextPage,
+    totalTermosHoje,
+    totalProcessosHoje,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
