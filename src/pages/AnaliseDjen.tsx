@@ -245,7 +245,7 @@ const AnaliseDjen = () => {
       if (error) { console.warn('Erro DataJud:', error); return []; }
       return (data || []) as any[];
     },
-    enabled: tipoOrigem === 'datajud' || tipoOrigem === 'todos' || tipoOrigem === 'normal',
+    enabled: tipoOrigem === 'datajud',
     staleTime: 30_000,
   });
 
@@ -253,7 +253,7 @@ const AnaliseDjen = () => {
   const { data: datajudStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingDatajudStats } = useQuery({
     queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas, tipoOrigem],
     queryFn: async () => {
-      if (!(tipoOrigem === 'datajud' || tipoOrigem === 'todos' || tipoOrigem === 'normal')) {
+      if (tipoOrigem !== 'datajud') {
         return { total: 0, naoLidas: 0 };
       }
       const applyFilters = (onlyUnread: boolean) => {
@@ -292,8 +292,8 @@ const AnaliseDjen = () => {
     },
     staleTime: 30_000,
   });
-  const totalDatajudHoje = datajudStats.total;
-  const naoLidasDatajudHoje = datajudStats.naoLidas;
+  const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
+  const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
   const incluirTotaisDjen = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada';
   const totalDjenFiltrado = incluirTotaisDjen ? totalHoje : 0;
@@ -355,13 +355,7 @@ const AnaliseDjen = () => {
   const mergedPublicacoes = useMemo(() => {
     let result: PublicacaoUnificada[];
     if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
-    else if (tipoOrigem === 'todos' || tipoOrigem === 'normal') {
-      result = [...publicacoes, ...datajudAsPublicacoes].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    } else {
-      result = publicacoes;
-    }
+    else result = publicacoes;
     return filtrarPorCoordenacaoUsuario(result);
   }, [tipoOrigem, publicacoes, datajudAsPublicacoes, deveRestringirPorCoordenacao, userCoordenacaoIds]);
 
