@@ -613,6 +613,7 @@ function buildSnapshot(overrides: Record<string, any> = {}): any {
     percentage: state.progress.percentage,
     mensagem: state.progress.mensagem,
     tempoDecorrido: state.progress.tempoDecorrido,
+    iniciadoEm: state.progress.iniciadoEm,
     tracks: state.progress.tracks.map(t => ({
       tribunal: t.tribunal,
       status: t.status,
@@ -1213,13 +1214,14 @@ async function executarLoop(
 
     // Registrar execução no banco
     try {
+      const iniciadoEm = new Date().toISOString();
       const { data: inserted, error: insErr } = await supabase
         .from('execucoes_agendadas')
         .insert({
           tipo: 'djen_paralela',
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
-          iniciado_em: new Date().toISOString(),
+          iniciado_em: iniciadoEm,
           detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'] },
         })
         .select('id');
@@ -1227,6 +1229,7 @@ async function executarLoop(
       else if (inserted && inserted.length > 0) {
         executionId = inserted[0].id;
         state.executionId = executionId;
+        updateProgress({ iniciadoEm });
       }
     } catch (e) {
       console.error('[DJEN Paralela] Erro inesperado registrar execução:', e);
