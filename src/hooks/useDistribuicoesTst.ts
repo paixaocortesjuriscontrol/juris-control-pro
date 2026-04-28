@@ -171,6 +171,12 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   const anyD = d as any;
   if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
   if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
+  // Campos de pauta de julgamento preenchidos pela Judit (existem em dados_benner
+  // mas não fazem parte da interface DistribuicaoTst).
+  if (anyD.tem_data_julgamento !== undefined) payload.tem_data_julgamento = anyD.tem_data_julgamento;
+  if (anyD.data_julgamento !== undefined) payload.data_julgamento = anyD.data_julgamento;
+  if (anyD.horario_julgamento !== undefined) payload.horario_julgamento = anyD.horario_julgamento;
+  if (anyD.tipo_julgamento !== undefined) payload.tipo_julgamento = anyD.tipo_julgamento;
 
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();

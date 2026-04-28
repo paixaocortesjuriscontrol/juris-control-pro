@@ -961,7 +961,13 @@ serve(async (req) => {
     }
 
     // análise dos steps
-    const PAUTA = /pauta|sess[aã]o de julgamento|inclu[ií]d[oa] em pauta|designad[oa].*julgamento|julgamento.*designad/i;
+    // Identifica movimentos relacionados ao agendamento de sessão de julgamento.
+    // Inclui variações como "incluído em pauta", "pautado para", "designada sessão",
+    // "marcado julgamento" etc. Esses movimentos contêm tanto a data em que o ato
+    // foi praticado (step_date) quanto a data futura agendada (no texto).
+    const PAUTA = /pauta|sess[aã]o\s+de\s+julgamento|inclu[ií]d[oa]\s+em\s+pauta|designad[oa].*julgamento|julgamento.*designad|pautad[oa]\s+para|marcad[oa]\s+(?:o\s+)?julgamento|agendad[oa]\s+(?:o\s+)?julgamento/i;
+    // Movimentos de remoção/cancelamento que invalidam pauta anterior.
+    const PAUTA_CANCEL = /retirad[oa]\s+de\s+pauta|cancelad[oa]\s+(?:a\s+)?(?:sess[aã]o|pauta|julgamento)|adiad[oa]\s+(?:o\s+)?julgamento/i;
     const SEM_TRANSC = /sem transcend[eê]ncia|transcend[eê]ncia n[aã]o reconhecida/i;
     const NAO_CONHECIDO = /n[aã]o conhec|recurso.*n[aã]o.*conhecid/i;
     const CONH_PROV = /conhecid[oa].*provid[oa]|dar provimento|recurso.*provid/i;
@@ -978,26 +984,112 @@ serve(async (req) => {
     let resultadoConhecidoNaoProvido = false;
     let processoBaixado = "N";
 
-    for (const step of steps) {
+    // ----- Extração de Pauta de Julgamento -----
+    //
+    // Regra: queremos a DATA AGENDADA para o julgamento (futura), o horário e
+    // a modalidade (Virtual/Presencial/Telepresencial/Híbrido). NUNCA usar
+    // step_date como data de julgamento — step_date é a data em que o ato de
+    // marcação foi praticado, não a data da sessão.
+    //
+    // Regras de prioridade:
+    //   1. Considera o ÚLTIMO movimento de pauta (em ordem cronológica), pois
+    //      remarcações sobrescrevem a anterior. Se houver "retirado de pauta"
+    //      mais recente, descarta o agendamento.
+    //   2. Procura datas mencionadas no texto após marcadores como "para",
+    //      "dia", "sessão de", "julgamento de", "designada para".
+    //   3. Se houver várias datas no texto, prefere a data POSTERIOR à data
+    //      do andamento (step_date) — essa é a sessão futura.
+    //   4. Extrai horário (HH:MM, HHhMM, HHh, "às HH horas") e modalidade.
+
+    function parseDM(s: string): Date | null {
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) return null;
+      const d = new Date(`${m[3]}-${m[2]}-${m[1]}T12:00:00Z`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function extractScheduledDate(content: string, stepDateIso: string | null): string | null {
+      // 1) Tenta achar data precedida por marcadores explícitos de agendamento.
+      const marcador = /(?:para(?:\s+(?:o\s+dia|a\s+sess[aã]o(?:\s+de)?|julgamento(?:\s+do\s+dia)?))?|dia|em|designad[oa](?:\s+para)?|sess[aã]o\s+de(?:\s+julgamento(?:\s+do\s+dia)?)?|julgamento\s+(?:de|do\s+dia)|pautad[oa]\s+para|marcad[oa]\s+para|agendad[oa]\s+para)\s+(?:o\s+dia\s+)?(\d{2}\/\d{2}\/\d{4})/i;
+      const mm = content.match(marcador);
+      if (mm) return mm[1];
+
+      // 2) Pega todas as datas e prefere a posterior ao step_date.
+      const all = Array.from(content.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)).map((m) => m[1]);
+      if (all.length === 0) return null;
+      const stepDt = stepDateIso ? new Date(stepDateIso.substring(0, 10) + "T12:00:00Z") : null;
+      if (stepDt) {
+        const futuras = all
+          .map((s) => ({ s, d: parseDM(s) }))
+          .filter((x) => x.d && x.d.getTime() > stepDt.getTime())
+          .sort((a, b) => a.d!.getTime() - b.d!.getTime());
+        if (futuras.length > 0) return futuras[0].s;
+      }
+      // 3) Última data mencionada como heurística final.
+      return all[all.length - 1];
+    }
+
+    function extractHorario(content: string): string | null {
+      // Formatos aceitos: 14:30, 14h30, 14h, 9:00, "às 14 horas", "às 14h"
+      const hm = content.match(/\b(\d{1,2})\s*[:hH]\s*(\d{2})\b/);
+      if (hm) return `${hm[1].padStart(2, "0")}:${hm[2]}`;
+      const hOnly = content.match(/\b(?:[àa]s\s+)?(\d{1,2})\s*(?:h(?:oras?)?|horas?)\b/i);
+      if (hOnly) return `${hOnly[1].padStart(2, "0")}:00`;
+      return null;
+    }
+
+    function extractTipo(content: string): string | null {
+      if (/virtual/i.test(content)) return "Virtual";
+      if (/telepresencial/i.test(content)) return "Telepresencial";
+      if (/h[ií]brid/i.test(content)) return "Híbrido";
+      if (/presencial/i.test(content)) return "Presencial";
+      return null;
+    }
+
+    // Coleta movimentos de pauta com índice cronológico (steps já vem ordenado;
+    // assumimos ordem cronológica crescente). Se houver cancelamento DEPOIS do
+    // último agendamento, descartamos.
+    type PautaHit = { idx: number; content: string; stepDate: string | null };
+    const pautaHits: PautaHit[] = [];
+    let lastCancelIdx = -1;
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       const content = (step?.content || step?.title || step?.description || "").toString();
       const stepDate = step?.step_date || step?.date || null;
-
-      if (PAUTA.test(content) && !dataJulgamento) {
-        const dm = content.match(/(\d{2}\/\d{2}\/\d{4})/);
-        if (dm) {
-          const [d, m, y] = dm[1].split("/");
-          dataJulgamento = `${y}-${m}-${d}`;
-        } else if (stepDate) {
-          dataJulgamento = stepDate.substring(0, 10);
-        }
+      if (PAUTA_CANCEL.test(content)) lastCancelIdx = i;
+      if (PAUTA.test(content)) pautaHits.push({ idx: i, content, stepDate });
+    }
+    // Filtra apenas hits posteriores ao último cancelamento.
+    const validPauta = pautaHits.filter((h) => h.idx > lastCancelIdx);
+    if (validPauta.length > 0) {
+      // Usa o ÚLTIMO movimento de pauta válido (remarcações).
+      const chosen = validPauta[validPauta.length - 1];
+      const dm = extractScheduledDate(chosen.content, chosen.stepDate);
+      if (dm) {
+        const [d, m, y] = dm.split("/");
+        dataJulgamento = `${y}-${m}-${d}`;
         temDataJulgamento = "S";
-        const hm = content.match(/(\d{1,2})[h:](\d{2})/);
-        if (hm) horarioJulgamento = `${hm[1].padStart(2, "0")}:${hm[2]}`;
-        if (/virtual/i.test(content)) tipoJulgamento = "Virtual";
-        else if (/telepresencial/i.test(content)) tipoJulgamento = "Telepresencial";
-        else if (/h[ií]brid/i.test(content)) tipoJulgamento = "Híbrido";
-        else if (/presencial/i.test(content)) tipoJulgamento = "Presencial";
       }
+      horarioJulgamento = extractHorario(chosen.content);
+      tipoJulgamento = extractTipo(chosen.content);
+
+      // Fallback: se não achou horário/tipo no movimento principal, varre os
+      // demais movimentos de pauta (mais recentes primeiro).
+      if (!horarioJulgamento || !tipoJulgamento) {
+        for (let i = validPauta.length - 2; i >= 0; i--) {
+          if (!horarioJulgamento) horarioJulgamento = extractHorario(validPauta[i].content);
+          if (!tipoJulgamento) tipoJulgamento = extractTipo(validPauta[i].content);
+          if (horarioJulgamento && tipoJulgamento) break;
+        }
+      }
+      console.log(
+        `[buscar-judit] pauta detectada -> data=${dataJulgamento} hora=${horarioJulgamento} tipo=${tipoJulgamento} | hits=${validPauta.length} cancel_idx=${lastCancelIdx}`,
+      );
+    }
+
+    // Demais resultados (transcendência, conhecimento, baixa) — varre todos os steps.
+    for (const step of steps) {
+      const content = (step?.content || step?.title || step?.description || "").toString();
 
       if (SEM_TRANSC.test(content)) resultadoSemTranscendencia = true;
       if (CONH_NAO_PROV.test(content)) resultadoConhecidoNaoProvido = true;

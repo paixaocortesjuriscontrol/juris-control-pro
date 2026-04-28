@@ -198,6 +198,12 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
           next.transito_julgado = true;
           filled.add("transito_julgado");
         }
+        // Pauta de julgamento (data marcada, horário, modalidade) — vão direto
+        // para `dados_benner` via passthrough no distribuicaoToBenner.
+        apply("tem_data_julgamento", data.tem_data_julgamento);
+        apply("data_julgamento", data.data_julgamento);
+        apply("horario_julgamento", data.horario_julgamento);
+        apply("tipo_julgamento", data.tipo_julgamento);
         return next;
       })();
 
