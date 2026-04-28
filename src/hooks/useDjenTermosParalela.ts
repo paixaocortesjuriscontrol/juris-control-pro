@@ -51,10 +51,16 @@ export function useDjenTermosParalela() {
     }, 5_000);
 
     const clockIntv = setInterval(() => {
-      setProgress((current) => current.status === 'executando'
-        ? { ...current, tempoDecorrido: current.tempoDecorrido + 1 }
-        : current
-      );
+      setProgress((current) => {
+        if (current.status !== 'executando') return current;
+        const startedAt = current.iniciadoEm ? new Date(current.iniciadoEm).getTime() : 0;
+        return {
+          ...current,
+          tempoDecorrido: startedAt > 0
+            ? Math.floor(Math.max(0, Date.now() - startedAt) / 1000)
+            : current.tempoDecorrido + 1,
+        };
+      });
       setIsRunning(isDjenTermosParalelaRunning());
     }, 1_000);
 
