@@ -417,6 +417,22 @@ function classificarRecursoInterposto(texto: string): string | null {
   return null;
 }
 
+function normalizarListaRecursos(value: string | null): string | null {
+  const parts = (value || "")
+    .split(/\s*\+\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const part of parts) {
+    const key = normalizePlain(part);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    clean.push(part);
+  }
+  return clean.length ? clean.join(" + ") : null;
+}
+
 /**
  * Mapeia o tipo_pessoa retornado pela Judit para o lado ORIGINAL no processo
  * (ACTIVE = polo ativo / reclamante; PASSIVE = polo passivo / reclamada).
@@ -576,14 +592,14 @@ function extrairRecursosPorParte(
       }
     }
 
+    const appendUnique = (arr: string[], valor: string) => {
+      if (!arr.some((item) => normalizePlain(item) === normalizePlain(valor))) arr.push(valor);
+    };
+
     if (ladoAtivo && !ladoPassivo) {
-      if (recursosReclamante[recursosReclamante.length - 1] !== sigla) {
-        recursosReclamante.push(sigla);
-      }
+      appendUnique(recursosReclamante, sigla);
     } else if (ladoPassivo && !ladoAtivo) {
-      if (recursosBanco[recursosBanco.length - 1] !== sigla) {
-        recursosBanco.push(sigla);
-      }
+      appendUnique(recursosBanco, sigla);
     }
     // Se ambíguo (ambos ou nenhum lado identificado), NÃO atribui a nenhum
     // lado — preferimos deixar vazio a classificar incorretamente. O usuário
