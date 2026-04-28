@@ -268,7 +268,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
-        apenasNaoLidas: filtros.apenasNaoLidas ?? null,
+        readStatus,
       },
     ],
     queryFn: async () => {
@@ -339,7 +339,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         tipoOrigem: filtros.tipoOrigem ?? null,
         termoBusca: filtros.termoBusca ?? null,
         monitoramentoId: filtros.monitoramentoId ?? null,
-        apenasNaoLidas: filtros.apenasNaoLidas ?? null,
+        readStatus,
       },
     ],
     queryFn: async () => {
@@ -387,11 +387,19 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const nP = Number(row?.nao_lidas_processos ?? 0);
       const total = tT + tP;
       const naoLidas = nT + nP;
+      const lT = Math.max(0, tT - nT);
+      const lP = Math.max(0, tP - nP);
+      if (readStatus === 'nao_lidas') {
+        return { total: naoLidas, naoLidas, totalTermos: nT, totalProcessos: nP };
+      }
+      if (readStatus === 'lidas') {
+        return { total: lT + lP, naoLidas: 0, totalTermos: lT, totalProcessos: lP };
+      }
       return {
-        total: filtros.apenasNaoLidas ? naoLidas : total,
+        total,
         naoLidas,
-        totalTermos: filtros.apenasNaoLidas ? nT : tT,
-        totalProcessos: filtros.apenasNaoLidas ? nP : tP,
+        totalTermos: tT,
+        totalProcessos: tP,
       };
     },
     enabled: !!user?.id,
