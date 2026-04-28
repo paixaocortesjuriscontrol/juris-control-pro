@@ -274,24 +274,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
-      // Se não há filtro de data, buscar últimos 30 dias por padrão para capturar todas publicações não lidas
-      const hoje = new Date();
-      const trintaDiasAtras = new Date(hoje);
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
-
       const dataInicioFiltro = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : dateLocalToUTCRange(defaultInicioYmd, false);
+          : null;
 
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : formatToUTC(endOfDay(new Date()));
+          : null;
 
       try {
         let q = (supabase
@@ -345,21 +338,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
 
-      const hoje = new Date();
-      const trintaDiasAtras = new Date(hoje);
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
-
       const di = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : dateLocalToUTCRange(defaultInicioYmd, false);
+          : null;
       const df = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : formatToUTC(endOfDay(new Date()));
+          : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
       // do usuário autenticado (espelhando o mergeWithLeituras no client),
@@ -417,25 +405,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
-      // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
-      // Se usuário seleciona 30/01, deve buscar 30/01 00:00 BRT até 30/01 23:59 BRT
-      // Se não há filtro de data, buscar últimos 30 dias por padrão para capturar todas publicações não lidas
-      const hoje = new Date();
-      const trintaDiasAtras = new Date(hoje);
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
-
       const dataInicioFiltro = filtros.apenasHoje 
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio 
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : dateLocalToUTCRange(defaultInicioYmd, false);
+          : null;
       
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : formatToUTC(endOfDay(new Date()));
+          : null;
 
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
