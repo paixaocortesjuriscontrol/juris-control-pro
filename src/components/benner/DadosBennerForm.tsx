@@ -373,12 +373,16 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       // Só preserva o valor atual quando a Judit não retornou nada para o campo.
       const pick = <T,>(novo: T, atual: T): T =>
         (novo !== null && novo !== undefined && String(novo as any).trim() !== "" ? novo : atual);
+      // Para os campos de Tipo de Recurso, a Judit é fonte ÚNICA: quando ela
+      // não confirma, o valor antigo (possivelmente errado) é APAGADO. Sem
+      // fallback DataJud, sem chute por classe da capa.
+      const pickJuditOnly = <T,>(novo: T): T => (novo ?? null) as T;
       const nextForm = {
         ...form,
         dossie: pick(data.dossie, form.dossie),
-        tipo_recurso: pick(data.tipo_recurso, form.tipo_recurso),
-        tipo_recurso_reclamante: pick(data.tipo_recurso_reclamante, (form as any).tipo_recurso_reclamante ?? null),
-        tipo_recurso_banco: pick(data.tipo_recurso_banco, (form as any).tipo_recurso_banco ?? null),
+        tipo_recurso: pickJuditOnly(data.tipo_recurso),
+        tipo_recurso_reclamante: pickJuditOnly(data.tipo_recurso_reclamante),
+        tipo_recurso_banco: pickJuditOnly(data.tipo_recurso_banco),
         data_distribuicao: pick(data.data_distribuicao, form.data_distribuicao),
         data_distribuicao_real: pick(data.data_distribuicao, (form as any).data_distribuicao_real ?? null),
         reclamante: pick(partesAtivas, (form as any).reclamante ?? null),
