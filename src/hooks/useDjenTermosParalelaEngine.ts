@@ -1357,6 +1357,11 @@ async function executarLoop(
           .update({
             status: finalStatus,
             finalizado_em: new Date().toISOString(),
+            lotes_processados: state.progress.tribunaisConcluidos,
+            total_lotes: state.progress.totalTribunais,
+            registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+            registros_encontrados: state.progress.novas,
+            erros: state.progress.tracks.filter(t => t.status === 'erro').length,
             detalhes: buildSnapshot({ finalStatus }),
           })
           .eq('id', executionId);
@@ -1437,6 +1442,11 @@ export function cancelarDjenTermosParalela() {
     .update({
       status: 'cancelado',
       finalizado_em: new Date().toISOString(),
+      lotes_processados: state.progress.tribunaisConcluidos,
+      total_lotes: state.progress.totalTribunais,
+      registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+      registros_encontrados: state.progress.novas,
+      erros: state.progress.tracks.filter(t => t.status === 'erro').length,
       detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
     })
     .eq('tipo', 'djen_paralela')
