@@ -20,6 +20,8 @@ interface Stats {
   outputRows: number;
   sheetsBreakdown: { name: string; count: number }[];
   rejectionsByType: Record<string, number>;
+  warnings?: number;
+  warningsByType?: Record<string, number>;
 }
 
 interface RejeicaoRow {
@@ -216,6 +218,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
 
+  const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
+
   const processData = async () => {
     setProcessing(true);
     setProgress(0);
@@ -349,6 +353,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       const output: Record<string, any>[] = [];
       const rejected: RejeicaoRow[] = [];
       let matched = 0;
+      const warningsByType: Record<string, number> = {};
+      let warningsTotal = 0;
 
       // Count by aba
       const abaCount = new Map<string, number>();
@@ -375,15 +381,25 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         let motivo = getMotivoRejeicaoDossie(dossie, numProcesso);
         if (!motivo && !turmaRaw) motivo = "Turma não preenchida";
         if (motivo) {
-          rejected.push({
-            "Dossiê": dossie,
-            "Número do Processo": numProcesso,
-            "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
-            "Turma": d.turma || "",
-            "Relator": d.relator || "",
-            "Motivo": motivo,
-          });
-          continue;
+          // Em modo "seleção manual" o usuário escolheu cada linha conscientemente:
+          // não descartamos a linha; apenas registramos um aviso e seguimos preenchendo
+          // todos os campos (Tribunal, Tipo de Recurso, Data, Turma, Relator, etc.).
+          // Em modo "filtros em massa" mantemos o comportamento de rejeição original.
+          if (isManualSelection) {
+            warningsByType[motivo] = (warningsByType[motivo] || 0) + 1;
+            warningsTotal++;
+            // Continua o fluxo abaixo (não há "continue").
+          } else {
+            rejected.push({
+              "Dossiê": dossie,
+              "Número do Processo": numProcesso,
+              "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
+              "Turma": d.turma || "",
+              "Relator": d.relator || "",
+              "Motivo": motivo,
+            });
+            continue;
+          }
         }
 
         // Match with dados_benner
@@ -509,11 +525,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outputRows: outputFinal.length,
         sheetsBreakdown,
         rejectionsByType: rejByType,
+        warnings: warningsTotal,
+        warningsByType,
       });
 
       setPhase("Concluído!");
       setProgress(100);
-      toast.success(`Layout gerado com ${outputFinal.length} linhas, ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeições.`);
+      const warningSuffix = isManualSelection && warningsTotal > 0
+        ? `, ${warningsTotal} aviso(s)`
+        : "";
+      toast.success(`Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`);
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
       console.error("[CargaBennerFromDb] Error:", err);
@@ -840,6 +861,28 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
               </CardContent>
             </Card>
           )}
+
+          {/* Avisos (linhas incluídas mesmo com pendência, em modo seleção manual) */}
+          {stats.warnings && stats.warnings > 0 && stats.warningsByType ? (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-semibold text-foreground mb-1">
+                  Avisos (linhas incluídas em modo seleção manual)
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Estas linhas foram exportadas com todos os campos da tela, mesmo com dossiê/turma faltando ou inválido.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {Object.entries(stats.warningsByType).sort((a, b) => b[1] - a[1]).map(([motivo, count]) => (
+                    <div key={motivo} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <span className="text-xs text-muted-foreground truncate mr-2">{motivo}</span>
+                      <span className="text-sm font-bold text-amber-500">{count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </>
       )}
 

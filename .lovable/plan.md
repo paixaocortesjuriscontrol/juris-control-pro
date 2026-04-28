@@ -1,101 +1,62 @@
+## Diagnóstico
 
-# POC — Pool de VPS para DJEN Termos Paralela (1 VPS, validação)
+O processo selecionado na sua tela é:
 
-## Objetivo
-Validar, com a VPS Hostinger que você já tem, se rotear as chamadas da API PJE Comunica (`comunicaapi.pje.jus.br`) por um IP diferente elimina os erros `429 Too Many Attempts` que hoje ocorrem no motor "DJEN Termos Paralela". Sem mexer nos motores Pro / Flash / STF Flash. Sem instalar nada no app além de um toggle.
+- Processo: `0000755-53.2024.5.11.0001`
+- Dossiê: **"Não localizado"**
+- Turma: 5ª Turma / Relator: MORGANA DE ALMEIDA RICHA / Tipo de Recurso: RR
 
-## Por que isso resolve o 429
-Hoje todas as 5 workers paralelas saem do mesmo IP (browser do usuário). A API PJE Comunica limita por IP. Com 1 VPS extra como proxy, a maior parte do tráfego passa a sair do IP da Hostinger — IP "limpo", sem histórico recente de uso massivo — duplicando na prática o orçamento de requests/min.
-
-## Arquitetura
+Ao clicar em **Carga Benner**, o componente `CargaBennerFromDb.processData()` aplica esta validação (linhas 88–100 e 374–387 de `src/components/distribuicao-tst/CargaBennerFromDb.tsx`):
 
 ```text
-                        ┌──────────────────────────────────────┐
-                        │  Browser (motor Paralela existente)  │
-                        └──────────────────┬───────────────────┘
-                                           │ round-robin
-                          ┌────────────────┼────────────────┐
-                          ▼                ▼                ▼
-                    [VPS proxy 1]   (slot 2 vazio)   (chamada direta
-                    djen-proxy       (futuro)        como fallback)
-                    Hostinger
-                    IP fixo
-                          │
-                          ▼
-                  comunicaapi.pje.jus.br
+getMotivoRejeicaoDossie("Não localizado", ...) 
+   → casa com /nao\s*(encontrad|localizad)/i
+   → retorna "Dossiê não localizado"
+   → linha vai para `rejected[]` e NÃO entra em `output[]`
 ```
 
-- **Pool inicial:** 1 VPS (a sua) + chamada direta como segundo "slot". Round-robin alterna entre os dois → cada um recebe metade do tráfego, o que já deve cortar o 429 quase pela metade.
-- **Quando comprar mais VPS:** o pool é configurável na UI. Você adiciona o IP/token novo em Configurações e o round-robin passa a usar 3, 4, N slots automaticamente.
+Resultado: a planilha (Completa, Até Recurso, Até Análise) sai **vazia** (0 linhas), porque o único processo selecionado foi rejeitado. Apenas o botão **"Baixar Rejeições"** traz informação — e nele só aparecem 6 colunas (Dossiê, Processo, Data, Turma, Relator, Motivo), por isso "todas as informações da tela Distribuição TST + Dados Benner" não chegam à planilha.
 
-## Entregas
+A regra hoje é por design: o layout Carga Benner exige um dossiê válido para integrar a operadora terceirizada. Mas isso impede o uso quando o usuário quer gerar a planilha **com seleção manual** (clicou na linha e quer levar tudo, mesmo sem dossiê).
 
-### 1. Novo proxy `djen-proxy` (separado do `pje-proxy`)
-Pasta nova `djen-proxy/` com:
-- `server.js` — HTTP nativo Node, zero dependências, espelha o estilo do `pje-proxy` atual
-- Endpoints:
-  - `GET /health` → `{ ok, ip, uptime_s }`
-  - `GET /djen?<query>` → repassa GET para `https://comunicaapi.pje.jus.br/api/v1/comunicacao?<query>`, retorna o JSON cru + `status` upstream + `elapsed_ms`. Header obrigatório `X-Proxy-Token`.
-- `package.json` mínimo
-- `README.md` com passo a passo Hostinger (idêntico em estilo ao `pje-proxy/README.md`: PM2, Nginx subpath, openssl token)
-- `setup.sh` — script idempotente que: cria pasta, escreve `server.js`, gera `PROXY_TOKEN` se não existir, sobe via PM2, salva, configura `pm2 startup`. Você só roda `bash setup.sh` na VPS.
+## O que mudar
 
-### 2. Camada de pool no app (`src/utils/djenProxyPool.ts`)
-- Lê config do `localStorage` (`djen_proxy_pool`) — array `{ url, token, enabled, label }`
-- Função `pickNextProxy()` → round-robin com pulo de proxies marcados como "offline temporariamente"
-- Função `fetchDjenViaPool(queryParams, signal)` que:
-  1. Sorteia próximo slot
-  2. Se slot = "direto" → chama `comunicaapi.pje.jus.br` igual hoje
-  3. Se slot = VPS → `GET https://<vps>/djen-proxy/djen?<query>` com header `X-Proxy-Token`
-  4. Em erro de rede / 5xx do proxy → marca slot como offline por 60s, refaz via próximo slot (fallback transparente)
-  5. Em 429 do upstream → propaga para o motor tratar como hoje (cooldown global)
-- Health-check leve (chama `/health` ao adicionar a VPS na UI)
+Quando o usuário selecionar processos manualmente (caso de hoje: `selectedProcessNumbers` preenchido), permitir gerar o layout completo mesmo com dossiê inválido/ausente, marcando claramente esses casos. Quando rodar sem seleção (usando filtros em massa), manter o comportamento atual de rejeição automática para não contaminar a carga real.
 
-### 3. Integração no motor Paralela
-- `src/utils/pjeComunicaClient.ts`: `fetchWithRetry` passa a usar `fetchDjenViaPool` quando o pool tiver pelo menos 1 VPS habilitada **E** a flag `useProxyPool` estiver ligada. Se pool vazio ou flag off, comportamento idêntico ao atual.
-- Flag `useProxyPool` lida do `localStorage` (`djen_proxy_pool_enabled`). Default: `false`. Não afeta Pro / Flash / STF Flash (eles não chamam essa branch porque a flag é checada só na chamada feita pelo `useDjenTermosParalelaEngine`).
-- **Importante:** Pro e Flash continuam 100% inalterados. Só a Paralela muda.
+### Mudanças em `src/components/distribuicao-tst/CargaBennerFromDb.tsx`
 
-### 4. UI em Configurações (aba existente)
-Novo card "Pool de Proxies DJEN (POC)":
-- Toggle global "Usar pool de proxies para DJEN Paralela"
-- Tabela com slots cadastrados (label, URL, status verde/vermelho via health-check, botão remover)
-- Formulário "Adicionar VPS": label, URL base (ex: `https://meudominio.com/djen-proxy`), token, botão "Testar e salvar"
-- Contador no rodapé: "X requests via VPS / Y direto na última execução" (estatística de sessão)
+1. Detectar modo "seleção manual": `const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);`
+2. No loop de processamento (linhas 374–387):
+   - Se `isManualSelection === true`:
+     - Não descartar a linha por dossiê inválido nem por turma vazia.
+     - Substituir o valor do dossiê por string vazia (ou manter o original) e seguir montando `outRow`.
+     - Registrar o motivo em uma nova coluna interna `__aviso` para exibir no painel ("Dossiê não localizado", "Turma não preenchida", etc.), mas a linha entra em `output[]`.
+   - Se `isManualSelection === false`: manter o fluxo atual (vai para `rejected[]`).
+3. Construção da linha (`outRow`) já preenche corretamente Tribunal=TST, Tipo de Recurso (a partir de `tipo_recurso_reclamante` + `tipo_recurso_banco`), Data, Turma, Relator, Recorrente, posições turma/relator etc. — não precisa mexer no mapeamento, só em deixar a linha passar.
+4. Atualizar o painel de stats:
+   - Mostrar um cartão extra "Avisos (seleção manual)" listando quantas linhas foram incluídas com dossiê/turma faltando.
+5. Toast final: ajustar mensagem para refletir o novo modo ("X linhas geradas, Y avisos").
 
-### 5. Telemetria mínima
-- O motor Paralela passa a logar no console (e no `track.mensagem` final) quantas chamadas foram via cada slot e quantos 429 cada slot recebeu. Sem persistência em DB nesta POC — só `console.table` para você comparar antes/depois.
+### Validação adicional (defensiva)
 
-## Arquivos
+- Se `cnj` (processo) estiver vazio na seleção manual, ainda assim rejeitar (não há como identificar o processo).
+- Manter o filtro de "Trânsito em Julgado" como está.
 
-**Criar:**
-- `djen-proxy/server.js`
-- `djen-proxy/package.json`
-- `djen-proxy/README.md`
-- `djen-proxy/setup.sh`
-- `src/utils/djenProxyPool.ts`
-- `src/components/configuracoes/PoolProxyDjenCard.tsx`
+### Comportamento esperado após o ajuste
 
-**Editar:**
-- `src/utils/pjeComunicaClient.ts` — `fetchWithRetry` opcionalmente usa o pool
-- `src/hooks/useDjenTermosParalelaEngine.ts` — passa flag `viaProxyPool: true` na chamada (1 linha)
-- `src/pages/Configuracoes.tsx` — render do `PoolProxyDjenCard`
+Selecionando o processo `0000755-53.2024.5.11.0001` e clicando em **Carga Benner → Gerar Layout → Completa (A-AH)**, a planilha terá 1 linha com:
 
-## Fora de escopo (POC)
-- Múltiplas VPS simultâneas (a infra suporta, mas validamos com 1 primeiro)
-- Edge Function dispatcher (você escolheu round-robin no cliente)
-- Pool para Pro / Flash / STF Flash (esses motores ficam intocados)
-- Persistência de métricas em DB
-- Dashboard histórico de uso por proxy
+| Dossiê | Tribunal | Tipo de Recurso | Data Distrib. | Turma | Relator | Recorrente | ... |
+|---|---|---|---|---|---|---|---|
+| (vazio) | TST | Recurso de Revista | 22/08/2025 | 5ª Turma | MORGANA DE ALMEIDA RICHA | (recorrente) | ... |
 
-## Critérios de aceitação
-1. `bash setup.sh` na VPS sobe o `djen-proxy` em < 1 min, sem instalar npm packages
-2. `curl https://<vps>/djen-proxy/health` retorna `{ ok: true, ip: "<ip da Hostinger>" }`
-3. Em Configurações, conseguir cadastrar a VPS, ver bolinha verde, e ligar o toggle
-4. Executar "DJEN Termos Paralela" com pool ON: console mostra ~50% das chamadas indo pela VPS
-5. Comparativo: rodar a mesma faixa de datas com pool OFF vs ON, contar 429s no console. Esperado: redução perceptível
-6. Se a VPS cair no meio da execução, o motor termina sem erro, usando 100% chamada direta (fallback transparente)
-7. Pro, Flash e STF Flash continuam funcionando exatamente como hoje (sem regressão)
+E o cartão de stats mostrará: `1 linha • 1 aviso (Dossiê não localizado)`.
 
-## Próximo passo após validação
-Se a POC mostrar que 1 VPS já corta 429 ~50%, fica óbvio o ganho de adicionar mais 2-4 VPS (basta rodar `setup.sh` em cada uma e cadastrar na UI — zero código novo).
+## Arquivos afetados
+
+- `src/components/distribuicao-tst/CargaBennerFromDb.tsx` — única alteração necessária.
+
+## Fora do escopo
+
+- Não altera o fluxo da página `Carga Benner` (importação de planilhas externas), só o componente disparado pelo botão na tela **Distribuição TST**.
+- Não muda o template `.xlsx`, nem o módulo `gerarPlanilhaBenner.ts`.
