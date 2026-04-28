@@ -229,8 +229,16 @@ export function MonitoramentoTermosParalelaCard() {
   const slotLabelById: Record<string, string> = {};
   poolSlots.forEach(s => { slotLabelById[s.id] = s.label || s.baseUrl; });
 
-  const totalProxyCalls = Object.values(poolStats.byProxy).reduce((a, b) => a + b, 0);
-  const totalRateLimits = Object.values(poolStats.rateLimitsByProxy).reduce((a, b) => a + b, 0);
+  const hydratedStats = progress.poolStats;
+  const routingStats = poolStats.total > 0 ? poolStats : {
+    total: hydratedStats?.total ?? poolStats.total,
+    direct: hydratedStats?.direct ?? poolStats.direct,
+    byProxy: hydratedStats?.byProxy ?? poolStats.byProxy,
+    rateLimitsByProxy: hydratedStats?.rateLimitsByProxy ?? poolStats.rateLimitsByProxy,
+    errorsByProxy: hydratedStats?.errorsByProxy ?? poolStats.errorsByProxy,
+  };
+  const totalProxyCalls = Object.values(routingStats.byProxy).reduce((a, b) => a + b, 0);
+  const totalRateLimits = Object.values(routingStats.rateLimitsByProxy).reduce((a, b) => a + b, 0);
   const proxiesOnline = poolSlots.filter(s => s.enabled && s.online).length;
   const proxiesTotal = poolSlots.filter(s => s.enabled).length;
 
@@ -414,7 +422,7 @@ export function MonitoramentoTermosParalelaCard() {
               Roteamento da sessão
             </div>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {poolStats.total} chamadas
+              {routingStats.total} chamadas
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -422,7 +430,7 @@ export function MonitoramentoTermosParalelaCard() {
               <div className="text-muted-foreground flex items-center gap-1">
                 <Globe className="h-3 w-3" /> Direto (browser)
               </div>
-              <div className="text-base font-bold tabular-nums">{poolStats.direct}</div>
+              <div className="text-base font-bold tabular-nums">{routingStats.direct}</div>
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground flex items-center gap-1">
@@ -449,8 +457,8 @@ export function MonitoramentoTermosParalelaCard() {
           {poolSlots.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {poolSlots.map(s => {
-                const calls = poolStats.byProxy[s.id] || 0;
-                const rl = poolStats.rateLimitsByProxy[s.id] || 0;
+                const calls = routingStats.byProxy[s.id] || 0;
+                const rl = routingStats.rateLimitsByProxy[s.id] || 0;
                 return (
                   <Badge
                     key={s.id}

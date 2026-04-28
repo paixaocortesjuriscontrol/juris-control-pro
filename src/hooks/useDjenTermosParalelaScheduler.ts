@@ -178,7 +178,7 @@ class DjenTermosParalelaScheduler {
       const targetStartIso = targetDate.toISOString();
       const { data, error } = await supabase
         .from('execucoes_agendadas')
-        .select('id, status')
+        .select('id, status, detalhes, iniciado_em')
         .eq('tipo', 'djen_paralela')
         .gte('created_at', targetStartIso)
         .in('status', ['executando', 'concluido'])
@@ -190,16 +190,37 @@ class DjenTermosParalelaScheduler {
       }
 
       if (data && data.length > 0) {
-        const exec = data[0];
-        if (exec.status === 'executando') {
-          this.showToast('DJEN Termos Paralela já está em execução no banco', 'info');
+        const exec = data[0] as any;
+        const heartbeatMs = exec?.detalhes?.heartbeat_at ? new Date(exec.detalhes.heartbeat_at).getTime() : 0;
+        const iniciadoMs = exec?.iniciado_em ? new Date(exec.iniciado_em).getTime() : 0;
+        const staleRunning = exec.status === 'executando' && (
+          heartbeatMs > 0
+            ? Date.now() - heartbeatMs > 5 * 60 * 1000
+            : iniciadoMs > 0 && Date.now() - iniciadoMs > 10 * 60 * 1000
+        );
+        if (staleRunning) {
+          const detalhes = exec.detalhes && typeof exec.detalhes === 'object' && !Array.isArray(exec.detalhes)
+            ? exec.detalhes
+            : {};
+          await supabase
+            .from('execucoes_agendadas')
+            .update({
+              status: 'erro',
+              finalizado_em: new Date().toISOString(),
+              detalhes: { ...detalhes, mensagem: 'Erro: execução órfã sem heartbeat recente' },
+            })
+            .eq('id', exec.id);
         } else {
-          this.lastRunDate = todayYmd;
-          const key = `djen-paralela-scheduler-last-run-${todayYmd}`;
-          localStorage.setItem(key, String(Date.now()));
-          this.notifySubscribers();
+          if (exec.status === 'executando') {
+            this.showToast('DJEN Termos Paralela já está em execução no banco', 'info');
+          } else {
+            this.lastRunDate = todayYmd;
+            const key = `djen-paralela-scheduler-last-run-${todayYmd}`;
+            localStorage.setItem(key, String(Date.now()));
+            this.notifySubscribers();
+          }
+          return;
         }
-        return;
       }
     } catch (err) {
       console.error('[Paralela Scheduler] Erro ao verificar execução no banco:', err);
