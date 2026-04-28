@@ -806,7 +806,7 @@ async function processarTribunalTrack(
 
     updateTrack(tribunal, {
       status: signal.aborted ? 'cancelado' : 'concluido',
-      current: total,
+      current: signal.aborted ? processed : total,
       finishedAt: Date.now(),
       mensagem: signal.aborted
         ? 'Cancelado'
@@ -1457,10 +1457,8 @@ export function executarDjenTermosParalela(
   void executarLoop(inicio, fim, retomar, coordenacaoId, monitoramentoIds);
 }
 
-export function cancelarDjenTermosParalela() {
-  if (state.abortController) {
-    state.abortController.abort();
-  }
+export async function cancelarDjenTermosParalela() {
+  stopLocalExecution();
   // Marcar todos os tracks ativos como cancelando para feedback visual imediato
   const tracks = state.progress.tracks.map(t =>
     t.status === 'executando' || t.status === 'pendente'
@@ -1475,19 +1473,16 @@ export function cancelarDjenTermosParalela() {
   };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
-  void supabase.from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      lotes_processados: state.progress.tribunaisConcluidos,
-      total_lotes: state.progress.totalTribunais,
-      registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
-      registros_encontrados: state.progress.novas,
-      erros: state.progress.tracks.filter(t => t.status === 'erro').length,
-      detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
-    })
-    .eq('tipo', 'djen_paralela')
-    .eq('status', 'executando');
+  await markActiveParalelaExecutions({
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+    lotes_processados: state.progress.tribunaisConcluidos,
+    total_lotes: state.progress.totalTribunais,
+    registros_processados: state.progress.novas + state.progress.duplicadas + state.progress.descartadas,
+    registros_encontrados: state.progress.novas,
+    erros: state.progress.tracks.filter(t => t.status === 'erro').length,
+    detalhes: buildSnapshot({ mensagem: 'Cancelado pelo usuário' }),
+  });
   state.executionId = null;
 }
 
@@ -1496,27 +1491,20 @@ export function limparEstadoDjenTermosParalela() {
   notifyListeners();
 }
 
-export function forceKillDjenTermosParalela(clearCheckpoint = false) {
-  cancelarDjenTermosParalela();
-  state.isRunning = false;
-  if (state.timerInterval) {
-    clearInterval(state.timerInterval);
-    state.timerInterval = null;
-  }
+export async function forceKillDjenTermosParalela(clearCheckpoint = false) {
+  stopLocalExecution();
   if (clearCheckpoint) saveCheckpoint(null);
   // Limpa qualquer execução órfã do tipo djen_paralela no banco para
   // garantir que o próximo "Executar" não fique bloqueado.
-  void supabase.from('execucoes_agendadas')
-    .update({
-      status: 'cancelado',
-      finalizado_em: new Date().toISOString(),
-      detalhes: { mensagem: 'Cancelado: forceKill pelo usuário' },
-    })
-    .eq('tipo', 'djen_paralela')
-    .eq('status', 'executando')
-    .is('finalizado_em', null);
   state.progress = createDefaultProgress();
+  state.lastUpdatedAt = Date.now();
   notifyListeners();
+  await markActiveParalelaExecutions({
+    status: 'cancelado',
+    finalizado_em: new Date().toISOString(),
+    detalhes: { mensagem: 'Cancelado: forceKill pelo usuário' },
+  });
+  state.executionId = null;
 }
 
 /**
