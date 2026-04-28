@@ -1303,12 +1303,20 @@ async function executarLoop(
     if (signal.aborted) {
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
     } else {
-      saveCheckpoint(null);
-      updateProgress({
-        status: 'concluido',
-        percentage: 100,
-        mensagem: `Concluído! ${state.progress.novas} novas, ${state.progress.duplicadas} duplicadas, ${state.progress.descartadas} descartadas em ${tribunais.length} tribunais`,
-      });
+      const tracksAbertas = state.progress.tracks.filter(t => t.status === 'executando' || t.status === 'pendente');
+      if (tracksAbertas.length > 0 || state.progress.percentage < 100) {
+        updateProgress({
+          status: 'erro',
+          mensagem: `Execução terminou inconsistente: ${tracksAbertas.map(t => t.tribunal).join(', ') || 'progresso incompleto'} não finalizou corretamente.`,
+        });
+      } else {
+        saveCheckpoint(null);
+        updateProgress({
+          status: 'concluido',
+          percentage: 100,
+          mensagem: `Concluído! ${state.progress.novas} novas, ${state.progress.duplicadas} duplicadas, ${state.progress.descartadas} descartadas em ${tribunais.length} tribunais`,
+        });
+      }
     }
   } catch (err: any) {
     console.error('[DJEN Paralela] Erro:', err);
