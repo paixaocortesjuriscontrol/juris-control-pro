@@ -712,9 +712,12 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       .map((p: any) => {
         const orgao = normalizePlain(p?.orgaoJudicante?.desOrgaoJudicante || "").replace(/\s+/g, " ");
         const tipo = mapMeioJulgamento(p?.codMeioJulgamento);
-        // Sempre usa dtaSessao como data de julgamento (data efetiva da sessão).
-        // dtaInicioSessao é apenas o início da janela de votação virtual.
-        const dataBase = parseTstDate(p?.dtaSessao) || parseTstDate(p?.dtaInicioSessao);
+        // Em julgamento virtual, o formulário deve usar o início da janela de julgamento;
+        // em sessões presenciais/telepresenciais, usa a data efetiva da sessão.
+        const isVirtual = String(tipo || "").toUpperCase().includes("VIRTUAL");
+        const dataBase = isVirtual
+          ? (parseTstDate(p?.dtaInicioSessao) || parseTstDate(p?.dtaSessao))
+          : (parseTstDate(p?.dtaSessao) || parseTstDate(p?.dtaInicioSessao));
         const divulgacao = parseTstDate(p?.dtaDivulgacao);
         const publicacao = parseTstDate(p?.dtaPublicacao);
         const diffs = [divulgacao, publicacao].filter(Boolean).map((d: any) => Math.abs(d.getTime() - stepDate.getTime()));
@@ -754,7 +757,9 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       return null;
     }
     const iso = chosen.dataBase.toISOString().slice(0, 10);
-    const rawDate = chosen.p?.dtaSessao || chosen.p?.dtaInicioSessao;
+    const rawDate = String(chosen.tipo || "").toUpperCase().includes("VIRTUAL")
+      ? (chosen.p?.dtaInicioSessao || chosen.p?.dtaSessao)
+      : (chosen.p?.dtaSessao || chosen.p?.dtaInicioSessao);
     const hm = String(rawDate ?? "").match(/\s(\d{2}):(\d{2})/);
     const horario = hm && hm[1] !== "00" ? `${hm[1]}:${hm[2]}` : null;
     return { data: iso, horario, tipo: chosen.tipo };
