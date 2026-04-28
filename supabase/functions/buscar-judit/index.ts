@@ -799,11 +799,17 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       // embora a pauta agregada traga a janela correta. Para não voltar à data
       // de publicação (ex.: 26/03), aceita apenas candidato virtual próximo da
       // publicação/inclusão em pauta; isso corrige casos como início 27/04/2026.
-      chosen = pool.find((cand: any) =>
-        String(cand.tipo || "").toUpperCase().includes("VIRTUAL") &&
-        cand.pubDiff <= 7 * 24 * 60 * 60 * 1000 &&
-        cand.dataBase.getTime() > stepDate.getTime()
-      ) || null;
+      chosen = pool
+        .filter((cand: any) =>
+          String(cand.tipo || "").toUpperCase().includes("VIRTUAL") &&
+          cand.pubDiff <= 7 * 24 * 60 * 60 * 1000 &&
+          cand.dataBase.getTime() > stepDate.getTime()
+        )
+        .sort((a: any, b: any) =>
+          (String(b.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) -
+          (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) ||
+          a.dataBase.getTime() - b.dataBase.getTime()
+        )[0] || null;
       if (!chosen) {
         console.log(`[buscar-judit] CNJ ${cnj} não localizado em sessão verificada — sem data de julgamento confiável`);
         return null;
