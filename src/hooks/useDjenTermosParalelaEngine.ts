@@ -686,6 +686,26 @@ function syncExecutionProgress(overrides: Record<string, any> = {}, force = fals
     });
 }
 
+async function markActiveParalelaExecutions(payload: Record<string, any>): Promise<void> {
+  const activeId = state.executionId;
+  const query = supabase
+    .from('execucoes_agendadas')
+    .update(payload)
+    .eq('tipo', 'djen_paralela')
+    .eq('status', 'executando')
+    .is('finalizado_em', null)
+    .select('id');
+  const { data, error } = activeId
+    ? await query.eq('id', activeId)
+    : await query;
+
+  if (error) {
+    console.warn('[DJEN Paralela] Falha ao cancelar execução no banco:', error.message);
+    return;
+  }
+  for (const row of data || []) state.resetExecutionIds.add(String(row.id));
+}
+
 // ============================================================================
 // PROCESSAMENTO POR TRIBUNAL (TRACK)
 // ============================================================================
