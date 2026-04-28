@@ -1272,7 +1272,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     publicacoes,
     estatisticas,
     isLoading,
-    loadingStats: isLoading,
+    loadingStats: isLoadingStats,
     marcarComoLida,
     // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
     // Fallback para a contagem da página atual enquanto a query não carrega.
