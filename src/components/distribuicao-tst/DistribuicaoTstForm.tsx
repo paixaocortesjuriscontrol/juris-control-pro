@@ -173,6 +173,19 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
             filled.add(field);
           }
         };
+        // Política específica para tipo_recurso*: a Judit é a ÚNICA fonte
+        // autorizada (regra mem://logic/judit/resource-attribution-rules).
+        // Vazio da Judit APAGA o valor antigo (ex.: dado herdado de planilha
+        // importada que não corresponde ao que a Judit confirma nos steps).
+        const applyJuditOnly = (field: string, novo: any) => {
+          if (hasValue(novo)) {
+            next[field] = novo;
+            filled.add(field);
+          } else {
+            next[field] = null;
+            filled.delete(field);
+          }
+        };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
         apply("data_distribuicao_planilha", data.data_distribuicao);
@@ -194,11 +207,11 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
         apply("reclamante", reclamanteJudit);
         apply("reclamada", reclamadaJudit);
         apply("parte_recorrente", data.recorrente);
-        apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
-        apply("tipo_recurso_banco", data.tipo_recurso_banco);
+        applyJuditOnly("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
+        applyJuditOnly("tipo_recurso_banco", data.tipo_recurso_banco);
         // Campo combinado vai direto para a coluna `tipo_recurso` em dados_benner
         // (passado adiante via distribuicaoToBenner — chave extra no payload).
-        apply("tipo_recurso", data.tipo_recurso);
+        applyJuditOnly("tipo_recurso", data.tipo_recurso);
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
