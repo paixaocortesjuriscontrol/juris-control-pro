@@ -861,6 +861,28 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
               </CardContent>
             </Card>
           )}
+
+          {/* Avisos (linhas incluídas mesmo com pendência, em modo seleção manual) */}
+          {stats.warnings && stats.warnings > 0 && stats.warningsByType ? (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm font-semibold text-foreground mb-1">
+                  Avisos (linhas incluídas em modo seleção manual)
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Estas linhas foram exportadas com todos os campos da tela, mesmo com dossiê/turma faltando ou inválido.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {Object.entries(stats.warningsByType).sort((a, b) => b[1] - a[1]).map(([motivo, count]) => (
+                    <div key={motivo} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <span className="text-xs text-muted-foreground truncate mr-2">{motivo}</span>
+                      <span className="text-sm font-bold text-amber-500">{count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </>
       )}
 
