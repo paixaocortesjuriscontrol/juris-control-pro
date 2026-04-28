@@ -410,6 +410,25 @@ function classificarRecursoInterposto(texto: string): string | null {
 }
 
 /**
+ * Mapeia o tipo_pessoa retornado pela Judit para o lado ORIGINAL no processo
+ * (ACTIVE = polo ativo / reclamante; PASSIVE = polo passivo / reclamada).
+ * Retorna null para tipos genéricos de peça recursal (AGRAVANTE, RECORRENTE,
+ * AGRAVADO, RECORRIDO) que não indicam o lado original — esses casos devem
+ * cair para o `side` da Judit.
+ */
+function ladoPorPersonType(personType: string): "ACTIVE" | "PASSIVE" | null {
+  const t = (personType || "").toString().toUpperCase().trim();
+  if (!t) return null;
+  if (/(RECLAMANTE|AUTOR|AUTORA|EXEQUENTE|REQUERENTE|IMPETRANTE|EMBARGANTE)/.test(t)) {
+    return "ACTIVE";
+  }
+  if (/(RECLAMAD|R[ÉE]U|R[ÉE]|EXECUTAD|REQUERID|IMPETRAD|EMBARGAD|LITISCONSORTE\s+PASSIV)/.test(t)) {
+    return "PASSIVE";
+  }
+  return null;
+}
+
+/**
  * Identifica recursos interpostos por reclamante e por reclamada/banco a partir
  * dos steps (movimentos), em ordem cronológica. Estratégia (1c):
  *  - Detecta o tipo de recurso pelo texto do movimento.
