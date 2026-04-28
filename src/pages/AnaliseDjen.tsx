@@ -1551,9 +1551,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
                   <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                      totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje
-                    )}
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalListaVisivel}
                   </p>
                 </div>
                 <FileText className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
@@ -1567,8 +1565,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Não Lidas</p>
                   <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      naoLidasDjenFiltrado + naoLidasDatajudHoje}
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalNaoLidasVisivel}
                   </p>
                 </div>
                 <Eye className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
@@ -1582,8 +1579,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Por Termos</p>
                   <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      totalTermosFiltrado}
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalTermosVisivel}
                   </p>
                 </div>
                 <FileSearch className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
@@ -1597,8 +1593,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Por Processos</p>
                   <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : 
-                      totalProcessosFiltrado}
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalProcessosVisivel}
                   </p>
                 </div>
                 <Gavel className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
