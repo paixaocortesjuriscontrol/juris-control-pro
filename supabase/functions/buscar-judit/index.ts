@@ -1124,15 +1124,24 @@ serve(async (req) => {
     // side/person_type na chave: a mesma parte pode aparecer como AGRAVANTE,
     // AGRAVADO, RECLAMANTE e RECORRENTE, mas deve ser enviada uma única vez ao
     // frontend com lado_efetivo consolidado.
-    const seen = new Set<string>();
+    const seen = new Map<string, number>();
     const parties: any[] = [];
     for (const p of partiesPool) {
       const doc = (p?.main_document || "").toString().replace(/\D/g, "");
       const name = (p?.name || "").toString().trim().toUpperCase();
       const key = doc ? `doc:${doc}` : `nm:${name}`;
-      if (!name || seen.has(key)) continue;
-      parties.push(p);
-      seen.add(key);
+      if (!name) continue;
+      const existingIdx = seen.get(key);
+      if (existingIdx === undefined) {
+        parties.push(p);
+        seen.set(key, parties.length - 1);
+        continue;
+      }
+      const currentType = (parties[existingIdx]?.person_type || "").toString().toUpperCase();
+      const newType = (p?.person_type || "").toString().toUpperCase();
+      if (ladoPorPersonType(newType) && !ladoPorPersonType(currentType)) {
+        parties[existingIdx] = p;
+      }
     }
     console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
     // Lado efetivo de cada parte: prioriza person_type ORIGINAL
