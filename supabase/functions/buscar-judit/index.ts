@@ -1180,6 +1180,7 @@ serve(async (req) => {
           .filter((x) => x.d && x.d.getTime() > stepDt.getTime())
           .sort((a, b) => a.d!.getTime() - b.d!.getTime());
         if (futuras.length > 0) return futuras[0].s;
+        return null;
       }
       if (/disponibiliza[çc][aã]o|publica[çc][aã]o|di[aá]rio\s+da\s+justi[çc]a|dje|dejt/i.test(content)) return null;
       // 3) Última data mencionada como heurística final.
