@@ -256,34 +256,41 @@ const AnaliseDjen = () => {
       if (!(tipoOrigem === 'datajud' || tipoOrigem === 'todos' || tipoOrigem === 'normal')) {
         return { total: 0, naoLidas: 0 };
       }
-      const today = new Date().toISOString().slice(0, 10);
-      let query = supabase
-        .from('movimentacoes_datajud')
-        .select('id', { count: 'exact', head: true })
-      if (apenasHoje) {
-        query = query.gte('created_at', `${today}T00:00:00Z`);
-      } else {
-        if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
-        if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
-      }
-      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
-      if (apenasNaoLidas) query = query.eq('lida', false);
-      if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
-      if (termoBusca) {
-        const digits = termoBusca.replace(/\D/g, '');
-        if (digits.length >= 5) {
-          query = query.ilike('numero_processo', `%${digits}%`);
+      const applyFilters = (onlyUnread: boolean) => {
+        const today = new Date().toISOString().slice(0, 10);
+        let query = supabase
+          .from('movimentacoes_datajud')
+          .select('id', { count: 'exact', head: true });
+        if (apenasHoje) {
+          query = query.gte('created_at', `${today}T00:00:00Z`);
         } else {
-          query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+          if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
+          if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
         }
-      }
-      const { count } = await query;
-      const total = count || 0;
-      return { total, naoLidas: apenasNaoLidas ? total : 0 };
+        if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+        if (onlyUnread) query = query.eq('lida', false);
+        if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
+        if (termoBusca) {
+          const digits = termoBusca.replace(/\D/g, '');
+          if (digits.length >= 5) {
+            query = query.ilike('numero_processo', `%${digits}%`);
+          } else {
+            query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+          }
+        }
+        return query;
+      };
+
+      const unreadQuery = applyFilters(true);
+      const totalQuery = apenasNaoLidas ? unreadQuery : applyFilters(false);
+      const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([totalQuery, unreadQuery]);
+      return { total: totalCount || 0, naoLidas: unreadCount || 0 };
     },
     staleTime: 30_000,
   });
   const totalDatajudHoje = datajudStats.total;
+  const naoLidasDatajudHoje = datajudStats.naoLidas;
+  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
