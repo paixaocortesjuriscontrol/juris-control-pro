@@ -910,6 +910,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tipo_recurso"))}>
               <JuditLabel field="tipo_recurso"><Label>Tipo de Recurso (C)</Label></JuditLabel>
               <Input value={form.tipo_recurso || ""} onChange={e => set("tipo_recurso", e.target.value)} />
+              {tipoRecursoJuditVazio && (
+                <div className="text-xs rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-1.5 leading-snug">
+                  ⚠ Judit não identificou recurso interposto neste processo. Os campos
+                  de Tipo de Recurso foram limpos. Preencha manualmente apenas se você
+                  confirmar a existência de um recurso pelo PJe/TST.
+                </div>
+              )}
             </div>
             {/* Data Distribuição (D) */}
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("data_distribuicao"))}>
