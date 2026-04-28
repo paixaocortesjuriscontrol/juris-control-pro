@@ -207,7 +207,7 @@ const AnaliseDjen = () => {
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
-    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas],
+    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, readStatus],
     queryFn: async () => {
       let query = supabase
         .from('movimentacoes_datajud')
@@ -222,8 +222,10 @@ const AnaliseDjen = () => {
       if (coordenacaoFiltroEfetivo) {
         query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       }
-      if (apenasNaoLidas) {
+      if (readStatus === 'nao_lidas') {
         query = query.eq('lida', false);
+      } else if (readStatus === 'lidas') {
+        query = query.eq('lida', true);
       }
       if (monitoramentoId) {
         query = query.eq('monitoramento_id', monitoramentoId);
@@ -254,7 +256,7 @@ const AnaliseDjen = () => {
 
   // Count DataJud for stats using the same filters as the list
   const { data: datajudStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingDatajudStats } = useQuery({
-    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas, tipoOrigem],
+    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, readStatus, tipoOrigem],
     queryFn: async () => {
       if (tipoOrigem !== 'datajud') {
         return { total: 0, naoLidas: 0 };
@@ -284,10 +286,15 @@ const AnaliseDjen = () => {
         return query;
       };
 
-      if (apenasNaoLidas) {
+      if (readStatus === 'nao_lidas') {
         const { count } = await applyFilters(true);
         const total = count || 0;
         return { total, naoLidas: total };
+      }
+
+      if (readStatus === 'lidas') {
+        const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([applyFilters(false), applyFilters(true)]);
+        return { total: Math.max(0, (totalCount || 0) - (unreadCount || 0)), naoLidas: 0 };
       }
 
       const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([applyFilters(false), applyFilters(true)]);
