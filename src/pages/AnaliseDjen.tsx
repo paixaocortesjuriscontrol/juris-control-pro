@@ -1525,6 +1525,25 @@ const AnaliseDjen = () => {
     b.publicacoes.length - a.publicacoes.length
   );
 
+  const getGrupoContadores = (grupo: { coordenacao_id: string; publicacoes: PublicacaoUnificada[] }) => {
+    const usarTotaisDoFiltro = !!coordenacaoFiltroEfetivo && grupo.coordenacao_id === coordenacaoFiltroEfetivo && !apenasComProcesso;
+    if (!usarTotaisDoFiltro) {
+      return {
+        total: grupo.publicacoes.length,
+        termos: grupo.publicacoes.filter(p => p.tipo_origem === 'termo').length,
+        processos: grupo.publicacoes.filter(p => p.tipo_origem === 'processo').length,
+        naoLidas: grupo.publicacoes.filter(p => !p.lida).length,
+      };
+    }
+
+    return {
+      total: totalDjenFiltrado + totalDescartadasFiltrado + totalDatajudHoje,
+      termos: totalTermosFiltrado,
+      processos: totalProcessosFiltrado,
+      naoLidas: naoLidasDjenFiltrado + naoLidasDatajudHoje,
+    };
+  };
+
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
