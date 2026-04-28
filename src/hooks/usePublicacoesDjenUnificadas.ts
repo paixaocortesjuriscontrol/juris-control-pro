@@ -1210,5 +1210,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     totalHoje: publicacoes.length,
     naoLidasHoje: publicacoes.filter(p => !p.lida).length,
     totalDescartadasHoje,
+    page,
+    pageSize,
+    hasNextPage,
   };
 }
