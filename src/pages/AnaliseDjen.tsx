@@ -355,13 +355,7 @@ const AnaliseDjen = () => {
   const mergedPublicacoes = useMemo(() => {
     let result: PublicacaoUnificada[];
     if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
-    else if (tipoOrigem === 'todos' || tipoOrigem === 'normal') {
-      result = [...publicacoes, ...datajudAsPublicacoes].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    } else {
-      result = publicacoes;
-    }
+    else result = publicacoes;
     return filtrarPorCoordenacaoUsuario(result);
   }, [tipoOrigem, publicacoes, datajudAsPublicacoes, deveRestringirPorCoordenacao, userCoordenacaoIds]);
 
