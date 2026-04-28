@@ -48,11 +48,20 @@ export function useDjenTermosParalela() {
     const intv = setInterval(() => {
       // Mantém em sincronia caso a Paralela seja iniciada por outra aba/scheduler
       void hydrateDjenTermosParalelaFromBackend();
-    }, 30_000);
+    }, 5_000);
+
+    const clockIntv = setInterval(() => {
+      setProgress((current) => current.status === 'executando'
+        ? { ...current, tempoDecorrido: current.tempoDecorrido + 1 }
+        : current
+      );
+      setIsRunning(isDjenTermosParalelaRunning());
+    }, 1_000);
 
     return () => {
       unsub();
       clearInterval(intv);
+      clearInterval(clockIntv);
     };
   }, [queryClient]);
 
