@@ -765,19 +765,22 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       })
       .filter((x: any) => x.dataBase && x.dataBase.getTime() >= stepDate.getTime())
       .filter((x: any) => x.orgao.includes(turmaNorm) || turmaNorm.includes(x.orgao));
-    // Ordena: data da sessão mais próxima do stepDate primeiro (sessões futuras),
-    // empata por proximidade da publicação. Verifica presença do CNJ em CADA sessão
-    // antes de decidir — só usa pubDiff como desempate, nunca como critério único.
+    // Ordena por maior probabilidade: para pauta virtual, a data relevante é o
+    // início da janela; quando existir origem PJE, ela costuma ser a fonte que
+    // contém a janela correta exibida nos andamentos do processo.
     const pool = [...candidatos].sort((a: any, b: any) =>
-      a.dataBase.getTime() - b.dataBase.getTime() || a.pubDiff - b.pubDiff,
+      a.pubDiff - b.pubDiff ||
+      (String(b.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) -
+      (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) ||
+      a.dataBase.getTime() - b.dataBase.getTime(),
     );
     console.log(`[buscar-judit] pauta TST: ${pool.length} sessões candidatas para turma="${turma}" stepDate=${stepDateIso}`);
     let chosen: any = null;
-    for (const cand of pool.slice(0, 25)) {
+    for (const cand of pool.slice(0, 8)) {
       const org = cand.p?.orgaoJudicante || {};
       const sessao = `${org.codOrgaoJudicante}-${cand.p?.anoPauta}-${cand.p?.numPauta}-${cand.p?.tipSessao}`;
       const pc = new AbortController();
-      const pt = setTimeout(() => pc.abort(), 3000);
+      const pt = setTimeout(() => pc.abort(), 900);
       try {
         const pr = await fetch(`https://pautaws.tst.jus.br/rest/processospauta/tst?sessao=${encodeURIComponent(sessao)}`, { signal: pc.signal });
         if (pr.ok) {
@@ -792,8 +795,20 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       finally { clearTimeout(pt); }
     }
     if (!chosen) {
-      console.log(`[buscar-judit] CNJ ${cnj} não localizado em nenhuma sessão verificada — sem data de julgamento confiável`);
-      return null;
+      // A API pública frequentemente não lista processos de sessões PJE/virtuais,
+      // embora a pauta agregada traga a janela correta. Para não voltar à data
+      // de publicação (ex.: 26/03), aceita apenas candidato virtual próximo da
+      // publicação/inclusão em pauta; isso corrige casos como início 27/04/2026.
+      chosen = pool.find((cand: any) =>
+        String(cand.tipo || "").toUpperCase().includes("VIRTUAL") &&
+        cand.pubDiff <= 7 * 24 * 60 * 60 * 1000 &&
+        cand.dataBase.getTime() > stepDate.getTime()
+      ) || null;
+      if (!chosen) {
+        console.log(`[buscar-judit] CNJ ${cnj} não localizado em sessão verificada — sem data de julgamento confiável`);
+        return null;
+      }
+      console.log(`[buscar-judit] pauta TST virtual aplicada por janela provável (sem lista de processos): data=${chosen.dataBase.toISOString().slice(0, 10)} meio=${chosen.tipo}`);
     }
     const iso = chosen.dataBase.toISOString().slice(0, 10);
     const rawDate = String(chosen.tipo || "").toUpperCase().includes("VIRTUAL")
