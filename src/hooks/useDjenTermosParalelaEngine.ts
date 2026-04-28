@@ -1304,10 +1304,11 @@ async function executarLoop(
       updateProgress({ status: 'cancelado', mensagem: 'Execução cancelada' });
     } else {
       const tracksAbertas = state.progress.tracks.filter(t => t.status === 'executando' || t.status === 'pendente');
-      if (tracksAbertas.length > 0 || state.progress.percentage < 100) {
+      const tracksComErro = state.progress.tracks.filter(t => t.status === 'erro');
+      if (tracksAbertas.length > 0 || tracksComErro.length > 0) {
         updateProgress({
           status: 'erro',
-          mensagem: `Execução terminou inconsistente: ${tracksAbertas.map(t => t.tribunal).join(', ') || 'progresso incompleto'} não finalizou corretamente.`,
+          mensagem: `Execução terminou inconsistente: ${[...tracksAbertas, ...tracksComErro].map(t => t.tribunal).join(', ')} não finalizou corretamente.`,
         });
       } else {
         saveCheckpoint(null);
