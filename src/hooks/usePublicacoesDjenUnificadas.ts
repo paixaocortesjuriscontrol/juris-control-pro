@@ -511,7 +511,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
                   ? mappedBatch.filter((p) => p.tipo_origem === 'processo')
                   : mappedBatch;
 
-            const unreadBatch = await mergeWithLeituras(user!.id, typedBatch, true);
+            const unreadBatch = await mergeWithLeituras(user!.id, typedBatch, 'nao_lidas');
             naoLidasAcumuladas.push(...unreadBatch);
             if (mappedBatch.length < batchSize) break;
           }
@@ -688,7 +688,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const finalRows = await mergeWithLeituras(
           user!.id,
           deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-          !!filtros.apenasNaoLidas,
+          readStatus,
         );
         return { rows: finalRows, lastChunkSize };
 
@@ -1028,7 +1028,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const sorted = deduped.sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-      const finalRowsFallback = await mergeWithLeituras(user!.id, sorted, !!filtros.apenasNaoLidas);
+      const finalRowsFallback = await mergeWithLeituras(user!.id, sorted, readStatus);
       // lastChunkSize: tamanho do maior bloco bruto carregado (heurística para hasNextPage)
       const lastChunkSize = Math.max(
         0,
