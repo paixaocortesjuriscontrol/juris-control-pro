@@ -712,9 +712,12 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       .map((p: any) => {
         const orgao = normalizePlain(p?.orgaoJudicante?.desOrgaoJudicante || "").replace(/\s+/g, " ");
         const tipo = mapMeioJulgamento(p?.codMeioJulgamento);
-        // Sempre usa dtaSessao como data de julgamento (data efetiva da sessão).
-        // dtaInicioSessao é apenas o início da janela de votação virtual.
-        const dataBase = parseTstDate(p?.dtaSessao) || parseTstDate(p?.dtaInicioSessao);
+        // Em julgamento virtual, o formulário deve usar o início da janela de julgamento;
+        // em sessões presenciais/telepresenciais, usa a data efetiva da sessão.
+        const isVirtual = String(tipo || "").toUpperCase().includes("VIRTUAL");
+        const dataBase = isVirtual
+          ? (parseTstDate(p?.dtaInicioSessao) || parseTstDate(p?.dtaSessao))
+          : (parseTstDate(p?.dtaSessao) || parseTstDate(p?.dtaInicioSessao));
         const divulgacao = parseTstDate(p?.dtaDivulgacao);
         const publicacao = parseTstDate(p?.dtaPublicacao);
         const diffs = [divulgacao, publicacao].filter(Boolean).map((d: any) => Math.abs(d.getTime() - stepDate.getTime()));
@@ -754,7 +757,9 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       return null;
     }
     const iso = chosen.dataBase.toISOString().slice(0, 10);
-    const rawDate = chosen.p?.dtaSessao || chosen.p?.dtaInicioSessao;
+    const rawDate = String(chosen.tipo || "").toUpperCase().includes("VIRTUAL")
+      ? (chosen.p?.dtaInicioSessao || chosen.p?.dtaSessao)
+      : (chosen.p?.dtaSessao || chosen.p?.dtaInicioSessao);
     const hm = String(rawDate ?? "").match(/\s(\d{2}):(\d{2})/);
     const horario = hm && hm[1] !== "00" ? `${hm[1]}:${hm[2]}` : null;
     return { data: iso, horario, tipo: chosen.tipo };
@@ -1156,8 +1161,12 @@ serve(async (req) => {
     }
 
     function extractScheduledDate(content: string, stepDateIso: string | null): string | null {
+      const isPublicationOnly = /disponibiliza[çc][aã]o|publica[çc][aã]o|di[aá]rio\s+da\s+justi[çc]a|dje|dejt/i.test(content)
+        && !/inclu[ií]d[oa].*pauta|pautad[oa]|marcad[oa]|designad[oa]|sess[aã]o\s+de\s+julgamento|julgamento\s+(?:de|do\s+dia)/i.test(content);
+      if (isPublicationOnly) return null;
+
       // 1) Tenta achar data precedida por marcadores explícitos de agendamento.
-      const marcador = /(?:para(?:\s+(?:o\s+dia|a\s+sess[aã]o(?:\s+de)?|julgamento(?:\s+do\s+dia)?))?|dia|em|designad[oa](?:\s+para)?|sess[aã]o\s+de(?:\s+julgamento(?:\s+do\s+dia)?)?|julgamento\s+(?:de|do\s+dia)|pautad[oa]\s+para|marcad[oa]\s+para|agendad[oa]\s+para)\s+(?:o\s+dia\s+)?(\d{2}\/\d{2}\/\d{4})/i;
+      const marcador = /(?:para(?:\s+(?:o\s+dia|a\s+sess[aã]o(?:\s+de)?|julgamento(?:\s+do\s+dia)?))?|designad[oa](?:\s+para)?|sess[aã]o\s+de(?:\s+julgamento(?:\s+do\s+dia)?)?|julgamento\s+(?:de|do\s+dia)|pautad[oa]\s+para|marcad[oa]\s+para|agendad[oa]\s+para)\s+(?:o\s+dia\s+)?(\d{2}\/\d{2}\/\d{4})/i;
       const mm = content.match(marcador);
       if (mm) return mm[1];
 
@@ -1171,7 +1180,9 @@ serve(async (req) => {
           .filter((x) => x.d && x.d.getTime() > stepDt.getTime())
           .sort((a, b) => a.d!.getTime() - b.d!.getTime());
         if (futuras.length > 0) return futuras[0].s;
+        return null;
       }
+      if (/disponibiliza[çc][aã]o|publica[çc][aã]o|di[aá]rio\s+da\s+justi[çc]a|dje|dejt/i.test(content)) return null;
       // 3) Última data mencionada como heurística final.
       return all[all.length - 1];
     }
@@ -1232,6 +1243,18 @@ serve(async (req) => {
       console.log(
         `[buscar-judit] pauta detectada -> data=${dataJulgamento} hora=${horarioJulgamento} tipo=${tipoJulgamento} | hits=${validPauta.length} cancel_idx=${lastCancelIdx}`,
       );
+    }
+
+    const pautaReferencia = validPauta.length > 0 ? validPauta[validPauta.length - 1].stepDate : null;
+    if (tribunalAcronimo === "TST" && pautaReferencia) {
+      const pautaOficialTst = await consultarPautaPublicaTst(cnj, turma, pautaReferencia);
+      if (pautaOficialTst) {
+        dataJulgamento = pautaOficialTst.data;
+        horarioJulgamento = pautaOficialTst.horario || horarioJulgamento;
+        tipoJulgamento = pautaOficialTst.tipo || tipoJulgamento;
+        temDataJulgamento = "S";
+        console.log(`[buscar-judit] pauta oficial TST aplicada -> data=${dataJulgamento} hora=${horarioJulgamento} tipo=${tipoJulgamento}`);
+      }
     }
 
     // Demais resultados (transcendência, conhecimento, baixa) — varre todos os steps.
