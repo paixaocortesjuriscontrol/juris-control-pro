@@ -1593,6 +1593,22 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       callsByProxy: t?.callsByProxy && typeof t.callsByProxy === 'object' ? t.callsByProxy : {},
     }));
 
+    const aggregateFromTracks = tracks.reduce(
+      (acc, t) => {
+        acc.novas += Number(t.novas || 0);
+        acc.duplicadas += Number(t.duplicadas || 0);
+        acc.descartadas += Number(t.descartadas || 0);
+        acc.current += Number(t.current || 0);
+        acc.total += Number(t.total || 0);
+        if (t.status === 'concluido' || t.status === 'erro' || t.status === 'cancelado') acc.concluidos += 1;
+        return acc;
+      },
+      { novas: 0, duplicadas: 0, descartadas: 0, current: 0, total: 0, concluidos: 0 },
+    );
+    const percentageFromTracks = aggregateFromTracks.total > 0
+      ? Math.min(100, Math.max(0, Math.round((aggregateFromTracks.current / aggregateFromTracks.total) * 100)))
+      : 0;
+
     // Status do progress: se a execução agendada terminou, refletir 'concluido';
     // se ainda está em andamento mas a UI não está rodando, mostrar como 'concluido'
     // (visualização histórica) — o usuário pode clicar Retomar se quiser.
@@ -1602,23 +1618,23 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       : execStatus === 'cancelado' ? 'cancelado'
       : 'concluido';
 
-    const tempoDecorrido = Number(det.tempoDecorrido || 0)
-      || (data.iniciado_em && data.finalizado_em
-          ? Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime())
-          : 0);
+    const tempoDecorrido = finalStatus === 'executando' && data.iniciado_em
+      ? Math.floor(Math.max(0, Date.now() - new Date(data.iniciado_em).getTime()) / 1000)
+      : Number(det.tempoDecorrido || 0)
+        || (data.iniciado_em && data.finalizado_em
+            ? Math.floor(Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime()) / 1000)
+            : 0);
 
     state.progress = {
       ...createDefaultProgress(),
       status: finalStatus,
       tracks,
       totalTribunais: Number(det.totalTribunais || tracks.length),
-      tribunaisConcluidos: Number(
-        det.tribunaisConcluidos ?? tracks.filter(t => t.status === 'concluido').length
-      ),
-      novas: Number(det.novas || 0),
-      duplicadas: Number(det.duplicadas || 0),
-      descartadas: Number(det.descartadas || 0),
-      percentage: Math.min(100, Math.max(0, Number(det.percentage || 0))),
+      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos),
+      novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas),
+      duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
+      descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas),
+      percentage: Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
       dataInicioYmd: det.dataInicioYmd ?? null,
