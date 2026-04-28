@@ -1,58 +1,47 @@
-## Diagnóstico
+Confirmei diretamente na Judit o processo 0100798-32.2021.5.01.0049.
 
-Processo `0100798-32.2021.5.01.0049` (dossiê `07.02.033.0003178059/21`):
+Resultado da consulta:
+- A Judit retornou 3 instâncias e 599 andamentos agregados.
+- Os recursos realmente identificados como interpostos pela reclamante são: RO, ED, RR, ED e AgR.
+- Não há andamento de interposição de recurso pelo banco/reclamada.
+- O campo atual no banco está errado: `tipo_recurso_banco = RO`.
 
-A função `buscar-judit` (já corrigida) retorna ao vivo:
-- `tipo_recurso_reclamante: "RO"`
-- `tipo_recurso_banco: null`  ← Judit não confirma interposição pelo banco
-- `_judit_meta.fonte_tipo_recurso: "judit"`
+A origem do erro é específica: o sistema está olhando movimentos vizinhos de intimação para tentar descobrir o autor de andamentos genéricos. No andamento abaixo, ele classificou o RO como do banco por engano:
 
-Mas no banco está gravado:
-- `tipo_recurso_reclamante: "RO + ED + RR + AIRR"`
-- `tipo_recurso_banco: "RO"`  ← errado, vindo da importação/legado
+```text
+2023-11-07 - RECEBIDO(S) O(S) RECURSO ORDINÁRIO DE MARCELA LAZARO PEREIRA SEM EFEITO SUSPENSIVO
+movimento vizinho: EXPEDIDO(A) INTIMAÇÃO A(O) BANCO BMG SA
+resultado incorreto atual: banco = RO
+```
 
-A advogada está certa: o `RO` do Banco não procede. A Judit (única fonte autorizada de `tipo_recurso*`) confirma só o `RO` do reclamante.
+Esse movimento já diz expressamente que o recurso é de MARCELA LAZARO PEREIRA, então não pode usar a intimação ao banco para inverter/atribuir o recurso à reclamada.
 
-## Causa-raiz
+Plano de correção:
 
-`src/components/distribuicao-tst/DistribuicaoTstForm.tsx` (linhas 164-218) usa um helper `apply()` que **só escreve quando a Judit retorna valor** — se vier `null`, mantém o valor anterior. Isso contraria a regra registrada em `mem://logic/judit/resource-attribution-rules.md` (que `DadosBennerForm.tsx` já segue corretamente via `pickJuditOnly`):
+1. Corrigir a regra de extração em `supabase/functions/buscar-judit/index.ts`
+   - Antes de usar movimentos vizinhos/intimações, reconhecer expressões diretas como:
+     - `RECURSO ... DE <nome da parte>`
+     - `AGRAVO ... DE <nome da parte>`
+     - `EMBARGOS ... DE <nome da parte>`
+   - Se o texto mencionar nominalmente a reclamante como autora do recurso, atribuir à reclamante e não olhar intimações vizinhas.
+   - Se mencionar nominalmente banco/reclamada como autora do recurso, atribuir ao banco.
+   - Usar movimentos vizinhos apenas quando o movimento não tiver autor explícito.
 
-> "Frontend usa `pickJuditOnly` (não `pick`) para os 3 campos: vazio da Judit APAGA valor antigo."
+2. Ajustar tokens de partes para reduzir falsos positivos
+   - Não permitir que tokens genéricos/compartilhados, como `BANCO`, `MARCELA`, `LAZARO` quando aparecem em descrição composta `MARCELA X BANCO`, causem dupla marcação ou inversão.
+   - Priorizar nome completo/documento/lado original em vez de palavras soltas quando o movimento traz autor claro.
 
-Por isso, mesmo a função backend retornando corretamente `tipo_recurso_banco: null`, o formulário da tela `/distribuicao-tst` preserva o `RO` antigo (vindo da planilha importada).
+3. Corrigir o registro existente desse processo
+   - Atualizar `dados_benner` para o processo `0100798-32.2021.5.01.0049` removendo o `RO` do banco.
+   - Resultado esperado:
+     - `tipo_recurso_reclamante = RO + ED + RR + AgR`
+     - `tipo_recurso_banco = NULL`
+     - `tipo_recurso = RO + ED + RR + AgR`
 
-## Mudança
+4. Validar com a própria Judit
+   - Rodar novamente a edge function `buscar-judit` para o processo.
+   - Confirmar que o retorno não traz recurso para o banco.
+   - Confirmar que o formulário não preserva valor antigo quando a Judit retorna vazio para banco.
 
-Em `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`, dentro do bloco que aplica o resultado da Judit (~linhas 166-218):
-
-1. Adicionar helper específico para os 3 campos de tipo de recurso:
-   ```ts
-   const applyJuditOnly = (field: string, novo: any) => {
-     // Vazio da Judit APAGA valor antigo (regra mem://logic/judit/resource-attribution-rules)
-     next[field] = hasValue(novo) ? novo : null;
-     if (hasValue(novo)) filled.add(field);
-     else filled.delete(field);
-   };
-   ```
-
-2. Trocar `apply` por `applyJuditOnly` apenas para:
-   - `tipo_recurso`
-   - `tipo_recurso_reclamante`
-   - `tipo_recurso_banco`
-
-3. Demais campos continuam com `apply` (Judit como fonte de verdade quando preenche, mantém manual quando vazio).
-
-## Verificação após o fix
-
-- Re-buscar Judit no processo `0100798-32.2021.5.01.0049` na tela `/distribuicao-tst`.
-- Esperado: campo "Tipo de Recurso do Banco" fica vazio (com aviso amarelo já existente quando `_judit_meta.fonte_tipo_recurso='nenhuma'`; aqui a fonte é `'judit'` mas sem recurso pelo banco — fica vazio mesmo).
-- "Tipo de Recurso do Reclamante" mostra `RO`.
-
-## Memória
-
-Atualizar `mem://logic/judit/resource-attribution-rules.md` para reforçar que a regra `pickJuditOnly` vale também para `DistribuicaoTstForm`, não só `DadosBennerForm`.
-
-## Arquivos afetados
-
-- `src/components/distribuicao-tst/DistribuicaoTstForm.tsx` (helper + 3 trocas de `apply` → `applyJuditOnly`)
-- `mem://logic/judit/resource-attribution-rules.md` (escopo)
+5. Registrar a regra na memória do projeto
+   - Atualizar a regra de atribuição Judit para deixar explícito: quando o movimento já informa `recurso de <parte>`, intimações vizinhas não podem mudar o recorrente.

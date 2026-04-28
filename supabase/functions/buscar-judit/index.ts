@@ -553,6 +553,26 @@ function extrairRecursosPorParte(
     return { ativo, passivo };
   };
 
+  // Detecta o AUTOR explícito do recurso quando o próprio texto do andamento
+  // diz "RECURSO/AGRAVO/EMBARGOS ... DE <NOME DA PARTE>" ou
+  // "<NOME DA PARTE> INTERPÔS/PROTOCOLOU ...". Tem precedência sobre os
+  // movimentos vizinhos: se o texto diz que o recurso é da reclamante, não
+  // pode usar uma intimação vizinha ao banco para atribuir o recurso à
+  // reclamada (caso típico que invertia a classificação).
+  const RX_AUTOR_EXPLICITO =
+    /\b(?:recurso(?:\s+(?:de\s+revista|ordin[áa]rio|extraordin[áa]rio|especial))?|agravo(?:\s+(?:de\s+instrumento|interno|regimental|de\s+peti[çc][ãa]o))?|embargos(?:\s+de\s+declara[çc][ãa]o)?|airr|rr|ro|ed|agr)\b[^.\n]{0,120}?\bde\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s\.\-&]{3,})/i;
+
+  const autorExplicitoLado = (texto: string): { ativo: boolean; passivo: boolean } | null => {
+    const m = texto.match(RX_AUTOR_EXPLICITO);
+    if (!m || !m[1]) return null;
+    const alvo = normalize(m[1]);
+    let ativo = false, passivo = false;
+    for (const tok of nomesAtivo) { if (tok && alvo.includes(tok)) { ativo = true; break; } }
+    for (const tok of nomesPassivo) { if (tok && alvo.includes(tok)) { passivo = true; break; } }
+    if (ativo === passivo) return null;
+    return { ativo, passivo };
+  };
+
   for (let i = 0; i < stepsOrdenados.length; i++) {
     const s = stepsOrdenados[i];
     const content = (s?.content || s?.title || s?.description || "").toString();
@@ -563,10 +583,22 @@ function extrairRecursosPorParte(
     const sigla = classificarRecursoInterposto(content);
     if (!sigla) continue;
 
-    // 1) Tenta detectar pelo próprio texto.
-    let { ativo: ladoAtivo, passivo: ladoPassivo } = detectaLado(content);
+    // 1a) Autor EXPLÍCITO no próprio texto ("RECURSO ... DE <NOME>") — tem
+    //     precedência absoluta sobre vizinhos/intimações.
+    const explicito = autorExplicitoLado(content);
+    let ladoAtivo: boolean;
+    let ladoPassivo: boolean;
+    if (explicito) {
+      ladoAtivo = explicito.ativo;
+      ladoPassivo = explicito.passivo;
+    } else {
+      // 1b) Tenta detectar pelo próprio texto.
+      const det = detectaLado(content);
+      ladoAtivo = det.ativo;
+      ladoPassivo = det.passivo;
+    }
 
-    // 2) Se ambíguo, olha movimentos vizinhos (±3) por menção a parte/intimação.
+    // 2) Se ainda ambíguo, olha movimentos vizinhos (±3) por menção a parte/intimação.
     if (ladoAtivo === ladoPassivo) {
       const janela = stepsOrdenados.slice(Math.max(0, i - 1), Math.min(stepsOrdenados.length, i + 4));
       for (const v of janela) {
