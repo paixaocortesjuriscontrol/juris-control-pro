@@ -596,6 +596,32 @@ function extrairRecursosPorParte(
   };
 }
 
+function inferirRecursosRecorrentesPorPartes(
+  parties: any[],
+  sigla: string | null,
+): { reclamante: string | null; banco: string | null } {
+  if (!sigla || !Array.isArray(parties)) return { reclamante: null, banco: null };
+  let reclamante = false;
+  let banco = false;
+  for (const p of parties) {
+    const ptype = (p?.person_type || "").toString().toUpperCase();
+    if (ptype === "ADVOGADO") continue;
+    const ehRecorrente = /(RECORRENTE|AGRAVANTE|EMBARGANTE|RECORRIDO\s+ADESIVO|RECURSO)/.test(ptype);
+    if (!ehRecorrente) continue;
+    const nome = (p?.name || "").toString();
+    if (isParteBanco(nome)) {
+      banco = true;
+      continue;
+    }
+    const ladoOriginal = ladoPorPersonType(ptype);
+    const side = (p?.side || "").toString().toUpperCase();
+    if (ladoOriginal === "PASSIVE") banco = true;
+    else if (ladoOriginal === "ACTIVE" || side === "ACTIVE") reclamante = true;
+    else if (side === "PASSIVE") banco = true;
+  }
+  return { reclamante: reclamante ? sigla : null, banco: banco ? sigla : null };
+}
+
 function extrairClassificacao(rd: any): string | null {
   // schema oficial: classifications é array
   const classes = Array.isArray(rd.classifications) ? rd.classifications : [];
