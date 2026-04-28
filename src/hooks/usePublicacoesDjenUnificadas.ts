@@ -1218,8 +1218,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     loadingStats: isLoading,
     marcarComoLida,
-    totalHoje: publicacoes.length,
-    naoLidasHoje: publicacoes.filter(p => !p.lida).length,
+    // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
+    // Fallback para a contagem da página atual enquanto a query não carrega.
+    totalHoje: statsIndependentes?.total ?? publicacoes.length,
+    naoLidasHoje: statsIndependentes?.naoLidas ?? publicacoes.filter(p => !p.lida).length,
+    totalTermosHoje: statsIndependentes?.totalTermos ?? 0,
+    totalProcessosHoje: statsIndependentes?.totalProcessos ?? 0,
     totalDescartadasHoje,
     page,
     pageSize,
