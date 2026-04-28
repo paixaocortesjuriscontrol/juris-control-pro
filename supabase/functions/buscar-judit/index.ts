@@ -1428,7 +1428,12 @@ serve(async (req) => {
       if (!otherRd || otherRd === rd) continue;
       pushSteps(otherRd.steps);
     }
-    console.log(`[buscar-judit] steps_agregados_para_recursos=${stepsAgregados.length} (instancia_selecionada=${steps.length})`);
+    const detalheInstancias = (allInstancesPageData || []).map((item: any) => ({
+      tr: item?.response_data?.tribunal_acronym,
+      inst: item?.response_data?.instance,
+      steps: Array.isArray(item?.response_data?.steps) ? item.response_data.steps.length : 0,
+    }));
+    console.log(`[buscar-judit] steps_agregados_para_recursos=${stepsAgregados.length} (instancia_selecionada=${steps.length}) instancias=${JSON.stringify(detalheInstancias)} cached_steps=${cachedRd?.steps?.length || 0}`);
     const recursosPorParte = extrairRecursosPorParte(stepsAgregados, parties);
     // POLÍTICA: tipo de recurso vem APENAS de movimentos confirmados pela Judit
     // (interposição explícita, com identificação de lado). Sem fallback por
