@@ -706,16 +706,14 @@ function syncExecutionProgress(overrides: Record<string, any> = {}, force = fals
 async function markActiveParalelaExecutions(payload: Record<string, any>): Promise<void> {
   const activeId = state.executionId;
   if (activeId) state.resetExecutionIds.add(activeId);
-  const query = supabase
+  let query = supabase
     .from('execucoes_agendadas')
     .update(payload)
     .eq('tipo', 'djen_paralela')
     .eq('status', 'executando')
-    .is('finalizado_em', null)
-    .select('id');
-  const { data, error } = activeId
-    ? await query.eq('id', activeId)
-    : await query;
+    .is('finalizado_em', null);
+  if (activeId) query = query.eq('id', activeId);
+  const { data, error } = await query.select('id');
 
   if (error) {
     console.warn('[DJEN Paralela] Falha ao cancelar execução no banco:', error.message);
