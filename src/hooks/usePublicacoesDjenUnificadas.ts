@@ -385,7 +385,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           tProc = t.count || 0;
           nProc = n.count || 0;
         }
-        return { total: tTermos + tProc, naoLidas: nTermos + nProc };
+        return {
+          total: tTermos + tProc,
+          naoLidas: nTermos + nProc,
+          totalTermos: tTermos,
+          totalProcessos: tProc,
+        };
       }
 
       const [tT, nT, tP, nP] = await Promise.all([
@@ -397,6 +402,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       return {
         total: (tT.count || 0) + (tP.count || 0),
         naoLidas: (nT.count || 0) + (nP.count || 0),
+        totalTermos: tT.count || 0,
+        totalProcessos: tP.count || 0,
       };
     },
     enabled: !!user?.id,
