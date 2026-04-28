@@ -594,7 +594,7 @@ function extrairPartesEstruturadas(pub: any): string[] {
 // EXECUTION SYNC
 // ============================================================================
 
-function buildSnapshot(overrides: Record<string, any> = {}) {
+function buildSnapshot(overrides: Record<string, any> = {}): any {
   const poolStats = getDjenProxyPoolStats();
   return {
     progressStatus: state.progress.status,
@@ -1053,19 +1053,25 @@ async function executarLoop(
   try {
     const { data: running } = await supabase
       .from('execucoes_agendadas')
-      .select('id, iniciado_em')
+      .select('id, iniciado_em, detalhes')
       .eq('tipo', 'djen_paralela')
       .eq('status', 'executando')
       .is('finalizado_em', null);
     if (running && running.length > 0) {
-      // Considera órfã qualquer execução iniciada há mais de 5 min sem finalizar
-      // (cancelamentos travados costumam deixar registros assim).
-      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const stale = running.filter(r => r.iniciado_em && r.iniciado_em < fiveMinAgo);
+      // Considera órfã somente execução sem heartbeat recente. Antes era por
+      // iniciado_em > 5min, o que cancelava execuções longas ainda saudáveis.
+      const now = Date.now();
+      const stale = running.filter((r: any) => {
+        const heartbeatMs = r?.detalhes?.heartbeat_at ? new Date(r.detalhes.heartbeat_at).getTime() : 0;
+        const iniciadoMs = r?.iniciado_em ? new Date(r.iniciado_em).getTime() : 0;
+        return heartbeatMs > 0
+          ? now - heartbeatMs > 5 * 60 * 1000
+          : iniciadoMs > 0 && now - iniciadoMs > 10 * 60 * 1000;
+      });
       if (stale.length > 0) {
         for (const s of stale) {
           await supabase.from('execucoes_agendadas')
-            .update({ status: 'cancelado', finalizado_em: new Date().toISOString(), detalhes: { mensagem: 'Cancelado: órfã (>5min)' } })
+            .update({ status: 'erro', finalizado_em: new Date().toISOString(), detalhes: { ...(s.detalhes || {}), mensagem: 'Erro: execução órfã sem heartbeat recente' } })
             .eq('id', s.id);
         }
         if (stale.length !== running.length) {
