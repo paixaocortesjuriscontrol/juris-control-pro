@@ -249,21 +249,41 @@ const AnaliseDjen = () => {
     staleTime: 30_000,
   });
 
-  // Count DataJud for stats
-  const { data: totalDatajudHoje = 0 } = useQuery({
-    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo],
+  // Count DataJud for stats using the same filters as the list
+  const { data: datajudStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingDatajudStats } = useQuery({
+    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas, tipoOrigem],
     queryFn: async () => {
+      if (!(tipoOrigem === 'datajud' || tipoOrigem === 'todos' || tipoOrigem === 'normal')) {
+        return { total: 0, naoLidas: 0 };
+      }
       const today = new Date().toISOString().slice(0, 10);
       let query = supabase
         .from('movimentacoes_datajud')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', `${today}T00:00:00Z`);
+      if (apenasHoje) {
+        query = query.gte('created_at', `${today}T00:00:00Z`);
+      } else {
+        if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
+        if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
+      }
       if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      if (apenasNaoLidas) query = query.eq('lida', false);
+      if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
+      if (termoBusca) {
+        const digits = termoBusca.replace(/\D/g, '');
+        if (digits.length >= 5) {
+          query = query.ilike('numero_processo', `%${digits}%`);
+        } else {
+          query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+        }
+      }
       const { count } = await query;
-      return count || 0;
+      const total = count || 0;
+      return { total, naoLidas: apenasNaoLidas ? total : 0 };
     },
     staleTime: 30_000,
   });
+  const totalDatajudHoje = datajudStats.total;
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
