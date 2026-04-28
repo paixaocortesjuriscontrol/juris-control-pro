@@ -30,8 +30,8 @@ const REQUESTS_URL = `${JUDIT_BASE}/requests`;
 const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
-const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 30_000;    // 30s — reduzido, pois cache-first resolve maioria
+const POLL_INTERVAL_MS = 1000;
+const POLL_TIMEOUT_MS = 12_000;    // mantém o botão Judit responsivo; DataJud/cache complementam o TST
 const CACHE_TTL_DAYS = 7;
 
 // ---------- DataJud fallback (CNJ public API) -----------------------------
@@ -61,7 +61,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
 
     const url = `${DATAJUD_BASE}/${endpoint}/_search`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const r = await fetch(url, {
       method: "POST",
@@ -128,14 +128,22 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
       ? `${rawDataAjuiz.substring(0, 4)}-${rawDataAjuiz.substring(4, 6)}-${rawDataAjuiz.substring(6, 8)}`
       : rawDataAjuiz.substring(0, 10) || null;
 
-    const steps = movimentos.map((m: any) => ({
+    const steps = movimentos.map((m: any) => {
+      const complementos = Array.isArray(m?.complementosTabelados)
+        ? m.complementosTabelados
+            .flatMap((c: any) => [c?.nome, c?.valor, c?.descricao])
+            .filter((v: any) => typeof v === "string" && v.trim())
+        : [];
+      return ({
       step_date: m?.dataHora || null,
       date: m?.dataHora || null,
       code: m?.codigo ?? null,
-      content: [m?.nome, m?.orgaoJulgador?.nome].filter(Boolean).join(" - "),
+      content: [m?.nome, ...complementos, m?.orgaoJulgador?.nome].filter(Boolean).join(" - "),
       title: m?.nome || null,
       orgao_julgador: m?.orgaoJulgador || null,
-    }));
+      raw: m,
+    });
+    });
     const courts = nomeOrgao ? [{ code: orgaoRaiz?.codigo?.toString?.() || "TST", name: nomeOrgao }] : [];
 
     console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
@@ -419,13 +427,18 @@ function classificarRecursoInterposto(texto: string): string | null {
 function ladoPorPersonType(personType: string): "ACTIVE" | "PASSIVE" | null {
   const t = (personType || "").toString().toUpperCase().trim();
   if (!t) return null;
-  if (/(RECLAMANTE|AUTOR|AUTORA|EXEQUENTE|REQUERENTE|IMPETRANTE|EMBARGANTE)/.test(t)) {
+  if (/(RECLAMANTE|AUTOR|AUTORA|EXEQUENTE|REQUERENTE|IMPETRANTE)/.test(t)) {
     return "ACTIVE";
   }
-  if (/(RECLAMAD|R[ÉE]U|R[ÉE]|EXECUTAD|REQUERID|IMPETRAD|EMBARGAD|LITISCONSORTE\s+PASSIV)/.test(t)) {
+  if (/(RECLAMAD|R[ÉE]U|R[ÉE]|EXECUTAD|REQUERID|IMPETRAD|LITISCONSORTE\s+PASSIV)/.test(t)) {
     return "PASSIVE";
   }
   return null;
+}
+
+function isParteBanco(nome: string): boolean {
+  const n = normalizePlain(nome || "");
+  return /\b(BANCO|SANTANDER|BRADESCO|ITAU|ITAÚ|CAIXA\s+ECONOMICA|CAIXA\s+ECONÔMICA|CEF|BANRISUL|SAFRA|BMG|C6\s+BANK|BANCO\s+DO\s+BRASIL)\b/.test(n);
 }
 
 /**
@@ -462,7 +475,7 @@ function extrairRecursosPorParte(
       // (ex.: o banco como AGRAVANTE vira "Active"), o que polui a
       // classificação. Usamos person_type quando ele é claro.
       const ladoOriginal = ladoPorPersonType(ptype);
-      const side = ladoOriginal || (p?.side || "").toString().toUpperCase();
+      const side = isParteBanco(p?.name || "") ? "PASSIVE" : ladoOriginal || (p?.side || "").toString().toUpperCase();
       const nome = normalize(p?.name || "");
       if (!nome || nome.length < 3) continue;
       // Tokens significativos do nome (>3 chars) ajudam a casar com o texto do movimento.
@@ -476,7 +489,7 @@ function extrairRecursosPorParte(
 
   // Padrões de identificação de lado pelo texto do movimento.
   const RX_LADO_ATIVO = /\b(reclamante|exequente|autor(?:a)?|recorrente\s+reclamante|agravante\s+reclamante)\b/i;
-  const RX_LADO_PASSIVO = /\b(reclamad[oa]|executad[oa]|r[ée]u|r[ée]|banco|empresa|recorrente\s+reclamad[oa]|agravante\s+reclamad[oa])\b/i;
+  const RX_LADO_PASSIVO = /\b(reclamad[oa]|executad[oa]|r[ée]u|r[ée]|banco|santander|bradesco|ita[uú]|caixa\s+econ[oô]mica|empresa|recorrente\s+reclamad[oa]|agravante\s+reclamad[oa])\b/i;
 
   // Ordena por data ascendente.
   const stepsOrdenados = [...steps]
@@ -581,6 +594,32 @@ function extrairRecursosPorParte(
     reclamante: recursosReclamante.length ? recursosReclamante.join(" + ") : null,
     banco: recursosBanco.length ? recursosBanco.join(" + ") : null,
   };
+}
+
+function inferirRecursosRecorrentesPorPartes(
+  parties: any[],
+  sigla: string | null,
+): { reclamante: string | null; banco: string | null } {
+  if (!sigla || !Array.isArray(parties)) return { reclamante: null, banco: null };
+  let reclamante = false;
+  let banco = false;
+  for (const p of parties) {
+    const ptype = (p?.person_type || "").toString().toUpperCase();
+    if (ptype === "ADVOGADO") continue;
+    const ehRecorrente = /(RECORRENTE|AGRAVANTE|EMBARGANTE|RECORRIDO\s+ADESIVO|RECURSO)/.test(ptype);
+    if (!ehRecorrente) continue;
+    const nome = (p?.name || "").toString();
+    if (isParteBanco(nome)) {
+      banco = true;
+      continue;
+    }
+    const ladoOriginal = ladoPorPersonType(ptype);
+    const side = (p?.side || "").toString().toUpperCase();
+    if (ladoOriginal === "PASSIVE") banco = true;
+    else if (ladoOriginal === "ACTIVE" || side === "ACTIVE") reclamante = true;
+    else if (side === "PASSIVE") banco = true;
+  }
+  return { reclamante: reclamante ? sigla : null, banco: banco ? sigla : null };
 }
 
 function extrairClassificacao(rd: any): string | null {
@@ -726,19 +765,22 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       })
       .filter((x: any) => x.dataBase && x.dataBase.getTime() >= stepDate.getTime())
       .filter((x: any) => x.orgao.includes(turmaNorm) || turmaNorm.includes(x.orgao));
-    // Ordena: data da sessão mais próxima do stepDate primeiro (sessões futuras),
-    // empata por proximidade da publicação. Verifica presença do CNJ em CADA sessão
-    // antes de decidir — só usa pubDiff como desempate, nunca como critério único.
+    // Ordena por maior probabilidade: para pauta virtual, a data relevante é o
+    // início da janela; quando existir origem PJE, ela costuma ser a fonte que
+    // contém a janela correta exibida nos andamentos do processo.
     const pool = [...candidatos].sort((a: any, b: any) =>
-      a.dataBase.getTime() - b.dataBase.getTime() || a.pubDiff - b.pubDiff,
+      a.pubDiff - b.pubDiff ||
+      (String(b.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) -
+      (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) ||
+      a.dataBase.getTime() - b.dataBase.getTime(),
     );
     console.log(`[buscar-judit] pauta TST: ${pool.length} sessões candidatas para turma="${turma}" stepDate=${stepDateIso}`);
     let chosen: any = null;
-    for (const cand of pool.slice(0, 25)) {
+    for (const cand of pool.slice(0, 8)) {
       const org = cand.p?.orgaoJudicante || {};
       const sessao = `${org.codOrgaoJudicante}-${cand.p?.anoPauta}-${cand.p?.numPauta}-${cand.p?.tipSessao}`;
       const pc = new AbortController();
-      const pt = setTimeout(() => pc.abort(), 3000);
+      const pt = setTimeout(() => pc.abort(), 900);
       try {
         const pr = await fetch(`https://pautaws.tst.jus.br/rest/processospauta/tst?sessao=${encodeURIComponent(sessao)}`, { signal: pc.signal });
         if (pr.ok) {
@@ -753,8 +795,26 @@ async function consultarPautaPublicaTst(cnj: string, turma: string | null, stepD
       finally { clearTimeout(pt); }
     }
     if (!chosen) {
-      console.log(`[buscar-judit] CNJ ${cnj} não localizado em nenhuma sessão verificada — sem data de julgamento confiável`);
-      return null;
+      // A API pública frequentemente não lista processos de sessões PJE/virtuais,
+      // embora a pauta agregada traga a janela correta. Para não voltar à data
+      // de publicação (ex.: 26/03), aceita apenas candidato virtual próximo da
+      // publicação/inclusão em pauta; isso corrige casos como início 27/04/2026.
+      chosen = pool
+        .filter((cand: any) =>
+          String(cand.tipo || "").toUpperCase().includes("VIRTUAL") &&
+          cand.pubDiff <= 7 * 24 * 60 * 60 * 1000 &&
+          cand.dataBase.getTime() > stepDate.getTime()
+        )
+        .sort((a: any, b: any) =>
+          (String(b.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) -
+          (String(a.p?.sistemaOrigem || "").toUpperCase() === "PJE" ? 1 : 0) ||
+          a.dataBase.getTime() - b.dataBase.getTime()
+        )[0] || null;
+      if (!chosen) {
+        console.log(`[buscar-judit] CNJ ${cnj} não localizado em sessão verificada — sem data de julgamento confiável`);
+        return null;
+      }
+      console.log(`[buscar-judit] pauta TST virtual aplicada por janela provável (sem lista de processos): data=${chosen.dataBase.toISOString().slice(0, 10)} meio=${chosen.tipo}`);
     }
     const iso = chosen.dataBase.toISOString().slice(0, 10);
     const rawDate = String(chosen.tipo || "").toUpperCase().includes("VIRTUAL")
@@ -1287,6 +1347,14 @@ serve(async (req) => {
     // pelo texto do andamento + cruzamento com nomes do polo, concatenando em ordem
     // cronológica (ex: "RO + RR").
     const recursosPorParte = extrairRecursosPorParte(steps, parties);
+    const siglaClassificacao = classificacao ? classificarRecursoInterposto(classificacao) : null;
+    const recursosPorRecorrentes = inferirRecursosRecorrentesPorPartes(parties, siglaClassificacao);
+    if (!recursosPorParte.reclamante && recursosPorRecorrentes.reclamante) {
+      recursosPorParte.reclamante = recursosPorRecorrentes.reclamante;
+    }
+    if (!recursosPorParte.banco && recursosPorRecorrentes.banco) {
+      recursosPorParte.banco = recursosPorRecorrentes.banco;
+    }
 
     // Fallback: quando não foi possível detectar o autor do recurso pelos
     // movimentos (ex.: histórico no TST não traz a interposição feita na origem),
@@ -1300,14 +1368,14 @@ serve(async (req) => {
     // senão o banco). Evita preencher reclamante com recurso do banco e vice-
     // versa, deixando para o usuário ajustar manualmente quando necessário.
     if (classificacao && !recursosPorParte.reclamante && !recursosPorParte.banco) {
-      const siglaFallback = classificarRecursoInterposto(classificacao);
+      const siglaFallback = siglaClassificacao;
       if (siglaFallback) {
-        if (poloAtivo) {
-          recursosPorParte.reclamante = siglaFallback;
-          console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
-        } else if (poloPassivo) {
+        if (poloPassivo) {
           recursosPorParte.banco = siglaFallback;
           console.log(`[buscar-judit] fallback classificação -> banco: ${siglaFallback}`);
+        } else if (poloAtivo) {
+          recursosPorParte.reclamante = siglaFallback;
+          console.log(`[buscar-judit] fallback classificação -> reclamante: ${siglaFallback}`);
         }
       }
     }
