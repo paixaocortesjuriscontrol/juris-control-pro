@@ -1407,9 +1407,14 @@ serve(async (req) => {
       }
     }
 
+    recursosPorParte.reclamante = normalizarListaRecursos(recursosPorParte.reclamante);
+    recursosPorParte.banco = normalizarListaRecursos(recursosPorParte.banco);
+
     const tipoRecursoCombinado =
       recursosPorParte.reclamante && recursosPorParte.banco
-        ? `${recursosPorParte.reclamante} - ${recursosPorParte.banco}`
+        ? recursosPorParte.reclamante === recursosPorParte.banco
+          ? recursosPorParte.reclamante
+          : `${recursosPorParte.reclamante} - ${recursosPorParte.banco}`
         : recursosPorParte.reclamante || recursosPorParte.banco || null;
 
     const result = {
