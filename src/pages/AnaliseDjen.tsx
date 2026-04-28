@@ -117,6 +117,9 @@ const AnaliseDjen = () => {
   const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const [apenasComProcesso, setApenasComProcesso] = useState(false);
+  // Paginação: 500 registros por página. Reset para 1 quando qualquer filtro muda.
+  const [page, setPage] = useState<number>(1);
+  const PAGE_SIZE = 500;
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -168,7 +171,8 @@ const AnaliseDjen = () => {
     marcarComoLida,
     totalHoje,
     naoLidasHoje,
-    totalDescartadasHoje
+    totalDescartadasHoje,
+    hasNextPage,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
@@ -183,7 +187,18 @@ const AnaliseDjen = () => {
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
+    page,
+    pageSize: PAGE_SIZE,
   });
+
+  // Reset página ao mudar qualquer filtro (evita ficar numa página vazia ao
+  // trocar de coordenação ou tirar um filtro).
+  useEffect(() => {
+    setPage(1);
+  }, [
+    coordenacaoFiltroEfetivo, dataInicio, dataFim, dataDisponibilizacao,
+    termoBusca, monitoramentoId, apenasNaoLidas, apenasHoje, tipoOrigem,
+  ]);
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
@@ -2347,6 +2362,39 @@ const AnaliseDjen = () => {
           </div>
         )}
 
+        {/* Paginação — 500 registros por página, paginação real no servidor */}
+        {!isLoading && allPublicacoes.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
+            <div className="text-xs md:text-sm text-muted-foreground">
+              Página <strong>{page}</strong> · exibindo até {PAGE_SIZE} registros por página
+              {hasNextPage ? "" : " · última página"}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => {
+                  setPage((p) => Math.max(1, p - 1));
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!hasNextPage}
+                onClick={() => {
+                  setPage((p) => p + 1);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Dialog para criar tarefa a partir da publicação */}
         <CriarTarefaPublicacaoDialog

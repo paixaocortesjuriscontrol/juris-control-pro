@@ -191,6 +191,10 @@ export interface FiltrosUnificados {
   // - todos: (legado) mantido por compatibilidade
   tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'todos';
   incluirDescartadas?: boolean;
+  /** Página atual (1-based). Default: 1. */
+  page?: number;
+  /** Tamanho de página. Default: 500. */
+  pageSize?: number;
 }
 
 export interface EstatisticasCoordenacao {
@@ -400,11 +404,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   });
 
   // Buscar publicações unificadas
-  const { data: publicacoes = [], isLoading } = useQuery({
+  const page = Math.max(1, filtros.page ?? 1);
+  const pageSize = Math.max(1, filtros.pageSize ?? 500);
+  const offsetGlobal = (page - 1) * pageSize;
+
+  const { data: queryResult, isLoading } = useQuery({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 60_000, // 1 minuto - evita refetches desnecessários
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
       // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
       // Se usuário seleciona 30/01, deve buscar 30/01 00:00 BRT até 30/01 23:59 BRT
@@ -436,35 +444,29 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
       if (canUseRpc) {
         try {
-        console.debug('[DJEN] tentando RPC deduplicada (sem count)');
+        console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
 
-        const PAGE = 200;
+        // PAGINAÇÃO REAL no servidor: uma única chamada para a página solicitada.
+        // Antes carregávamos até 2000 linhas em loop, o que deixava lento e gerava
+        // erros de renderização quando o advogado tirava todos os filtros.
+        const { data: pageRows, error: pageError } = await (supabase as any)
+          .rpc('get_djen_publicacoes_unificadas', {
+            p_coordenacao_id: filtros.coordenacaoId,
+            p_inicio: dataInicioFiltro ?? null,
+            p_fim: dataFimFiltro ?? null,
+            p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
+            p_search_query: filtros.termoBusca ?? null,
+            p_limit: pageSize,
+            p_offset: offsetGlobal,
+            p_monitoramento_id: filtros.monitoramentoId ?? null,
+          });
 
-        // Fase 1: Buscar diretamente sem count RPC (elimina ~2.8s)
-        const rawRows: any[] = [];
-        for (let offset = 0; ; offset += PAGE) {
-          const { data: pageRows, error: pageError } = await (supabase as any)
-            .rpc('get_djen_publicacoes_unificadas', {
-              p_coordenacao_id: filtros.coordenacaoId,
-              p_inicio: dataInicioFiltro ?? null,
-              p_fim: dataFimFiltro ?? null,
-              p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
-              p_search_query: filtros.termoBusca ?? null,
-              p_limit: PAGE,
-              p_offset: offset,
-              p_monitoramento_id: filtros.monitoramentoId ?? null,
-            });
-
-          if (pageError) {
-            throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
-          }
-
-          const chunk = (pageRows || []) as any[];
-          rawRows.push(...chunk);
-          if (chunk.length < PAGE) break;
-          // Safety: don't fetch more than 2000 rows
-          if (rawRows.length >= 2000) break;
+        if (pageError) {
+          throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
         }
+
+        const rawRows: any[] = (pageRows || []) as any[];
+        const lastChunkSize = rawRows.length;
 
         // mapear para o tipo do app
         const mapped: PublicacaoUnificada[] = rawRows.map((r) => ({
@@ -611,7 +613,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const enriquecidos = await enriquecerPublicacoesComMonitoramento(merged);
 
         const deduped = dedupePublicacoesDjen(enriquecidos);
-        return mergeWithLeituras(user!.id, deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), !!filtros.apenasNaoLidas);
+        const finalRows = await mergeWithLeituras(
+          user!.id,
+          deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+          !!filtros.apenasNaoLidas,
+        );
+        return { rows: finalRows, lastChunkSize };
 
         } catch (rpcError) {
           console.warn('[DJEN] RPC falhou, usando fallback com queries diretas:', rpcError);
@@ -671,8 +678,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryTermos = (queryTermos as any).eq('monitoramento.tipo', 'parte');
         }
 
-        // Limitar a 500 registros para performance (contagem precisa é feita pelo RPC)
-        const { data: termosData } = await queryTermos.limit(500);
+        // Paginação real no fallback: usa range para a página solicitada.
+        const { data: termosData } = await queryTermos.range(offsetGlobal, offsetGlobal + pageSize - 1);
 
         // Coletar números de processos para buscar IDs
         (termosData || []).forEach((pub: any) => {
@@ -786,8 +793,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryProcessos = queryProcessos.eq('processo.coordenacao_id', filtros.coordenacaoId);
         }
 
-        // Limitar a 500 registros para performance (contagem precisa é feita pelo RPC)
-        const { data: processosData } = await queryProcessos.limit(500);
+        // Paginação real no fallback: usa range para a página solicitada.
+        const { data: processosData } = await queryProcessos.range(offsetGlobal, offsetGlobal + pageSize - 1);
 
         (processosData || []).forEach((pub: any) => {
           // Com !inner + filtro no banco, essa checagem vira redundante; manter apenas como guarda.
@@ -872,7 +879,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
-        const { data: descartadasData } = await queryDescartadas.limit(500);
+        const { data: descartadasData } = await queryDescartadas.range(offsetGlobal, offsetGlobal + pageSize - 1);
 
         (descartadasData || []).forEach((pub: any) => {
           // Filtrar por coordenação se especificado
@@ -946,13 +953,24 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       // Ordenar por data de criação (mais recentes primeiro) + merge per-user leituras
-      const sorted = deduped.sort((a, b) => 
+      const sorted = deduped.sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-      return mergeWithLeituras(user!.id, sorted, !!filtros.apenasNaoLidas);
+      const finalRowsFallback = await mergeWithLeituras(user!.id, sorted, !!filtros.apenasNaoLidas);
+      // lastChunkSize: tamanho do maior bloco bruto carregado (heurística para hasNextPage)
+      const lastChunkSize = Math.max(
+        0,
+        Math.min(pageSize, resultados.length),
+      );
+      return { rows: finalRowsFallback, lastChunkSize };
     },
     enabled: !!user?.id,
   });
+
+  const publicacoes: PublicacaoUnificada[] = queryResult?.rows ?? [];
+  const lastChunkSize = queryResult?.lastChunkSize ?? 0;
+  // Heurística: se a última leva veio cheia, provavelmente há próxima página.
+  const hasNextPage = lastChunkSize >= pageSize;
 
   // Estatísticas devem refletir EXATAMENTE a listagem (incluindo filtros como: Não Lidas, Termo de busca,
   // Todas (inclui descartadas), Descartadas, etc.).
@@ -1136,20 +1154,24 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Cancelar queries em andamento para evitar sobrescrever o optimistic update
       await queryClient.cancelQueries({ queryKey: ['publicacoes-unificadas'] });
 
-      // Snapshot do estado atual
-      const previousData = queryClient.getQueriesData<PublicacaoUnificada[]>({ queryKey: ['publicacoes-unificadas'] });
+      // Snapshot do estado atual (formato novo: { rows, lastChunkSize })
+      type CachedShape = { rows: PublicacaoUnificada[]; lastChunkSize: number };
+      const previousData = queryClient.getQueriesData<CachedShape>({ queryKey: ['publicacoes-unificadas'] });
 
       // Atualizar otimisticamente todas as queries de publicações
       const idsToMark = new Set(items.map(i => i.id));
-      queryClient.setQueriesData<PublicacaoUnificada[]>(
+      queryClient.setQueriesData<CachedShape>(
         { queryKey: ['publicacoes-unificadas'] },
         (old) => {
-          if (!old) return old;
-          return old.map(pub => idsToMark.has(pub.id) ? { 
-            ...pub, 
-            lida: true,
-            lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
-          } : pub);
+          if (!old || !old.rows) return old;
+          return {
+            ...old,
+            rows: old.rows.map(pub => idsToMark.has(pub.id) ? {
+              ...pub,
+              lida: true,
+              lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
+            } : pub),
+          };
         }
       );
 
@@ -1192,5 +1214,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     totalHoje: publicacoes.length,
     naoLidasHoje: publicacoes.filter(p => !p.lida).length,
     totalDescartadasHoje,
+    page,
+    pageSize,
+    hasNextPage,
   };
 }
