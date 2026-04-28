@@ -47,9 +47,7 @@ export function useDjenTermosParalela() {
     void hydrateDjenTermosParalelaFromBackend();
     const intv = setInterval(() => {
       // Mantém em sincronia caso a Paralela seja iniciada por outra aba/scheduler
-      if (!isDjenTermosParalelaRunning()) {
-        void hydrateDjenTermosParalelaFromBackend();
-      }
+      void hydrateDjenTermosParalelaFromBackend();
     }, 30_000);
 
     return () => {
