@@ -140,11 +140,19 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
       }
 
       // Extrai reclamante / reclamada das partes (polo ativo / passivo, sem advogados).
+      // Usa `lado_efetivo` (derivado de person_type) quando disponível; cai para `polo`
+      // apenas como fallback. Isso evita misturar banco/reclamante em recursos onde
+      // ambos figuram como AGRAVANTE/RECORRENTE.
       const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
       const nomesPorPolo = (poloUpper: string) =>
         [...new Set(
           partes
-            .filter((p: any) => (p?.polo || "").toString().toUpperCase() === poloUpper && !p?.is_advogado)
+            .filter((p: any) => {
+              if (p?.is_advogado) return false;
+              const efetivo = (p?.lado_efetivo || "").toString().toUpperCase();
+              const lado = efetivo || (p?.polo || "").toString().toUpperCase();
+              return lado === poloUpper;
+            })
             .map((p: any) => String(p?.nome || "").trim())
             .filter(Boolean)
         )].join(" / ");

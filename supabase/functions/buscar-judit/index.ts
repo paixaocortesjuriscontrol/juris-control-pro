@@ -410,6 +410,25 @@ function classificarRecursoInterposto(texto: string): string | null {
 }
 
 /**
+ * Mapeia o tipo_pessoa retornado pela Judit para o lado ORIGINAL no processo
+ * (ACTIVE = polo ativo / reclamante; PASSIVE = polo passivo / reclamada).
+ * Retorna null para tipos genéricos de peça recursal (AGRAVANTE, RECORRENTE,
+ * AGRAVADO, RECORRIDO) que não indicam o lado original — esses casos devem
+ * cair para o `side` da Judit.
+ */
+function ladoPorPersonType(personType: string): "ACTIVE" | "PASSIVE" | null {
+  const t = (personType || "").toString().toUpperCase().trim();
+  if (!t) return null;
+  if (/(RECLAMANTE|AUTOR|AUTORA|EXEQUENTE|REQUERENTE|IMPETRANTE|EMBARGANTE)/.test(t)) {
+    return "ACTIVE";
+  }
+  if (/(RECLAMAD|R[ÉE]U|R[ÉE]|EXECUTAD|REQUERID|IMPETRAD|EMBARGAD|LITISCONSORTE\s+PASSIV)/.test(t)) {
+    return "PASSIVE";
+  }
+  return null;
+}
+
+/**
  * Identifica recursos interpostos por reclamante e por reclamada/banco a partir
  * dos steps (movimentos), em ordem cronológica. Estratégia (1c):
  *  - Detecta o tipo de recurso pelo texto do movimento.
@@ -438,7 +457,12 @@ function extrairRecursosPorParte(
     for (const p of parties) {
       const ptype = (p?.person_type || "").toString().toUpperCase();
       if (ptype === "ADVOGADO") continue;
-      const side = (p?.side || "").toString().toUpperCase();
+      // Prioriza person_type para classificar o lado ORIGINAL da parte.
+      // O `side` da Judit reflete a posição na peça recursal corrente
+      // (ex.: o banco como AGRAVANTE vira "Active"), o que polui a
+      // classificação. Usamos person_type quando ele é claro.
+      const ladoOriginal = ladoPorPersonType(ptype);
+      const side = ladoOriginal || (p?.side || "").toString().toUpperCase();
       const nome = normalize(p?.name || "");
       if (!nome || nome.length < 3) continue;
       // Tokens significativos do nome (>3 chars) ajudam a casar com o texto do movimento.
@@ -1028,22 +1052,49 @@ serve(async (req) => {
       parties.push(p);
     }
     console.log(`[buscar-judit] partes unidas: pool=${partiesPool.length} dedup=${parties.length}`);
-    const poloAtivo = parties
-      .filter((p: any) =>
-        (p?.side || "").toUpperCase() === "ACTIVE" &&
-        (p?.person_type || "").toUpperCase() !== "ADVOGADO"
-      )
-      .map((p: any) => p?.name)
-      .filter(Boolean)
-      .join(", ");
-    const poloPassivo = parties
-      .filter((p: any) =>
-        (p?.side || "").toUpperCase() === "PASSIVE" &&
-        (p?.person_type || "").toUpperCase() !== "ADVOGADO"
-      )
-      .map((p: any) => p?.name)
-      .filter(Boolean)
-      .join(", ");
+    // Lado efetivo de cada parte: prioriza person_type ORIGINAL
+    // (RECLAMANTE/RECLAMADO/AUTOR/RÉU/EXEQUENTE/EXECUTADO) sobre o `side` da
+    // Judit. O `side` reflete a posição na peça recursal e mistura
+    // banco/reclamante quando ambos figuram como AGRAVANTE/RECORRENTE.
+    const ladoEfetivo = (p: any): "ACTIVE" | "PASSIVE" | null => {
+      const ptype = (p?.person_type || "").toUpperCase();
+      if (ptype === "ADVOGADO") return null;
+      const porTipo = ladoPorPersonType(ptype);
+      if (porTipo) return porTipo;
+      const side = (p?.side || "").toUpperCase();
+      return side === "ACTIVE" || side === "PASSIVE" ? side : null;
+    };
+    // Decide o lado FINAL de cada parte única (chave = documento). Quando a
+    // mesma parte aparece com vários person_type (ex.: RECLAMANTE + RECORRIDO),
+    // o lado original vence — registros com person_type = RECLAMANTE/RECLAMADO/
+    // AUTOR/RÉU/EXEQUENTE/EXECUTADO têm prioridade absoluta sobre rótulos de
+    // peça recursal (AGRAVANTE/AGRAVADO/RECORRENTE/RECORRIDO).
+    const ladoPorParte = new Map<string, { nome: string; lado: "ACTIVE" | "PASSIVE"; original: boolean }>();
+    for (const p of parties) {
+      const ptype = (p?.person_type || "").toUpperCase();
+      if (ptype === "ADVOGADO") continue;
+      const lado = ladoEfetivo(p);
+      if (!lado) continue;
+      const nome = (p?.name || "").toString().trim();
+      if (!nome) continue;
+      const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+      const key = doc || nome.toUpperCase();
+      const original = ladoPorPersonType(ptype) !== null; // true para RECLAMANTE/RECLAMADO/etc.
+      const atual = ladoPorParte.get(key);
+      // Mantém o registro se ainda não existe, OU se o novo é "original" e o atual não é.
+      if (!atual || (original && !atual.original)) {
+        ladoPorParte.set(key, { nome, lado, original });
+      }
+    }
+    const ativosUnicos: string[] = [];
+    const passivosUnicos: string[] = [];
+    for (const { nome, lado } of ladoPorParte.values()) {
+      if (lado === "ACTIVE") ativosUnicos.push(nome);
+      else passivosUnicos.push(nome);
+    }
+    const poloAtivo = ativosUnicos.join(", ");
+    const poloPassivo = passivosUnicos.join(", ");
+    console.log(`[buscar-judit] polo_ativo="${poloAtivo}" polo_passivo="${poloPassivo}"`);
 
     // situação
     const rawStatus = rd.status || null;
@@ -1284,6 +1335,14 @@ serve(async (req) => {
         documento: p?.main_document || null,
         tipo_pessoa: p?.person_type || null,
         polo: p?.side || null,
+        // Lado efetivo CONSOLIDADO por parte (mesmo doc): respeita o lado
+        // original quando disponível, evitando que o frontend re-misture.
+        lado_efetivo: (() => {
+          const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+          const key = doc || (p?.name || "").toString().trim().toUpperCase();
+          const consolidado = ladoPorParte.get(key);
+          return consolidado ? consolidado.lado : ladoEfetivo(p);
+        })(),
         is_advogado: (p?.person_type || '').toUpperCase() === 'ADVOGADO',
       })),
       _debug: {
