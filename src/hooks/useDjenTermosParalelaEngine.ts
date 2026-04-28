@@ -1476,6 +1476,99 @@ export function subscribeDjenTermosParalela(
 export { MAX_CONCURRENCY };
 
 // ============================================================================
+// HIDRATAÇÃO A PARTIR DO BANCO — última execução agendada (cron/scheduler)
+// ============================================================================
+// Quando a Paralela executa sozinha (scheduler diário), o localStorage do
+// navegador do usuário não tem checkpoint. Mas o engine grava snapshots
+// completos em execucoes_agendadas.detalhes a cada ~15s. Esta função busca
+// o snapshot mais recente e reidrata o progress visual da UI.
+//
+// Não sobrescreve uma execução em curso (isRunning) nem um snapshot mais
+// recente já carregado em memória (lastUpdatedAt).
+export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
+  try {
+    if (state.isRunning) return false;
+    const { data, error } = await supabase
+      .from('execucoes_agendadas')
+      .select('id, status, detalhes, created_at, finalizado_em, iniciado_em')
+      .eq('tipo', 'djen_paralela')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return false;
+    const det: any = data.detalhes || {};
+    if (!det || typeof det !== 'object') return false;
+
+    // Não regredir se memória já é mais nova que o snapshot do banco
+    const snapTs = det.heartbeat_at ? new Date(det.heartbeat_at).getTime() : 0;
+    if (state.lastUpdatedAt > 0 && snapTs > 0 && snapTs <= state.lastUpdatedAt) {
+      return false;
+    }
+
+    const tracksRaw: any[] = Array.isArray(det.tracks) ? det.tracks : [];
+    const tracks: TrackProgress[] = tracksRaw.map((t) => ({
+      tribunal: String(t?.tribunal || ''),
+      status: (t?.status || 'pendente') as TrackStatus,
+      current: Number(t?.current || 0),
+      total: Number(t?.total || 0),
+      novas: Number(t?.novas || 0),
+      duplicadas: Number(t?.duplicadas || 0),
+      descartadas: Number(t?.descartadas || 0),
+      mensagem: String(t?.mensagem || ''),
+      termoAtual: t?.termoAtual ?? null,
+      diaAtual: t?.diaAtual ?? null,
+      rateLimitHits: Number(t?.rateLimitHits || 0),
+      ultimoErro: t?.ultimoErro ?? null,
+      startedAt: null,
+      finishedAt: null,
+      lastViaId: null,
+      lastViaLabel: null,
+      lastViaKind: null,
+      callsDirect: 0,
+      callsByProxy: {},
+    }));
+
+    // Status do progress: se a execução agendada terminou, refletir 'concluido';
+    // se ainda está em andamento mas a UI não está rodando, mostrar como 'concluido'
+    // (visualização histórica) — o usuário pode clicar Retomar se quiser.
+    const execStatus = String(data.status || '').toLowerCase();
+    const finalStatus: DjenTermosParalelaProgress['status'] =
+      execStatus === 'erro' ? 'erro'
+      : execStatus === 'cancelado' ? 'cancelado'
+      : 'concluido';
+
+    const tempoDecorrido = Number(det.tempoDecorrido || 0)
+      || (data.iniciado_em && data.finalizado_em
+          ? Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime())
+          : 0);
+
+    state.progress = {
+      ...createDefaultProgress(),
+      status: finalStatus,
+      tracks,
+      totalTribunais: Number(det.totalTribunais || tracks.length),
+      tribunaisConcluidos: Number(
+        det.tribunaisConcluidos ?? tracks.filter(t => t.status === 'concluido').length
+      ),
+      novas: Number(det.novas || 0),
+      duplicadas: Number(det.duplicadas || 0),
+      descartadas: Number(det.descartadas || 0),
+      percentage: Math.min(100, Math.max(0, Number(det.percentage || 0))),
+      mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
+      tempoDecorrido,
+      dataInicioYmd: det.dataInicioYmd ?? null,
+      dataFimYmd: det.dataFimYmd ?? null,
+      concorrencia: Number(det.concorrencia || HOST_BUCKET_LIMITS['pje-comunica']),
+    };
+    state.lastUpdatedAt = snapTs || Date.now();
+    notifyListeners();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================================
 // HIDRATAÇÃO INICIAL — restaura progresso visual após F5/reload
 // ============================================================================
 // Quando o módulo carrega (ex.: após F5), se houver checkpoint salvo no

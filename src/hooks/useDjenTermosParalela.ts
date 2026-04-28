@@ -17,6 +17,7 @@ import {
   isDjenTermosParalelaRunning,
   getCheckpointParalela,
   subscribeDjenTermosParalela,
+  hydrateDjenTermosParalelaFromBackend,
 } from './useDjenTermosParalelaEngine';
 
 export type { DjenTermosParalelaProgress };
@@ -39,7 +40,22 @@ export function useDjenTermosParalela() {
       }
       if (p.status === 'erro') toast.error(p.mensagem || 'Erro DJEN Paralela');
     });
-    return unsub;
+
+    // Reidrata visual a partir da última execução agendada (cron/scheduler).
+    // Necessário porque o estado vive em memória + localStorage do navegador,
+    // então execuções automáticas não aparecem na UI até esta hidratação.
+    void hydrateDjenTermosParalelaFromBackend();
+    const intv = setInterval(() => {
+      // Mantém em sincronia caso a Paralela seja iniciada por outra aba/scheduler
+      if (!isDjenTermosParalelaRunning()) {
+        void hydrateDjenTermosParalelaFromBackend();
+      }
+    }, 30_000);
+
+    return () => {
+      unsub();
+      clearInterval(intv);
+    };
   }, [queryClient]);
 
   const checkpoint = getCheckpointParalela();
