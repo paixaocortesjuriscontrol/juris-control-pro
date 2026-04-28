@@ -1244,17 +1244,18 @@ async function executarLoop(
     const queue = [...tribunaisPendentes];
     const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
 
-    if (isDjenProxyPoolEnabled()) {
-      try {
-        await syncDjenProxyPoolFromSupabase();
-      } catch (e) {
-        console.warn('[DJEN Paralela] Falha ao sincronizar pool de proxies antes da execução:', e);
-      }
+    try {
+      // Sempre sincroniza antes de definir workers. O agendamento automático pode
+      // iniciar em navegador sem cache local; sem isto caía para 1 worker Direto.
+      await syncDjenProxyPoolFromSupabase();
+    } catch (e) {
+      console.warn('[DJEN Paralela] Falha ao sincronizar pool de proxies antes da execução:', e);
     }
 
     type ViaSpec = { id: string; label: string };
     const vias: ViaSpec[] = [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
-    if (isDjenProxyPoolEnabled()) {
+    const poolAtivo = isDjenProxyPoolEnabled();
+    if (poolAtivo) {
       for (const slot of loadDjenProxyPool()) {
         if (slot.enabled && slot.id && slot.baseUrl && slot.token) {
           vias.push({ id: slot.id, label: slot.label || slot.baseUrl });
