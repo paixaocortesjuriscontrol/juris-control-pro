@@ -1557,7 +1557,15 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
 
     // Não regredir se memória já é mais nova que o snapshot do banco
     const snapTs = det.heartbeat_at ? new Date(det.heartbeat_at).getTime() : 0;
-    if (state.lastUpdatedAt > 0 && snapTs > 0 && snapTs <= state.lastUpdatedAt) {
+    const dbStatusAfterWatchdog = String(data.status || '').toLowerCase();
+    if (
+      state.lastUpdatedAt > 0 &&
+      snapTs > 0 &&
+      snapTs <= state.lastUpdatedAt &&
+      dbStatusAfterWatchdog !== 'executando' &&
+      dbStatusAfterWatchdog !== 'erro' &&
+      dbStatusAfterWatchdog !== 'cancelado'
+    ) {
       return false;
     }
 
