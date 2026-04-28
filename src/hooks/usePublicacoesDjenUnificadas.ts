@@ -404,11 +404,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   });
 
   // Buscar publicações unificadas
-  const { data: publicacoes = [], isLoading } = useQuery({
+  const page = Math.max(1, filtros.page ?? 1);
+  const pageSize = Math.max(1, filtros.pageSize ?? 500);
+  const offsetGlobal = (page - 1) * pageSize;
+
+  const { data: queryResult, isLoading } = useQuery({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 60_000, // 1 minuto - evita refetches desnecessários
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
       // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
       // Se usuário seleciona 30/01, deve buscar 30/01 00:00 BRT até 30/01 23:59 BRT
@@ -440,35 +444,29 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
       if (canUseRpc) {
         try {
-        console.debug('[DJEN] tentando RPC deduplicada (sem count)');
+        console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
 
-        const PAGE = 200;
+        // PAGINAÇÃO REAL no servidor: uma única chamada para a página solicitada.
+        // Antes carregávamos até 2000 linhas em loop, o que deixava lento e gerava
+        // erros de renderização quando o advogado tirava todos os filtros.
+        const { data: pageRows, error: pageError } = await (supabase as any)
+          .rpc('get_djen_publicacoes_unificadas', {
+            p_coordenacao_id: filtros.coordenacaoId,
+            p_inicio: dataInicioFiltro ?? null,
+            p_fim: dataFimFiltro ?? null,
+            p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
+            p_search_query: filtros.termoBusca ?? null,
+            p_limit: pageSize,
+            p_offset: offsetGlobal,
+            p_monitoramento_id: filtros.monitoramentoId ?? null,
+          });
 
-        // Fase 1: Buscar diretamente sem count RPC (elimina ~2.8s)
-        const rawRows: any[] = [];
-        for (let offset = 0; ; offset += PAGE) {
-          const { data: pageRows, error: pageError } = await (supabase as any)
-            .rpc('get_djen_publicacoes_unificadas', {
-              p_coordenacao_id: filtros.coordenacaoId,
-              p_inicio: dataInicioFiltro ?? null,
-              p_fim: dataFimFiltro ?? null,
-              p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
-              p_search_query: filtros.termoBusca ?? null,
-              p_limit: PAGE,
-              p_offset: offset,
-              p_monitoramento_id: filtros.monitoramentoId ?? null,
-            });
-
-          if (pageError) {
-            throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
-          }
-
-          const chunk = (pageRows || []) as any[];
-          rawRows.push(...chunk);
-          if (chunk.length < PAGE) break;
-          // Safety: don't fetch more than 2000 rows
-          if (rawRows.length >= 2000) break;
+        if (pageError) {
+          throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
         }
+
+        const rawRows: any[] = (pageRows || []) as any[];
+        const lastChunkSize = rawRows.length;
 
         // mapear para o tipo do app
         const mapped: PublicacaoUnificada[] = rawRows.map((r) => ({
@@ -615,7 +613,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const enriquecidos = await enriquecerPublicacoesComMonitoramento(merged);
 
         const deduped = dedupePublicacoesDjen(enriquecidos);
-        return mergeWithLeituras(user!.id, deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), !!filtros.apenasNaoLidas);
+        const finalRows = await mergeWithLeituras(
+          user!.id,
+          deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+          !!filtros.apenasNaoLidas,
+        );
+        return { rows: finalRows, lastChunkSize };
 
         } catch (rpcError) {
           console.warn('[DJEN] RPC falhou, usando fallback com queries diretas:', rpcError);
