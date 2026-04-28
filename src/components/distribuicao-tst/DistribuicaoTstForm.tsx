@@ -144,6 +144,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
       // apenas como fallback. Isso evita misturar banco/reclamante em recursos onde
       // ambos figuram como AGRAVANTE/RECORRENTE.
       const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+      const roleOriginal = (tipo: string) => /RECLAMANTE|RECLAMAD|AUTOR|AUTORA|R[ÉE]U|EXECUTAD|EXEQUENTE/i.test(tipo || "");
       const nomesPorPolo = (poloUpper: string) =>
         [...new Set(
           partes
@@ -153,6 +154,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
               const lado = efetivo || (p?.polo || "").toString().toUpperCase();
               return lado === poloUpper;
             })
+            .sort((a: any, b: any) => Number(roleOriginal(b?.tipo_pessoa)) - Number(roleOriginal(a?.tipo_pessoa)))
             .map((p: any) => String(p?.nome || "").trim())
             .filter(Boolean)
         )].join(" / ");
