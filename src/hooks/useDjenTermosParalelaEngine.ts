@@ -220,6 +220,7 @@ let state: {
   timerInterval: ReturnType<typeof setInterval> | null;
   lastUpdatedAt: number;
   executionId: string | null;
+  resetExecutionIds: Set<string>;
   lastExecutionSyncAt: number;
 } = {
   isRunning: false,
@@ -230,6 +231,7 @@ let state: {
   timerInterval: null,
   lastUpdatedAt: 0,
   executionId: null,
+  resetExecutionIds: new Set(),
   lastExecutionSyncAt: 0,
 };
 
@@ -260,6 +262,18 @@ function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
   state.progress = { ...state.progress, ...partial };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
+}
+
+function stopLocalExecution() {
+  if (state.abortController) {
+    state.abortController.abort();
+    state.abortController = null;
+  }
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+  state.isRunning = false;
 }
 
 function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
