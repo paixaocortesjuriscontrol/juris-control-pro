@@ -688,6 +688,7 @@ function syncExecutionProgress(overrides: Record<string, any> = {}, force = fals
 
 async function markActiveParalelaExecutions(payload: Record<string, any>): Promise<void> {
   const activeId = state.executionId;
+  if (activeId) state.resetExecutionIds.add(activeId);
   const query = supabase
     .from('execucoes_agendadas')
     .update(payload)
