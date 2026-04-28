@@ -530,12 +530,6 @@ function extrairRecursosPorParte(
   const RX_NAO_RECURSO =
     /\b(contraminuta|contrarraz[õo]es|contesta[çc][ãa]o|impugna[çc][ãa]o|manifesta[çc][ãa]o|habilita[çc][ãa]o|substabelecimento|peti[çc][ãa]o\s+intercorrente|petic[ãa]o\s+do\s+adv|memori|destaque|sustenta[çc][ãa]o|cota|provid[êe]ncias?)\b/i;
 
-  // Padrões para descobrir o autor do recurso em movimentos próximos.
-  // Após "JUNTADA A PETIÇÃO DE [recurso]" geralmente há "EXPEDIDO(A) INTIMAÇÃO A(O) <NOME>",
-  // intimando a parte CONTRÁRIA. Logo, o autor é o oposto.
-  const RX_INTIMACAO_DESTINATARIO =
-    /expedid[oa].*intima[çc][ãa]o\s+(?:a\s+|ao\s+|à\s+|para\s+)?[oa]?\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s\.\-&]{3,})/i;
-
   const detectaLado = (texto: string): { ativo: boolean; passivo: boolean } => {
     const upper = normalize(texto);
     let ativo = RX_LADO_ATIVO.test(texto);
@@ -598,30 +592,13 @@ function extrairRecursosPorParte(
       ladoPassivo = det.passivo;
     }
 
-    // 2) Se ainda ambíguo, olha movimentos vizinhos (±3) por menção a parte/intimação.
+    // 2) Se ainda ambíguo, NÃO inferir por movimentos vizinhos/intimações.
+    // O caso real 0100798-32.2021.5.01.0049 mostrou que usar intimação vizinha
+    // como "parte contrária" atribui RO ao banco sem prova de interposição.
+    // Política do campo: só preencher quando o próprio movimento confirma o lado.
     if (ladoAtivo === ladoPassivo) {
-      const janela = stepsOrdenados.slice(Math.max(0, i - 1), Math.min(stepsOrdenados.length, i + 4));
-      for (const v of janela) {
-        if (v === s) continue;
-        const tv = (v?.content || v?.title || "").toString();
-        if (!tv) continue;
-        // "EXPEDIDO INTIMAÇÃO A(O) <NOME>" → intimação à parte contrária do autor.
-        const m = tv.match(RX_INTIMACAO_DESTINATARIO);
-        if (m && m[1]) {
-          const destino = normalize(m[1]);
-          let destinoAtivo = false, destinoPassivo = false;
-          for (const tok of nomesAtivo) { if (destino.includes(tok)) { destinoAtivo = true; break; } }
-          for (const tok of nomesPassivo) { if (destino.includes(tok)) { destinoPassivo = true; break; } }
-          if (destinoAtivo && !destinoPassivo) { ladoPassivo = true; ladoAtivo = false; break; }
-          if (destinoPassivo && !destinoAtivo) { ladoAtivo = true; ladoPassivo = false; break; }
-        }
-        const lv = detectaLado(tv);
-        if (lv.ativo !== lv.passivo) {
-          ladoAtivo = lv.ativo;
-          ladoPassivo = lv.passivo;
-          break;
-        }
-      }
+      ladoAtivo = false;
+      ladoPassivo = false;
     }
 
     const appendUnique = (arr: string[], valor: string) => {
