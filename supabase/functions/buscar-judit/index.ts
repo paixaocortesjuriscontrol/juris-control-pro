@@ -30,8 +30,8 @@ const REQUESTS_URL = `${JUDIT_BASE}/requests`;
 const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
-const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 30_000;    // 30s — reduzido, pois cache-first resolve maioria
+const POLL_INTERVAL_MS = 1000;
+const POLL_TIMEOUT_MS = 12_000;    // mantém o botão Judit responsivo; DataJud/cache complementam o TST
 const CACHE_TTL_DAYS = 7;
 
 // ---------- DataJud fallback (CNJ public API) -----------------------------
@@ -61,7 +61,7 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
 
     const url = `${DATAJUD_BASE}/${endpoint}/_search`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const r = await fetch(url, {
       method: "POST",
@@ -128,14 +128,22 @@ async function consultarDataJud(cnj: string): Promise<DataJudOrgao | null> {
       ? `${rawDataAjuiz.substring(0, 4)}-${rawDataAjuiz.substring(4, 6)}-${rawDataAjuiz.substring(6, 8)}`
       : rawDataAjuiz.substring(0, 10) || null;
 
-    const steps = movimentos.map((m: any) => ({
+    const steps = movimentos.map((m: any) => {
+      const complementos = Array.isArray(m?.complementosTabelados)
+        ? m.complementosTabelados
+            .flatMap((c: any) => [c?.nome, c?.valor, c?.descricao])
+            .filter((v: any) => typeof v === "string" && v.trim())
+        : [];
+      return ({
       step_date: m?.dataHora || null,
       date: m?.dataHora || null,
       code: m?.codigo ?? null,
-      content: [m?.nome, m?.orgaoJulgador?.nome].filter(Boolean).join(" - "),
+      content: [m?.nome, ...complementos, m?.orgaoJulgador?.nome].filter(Boolean).join(" - "),
       title: m?.nome || null,
       orgao_julgador: m?.orgaoJulgador || null,
-    }));
+      raw: m,
+    });
+    });
     const courts = nomeOrgao ? [{ code: orgaoRaiz?.codigo?.toString?.() || "TST", name: nomeOrgao }] : [];
 
     console.log(`[buscar-judit][datajud] orgao=${nomeOrgao} relator=${relator} turma=${turma} classe=${classe}`);
