@@ -454,7 +454,7 @@ function ladoPorPersonType(personType: string): "ACTIVE" | "PASSIVE" | null {
 
 function isParteBanco(nome: string): boolean {
   const n = normalizePlain(nome || "");
-  return /\b(BANCO|SANTANDER|BRADESCO|ITAU|ITAÚ|CAIXA\s+ECONOMICA|CAIXA\s+ECONÔMICA|CEF|BANRISUL|SAFRA|BMG|C6\s+BANK|BANCO\s+DO\s+BRASIL)\b/.test(n);
+  return /\b(BANCO|SANTANDER|BRADESCO|ITAU|ITAÚ|AYMORE|AYMOR[ÉE]|FINANCEIRA|CREDITO,?\s+FINANCIAMENTO|CAIXA\s+ECONOMICA|CAIXA\s+ECONÔMICA|CEF|BANRISUL|SAFRA|BMG|C6\s+BANK|BANCO\s+DO\s+BRASIL)\b/.test(n);
 }
 
 /**
@@ -617,6 +617,15 @@ function inferirRecursosRecorrentesPorPartes(
   sigla: string | null,
 ): { reclamante: string | null; banco: string | null } {
   if (!sigla || !Array.isArray(parties)) return { reclamante: null, banco: null };
+  const ladoOriginalPorParte = new Map<string, "ACTIVE" | "PASSIVE">();
+  for (const p of parties) {
+    const nome = (p?.name || "").toString().trim();
+    if (!nome || (p?.person_type || "").toString().toUpperCase() === "ADVOGADO") continue;
+    const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+    const key = doc || normalizePlain(nome);
+    const lado = isParteBanco(nome) ? "PASSIVE" : ladoPorPersonType((p?.person_type || "").toString());
+    if (lado && !ladoOriginalPorParte.has(key)) ladoOriginalPorParte.set(key, lado);
+  }
   let reclamante = false;
   let banco = false;
   for (const p of parties) {
@@ -629,6 +638,11 @@ function inferirRecursosRecorrentesPorPartes(
       banco = true;
       continue;
     }
+    const doc = (p?.main_document || "").toString().replace(/\D/g, "");
+    const key = doc || normalizePlain(nome);
+    const ladoConsolidado = ladoOriginalPorParte.get(key);
+    if (ladoConsolidado === "PASSIVE") { banco = true; continue; }
+    if (ladoConsolidado === "ACTIVE") { reclamante = true; continue; }
     const ladoOriginal = ladoPorPersonType(ptype);
     const side = (p?.side || "").toString().toUpperCase();
     if (ladoOriginal === "PASSIVE") banco = true;
