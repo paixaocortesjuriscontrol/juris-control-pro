@@ -1239,6 +1239,18 @@ serve(async (req) => {
       );
     }
 
+    const pautaReferencia = validPauta.length > 0 ? validPauta[validPauta.length - 1].stepDate : null;
+    if (tribunalAcronimo === "TST" && pautaReferencia) {
+      const pautaOficialTst = await consultarPautaPublicaTst(cnj, turma, pautaReferencia);
+      if (pautaOficialTst) {
+        dataJulgamento = pautaOficialTst.data;
+        horarioJulgamento = pautaOficialTst.horario || horarioJulgamento;
+        tipoJulgamento = pautaOficialTst.tipo || tipoJulgamento;
+        temDataJulgamento = "S";
+        console.log(`[buscar-judit] pauta oficial TST aplicada -> data=${dataJulgamento} hora=${horarioJulgamento} tipo=${tipoJulgamento}`);
+      }
+    }
+
     // Demais resultados (transcendência, conhecimento, baixa) — varre todos os steps.
     for (const step of steps) {
       const content = (step?.content || step?.title || step?.description || "").toString();
