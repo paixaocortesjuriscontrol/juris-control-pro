@@ -175,6 +175,8 @@ export interface PublicacaoUnificada {
   lido_por?: LeituraUsuario[];
 }
 
+export type FiltroLeituraDjen = 'lidas' | 'nao_lidas' | 'todas';
+
 export interface FiltrosUnificados {
   coordenacaoId?: string;
   dataInicio?: string;
@@ -182,6 +184,7 @@ export interface FiltrosUnificados {
   termoBusca?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
+  readStatus?: FiltroLeituraDjen;
   apenasHoje?: boolean;
   // `tipoOrigem` é o filtro do UI "Tipo de Origem":
   // - termo: publicações vindas de monitoramentos (palavra-chave / advogado / parte)
@@ -213,7 +216,7 @@ export interface EstatisticasCoordenacao {
 async function mergeWithLeituras(
   userId: string,
   results: PublicacaoUnificada[],
-  apenasNaoLidas: boolean
+  readStatus: FiltroLeituraDjen = 'todas'
 ): Promise<PublicacaoUnificada[]> {
   if (results.length === 0) return results;
 
@@ -240,8 +243,10 @@ async function mergeWithLeituras(
     lido_por: lidoPorMap.get(pub.id) || [],
   }));
 
-  if (apenasNaoLidas) {
+  if (readStatus === 'nao_lidas') {
     merged = merged.filter(pub => !pub.lida);
+  } else if (readStatus === 'lidas') {
+    merged = merged.filter(pub => pub.lida);
   }
 
   return merged;
@@ -250,6 +255,7 @@ async function mergeWithLeituras(
 export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const readStatus: FiltroLeituraDjen = filtros.readStatus ?? (filtros.apenasNaoLidas ? 'nao_lidas' : 'todas');
 
   // Query separada para contar descartadas NO MESMO CONTEXTO DE FILTROS (evita mostrar número incoerente)
   const { data: totalDescartadasHoje = 0 } = useQuery({
@@ -262,30 +268,23 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
-        apenasNaoLidas: filtros.apenasNaoLidas ?? null,
+        readStatus,
       },
     ],
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
-      // Se não há filtro de data, buscar últimos 30 dias por padrão para capturar todas publicações não lidas
-      const hoje = new Date();
-      const trintaDiasAtras = new Date(hoje);
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
-
       const dataInicioFiltro = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : dateLocalToUTCRange(defaultInicioYmd, false);
+          : null;
 
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : formatToUTC(endOfDay(new Date()));
+          : null;
 
       try {
         let q = (supabase
@@ -333,27 +332,22 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         tipoOrigem: filtros.tipoOrigem ?? null,
         termoBusca: filtros.termoBusca ?? null,
         monitoramentoId: filtros.monitoramentoId ?? null,
-        apenasNaoLidas: filtros.apenasNaoLidas ?? null,
+        readStatus,
       },
     ],
     queryFn: async () => {
       if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
 
-      const hoje = new Date();
-      const trintaDiasAtras = new Date(hoje);
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
-
       const di = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : dateLocalToUTCRange(defaultInicioYmd, false);
+          : null;
       const df = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : formatToUTC(endOfDay(new Date()));
+          : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
       // do usuário autenticado (espelhando o mergeWithLeituras no client),
@@ -381,11 +375,19 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const nP = Number(row?.nao_lidas_processos ?? 0);
       const total = tT + tP;
       const naoLidas = nT + nP;
+      const lT = Math.max(0, tT - nT);
+      const lP = Math.max(0, tP - nP);
+      if (readStatus === 'nao_lidas') {
+        return { total: naoLidas, naoLidas, totalTermos: nT, totalProcessos: nP };
+      }
+      if (readStatus === 'lidas') {
+        return { total: lT + lP, naoLidas: 0, totalTermos: lT, totalProcessos: lP };
+      }
       return {
-        total: filtros.apenasNaoLidas ? naoLidas : total,
+        total,
         naoLidas,
-        totalTermos: filtros.apenasNaoLidas ? nT : tT,
-        totalProcessos: filtros.apenasNaoLidas ? nP : tP,
+        totalTermos: tT,
+        totalProcessos: tP,
       };
     },
     enabled: !!user?.id,
@@ -403,25 +405,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
-      // IMPORTANTE: Usar timezone local (BRT) para evitar off-by-one
-      // Se usuário seleciona 30/01, deve buscar 30/01 00:00 BRT até 30/01 23:59 BRT
-      // Se não há filtro de data, buscar últimos 30 dias por padrão para capturar todas publicações não lidas
-      const hoje = new Date();
-      const trintaDiasAtras = new Date(hoje);
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const defaultInicioYmd = trintaDiasAtras.toISOString().slice(0, 10);
-
       const dataInicioFiltro = filtros.apenasHoje 
         ? formatToUTC(startOfDay(new Date()))
         : filtros.dataInicio 
           ? dateLocalToUTCRange(filtros.dataInicio, false)
-          : dateLocalToUTCRange(defaultInicioYmd, false);
+          : null;
       
       const dataFimFiltro = filtros.apenasHoje
         ? formatToUTC(endOfDay(new Date()))
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
-          : formatToUTC(endOfDay(new Date()));
+          : null;
 
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
@@ -438,12 +432,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // PAGINAÇÃO REAL no servidor: uma única chamada para a página solicitada.
         // Antes carregávamos até 2000 linhas em loop, o que deixava lento e gerava
         // erros de renderização quando o advogado tirava todos os filtros.
-        if (filtros.apenasNaoLidas) {
+        if (readStatus !== 'todas') {
           const alvo = page * pageSize + 1;
           const batchSize = 1000;
-          const naoLidasAcumuladas: PublicacaoUnificada[] = [];
+          const publicacoesAcumuladas: PublicacaoUnificada[] = [];
 
-          for (let offset = 0; offset < 50000 && naoLidasAcumuladas.length < alvo; offset += batchSize) {
+          for (let offset = 0; offset < 50000 && publicacoesAcumuladas.length < alvo; offset += batchSize) {
             const { data: batchRows, error: batchError } = await (supabase as any)
               .rpc('get_djen_publicacoes_unificadas', {
                 p_coordenacao_id: filtros.coordenacaoId,
@@ -497,13 +491,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
                   ? mappedBatch.filter((p) => p.tipo_origem === 'processo')
                   : mappedBatch;
 
-            const unreadBatch = await mergeWithLeituras(user!.id, typedBatch, true);
-            naoLidasAcumuladas.push(...unreadBatch);
+            const filteredBatch = await mergeWithLeituras(user!.id, typedBatch, readStatus);
+            publicacoesAcumuladas.push(...filteredBatch);
             if (mappedBatch.length < batchSize) break;
           }
 
-          const rows = naoLidasAcumuladas.slice(offsetGlobal, offsetGlobal + pageSize);
-          const lastChunkSize = naoLidasAcumuladas.length > offsetGlobal + pageSize ? pageSize : rows.length;
+          const rows = publicacoesAcumuladas.slice(offsetGlobal, offsetGlobal + pageSize);
+          const lastChunkSize = publicacoesAcumuladas.length > offsetGlobal + pageSize ? pageSize : rows.length;
           return { rows, lastChunkSize };
         }
 
@@ -674,7 +668,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const finalRows = await mergeWithLeituras(
           user!.id,
           deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-          !!filtros.apenasNaoLidas,
+          readStatus,
         );
         return { rows: finalRows, lastChunkSize };
 
@@ -1014,7 +1008,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const sorted = deduped.sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-      const finalRowsFallback = await mergeWithLeituras(user!.id, sorted, !!filtros.apenasNaoLidas);
+      const finalRowsFallback = await mergeWithLeituras(user!.id, sorted, readStatus);
       // lastChunkSize: tamanho do maior bloco bruto carregado (heurística para hasNextPage)
       const lastChunkSize = Math.max(
         0,

@@ -61,7 +61,7 @@ import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
 
-import { usePublicacoesDjenUnificadas, PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import { usePublicacoesDjenUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +76,7 @@ import { jsPDF } from "jspdf";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud';
+type FiltroDiaDjen = 'hoje' | 'todos';
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
@@ -113,10 +114,11 @@ const AnaliseDjen = () => {
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
-  const [apenasNaoLidas, setApenasNaoLidas] = useState(true);
-  const [apenasHoje, setApenasHoje] = useState(true); // Sempre marcado por padrão
+  const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
+  const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
-  const [apenasComProcesso, setApenasComProcesso] = useState(false);
+  const apenasHoje = filtroDia === 'hoje';
+  const apenasNaoLidas = readStatus === 'nao_lidas';
   // Paginação: 500 registros por página. Reset para 1 quando qualquer filtro muda.
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 500;
@@ -183,6 +185,7 @@ const AnaliseDjen = () => {
     termoBusca: termoBusca || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
+    readStatus,
     apenasHoje,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
@@ -199,12 +202,12 @@ const AnaliseDjen = () => {
     setPage(1);
   }, [
     coordenacaoFiltroEfetivo, dataInicio, dataFim, dataDisponibilizacao,
-    termoBusca, monitoramentoId, apenasNaoLidas, apenasHoje, tipoOrigem,
+    termoBusca, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
   ]);
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
-    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas],
+    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, readStatus],
     queryFn: async () => {
       let query = supabase
         .from('movimentacoes_datajud')
@@ -219,8 +222,10 @@ const AnaliseDjen = () => {
       if (coordenacaoFiltroEfetivo) {
         query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       }
-      if (apenasNaoLidas) {
+      if (readStatus === 'nao_lidas') {
         query = query.eq('lida', false);
+      } else if (readStatus === 'lidas') {
+        query = query.eq('lida', true);
       }
       if (monitoramentoId) {
         query = query.eq('monitoramento_id', monitoramentoId);
@@ -251,7 +256,7 @@ const AnaliseDjen = () => {
 
   // Count DataJud for stats using the same filters as the list
   const { data: datajudStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingDatajudStats } = useQuery({
-    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, apenasNaoLidas, tipoOrigem],
+    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, readStatus, tipoOrigem],
     queryFn: async () => {
       if (tipoOrigem !== 'datajud') {
         return { total: 0, naoLidas: 0 };
@@ -281,10 +286,15 @@ const AnaliseDjen = () => {
         return query;
       };
 
-      if (apenasNaoLidas) {
+      if (readStatus === 'nao_lidas') {
         const { count } = await applyFilters(true);
         const total = count || 0;
         return { total, naoLidas: total };
+      }
+
+      if (readStatus === 'lidas') {
+        const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([applyFilters(false), applyFilters(true)]);
+        return { total: Math.max(0, (totalCount || 0) - (unreadCount || 0)), naoLidas: 0 };
       }
 
       const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([applyFilters(false), applyFilters(true)]);
@@ -295,11 +305,18 @@ const AnaliseDjen = () => {
   const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
-  const incluirTotaisDjen = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada';
-  const totalDjenFiltrado = incluirTotaisDjen ? totalHoje : 0;
-  const naoLidasDjenFiltrado = incluirTotaisDjen ? naoLidasHoje : 0;
-  const totalTermosFiltrado = incluirTotaisDjen ? totalTermosHoje : 0;
-  const totalProcessosFiltrado = incluirTotaisDjen ? totalProcessosHoje : 0;
+  const totalGeralFiltrado = tipoOrigem === 'datajud'
+    ? totalDatajudHoje
+    : tipoOrigem === 'descartada'
+      ? totalDescartadasHoje
+      : totalHoje;
+  const naoLidasTotalFiltrado = tipoOrigem === 'datajud'
+    ? naoLidasDatajudHoje
+    : tipoOrigem === 'descartada'
+      ? 0
+      : naoLidasHoje;
+  const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
+  const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = tipoOrigem === 'descartada' ? totalDescartadasHoje : 0;
 
   // Map DataJud results to PublicacaoUnificada format
@@ -1452,26 +1469,8 @@ const AnaliseDjen = () => {
     }
   };
 
-  // Buscar números de processos cadastrados para filtro "Com processo"
-  const { data: processosMapCadastrados } = useQuery({
-    queryKey: ['processos-numeros-cadastrados', coordenacaoFiltroEfetivo],
-    queryFn: async () => {
-      let q = supabase.from('processos').select('id, numero');
-      if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
-      const { data } = await q.limit(5000);
-      // Map de dígitos -> processo_id para enriquecer publicações
-      const map = new Map<string, string>();
-      (data || []).forEach((p: any) => {
-        if (p.numero) map.set(p.numero.replace(/\D/g, ''), p.id);
-      });
-      return map;
-    },
-    enabled: apenasComProcesso,
-    staleTime: 60_000,
-  });
-
   // Use merged data for all rendering (shadow the hook's publicacoes)
-  // Filtro client-side por data de disponibilização e "com processo cadastrado"
+  // Filtro client-side por data de disponibilização.
   const allPublicacoes = useMemo(() => {
     let result = mergedPublicacoes;
     if (dataDisponibilizacao) {
@@ -1481,25 +1480,8 @@ const AnaliseDjen = () => {
         return pubDate === dataDisponibilizacao;
       });
     }
-    if (apenasComProcesso && processosMapCadastrados) {
-      result = result
-        .filter(pub => {
-          if (pub.tipo_origem === 'processo') return true;
-          if (!pub.processo_numero) return false;
-          const digits = pub.processo_numero.replace(/\D/g, '');
-          return processosMapCadastrados.has(digits);
-        })
-        .map(pub => {
-          // Enriquecer com processo_id se não tiver
-          if (pub.processo_id || !pub.processo_numero) return pub;
-          const digits = pub.processo_numero.replace(/\D/g, '');
-          const processoId = processosMapCadastrados.get(digits);
-          if (!processoId) return pub;
-          return { ...pub, processo_id: processoId };
-        });
-    }
-    return result.slice(0, PAGE_SIZE);
-  }, [mergedPublicacoes, dataDisponibilizacao, apenasComProcesso, processosMapCadastrados]);
+    return result;
+  }, [mergedPublicacoes, dataDisponibilizacao]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
@@ -1533,7 +1515,7 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
-  const totalFiltradoGeral = totalListaVisivel;
+  const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
 
   return (
@@ -1551,7 +1533,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
                   <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalListaVisivel}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalGeralFiltrado}
                   </p>
                 </div>
                 <FileText className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
@@ -1565,7 +1547,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Não Lidas</p>
                   <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalNaoLidasVisivel}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : naoLidasTotalFiltrado}
                   </p>
                 </div>
                 <Eye className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
@@ -1579,7 +1561,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Por Termos</p>
                   <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalTermosVisivel}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalTermosFiltrado}
                   </p>
                 </div>
                 <FileSearch className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
@@ -1593,7 +1575,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Por Processos</p>
                   <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalProcessosVisivel}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalProcessosFiltrado}
                   </p>
                 </div>
                 <Gavel className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
@@ -1607,7 +1589,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-rose-600 dark:text-rose-400 truncate">Descartadas</p>
                   <p className="text-xl md:text-3xl font-bold text-rose-700 dark:text-rose-300">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasVisivel}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDescartadasFiltrado}
                   </p>
                 </div>
                 <Trash2 className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
@@ -1621,7 +1603,7 @@ const AnaliseDjen = () => {
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm font-medium text-cyan-600 dark:text-cyan-400 truncate">DataJud (CNJ)</p>
                   <p className="text-xl md:text-3xl font-bold text-cyan-700 dark:text-cyan-300">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudVisivel}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudHoje}
                   </p>
                 </div>
                 <Database className="w-6 h-6 md:w-10 md:h-10 text-cyan-500/50 flex-shrink-0" />
@@ -1704,7 +1686,7 @@ const AnaliseDjen = () => {
                     const val = e.target.value;
                     setDataDisponibilizacao(val);
                     if (val && val !== new Date().toISOString().slice(0, 10)) {
-                      setApenasHoje(false);
+                      setFiltroDia('todos');
                     }
                   }}
                   className="h-9 md:h-10 text-sm"
@@ -1749,59 +1731,58 @@ const AnaliseDjen = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-3 md:mt-4">
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="apenasHoje"
-                  checked={apenasHoje}
-                  onCheckedChange={(checked) => setApenasHoje(checked as boolean)}
-                />
-                <Label htmlFor="apenasHoje" className="cursor-pointer text-xs md:text-sm font-medium">
-                  Hoje
-                </Label>
+            <div className="flex flex-wrap items-end gap-4 mt-3 md:mt-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Período</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant={filtroDia === 'hoje' ? 'default' : 'outline'} onClick={() => setFiltroDia('hoje')} disabled={tipoOrigem === 'descartada'}>
+                    Somente Hoje
+                  </Button>
+                  <Button type="button" size="sm" variant={filtroDia === 'todos' ? 'default' : 'outline'} onClick={() => setFiltroDia('todos')} disabled={tipoOrigem === 'descartada'}>
+                    Todos os dias
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="naoLidas"
-                  checked={apenasNaoLidas}
-                  onCheckedChange={(checked) => setApenasNaoLidas(checked as boolean)}
-                />
-                <Label htmlFor="naoLidas" className="cursor-pointer text-xs md:text-sm">
-                  Não Lidas
-                </Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Leitura</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant={readStatus === 'lidas' ? 'default' : 'outline'} onClick={() => setReadStatus('lidas')} disabled={tipoOrigem === 'descartada'}>
+                    Lidas
+                  </Button>
+                  <Button type="button" size="sm" variant={readStatus === 'nao_lidas' ? 'default' : 'outline'} onClick={() => setReadStatus('nao_lidas')} disabled={tipoOrigem === 'descartada'}>
+                    Não Lidas
+                  </Button>
+                  <Button type="button" size="sm" variant={readStatus === 'todas' ? 'default' : 'outline'} onClick={() => setReadStatus('todas')} disabled={tipoOrigem === 'descartada'}>
+                    Todas
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="comProcesso"
-                  checked={apenasComProcesso}
-                  onCheckedChange={(checked) => setApenasComProcesso(checked as boolean)}
-                />
-                <Label htmlFor="comProcesso" className="cursor-pointer text-xs md:text-sm text-blue-600 dark:text-blue-400 font-medium">
-                  Com Processo
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="todasPublicacoes"
-                  checked={tipoOrigem === 'todos'}
-                  onCheckedChange={(checked) => {
-                    setTipoOrigem(checked ? 'todos' : 'normal');
-                  }}
-                />
-                <Label htmlFor="todasPublicacoes" className="cursor-pointer text-xs md:text-sm font-medium">
-                  Todas
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox 
+              <div className="flex items-center gap-2 pb-1">
+                <Checkbox
                   id="apenasDescartadas"
                   checked={tipoOrigem === 'descartada'}
                   onCheckedChange={(checked) => {
-                    setTipoOrigem(checked ? 'descartada' : 'normal');
+                    if (checked) {
+                      setTipoOrigem('descartada');
+                      setFiltroDia('todos');
+                      setReadStatus('todas');
+                      setDataInicio('');
+                      setDataFim('');
+                      setDataDisponibilizacao('');
+                      setTermoBusca('');
+                      setMonitoramentoId('');
+                    } else {
+                      setTipoOrigem('todos');
+                      setFiltroDia('hoje');
+                      setReadStatus('nao_lidas');
+                      setDataInicio('');
+                      setDataFim('');
+                      setDataDisponibilizacao('');
+                      setTermoBusca('');
+                      setMonitoramentoId('');
+                    }
                   }}
                 />
                 <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
