@@ -19,3 +19,10 @@ Regras:
   `DistribuicaoTstForm.tsx`. Vazio da Judit APAGA valor antigo (inclusive valor
   herdado de planilha importada).
 - UI mostra aviso amarelo abaixo de "Tipo de Recurso" quando `_judit_meta.fonte_tipo_recurso='nenhuma'`.
+- AUTOR EXPLÍCITO TEM PRECEDÊNCIA: quando o próprio andamento diz
+  "RECURSO/AGRAVO/EMBARGOS … DE <NOME DA PARTE>" (ex.:
+  "RECEBIDO O RECURSO ORDINÁRIO DE MARCELA LAZARO PEREIRA"), a parte
+  recorrente é decidida cruzando `<NOME>` com tokens de `nomesAtivo`/`nomesPassivo`.
+  Intimações vizinhas (`EXPEDIDO INTIMAÇÃO A …`) NÃO podem inverter esse
+  resultado — caso contrário o recurso da reclamante é atribuído ao banco
+  porque a intimação seguinte é sempre ao polo contrário.
