@@ -277,6 +277,9 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
     totalCurrent += t.current;
     totalGlobal += t.total;
   }
+  const tempoDecorrido = state.progress.iniciadoEm && state.progress.status === 'executando'
+    ? Math.floor(Math.max(0, Date.now() - new Date(state.progress.iniciadoEm).getTime()) / 1000)
+    : state.progress.tempoDecorrido;
   const percentage = totalGlobal > 0
     ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
     : 0;
@@ -288,6 +291,7 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
     descartadas,
     tribunaisConcluidos: concluidos,
     percentage,
+    tempoDecorrido,
   };
   state.lastUpdatedAt = Date.now();
   notifyListeners();
