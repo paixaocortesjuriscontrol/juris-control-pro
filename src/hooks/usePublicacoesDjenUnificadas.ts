@@ -1154,20 +1154,24 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Cancelar queries em andamento para evitar sobrescrever o optimistic update
       await queryClient.cancelQueries({ queryKey: ['publicacoes-unificadas'] });
 
-      // Snapshot do estado atual
-      const previousData = queryClient.getQueriesData<PublicacaoUnificada[]>({ queryKey: ['publicacoes-unificadas'] });
+      // Snapshot do estado atual (formato novo: { rows, lastChunkSize })
+      type CachedShape = { rows: PublicacaoUnificada[]; lastChunkSize: number };
+      const previousData = queryClient.getQueriesData<CachedShape>({ queryKey: ['publicacoes-unificadas'] });
 
       // Atualizar otimisticamente todas as queries de publicações
       const idsToMark = new Set(items.map(i => i.id));
-      queryClient.setQueriesData<PublicacaoUnificada[]>(
+      queryClient.setQueriesData<CachedShape>(
         { queryKey: ['publicacoes-unificadas'] },
         (old) => {
-          if (!old) return old;
-          return old.map(pub => idsToMark.has(pub.id) ? { 
-            ...pub, 
-            lida: true,
-            lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
-          } : pub);
+          if (!old || !old.rows) return old;
+          return {
+            ...old,
+            rows: old.rows.map(pub => idsToMark.has(pub.id) ? {
+              ...pub,
+              lida: true,
+              lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
+            } : pub),
+          };
         }
       );
 
