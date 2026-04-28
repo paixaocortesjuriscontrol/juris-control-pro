@@ -610,6 +610,7 @@ function buildSnapshot(overrides: Record<string, any> = {}): any {
     descartadas: state.progress.descartadas,
     percentage: state.progress.percentage,
     mensagem: state.progress.mensagem,
+    tempoDecorrido: state.progress.tempoDecorrido,
     tracks: state.progress.tracks.map(t => ({
       tribunal: t.tribunal,
       status: t.status,
