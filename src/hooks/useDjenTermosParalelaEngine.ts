@@ -29,6 +29,7 @@ import {
   DIRECT_SLOT_ID,
   getDjenProxySlotsRuntime,
   clearDjenProxyOfflineMark,
+  type PoolSessionStats,
 } from "@/utils/djenProxyPool";
 
 // ============================================================================
@@ -75,6 +76,7 @@ export interface DjenTermosParalelaProgress {
   dataInicioYmd: string | null;
   dataFimYmd: string | null;
   concorrencia: number;
+  poolStats?: PoolSessionStats;
 }
 
 interface Monitoramento {
@@ -593,7 +595,9 @@ function extrairPartesEstruturadas(pub: any): string[] {
 // ============================================================================
 
 function buildSnapshot(overrides: Record<string, any> = {}) {
+  const poolStats = getDjenProxyPoolStats();
   return {
+    progressStatus: state.progress.status,
     runKey: state.progress.dataInicioYmd && state.progress.dataFimYmd
       ? `${state.progress.dataInicioYmd}..${state.progress.dataFimYmd}`
       : null,
@@ -614,11 +618,20 @@ function buildSnapshot(overrides: Record<string, any> = {}) {
       novas: t.novas,
       duplicadas: t.duplicadas,
       descartadas: t.descartadas,
+      mensagem: t.mensagem,
       termoAtual: t.termoAtual,
       diaAtual: t.diaAtual,
       rateLimitHits: t.rateLimitHits,
       ultimoErro: t.ultimoErro,
+      startedAt: t.startedAt,
+      finishedAt: t.finishedAt,
+      lastViaId: t.lastViaId,
+      lastViaLabel: t.lastViaLabel,
+      lastViaKind: t.lastViaKind,
+      callsDirect: t.callsDirect,
+      callsByProxy: t.callsByProxy,
     })),
+    pool_stats: poolStats,
     heartbeat_at: new Date().toISOString(),
     concorrencia: state.progress.concorrencia,
     ...overrides,
