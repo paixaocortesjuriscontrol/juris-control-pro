@@ -2428,7 +2428,7 @@ const AnaliseDjen = () => {
         {!isLoading && allPublicacoes.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground">
-              Página <strong>{page}</strong> · exibindo até {PAGE_SIZE} registros por página
+              Página <strong>{page}</strong> · exibindo <strong>{totalExibidoNaPagina}</strong> de <strong>{totalFiltradoGeral}</strong> registros filtrados
               {hasNextPage ? "" : " · última página"}
             </div>
             <div className="flex items-center gap-2">
