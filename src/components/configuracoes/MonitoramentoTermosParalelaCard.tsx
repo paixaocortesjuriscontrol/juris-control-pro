@@ -229,7 +229,14 @@ export function MonitoramentoTermosParalelaCard() {
   const slotLabelById: Record<string, string> = {};
   poolSlots.forEach(s => { slotLabelById[s.id] = s.label || s.baseUrl; });
 
-  const routingStats = poolStats.total > 0 ? poolStats : (progress.poolStats ?? poolStats);
+  const hydratedStats = progress.poolStats;
+  const routingStats = poolStats.total > 0 ? poolStats : {
+    total: hydratedStats?.total ?? poolStats.total,
+    direct: hydratedStats?.direct ?? poolStats.direct,
+    byProxy: hydratedStats?.byProxy ?? poolStats.byProxy,
+    rateLimitsByProxy: hydratedStats?.rateLimitsByProxy ?? poolStats.rateLimitsByProxy,
+    errorsByProxy: hydratedStats?.errorsByProxy ?? poolStats.errorsByProxy,
+  };
   const totalProxyCalls = Object.values(routingStats.byProxy).reduce((a, b) => a + b, 0);
   const totalRateLimits = Object.values(routingStats.rateLimitsByProxy).reduce((a, b) => a + b, 0);
   const proxiesOnline = poolSlots.filter(s => s.enabled && s.online).length;
