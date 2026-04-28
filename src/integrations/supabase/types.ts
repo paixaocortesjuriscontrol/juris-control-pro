@@ -6464,6 +6464,15 @@ export type Database = {
           tribunal: string
         }[]
       }
+      get_djen_stats_per_user: {
+        Args: { p_coordenacao_id?: string; p_fim?: string; p_inicio?: string }
+        Returns: {
+          nao_lidas_processos: number
+          nao_lidas_termos: number
+          total_processos: number
+          total_termos: number
+        }[]
+      }
       get_equipe_tarefas_stats: {
         Args: { p_coordenacao_ids: string[] }
         Returns: {

@@ -351,59 +351,28 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : formatToUTC(endOfDay(new Date()));
 
-      const countQuery = (table: 'publicacoes_djen' | 'publicacoes_djen_processos', lida?: boolean): any => {
-        let q: any = supabase.from(table).select('id', { count: 'exact', head: true })
-          .gte('created_at', di).lte('created_at', df);
-        if (lida !== undefined) q = q.eq('lida', lida);
-        return q;
-      };
-
-      if (filtros.coordenacaoId) {
-        const { data: monIds } = await supabase
-          .from('monitoramentos_djen').select('id').eq('coordenacao_id', filtros.coordenacaoId);
-        const mIds = (monIds || []).map(m => m.id);
-
-        const { data: procIds } = await supabase
-          .from('processos').select('id').eq('coordenacao_id', filtros.coordenacaoId);
-        const pIds = (procIds || []).map(p => p.id);
-
-        let tTermos = 0, nTermos = 0, tProc = 0, nProc = 0;
-
-        if (mIds.length > 0) {
-          const [t, n] = await Promise.all([
-            countQuery('publicacoes_djen').in('monitoramento_id', mIds),
-            countQuery('publicacoes_djen', false).in('monitoramento_id', mIds),
-          ]);
-          tTermos = t.count || 0;
-          nTermos = n.count || 0;
-        }
-        if (pIds.length > 0) {
-          const [t, n] = await Promise.all([
-            countQuery('publicacoes_djen_processos').in('processo_id', pIds),
-            countQuery('publicacoes_djen_processos', false).in('processo_id', pIds),
-          ]);
-          tProc = t.count || 0;
-          nProc = n.count || 0;
-        }
-        return {
-          total: tTermos + tProc,
-          naoLidas: nTermos + nProc,
-          totalTermos: tTermos,
-          totalProcessos: tProc,
-        };
+      // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
+      // do usuário autenticado (espelhando o mergeWithLeituras no client),
+      // para que o card bata com o badge de cada coordenação.
+      const { data, error } = await (supabase.rpc as any)('get_djen_stats_per_user', {
+        p_coordenacao_id: filtros.coordenacaoId ?? null,
+        p_inicio: di,
+        p_fim: df,
+      });
+      if (error) {
+        console.error('[stats-header] get_djen_stats_per_user error', error);
+        return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
       }
-
-      const [tT, nT, tP, nP] = await Promise.all([
-        countQuery('publicacoes_djen'),
-        countQuery('publicacoes_djen', false),
-        countQuery('publicacoes_djen_processos'),
-        countQuery('publicacoes_djen_processos', false),
-      ]);
+      const row = Array.isArray(data) ? data[0] : data;
+      const tT = Number(row?.total_termos ?? 0);
+      const tP = Number(row?.total_processos ?? 0);
+      const nT = Number(row?.nao_lidas_termos ?? 0);
+      const nP = Number(row?.nao_lidas_processos ?? 0);
       return {
-        total: (tT.count || 0) + (tP.count || 0),
-        naoLidas: (nT.count || 0) + (nP.count || 0),
-        totalTermos: tT.count || 0,
-        totalProcessos: tP.count || 0,
+        total: tT + tP,
+        naoLidas: nT + nP,
+        totalTermos: tT,
+        totalProcessos: tP,
       };
     },
     enabled: !!user?.id,
