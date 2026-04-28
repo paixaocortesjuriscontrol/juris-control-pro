@@ -1104,6 +1104,7 @@ async function executarLoop(
 
   state.timerInterval = setInterval(() => {
     updateProgress({ tempoDecorrido: Math.floor((Date.now() - tempoInicio) / 1000) });
+    syncExecutionProgress();
   }, 1000);
 
   try {
@@ -1269,6 +1270,7 @@ async function executarLoop(
       concorrencia: concorrenciaEfetiva,
       mensagem: `Executando: ${tribunais.length} tribunais, ${concorrenciaEfetiva} workers (${vias.map(v => v.label).join(' + ')})`,
     });
+    syncExecutionProgress({ pool_enabled: poolAtivo, vias: vias.map(v => ({ id: v.id, label: v.label })) }, true);
 
     const worker = async (via: ViaSpec) => {
       while (queue.length > 0 && !signal.aborted) {
