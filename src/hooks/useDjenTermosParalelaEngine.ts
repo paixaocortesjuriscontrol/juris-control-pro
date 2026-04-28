@@ -1510,7 +1510,10 @@ export function limparEstadoDjenTermosParalela() {
 
 export async function forceKillDjenTermosParalela(clearCheckpoint = false) {
   stopLocalExecution();
-  if (clearCheckpoint) saveCheckpoint(null);
+  if (clearCheckpoint) {
+    saveCheckpoint(null);
+    setResetMarkNow();
+  }
   // Limpa qualquer execução órfã do tipo djen_paralela no banco para
   // garantir que o próximo "Executar" não fique bloqueado.
   state.progress = createDefaultProgress();
