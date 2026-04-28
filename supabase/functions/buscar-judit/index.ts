@@ -1403,7 +1403,38 @@ serve(async (req) => {
     // Recursos por parte (1c + 3b): identifica recursos do reclamante e da reclamada
     // pelo texto do andamento + cruzamento com nomes do polo, concatenando em ordem
     // cronológica (ex: "RO + RR").
-    const recursosPorParte = extrairRecursosPorParte(steps, parties);
+    // IMPORTANTE: a Judit retorna 1 objeto por instância. Os movimentos de
+    // interposição (RO, RR, AIRR…) ficam na instância em que foram protocolados
+    // (TRT/Vara), mas a instância "selecionada" para os demais campos costuma ser
+    // a mais alta (ex.: TST). Para identificar corretamente quem recorreu,
+    // precisamos varrer os steps de TODAS as instâncias retornadas (+ cache),
+    // não apenas da instância escolhida.
+    const stepsAgregados: any[] = [];
+    const stepsSeen = new Set<string>();
+    const pushSteps = (arr: any[] | undefined | null) => {
+      if (!Array.isArray(arr)) return;
+      for (const s of arr) {
+        if (!s) continue;
+        const key = `${s.step_date || s.date || ""}|${(s.content || s.title || s.description || "").toString().slice(0, 200)}`;
+        if (stepsSeen.has(key)) continue;
+        stepsSeen.add(key);
+        stepsAgregados.push(s);
+      }
+    };
+    pushSteps(steps);
+    if (cachedRd && cachedRd !== rd) pushSteps(cachedRd.steps);
+    for (const item of allInstancesPageData) {
+      const otherRd = item?.response_data;
+      if (!otherRd || otherRd === rd) continue;
+      pushSteps(otherRd.steps);
+    }
+    const detalheInstancias = (allInstancesPageData || []).map((item: any) => ({
+      tr: item?.response_data?.tribunal_acronym,
+      inst: item?.response_data?.instance,
+      steps: Array.isArray(item?.response_data?.steps) ? item.response_data.steps.length : 0,
+    }));
+    console.log(`[buscar-judit] steps_agregados_para_recursos=${stepsAgregados.length} (instancia_selecionada=${steps.length}) instancias=${JSON.stringify(detalheInstancias)} cached_steps=${cachedRd?.steps?.length || 0}`);
+    const recursosPorParte = extrairRecursosPorParte(stepsAgregados, parties);
     // POLÍTICA: tipo de recurso vem APENAS de movimentos confirmados pela Judit
     // (interposição explícita, com identificação de lado). Sem fallback por
     // classificação da capa, sem inferência por person_type. Se a Judit não
