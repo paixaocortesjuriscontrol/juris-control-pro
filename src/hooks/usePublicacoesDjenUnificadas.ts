@@ -432,12 +432,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // PAGINAÇÃO REAL no servidor: uma única chamada para a página solicitada.
         // Antes carregávamos até 2000 linhas em loop, o que deixava lento e gerava
         // erros de renderização quando o advogado tirava todos os filtros.
-        if (filtros.apenasNaoLidas) {
+        if (readStatus !== 'todas') {
           const alvo = page * pageSize + 1;
           const batchSize = 1000;
-          const naoLidasAcumuladas: PublicacaoUnificada[] = [];
+          const publicacoesAcumuladas: PublicacaoUnificada[] = [];
 
-          for (let offset = 0; offset < 50000 && naoLidasAcumuladas.length < alvo; offset += batchSize) {
+          for (let offset = 0; offset < 50000 && publicacoesAcumuladas.length < alvo; offset += batchSize) {
             const { data: batchRows, error: batchError } = await (supabase as any)
               .rpc('get_djen_publicacoes_unificadas', {
                 p_coordenacao_id: filtros.coordenacaoId,
@@ -491,13 +491,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
                   ? mappedBatch.filter((p) => p.tipo_origem === 'processo')
                   : mappedBatch;
 
-            const unreadBatch = await mergeWithLeituras(user!.id, typedBatch, 'nao_lidas');
-            naoLidasAcumuladas.push(...unreadBatch);
+            const filteredBatch = await mergeWithLeituras(user!.id, typedBatch, readStatus);
+            publicacoesAcumuladas.push(...filteredBatch);
             if (mappedBatch.length < batchSize) break;
           }
 
-          const rows = naoLidasAcumuladas.slice(offsetGlobal, offsetGlobal + pageSize);
-          const lastChunkSize = naoLidasAcumuladas.length > offsetGlobal + pageSize ? pageSize : rows.length;
+          const rows = publicacoesAcumuladas.slice(offsetGlobal, offsetGlobal + pageSize);
+          const lastChunkSize = publicacoesAcumuladas.length > offsetGlobal + pageSize ? pageSize : rows.length;
           return { rows, lastChunkSize };
         }
 
