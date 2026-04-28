@@ -1840,7 +1840,7 @@ const AnaliseDjen = () => {
           >
             {selectedIds.size === allPublicacoes.length && allPublicacoes.length > 0
               ? "Desmarcar"
-              : `Selecionar (${allPublicacoes.length})`}
+              : `Selecionar página (${totalExibidoNaPagina})`}
           </Button>
 
           <Button
