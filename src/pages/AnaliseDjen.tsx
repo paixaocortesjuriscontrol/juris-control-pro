@@ -1759,36 +1759,6 @@ const AnaliseDjen = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pb-1">
-                <Checkbox
-                  id="apenasDescartadas"
-                  checked={tipoOrigem === 'descartada'}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setTipoOrigem('descartada');
-                      setFiltroDia('todos');
-                      setReadStatus('todas');
-                      setDataInicio('');
-                      setDataFim('');
-                      setDataDisponibilizacao('');
-                      setTermoBusca('');
-                      setMonitoramentoId('');
-                    } else {
-                      setTipoOrigem('todos');
-                      setFiltroDia('hoje');
-                      setReadStatus('nao_lidas');
-                      setDataInicio('');
-                      setDataFim('');
-                      setDataDisponibilizacao('');
-                      setTermoBusca('');
-                      setMonitoramentoId('');
-                    }
-                  }}
-                />
-                <Label htmlFor="apenasDescartadas" className="cursor-pointer text-xs md:text-sm text-destructive font-medium">
-                  Descartadas
-                </Label>
-              </div>
             </div>
           </CardContent>
         </Card>
