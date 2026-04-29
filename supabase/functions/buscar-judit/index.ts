@@ -1153,6 +1153,24 @@ serve(async (req) => {
       }
     }
 
+    // ===== ÚLTIMA (RE)DISTRIBUIÇÃO TST =====
+    // A capa da Judit traz a distribuição original (que pode ser de anos atrás
+    // ou de outro tribunal). Para o TST, percorremos os steps e usamos o
+    // último movimento de Distribuição/Redistribuição cujo órgão seja um
+    // Gabinete de Ministro. Isso corrige relator/turma/data quando o processo
+    // foi redistribuído entre gabinetes (ignorando passagens por Presidência,
+    // Vice-Presidência ou Corregedoria, que não são destino final).
+    if (tribunal === "TST") {
+      const ultima = extrairUltimaDistribuicaoTst(steps);
+      if (ultima) {
+        if (ultima.data) {
+          rd.distribution_date = ultima.data;
+        }
+        if (ultima.relator) relator = ultima.relator;
+        if (ultima.turma) turma = ultima.turma;
+      }
+    }
+
     // ===== SANITIZAÇÃO TURMA TST =====
     // Quando o processo é TST, descartar turmas que claramente vieram de outra
     // instância (TRT, varas, regiões). Isso evita exibir "7ª Turma" quando essa
