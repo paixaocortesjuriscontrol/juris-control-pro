@@ -1,0 +1,1 @@
+UPDATE public.djen_proxy_pool SET pool_enabled_global = true;
