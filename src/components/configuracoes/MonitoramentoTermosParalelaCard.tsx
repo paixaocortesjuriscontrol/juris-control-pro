@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { useDjenTermosParalela } from "@/hooks/useDjenTermosParalela";
 import { useDjenTermosParalelaScheduler } from "@/hooks/useDjenTermosParalelaScheduler";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -121,6 +121,7 @@ function SchedulerParalelaPanel() {
 }
 
 export function MonitoramentoTermosParalelaCard() {
+  const queryClient = useQueryClient();
   const {
     progress,
     isRunning,
@@ -204,6 +205,47 @@ export function MonitoramentoTermosParalelaCard() {
   const getDataYmd = (date?: Date) => date ? format(date, 'yyyy-MM-dd') : undefined;
 
   const statusConfig = STATUS_CONFIG[progress.status] || STATUS_CONFIG.idle;
+
+  const handleLimparPublicacoes = useCallback(async () => {
+    if (!dataInicio || !dataFim) {
+      toast.error('Selecione data de início e fim');
+      return;
+    }
+    const filters = getFilterParams();
+    if (!filters.coordenacaoId && !filters.monitoramentoIds?.length) {
+      toast.error('Selecione uma coordenação ou termo para limpar com segurança.');
+      return;
+    }
+    if (!confirm('Limpar publicações/descartadas da Paralela no período selecionado para o filtro atual?')) return;
+
+    try {
+      await forceKill(true);
+      toast.info('Limpando publicações da Paralela...');
+      const { data, error } = await supabase.functions.invoke('limpar-djen-hoje', {
+        body: {
+          modo: 'intervalo',
+          tipo: 'termos',
+          dataInicio: getDataYmd(dataInicio),
+          dataFim: getDataYmd(dataFim),
+          coordenacaoId: filters.coordenacaoId,
+          monitoramentoIds: filters.monitoramentoIds,
+        },
+      });
+      if (error) throw error;
+      await resetTotal();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'], refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'], refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'], refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-djen'], refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: ['djen-stats'], refetchType: 'active' }),
+      ]);
+      toast.success((data as any)?.message ?? 'Limpeza concluída');
+    } catch (err: any) {
+      console.error('[Paralela] Erro ao limpar publicações:', err);
+      toast.error(`Erro ao limpar: ${err?.message ?? String(err)}`);
+    }
+  }, [dataInicio, dataFim, forceKill, resetTotal, getFilterParams, queryClient]);
 
   const handleExecutar = useCallback(() => {
     if (!dataInicio || !dataFim) {
