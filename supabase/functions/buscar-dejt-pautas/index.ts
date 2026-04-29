@@ -9,7 +9,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import {
   buildDejtPdfUrls,
   getDejtTribunal,
@@ -93,27 +93,68 @@ const PAUTA_MARKERS = [
   "PAUTA DA SESSÃO",
 ];
 
-function segmentByPauta(fullText: string): string[] {
-  if (!fullText) return [];
-  // Constrói um regex global que captura qualquer marcador (case-insensitive),
-  // sem perder o conteúdo. Usamos split com lookahead.
+/**
+ * Versão streaming do segmentByPauta: recebe pedaços de texto (ex.: páginas)
+ * e emite blocos de pauta conforme os marcadores aparecem, sem manter o
+ * caderno inteiro na memória.
+ */
+function makePautaStreamSegmenter() {
   const escaped = PAUTA_MARKERS.map((m) =>
     m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
   ).join("|");
-  const re = new RegExp(`(?=(${escaped}))`, "gi");
-  const parts = fullText.split(re).filter(Boolean);
+  const markerRe = new RegExp(`(${escaped})`, "gi");
+  let buf = "";
+  let inBlock = false;
 
-  // O split com lookahead pode duplicar o marcador entre os elementos;
-  // filtramos só os blocos que efetivamente começam com um marcador.
-  const blocks: string[] = [];
-  for (const p of parts) {
-    const head = p.slice(0, 80).toUpperCase();
-    if (PAUTA_MARKERS.some((m) => head.includes(m))) {
-      // Limita tamanho para evitar blocos gigantes (cap em 8 KB)
-      blocks.push(p.length > 8000 ? p.slice(0, 8000) : p);
+  function* flushSegments(text: string, final: boolean): Generator<string> {
+    buf += text;
+    while (true) {
+      markerRe.lastIndex = 0;
+      const first = markerRe.exec(buf);
+      if (!first) {
+        // Sem marcador: se já estávamos num bloco, mantém acumulando.
+        // Se não estávamos e o buffer ficou grande, descarta o início (lixo).
+        if (!inBlock && buf.length > 4000) buf = buf.slice(-2000);
+        return;
+      }
+      if (!inBlock) {
+        // Descarta tudo antes do primeiro marcador.
+        buf = buf.slice(first.index);
+        inBlock = true;
+      }
+      // Procura o próximo marcador depois do início atual para fechar o bloco.
+      markerRe.lastIndex = 1;
+      const next = markerRe.exec(buf);
+      if (!next) {
+        // Bloco aberto, mas não temos o próximo marcador ainda.
+        if (final) {
+          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          buf = "";
+          inBlock = false;
+          yield bloco;
+        } else if (buf.length > 16000) {
+          // Bloco "infinito" — trunca e emite para não estourar memória.
+          yield buf.slice(0, 8000);
+          buf = buf.slice(-4000);
+          inBlock = false;
+        }
+        return;
+      }
+      const bloco = buf.slice(0, next.index);
+      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      buf = buf.slice(next.index);
+      // continua o while: pode haver mais blocos completos no buffer
     }
   }
-  return blocks;
+
+  return {
+    push(text: string): string[] {
+      return Array.from(flushSegments(text, false));
+    },
+    end(): string[] {
+      return Array.from(flushSegments("", true));
+    },
+  };
 }
 
 function extractCnj(text: string): string | null {
@@ -121,40 +162,22 @@ function extractCnj(text: string): string | null {
   return m ? m[0] : null;
 }
 
-// Limite de tamanho do PDF. Subimos de 3MB para 25MB porque os cadernos de
-// TRT1/TRT2/TRT5 (Rio, SP, Bahia) são naturalmente grandes e estavam sendo
-// rejeitados, deixando essas pautas fora da busca. Para evitar OOM ao parsear
-// cadernos grandes, usamos extração página-a-página (streaming) abaixo.
-const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB
-// PDFs médios/grandes usam parse por página (mais lento, menos RAM).
-// TRT1/TRT2/TRT5 podem ter arquivos com ~1MB que ainda derrubam o worker
-// quando passam pelo extractText global do unpdf, então o limite precisa ser baixo.
-const STREAM_PDF_THRESHOLD = 128 * 1024; // 128 KB
+// Limite de tamanho do PDF. Subimos para 80MB porque o caderno do TRT2 (SP)
+// passou de 65MB e era descartado, deixando a maior corte fora da busca.
+const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
 
-async function bufferToText(uint8: Uint8Array): Promise<string> {
-  // Para cadernos pequenos: extrai tudo de uma vez (caminho rápido).
-  if (uint8.length < STREAM_PDF_THRESHOLD) {
-    const pdf = await getDocumentProxy(uint8, {
-      disableFontFace: true,
-      useSystemFonts: false,
-    } as any);
-    try {
-      const { text } = await extractText(pdf, { mergePages: true });
-      return Array.isArray(text) ? text.join("\n") : String(text || "");
-    } finally {
-      try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
-    }
-  }
-
-  // Para cadernos grandes (TRT1/TRT2/TRT5 etc): extrai página-a-página e
-  // libera cada página depois de ler, mantendo o pico de RAM controlado.
+/**
+ * Itera as páginas do PDF, retornando o texto de cada uma. Libera cada página
+ * imediatamente após o uso para manter RAM/CPU sob controle em cadernos grandes
+ * (TRT1/TRT2/TRT5).
+ */
+async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
   const pdf = await getDocumentProxy(uint8, {
     disableFontFace: true,
     useSystemFonts: false,
   } as any);
   try {
     const numPages = (pdf as any).numPages ?? 0;
-    const partes: string[] = [];
     for (let i = 1; i <= numPages; i++) {
       try {
         const page = await (pdf as any).getPage(i);
@@ -164,10 +187,9 @@ async function bufferToText(uint8: Uint8Array): Promise<string> {
           let buf = "";
           for (const it of items) {
             buf += (it?.str || "");
-            if (it?.hasEOL) buf += "\n";
-            else buf += " ";
+            buf += it?.hasEOL ? "\n" : " ";
           }
-          partes.push(buf);
+          yield buf;
         } finally {
           try { (page as any)?.cleanup?.(); } catch { /* ignore */ }
         }
@@ -175,7 +197,6 @@ async function bufferToText(uint8: Uint8Array): Promise<string> {
         console.log(`[DJET-Pautas] erro extraindo página ${i}:`, (e as Error)?.message || e);
       }
     }
-    return partes.join("\n");
   } finally {
     try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
   }
@@ -361,48 +382,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2) Extrai texto
-    let fullText = "";
-    try {
-      fullText = await bufferToText(fetched.bytes);
-    } catch (e) {
-      console.error("[DJET-Pautas] erro extraindo texto:", e);
+    if (monitoramentos.length === 0) {
       return new Response(
         JSON.stringify({
           ok: true,
-          sem_dados: true,
-          motivo: "extract-failed",
-          erro: String((e as Error)?.message || e),
+          sem_dados: false,
+          motivo: "sem-monitoramentos",
           tribunal,
           dataPublicacao: dataIso,
+          totalBlocos: 0,
           matches: [],
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // 3) Segmenta em blocos de pauta
-    const blocos = segmentByPauta(fullText);
-    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY}: ${blocos.length} blocos`);
-
-    if (blocos.length === 0 || monitoramentos.length === 0) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          sem_dados: blocos.length === 0,
-          motivo: blocos.length === 0 ? "sem-pauta" : "sem-monitoramentos",
-          tribunal,
-          dataPublicacao: dataIso,
-          totalBlocos: blocos.length,
-          matches: [],
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    // 4) Casa termos
+    // 2-4) Extrai página-a-página, segmenta em blocos e casa termos em streaming.
+    // Nunca mantém o caderno inteiro em memória — crítico para PDFs grandes
+    // (TRT1/TRT2/TRT5) que estouravam o limite de CPU/RAM do worker.
     const matches: MatchOut[] = [];
-    for (const bloco of blocos) {
+    let totalBlocos = 0;
+    const seg = makePautaStreamSegmenter();
+
+    const processBloco = async (bloco: string) => {
+      totalBlocos++;
       const blocoNorm = normalize(bloco);
       const processo = extractCnj(bloco);
       for (const mon of monitoramentos) {
@@ -423,14 +426,38 @@ Deno.serve(async (req) => {
           tribunal,
         });
       }
+    };
+
+    try {
+      for await (const pageText of iteratePdfPages(fetched.bytes)) {
+        for (const bloco of seg.push(pageText)) await processBloco(bloco);
+      }
+      for (const bloco of seg.end()) await processBloco(bloco);
+    } catch (e) {
+      console.error("[DJET-Pautas] erro extraindo texto:", e);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          sem_dados: matches.length === 0,
+          motivo: "extract-failed",
+          erro: String((e as Error)?.message || e),
+          tribunal,
+          dataPublicacao: dataIso,
+          totalBlocos,
+          matches,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
+    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY}: ${totalBlocos} blocos`);
 
     return new Response(
       JSON.stringify({
         ok: true,
         tribunal,
         dataPublicacao: dataIso,
-        totalBlocos: blocos.length,
+        totalBlocos,
         matches,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
