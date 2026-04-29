@@ -1014,6 +1014,8 @@ async function processarTermoEmTribunal(
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
   let novasInseridasEfetivas = 0;
+  let duplicadasReclassificadas = 0;
+  let duplicadasJaExistentesNoSegundoCheck = 0;
   if (novas.length > 0) {
     // PRÉ-CHECK: antes de inserir, conferir quais hashes já existem
     // no banco para esse monitoramento. O upsert(...).select() do PostgREST
@@ -1027,6 +1029,7 @@ async function processarTermoEmTribunal(
       .in('hash_conteudo', hashesPretendidos);
     const hashesJa = new Set((jaExistentes || []).map((r: any) => r.hash_conteudo));
     const novasFiltradas = novas.filter(p => !hashesJa.has(p.hash_conteudo));
+    duplicadasJaExistentesNoSegundoCheck = novas.length - novasFiltradas.length;
 
     const payload = novasFiltradas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
@@ -1071,9 +1074,24 @@ async function processarTermoEmTribunal(
       if (upsertError) {
         console.error(`[DJEN Paralela][${tribunal}] upsert error (mon=${mon.id} termo="${mon.termo_busca}"):`, upsertError);
       }
-      // Quantas realmente entraram = min entre o que tentamos e o que voltou.
-      // Como já filtramos por pré-check, payload.length é o teto correto.
-      novasInseridasEfetivas = Math.min(payload.length, inseridos?.length ?? payload.length);
+      // O trigger `mark_djen_duplicada_on_insert` pode aceitar a linha, mas
+      // reclassificá-la como `duplicada`. A tela de Análise mostra apenas
+      // `status = encontrada`; portanto "novas" precisa contar somente o que
+      // ficou efetivamente visível, não apenas o retorno do upsert/PostgREST.
+      const hashesPayload = payload.map((p: any) => p.hash_conteudo).filter(Boolean);
+      const { data: confirmadas } = await supabase
+        .from('publicacoes_djen')
+        .select('hash_conteudo,status')
+        .eq('monitoramento_id', mon.id)
+        .in('hash_conteudo', hashesPayload);
+      const statusPorHash = new Map((confirmadas || []).map((r: any) => [r.hash_conteudo, r.status]));
+      novasInseridasEfetivas = hashesPayload.filter((h: string) => statusPorHash.get(h) === 'encontrada').length;
+      duplicadasReclassificadas = hashesPayload.length - novasInseridasEfetivas;
+      if ((inseridos?.length ?? 0) !== novasInseridasEfetivas) {
+        console.warn(
+          `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: upsert retornou ${inseridos?.length ?? 0}, mas só ${novasInseridasEfetivas} ficaram como encontradas; ${duplicadasReclassificadas} foram reclassificadas/ocultadas.`
+        );
+      }
     }
     if (hashesJa.size > 0) {
       console.warn(
@@ -1124,7 +1142,7 @@ async function processarTermoEmTribunal(
 
   return {
     novas: novasInseridasEfetivas,
-    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + (novas.length - novasInseridasEfetivas),
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + duplicadasJaExistentesNoSegundoCheck + duplicadasReclassificadas,
     descartadas: descartadasEfetivas,
     rateLimitHits,
     ultimoErro,
