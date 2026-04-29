@@ -233,8 +233,15 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Parse body for optional date range e tipo (termos | processos | todos)
-    let body: { dataInicio?: string; dataFim?: string; modo?: 'hoje' | 'intervalo'; tipo?: 'termos' | 'processos' | 'todos' } = {};
+    // Parse body for optional date range, tipo and scoped cleanup
+    let body: {
+      dataInicio?: string;
+      dataFim?: string;
+      modo?: 'hoje' | 'intervalo';
+      tipo?: 'termos' | 'processos' | 'todos';
+      coordenacaoId?: string;
+      monitoramentoIds?: string[];
+    } = {};
     try {
       body = await req.json();
     } catch {
@@ -261,8 +268,19 @@ Deno.serve(async (req) => {
     const dayStart = `${startYmd}T00:00:00.000Z`;
     const dayEnd = `${endYmd}T23:59:59.999Z`;
     const results: Record<string, string> = {};
+    const scopedCleanup = !!body.coordenacaoId || (Array.isArray(body.monitoramentoIds) && body.monitoramentoIds.length > 0);
+    let scopedMonitoramentoIds = Array.isArray(body.monitoramentoIds) ? body.monitoramentoIds.filter(Boolean) : [];
 
-    console.log(`[limpar-djen] Modo: ${modo}, Tipo: ${tipoLimpeza}, Intervalo: ${startYmd} → ${endYmd}`);
+    if (body.coordenacaoId && scopedMonitoramentoIds.length === 0) {
+      const { data: mons, error: monsErr } = await supabase
+        .from('monitoramentos_djen')
+        .select('id')
+        .eq('coordenacao_id', body.coordenacaoId);
+      if (monsErr) throw monsErr;
+      scopedMonitoramentoIds = (mons || []).map((m: any) => m.id);
+    }
+
+    console.log(`[limpar-djen] Modo: ${modo}, Tipo: ${tipoLimpeza}, Intervalo: ${startYmd} → ${endYmd}, scoped=${scopedCleanup}`);
 
     const limparTermos = tipoLimpeza === 'termos' || tipoLimpeza === 'todos';
     const limparProcessos = tipoLimpeza === 'processos' || tipoLimpeza === 'todos';
