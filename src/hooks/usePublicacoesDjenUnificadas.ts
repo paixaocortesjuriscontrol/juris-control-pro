@@ -494,40 +494,38 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }
 
-        // Resolver processo_id para publicações de termo
+        // ===== PARALELIZAÇÃO =====
+        // As 3 operações abaixo (resolver processo_id, enriquecer monitoramentos,
+        // buscar leituras per-user) são independentes entre si — só dependem das
+        // linhas já retornadas pela RPC. Rodar em paralelo reduz a latência
+        // percebida na lista (que era 3 round-trips sequenciais).
         const termoSemId = filteredByType.filter(
           (p) => p.tipo_origem === 'termo' && !p.processo_id && !!p.processo_numero
         );
-        if (termoSemId.length > 0) {
-          // Extrair apenas dígitos para normalização (publicações podem vir com ou sem formatação)
-          const toDigits = (n: string) => n.replace(/\D/g, '');
 
-          // Buscar processos da mesma coordenação para matching por dígitos
-          // Buscar processos da mesma coordenação para matching por dígitos
-          let qProcessos = supabase
-            .from('processos')
-            .select('id, numero');
+        const resolveProcessoIdsPromise: Promise<void> = (async () => {
+          if (termoSemId.length === 0) return;
+          const toDigits = (n: string) => n.replace(/\D/g, '');
+          let qProcessos = supabase.from('processos').select('id, numero');
           if (filtros.coordenacaoId) {
             qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
           }
           const { data: processosExistentes } = await qProcessos;
-
-          // Construir mapa por dígitos para matching robusto
           const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
             processosDigitsMap[toDigits(p.numero)] = p.id;
           });
-
           filteredByType.forEach((p) => {
             if (p.tipo_origem === 'termo' && !p.processo_id && p.processo_numero) {
               const digits = toDigits(p.processo_numero);
               p.processo_id = processosDigitsMap[digits] || null;
             }
           });
-        }
+        })();
 
-        // incluir descartadas, se solicitado
-        if (filtros.incluirDescartadas) {
+        // incluir descartadas, se solicitado (em paralelo com as demais)
+        const descartadasPromise: Promise<any[]> = (async () => {
+          if (!filtros.incluirDescartadas) return [];
           let queryDescartadas = (supabase
             .from('publicacoes_djen_descartadas') as any)
             .select(`
@@ -560,10 +558,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
           const { data: descartadasData } = await queryDescartadas.limit(200);
-          (descartadasData || []).forEach((pub: any) => {
-            resultados.push({
+          return (descartadasData || []).map((pub: any) => ({
               id: pub.id,
-              tipo_origem: 'descartada',
+              tipo_origem: 'descartada' as const,
               processo_id: null,
               processo_numero: pub.processo_numero,
               conteudo: pub.conteudo,
@@ -589,19 +586,32 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               advogados_json: pub.advogados_json ? (typeof pub.advogados_json === 'string' ? JSON.parse(pub.advogados_json) : pub.advogados_json) : null,
               partes_json: pub.partes_json ? (typeof pub.partes_json === 'string' ? JSON.parse(pub.partes_json) : pub.partes_json) : null,
               motivo_descarte: pub.motivo_descarte,
-            });
-          });
+            }));
+        })();
+
+        // Aguardar paralelamente: resolução de processo_id, descartadas
+        const [, descartadasMapped] = await Promise.all([
+          resolveProcessoIdsPromise,
+          descartadasPromise,
+        ]);
+        if (descartadasMapped.length > 0) {
+          resultados.push(...descartadasMapped);
         }
 
         // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
         const merged = [...filteredByType, ...resultados];
-        const enriquecidos = await enriquecerPublicacoesComMonitoramento(merged);
-
-        const finalRows = await mergeWithLeituras(
-          user!.id,
-          enriquecidos.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-          'todas',
-        );
+        // Enriquecer monitoramentos e buscar leituras em paralelo (operações independentes).
+        const sorted = merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const [enriquecidos, finalRowsTmp] = await Promise.all([
+          enriquecerPublicacoesComMonitoramento(sorted),
+          mergeWithLeituras(user!.id, sorted, 'todas'),
+        ]);
+        // Combinar: enriquecidos traz termos resolvidos; finalRowsTmp traz lida + lido_por.
+        const lidoMap = new Map(finalRowsTmp.map((p) => [p.id, { lida: p.lida, lido_por: p.lido_por }]));
+        const finalRows = enriquecidos.map((p) => {
+          const l = lidoMap.get(p.id);
+          return l ? { ...p, lida: l.lida, lido_por: l.lido_por } : p;
+        });
         return { rows: finalRows, lastChunkSize };
 
         } catch (rpcError) {
