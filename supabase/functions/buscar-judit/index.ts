@@ -458,6 +458,72 @@ function isParteBanco(nome: string): boolean {
 }
 
 /**
+ * TST: a Judit retorna `distribution_date` e `judge` da CAPA, que pode ser a
+ * distribuição original (anos atrás, em outro tribunal) ou um gabinete que
+ * não é mais o atual. Regra do projeto: SEMPRE usar o último step de
+ * Distribuição/Redistribuição cujo órgão julgador seja um Gabinete de
+ * Ministro. Passagens por Presidência/Vice/Corregedoria NÃO contam como
+ * destino final — continuamos buscando o gabinete anterior na linha do tempo.
+ */
+function extrairUltimaDistribuicaoTst(steps: any[]): {
+  data: string | null;
+  relator: string | null;
+  turma: string | null;
+  orgao: string | null;
+} | null {
+  if (!Array.isArray(steps) || steps.length === 0) return null;
+
+  const ehDistribuicao = (s: any): boolean => {
+    const code = String(s?.code ?? s?.movement_code ?? "").trim();
+    if (code === "26" || code === "36" || code === "51") return true;
+    const txt = String(s?.title || s?.content || s?.description || "");
+    return /\b(re)?distribui[çc][ãa]o\b/i.test(txt);
+  };
+
+  const extrairOrgao = (s: any): string => {
+    const direto = s?.orgao_julgador?.nome || s?.orgao_julgador?.name || "";
+    if (direto && typeof direto === "string") return direto.trim();
+    const content = String(s?.content || "");
+    const partes = content.split(/\s+-\s+/);
+    return (partes[partes.length - 1] || "").trim();
+  };
+
+  const ehGabineteMinistro = (orgao: string): boolean =>
+    /\bGAB(?:INETE|\.)?\s+D[OA]\s+MINISTR[OA]?\b/i.test(orgao);
+
+  const ehNaoGabinete = (orgao: string): boolean =>
+    /\b(PRESID[ÊE]NCIA|VICE[\s-]*PRESID[ÊE]NCIA|CORREGEDORIA)\b/i.test(orgao);
+
+  const ordenados = [...steps]
+    .filter((s) => s && (s.step_date || s.date || s.movement_date))
+    .sort((a, b) => {
+      const da = new Date(a.step_date || a.date || a.movement_date).getTime();
+      const db = new Date(b.step_date || b.date || b.movement_date).getTime();
+      return db - da;
+    });
+
+  for (const s of ordenados) {
+    if (!ehDistribuicao(s)) continue;
+    const orgao = extrairOrgao(s);
+    if (!orgao) continue;
+    if (ehNaoGabinete(orgao) && !ehGabineteMinistro(orgao)) continue;
+    if (!ehGabineteMinistro(orgao)) continue;
+
+    const m = orgao.match(/GAB(?:INETE|\.)?\s+D[OA]\s+MINISTR[OA]?\s+(.+)$/i);
+    const relator = m ? m[1].trim().replace(/[.,;()\-]+$/, "") : null;
+    const turma = relator ? derivarTurmaDoRelator(relator) : null;
+
+    const rawData = s.step_date || s.date || s.movement_date;
+    const data = rawData ? String(rawData).substring(0, 10) : null;
+
+    console.log(`[buscar-judit][tst-ultima-dist] data=${data} orgao="${orgao}" relator=${relator} turma=${turma}`);
+    return { data, relator, turma, orgao };
+  }
+
+  return null;
+}
+
+/**
  * Identifica recursos interpostos por reclamante e por reclamada/banco a partir
  * dos steps (movimentos), em ordem cronológica. Estratégia (1c):
  *  - Detecta o tipo de recurso pelo texto do movimento.
@@ -1034,8 +1100,8 @@ serve(async (req) => {
     else tribunal = tribunalAcronimo;
 
     const classificacao = extrairClassificacao(rd);
-    const dataDistribuicaoBR = toDateBR(rd.distribution_date);
-    const dataDistribuicaoISO = toDateISO(rd.distribution_date);
+    let dataDistribuicaoBR = toDateBR(rd.distribution_date);
+    let dataDistribuicaoISO = toDateISO(rd.distribution_date);
 
     let relator = extrairRelator(rd);
     let turma = extrairTurma(rd);
@@ -1084,6 +1150,26 @@ serve(async (req) => {
       if (turmaTst && turmaTst !== turma) {
         console.log(`[buscar-judit] Turma corrigida via mapeamento TST: '${turma}' -> '${turmaTst}' (relator=${relator})`);
         turma = turmaTst;
+      }
+    }
+
+    // ===== ÚLTIMA (RE)DISTRIBUIÇÃO TST =====
+    // A capa da Judit traz a distribuição original (que pode ser de anos atrás
+    // ou de outro tribunal). Para o TST, percorremos os steps e usamos o
+    // último movimento de Distribuição/Redistribuição cujo órgão seja um
+    // Gabinete de Ministro. Isso corrige relator/turma/data quando o processo
+    // foi redistribuído entre gabinetes (ignorando passagens por Presidência,
+    // Vice-Presidência ou Corregedoria, que não são destino final).
+    if (tribunal === "TST") {
+      const ultima = extrairUltimaDistribuicaoTst(steps);
+      if (ultima) {
+        if (ultima.data) {
+          rd.distribution_date = ultima.data;
+          dataDistribuicaoISO = toDateISO(ultima.data);
+          dataDistribuicaoBR = toDateBR(ultima.data);
+        }
+        if (ultima.relator) relator = ultima.relator;
+        if (ultima.turma) turma = ultima.turma;
       }
     }
 
