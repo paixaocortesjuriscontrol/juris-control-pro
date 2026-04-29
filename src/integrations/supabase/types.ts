@@ -6320,6 +6320,20 @@ export type Database = {
       }
     }
     Functions: {
+      backfill_djen_status_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          processados: number
+          restantes: number
+        }[]
+      }
+      backfill_djenp_status_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          processados: number
+          restantes: number
+        }[]
+      }
       calcular_primeiro_dia_util: {
         Args: { data_base: string; dias_uteis_adicionar?: number }
         Returns: string
@@ -6665,6 +6679,8 @@ export type Database = {
         }
         Returns: Json
       }
+      mark_djen_duplicadas_global: { Args: never; Returns: number }
+      mark_djenp_duplicadas_global: { Args: never; Returns: number }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
