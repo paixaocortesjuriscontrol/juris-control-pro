@@ -685,6 +685,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryTermos = (queryTermos as any).eq('monitoramento.tipo', 'parte');
         }
 
+        // Filtro "DJET Pautas": só publicações do caderno judiciário (DEJT)
+        if (filtros.tipoOrigem === 'djet-pautas') {
+          queryTermos = (queryTermos as any).eq('tipo_publicacao', 'pauta');
+        } else {
+          // Demais filtros: oculta as pautas DJET para não misturar com intimações
+          queryTermos = (queryTermos as any).or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta');
+        }
+
         // Paginação real no fallback: usa range para a página solicitada.
         const { data: termosData } = await queryTermos.range(offsetGlobal, offsetGlobal + pageSize - 1);
 
