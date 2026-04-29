@@ -148,6 +148,20 @@ serve(async (req) => {
 
     if (erro || !payloadResposta) {
       console.error(`[orquestrador] Judit error: ${erro}`);
+      // 404 LAWSUIT_NOT_FOUND: processo simplesmente não existe na Judit.
+      // Não é erro fatal — devolvemos 200 com flag para o caller seguir o fluxo.
+      if (statusHttp === 404 || /LAWSUIT_NOT_FOUND|NOT_FOUND/i.test(erro || "")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            sem_dados: true,
+            motivo: "lawsuit_not_found",
+            numero_cnj: numeroCnj,
+            status_http: statusHttp,
+          }),
+          { status: 200, headers }
+        );
+      }
       return new Response(
         JSON.stringify({
           error: `Erro na API Judit (HTTP ${statusHttp})`,
