@@ -1013,6 +1013,7 @@ async function processarTermoEmTribunal(
   const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
+  let novasInseridasEfetivas = 0;
   if (novas.length > 0) {
     const payload = novas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
@@ -1043,10 +1044,26 @@ async function processarTermoEmTribunal(
       };
     });
 
-    const { error: upsertError } = await supabase
+    // Insert com retorno explícito para contar EXATAMENTE o que entrou no banco.
+    // Antes usávamos upsert com ignoreDuplicates:true, que silenciosamente
+    // pulava linhas já existentes (mesmo (monitoramento_id, hash_conteudo)) e
+    // inflava a contagem de "novas" exibida na UI. Agora a contagem reflete a realidade.
+    const { data: inseridos, error: upsertError } = await supabase
       .from('publicacoes_djen')
-      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
-    if (upsertError) console.error(`[DJEN Paralela][${tribunal}] upsert error:`, upsertError);
+      .upsert(payload, {
+        onConflict: 'monitoramento_id,hash_conteudo',
+        ignoreDuplicates: true,
+      })
+      .select('id');
+    if (upsertError) {
+      console.error(`[DJEN Paralela][${tribunal}] upsert error (mon=${mon.id} termo="${mon.termo_busca}"):`, upsertError);
+    }
+    novasInseridasEfetivas = inseridos?.length ?? 0;
+    if (novasInseridasEfetivas < novas.length) {
+      console.warn(
+        `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: tentou inserir ${novas.length} mas só ${novasInseridasEfetivas} eram realmente novas no banco (resto silenciosamente ignorado por ignoreDuplicates).`
+      );
+    }
   }
 
   // Persistir descartadas (limit 200)
@@ -1090,8 +1107,8 @@ async function processarTermoEmTribunal(
   }
 
   return {
-    novas: novas.length,
-    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length),
+    novas: novasInseridasEfetivas,
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + (novas.length - novasInseridasEfetivas),
     descartadas: descartadasEfetivas,
     rateLimitHits,
     ultimoErro,
