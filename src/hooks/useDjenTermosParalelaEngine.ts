@@ -460,6 +460,31 @@ function extrairDataDisponibilizacaoYmd(item: any): string | null {
   return null;
 }
 
+function normalizarHeadDedup(conteudo: string): string {
+  const semDestinatarios = conteudo.replace(/Destinat[aá]rio\(s\)\s*:[\s\S]*$/i, '');
+  return semDestinatarios
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .slice(0, 300);
+}
+
+function montarChaveEncontrada(params: {
+  coordenacaoId?: string | null;
+  processoNumero?: string | null;
+  dataRefYmd: string;
+  conteudo?: string | null;
+  dedupProcessoDigits?: string | null;
+  dedupHeadNorm?: string | null;
+}): string {
+  const coord = params.coordenacaoId ?? 'sem_coord';
+  const proc = params.dedupProcessoDigits ?? String(params.processoNumero ?? '').replace(/\D/g, '');
+  const head = params.dedupHeadNorm ?? normalizarHeadDedup(String(params.conteudo ?? ''));
+  return `${coord}|${proc}|${params.dataRefYmd}|${head}`;
+}
+
 function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
   const proc = (processoNumero || '').replace(/[^0-9]/g, '');
   const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
