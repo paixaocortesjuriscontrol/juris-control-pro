@@ -247,16 +247,23 @@ function monitoramentosParaTribunal(monits: Monitoramento[], tribunal: string): 
 }
 
 function monitoramentoToInput(m: Monitoramento): {
-  id: string; termos: string[]; exclusoes?: string[]; oab?: string;
+  id: string;
+  termos: string[];
+  termosObrigatorios?: string[];
+  exclusoes?: string[];
+  oab?: string;
 } {
   const termos: string[] = [];
   if (m.termo_busca) termos.push(m.termo_busca);
-  if (m.termos_or && m.termos_or.length > 0) {
-    for (const t of m.termos_or) if (t && !termos.includes(t)) termos.push(t);
-  }
+  // No DJET, `termos_or` é tratado como AND (termos OBRIGATÓRIOS concomitantes),
+  // a pedido do usuário: o bloco precisa conter o termo principal E todos os
+  // demais termos para gerar match. Isso evita falsos positivos em pautas
+  // longas que mencionam apenas uma parte ou um banco.
+  const obrigatorios = (m.termos_or || []).map((t) => (t || "").trim()).filter(Boolean);
   return {
     id: m.id,
     termos,
+    termosObrigatorios: obrigatorios.length > 0 ? obrigatorios : undefined,
     exclusoes: m.exclusoes || [],
     oab: m.oab || undefined,
   };
