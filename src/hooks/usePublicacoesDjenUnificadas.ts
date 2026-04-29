@@ -424,7 +424,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
-        const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
+        const canUseRpc = !!filtros.coordenacaoId
+          && filtros.tipoOrigem !== 'descartada'
+          && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
         console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
