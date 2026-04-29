@@ -192,7 +192,7 @@ export interface FiltrosUnificados {
   // - processo: publicações vindas de processos cadastrados
   // - descartada: auditoria
   // - todos: (legado) mantido por compatibilidade
-  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'todos';
+  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'djet-pautas' | 'todos';
   incluirDescartadas?: boolean;
   /** Página atual (1-based). Default: 1. */
   page?: number;
