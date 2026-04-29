@@ -1065,27 +1065,31 @@ serve(async (req) => {
               parties: cachedRd?.parties || [],
               status: cachedRd?.status || null,
             };
+            console.log(`[buscar-judit] rd preenchido via DataJud TST (relator=${datajud.relator})`);
           }
         }
-        if (!rd && rdsAll.length > 0) {
-          rd = rdsAll.reduce((a: any, b: any) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
-          console.log(`[buscar-judit] Hint=${tribunalHint} não localizado; usando melhor instância disponível: ${rd.tribunal_acronym}`);
-        } else if (cachedRd) {
-          rd = cachedRd;
-          console.log(`[buscar-judit] Hint=${tribunalHint} não localizado e async vazio; usando cache (${cachedRd.tribunal_acronym})`);
-        } else {
-          return json(
-            {
-              error: "Processo não encontrado na Judit",
-              _debug: {
-                request_id: requestId,
-                status_judit: envelope.request_status,
-                instancias_retornadas: pageData.length,
-                tribunal_hint: tribunalHint,
+        // Só procurar fallbacks se rd ainda estiver vazio (DataJud TST não preencheu)
+        if (!rd) {
+          if (rdsAll.length > 0) {
+            rd = rdsAll.reduce((a: any, b: any) => ((b.instance ?? 0) > (a.instance ?? 0) ? b : a));
+            console.log(`[buscar-judit] Hint=${tribunalHint} não localizado; usando melhor instância disponível: ${rd.tribunal_acronym}`);
+          } else if (cachedRd) {
+            rd = cachedRd;
+            console.log(`[buscar-judit] Hint=${tribunalHint} não localizado e async vazio; usando cache (${cachedRd.tribunal_acronym})`);
+          } else {
+            return json(
+              {
+                error: "Processo não encontrado na Judit",
+                _debug: {
+                  request_id: requestId,
+                  status_judit: envelope.request_status,
+                  instancias_retornadas: pageData.length,
+                  tribunal_hint: tribunalHint,
+                },
               },
-            },
-            404,
-          );
+              404,
+            );
+          }
         }
       }
 
