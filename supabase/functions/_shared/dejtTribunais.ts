@@ -50,8 +50,18 @@ export function getDejtTribunal(sigla: string): DejtTribunal | null {
 
 /**
  * URLs candidatas (em ordem) para baixar o PDF de um caderno específico.
- * Tenta primeiro o downloadcaderno.do (URL clássica) e, em fallback,
- * o diario.jt.jus.br (estrutura nova por pasta YYYY/MM/DD).
+ *
+ * IMPORTANTE: o servidor `diario.jt.jus.br` publica APENAS o caderno
+ * vigente (do dia atual) no caminho fixo `/cadernos/Diario_<C>_<ID>.pdf`,
+ * onde:
+ *   - C  = "J" (Judiciário) ou "A" (Administrativo)
+ *   - ID = "TST" para o TST, ou o número do TRT zero-padded a 2 dígitos
+ *          (ex.: TRT1 -> "01", TRT15 -> "15")
+ *
+ * Para dias passados, o portal só permite consulta via formulário
+ * `dejt.jt.jus.br/dejt/f/n/diariocon` (com sessão JSF), que não é
+ * acessível por GET simples. Por isso, datas anteriores ao dia atual
+ * podem retornar 404 e devem ser tratadas como "sem-pdf".
  */
 export function buildDejtPdfUrls(
   sigla: string,
@@ -59,25 +69,20 @@ export function buildDejtPdfUrls(
   caderno: DejtCaderno = "judiciario",
 ): string[] {
   const tribunal = sigla.toUpperCase();
-  const urls: string[] = [
-    `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=${encodeURIComponent(tribunal)}&data=${encodeURIComponent(dataDDMMYYYY)}&caderno=${encodeURIComponent(caderno)}`,
-  ];
+  const code = caderno === "administrativo" ? "A" : "J";
 
-  // Fallback: diario.jt.jus.br
-  const m = dataDDMMYYYY.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) {
-    const [, d, mo, y] = m;
-    const base = `https://diario.jt.jus.br/cadernos/${y}/${mo}/${d}`;
-    const code = caderno === "administrativo" ? "A" : "J";
-    urls.push(
-      `${base}/${tribunal}_${code}.pdf`,
-      `${base}/${tribunal}_${code.toLowerCase()}.pdf`,
-      `${base}/${tribunal}${code}.pdf`,
-      `${base}/${tribunal}_${caderno}.pdf`,
-    );
+  // Identificador no nome do arquivo
+  let id: string;
+  if (tribunal === "TST") {
+    id = "TST";
+  } else {
+    const m = tribunal.match(/^TRT(\d{1,2})$/);
+    if (!m) return [];
+    id = m[1].padStart(2, "0");
   }
 
-  return urls;
+  // Único endpoint público estável (caderno vigente).
+  return [`https://diario.jt.jus.br/cadernos/Diario_${code}_${id}.pdf`];
 }
 
 export function ddmmyyyyToIso(dmy: string): string | null {
