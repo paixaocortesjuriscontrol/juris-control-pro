@@ -1125,12 +1125,18 @@ serve(async (req) => {
     }
 
     // ---- extração ----
-    const tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
+    // A Judit às vezes mantém `tribunal_acronym` da instância originária
+    // (ex.: TRT1) mesmo quando a instância selecionada é claramente do TST
+    // (Gabinete de Ministro / classe AIRR/RR). Normaliza pelo indício.
+    let tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
+    if (temIndicioTST(rd) && tribunalAcronimo !== "TST") {
+      console.log(`[buscar-judit] tribunal_acronym normalizado de ${tribunalAcronimo} -> TST por indício (Gabinete/Ministro)`);
+      tribunalAcronimo = "TST";
+    }
     let tribunal: string | null = null;
     if (tribunalAcronimo?.includes("TST")) tribunal = "TST";
     else if (tribunalAcronimo?.includes("STF")) tribunal = "STF";
     else if (tribunalAcronimo?.includes("STJ")) tribunal = "STJ";
-    else if (temIndicioTST(rd)) tribunal = "TST";
     else tribunal = tribunalAcronimo;
 
     const classificacao = extrairClassificacao(rd);
