@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte = 'dejt-pdf' OR tipo_publicacao = 'pauta';
