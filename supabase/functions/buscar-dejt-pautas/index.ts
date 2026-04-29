@@ -407,6 +407,25 @@ Deno.serve(async (req) => {
     const dataIso = ddmmyyyyToIso(body.dataDDMMYYYY) || body.dataDDMMYYYY;
     const monitoramentos = body.monitoramentos || [];
 
+    if (body.downloadOnly) {
+      const proxied = await fetchPdfStream(tribunal, body.dataDDMMYYYY, caderno);
+      if (!proxied.ok) {
+        return new Response(JSON.stringify({ ok: false, sem_dados: true, motivo: proxied.reason, tribunal, dataPublicacao: dataIso }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(proxied.response.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/pdf",
+          "X-DEJT-PDF-URL": proxied.url,
+          ...(proxied.bytes ? { "Content-Length": String(proxied.bytes) } : {}),
+        },
+      });
+    }
+
     // 1) Baixa PDF (com fallback de URLs)
     const fetched = await fetchPdf(tribunal, body.dataDDMMYYYY, caderno);
     if (!fetched.ok) {
