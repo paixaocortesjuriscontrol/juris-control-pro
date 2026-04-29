@@ -1025,6 +1025,11 @@ async function processarTermoEmTribunal(
   }
   const pubsUnicas = Array.from(hashMap.values());
 
+  if (foraDoPeriodo > 0) {
+    ultimoErro = `API devolveu ${foraDoPeriodo} resultado(s) fora de ${diaYmd}; ignorados.`;
+    console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${foraDoPeriodo} resultado(s) fora de ${diaYmd} ignorados.`);
+  }
+
   const hashes = pubsUnicas.map(p => p.hash_conteudo);
   let existentes = new Set<string>();
   if (hashes.length > 0) {
