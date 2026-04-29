@@ -26,7 +26,14 @@ const corsHeaders = {
 interface MonitoramentoInput {
   id: string;
   termos: string[];          // termos / partes / palavras-chave
-  termosObrigatorios?: string[]; // termos AND-obrigatórios (concomitantes)
+  /**
+   * Condição concomitante no MESMO formato do DJEN Termos:
+   *   "GRUPO1 | GRUPO2"  → OR entre grupos
+   *   "TERMO_A, TERMO_B" → AND dentro do grupo
+   * Se vier preenchida, o bloco da pauta precisa satisfazer pelo menos
+   * um dos grupos para virar match para este monitoramento.
+   */
+  condicaoConcomitante?: string | null;
   exclusoes?: string[];
   oab?: string;              // se vier, casa também por número de OAB
 }
@@ -114,19 +121,60 @@ function extractCnj(text: string): string | null {
   return m ? m[0] : null;
 }
 
-const MAX_PDF_BYTES = 3 * 1024 * 1024; // 3 MB — acima disso, edge fica sem RAM
+// Limite de tamanho do PDF. Subimos de 3MB para 25MB porque os cadernos de
+// TRT1/TRT2/TRT5 (Rio, SP, Bahia) são naturalmente grandes e estavam sendo
+// rejeitados, deixando essas pautas fora da busca. Para evitar OOM ao parsear
+// cadernos grandes, usamos extração página-a-página (streaming) abaixo.
+const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB
+// PDFs acima deste tamanho usam parse por página (mais lento, menos RAM)
+const STREAM_PDF_THRESHOLD = 4 * 1024 * 1024; // 4 MB
 
 async function bufferToText(uint8: Uint8Array): Promise<string> {
-  // Carrega PDF sem fontes/imagens (texto-only) para minimizar RAM
+  // Para cadernos pequenos: extrai tudo de uma vez (caminho rápido).
+  if (uint8.length < STREAM_PDF_THRESHOLD) {
+    const pdf = await getDocumentProxy(uint8, {
+      disableFontFace: true,
+      useSystemFonts: false,
+    } as any);
+    try {
+      const { text } = await extractText(pdf, { mergePages: true });
+      return Array.isArray(text) ? text.join("\n") : String(text || "");
+    } finally {
+      try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
+    }
+  }
+
+  // Para cadernos grandes (TRT1/TRT2/TRT5 etc): extrai página-a-página e
+  // libera cada página depois de ler, mantendo o pico de RAM controlado.
   const pdf = await getDocumentProxy(uint8, {
     disableFontFace: true,
     useSystemFonts: false,
   } as any);
   try {
-    const { text } = await extractText(pdf, { mergePages: true });
-    return Array.isArray(text) ? text.join("\n") : String(text || "");
+    const numPages = (pdf as any).numPages ?? 0;
+    const partes: string[] = [];
+    for (let i = 1; i <= numPages; i++) {
+      try {
+        const page = await (pdf as any).getPage(i);
+        try {
+          const content = await page.getTextContent();
+          const items = (content?.items || []) as Array<{ str?: string; hasEOL?: boolean }>;
+          let buf = "";
+          for (const it of items) {
+            buf += (it?.str || "");
+            if (it?.hasEOL) buf += "\n";
+            else buf += " ";
+          }
+          partes.push(buf);
+        } finally {
+          try { (page as any)?.cleanup?.(); } catch { /* ignore */ }
+        }
+      } catch (e) {
+        console.log(`[DJET-Pautas] erro extraindo página ${i}:`, (e as Error)?.message || e);
+      }
+    }
+    return partes.join("\n");
   } finally {
-    // Libera recursos do PDF.js
     try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
   }
 }
@@ -196,6 +244,32 @@ async function fetchPdf(
   return { ok: false, reason: "no-pdf" };
 }
 
+/**
+ * Verifica se o bloco da pauta atende à condição concomitante do
+ * monitoramento. Replica a função `condicaoConcomitanteAtendida` usada
+ * no DJEN Termos (engine paralela): grupos separados por `|` em OR,
+ * termos dentro de um grupo separados por `,` em AND.
+ */
+function condicaoConcomitanteAtendidaBloco(
+  blocoNorm: string,
+  condicao?: string | null,
+): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao)
+    .split("|")
+    .map((g) => g.trim())
+    .filter(Boolean);
+  if (grupos.length === 0) return true;
+  return grupos.some((g) => {
+    const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every((t) => {
+      const tn = normalize(t);
+      return tn ? blocoNorm.includes(tn) : false;
+    });
+  });
+}
+
 function matchBlocoMonitoramento(
   blocoNorm: string,
   mon: MonitoramentoInput,
@@ -207,14 +281,10 @@ function matchBlocoMonitoramento(
       if (exN && blocoNorm.includes(exN)) return null;
     }
   }
-  // Termos obrigatórios (AND): TODOS precisam aparecer no bloco. Se algum
-  // estiver faltando, descarta o bloco para este monitoramento.
-  if (mon.termosObrigatorios && mon.termosObrigatorios.length > 0) {
-    for (const t of mon.termosObrigatorios) {
-      const tn = normalize(t);
-      if (!tn) continue;
-      if (!blocoNorm.includes(tn)) return null;
-    }
+  // Condição concomitante (OR de grupos AND, igual ao DJEN Termos).
+  // Se definida e não atendida, descarta o bloco para este monitoramento.
+  if (!condicaoConcomitanteAtendidaBloco(blocoNorm, mon.condicaoConcomitante)) {
+    return null;
   }
   // Termos: qualquer match positivo já basta.
   for (const t of mon.termos || []) {
