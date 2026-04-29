@@ -1132,7 +1132,7 @@ async function processarTermoEmTribunal(
         monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
         conteudoOriginal,
       });
-      const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+      const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
       const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
       const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
       if (descMap.has(hash)) continue;
