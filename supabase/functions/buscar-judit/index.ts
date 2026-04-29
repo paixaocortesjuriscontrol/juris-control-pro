@@ -993,18 +993,25 @@ serve(async (req) => {
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
     
-    // Cache só é útil se o tribunal bater com o hint (cache retorna 1 instância, geralmente TRT)
-    const cacheMatchesHint = cachedRd && (!tribunalHint || 
+    // Cache da Judit retorna apenas 1 instância (geralmente a originária — TRT/Vara).
+    // Para preencher corretamente recorrente / tipo_recurso / trânsito / data
+    // de distribuição, precisamos das DEMAIS instâncias (TST quando houver RR
+    // recente). Por isso só usamos o cache direto quando há hint EXPLÍCITO e o
+    // cache cobre exatamente esse hint. Sem hint => sempre crawler async para
+    // ter TRT+TST juntos. (Caso real: 0001695-95.2013.5.01.0481 — cache só
+    // tinha TRT1 antigo e mascarava o RR distribuído no TST em 10/12/2025.)
+    const cacheMatchesHint = cachedRd && tribunalHint && (
       (cachedRd.tribunal_acronym || "").toUpperCase() === tribunalHint.toUpperCase() ||
-      (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd)));
-    
+      (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd))
+    );
+
     if (cachedRd && cacheMatchesHint) {
       rd = cachedRd;
-      console.log(`[buscar-judit] Usando dados do cache direto (tribunal=${cachedRd.tribunal_acronym})`);
+      console.log(`[buscar-judit] Usando cache direto (hint=${tribunalHint} casa com tribunal=${cachedRd.tribunal_acronym})`);
     } else {
       // Fallback: fluxo assíncrono (crawler) — retorna TODAS as instâncias
-      if (cachedRd && !cacheMatchesHint) {
-        console.log(`[buscar-judit] Cache descartado: tribunal_cache=${cachedRd.tribunal_acronym} hint=${tribunalHint}`);
+      if (cachedRd) {
+        console.log(`[buscar-judit] Cache descartado (cache=${cachedRd.tribunal_acronym}, hint=${tribunalHint || "<nenhum>"}) — forçando crawler para obter TODAS as instâncias`);
       }
       debugStatus = "async_poll";
       const criar = await juditCriarRequest(JUDIT_API_KEY, cnj);
