@@ -977,6 +977,12 @@ async function processarTermoEmTribunal(
   const pubsDescartadas: any[] = [];
 
   const pubsValidas = resultados.filter(pub => {
+    const dataDispReal = extrairDataDisponibilizacaoYmd(pub);
+    if (dataDispReal && dataDispReal !== diaYmd) {
+      descartadas++;
+      pubsDescartadas.push({ ...pub, motivo_descarte: `fora_do_periodo_api: ${dataDispReal}` });
+      return false;
+    }
     if (tribunaisMon.length > 0) {
       const sig = getSiglaTribunal(pub);
       if (!sig || !tribunaisMon.includes(sig)) {
@@ -1007,7 +1013,7 @@ async function processarTermoEmTribunal(
   const hashMap = new Map<string, any>();
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
-    const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+    const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
     const hash = gerarHash(conteudo, dataDisp, procNum);
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
