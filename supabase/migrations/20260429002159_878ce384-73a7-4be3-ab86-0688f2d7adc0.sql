@@ -1,0 +1,1 @@
+UPDATE public.publicacoes_djen SET dedup_key = public.compute_djen_dedup_key(coordenacao_id, processo_numero, data_disponibilizacao, data_publicacao, created_at) WHERE id IN (SELECT id FROM public.publicacoes_djen WHERE dedup_key IS NULL LIMIT 10000);
