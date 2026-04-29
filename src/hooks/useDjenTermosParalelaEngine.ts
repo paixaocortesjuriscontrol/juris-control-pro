@@ -1090,23 +1090,8 @@ async function processarTermoEmTribunal(
 
   let novasInseridasEfetivas = 0;
   let duplicadasReclassificadas = 0;
-  let duplicadasJaExistentesNoSegundoCheck = 0;
   if (novas.length > 0) {
-    // PRÉ-CHECK: antes de inserir, conferir quais hashes já existem
-    // no banco para esse monitoramento. O upsert(...).select() do PostgREST
-    // não é confiável com ignoreDuplicates: pode retornar IDs antigos ou
-    // nada, inflando/zerando o contador. Pré-checagem garante exatidão.
-    const hashesPretendidos = novas.map(p => p.hash_conteudo);
-    const { data: jaExistentes } = await supabase
-      .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('monitoramento_id', mon.id)
-      .in('hash_conteudo', hashesPretendidos);
-    const hashesJa = new Set((jaExistentes || []).map((r: any) => r.hash_conteudo));
-    const novasFiltradas = novas.filter(p => !hashesJa.has(p.hash_conteudo));
-    duplicadasJaExistentesNoSegundoCheck = novas.length - novasFiltradas.length;
-
-    const payload = novasFiltradas.map(pub => {
+    const payload = novas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
       const conteudoFormatado = buildDjenLikeConteudo({
         pub, diaYmd,
@@ -1168,11 +1153,6 @@ async function processarTermoEmTribunal(
         );
       }
     }
-    if (hashesJa.size > 0) {
-      console.warn(
-        `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${novas.length} candidatas, ${hashesJa.size} já existiam no banco, ${novasInseridasEfetivas} realmente novas.`
-      );
-    }
   }
 
   // Persistir descartadas (limit 200)
@@ -1217,7 +1197,7 @@ async function processarTermoEmTribunal(
 
   return {
     novas: novasInseridasEfetivas,
-    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + duplicadasJaExistentesNoSegundoCheck + duplicadasReclassificadas,
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + duplicadasReclassificadas,
     descartadas: descartadasEfetivas,
     rateLimitHits,
     ultimoErro,
