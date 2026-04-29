@@ -82,7 +82,7 @@ export interface DjenTermosParalelaProgress {
 
 interface Monitoramento {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'nome';
   termo_busca: string;
   oab?: string;
   uf?: string;
@@ -849,7 +849,13 @@ async function processarTermoEmTribunal(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
-  const tipo: PjeSearchType = mon.tipo === 'parte' ? 'parte' : mon.tipo;
+  // `nome` é um tipo válido no banco, mas a API do PJE Comunica não aceita
+  // esse literal em `tipo`. Para manter a busca correta, usamos palavra-chave.
+  const tipo: PjeSearchType = mon.tipo === 'parte'
+    ? 'parte'
+    : mon.tipo === 'nome'
+      ? 'palavra-chave'
+      : mon.tipo;
   const resultados: any[] = [];
   const seen = new Set<string>();
   const seenContent = new Set<string>();
