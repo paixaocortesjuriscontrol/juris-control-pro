@@ -5245,6 +5245,7 @@ export type Database = {
           resumo_ia: string | null
           status: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao: string | null
+          tipo_publicacao: string
           tribunal: string | null
         }
         Insert: {
@@ -5274,6 +5275,7 @@ export type Database = {
           resumo_ia?: string | null
           status?: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao?: string | null
+          tipo_publicacao?: string
           tribunal?: string | null
         }
         Update: {
@@ -5303,6 +5305,7 @@ export type Database = {
           resumo_ia?: string | null
           status?: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao?: string | null
+          tipo_publicacao?: string
           tribunal?: string | null
         }
         Relationships: [
