@@ -979,13 +979,13 @@ async function processarTermoEmTribunal(
   // Filtros declarados pelo monitoramento
   const tribunaisMon = expandirTribunaisDoMon(mon.tribunais);
   let descartadas = 0;
+  let foraDoPeriodo = 0;
   const pubsDescartadas: any[] = [];
 
   const pubsValidas = resultados.filter(pub => {
     const dataDispReal = extrairDataDisponibilizacaoYmd(pub);
     if (dataDispReal && dataDispReal !== diaYmd) {
-      descartadas++;
-      pubsDescartadas.push({ ...pub, motivo_descarte: `fora_do_periodo_api: ${dataDispReal}` });
+      foraDoPeriodo++;
       return false;
     }
     if (tribunaisMon.length > 0) {
