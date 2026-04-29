@@ -176,16 +176,23 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
           : {}),
       };
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('monitoramentos_djen')
         .update(payload)
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Sem permissão para atualizar este monitoramento.');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
       toast.success("Monitoramento atualizado!");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'Erro ao atualizar monitoramento.');
     },
   });
 
