@@ -307,17 +307,30 @@ Deno.serve(async (req) => {
 
       // 4. publicacoes_djen (termos)
       console.log('[limpar-djen] Limpando publicacoes_djen...');
-      const r4a = await deleteBatched(supabase, 'publicacoes_djen', 'created_at', dayStart, dayEnd, 500);
-      const r4b = await deleteByDateRange(supabase, 'publicacoes_djen', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
-      const r4Total = r4a.deleted + r4b.deleted;
-      results['publicacoes_djen'] = (r4a.error || r4b.error) || `ok (${r4Total})`;
+      if (scopedCleanup) {
+        const r4 = await deletePublicacoesDjenScoped(supabase, startYmd, endYmd, {
+          coordenacaoId: body.coordenacaoId,
+          monitoramentoIds: scopedMonitoramentoIds,
+        }, 500);
+        results['publicacoes_djen'] = r4.error || `ok (${r4.deleted})`;
+      } else {
+        const r4a = await deleteBatched(supabase, 'publicacoes_djen', 'created_at', dayStart, dayEnd, 500);
+        const r4b = await deleteByDateRange(supabase, 'publicacoes_djen', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
+        const r4Total = r4a.deleted + r4b.deleted;
+        results['publicacoes_djen'] = (r4a.error || r4b.error) || `ok (${r4Total})`;
+      }
 
       // 6. publicacoes_djen_descartadas
       console.log('[limpar-djen] Limpando publicacoes_djen_descartadas...');
-      const r6a = await deleteBatched(supabase, 'publicacoes_djen_descartadas', 'created_at', dayStart, dayEnd, 500);
-      const r6b = await deleteByDateRange(supabase, 'publicacoes_djen_descartadas', ['data_publicacao'], startYmd, endYmd, 500);
-      const r6Total = r6a.deleted + r6b.deleted;
-      results['publicacoes_djen_descartadas'] = (r6a.error || r6b.error) || `ok (${r6Total})`;
+      if (scopedCleanup) {
+        const r6 = await deleteDescartadasDjenScoped(supabase, startYmd, endYmd, { monitoramentoIds: scopedMonitoramentoIds }, 500);
+        results['publicacoes_djen_descartadas'] = r6.error || `ok (${r6.deleted})`;
+      } else {
+        const r6a = await deleteBatched(supabase, 'publicacoes_djen_descartadas', 'created_at', dayStart, dayEnd, 500);
+        const r6b = await deleteByDateRange(supabase, 'publicacoes_djen_descartadas', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
+        const r6Total = r6a.deleted + r6b.deleted;
+        results['publicacoes_djen_descartadas'] = (r6a.error || r6b.error) || `ok (${r6Total})`;
+      }
 
       // 7. publicacoes_djen_global_hash (apenas quando limpar termos - compartilhado)
       console.log('[limpar-djen] Limpando publicacoes_djen_global_hash...');
