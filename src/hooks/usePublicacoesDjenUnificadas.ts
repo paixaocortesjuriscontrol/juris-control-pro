@@ -494,37 +494,34 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }
 
-        // Resolver processo_id para publicações de termo
+        // ===== PARALELIZAÇÃO =====
+        // As 3 operações abaixo (resolver processo_id, enriquecer monitoramentos,
+        // buscar leituras per-user) são independentes entre si — só dependem das
+        // linhas já retornadas pela RPC. Rodar em paralelo reduz a latência
+        // percebida na lista (que era 3 round-trips sequenciais).
         const termoSemId = filteredByType.filter(
           (p) => p.tipo_origem === 'termo' && !p.processo_id && !!p.processo_numero
         );
-        if (termoSemId.length > 0) {
-          // Extrair apenas dígitos para normalização (publicações podem vir com ou sem formatação)
-          const toDigits = (n: string) => n.replace(/\D/g, '');
 
-          // Buscar processos da mesma coordenação para matching por dígitos
-          // Buscar processos da mesma coordenação para matching por dígitos
-          let qProcessos = supabase
-            .from('processos')
-            .select('id, numero');
+        const resolveProcessoIdsPromise: Promise<void> = (async () => {
+          if (termoSemId.length === 0) return;
+          const toDigits = (n: string) => n.replace(/\D/g, '');
+          let qProcessos = supabase.from('processos').select('id, numero');
           if (filtros.coordenacaoId) {
             qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
           }
           const { data: processosExistentes } = await qProcessos;
-
-          // Construir mapa por dígitos para matching robusto
           const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
             processosDigitsMap[toDigits(p.numero)] = p.id;
           });
-
           filteredByType.forEach((p) => {
             if (p.tipo_origem === 'termo' && !p.processo_id && p.processo_numero) {
               const digits = toDigits(p.processo_numero);
               p.processo_id = processosDigitsMap[digits] || null;
             }
           });
-        }
+        })();
 
         // incluir descartadas, se solicitado
         if (filtros.incluirDescartadas) {
