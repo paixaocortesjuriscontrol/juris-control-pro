@@ -1121,7 +1121,7 @@ async function processarTermoEmTribunal(
         tribunal: getSiglaTribunal(pub),
         fonte: pub.siglaTribunal || pub.tribunal || 'DJEN-PARALELA',
         lida: false,
-        status: 'encontrada',
+        status: 'encontrada' as const,
         orgao: pub.nomeOrgao || pub.nome_orgao || null,
         tipo_comunicacao: pub.tipoComunicacao || null,
         meio: pub.meio || pub.meiocompleto || null,
