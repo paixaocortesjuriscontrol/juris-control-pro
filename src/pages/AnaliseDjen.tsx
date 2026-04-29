@@ -1531,6 +1531,12 @@ const AnaliseDjen = () => {
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
 
+  // Se houver seleção, gera apenas as selecionadas; senão, todas (já filtradas).
+  const getPubsParaGerar = () => {
+    if (selectedIds.size === 0) return allPublicacoes;
+    return allPublicacoes.filter(p => selectedIds.has(p.id));
+  };
+
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
