@@ -772,11 +772,20 @@ export async function buscarPjeComunicaPaginado(
       }
 
       if (resp.items.length === 0) break;
-      // Se a API informou que não há próxima página, não buscar página 2 só
-      // para "confirmar vazio". Isso era a principal fonte de duplicidade/429.
-      if (!resp.hasMore || resp.items.length < pageSize) break;
-      if (continueUntilEmpty && addedOnPage === 0) {
-        console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
+      // Heurística 1: API confirma fim quando devolve menos itens que o pageSize.
+      if (resp.items.length < pageSize) break;
+
+      // continueUntilEmpty: a API PJE Comunica é conhecida por retornar
+      // hasMore=false indevidamente em buscas amplas (ex.: SANTANDER no TST com
+      // dezenas de páginas). Quando esse flag está ligado, ignoramos hasMore e
+      // só paramos quando a página vier vazia OU não trouxer nenhum item NOVO.
+      if (continueUntilEmpty) {
+        if (addedOnPage === 0) {
+          console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
+          break;
+        }
+      } else if (!resp.hasMore) {
+        // Modo conservador: respeita hasMore quando o chamador não pediu varredura completa.
         break;
       }
 
