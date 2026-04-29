@@ -39,6 +39,10 @@ class DjenTermosParalelaScheduler {
   // Default: 5h da manhã BRT
   private targetHour = 5;
   private targetMinute = 0;
+  // Janela máxima após o horário alvo em que ainda é permitido disparar
+  // automaticamente (em minutos). Fora dessa janela, esperamos o próximo dia.
+  // Evita que abrir o navegador horas depois reinicie a busca sozinha.
+  private readonly TARGET_WINDOW_MINUTES = 30;
   private readonly TOAST_COOLDOWN_MS = 60000;
 
   constructor() {
@@ -145,10 +149,12 @@ class DjenTermosParalelaScheduler {
 
   private shouldRunToday(): boolean {
     const { hour, minute } = this.getBrtHourMinute();
-    return (
-      hour > this.targetHour ||
-      (hour === this.targetHour && minute >= this.targetMinute)
-    );
+    const nowMinutes = hour * 60 + minute;
+    const targetMinutes = this.targetHour * 60 + this.targetMinute;
+    // Só dispara DENTRO da janela [target, target + TARGET_WINDOW_MINUTES].
+    // Antes do alvo: aguarda. Depois da janela: aguarda o próximo dia
+    // (evita que abrir o navegador 4h depois do horário inicie a busca sozinha).
+    return nowMinutes >= targetMinutes && nowMinutes <= targetMinutes + this.TARGET_WINDOW_MINUTES;
   }
 
   private async checkAndRun() {
