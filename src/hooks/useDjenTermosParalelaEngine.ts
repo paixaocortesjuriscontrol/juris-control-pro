@@ -460,6 +460,31 @@ function extrairDataDisponibilizacaoYmd(item: any): string | null {
   return null;
 }
 
+function normalizarHeadDedup(conteudo: string): string {
+  const semDestinatarios = conteudo.replace(/Destinat[aá]rio\(s\)\s*:[\s\S]*$/i, '');
+  return semDestinatarios
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .slice(0, 300);
+}
+
+function montarChaveEncontrada(params: {
+  coordenacaoId?: string | null;
+  processoNumero?: string | null;
+  dataRefYmd: string;
+  conteudo?: string | null;
+  dedupProcessoDigits?: string | null;
+  dedupHeadNorm?: string | null;
+}): string {
+  const coord = params.coordenacaoId ?? 'sem_coord';
+  const proc = params.dedupProcessoDigits ?? String(params.processoNumero ?? '').replace(/\D/g, '');
+  const head = params.dedupHeadNorm ?? normalizarHeadDedup(String(params.conteudo ?? ''));
+  return `${coord}|${proc}|${params.dataRefYmd}|${head}`;
+}
+
 function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
   const proc = (processoNumero || '').replace(/[^0-9]/g, '');
   const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
@@ -1030,39 +1055,52 @@ async function processarTermoEmTribunal(
     console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${foraDoPeriodo} resultado(s) fora de ${diaYmd} ignorados.`);
   }
 
-  const hashes = pubsUnicas.map(p => p.hash_conteudo);
-  let existentes = new Set<string>();
-  if (hashes.length > 0) {
-    const { data } = await supabase
-      .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('monitoramento_id', mon.id)
-      .in('hash_conteudo', hashes);
-    existentes = new Set((data || []).map(d => d.hash_conteudo));
+  const chavesCandidatas = pubsUnicas.map((p) => {
+    const conteudoOriginal = p.texto || p.conteudo || p.teor || '';
+    const conteudoFormatado = buildDjenLikeConteudo({
+      pub: p,
+      diaYmd,
+      monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+      conteudoOriginal,
+    });
+    return montarChaveEncontrada({
+      coordenacaoId: mon.coordenacao_id,
+      processoNumero: p.numeroProcesso || p.numero_processo || p.processo || null,
+      dataRefYmd: p.data_disponibilizacao_ymd,
+      conteudo: conteudoFormatado,
+    });
+  });
+
+  let chavesEncontradas = new Set<string>();
+  if (chavesCandidatas.length > 0) {
+    const processosDigits = Array.from(new Set(pubsUnicas.map((p) => String(p.numeroProcesso || p.numero_processo || p.processo || '').replace(/\D/g, '')).filter(Boolean)));
+    const datasRef = Array.from(new Set(pubsUnicas.map((p) => p.data_disponibilizacao_ymd).filter(Boolean)));
+    if (processosDigits.length > 0 && datasRef.length > 0) {
+      const { data: encontradas } = await supabase
+        .from('publicacoes_djen')
+        .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
+        .eq('coordenacao_id', mon.coordenacao_id)
+        .eq('status', 'encontrada')
+        .in('dedup_processo_digits', processosDigits)
+        .in('dedup_data_ref', datasRef);
+      chavesEncontradas = new Set((encontradas || []).map((r: any) => montarChaveEncontrada({
+        coordenacaoId: r.coordenacao_id,
+        processoNumero: r.processo_numero,
+        dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10),
+        conteudo: r.conteudo,
+        dedupProcessoDigits: r.dedup_processo_digits,
+        dedupHeadNorm: r.dedup_head_norm,
+      })));
+    }
   }
 
-  const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+  const novas = pubsUnicas.filter((p, idx) => !chavesEncontradas.has(chavesCandidatas[idx]));
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
   let novasInseridasEfetivas = 0;
   let duplicadasReclassificadas = 0;
-  let duplicadasJaExistentesNoSegundoCheck = 0;
   if (novas.length > 0) {
-    // PRÉ-CHECK: antes de inserir, conferir quais hashes já existem
-    // no banco para esse monitoramento. O upsert(...).select() do PostgREST
-    // não é confiável com ignoreDuplicates: pode retornar IDs antigos ou
-    // nada, inflando/zerando o contador. Pré-checagem garante exatidão.
-    const hashesPretendidos = novas.map(p => p.hash_conteudo);
-    const { data: jaExistentes } = await supabase
-      .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('monitoramento_id', mon.id)
-      .in('hash_conteudo', hashesPretendidos);
-    const hashesJa = new Set((jaExistentes || []).map((r: any) => r.hash_conteudo));
-    const novasFiltradas = novas.filter(p => !hashesJa.has(p.hash_conteudo));
-    duplicadasJaExistentesNoSegundoCheck = novas.length - novasFiltradas.length;
-
-    const payload = novasFiltradas.map(pub => {
+    const payload = novas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
       const conteudoFormatado = buildDjenLikeConteudo({
         pub, diaYmd,
@@ -1083,6 +1121,7 @@ async function processarTermoEmTribunal(
         tribunal: getSiglaTribunal(pub),
         fonte: pub.siglaTribunal || pub.tribunal || 'DJEN-PARALELA',
         lida: false,
+        status: 'encontrada' as const,
         orgao: pub.nomeOrgao || pub.nome_orgao || null,
         tipo_comunicacao: pub.tipoComunicacao || null,
         meio: pub.meio || pub.meiocompleto || null,
@@ -1092,14 +1131,13 @@ async function processarTermoEmTribunal(
     });
 
     if (payload.length > 0) {
-      // Insert puro (não upsert): linhas já filtradas acima.
-      // Mantém upsert por segurança contra race conditions com outras execuções
-      // paralelas, mas agora sabemos exatamente quantas eram realmente novas.
+      // A busca SEMPRE já foi feita. Aqui só persistimos o resultado da comparação
+      // pela chave de encontradas; se houver uma duplicada antiga com mesmo hash,
+      // reativamos como encontrada em vez de deixar ela bloquear a nova captura.
       const { data: inseridos, error: upsertError } = await supabase
         .from('publicacoes_djen')
         .upsert(payload, {
           onConflict: 'monitoramento_id,hash_conteudo',
-          ignoreDuplicates: true,
         })
         .select('id');
       if (upsertError) {
@@ -1123,11 +1161,6 @@ async function processarTermoEmTribunal(
           `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: upsert retornou ${inseridos?.length ?? 0}, mas só ${novasInseridasEfetivas} ficaram como encontradas; ${duplicadasReclassificadas} foram reclassificadas/ocultadas.`
         );
       }
-    }
-    if (hashesJa.size > 0) {
-      console.warn(
-        `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${novas.length} candidatas, ${hashesJa.size} já existiam no banco, ${novasInseridasEfetivas} realmente novas.`
-      );
     }
   }
 
@@ -1173,7 +1206,7 @@ async function processarTermoEmTribunal(
 
   return {
     novas: novasInseridasEfetivas,
-    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + duplicadasJaExistentesNoSegundoCheck + duplicadasReclassificadas,
+    duplicadas: duplicadasBanco + (pubsValidas.length - pubsUnicas.length) + duplicadasReclassificadas,
     descartadas: descartadasEfetivas,
     rateLimitHits,
     ultimoErro,
