@@ -250,21 +250,20 @@ function monitoramentosParaTribunal(monits: Monitoramento[], tribunal: string): 
 function monitoramentoToInput(m: Monitoramento): {
   id: string;
   termos: string[];
-  termosObrigatorios?: string[];
+  condicaoConcomitante?: string | null;
   exclusoes?: string[];
   oab?: string;
 } {
   const termos: string[] = [];
   if (m.termo_busca) termos.push(m.termo_busca);
-  // No DJET, `termos_or` é tratado como AND (termos OBRIGATÓRIOS concomitantes),
-  // a pedido do usuário: o bloco precisa conter o termo principal E todos os
-  // demais termos para gerar match. Isso evita falsos positivos em pautas
-  // longas que mencionam apenas uma parte ou um banco.
-  const obrigatorios = (m.termos_or || []).map((t) => (t || "").trim()).filter(Boolean);
+  // Pautas usam o MESMO formato do DJEN Termos para concomitância:
+  // `condicao_concomitante` é uma string "GRUPO1 | GRUPO2", onde
+  // `|` é OR entre grupos e `,` é AND dentro do grupo.
+  // Ex.: "OSMAR MENDES | LEANDRO ARTIAGA" exige um desses no bloco da pauta.
   return {
     id: m.id,
     termos,
-    termosObrigatorios: obrigatorios.length > 0 ? obrigatorios : undefined,
+    condicaoConcomitante: m.condicao_concomitante || undefined,
     exclusoes: m.exclusoes || [],
     oab: m.oab || undefined,
   };
