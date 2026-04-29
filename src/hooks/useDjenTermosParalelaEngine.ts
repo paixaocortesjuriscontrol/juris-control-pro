@@ -452,6 +452,11 @@ function extrairDataDisponibilizacaoYmd(item: any): string | null {
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const corpo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
+  const isoNoCorpo = corpo.match(/data\s+de\s+disponibiliza[cç][aã]o\D{0,30}(\d{4})[-/](\d{2})[-/](\d{2})/i);
+  if (isoNoCorpo) return `${isoNoCorpo[1]}-${isoNoCorpo[2]}-${isoNoCorpo[3]}`;
+  const brNoCorpo = corpo.match(/data\s+de\s+disponibiliza[cç][aã]o\D{0,30}(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (brNoCorpo) return `${brNoCorpo[3]}-${brNoCorpo[2]}-${brNoCorpo[1]}`;
   return null;
 }
 
