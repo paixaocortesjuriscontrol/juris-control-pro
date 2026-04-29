@@ -494,6 +494,24 @@ function extrairUltimaDistribuicaoTst(steps: any[]): {
   const ehNaoGabinete = (orgao: string): boolean =>
     /\b(PRESID[ÊE]NCIA|VICE[\s-]*PRESID[ÊE]NCIA|CORREGEDORIA)\b/i.test(orgao);
 
+  // Extrai turma diretamente do texto do step/órgão (ex: "1ª Turma - Gabinete do Ministro X").
+  // Esta é a fonte mais confiável, pois reflete a turma ATUAL do ministro
+  // (ministros mudam de turma periodicamente, então o mapeamento estático fica defasado).
+  const extrairTurmaDoTexto = (texto: string): string | null => {
+    if (!texto) return null;
+    // Padrão "1ª Turma", "1a Turma", "1 Turma", "PRIMEIRA TURMA"
+    const m1 = texto.match(/\b([1-8])[ªa]?\s*Turma\b/i);
+    if (m1) return `${m1[1]}ª Turma`;
+    const ordinais: Record<string, string> = {
+      primeira: "1ª Turma", segunda: "2ª Turma", terceira: "3ª Turma", quarta: "4ª Turma",
+      quinta: "5ª Turma", sexta: "6ª Turma", setima: "7ª Turma", sétima: "7ª Turma",
+      oitava: "8ª Turma",
+    };
+    const m2 = texto.match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|s[eé]tima|oitava)\s+turma\b/i);
+    if (m2) return ordinais[m2[1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")] || null;
+    return null;
+  };
+
   const ordenados = [...steps]
     .filter((s) => s && (s.step_date || s.date || s.movement_date))
     .sort((a, b) => {
@@ -511,12 +529,17 @@ function extrairUltimaDistribuicaoTst(steps: any[]): {
 
     const m = orgao.match(/GAB(?:INETE|\.)?\s+D[OA]\s+MINISTR[OA]?\s+(.+)$/i);
     const relator = m ? m[1].trim().replace(/[.,;()\-]+$/, "") : null;
-    const turma = relator ? derivarTurmaDoRelator(relator) : null;
+    // Prioridade: turma extraída do texto do step (content + órgão) > mapeamento estático.
+    // O texto do step costuma vir como "1ª Turma - Gabinete do Ministro X",
+    // o que reflete a composição ATUAL do TST.
+    const textoCompleto = `${String(s?.content || "")} ${orgao}`;
+    const turmaDoTexto = extrairTurmaDoTexto(textoCompleto);
+    const turma = turmaDoTexto || (relator ? derivarTurmaDoRelator(relator) : null);
 
     const rawData = s.step_date || s.date || s.movement_date;
     const data = rawData ? String(rawData).substring(0, 10) : null;
 
-    console.log(`[buscar-judit][tst-ultima-dist] data=${data} orgao="${orgao}" relator=${relator} turma=${turma}`);
+    console.log(`[buscar-judit][tst-ultima-dist] data=${data} orgao="${orgao}" relator=${relator} turma=${turma} (fonte=${turmaDoTexto ? "texto" : "mapa"})`);
     return { data, relator, turma, orgao };
   }
 
