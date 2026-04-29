@@ -6,8 +6,11 @@
  * 100% independente do card "DJEN Termos Paralela".
  */
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,6 +109,41 @@ export function MonitoramentoDjetPautasCard() {
 
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
+  // Filtros: Coordenação e Termo
+  const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>("");
+  const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>("");
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
+
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ["monitoramentos-djen-coord-djet-pautas", coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [];
+      const { data, error } = await supabase
+        .from("monitoramentos_djen")
+        .select("id, tipo, termo_busca, oab, uf, descricao, ativo, coordenacao_id")
+        .eq("coordenacao_id", coordenacaoFiltroEfetivo)
+        .eq("ativo", true)
+        .order("descricao", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+  });
+
+  useEffect(() => {
+    if (!filtroCoordenacaoId) setFiltroMonitoramentoId("");
+  }, [filtroCoordenacaoId]);
+
+  const filterParams = useMemo(() => ({
+    coordenacaoId: filtroCoordenacaoId || undefined,
+    monitoramentoIds: filtroMonitoramentoId
+      ? [filtroMonitoramentoId]
+      : (filtroCoordenacaoId && monitoramentos.length > 0
+          ? monitoramentos.map((m) => m.id)
+          : undefined),
+  }), [filtroCoordenacaoId, filtroMonitoramentoId, monitoramentos]);
+
   return (
     <Card>
       <CardHeader>
@@ -122,6 +160,50 @@ export function MonitoramentoDjetPautasCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <SchedulerPanel />
+
+        {/* Filtros: Coordenação e Termo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Coordenação</Label>
+            <select
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+              value={filtroCoordenacaoId}
+              onChange={(e) => setFiltroCoordenacaoId(e.target.value)}
+              disabled={isRunning}
+            >
+              <option value="">Todas</option>
+              {coordenacoes.map((c) => (
+                <option key={c.id} value={c.id}>{c.nome}</option>
+              ))}
+            </select>
+          </div>
+          {coordenacaoFiltroEfetivo && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Termo</Label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroMonitoramentoId}
+                onChange={(e) => setFiltroMonitoramentoId(e.target.value)}
+                disabled={isRunning}
+              >
+                <option value="">Todos</option>
+                {monitoramentos.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.descricao || m.termo_busca || `${m.tipo || "Termo"} ${m.oab || ""} ${m.uf || ""}`.trim() || m.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        {isRunning && (filtroCoordenacaoId || filtroMonitoramentoId) && (
+          <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
+            Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? "Todas"}
+            {filtroMonitoramentoId && (
+              <> • {monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.descricao || monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.termo_busca || "Termo"}</>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
@@ -155,12 +237,15 @@ export function MonitoramentoDjetPautasCard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => executar(ymd(dataInicio), ymd(dataFim))} disabled={isRunning}>
+          <Button
+            onClick={() => executar(ymd(dataInicio), ymd(dataFim), filterParams.coordenacaoId, filterParams.monitoramentoIds)}
+            disabled={isRunning}
+          >
             {isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
             Executar
           </Button>
           {canResume && (
-            <Button variant="outline" onClick={() => retomar()}>
+            <Button variant="outline" onClick={() => retomar(filterParams.coordenacaoId, filterParams.monitoramentoIds)}>
               <RotateCcw className="mr-2 h-4 w-4" /> Retomar checkpoint
             </Button>
           )}
