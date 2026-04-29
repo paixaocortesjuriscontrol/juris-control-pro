@@ -1613,6 +1613,22 @@ serve(async (req) => {
       : null;
     console.log(`[buscar-judit] tipo_recurso fonte=${fonteTipoRecurso} reclamante=${recursosPorParte.reclamante} banco=${recursosPorParte.banco}`);
 
+    // Recorrente: derivado dos recursos confirmados pela Judit (mais preciso
+    // do que o polo ativo da capa). Se a Judit não identificou interposição,
+    // cai no polo ativo (reclamante). "Banco"/"Reclamante" são rótulos
+    // padronizados para o usuário (advogada Renata Santander pediu esse
+    // formato no caso 0001695-95.2013.5.01.0481).
+    let recorrenteCalc: string | null = null;
+    if (recursosPorParte.banco && recursosPorParte.reclamante) {
+      recorrenteCalc = "Ambos";
+    } else if (recursosPorParte.banco) {
+      recorrenteCalc = "Banco";
+    } else if (recursosPorParte.reclamante) {
+      recorrenteCalc = "Reclamante";
+    } else {
+      recorrenteCalc = poloAtivo || null;
+    }
+
     const result = {
       dossie: null, // Judit não tem dossiê Santander
       // Tipo de recurso APENAS quando confirmado por movimento Judit.
@@ -1633,7 +1649,7 @@ serve(async (req) => {
       turma,
       tribunal,
       tribunal_acronimo: tribunalAcronimo,
-      recorrente: poloAtivo || null,
+      recorrente: recorrenteCalc,
       polo_passivo: poloPassivo || null,
       situacao_processo: situacaoProcesso,
       comarca,
