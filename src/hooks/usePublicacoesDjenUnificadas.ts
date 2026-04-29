@@ -772,7 +772,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
       // "parte" é um subconjunto de "termo" — não deve buscar publicações de processos
-      if (filtros.tipoOrigem !== 'termo' && filtros.tipoOrigem !== 'parte' && filtros.tipoOrigem !== 'descartada') {
+      if (
+        filtros.tipoOrigem !== 'termo' &&
+        filtros.tipoOrigem !== 'parte' &&
+        filtros.tipoOrigem !== 'descartada' &&
+        filtros.tipoOrigem !== 'djet-pautas'
+      ) {
         // IMPORTANTE: usar !inner para garantir que filtros por campos do relacionamento
         // (ex: processo.coordenacao_id) sejam aplicados no banco.
         let queryProcessos = supabase
