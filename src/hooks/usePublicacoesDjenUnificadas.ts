@@ -535,6 +535,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             : filtros.tipoOrigem === 'processo'
               ? mapped.filter((p) => p.tipo_origem === 'processo')
               : mapped;
+        // Em todas as views que NÃO sejam DJET Pautas, remover publicações
+        // capturadas via DEJT (fonte 'dejt-pdf') para não misturar pautas
+        // com intimações/processos do DJEN.
+        filteredByType = filteredByType.filter((p) => (p.fonte || '').toLowerCase() !== 'dejt-pdf');
         if (filtros.monitoramentoId) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }
