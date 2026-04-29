@@ -93,29 +93,6 @@ const PAUTA_MARKERS = [
   "PAUTA DA SESSÃO",
 ];
 
-function segmentByPauta(fullText: string): string[] {
-  if (!fullText) return [];
-  // Constrói um regex global que captura qualquer marcador (case-insensitive),
-  // sem perder o conteúdo. Usamos split com lookahead.
-  const escaped = PAUTA_MARKERS.map((m) =>
-    m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-  ).join("|");
-  const re = new RegExp(`(?=(${escaped}))`, "gi");
-  const parts = fullText.split(re).filter(Boolean);
-
-  // O split com lookahead pode duplicar o marcador entre os elementos;
-  // filtramos só os blocos que efetivamente começam com um marcador.
-  const blocks: string[] = [];
-  for (const p of parts) {
-    const head = p.slice(0, 80).toUpperCase();
-    if (PAUTA_MARKERS.some((m) => head.includes(m))) {
-      // Limita tamanho para evitar blocos gigantes (cap em 8 KB)
-      blocks.push(p.length > 8000 ? p.slice(0, 8000) : p);
-    }
-  }
-  return blocks;
-}
-
 /**
  * Versão streaming do segmentByPauta: recebe pedaços de texto (ex.: páginas)
  * e emite blocos de pauta conforme os marcadores aparecem, sem manter o
