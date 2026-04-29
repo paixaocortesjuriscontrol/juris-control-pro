@@ -1015,7 +1015,20 @@ async function processarTermoEmTribunal(
 
   let novasInseridasEfetivas = 0;
   if (novas.length > 0) {
-    const payload = novas.map(pub => {
+    // PRÉ-CHECK: antes de inserir, conferir quais hashes já existem
+    // no banco para esse monitoramento. O upsert(...).select() do PostgREST
+    // não é confiável com ignoreDuplicates: pode retornar IDs antigos ou
+    // nada, inflando/zerando o contador. Pré-checagem garante exatidão.
+    const hashesPretendidos = novas.map(p => p.hash_conteudo);
+    const { data: jaExistentes } = await supabase
+      .from('publicacoes_djen')
+      .select('hash_conteudo')
+      .eq('monitoramento_id', mon.id)
+      .in('hash_conteudo', hashesPretendidos);
+    const hashesJa = new Set((jaExistentes || []).map((r: any) => r.hash_conteudo));
+    const novasFiltradas = novas.filter(p => !hashesJa.has(p.hash_conteudo));
+
+    const payload = novasFiltradas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
       const conteudoFormatado = buildDjenLikeConteudo({
         pub, diaYmd,
@@ -1044,24 +1057,27 @@ async function processarTermoEmTribunal(
       };
     });
 
-    // Insert com retorno explícito para contar EXATAMENTE o que entrou no banco.
-    // Antes usávamos upsert com ignoreDuplicates:true, que silenciosamente
-    // pulava linhas já existentes (mesmo (monitoramento_id, hash_conteudo)) e
-    // inflava a contagem de "novas" exibida na UI. Agora a contagem reflete a realidade.
-    const { data: inseridos, error: upsertError } = await supabase
-      .from('publicacoes_djen')
-      .upsert(payload, {
-        onConflict: 'monitoramento_id,hash_conteudo',
-        ignoreDuplicates: true,
-      })
-      .select('id');
-    if (upsertError) {
-      console.error(`[DJEN Paralela][${tribunal}] upsert error (mon=${mon.id} termo="${mon.termo_busca}"):`, upsertError);
+    if (payload.length > 0) {
+      // Insert puro (não upsert): linhas já filtradas acima.
+      // Mantém upsert por segurança contra race conditions com outras execuções
+      // paralelas, mas agora sabemos exatamente quantas eram realmente novas.
+      const { data: inseridos, error: upsertError } = await supabase
+        .from('publicacoes_djen')
+        .upsert(payload, {
+          onConflict: 'monitoramento_id,hash_conteudo',
+          ignoreDuplicates: true,
+        })
+        .select('id');
+      if (upsertError) {
+        console.error(`[DJEN Paralela][${tribunal}] upsert error (mon=${mon.id} termo="${mon.termo_busca}"):`, upsertError);
+      }
+      // Quantas realmente entraram = min entre o que tentamos e o que voltou.
+      // Como já filtramos por pré-check, payload.length é o teto correto.
+      novasInseridasEfetivas = Math.min(payload.length, inseridos?.length ?? payload.length);
     }
-    novasInseridasEfetivas = inseridos?.length ?? 0;
-    if (novasInseridasEfetivas < novas.length) {
+    if (hashesJa.size > 0) {
       console.warn(
-        `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: tentou inserir ${novas.length} mas só ${novasInseridasEfetivas} eram realmente novas no banco (resto silenciosamente ignorado por ignoreDuplicates).`
+        `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${novas.length} candidatas, ${hashesJa.size} já existiam no banco, ${novasInseridasEfetivas} realmente novas.`
       );
     }
   }
