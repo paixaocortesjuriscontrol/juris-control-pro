@@ -87,7 +87,7 @@ interface Checkpoint {
 // CONFIG
 // ============================================================================
 
-export const MAX_CONCURRENCY = 2;
+export const MAX_CONCURRENCY = 1;
 const CHECKPOINT_KEY = "djet-pautas-paralela-checkpoint-v1";
 const CHECKPOINT_TTL_MS = 24 * 60 * 60 * 1000;
 const DELAY_BETWEEN_DAYS_MS = 800;
@@ -266,6 +266,80 @@ function monitoramentoToInput(m: Monitoramento): {
     condicaoConcomitante: m.condicao_concomitante || undefined,
     exclusoes: m.exclusoes || [],
     oab: m.oab || undefined,
+  };
+}
+
+function normalizeDjetText(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buf = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
+const PAUTA_MARKERS = [
+  "PAUTA DE JULGAMENTO",
+  "PAUTAS DE JULGAMENTO",
+  "SESSÃO ORDINÁRIA",
+  "SESSÃO EXTRAORDINÁRIA",
+  "SESSÃO TELEPRESENCIAL",
+  "SESSÃO DE JULGAMENTO",
+  "PAUTA DA SESSÃO",
+];
+
+function makePautaStreamSegmenter() {
+  const escaped = PAUTA_MARKERS.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const markerRe = new RegExp(`(${escaped})`, "gi");
+  let buf = "";
+  let inBlock = false;
+
+  function* flushSegments(text: string, final: boolean): Generator<string> {
+    buf += text;
+    while (true) {
+      markerRe.lastIndex = 0;
+      const first = markerRe.exec(buf);
+      if (!first) {
+        if (!inBlock && buf.length > 4000) buf = buf.slice(-2000);
+        return;
+      }
+      if (!inBlock) {
+        buf = buf.slice(first.index);
+        inBlock = true;
+      }
+      markerRe.lastIndex = 1;
+      const next = markerRe.exec(buf);
+      if (!next) {
+        if (final) {
+          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          buf = "";
+          inBlock = false;
+          yield bloco;
+        } else if (buf.length > 16000) {
+          yield buf.slice(0, 8000);
+          buf = buf.slice(-4000);
+          inBlock = false;
+        }
+        return;
+      }
+      const bloco = buf.slice(0, next.index);
+      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      buf = buf.slice(next.index);
+    }
+  }
+
+  return {
+    push(text: string): string[] { return Array.from(flushSegments(text, false)); },
+    end(): string[] { return Array.from(flushSegments("", true)); },
   };
 }
 
