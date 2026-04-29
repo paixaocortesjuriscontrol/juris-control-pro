@@ -116,6 +116,70 @@ function segmentByPauta(fullText: string): string[] {
   return blocks;
 }
 
+/**
+ * Versão streaming do segmentByPauta: recebe pedaços de texto (ex.: páginas)
+ * e emite blocos de pauta conforme os marcadores aparecem, sem manter o
+ * caderno inteiro na memória.
+ */
+function makePautaStreamSegmenter() {
+  const escaped = PAUTA_MARKERS.map((m) =>
+    m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  ).join("|");
+  const markerRe = new RegExp(`(${escaped})`, "gi");
+  let buf = "";
+  let inBlock = false;
+
+  function* flushSegments(text: string, final: boolean): Generator<string> {
+    buf += text;
+    while (true) {
+      markerRe.lastIndex = 0;
+      const first = markerRe.exec(buf);
+      if (!first) {
+        // Sem marcador: se já estávamos num bloco, mantém acumulando.
+        // Se não estávamos e o buffer ficou grande, descarta o início (lixo).
+        if (!inBlock && buf.length > 4000) buf = buf.slice(-2000);
+        return;
+      }
+      if (!inBlock) {
+        // Descarta tudo antes do primeiro marcador.
+        buf = buf.slice(first.index);
+        inBlock = true;
+      }
+      // Procura o próximo marcador depois do início atual para fechar o bloco.
+      markerRe.lastIndex = 1;
+      const next = markerRe.exec(buf);
+      if (!next) {
+        // Bloco aberto, mas não temos o próximo marcador ainda.
+        if (final) {
+          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          buf = "";
+          inBlock = false;
+          yield bloco;
+        } else if (buf.length > 16000) {
+          // Bloco "infinito" — trunca e emite para não estourar memória.
+          yield buf.slice(0, 8000);
+          buf = buf.slice(-4000);
+          inBlock = false;
+        }
+        return;
+      }
+      const bloco = buf.slice(0, next.index);
+      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      buf = buf.slice(next.index);
+      // continua o while: pode haver mais blocos completos no buffer
+    }
+  }
+
+  return {
+    push(text: string): string[] {
+      return Array.from(flushSegments(text, false));
+    },
+    end(): string[] {
+      return Array.from(flushSegments("", true));
+    },
+  };
+}
+
 function extractCnj(text: string): string | null {
   const m = text.match(CNJ_REGEX);
   return m ? m[0] : null;
