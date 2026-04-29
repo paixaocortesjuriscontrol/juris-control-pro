@@ -360,13 +360,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         try {
           let q = (supabase
             .from('publicacoes_djen') as any)
-            .select('id, lida, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
           if (di) q = q.gte('created_at', di);
           if (df) q = q.lte('created_at', df);
           if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
-          const { data: pautasRows, count } = await q.limit(2000);
+          const { data: pautasRows } = await q.limit(2000);
           // Per-user read status via RPC
           const ids = (pautasRows || []).map((r: any) => r.id);
           let readSet = new Set<string>();
@@ -376,8 +376,40 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
             });
           }
-          const tT = count ?? (pautasRows?.length || 0);
-          const nT = (pautasRows || []).filter((r: any) => !readSet.has(r.id)).length;
+          // Aplicar deduplicação para alinhar contagem do header com a lista
+          // (4 pautas idênticas para o mesmo processo viram 1 na lista).
+          const dedupedRows = dedupePublicacoesDjen(
+            (pautasRows || []).map((r: any) => ({
+              id: r.id,
+              tipo_origem: 'termo',
+              processo_id: null,
+              processo_numero: r.processo_numero,
+              conteudo: r.conteudo,
+              data_publicacao: r.data_publicacao,
+              data_disponibilizacao: r.data_disponibilizacao,
+              fonte: null,
+              lida: r.lida,
+              created_at: r.created_at,
+              monitoramento_id: null,
+              monitoramento_termo: null,
+              monitoramento_descricao: null,
+              monitoramento_tipo: null,
+              monitoramento_oab: null,
+              monitoramento_uf: null,
+              coordenacao_id: r.monitoramento?.coordenacao_id ?? null,
+              coordenacao_nome: null,
+              polo_ativo: null,
+              polo_passivo: null,
+              tribunal: null,
+              orgao: null,
+              tipo_comunicacao: null,
+              meio: null,
+              advogados_json: [],
+              partes_json: [],
+            })) as any
+          );
+          const tT = dedupedRows.length;
+          const nT = dedupedRows.filter((r: any) => !readSet.has(r.id)).length;
           const lT = Math.max(0, tT - nT);
           if (readStatus === 'nao_lidas') {
             return { total: nT, naoLidas: nT, totalTermos: nT, totalProcessos: 0 };
