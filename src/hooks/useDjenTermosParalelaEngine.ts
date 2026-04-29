@@ -497,6 +497,12 @@ function gerarHash(conteudo: string, data: string, processoNumero?: string): str
   return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const r = new Date(dataBase);
   while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
