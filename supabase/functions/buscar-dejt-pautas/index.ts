@@ -172,15 +172,24 @@ const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
  * (TRT1/TRT2/TRT5).
  */
 async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
+  interface PdfTextPage {
+    getTextContent(): Promise<{ items?: Array<{ str?: string; hasEOL?: boolean }> }>;
+    cleanup?: () => void;
+  }
+  interface PdfDoc {
+    numPages?: number;
+    getPage(pageNumber: number): Promise<PdfTextPage>;
+    destroy?: () => Promise<void> | void;
+  }
   const pdf = await getDocumentProxy(uint8, {
     disableFontFace: true,
     useSystemFonts: false,
-  } as any);
+  } as never) as unknown as PdfDoc;
   try {
-    const numPages = (pdf as any).numPages ?? 0;
+    const numPages = pdf.numPages ?? 0;
     for (let i = 1; i <= numPages; i++) {
       try {
-        const page = await (pdf as any).getPage(i);
+        const page = await pdf.getPage(i);
         try {
           const content = await page.getTextContent();
           const items = (content?.items || []) as Array<{ str?: string; hasEOL?: boolean }>;
@@ -191,14 +200,14 @@ async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
           }
           yield buf;
         } finally {
-          try { (page as any)?.cleanup?.(); } catch { /* ignore */ }
+          try { page.cleanup?.(); } catch { /* ignore */ }
         }
       } catch (e) {
         console.log(`[DJET-Pautas] erro extraindo página ${i}:`, (e as Error)?.message || e);
       }
     }
   } finally {
-    try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
+    try { await pdf.destroy?.(); } catch { /* ignore */ }
   }
 }
 
