@@ -405,48 +405,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2) Extrai texto
-    let fullText = "";
-    try {
-      fullText = await bufferToText(fetched.bytes);
-    } catch (e) {
-      console.error("[DJET-Pautas] erro extraindo texto:", e);
+    if (monitoramentos.length === 0) {
       return new Response(
         JSON.stringify({
           ok: true,
-          sem_dados: true,
-          motivo: "extract-failed",
-          erro: String((e as Error)?.message || e),
+          sem_dados: false,
+          motivo: "sem-monitoramentos",
           tribunal,
           dataPublicacao: dataIso,
+          totalBlocos: 0,
           matches: [],
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // 3) Segmenta em blocos de pauta
-    const blocos = segmentByPauta(fullText);
-    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY}: ${blocos.length} blocos`);
-
-    if (blocos.length === 0 || monitoramentos.length === 0) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          sem_dados: blocos.length === 0,
-          motivo: blocos.length === 0 ? "sem-pauta" : "sem-monitoramentos",
-          tribunal,
-          dataPublicacao: dataIso,
-          totalBlocos: blocos.length,
-          matches: [],
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    // 4) Casa termos
+    // 2-4) Extrai página-a-página, segmenta em blocos e casa termos em streaming.
+    // Nunca mantém o caderno inteiro em memória — crítico para PDFs grandes
+    // (TRT1/TRT2/TRT5) que estouravam o limite de CPU/RAM do worker.
     const matches: MatchOut[] = [];
-    for (const bloco of blocos) {
+    let totalBlocos = 0;
+    const seg = makePautaStreamSegmenter();
+
+    const processBloco = async (bloco: string) => {
+      totalBlocos++;
       const blocoNorm = normalize(bloco);
       const processo = extractCnj(bloco);
       for (const mon of monitoramentos) {
@@ -467,7 +449,31 @@ Deno.serve(async (req) => {
           tribunal,
         });
       }
+    };
+
+    try {
+      for await (const pageText of iteratePdfPages(fetched.bytes)) {
+        for (const bloco of seg.push(pageText)) await processBloco(bloco);
+      }
+      for (const bloco of seg.end()) await processBloco(bloco);
+    } catch (e) {
+      console.error("[DJET-Pautas] erro extraindo texto:", e);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          sem_dados: matches.length === 0,
+          motivo: "extract-failed",
+          erro: String((e as Error)?.message || e),
+          tribunal,
+          dataPublicacao: dataIso,
+          totalBlocos,
+          matches,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
+    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY}: ${totalBlocos} blocos`);
 
     return new Response(
       JSON.stringify({
