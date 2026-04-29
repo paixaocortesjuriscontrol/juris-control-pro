@@ -1055,18 +1055,37 @@ async function processarTermoEmTribunal(
     console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${foraDoPeriodo} resultado(s) fora de ${diaYmd} ignorados.`);
   }
 
-  const hashes = pubsUnicas.map(p => p.hash_conteudo);
-  let existentes = new Set<string>();
-  if (hashes.length > 0) {
-    const { data } = await supabase
-      .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('monitoramento_id', mon.id)
-      .in('hash_conteudo', hashes);
-    existentes = new Set((data || []).map(d => d.hash_conteudo));
+  const chavesCandidatas = pubsUnicas.map((p) => montarChaveEncontrada({
+    coordenacaoId: mon.coordenacao_id,
+    processoNumero: p.numeroProcesso || p.numero_processo || p.processo || null,
+    dataRefYmd: p.data_disponibilizacao_ymd,
+    conteudo: p.texto || p.conteudo || p.teor || '',
+  }));
+
+  let chavesEncontradas = new Set<string>();
+  if (chavesCandidatas.length > 0) {
+    const processosDigits = Array.from(new Set(pubsUnicas.map((p) => String(p.numeroProcesso || p.numero_processo || p.processo || '').replace(/\D/g, '')).filter(Boolean)));
+    const datasRef = Array.from(new Set(pubsUnicas.map((p) => p.data_disponibilizacao_ymd).filter(Boolean)));
+    if (processosDigits.length > 0 && datasRef.length > 0) {
+      const { data: encontradas } = await supabase
+        .from('publicacoes_djen')
+        .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
+        .eq('coordenacao_id', mon.coordenacao_id)
+        .eq('status', 'encontrada')
+        .in('dedup_processo_digits', processosDigits)
+        .in('dedup_data_ref', datasRef);
+      chavesEncontradas = new Set((encontradas || []).map((r: any) => montarChaveEncontrada({
+        coordenacaoId: r.coordenacao_id,
+        processoNumero: r.processo_numero,
+        dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10),
+        conteudo: r.conteudo,
+        dedupProcessoDigits: r.dedup_processo_digits,
+        dedupHeadNorm: r.dedup_head_norm,
+      })));
+    }
   }
 
-  const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+  const novas = pubsUnicas.filter((p, idx) => !chavesEncontradas.has(chavesCandidatas[idx]));
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
   let novasInseridasEfetivas = 0;
