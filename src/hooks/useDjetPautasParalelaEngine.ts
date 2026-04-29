@@ -87,7 +87,7 @@ interface Checkpoint {
 // CONFIG
 // ============================================================================
 
-export const MAX_CONCURRENCY = 2;
+export const MAX_CONCURRENCY = 1;
 const CHECKPOINT_KEY = "djet-pautas-paralela-checkpoint-v1";
 const CHECKPOINT_TTL_MS = 24 * 60 * 60 * 1000;
 const DELAY_BETWEEN_DAYS_MS = 800;
@@ -232,7 +232,7 @@ async function fetchActiveMonitoramentos(
   if (ids && ids.length > 0) q = q.in("id", ids);
   const { data, error } = await q;
   if (error) throw error;
-  return ((data || []) as any[]) as Monitoramento[];
+  return (data || []) as unknown as Monitoramento[];
 }
 
 /**
@@ -267,6 +267,204 @@ function monitoramentoToInput(m: Monitoramento): {
     exclusoes: m.exclusoes || [],
     oab: m.oab || undefined,
   };
+}
+
+function normalizeDjetText(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buf = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
+const PAUTA_MARKERS = [
+  "PAUTA DE JULGAMENTO",
+  "PAUTAS DE JULGAMENTO",
+  "SESSÃO ORDINÁRIA",
+  "SESSÃO EXTRAORDINÁRIA",
+  "SESSÃO TELEPRESENCIAL",
+  "SESSÃO DE JULGAMENTO",
+  "PAUTA DA SESSÃO",
+];
+
+function makePautaStreamSegmenter() {
+  const escaped = PAUTA_MARKERS.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const markerRe = new RegExp(`(${escaped})`, "gi");
+  let buf = "";
+  let inBlock = false;
+
+  function* flushSegments(text: string, final: boolean): Generator<string> {
+    buf += text;
+    while (true) {
+      markerRe.lastIndex = 0;
+      const first = markerRe.exec(buf);
+      if (!first) {
+        if (!inBlock && buf.length > 4000) buf = buf.slice(-2000);
+        return;
+      }
+      if (!inBlock) {
+        buf = buf.slice(first.index);
+        inBlock = true;
+      }
+      markerRe.lastIndex = 1;
+      const next = markerRe.exec(buf);
+      if (!next) {
+        if (final) {
+          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          buf = "";
+          inBlock = false;
+          yield bloco;
+        } else if (buf.length > 16000) {
+          yield buf.slice(0, 8000);
+          buf = buf.slice(-4000);
+          inBlock = false;
+        }
+        return;
+      }
+      const bloco = buf.slice(0, next.index);
+      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      buf = buf.slice(next.index);
+    }
+  }
+
+  return {
+    push(text: string): string[] { return Array.from(flushSegments(text, false)); },
+    end(): string[] { return Array.from(flushSegments("", true)); },
+  };
+}
+
+function extractCnj(text: string): string | null {
+  const m = text.match(CNJ_REGEX);
+  return m ? m[0] : null;
+}
+
+function condicaoConcomitanteAtendidaBloco(blocoNorm: string, condicao?: string | null): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao).split("|").map((g) => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  return grupos.some((g) => {
+    const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every((t) => {
+      const tn = normalizeDjetText(t);
+      return tn ? blocoNorm.includes(tn) : false;
+    });
+  });
+}
+
+function matchBlocoMonitoramento(blocoNorm: string, mon: ReturnType<typeof monitoramentoToInput>): string | null {
+  for (const ex of mon.exclusoes || []) {
+    const exN = normalizeDjetText(ex);
+    if (exN && blocoNorm.includes(exN)) return null;
+  }
+  if (!condicaoConcomitanteAtendidaBloco(blocoNorm, mon.condicaoConcomitante)) return null;
+  for (const t of mon.termos || []) {
+    const tn = normalizeDjetText(t);
+    if (tn && blocoNorm.includes(tn)) return t;
+  }
+  if (mon.oab) {
+    const digits = mon.oab.replace(/\D/g, "");
+    if (digits && new RegExp(`\\boab\\b[^a-z0-9]{0,8}${digits}\\b`).test(blocoNorm)) return `OAB ${mon.oab}`;
+    if (digits && new RegExp(`\\b${digits}\\b[^a-z0-9]{0,8}oab\\b`).test(blocoNorm)) return `OAB ${mon.oab}`;
+  }
+  return null;
+}
+
+async function fetchPdfArrayBufferViaProxy(tribunal: string, dataDDMMYYYY: string): Promise<ArrayBuffer | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Sessão expirada");
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/buscar-dejt-pautas`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify({ tribunal, dataDDMMYYYY, caderno: "judiciario", downloadOnly: true, monitoramentos: [] }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok) throw new Error(`PDF proxy HTTP ${response.status}`);
+  if (!contentType.includes("application/pdf")) return null;
+  return await response.arrayBuffer();
+}
+
+async function buscarPautasNoNavegador(
+  tribunal: string,
+  dataDDMMYYYY: string,
+  dataIso: string,
+  monitoramentos: ReturnType<typeof monitoramentoToInput>[],
+): Promise<{ sem_dados: boolean; motivo?: string; totalBlocos: number; matches: MatchOut[] }> {
+  const arrayBuffer = await fetchPdfArrayBufferViaProxy(tribunal, dataDDMMYYYY);
+  if (!arrayBuffer) return { sem_dados: true, motivo: "no-pdf", totalBlocos: 0, matches: [] };
+
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const pdf = await pdfjsLib.getDocument({
+    data: arrayBuffer,
+    disableFontFace: true,
+    useSystemFonts: false,
+  }).promise;
+
+  const matches: MatchOut[] = [];
+  let totalBlocos = 0;
+  const seg = makePautaStreamSegmenter();
+
+  const processBloco = async (bloco: string) => {
+    totalBlocos++;
+    const blocoNorm = normalizeDjetText(bloco);
+    const processo = extractCnj(bloco);
+    for (const mon of monitoramentos) {
+      const hit = matchBlocoMonitoramento(blocoNorm, mon);
+      if (!hit) continue;
+      const conteudo = bloco.trim();
+      const hash = await sha256Hex(`${mon.id}|${tribunal}|${dataIso}|${processo || ""}|${conteudo.slice(0, 1024)}`);
+      matches.push({
+        monitoramentoId: mon.id,
+        termoMatch: hit,
+        processo,
+        conteudo,
+        hash,
+        dataPublicacao: dataIso,
+        fonte: "dejt-pdf",
+        tribunal,
+      });
+    }
+  };
+
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (abortRequested) break;
+      const page = await pdf.getPage(i);
+      try {
+        const content = await page.getTextContent();
+        const pageText = (content.items as Array<{ str?: string; hasEOL?: boolean }>)
+          .map((item) => `${item?.str || ""}${item?.hasEOL ? "\n" : " "}`)
+          .join("");
+        for (const bloco of seg.push(pageText)) await processBloco(bloco);
+      } finally {
+        try { page.cleanup(); } catch { /* ignore */ }
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    for (const bloco of seg.end()) await processBloco(bloco);
+  } finally {
+    try { await pdf.destroy(); } catch { /* ignore */ }
+  }
+
+  return { sem_dados: false, totalBlocos, matches };
 }
 
 // ============================================================================
@@ -312,14 +510,14 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     const slice = rows.slice(i, i + batchSize);
     const { data, error } = await supabase
       .from("publicacoes_djen")
-      .upsert(slice as any, { onConflict: "hash_conteudo", ignoreDuplicates: true })
+      .upsert(slice as never, { onConflict: "hash_conteudo", ignoreDuplicates: true })
       .select("id");
     if (error) {
       // Fallback: insere uma a uma
       for (const r of slice) {
         const { error: e2 } = await supabase
           .from("publicacoes_djen")
-          .insert(r as any);
+          .insert(r as never);
         if (!e2) novas++; else duplicadas++;
       }
     } else {
@@ -370,16 +568,7 @@ async function processarTribunal(
     updateTrack(tribunal, { diaAtual: diaYmd, mensagem: `Processando ${dataDDMMYYYY}` });
 
     try {
-      const { data, error } = await supabase.functions.invoke("buscar-dejt-pautas", {
-        body: {
-          tribunal,
-          dataDDMMYYYY,
-          caderno: "judiciario",
-          monitoramentos: monsInput,
-        },
-      });
-
-      if (error) throw error;
+      const data = await buscarPautasNoNavegador(tribunal, dataDDMMYYYY, diaYmd, monsInput);
 
       if (data?.sem_dados) {
         updateTrack(tribunal, {

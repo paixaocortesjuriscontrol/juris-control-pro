@@ -8,7 +8,6 @@
  * Não persiste nada — quem grava em publicacoes_djen é o engine browser.
  */
 
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import {
   buildDejtPdfUrls,
@@ -42,6 +41,7 @@ interface RequestBody {
   tribunal: string;          // TST | TRTx
   dataDDMMYYYY: string;      // 29/04/2026
   caderno?: DejtCaderno;     // default 'judiciario'
+  downloadOnly?: boolean;    // true = atua só como proxy CORS do PDF, sem extrair texto no worker
   monitoramentos: MonitoramentoInput[];
 }
 
@@ -172,15 +172,24 @@ const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
  * (TRT1/TRT2/TRT5).
  */
 async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
+  interface PdfTextPage {
+    getTextContent(): Promise<{ items?: Array<{ str?: string; hasEOL?: boolean }> }>;
+    cleanup?: () => void;
+  }
+  interface PdfDoc {
+    numPages?: number;
+    getPage(pageNumber: number): Promise<PdfTextPage>;
+    destroy?: () => Promise<void> | void;
+  }
   const pdf = await getDocumentProxy(uint8, {
     disableFontFace: true,
     useSystemFonts: false,
-  } as any);
+  } as never) as unknown as PdfDoc;
   try {
-    const numPages = (pdf as any).numPages ?? 0;
+    const numPages = pdf.numPages ?? 0;
     for (let i = 1; i <= numPages; i++) {
       try {
-        const page = await (pdf as any).getPage(i);
+        const page = await pdf.getPage(i);
         try {
           const content = await page.getTextContent();
           const items = (content?.items || []) as Array<{ str?: string; hasEOL?: boolean }>;
@@ -191,14 +200,14 @@ async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
           }
           yield buf;
         } finally {
-          try { (page as any)?.cleanup?.(); } catch { /* ignore */ }
+          try { page.cleanup?.(); } catch { /* ignore */ }
         }
       } catch (e) {
         console.log(`[DJET-Pautas] erro extraindo página ${i}:`, (e as Error)?.message || e);
       }
     }
   } finally {
-    try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
+    try { await pdf.destroy?.(); } catch { /* ignore */ }
   }
 }
 
@@ -262,6 +271,46 @@ async function fetchPdf(
       return { ok: true, bytes: buf };
     } catch (e) {
       console.log(`[DJET-Pautas] erro fetch ${url}:`, e);
+    }
+  }
+  return { ok: false, reason: "no-pdf" };
+}
+
+async function fetchPdfStream(
+  tribunal: string,
+  dataDDMMYYYY: string,
+  caderno: DejtCaderno,
+): Promise<{ ok: true; response: Response; url: string; bytes: number | null } | { ok: false; reason: string }> {
+  const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
+  if (urls.length === 0) return { ok: false, reason: "tribunal-sem-url" };
+
+  const todayBrt = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  if (dataDDMMYYYY !== todayBrt) return { ok: false, reason: "data-historica-indisponivel" };
+
+  for (const url of urls) {
+    try {
+      console.log(`[DJET-Pautas] proxy PDF ${url}`);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/pdf,*/*",
+          "Referer": "https://dejt.jt.jus.br/",
+        },
+      });
+      if (!res.ok) {
+        console.log(`[DJET-Pautas] HTTP ${res.status} em ${url}`);
+        continue;
+      }
+      const ctype = (res.headers.get("content-type") || "").toLowerCase();
+      if (!ctype.includes("application/pdf")) {
+        console.log(`[DJET-Pautas] resposta não é PDF (${ctype}) em ${url}`);
+        continue;
+      }
+      const bytes = Number(res.headers.get("content-length") || "") || null;
+      return { ok: true, response: res, url, bytes };
+    } catch (e) {
+      console.log(`[DJET-Pautas] erro proxy ${url}:`, e);
     }
   }
   return { ok: false, reason: "no-pdf" };
@@ -365,6 +414,25 @@ Deno.serve(async (req) => {
     const caderno: DejtCaderno = body.caderno || "judiciario";
     const dataIso = ddmmyyyyToIso(body.dataDDMMYYYY) || body.dataDDMMYYYY;
     const monitoramentos = body.monitoramentos || [];
+
+    if (body.downloadOnly) {
+      const proxied = await fetchPdfStream(tribunal, body.dataDDMMYYYY, caderno);
+      if (!proxied.ok) {
+        return new Response(JSON.stringify({ ok: false, sem_dados: true, motivo: proxied.reason, tribunal, dataPublicacao: dataIso }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(proxied.response.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/pdf",
+          "X-DEJT-PDF-URL": proxied.url,
+          ...(proxied.bytes ? { "Content-Length": String(proxied.bytes) } : {}),
+        },
+      });
+    }
 
     // 1) Baixa PDF (com fallback de URLs)
     const fetched = await fetchPdf(tribunal, body.dataDDMMYYYY, caderno);
