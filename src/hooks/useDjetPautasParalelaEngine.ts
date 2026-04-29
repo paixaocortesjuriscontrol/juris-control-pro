@@ -232,7 +232,7 @@ async function fetchActiveMonitoramentos(
   if (ids && ids.length > 0) q = q.in("id", ids);
   const { data, error } = await q;
   if (error) throw error;
-  return ((data || []) as any[]) as Monitoramento[];
+  return (data || []) as unknown as Monitoramento[];
 }
 
 /**
@@ -450,7 +450,7 @@ async function buscarPautasNoNavegador(
       const page = await pdf.getPage(i);
       try {
         const content = await page.getTextContent();
-        const pageText = (content.items as any[])
+        const pageText = (content.items as Array<{ str?: string; hasEOL?: boolean }>)
           .map((item) => `${item?.str || ""}${item?.hasEOL ? "\n" : " "}`)
           .join("");
         for (const bloco of seg.push(pageText)) await processBloco(bloco);
@@ -510,14 +510,14 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     const slice = rows.slice(i, i + batchSize);
     const { data, error } = await supabase
       .from("publicacoes_djen")
-      .upsert(slice as any, { onConflict: "hash_conteudo", ignoreDuplicates: true })
+      .upsert(slice as never, { onConflict: "hash_conteudo", ignoreDuplicates: true })
       .select("id");
     if (error) {
       // Fallback: insere uma a uma
       for (const r of slice) {
         const { error: e2 } = await supabase
           .from("publicacoes_djen")
-          .insert(r as any);
+          .insert(r as never);
         if (!e2) novas++; else duplicadas++;
       }
     } else {
