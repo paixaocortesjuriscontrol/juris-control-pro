@@ -9,7 +9,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import {
   buildDejtPdfUrls,
   getDejtTribunal,
