@@ -8,7 +8,6 @@
  * Não persiste nada — quem grava em publicacoes_djen é o engine browser.
  */
 
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import {
   buildDejtPdfUrls,
