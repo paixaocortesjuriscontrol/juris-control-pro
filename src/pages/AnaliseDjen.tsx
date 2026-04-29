@@ -1655,7 +1655,7 @@ const AnaliseDjen = () => {
                   <option value="parte">Por Parte</option>
                   <option value="processo">Por Processos</option>
                   <option value="datajud">DataJud (CNJ)</option>
-                  <option value="djet-pautas">DJET Pautas (DEJT)</option>
+                  <option value="djet-pautas">DEJT Pautas</option>
                   <option value="descartada">Descartadas (auditoria)</option>
                 </select>
               </div>
