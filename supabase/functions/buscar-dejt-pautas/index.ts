@@ -26,6 +26,7 @@ const corsHeaders = {
 interface MonitoramentoInput {
   id: string;
   termos: string[];          // termos / partes / palavras-chave
+  termosObrigatorios?: string[]; // termos AND-obrigatórios (concomitantes)
   exclusoes?: string[];
   oab?: string;              // se vier, casa também por número de OAB
 }
@@ -204,6 +205,15 @@ function matchBlocoMonitoramento(
     for (const ex of mon.exclusoes) {
       const exN = normalize(ex);
       if (exN && blocoNorm.includes(exN)) return null;
+    }
+  }
+  // Termos obrigatórios (AND): TODOS precisam aparecer no bloco. Se algum
+  // estiver faltando, descarta o bloco para este monitoramento.
+  if (mon.termosObrigatorios && mon.termosObrigatorios.length > 0) {
+    for (const t of mon.termosObrigatorios) {
+      const tn = normalize(t);
+      if (!tn) continue;
+      if (!blocoNorm.includes(tn)) return null;
     }
   }
   // Termos: qualquer match positivo já basta.
