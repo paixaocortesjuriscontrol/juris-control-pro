@@ -440,6 +440,21 @@ function getSiglaTribunal(item: any): string | null {
   return m?.[1] ?? raw.trim().toUpperCase();
 }
 
+function extrairDataDisponibilizacaoYmd(item: any): string | null {
+  const raw = item?.dataDisponibilizacao
+    ?? item?.data_disponibilizacao
+    ?? item?.datadisponibilizacao
+    ?? item?.data
+    ?? null;
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return null;
+}
+
 function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
   const proc = (processoNumero || '').replace(/[^0-9]/g, '');
   const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
