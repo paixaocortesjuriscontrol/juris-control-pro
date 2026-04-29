@@ -121,40 +121,22 @@ function extractCnj(text: string): string | null {
   return m ? m[0] : null;
 }
 
-// Limite de tamanho do PDF. Subimos de 3MB para 25MB porque os cadernos de
-// TRT1/TRT2/TRT5 (Rio, SP, Bahia) são naturalmente grandes e estavam sendo
-// rejeitados, deixando essas pautas fora da busca. Para evitar OOM ao parsear
-// cadernos grandes, usamos extração página-a-página (streaming) abaixo.
-const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB
-// PDFs médios/grandes usam parse por página (mais lento, menos RAM).
-// TRT1/TRT2/TRT5 podem ter arquivos com ~1MB que ainda derrubam o worker
-// quando passam pelo extractText global do unpdf, então o limite precisa ser baixo.
-const STREAM_PDF_THRESHOLD = 128 * 1024; // 128 KB
+// Limite de tamanho do PDF. Subimos para 80MB porque o caderno do TRT2 (SP)
+// passou de 65MB e era descartado, deixando a maior corte fora da busca.
+const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
 
-async function bufferToText(uint8: Uint8Array): Promise<string> {
-  // Para cadernos pequenos: extrai tudo de uma vez (caminho rápido).
-  if (uint8.length < STREAM_PDF_THRESHOLD) {
-    const pdf = await getDocumentProxy(uint8, {
-      disableFontFace: true,
-      useSystemFonts: false,
-    } as any);
-    try {
-      const { text } = await extractText(pdf, { mergePages: true });
-      return Array.isArray(text) ? text.join("\n") : String(text || "");
-    } finally {
-      try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
-    }
-  }
-
-  // Para cadernos grandes (TRT1/TRT2/TRT5 etc): extrai página-a-página e
-  // libera cada página depois de ler, mantendo o pico de RAM controlado.
+/**
+ * Itera as páginas do PDF, retornando o texto de cada uma. Libera cada página
+ * imediatamente após o uso para manter RAM/CPU sob controle em cadernos grandes
+ * (TRT1/TRT2/TRT5).
+ */
+async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
   const pdf = await getDocumentProxy(uint8, {
     disableFontFace: true,
     useSystemFonts: false,
   } as any);
   try {
     const numPages = (pdf as any).numPages ?? 0;
-    const partes: string[] = [];
     for (let i = 1; i <= numPages; i++) {
       try {
         const page = await (pdf as any).getPage(i);
@@ -164,10 +146,9 @@ async function bufferToText(uint8: Uint8Array): Promise<string> {
           let buf = "";
           for (const it of items) {
             buf += (it?.str || "");
-            if (it?.hasEOL) buf += "\n";
-            else buf += " ";
+            buf += it?.hasEOL ? "\n" : " ";
           }
-          partes.push(buf);
+          yield buf;
         } finally {
           try { (page as any)?.cleanup?.(); } catch { /* ignore */ }
         }
@@ -175,7 +156,6 @@ async function bufferToText(uint8: Uint8Array): Promise<string> {
         console.log(`[DJET-Pautas] erro extraindo página ${i}:`, (e as Error)?.message || e);
       }
     }
-    return partes.join("\n");
   } finally {
     try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
   }
