@@ -192,7 +192,7 @@ export interface FiltrosUnificados {
   // - processo: publicações vindas de processos cadastrados
   // - descartada: auditoria
   // - todos: (legado) mantido por compatibilidade
-  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'todos';
+  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'djet-pautas' | 'todos';
   incluirDescartadas?: boolean;
   /** Página atual (1-based). Default: 1. */
   page?: number;
@@ -424,7 +424,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
-        const canUseRpc = !!filtros.coordenacaoId && filtros.tipoOrigem !== 'descartada';
+        const canUseRpc = !!filtros.coordenacaoId
+          && filtros.tipoOrigem !== 'descartada'
+          && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
         console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
@@ -683,6 +685,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryTermos = (queryTermos as any).eq('monitoramento.tipo', 'parte');
         }
 
+        // Filtro "DJET Pautas": só publicações do caderno judiciário (DEJT)
+        if (filtros.tipoOrigem === 'djet-pautas') {
+          queryTermos = (queryTermos as any).eq('tipo_publicacao', 'pauta');
+        } else {
+          // Demais filtros: oculta as pautas DJET para não misturar com intimações
+          queryTermos = (queryTermos as any).or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta');
+        }
+
         // Paginação real no fallback: usa range para a página solicitada.
         const { data: termosData } = await queryTermos.range(offsetGlobal, offsetGlobal + pageSize - 1);
 
@@ -762,7 +772,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
       // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
       // "parte" é um subconjunto de "termo" — não deve buscar publicações de processos
-      if (filtros.tipoOrigem !== 'termo' && filtros.tipoOrigem !== 'parte' && filtros.tipoOrigem !== 'descartada') {
+      if (
+        filtros.tipoOrigem !== 'termo' &&
+        filtros.tipoOrigem !== 'parte' &&
+        filtros.tipoOrigem !== 'descartada' &&
+        filtros.tipoOrigem !== 'djet-pautas'
+      ) {
         // IMPORTANTE: usar !inner para garantir que filtros por campos do relacionamento
         // (ex: processo.coordenacao_id) sejam aplicados no banco.
         let queryProcessos = supabase
