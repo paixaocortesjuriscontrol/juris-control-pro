@@ -728,6 +728,7 @@ const AnaliseDjen = () => {
 
   // ===== PDF "Gerar PDF" - layout duas colunas (metadados esquerda, conteúdo direita) =====
   const handleGerarPdf = () => {
+    const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
@@ -855,6 +856,7 @@ const AnaliseDjen = () => {
   const [gerandoResumo, setGerandoResumo] = useState(false);
 
   const handleGerarPdfResumo = async () => {
+    const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
@@ -1235,6 +1237,7 @@ const AnaliseDjen = () => {
 
   // ===== "Gerar Doc" - DOCX (plain text sem IA) =====
   const handleGerarDoc = async () => {
+    const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
@@ -1282,6 +1285,7 @@ const AnaliseDjen = () => {
 
   // ===== "Gerar Doc Resumo" - Texto com resumo IA =====
   const handleGerarDocResumo = async () => {
+    const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
@@ -1384,6 +1388,7 @@ const AnaliseDjen = () => {
 
   // ===== "Gerar Docs TST" - Classifica publicações e gera 3 documentos Word (TEMAS_IRR, PAUTA, PRAZOS) =====
   const handleGerarDocsTST = async () => {
+    const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) { toast.error("Nenhuma publicação para classificar"); return; }
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações com IA...`);
@@ -1525,6 +1530,12 @@ const AnaliseDjen = () => {
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
+
+  // Se houver seleção, gera apenas as selecionadas; senão, todas (já filtradas).
+  const getPubsParaGerar = () => {
+    if (selectedIds.size === 0) return allPublicacoes;
+    return allPublicacoes.filter(p => selectedIds.has(p.id));
+  };
 
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
