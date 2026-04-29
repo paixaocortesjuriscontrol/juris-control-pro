@@ -318,6 +318,18 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       ? (todasRegioes ? 'TODAS' : selectedUfs.join(','))
       : undefined;
 
+    // Mescla `Condição Concomitante (AND)` em `termos_or` — este é o campo
+    // efetivamente lido pelos engines (DJET Pautas, DJEN Termos etc.) como
+    // termos AND-obrigatórios. Sem isso, os chips digitados na UI não eram
+    // aplicados na busca (bug observado no monitoramento BRADESCO).
+    const termosOrFinal = Array.from(
+      new Set(
+        [...termosOr, ...condicoesConcomitantes]
+          .map((t) => (t || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
     const dados = {
       tipo,
       termo_busca: termoBusca,
@@ -327,7 +339,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
-      termos_or: termosOr.length > 0 ? termosOr : undefined,
+      termos_or: termosOrFinal.length > 0 ? termosOrFinal : undefined,
       // IMPORTANT: ao limpar seleção, precisamos atualizar o campo no DB (undefined não atualiza)
       tribunais: tribunaisSelecionados.length > 0 ? normalizeTribunais(tribunaisSelecionados) : null,
     };
