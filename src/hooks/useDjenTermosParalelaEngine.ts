@@ -1055,12 +1055,21 @@ async function processarTermoEmTribunal(
     console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${foraDoPeriodo} resultado(s) fora de ${diaYmd} ignorados.`);
   }
 
-  const chavesCandidatas = pubsUnicas.map((p) => montarChaveEncontrada({
-    coordenacaoId: mon.coordenacao_id,
-    processoNumero: p.numeroProcesso || p.numero_processo || p.processo || null,
-    dataRefYmd: p.data_disponibilizacao_ymd,
-    conteudo: p.texto || p.conteudo || p.teor || '',
-  }));
+  const chavesCandidatas = pubsUnicas.map((p) => {
+    const conteudoOriginal = p.texto || p.conteudo || p.teor || '';
+    const conteudoFormatado = buildDjenLikeConteudo({
+      pub: p,
+      diaYmd,
+      monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+      conteudoOriginal,
+    });
+    return montarChaveEncontrada({
+      coordenacaoId: mon.coordenacao_id,
+      processoNumero: p.numeroProcesso || p.numero_processo || p.processo || null,
+      dataRefYmd: p.data_disponibilizacao_ymd,
+      conteudo: conteudoFormatado,
+    });
+  });
 
   let chavesEncontradas = new Set<string>();
   if (chavesCandidatas.length > 0) {
