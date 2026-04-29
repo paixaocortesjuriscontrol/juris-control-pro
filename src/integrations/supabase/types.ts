@@ -6484,6 +6484,7 @@ export type Database = {
           fonte: string
           id: string
           lida: boolean
+          lido_por: Json
           meio: string
           monitoramento_descricao: string
           monitoramento_id: string
