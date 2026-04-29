@@ -1121,6 +1121,7 @@ async function processarTermoEmTribunal(
         tribunal: getSiglaTribunal(pub),
         fonte: pub.siglaTribunal || pub.tribunal || 'DJEN-PARALELA',
         lida: false,
+        status: 'encontrada',
         orgao: pub.nomeOrgao || pub.nome_orgao || null,
         tipo_comunicacao: pub.tipoComunicacao || null,
         meio: pub.meio || pub.meiocompleto || null,
@@ -1130,14 +1131,13 @@ async function processarTermoEmTribunal(
     });
 
     if (payload.length > 0) {
-      // Insert puro (não upsert): linhas já filtradas acima.
-      // Mantém upsert por segurança contra race conditions com outras execuções
-      // paralelas, mas agora sabemos exatamente quantas eram realmente novas.
+      // A busca SEMPRE já foi feita. Aqui só persistimos o resultado da comparação
+      // pela chave de encontradas; se houver uma duplicada antiga com mesmo hash,
+      // reativamos como encontrada em vez de deixar ela bloquear a nova captura.
       const { data: inseridos, error: upsertError } = await supabase
         .from('publicacoes_djen')
         .upsert(payload, {
           onConflict: 'monitoramento_id,hash_conteudo',
-          ignoreDuplicates: true,
         })
         .select('id');
       if (upsertError) {
