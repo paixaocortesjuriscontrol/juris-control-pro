@@ -226,7 +226,7 @@ async function fetchActiveMonitoramentos(
 ): Promise<Monitoramento[]> {
   let q = supabase
     .from("monitoramentos_djen")
-    .select("id, tipo, termo_busca, oab, uf, ativo, exclusoes, tribunais, termos_or, coordenacao_id")
+    .select("id, tipo, termo_busca, oab, uf, ativo, exclusoes, tribunais, termos_or, condicao_concomitante, coordenacao_id")
     .eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
   if (ids && ids.length > 0) q = q.in("id", ids);
