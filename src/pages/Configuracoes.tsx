@@ -15,6 +15,7 @@ import { MonitoramentoTermosCard } from "@/components/configuracoes/Monitorament
 import { MonitoramentoTermosProCard } from "@/components/configuracoes/MonitoramentoTermosProCard";
 import { MonitoramentoTermosFlashCard } from "@/components/configuracoes/MonitoramentoTermosFlashCard";
 import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
+import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 import PoolProxyDjenCard from "@/components/configuracoes/PoolProxyDjenCard";
 import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
@@ -236,6 +237,7 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoTermosParalelaCard />
+          <MonitoramentoDjetPautasCard />
           <PoolProxyDjenCard />
         </TabsContent>
 
