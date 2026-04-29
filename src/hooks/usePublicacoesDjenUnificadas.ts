@@ -481,6 +481,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           meio: r.meio || null,
           advogados_json: parseJsonArraySafe(r.advogados_json),
           partes_json: parseJsonArraySafe(r.partes_json),
+          // `lida` e `lido_por` agora vêm direto da RPC (per-user), eliminando
+          // o round-trip extra que era feito por mergeWithLeituras().
+          lido_por: Array.isArray(r.lido_por)
+            ? r.lido_por.map((x: any) => ({ nome: String(x?.nome ?? 'Desconhecido'), lida_em: String(x?.lida_em ?? '') }))
+            : [],
         }));
 
         let filteredByType = filtros.tipoOrigem === 'termo'
@@ -600,18 +605,24 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
         const merged = [...filteredByType, ...resultados];
-        // Enriquecer monitoramentos e buscar leituras em paralelo (operações independentes).
         const sorted = merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        const [enriquecidos, finalRowsTmp] = await Promise.all([
-          enriquecerPublicacoesComMonitoramento(sorted),
-          mergeWithLeituras(user!.id, sorted, 'todas'),
-        ]);
-        // Combinar: enriquecidos traz termos resolvidos; finalRowsTmp traz lida + lido_por.
-        const lidoMap = new Map(finalRowsTmp.map((p) => [p.id, { lida: p.lida, lido_por: p.lido_por }]));
-        const finalRows = enriquecidos.map((p) => {
-          const l = lidoMap.get(p.id);
-          return l ? { ...p, lida: l.lida, lido_por: l.lido_por } : p;
-        });
+        // Para descartadas (que não vieram da RPC), ainda precisamos buscar leituras —
+        // mas só dessas, não da lista inteira. Para o restante, `lida` e `lido_por`
+        // já vêm embutidos na RPC.
+        let finalRows: PublicacaoUnificada[];
+        if (descartadasMapped.length > 0) {
+          const [enriquecidos, leiturasDescartadas] = await Promise.all([
+            enriquecerPublicacoesComMonitoramento(sorted),
+            mergeWithLeituras(user!.id, descartadasMapped as PublicacaoUnificada[], 'todas'),
+          ]);
+          const lidoMap = new Map(leiturasDescartadas.map((p) => [p.id, { lida: p.lida, lido_por: p.lido_por }]));
+          finalRows = enriquecidos.map((p) => {
+            const l = lidoMap.get(p.id);
+            return l ? { ...p, lida: l.lida, lido_por: l.lido_por } : p;
+          });
+        } else {
+          finalRows = await enriquecerPublicacoesComMonitoramento(sorted);
+        }
         return { rows: finalRows, lastChunkSize };
 
         } catch (rpcError) {
