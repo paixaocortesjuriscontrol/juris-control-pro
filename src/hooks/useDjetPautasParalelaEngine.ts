@@ -568,16 +568,7 @@ async function processarTribunal(
     updateTrack(tribunal, { diaAtual: diaYmd, mensagem: `Processando ${dataDDMMYYYY}` });
 
     try {
-      const { data, error } = await supabase.functions.invoke("buscar-dejt-pautas", {
-        body: {
-          tribunal,
-          dataDDMMYYYY,
-          caderno: "judiciario",
-          monitoramentos: monsInput,
-        },
-      });
-
-      if (error) throw error;
+      const data = await buscarPautasNoNavegador(tribunal, dataDDMMYYYY, diaYmd, monsInput);
 
       if (data?.sem_dados) {
         updateTrack(tribunal, {
