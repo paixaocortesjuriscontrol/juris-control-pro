@@ -5227,6 +5227,7 @@ export type Database = {
           data_publicacao: string | null
           dedup_data_ref: string | null
           dedup_head_norm: string | null
+          dedup_key: string | null
           dedup_processo_digits: string | null
           fonte: string | null
           hash_conteudo: string
@@ -5242,6 +5243,7 @@ export type Database = {
           processo_numero: string | null
           resumo_gerado_em: string | null
           resumo_ia: string | null
+          status: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao: string | null
           tribunal: string | null
         }
@@ -5254,6 +5256,7 @@ export type Database = {
           data_publicacao?: string | null
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
+          dedup_key?: string | null
           dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo: string
@@ -5269,6 +5272,7 @@ export type Database = {
           processo_numero?: string | null
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
+          status?: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao?: string | null
           tribunal?: string | null
         }
@@ -5281,6 +5285,7 @@ export type Database = {
           data_publicacao?: string | null
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
+          dedup_key?: string | null
           dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo?: string
@@ -5296,6 +5301,7 @@ export type Database = {
           processo_numero?: string | null
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
+          status?: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao?: string | null
           tribunal?: string | null
         }
@@ -5463,6 +5469,7 @@ export type Database = {
           data_publicacao: string | null
           dedup_data_ref: string | null
           dedup_head_norm: string | null
+          dedup_key: string | null
           dedup_processo_digits: string | null
           fonte: string | null
           hash_conteudo: string
@@ -5473,6 +5480,7 @@ export type Database = {
           partes_json: Json | null
           processo_id: string
           processo_numero: string
+          status: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao: string | null
           tribunal: string | null
         }
@@ -5486,6 +5494,7 @@ export type Database = {
           data_publicacao?: string | null
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
+          dedup_key?: string | null
           dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo: string
@@ -5496,6 +5505,7 @@ export type Database = {
           partes_json?: Json | null
           processo_id: string
           processo_numero: string
+          status?: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao?: string | null
           tribunal?: string | null
         }
@@ -5509,6 +5519,7 @@ export type Database = {
           data_publicacao?: string | null
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
+          dedup_key?: string | null
           dedup_processo_digits?: string | null
           fonte?: string | null
           hash_conteudo?: string
@@ -5519,6 +5530,7 @@ export type Database = {
           partes_json?: Json | null
           processo_id?: string
           processo_numero?: string
+          status?: Database["public"]["Enums"]["djen_status"]
           tipo_comunicacao?: string | null
           tribunal?: string | null
         }
@@ -6324,6 +6336,16 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
+      compute_djen_dedup_key: {
+        Args: {
+          p_coordenacao: string
+          p_created_at: string
+          p_data_disp: string
+          p_data_pub: string
+          p_processo_numero: string
+        }
+        Returns: string
+      }
       count_djen_publicacoes_deduplicadas_hoje: {
         Args: never
         Returns: {
@@ -6671,6 +6693,7 @@ export type Database = {
         | "cliente"
       area_atuacao: "civil" | "trabalhista" | "empresarial" | "direito_privado"
       classificacao_tst_enum: "POSITIVO" | "NEGATIVO" | "IMPEDIDA"
+      djen_status: "encontrada" | "descartada" | "duplicada"
       prioridade_tarefa: "baixa" | "media" | "alta" | "urgente"
       status_processo:
         | "ativo"
@@ -6820,6 +6843,7 @@ export const Constants = {
       ],
       area_atuacao: ["civil", "trabalhista", "empresarial", "direito_privado"],
       classificacao_tst_enum: ["POSITIVO", "NEGATIVO", "IMPEDIDA"],
+      djen_status: ["encontrada", "descartada", "duplicada"],
       prioridade_tarefa: ["baixa", "media", "alta", "urgente"],
       status_processo: [
         "ativo",
