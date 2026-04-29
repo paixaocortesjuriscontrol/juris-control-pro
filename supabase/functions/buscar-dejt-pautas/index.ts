@@ -113,12 +113,21 @@ function extractCnj(text: string): string | null {
   return m ? m[0] : null;
 }
 
-function bufferToText(uint8: Uint8Array): Promise<string> {
-  return (async () => {
-    const pdf = await getDocumentProxy(uint8);
+const MAX_PDF_BYTES = 3 * 1024 * 1024; // 3 MB — acima disso, edge fica sem RAM
+
+async function bufferToText(uint8: Uint8Array): Promise<string> {
+  // Carrega PDF sem fontes/imagens (texto-only) para minimizar RAM
+  const pdf = await getDocumentProxy(uint8, {
+    disableFontFace: true,
+    useSystemFonts: false,
+  } as any);
+  try {
     const { text } = await extractText(pdf, { mergePages: true });
     return Array.isArray(text) ? text.join("\n") : String(text || "");
-  })();
+  } finally {
+    // Libera recursos do PDF.js
+    try { await (pdf as any)?.destroy?.(); } catch { /* ignore */ }
+  }
 }
 
 async function fetchPdf(
@@ -162,6 +171,12 @@ async function fetchPdf(
       if (!ctype.includes("application/pdf") && !isPdfMagic) {
         console.log(`[DJET-Pautas] resposta não é PDF (${ctype}) em ${url}`);
         continue;
+      }
+      if (buf.length > MAX_PDF_BYTES) {
+        console.log(
+          `[DJET-Pautas] PDF muito grande (${buf.length} bytes > ${MAX_PDF_BYTES}); pulando ${url}`,
+        );
+        return { ok: false, reason: "pdf-muito-grande" };
       }
       // O endpoint público só serve o caderno vigente. Se a data pedida
       // não é hoje, o PDF retornado é de outro dia — descarta.
