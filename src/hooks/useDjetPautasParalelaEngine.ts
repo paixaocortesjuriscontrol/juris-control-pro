@@ -86,7 +86,7 @@ interface Checkpoint {
 // CONFIG
 // ============================================================================
 
-export const MAX_CONCURRENCY = 5;
+export const MAX_CONCURRENCY = 2;
 const CHECKPOINT_KEY = "djet-pautas-paralela-checkpoint-v1";
 const CHECKPOINT_TTL_MS = 24 * 60 * 60 * 1000;
 const DELAY_BETWEEN_DAYS_MS = 800;
