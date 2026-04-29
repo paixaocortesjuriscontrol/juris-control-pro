@@ -1129,8 +1129,23 @@ serve(async (req) => {
     // (ex.: TRT1) mesmo quando a instância selecionada é claramente do TST
     // (Gabinete de Ministro / classe AIRR/RR). Normaliza pelo indício.
     let tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
-    if (temIndicioTST(rd) && tribunalAcronimo !== "TST") {
-      console.log(`[buscar-judit] tribunal_acronym normalizado de ${tribunalAcronimo} -> TST por indício (Gabinete/Ministro)`);
+    // Detecta TST mesmo quando a Judit deixa o acronym da instância originária
+    // (ex.: "TRT1") na instância 3 do TST. Critérios independentes de
+    // `tribunal_acronym` (que é exatamente o campo errado a ser corrigido).
+    const courtsRaw = Array.isArray(rd.courts) ? rd.courts : [];
+    const classesRaw = Array.isArray(rd.classifications) ? rd.classifications : [];
+    const ehTstPorCourts = courtsRaw.some((c: any) => {
+      const nome = (c?.name || "").toString();
+      if (/\bTST\b/i.test(nome)) return true;
+      // "Gabinete do Ministro <nome>" sem TST explícito também é TST.
+      return /gabinete\s+(?:do|da)\s+ministr[oa]/i.test(nome);
+    });
+    const ehTstPorClasse = classesRaw.some((cl: any) => {
+      const n = (cl?.name || "").toUpperCase();
+      return /^(RR|AIRR|AG-AIRR|ARR|ED-RR|ED-AIRR)$/.test(n);
+    });
+    if ((ehTstPorCourts || ehTstPorClasse) && tribunalAcronimo !== "TST") {
+      console.log(`[buscar-judit] tribunal_acronym normalizado de ${tribunalAcronimo} -> TST (courts=${ehTstPorCourts} classe=${ehTstPorClasse})`);
       tribunalAcronimo = "TST";
     }
     let tribunal: string | null = null;
