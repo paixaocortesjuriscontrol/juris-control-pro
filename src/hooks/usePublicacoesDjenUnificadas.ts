@@ -354,6 +354,44 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // para que o card bata com o badge de cada coordenação.
       // Repassa também os filtros de tipo de origem, busca e monitoramento
       // para que os totalizadores reflitam exatamente o que está filtrado.
+      // FILTRO DJET PAUTAS: a RPC não conhece tipo_publicacao, então
+      // contamos diretamente em publicacoes_djen filtrando por 'pauta'.
+      if (filtros.tipoOrigem === 'djet-pautas') {
+        try {
+          let q = (supabase
+            .from('publicacoes_djen') as any)
+            .select('id, lida, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .eq('tipo_publicacao', 'pauta');
+          if (di) q = q.gte('created_at', di);
+          if (df) q = q.lte('created_at', df);
+          if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+          if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
+          const { data: pautasRows, count } = await q.limit(2000);
+          // Per-user read status via RPC
+          const ids = (pautasRows || []).map((r: any) => r.id);
+          let readSet = new Set<string>();
+          if (ids.length > 0) {
+            const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
+            (leituras || []).forEach((l: any) => {
+              if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
+            });
+          }
+          const tT = count ?? (pautasRows?.length || 0);
+          const nT = (pautasRows || []).filter((r: any) => !readSet.has(r.id)).length;
+          const lT = Math.max(0, tT - nT);
+          if (readStatus === 'nao_lidas') {
+            return { total: nT, naoLidas: nT, totalTermos: nT, totalProcessos: 0 };
+          }
+          if (readStatus === 'lidas') {
+            return { total: lT, naoLidas: 0, totalTermos: lT, totalProcessos: 0 };
+          }
+          return { total: tT, naoLidas: nT, totalTermos: tT, totalProcessos: 0 };
+        } catch (e) {
+          console.warn('[stats-header] djet-pautas count failed', e);
+          return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
+        }
+      }
+
       const { data, error } = await (supabase.rpc as any)('get_djen_stats_per_user', {
         p_coordenacao_id: filtros.coordenacaoId ?? null,
         p_inicio: di,
