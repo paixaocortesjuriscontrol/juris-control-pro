@@ -125,6 +125,85 @@ async function deleteByDateRange(
   return { deleted: totalDeleted, error: null };
 }
 
+function applyScope(query: any, scope: { coordenacaoId?: string; monitoramentoIds?: string[] }) {
+  if (scope.coordenacaoId) query = query.eq('coordenacao_id', scope.coordenacaoId);
+  if (scope.monitoramentoIds?.length) query = query.in('monitoramento_id', scope.monitoramentoIds);
+  return query;
+}
+
+async function deletePublicacoesDjenScoped(
+  supabase: any,
+  startYmd: string,
+  endYmd: string,
+  scope: { coordenacaoId?: string; monitoramentoIds?: string[] },
+  batchSize = 500
+): Promise<{ deleted: number; error: string | null }> {
+  const startIso = `${startYmd}T00:00:00.000Z`;
+  const endIso = `${endYmd}T23:59:59.999Z`;
+  let totalDeleted = 0;
+
+  while (true) {
+    let query = supabase
+      .from('publicacoes_djen')
+      .select('id, hash_conteudo')
+      .or(`and(created_at.gte.${startIso},created_at.lte.${endIso}),and(data_disponibilizacao.gte.${startIso},data_disponibilizacao.lte.${endIso}),and(data_publicacao.gte.${startIso},data_publicacao.lte.${endIso})`)
+      .limit(batchSize);
+    query = applyScope(query, scope);
+
+    const { data: rows, error: selectErr } = await query;
+    if (selectErr) return { deleted: totalDeleted, error: selectErr.message };
+    if (!rows?.length) break;
+
+    const ids = rows.map((r: any) => r.id);
+    const hashes = rows.map((r: any) => r.hash_conteudo).filter(Boolean);
+    await supabase.from('publicacoes_djen_leituras').delete().in('publicacao_id', ids);
+    await supabase.from('audiencias_detectadas').delete().in('publicacao_id', ids);
+    await supabase.from('tarefas_publicacoes').delete().in('publicacao_id', ids);
+    await supabase.from('publicacoes_djen_global_hash').delete().in('publicacao_id', ids);
+    if (hashes.length > 0) await supabase.from('publicacoes_djen_global_hash').delete().in('hash_global', hashes);
+
+    const { error: delErr } = await supabase.from('publicacoes_djen').delete().in('id', ids);
+    if (delErr) return { deleted: totalDeleted, error: delErr.message };
+    totalDeleted += ids.length;
+    if (ids.length < batchSize) break;
+  }
+
+  return { deleted: totalDeleted, error: null };
+}
+
+async function deleteDescartadasDjenScoped(
+  supabase: any,
+  startYmd: string,
+  endYmd: string,
+  scope: { monitoramentoIds?: string[] },
+  batchSize = 500
+): Promise<{ deleted: number; error: string | null }> {
+  const startIso = `${startYmd}T00:00:00.000Z`;
+  const endIso = `${endYmd}T23:59:59.999Z`;
+  let totalDeleted = 0;
+
+  while (true) {
+    let query = supabase
+      .from('publicacoes_djen_descartadas')
+      .select('id')
+      .or(`and(created_at.gte.${startIso},created_at.lte.${endIso}),and(data_disponibilizacao.gte.${startIso},data_disponibilizacao.lte.${endIso}),and(data_publicacao.gte.${startIso},data_publicacao.lte.${endIso})`)
+      .limit(batchSize);
+    if (scope.monitoramentoIds?.length) query = query.in('monitoramento_id', scope.monitoramentoIds);
+
+    const { data: rows, error: selectErr } = await query;
+    if (selectErr) return { deleted: totalDeleted, error: selectErr.message };
+    if (!rows?.length) break;
+
+    const ids = rows.map((r: any) => r.id);
+    const { error: delErr } = await supabase.from('publicacoes_djen_descartadas').delete().in('id', ids);
+    if (delErr) return { deleted: totalDeleted, error: delErr.message };
+    totalDeleted += ids.length;
+    if (ids.length < batchSize) break;
+  }
+
+  return { deleted: totalDeleted, error: null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -154,8 +233,15 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Parse body for optional date range e tipo (termos | processos | todos)
-    let body: { dataInicio?: string; dataFim?: string; modo?: 'hoje' | 'intervalo'; tipo?: 'termos' | 'processos' | 'todos' } = {};
+    // Parse body for optional date range, tipo and scoped cleanup
+    let body: {
+      dataInicio?: string;
+      dataFim?: string;
+      modo?: 'hoje' | 'intervalo';
+      tipo?: 'termos' | 'processos' | 'todos';
+      coordenacaoId?: string;
+      monitoramentoIds?: string[];
+    } = {};
     try {
       body = await req.json();
     } catch {
@@ -182,8 +268,19 @@ Deno.serve(async (req) => {
     const dayStart = `${startYmd}T00:00:00.000Z`;
     const dayEnd = `${endYmd}T23:59:59.999Z`;
     const results: Record<string, string> = {};
+    const scopedCleanup = !!body.coordenacaoId || (Array.isArray(body.monitoramentoIds) && body.monitoramentoIds.length > 0);
+    let scopedMonitoramentoIds = Array.isArray(body.monitoramentoIds) ? body.monitoramentoIds.filter(Boolean) : [];
 
-    console.log(`[limpar-djen] Modo: ${modo}, Tipo: ${tipoLimpeza}, Intervalo: ${startYmd} → ${endYmd}`);
+    if (body.coordenacaoId && scopedMonitoramentoIds.length === 0) {
+      const { data: mons, error: monsErr } = await supabase
+        .from('monitoramentos_djen')
+        .select('id')
+        .eq('coordenacao_id', body.coordenacaoId);
+      if (monsErr) throw monsErr;
+      scopedMonitoramentoIds = (mons || []).map((m: any) => m.id);
+    }
+
+    console.log(`[limpar-djen] Modo: ${modo}, Tipo: ${tipoLimpeza}, Intervalo: ${startYmd} → ${endYmd}, scoped=${scopedCleanup}`);
 
     const limparTermos = tipoLimpeza === 'termos' || tipoLimpeza === 'todos';
     const limparProcessos = tipoLimpeza === 'processos' || tipoLimpeza === 'todos';
@@ -210,17 +307,30 @@ Deno.serve(async (req) => {
 
       // 4. publicacoes_djen (termos)
       console.log('[limpar-djen] Limpando publicacoes_djen...');
-      const r4a = await deleteBatched(supabase, 'publicacoes_djen', 'created_at', dayStart, dayEnd, 500);
-      const r4b = await deleteByDateRange(supabase, 'publicacoes_djen', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
-      const r4Total = r4a.deleted + r4b.deleted;
-      results['publicacoes_djen'] = (r4a.error || r4b.error) || `ok (${r4Total})`;
+      if (scopedCleanup) {
+        const r4 = await deletePublicacoesDjenScoped(supabase, startYmd, endYmd, {
+          coordenacaoId: body.coordenacaoId,
+          monitoramentoIds: scopedMonitoramentoIds,
+        }, 500);
+        results['publicacoes_djen'] = r4.error || `ok (${r4.deleted})`;
+      } else {
+        const r4a = await deleteBatched(supabase, 'publicacoes_djen', 'created_at', dayStart, dayEnd, 500);
+        const r4b = await deleteByDateRange(supabase, 'publicacoes_djen', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
+        const r4Total = r4a.deleted + r4b.deleted;
+        results['publicacoes_djen'] = (r4a.error || r4b.error) || `ok (${r4Total})`;
+      }
 
       // 6. publicacoes_djen_descartadas
       console.log('[limpar-djen] Limpando publicacoes_djen_descartadas...');
-      const r6a = await deleteBatched(supabase, 'publicacoes_djen_descartadas', 'created_at', dayStart, dayEnd, 500);
-      const r6b = await deleteByDateRange(supabase, 'publicacoes_djen_descartadas', ['data_publicacao'], startYmd, endYmd, 500);
-      const r6Total = r6a.deleted + r6b.deleted;
-      results['publicacoes_djen_descartadas'] = (r6a.error || r6b.error) || `ok (${r6Total})`;
+      if (scopedCleanup) {
+        const r6 = await deleteDescartadasDjenScoped(supabase, startYmd, endYmd, { monitoramentoIds: scopedMonitoramentoIds }, 500);
+        results['publicacoes_djen_descartadas'] = r6.error || `ok (${r6.deleted})`;
+      } else {
+        const r6a = await deleteBatched(supabase, 'publicacoes_djen_descartadas', 'created_at', dayStart, dayEnd, 500);
+        const r6b = await deleteByDateRange(supabase, 'publicacoes_djen_descartadas', ['data_disponibilizacao', 'data_publicacao'], startYmd, endYmd, 500);
+        const r6Total = r6a.deleted + r6b.deleted;
+        results['publicacoes_djen_descartadas'] = (r6a.error || r6b.error) || `ok (${r6Total})`;
+      }
 
       // 7. publicacoes_djen_global_hash (apenas quando limpar termos - compartilhado)
       console.log('[limpar-djen] Limpando publicacoes_djen_global_hash...');
