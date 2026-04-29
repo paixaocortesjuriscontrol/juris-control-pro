@@ -244,6 +244,32 @@ async function fetchPdf(
   return { ok: false, reason: "no-pdf" };
 }
 
+/**
+ * Verifica se o bloco da pauta atende à condição concomitante do
+ * monitoramento. Replica a função `condicaoConcomitanteAtendida` usada
+ * no DJEN Termos (engine paralela): grupos separados por `|` em OR,
+ * termos dentro de um grupo separados por `,` em AND.
+ */
+function condicaoConcomitanteAtendidaBloco(
+  blocoNorm: string,
+  condicao?: string | null,
+): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao)
+    .split("|")
+    .map((g) => g.trim())
+    .filter(Boolean);
+  if (grupos.length === 0) return true;
+  return grupos.some((g) => {
+    const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every((t) => {
+      const tn = normalize(t);
+      return tn ? blocoNorm.includes(tn) : false;
+    });
+  });
+}
+
 function matchBlocoMonitoramento(
   blocoNorm: string,
   mon: MonitoramentoInput,
@@ -255,14 +281,10 @@ function matchBlocoMonitoramento(
       if (exN && blocoNorm.includes(exN)) return null;
     }
   }
-  // Termos obrigatórios (AND): TODOS precisam aparecer no bloco. Se algum
-  // estiver faltando, descarta o bloco para este monitoramento.
-  if (mon.termosObrigatorios && mon.termosObrigatorios.length > 0) {
-    for (const t of mon.termosObrigatorios) {
-      const tn = normalize(t);
-      if (!tn) continue;
-      if (!blocoNorm.includes(tn)) return null;
-    }
+  // Condição concomitante (OR de grupos AND, igual ao DJEN Termos).
+  // Se definida e não atendida, descarta o bloco para este monitoramento.
+  if (!condicaoConcomitanteAtendidaBloco(blocoNorm, mon.condicaoConcomitante)) {
+    return null;
   }
   // Termos: qualquer match positivo já basta.
   for (const t of mon.termos || []) {
