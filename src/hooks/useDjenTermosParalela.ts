@@ -32,14 +32,16 @@ export function useDjenTermosParalela() {
       setProgress(p);
       setIsRunning(isDjenTermosParalelaRunning());
       if (p.status === 'concluido') {
-        void Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] }),
-          queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
-          queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] }),
-          queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
-          queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] }),
-        ]);
-        if (p.novas > 0) toast.success(`DJEN Paralela: ${p.novas} novas publicações encontradas!`);
+        void (async () => {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] }),
+            queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+            queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] }),
+            queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
+            queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] }),
+          ]);
+          if (p.novas > 0) toast.success(`DJEN Paralela: ${p.novas} novas publicações encontradas!`);
+        })();
       }
       if (p.status === 'erro') toast.error(p.mensagem || 'Erro DJEN Paralela');
     });
