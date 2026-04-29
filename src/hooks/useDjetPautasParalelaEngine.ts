@@ -343,6 +343,64 @@ function makePautaStreamSegmenter() {
   };
 }
 
+function extractCnj(text: string): string | null {
+  const m = text.match(CNJ_REGEX);
+  return m ? m[0] : null;
+}
+
+function condicaoConcomitanteAtendidaBloco(blocoNorm: string, condicao?: string | null): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao).split("|").map((g) => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  return grupos.some((g) => {
+    const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every((t) => {
+      const tn = normalizeDjetText(t);
+      return tn ? blocoNorm.includes(tn) : false;
+    });
+  });
+}
+
+function matchBlocoMonitoramento(blocoNorm: string, mon: ReturnType<typeof monitoramentoToInput>): string | null {
+  for (const ex of mon.exclusoes || []) {
+    const exN = normalizeDjetText(ex);
+    if (exN && blocoNorm.includes(exN)) return null;
+  }
+  if (!condicaoConcomitanteAtendidaBloco(blocoNorm, mon.condicaoConcomitante)) return null;
+  for (const t of mon.termos || []) {
+    const tn = normalizeDjetText(t);
+    if (tn && blocoNorm.includes(tn)) return t;
+  }
+  if (mon.oab) {
+    const digits = mon.oab.replace(/\D/g, "");
+    if (digits && new RegExp(`\\boab\\b[^a-z0-9]{0,8}${digits}\\b`).test(blocoNorm)) return `OAB ${mon.oab}`;
+    if (digits && new RegExp(`\\b${digits}\\b[^a-z0-9]{0,8}oab\\b`).test(blocoNorm)) return `OAB ${mon.oab}`;
+  }
+  return null;
+}
+
+async function fetchPdfArrayBufferViaProxy(tribunal: string, dataDDMMYYYY: string): Promise<ArrayBuffer | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Sessão expirada");
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/buscar-dejt-pautas`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify({ tribunal, dataDDMMYYYY, caderno: "judiciario", downloadOnly: true, monitoramentos: [] }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok) throw new Error(`PDF proxy HTTP ${response.status}`);
+  if (!contentType.includes("application/pdf")) return null;
+  return await response.arrayBuffer();
+}
+
 // ============================================================================
 // PERSISTÊNCIA DOS MATCHES
 // ============================================================================
