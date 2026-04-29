@@ -132,7 +132,14 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error("Erro ao atualizar usuário (auth):", updateError);
-        return new Response(JSON.stringify({ error: updateError.message }), {
+        let friendly = updateError.message;
+        const code = (updateError as any)?.code;
+        if (code === "weak_password") {
+          friendly = "Senha muito fraca ou já vazada em bases públicas. Escolha outra senha (mais longa e única).";
+        } else if (code === "email_exists" || /already.*registered|exists/i.test(updateError.message)) {
+          friendly = "Este e-mail já está em uso por outro usuário.";
+        }
+        return new Response(JSON.stringify({ error: friendly, code }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
