@@ -68,6 +68,7 @@ interface Monitoramento {
   exclusoes?: string[];
   tribunais?: string[];
   termos_or?: string[];
+  condicao_concomitante?: string | null;
   coordenacao_id?: string | null;
 }
 
