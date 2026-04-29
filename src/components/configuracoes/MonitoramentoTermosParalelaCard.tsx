@@ -417,6 +417,10 @@ export function MonitoramentoTermosParalelaCard() {
             <Skull className="h-4 w-4" />
             Forçar Parada
           </Button>
+          <Button onClick={handleLimparPublicacoes} disabled={isRunning} variant="outline" size="sm" className="gap-2">
+            <Trash2 className="h-4 w-4" />
+            Limpar filtro
+          </Button>
           <Button
             onClick={() => {
               if (confirm('Reset Total: apaga TUDO (checkpoint, progresso, stats, execuções órfãs no banco). Continuar?')) {
