@@ -1523,12 +1523,33 @@ serve(async (req) => {
     }
 
     if (processoBaixado === "S") {
-      const hasTransito = steps.some((s: any) =>
-        /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i.test(
-          (s?.content || "").toString(),
-        )
-      );
-      situacaoProcesso = hasTransito ? "Trânsito em Julgado" : "Baixado";
+      // Pega a data do step de trânsito mais recente (se houver).
+      const RX_TRANSITO_TXT = /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i;
+      // Movimentos que indicam REATIVAÇÃO posterior do processo (novo recurso
+      // distribuído, redistribuição, despacho/decisão recente). Se houver
+      // qualquer um DEPOIS do step de trânsito, o processo NÃO está mais
+      // transitado em julgado — está em curso novamente (ex.: RR no TST).
+      const RX_REATIVACAO =
+        /distribu[ií]d[oa]\s+por\s+sorteio|certid[aã]o\s+de\s+(?:re)?distribui[çc][ãa]o|redistribu[ií]d[oa]|recurso\s+(?:de\s+revista|ordin[áa]rio|extraordin[áa]rio|especial|interposto)|interp[ôo][es]\s+recurso|protocolad[oa]\s+(?:o\s+)?recurso|juntad[oa]\s+(?:a\s+)?peti[çc][ãa]o\s+(?:de|do)\s*(?:recurso|agravo|embargos|revista)|incluíd[oa]\s+em\s+pauta|designad[oa].*julgamento/i;
+      const transitoSteps = steps
+        .filter((s: any) => RX_TRANSITO_TXT.test((s?.content || "").toString()))
+        .map((s: any) => ({ data: s.step_date || s.date || "" }))
+        .sort((a: any, b: any) => (b.data || "").localeCompare(a.data || ""));
+      const hasTransito = transitoSteps.length > 0;
+      const dataTransitoMaisRecente = transitoSteps[0]?.data || "";
+      const reativadoDepois = hasTransito && steps.some((s: any) => {
+        const d = (s.step_date || s.date || "").toString();
+        if (!d || d <= dataTransitoMaisRecente) return false;
+        return RX_REATIVACAO.test((s?.content || "").toString());
+      });
+      if (reativadoDepois) {
+        // Há recurso/redistribuição depois do trânsito → processo voltou a tramitar.
+        situacaoProcesso = "Ativo";
+        processoBaixado = "N";
+        console.log(`[buscar-judit] trânsito em ${dataTransitoMaisRecente} desconsiderado: há reativação posterior (novo recurso/redistribuição)`);
+      } else {
+        situacaoProcesso = hasTransito ? "Trânsito em Julgado" : "Baixado";
+      }
     }
 
     const lastStep = rd.last_step || null;
