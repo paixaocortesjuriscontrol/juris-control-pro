@@ -523,8 +523,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           });
         })();
 
-        // incluir descartadas, se solicitado
-        if (filtros.incluirDescartadas) {
+        // incluir descartadas, se solicitado (em paralelo com as demais)
+        const descartadasPromise: Promise<any[]> = (async () => {
+          if (!filtros.incluirDescartadas) return [];
           let queryDescartadas = (supabase
             .from('publicacoes_djen_descartadas') as any)
             .select(`
@@ -557,10 +558,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
           const { data: descartadasData } = await queryDescartadas.limit(200);
-          (descartadasData || []).forEach((pub: any) => {
-            resultados.push({
+          return (descartadasData || []).map((pub: any) => ({
               id: pub.id,
-              tipo_origem: 'descartada',
+              tipo_origem: 'descartada' as const,
               processo_id: null,
               processo_numero: pub.processo_numero,
               conteudo: pub.conteudo,
@@ -586,19 +586,32 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               advogados_json: pub.advogados_json ? (typeof pub.advogados_json === 'string' ? JSON.parse(pub.advogados_json) : pub.advogados_json) : null,
               partes_json: pub.partes_json ? (typeof pub.partes_json === 'string' ? JSON.parse(pub.partes_json) : pub.partes_json) : null,
               motivo_descarte: pub.motivo_descarte,
-            });
-          });
+            }));
+        })();
+
+        // Aguardar paralelamente: resolução de processo_id, descartadas
+        const [, descartadasMapped] = await Promise.all([
+          resolveProcessoIdsPromise,
+          descartadasPromise,
+        ]);
+        if (descartadasMapped.length > 0) {
+          resultados.push(...descartadasMapped);
         }
 
         // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
         const merged = [...filteredByType, ...resultados];
-        const enriquecidos = await enriquecerPublicacoesComMonitoramento(merged);
-
-        const finalRows = await mergeWithLeituras(
-          user!.id,
-          enriquecidos.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-          'todas',
-        );
+        // Enriquecer monitoramentos e buscar leituras em paralelo (operações independentes).
+        const sorted = merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const [enriquecidos, finalRowsTmp] = await Promise.all([
+          enriquecerPublicacoesComMonitoramento(sorted),
+          mergeWithLeituras(user!.id, sorted, 'todas'),
+        ]);
+        // Combinar: enriquecidos traz termos resolvidos; finalRowsTmp traz lida + lido_por.
+        const lidoMap = new Map(finalRowsTmp.map((p) => [p.id, { lida: p.lida, lido_por: p.lido_por }]));
+        const finalRows = enriquecidos.map((p) => {
+          const l = lidoMap.get(p.id);
+          return l ? { ...p, lida: l.lida, lido_por: l.lido_por } : p;
+        });
         return { rows: finalRows, lastChunkSize };
 
         } catch (rpcError) {
