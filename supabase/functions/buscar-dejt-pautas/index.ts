@@ -126,8 +126,10 @@ function extractCnj(text: string): string | null {
 // rejeitados, deixando essas pautas fora da busca. Para evitar OOM ao parsear
 // cadernos grandes, usamos extração página-a-página (streaming) abaixo.
 const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB
-// PDFs acima deste tamanho usam parse por página (mais lento, menos RAM)
-const STREAM_PDF_THRESHOLD = 4 * 1024 * 1024; // 4 MB
+// PDFs médios/grandes usam parse por página (mais lento, menos RAM).
+// TRT1/TRT2/TRT5 podem ter arquivos com ~1MB que ainda derrubam o worker
+// quando passam pelo extractText global do unpdf, então o limite precisa ser baixo.
+const STREAM_PDF_THRESHOLD = 128 * 1024; // 128 KB
 
 async function bufferToText(uint8: Uint8Array): Promise<string> {
   // Para cadernos pequenos: extrai tudo de uma vez (caminho rápido).
