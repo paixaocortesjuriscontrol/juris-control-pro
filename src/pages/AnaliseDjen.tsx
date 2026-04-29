@@ -75,7 +75,7 @@ import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/compo
 import { jsPDF } from "jspdf";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
-type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
 const AnaliseDjen = () => {
