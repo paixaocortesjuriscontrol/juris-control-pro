@@ -1100,8 +1100,8 @@ serve(async (req) => {
     else tribunal = tribunalAcronimo;
 
     const classificacao = extrairClassificacao(rd);
-    const dataDistribuicaoBR = toDateBR(rd.distribution_date);
-    const dataDistribuicaoISO = toDateISO(rd.distribution_date);
+    let dataDistribuicaoBR = toDateBR(rd.distribution_date);
+    let dataDistribuicaoISO = toDateISO(rd.distribution_date);
 
     let relator = extrairRelator(rd);
     let turma = extrairTurma(rd);
@@ -1165,6 +1165,8 @@ serve(async (req) => {
       if (ultima) {
         if (ultima.data) {
           rd.distribution_date = ultima.data;
+          dataDistribuicaoISO = toDateISO(ultima.data);
+          dataDistribuicaoBR = toDateBR(ultima.data);
         }
         if (ultima.relator) relator = ultima.relator;
         if (ultima.turma) turma = ultima.turma;
