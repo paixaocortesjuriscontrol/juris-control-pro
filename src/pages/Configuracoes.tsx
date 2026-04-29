@@ -77,6 +77,10 @@ export default function Configuracoes() {
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Paralela</span>
           </TabsTrigger>
+          <TabsTrigger value="djet-pautas-paralela" className="flex items-center gap-2">
+            <FileSearch className="h-4 w-4" />
+            <span className="hidden sm:inline">DJET Pautas Paralela</span>
+          </TabsTrigger>
           <TabsTrigger value="stf-termos" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">STF Termos</span>
@@ -237,8 +241,20 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoTermosParalelaCard />
-          <MonitoramentoDjetPautasCard />
           <PoolProxyDjenCard />
+        </TabsContent>
+
+        {/* Aba DJET Pautas Paralela */}
+        <TabsContent value="djet-pautas-paralela" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">DJET Pautas Paralela</h2>
+            <p className="text-sm text-muted-foreground">
+              Captura de pautas de julgamento da Justiça do Trabalho via download dos
+              PDFs do caderno Judiciário do DEJT. Rotina 100% independente da DJEN
+              Termos Paralela.
+            </p>
+          </div>
+          <MonitoramentoDjetPautasCard />
         </TabsContent>
 
         {/* Aba STF Termos */}
