@@ -497,6 +497,12 @@ function gerarHash(conteudo: string, data: string, processoNumero?: string): str
   return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const r = new Date(dataBase);
   while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
@@ -1134,20 +1140,38 @@ async function processarTermoEmTribunal(
       // A busca SEMPRE já foi feita. Aqui só persistimos o resultado da comparação
       // pela chave de encontradas; se houver uma duplicada antiga com mesmo hash,
       // reativamos como encontrada em vez de deixar ela bloquear a nova captura.
-      const { data: inseridos, error: upsertError } = await supabase
-        .from('publicacoes_djen')
-        .upsert(payload, {
-          onConflict: 'monitoramento_id,hash_conteudo',
-        })
-        .select('id');
-      if (upsertError) {
-        console.error(`[DJEN Paralela][${tribunal}] upsert error (mon=${mon.id} termo="${mon.termo_busca}"):`, upsertError);
+      const hashesPayload = payload.map((p: any) => p.hash_conteudo).filter(Boolean);
+      let inseridosCount = 0;
+      for (const lote of chunkArray(payload, 25)) {
+        const { data: inseridos, error: insertError } = await supabase
+          .from('publicacoes_djen')
+          .insert(lote)
+          .select('id');
+        if (!insertError) {
+          inseridosCount += inseridos?.length ?? lote.length;
+          continue;
+        }
+        const msg = String(insertError.message || '');
+        const isConflict = insertError.code === '23505' || msg.includes('duplicate key');
+        if (!isConflict) {
+          console.error(`[DJEN Paralela][${tribunal}] insert error (mon=${mon.id} termo="${mon.termo_busca}"):`, insertError);
+          ultimoErro = insertError.message || 'Erro ao gravar publicações';
+          continue;
+        }
+        for (const row of lote) {
+          const { error: oneErr } = await supabase
+            .from('publicacoes_djen')
+            .upsert(row, { onConflict: 'monitoramento_id,hash_conteudo' })
+            .select('id')
+            .single();
+          if (oneErr) console.error(`[DJEN Paralela][${tribunal}] upsert individual error:`, oneErr);
+          else inseridosCount += 1;
+        }
       }
       // O trigger `mark_djen_duplicada_on_insert` pode aceitar a linha, mas
       // reclassificá-la como `duplicada`. A tela de Análise mostra apenas
       // `status = encontrada`; portanto "novas" precisa contar somente o que
       // ficou efetivamente visível, não apenas o retorno do upsert/PostgREST.
-      const hashesPayload = payload.map((p: any) => p.hash_conteudo).filter(Boolean);
       const { data: confirmadas } = await supabase
         .from('publicacoes_djen')
         .select('hash_conteudo,status')
@@ -1156,9 +1180,9 @@ async function processarTermoEmTribunal(
       const statusPorHash = new Map((confirmadas || []).map((r: any) => [r.hash_conteudo, r.status]));
       novasInseridasEfetivas = hashesPayload.filter((h: string) => statusPorHash.get(h) === 'encontrada').length;
       duplicadasReclassificadas = hashesPayload.length - novasInseridasEfetivas;
-      if ((inseridos?.length ?? 0) !== novasInseridasEfetivas) {
+      if (inseridosCount !== novasInseridasEfetivas) {
         console.warn(
-          `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: upsert retornou ${inseridos?.length ?? 0}, mas só ${novasInseridasEfetivas} ficaram como encontradas; ${duplicadasReclassificadas} foram reclassificadas/ocultadas.`
+          `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: gravação retornou ${inseridosCount}, mas só ${novasInseridasEfetivas} ficaram como encontradas; ${duplicadasReclassificadas} foram reclassificadas/ocultadas.`
         );
       }
     }
