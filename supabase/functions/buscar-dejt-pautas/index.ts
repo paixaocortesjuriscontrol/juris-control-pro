@@ -42,6 +42,7 @@ interface RequestBody {
   tribunal: string;          // TST | TRTx
   dataDDMMYYYY: string;      // 29/04/2026
   caderno?: DejtCaderno;     // default 'judiciario'
+  downloadOnly?: boolean;    // true = atua só como proxy CORS do PDF, sem extrair texto no worker
   monitoramentos: MonitoramentoInput[];
 }
 
@@ -262,6 +263,46 @@ async function fetchPdf(
       return { ok: true, bytes: buf };
     } catch (e) {
       console.log(`[DJET-Pautas] erro fetch ${url}:`, e);
+    }
+  }
+  return { ok: false, reason: "no-pdf" };
+}
+
+async function fetchPdfStream(
+  tribunal: string,
+  dataDDMMYYYY: string,
+  caderno: DejtCaderno,
+): Promise<{ ok: true; response: Response; url: string; bytes: number | null } | { ok: false; reason: string }> {
+  const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
+  if (urls.length === 0) return { ok: false, reason: "tribunal-sem-url" };
+
+  const todayBrt = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  if (dataDDMMYYYY !== todayBrt) return { ok: false, reason: "data-historica-indisponivel" };
+
+  for (const url of urls) {
+    try {
+      console.log(`[DJET-Pautas] proxy PDF ${url}`);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/pdf,*/*",
+          "Referer": "https://dejt.jt.jus.br/",
+        },
+      });
+      if (!res.ok) {
+        console.log(`[DJET-Pautas] HTTP ${res.status} em ${url}`);
+        continue;
+      }
+      const ctype = (res.headers.get("content-type") || "").toLowerCase();
+      if (!ctype.includes("application/pdf")) {
+        console.log(`[DJET-Pautas] resposta não é PDF (${ctype}) em ${url}`);
+        continue;
+      }
+      const bytes = Number(res.headers.get("content-length") || "") || null;
+      return { ok: true, response: res, url, bytes };
+    } catch (e) {
+      console.log(`[DJET-Pautas] erro proxy ${url}:`, e);
     }
   }
   return { ok: false, reason: "no-pdf" };
