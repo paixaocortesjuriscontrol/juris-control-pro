@@ -741,11 +741,13 @@ const AnaliseDjen = () => {
       let y = 34;
       const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 15; } };
 
-      drawPdfHeader(doc, pageW, "Gestão Jurídica e Publicações DJEN");
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      drawPdfHeader(doc, pageW, `Gestão Jurídica e Publicações ${origemLabel}`);
 
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
-      doc.text(`PUBLICAÇÕES DJEN (${allPublicacoes.length})`, mL, y);
+      doc.text(`PUBLICAÇÕES ${origemLabel} (${allPublicacoes.length})`, mL, y);
       y += 10;
 
       const colLeftW = 60;
@@ -906,7 +908,9 @@ const AnaliseDjen = () => {
       const mL = 15;
       const mR = 15;
       const maxW = pageW - mL - mR;
-      drawPdfHeader(doc, pageW, "Resumo de Publicações DJEN");
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      drawPdfHeader(doc, pageW, `Resumo de Publicações ${origemLabel}`);
       let y = 34;
       const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
 
@@ -1236,7 +1240,9 @@ const AnaliseDjen = () => {
       return;
     }
     try {
-      const children: Paragraph[] = [...buildDocHeader("Relatório de Publicações DJEN", allPublicacoes.length)];
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Relatório de Publicações ${origemLabel}`, allPublicacoes.length)];
 
       allPublicacoes.forEach((pub, idx) => {
         children.push(...buildPubMetadata(pub, idx));
@@ -1314,7 +1320,9 @@ const AnaliseDjen = () => {
         if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
       }
 
-      const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações DJEN${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações ${origemLabel}${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
 
       allPublicacoes.forEach((pub, idx) => {
         children.push(...buildPubMetadata(pub, idx));
@@ -2086,7 +2094,14 @@ const AnaliseDjen = () => {
                                       ) : (
                                         <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground flex-shrink-0 mt-0.5 md:mt-0" />
                                       )}
-                                      <p className="text-xs md:text-sm font-medium text-primary hover:underline break-all">
+                                      <p
+                                        className={cn(
+                                          "text-xs md:text-sm font-medium hover:underline break-all",
+                                          tipoOrigem === 'djet-pautas'
+                                            ? "text-[#1E3A5F]"
+                                            : "text-primary"
+                                        )}
+                                      >
                                         Processo {formatProcessoNumero(pub.processo_numero)}
                                       </p>
                                       <Button
