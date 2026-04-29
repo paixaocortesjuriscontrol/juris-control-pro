@@ -440,6 +440,26 @@ function getSiglaTribunal(item: any): string | null {
   return m?.[1] ?? raw.trim().toUpperCase();
 }
 
+function extrairDataDisponibilizacaoYmd(item: any): string | null {
+  const raw = item?.dataDisponibilizacao
+    ?? item?.data_disponibilizacao
+    ?? item?.datadisponibilizacao
+    ?? item?.data
+    ?? null;
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const corpo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
+  const isoNoCorpo = corpo.match(/data\s+de\s+disponibiliza[cç][aã]o\D{0,30}(\d{4})[-/](\d{2})[-/](\d{2})/i);
+  if (isoNoCorpo) return `${isoNoCorpo[1]}-${isoNoCorpo[2]}-${isoNoCorpo[3]}`;
+  const brNoCorpo = corpo.match(/data\s+de\s+disponibiliza[cç][aã]o\D{0,30}(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (brNoCorpo) return `${brNoCorpo[3]}-${brNoCorpo[2]}-${brNoCorpo[1]}`;
+  return null;
+}
+
 function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
   const proc = (processoNumero || '').replace(/[^0-9]/g, '');
   const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
@@ -959,9 +979,15 @@ async function processarTermoEmTribunal(
   // Filtros declarados pelo monitoramento
   const tribunaisMon = expandirTribunaisDoMon(mon.tribunais);
   let descartadas = 0;
+  let foraDoPeriodo = 0;
   const pubsDescartadas: any[] = [];
 
   const pubsValidas = resultados.filter(pub => {
+    const dataDispReal = extrairDataDisponibilizacaoYmd(pub);
+    if (dataDispReal && dataDispReal !== diaYmd) {
+      foraDoPeriodo++;
+      return false;
+    }
     if (tribunaisMon.length > 0) {
       const sig = getSiglaTribunal(pub);
       if (!sig || !tribunaisMon.includes(sig)) {
@@ -992,12 +1018,17 @@ async function processarTermoEmTribunal(
   const hashMap = new Map<string, any>();
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
-    const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+    const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
     const hash = gerarHash(conteudo, dataDisp, procNum);
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
+
+  if (foraDoPeriodo > 0) {
+    ultimoErro = `API devolveu ${foraDoPeriodo} resultado(s) fora de ${diaYmd}; ignorados.`;
+    console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${foraDoPeriodo} resultado(s) fora de ${diaYmd} ignorados.`);
+  }
 
   const hashes = pubsUnicas.map(p => p.hash_conteudo);
   let existentes = new Set<string>();
@@ -1111,7 +1142,7 @@ async function processarTermoEmTribunal(
         monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
         conteudoOriginal,
       });
-      const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
+      const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
       const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
       const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
       if (descMap.has(hash)) continue;
