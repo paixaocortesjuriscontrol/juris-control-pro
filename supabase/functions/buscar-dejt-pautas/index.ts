@@ -127,6 +127,14 @@ async function fetchPdf(
   caderno: DejtCaderno,
 ): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: string }> {
   const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
+  if (urls.length === 0) {
+    return { ok: false, reason: "tribunal-sem-url" };
+  }
+  // Hoje em São Paulo (DEJT publica caderno do dia)
+  const todayBrt = new Date().toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+  }); // dd/mm/yyyy
+  const isToday = dataDDMMYYYY === todayBrt;
   for (const url of urls) {
     try {
       console.log(`[DJET-Pautas] tentando ${url}`);
@@ -144,6 +152,7 @@ async function fetchPdf(
         continue;
       }
       const ctype = (res.headers.get("content-type") || "").toLowerCase();
+      const lastMod = res.headers.get("last-modified") || "";
       const buf = new Uint8Array(await res.arrayBuffer());
       // Verifica magic bytes "%PDF" para garantir
       const isPdfMagic =
@@ -153,6 +162,15 @@ async function fetchPdf(
       if (!ctype.includes("application/pdf") && !isPdfMagic) {
         console.log(`[DJET-Pautas] resposta não é PDF (${ctype}) em ${url}`);
         continue;
+      }
+      // O endpoint público só serve o caderno vigente. Se a data pedida
+      // não é hoje, o PDF retornado é de outro dia — descarta.
+      if (!isToday) {
+        console.log(
+          `[DJET-Pautas] data ${dataDDMMYYYY} != hoje (${todayBrt}); ` +
+          `endpoint público só serve caderno vigente (last-modified=${lastMod}).`,
+        );
+        return { ok: false, reason: "data-historica-indisponivel" };
       }
       return { ok: true, bytes: buf };
     } catch (e) {
