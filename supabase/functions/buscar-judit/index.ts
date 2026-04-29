@@ -993,18 +993,25 @@ serve(async (req) => {
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
     
-    // Cache só é útil se o tribunal bater com o hint (cache retorna 1 instância, geralmente TRT)
-    const cacheMatchesHint = cachedRd && (!tribunalHint || 
+    // Cache da Judit retorna apenas 1 instância (geralmente a originária — TRT/Vara).
+    // Para preencher corretamente recorrente / tipo_recurso / trânsito / data
+    // de distribuição, precisamos das DEMAIS instâncias (TST quando houver RR
+    // recente). Por isso só usamos o cache direto quando há hint EXPLÍCITO e o
+    // cache cobre exatamente esse hint. Sem hint => sempre crawler async para
+    // ter TRT+TST juntos. (Caso real: 0001695-95.2013.5.01.0481 — cache só
+    // tinha TRT1 antigo e mascarava o RR distribuído no TST em 10/12/2025.)
+    const cacheMatchesHint = cachedRd && tribunalHint && (
       (cachedRd.tribunal_acronym || "").toUpperCase() === tribunalHint.toUpperCase() ||
-      (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd)));
-    
+      (tribunalHint.toUpperCase() === "TST" && temIndicioTST(cachedRd))
+    );
+
     if (cachedRd && cacheMatchesHint) {
       rd = cachedRd;
-      console.log(`[buscar-judit] Usando dados do cache direto (tribunal=${cachedRd.tribunal_acronym})`);
+      console.log(`[buscar-judit] Usando cache direto (hint=${tribunalHint} casa com tribunal=${cachedRd.tribunal_acronym})`);
     } else {
       // Fallback: fluxo assíncrono (crawler) — retorna TODAS as instâncias
-      if (cachedRd && !cacheMatchesHint) {
-        console.log(`[buscar-judit] Cache descartado: tribunal_cache=${cachedRd.tribunal_acronym} hint=${tribunalHint}`);
+      if (cachedRd) {
+        console.log(`[buscar-judit] Cache descartado (cache=${cachedRd.tribunal_acronym}, hint=${tribunalHint || "<nenhum>"}) — forçando crawler para obter TODAS as instâncias`);
       }
       debugStatus = "async_poll";
       const criar = await juditCriarRequest(JUDIT_API_KEY, cnj);
@@ -1118,12 +1125,33 @@ serve(async (req) => {
     }
 
     // ---- extração ----
-    const tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
+    // A Judit às vezes mantém `tribunal_acronym` da instância originária
+    // (ex.: TRT1) mesmo quando a instância selecionada é claramente do TST
+    // (Gabinete de Ministro / classe AIRR/RR). Normaliza pelo indício.
+    let tribunalAcronimo = (rd.tribunal_acronym || "").toUpperCase() || null;
+    // Detecta TST mesmo quando a Judit deixa o acronym da instância originária
+    // (ex.: "TRT1") na instância 3 do TST. Critérios independentes de
+    // `tribunal_acronym` (que é exatamente o campo errado a ser corrigido).
+    const courtsRaw = Array.isArray(rd.courts) ? rd.courts : [];
+    const classesRaw = Array.isArray(rd.classifications) ? rd.classifications : [];
+    const ehTstPorCourts = courtsRaw.some((c: any) => {
+      const nome = (c?.name || "").toString();
+      if (/\bTST\b/i.test(nome)) return true;
+      // "Gabinete do Ministro <nome>" sem TST explícito também é TST.
+      return /gabinete\s+(?:do|da)\s+ministr[oa]/i.test(nome);
+    });
+    const ehTstPorClasse = classesRaw.some((cl: any) => {
+      const n = (cl?.name || "").toUpperCase();
+      return /^(RR|AIRR|AG-AIRR|ARR|ED-RR|ED-AIRR)$/.test(n);
+    });
+    if ((ehTstPorCourts || ehTstPorClasse) && tribunalAcronimo !== "TST") {
+      console.log(`[buscar-judit] tribunal_acronym normalizado de ${tribunalAcronimo} -> TST (courts=${ehTstPorCourts} classe=${ehTstPorClasse})`);
+      tribunalAcronimo = "TST";
+    }
     let tribunal: string | null = null;
     if (tribunalAcronimo?.includes("TST")) tribunal = "TST";
     else if (tribunalAcronimo?.includes("STF")) tribunal = "STF";
     else if (tribunalAcronimo?.includes("STJ")) tribunal = "STJ";
-    else if (temIndicioTST(rd)) tribunal = "TST";
     else tribunal = tribunalAcronimo;
 
     const classificacao = extrairClassificacao(rd);
@@ -1510,12 +1538,33 @@ serve(async (req) => {
     }
 
     if (processoBaixado === "S") {
-      const hasTransito = steps.some((s: any) =>
-        /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i.test(
-          (s?.content || "").toString(),
-        )
-      );
-      situacaoProcesso = hasTransito ? "Trânsito em Julgado" : "Baixado";
+      // Pega a data do step de trânsito mais recente (se houver).
+      const RX_TRANSITO_TXT = /tr[aâ]nsito em julgado|certid[aã]o de tr[aâ]nsito/i;
+      // Movimentos que indicam REATIVAÇÃO posterior do processo (novo recurso
+      // distribuído, redistribuição, despacho/decisão recente). Se houver
+      // qualquer um DEPOIS do step de trânsito, o processo NÃO está mais
+      // transitado em julgado — está em curso novamente (ex.: RR no TST).
+      const RX_REATIVACAO =
+        /distribu[ií]d[oa]\s+por\s+sorteio|certid[aã]o\s+de\s+(?:re)?distribui[çc][ãa]o|redistribu[ií]d[oa]|recurso\s+(?:de\s+revista|ordin[áa]rio|extraordin[áa]rio|especial|interposto)|interp[ôo][es]\s+recurso|protocolad[oa]\s+(?:o\s+)?recurso|juntad[oa]\s+(?:a\s+)?peti[çc][ãa]o\s+(?:de|do)\s*(?:recurso|agravo|embargos|revista)|incluíd[oa]\s+em\s+pauta|designad[oa].*julgamento/i;
+      const transitoSteps = steps
+        .filter((s: any) => RX_TRANSITO_TXT.test((s?.content || "").toString()))
+        .map((s: any) => ({ data: s.step_date || s.date || "" }))
+        .sort((a: any, b: any) => (b.data || "").localeCompare(a.data || ""));
+      const hasTransito = transitoSteps.length > 0;
+      const dataTransitoMaisRecente = transitoSteps[0]?.data || "";
+      const reativadoDepois = hasTransito && steps.some((s: any) => {
+        const d = (s.step_date || s.date || "").toString();
+        if (!d || d <= dataTransitoMaisRecente) return false;
+        return RX_REATIVACAO.test((s?.content || "").toString());
+      });
+      if (reativadoDepois) {
+        // Há recurso/redistribuição depois do trânsito → processo voltou a tramitar.
+        situacaoProcesso = "Ativo";
+        processoBaixado = "N";
+        console.log(`[buscar-judit] trânsito em ${dataTransitoMaisRecente} desconsiderado: há reativação posterior (novo recurso/redistribuição)`);
+      } else {
+        situacaoProcesso = hasTransito ? "Trânsito em Julgado" : "Baixado";
+      }
     }
 
     const lastStep = rd.last_step || null;
@@ -1579,6 +1628,22 @@ serve(async (req) => {
       : null;
     console.log(`[buscar-judit] tipo_recurso fonte=${fonteTipoRecurso} reclamante=${recursosPorParte.reclamante} banco=${recursosPorParte.banco}`);
 
+    // Recorrente: derivado dos recursos confirmados pela Judit (mais preciso
+    // do que o polo ativo da capa). Se a Judit não identificou interposição,
+    // cai no polo ativo (reclamante). "Banco"/"Reclamante" são rótulos
+    // padronizados para o usuário (advogada Renata Santander pediu esse
+    // formato no caso 0001695-95.2013.5.01.0481).
+    let recorrenteCalc: string | null = null;
+    if (recursosPorParte.banco && recursosPorParte.reclamante) {
+      recorrenteCalc = "Ambos";
+    } else if (recursosPorParte.banco) {
+      recorrenteCalc = "Banco";
+    } else if (recursosPorParte.reclamante) {
+      recorrenteCalc = "Reclamante";
+    } else {
+      recorrenteCalc = poloAtivo || null;
+    }
+
     const result = {
       dossie: null, // Judit não tem dossiê Santander
       // Tipo de recurso APENAS quando confirmado por movimento Judit.
@@ -1599,7 +1664,7 @@ serve(async (req) => {
       turma,
       tribunal,
       tribunal_acronimo: tribunalAcronimo,
-      recorrente: poloAtivo || null,
+      recorrente: recorrenteCalc,
       polo_passivo: poloPassivo || null,
       situacao_processo: situacaoProcesso,
       comarca,
