@@ -13,6 +13,7 @@ export interface PublicacaoAnalise {
   fonte: string | null;
   lida: boolean;
   created_at: string;
+  tipo_publicacao?: 'intimacao' | 'pauta' | string | null;
   monitoramento?: {
     id: string;
     tipo: string;
@@ -43,6 +44,7 @@ export interface FiltrosAnalise {
   dataFim?: string;
   termoBusca?: string;
   apenasNaoLidas?: boolean;
+  tipoPublicacao?: 'intimacao' | 'pauta' | 'todos';
 }
 
 export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
@@ -67,6 +69,7 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
           fonte,
           lida,
           created_at,
+          tipo_publicacao,
           monitoramento:monitoramentos_djen(
             id,
             tipo,
@@ -90,6 +93,11 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
 
       if (filtros.apenasNaoLidas) {
         query = query.eq('lida', false);
+      }
+
+      // Filtro por tipo de publicação (intimacao | pauta). Default: todos (retrocompatível).
+      if (filtros.tipoPublicacao && filtros.tipoPublicacao !== 'todos') {
+        query = query.eq('tipo_publicacao', filtros.tipoPublicacao);
       }
 
       // Aumentado de 500 → 5000 para evitar truncamento em períodos com muitas publicações.
