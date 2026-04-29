@@ -401,6 +401,72 @@ async function fetchPdfArrayBufferViaProxy(tribunal: string, dataDDMMYYYY: strin
   return await response.arrayBuffer();
 }
 
+async function buscarPautasNoNavegador(
+  tribunal: string,
+  dataDDMMYYYY: string,
+  dataIso: string,
+  monitoramentos: ReturnType<typeof monitoramentoToInput>[],
+): Promise<{ sem_dados: boolean; motivo?: string; totalBlocos: number; matches: MatchOut[] }> {
+  const arrayBuffer = await fetchPdfArrayBufferViaProxy(tribunal, dataDDMMYYYY);
+  if (!arrayBuffer) return { sem_dados: true, motivo: "no-pdf", totalBlocos: 0, matches: [] };
+
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const pdf = await pdfjsLib.getDocument({
+    data: arrayBuffer,
+    disableFontFace: true,
+    useSystemFonts: false,
+  }).promise;
+
+  const matches: MatchOut[] = [];
+  let totalBlocos = 0;
+  const seg = makePautaStreamSegmenter();
+
+  const processBloco = async (bloco: string) => {
+    totalBlocos++;
+    const blocoNorm = normalizeDjetText(bloco);
+    const processo = extractCnj(bloco);
+    for (const mon of monitoramentos) {
+      const hit = matchBlocoMonitoramento(blocoNorm, mon);
+      if (!hit) continue;
+      const conteudo = bloco.trim();
+      const hash = await sha256Hex(`${mon.id}|${tribunal}|${dataIso}|${processo || ""}|${conteudo.slice(0, 1024)}`);
+      matches.push({
+        monitoramentoId: mon.id,
+        termoMatch: hit,
+        processo,
+        conteudo,
+        hash,
+        dataPublicacao: dataIso,
+        fonte: "dejt-pdf",
+        tribunal,
+      });
+    }
+  };
+
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (abortRequested) break;
+      const page = await pdf.getPage(i);
+      try {
+        const content = await page.getTextContent();
+        const pageText = (content.items as any[])
+          .map((item) => `${item?.str || ""}${item?.hasEOL ? "\n" : " "}`)
+          .join("");
+        for (const bloco of seg.push(pageText)) await processBloco(bloco);
+      } finally {
+        try { page.cleanup(); } catch { /* ignore */ }
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    for (const bloco of seg.end()) await processBloco(bloco);
+  } finally {
+    try { await pdf.destroy(); } catch { /* ignore */ }
+  }
+
+  return { sem_dados: false, totalBlocos, matches };
+}
+
 // ============================================================================
 // PERSISTÊNCIA DOS MATCHES
 // ============================================================================
