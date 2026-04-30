@@ -354,6 +354,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
     } else {
       payload.status = "rascunho";
+      // Garante que registros criados manualmente apareçam na listagem da
+      // página DistribuicaoTst (que filtra por aba_origem != null).
+      if (!payload.aba_origem) payload.aba_origem = "Manual";
       const { data: ins, error } = await supabase.from("dados_benner" as any).insert(payload as any).select("id").single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
       rowId = (ins as any)?.id;
