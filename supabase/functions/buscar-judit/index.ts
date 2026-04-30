@@ -434,7 +434,7 @@ serve(async (req) => {
               )
             : [])
         : null,
-      _judit_raw: rawCollector,
+      _judit_raw: comAnexos ? rawCollector : stripAttachments(rawCollector),
     };
 
     console.log(`[buscar-judit] ${cnj} -> tribunal=${result.tribunal} relator=${relator} classe=${classe} situacao=${situacao}`);
