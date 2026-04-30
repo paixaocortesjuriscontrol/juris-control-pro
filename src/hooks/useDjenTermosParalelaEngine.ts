@@ -1433,14 +1433,12 @@ async function executarLoop(
     syncExecutionProgress({}, true);
 
     // ========================================================================
-    // ESTRATÉGIA "1 WORKER POR VIA" (Browser + cada VPS habilitada)
+    // ESTRATÉGIA "1 WORKER POR VPS" (pool exclusivo quando habilitado)
     // ========================================================================
-    // Cada via (Direto + cada VPS configurada/habilitada) representa um IP
-    // independente perante o PJE Comunica. Spawnamos um worker por via que
-    // força sua via no fetch — assim o paralelismo escala com o número de
-    // VPSs SEM gerar 429 (pois cada IP tem seu próprio rate-limit).
-    // Quando o pool está desabilitado, cai automaticamente para 1 worker
-    // (Direto) — comportamento equivalente a uma execução sequencial segura.
+    // Se houver VPS habilitada no pool, a Paralela NÃO usa o browser como via.
+    // Cada VPS representa um IP independente perante o PJE Comunica e recebe um
+    // worker dedicado. O browser direto fica apenas como fallback quando o pool
+    // está desligado ou sem VPS válida.
 
     const tribunaisPendentes = tribunais.filter(t => !tribunaisJaConcluidos.has(t));
     const queue = [...tribunaisPendentes];
@@ -1455,15 +1453,19 @@ async function executarLoop(
     }
 
     type ViaSpec = { id: string; label: string };
-    const vias: ViaSpec[] = [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
+    const viasProxy: ViaSpec[] = [];
     const poolAtivo = isDjenProxyPoolEnabled();
     if (poolAtivo) {
       for (const slot of loadDjenProxyPool()) {
         if (slot.enabled && slot.id && slot.baseUrl && slot.token) {
-          vias.push({ id: slot.id, label: slot.label || slot.baseUrl });
+          viasProxy.push({ id: slot.id, label: slot.label || slot.baseUrl });
         }
       }
     }
+    const vias: ViaSpec[] = viasProxy.length > 0
+      ? viasProxy
+      : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
+    const usandoPoolVps = viasProxy.length > 0;
 
     // Concorrência efetiva = mín(nº vias, nº tribunais pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, tribunaisPendentes.length || 1));
@@ -1471,7 +1473,7 @@ async function executarLoop(
       concorrencia: concorrenciaEfetiva,
       mensagem: `Executando: ${tribunais.length} tribunais, ${concorrenciaEfetiva} workers (${vias.map(v => v.label).join(' + ')})`,
     });
-    syncExecutionProgress({ pool_enabled: poolAtivo, vias: vias.map(v => ({ id: v.id, label: v.label })) }, true);
+    syncExecutionProgress({ pool_enabled: usandoPoolVps, vias: vias.map(v => ({ id: v.id, label: v.label })) }, true);
 
     const worker = async (via: ViaSpec) => {
       while (queue.length > 0 && !signal.aborted) {
