@@ -16,12 +16,14 @@ interface Props {
   dado?: DistribuicaoTst | null;
   /** Aba a abrir inicialmente. Default "distribuicao". */
   initialTab?: "distribuicao" | "benner" | "log-judit" | "analise-judit";
-  onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean>;
+  onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean | string>;
   onSaveBenner: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onClose: () => void;
   /** Disparado após auto-save do botão Judit para que o parent recarregue
-   *  a referência de `dado` e mantenha o destaque verde após sair/voltar. */
-  onAfterJuditSync?: () => void | Promise<void>;
+   *  a referência de `dado` e mantenha o destaque verde após sair/voltar.
+   *  Quando o auto-save criou um novo registro, recebe o `newId` para que o
+   *  parent possa popular `editando` e habilitar as abas dependentes. */
+  onAfterJuditSync?: (newId?: string) => void | Promise<void>;
 }
 
 /**
@@ -86,12 +88,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
    * Disparado pelos forms após auto-save do Judit. Força recarga do registro
    * Benner para que a aba paralela exiba imediatamente os campos preenchidos.
    */
-  const handleJuditSync = useCallback(() => {
+  const handleJuditSync = useCallback((newId?: string) => {
     setBennerLoaded(false);
     if (processoNumero) {
       void fetchBennerByProcesso();
     }
-    void onAfterJuditSync?.();
+    void onAfterJuditSync?.(newId);
   }, [processoNumero, fetchBennerByProcesso, onAfterJuditSync]);
 
   const titulo = processoNumero ? `Processo ${processoNumero}` : "Novo registro";
