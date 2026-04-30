@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { DistribuicaoTstForm } from "./DistribuicaoTstForm";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { LogJuditTab } from "./LogJuditTab";
+import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 
@@ -14,7 +15,7 @@ interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
   dado?: DistribuicaoTst | null;
   /** Aba a abrir inicialmente. Default "distribuicao". */
-  initialTab?: "distribuicao" | "benner" | "log-judit";
+  initialTab?: "distribuicao" | "benner" | "log-judit" | "analise-judit";
   onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean>;
   onSaveBenner: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onClose: () => void;
@@ -34,7 +35,7 @@ interface Props {
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const processoNumero = dado?.processo_numero || "";
 
-  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit">(initialTab);
+  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit">(initialTab);
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
   const [bennerLoading, setBennerLoading] = useState(false);
   const [bennerLoaded, setBennerLoaded] = useState(false);
@@ -105,7 +106,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "distribuicao" | "benner" | "log-judit")} className="w-full">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "distribuicao" | "benner" | "log-judit" | "analise-judit")} className="w-full">
         <TabsList className="w-full justify-start">
           <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
           <TabsTrigger value="benner" disabled={bennerDisabled}>
@@ -113,6 +114,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           </TabsTrigger>
           <TabsTrigger value="log-judit" disabled={bennerDisabled}>
             Log Judit
+          </TabsTrigger>
+          <TabsTrigger value="analise-judit" disabled={bennerDisabled}>
+            Análise Judit
           </TabsTrigger>
         </TabsList>
 
@@ -159,6 +163,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
         <TabsContent value="log-judit" className="mt-4">
           <LogJuditTab processoNumero={processoNumero} />
+        </TabsContent>
+
+        <TabsContent value="analise-judit" className="mt-4">
+          <AnaliseJuditTab processoNumero={processoNumero} />
         </TabsContent>
       </Tabs>
     </div>
