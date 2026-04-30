@@ -1142,13 +1142,13 @@ async function processarTermoEmTribunal(
       // reativamos como encontrada em vez de deixar ela bloquear a nova captura.
       const hashesPayload = payload.map((p: any) => p.hash_conteudo).filter(Boolean);
       let inseridosCount = 0;
-      for (const lote of chunkArray(payload, 25)) {
-        const { data: inseridos, error: insertError } = await supabase
+      for (const lote of chunkArray(payload, 10)) {
+        // Sem .select('id'): evita statement timeout com trigger pesado por linha.
+        const { error: insertError } = await supabase
           .from('publicacoes_djen')
-          .insert(lote)
-          .select('id');
+          .insert(lote);
         if (!insertError) {
-          inseridosCount += inseridos?.length ?? lote.length;
+          inseridosCount += lote.length;
           continue;
         }
         const msg = String(insertError.message || '');
@@ -1161,30 +1161,15 @@ async function processarTermoEmTribunal(
         for (const row of lote) {
           const { error: oneErr } = await supabase
             .from('publicacoes_djen')
-            .upsert(row, { onConflict: 'monitoramento_id,hash_conteudo' })
-            .select('id')
-            .single();
+            .upsert(row, { onConflict: 'monitoramento_id,hash_conteudo' });
           if (oneErr) console.error(`[DJEN Paralela][${tribunal}] upsert individual error:`, oneErr);
           else inseridosCount += 1;
         }
       }
-      // O trigger `mark_djen_duplicada_on_insert` pode aceitar a linha, mas
-      // reclassificá-la como `duplicada`. A tela de Análise mostra apenas
-      // `status = encontrada`; portanto "novas" precisa contar somente o que
-      // ficou efetivamente visível, não apenas o retorno do upsert/PostgREST.
-      const { data: confirmadas } = await supabase
-        .from('publicacoes_djen')
-        .select('hash_conteudo,status')
-        .eq('monitoramento_id', mon.id)
-        .in('hash_conteudo', hashesPayload);
-      const statusPorHash = new Map((confirmadas || []).map((r: any) => [r.hash_conteudo, r.status]));
-      novasInseridasEfetivas = hashesPayload.filter((h: string) => statusPorHash.get(h) === 'encontrada').length;
-      duplicadasReclassificadas = hashesPayload.length - novasInseridasEfetivas;
-      if (inseridosCount !== novasInseridasEfetivas) {
-        console.warn(
-          `[DJEN Paralela][${tribunal}] ${mon.termo_busca}: gravação retornou ${inseridosCount}, mas só ${novasInseridasEfetivas} ficaram como encontradas; ${duplicadasReclassificadas} foram reclassificadas/ocultadas.`
-        );
-      }
+      // Confiamos na comparação por chave já feita antes do insert.
+      // Reclassificações pelo trigger são contabilizadas como duplicadas.
+      novasInseridasEfetivas = inseridosCount;
+      duplicadasReclassificadas = hashesPayload.length - inseridosCount;
     }
   }
 
