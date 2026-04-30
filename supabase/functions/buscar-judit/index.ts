@@ -242,6 +242,7 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const numero = String(body?.numero_processo || "").trim();
     if (!numero) return json({ error: "numero_processo é obrigatório" }, 400);
+    const tribunalHint = String(body?.tribunal || "").trim().toUpperCase() || null;
 
     const cnj = numero;
     const rawCollector: { cache_lookup: any; crawler: any } = {
@@ -369,7 +370,14 @@ serve(async (req) => {
       data_distribuicao: dataDistISO,
       relator: relator,
       turma: turma,
-      tribunal: foiTst ? "TST" : (rdSelecionada?.tribunal_acronym || null),
+      // Regras:
+      //  - Se identificamos a instância TST, retorna "TST".
+      //  - Se o caller pediu "TST" mas NÃO achamos instância TST, retorna null
+      //    (não sobrescreve a escolha manual do usuário no form).
+      //  - Caso contrário, devolve o acrônimo da instância selecionada.
+      tribunal: foiTst
+        ? "TST"
+        : (tribunalHint === "TST" ? null : (rdSelecionada?.tribunal_acronym || null)),
       tribunal_acronimo: rdSelecionada?.tribunal_acronym || null,
       recorrente: recorrente,
       polo_passivo: poloPassivo || null,
