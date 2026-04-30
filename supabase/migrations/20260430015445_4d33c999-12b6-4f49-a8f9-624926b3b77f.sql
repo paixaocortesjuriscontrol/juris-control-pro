@@ -1,0 +1,1 @@
+DELETE FROM judit_logs WHERE processo_numero = '0001695-95.2013.5.01.0481';
