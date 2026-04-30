@@ -145,6 +145,7 @@ function LogCard({ log, defaultExpanded = false }: { log: JuditLog; defaultExpan
           <JsonSection title="Pauta de julgamento" value={r.pauta_julgamento} />
           <JsonSection title="Recursos detectados" value={r.recursos} />
           <JsonSection title="Metadados Judit (_judit_meta)" value={r._judit_meta} />
+          <JsonSection title="Judit RAW — sem tratamento (cache + crawler + DataJud)" value={r._judit_raw} large defaultOpen />
           <JsonSection title="Resposta completa (JSON cru)" value={r} large defaultOpen />
           <JsonSection title="Payload da requisição" value={log.request_payload} />
         </CardContent>

@@ -992,6 +992,16 @@ serve(async (req) => {
     let allInstancesPageData: any[] = []; // guarda TODAS as instâncias do async para unir partes
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
+    // Coletor de TUDO que a Judit (e fontes auxiliares) devolveram, sem
+    // qualquer tratamento da aplicação. Vai para `_judit_raw` no resultado e
+    // é gravado integralmente em `judit_logs.raw_response`.
+    const rawCollector: any = {
+      cnj,
+      tribunal_hint: tribunalHint,
+      cache_lookup: cachedRd ?? null,
+      crawler: null,
+      datajud_tst: null,
+    };
     
     // Cache da Judit retorna apenas 1 instância (geralmente a originária — TRT/Vara).
     // Para preencher corretamente recorrente / tipo_recurso / trânsito / data
@@ -1037,6 +1047,12 @@ serve(async (req) => {
       allInstancesPageData = pageData;
       debugStatus = envelope.request_status;
       debugInstancias = pageData.length;
+      rawCollector.crawler = {
+        request_id: requestId,
+        request_status: envelope.request_status,
+        page_data: pageData,
+        envelope,
+      };
       console.log(
         `[buscar-judit] status=${envelope.request_status} instancias=${pageData.length} acronimos=${pageData
           .map((i: any) => i?.response_data?.tribunal_acronym)
@@ -1062,6 +1078,7 @@ serve(async (req) => {
           console.log(`[buscar-judit] Hint=TST não localizado no async; usando DataJud TST em vez de cair em TRT.`);
           const datajud = await consultarDataJud(cnj);
           if (datajud && (datajud.relator || datajud.turma || datajud.classe || datajud.steps?.length)) {
+            rawCollector.datajud_tst = datajud;
             rd = {
               tribunal_acronym: "TST",
               classifications: datajud.classe ? [{ name: datajud.classe }] : [],
@@ -1715,6 +1732,10 @@ serve(async (req) => {
           content: (s.content || "").toString().substring(0, 250),
         })),
       },
+      // Dados absolutamente crus retornados pelas fontes (Judit cache, Judit
+      // crawler com TODAS as instâncias, e DataJud TST quando consultado).
+      // Sem nenhum tratamento da aplicação — base para auditoria no Log Judit.
+      _judit_raw: rawCollector,
     };
 
     console.log("[buscar-judit] resultado:", JSON.stringify(result));
