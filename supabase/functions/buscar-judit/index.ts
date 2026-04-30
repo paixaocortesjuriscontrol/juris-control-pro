@@ -414,7 +414,23 @@ serve(async (req) => {
         fonte: foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio"),
         tribunal_selecionado: rdSelecionada?.tribunal_acronym || null,
         instance_selecionada: rdSelecionada?.instance || null,
+        com_anexos: comAnexos,
       },
+      attachments: comAnexos
+        ? (Array.isArray(rdSelecionada?.steps)
+            ? rdSelecionada.steps.flatMap((s: any) =>
+                Array.isArray(s?.attachments)
+                  ? s.attachments.map((a: any) => ({
+                      step_id: s?.step_id || s?.id || null,
+                      step_date: s?.step_date || s?.date || null,
+                      attachment_name: a?.name || a?.attachment_name || null,
+                      attachment_date: a?.date || a?.attachment_date || null,
+                      extension: a?.extension || null,
+                    }))
+                  : []
+              )
+            : [])
+        : null,
       _judit_raw: rawCollector,
     };
 
