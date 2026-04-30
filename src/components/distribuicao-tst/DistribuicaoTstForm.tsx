@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Save, ArrowLeft, Loader2, Search } from "lucide-react";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { supabase } from "@/integrations/supabase/client";
@@ -324,6 +325,18 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
           <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Distribuição" : "Nova Distribuição"}</h2>
         </div>
         <div className="flex items-center gap-2">
+          <label
+            className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none mr-1"
+            title="Consulta mais cara. Inclui a lista de documentos/anexos do processo."
+          >
+            <Checkbox
+              checked={juditComAnexos}
+              onCheckedChange={(v) => setJuditComAnexos(v === true)}
+              disabled={buscandoJudit}
+            />
+            Com anexos
+            <span className="text-[10px] text-amber-600 dark:text-amber-400">(caro)</span>
+          </label>
           <Button
             variant="outline"
             onClick={handleBuscarJudit}
