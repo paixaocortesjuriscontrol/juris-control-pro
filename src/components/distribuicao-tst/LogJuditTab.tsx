@@ -39,14 +39,14 @@ function JsonNode({
   level?: number;
   defaultOpen?: boolean;
 }) {
-  // Abre por padrão os 2 primeiros níveis quando defaultOpen=true
-  const [open, setOpen] = useState(defaultOpen && level < 2);
+  // Inicia totalmente expandido quando defaultOpen=true
+  const [open, setOpen] = useState(defaultOpen);
 
   const isArr = Array.isArray(data);
   const isObj = data !== null && typeof data === "object" && !isArr;
 
   const renderKey = name !== undefined ? (
-    <span className="text-primary font-medium">{isArr ? `[${name}]` : `"${name}"`}</span>
+    <span className="text-primary font-bold">{isArr ? `[${name}]` : `"${name}"`}</span>
   ) : null;
 
   // Primitivos
