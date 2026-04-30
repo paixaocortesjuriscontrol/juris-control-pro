@@ -3,92 +3,335 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, RefreshCw, AlertCircle, CheckCircle2, FileText, Users, Gavel, Calendar, Scale, Building2, Paperclip } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface Props {
-  processoNumero: string;
-}
+interface Props { processoNumero: string; }
 
 interface JuditLog {
   id: string;
   processo_numero: string;
   tribunal: string | null;
   raw_response: any;
-  request_payload: any;
+  created_at: string;
   status: string;
   error_message: string | null;
-  created_at: string;
 }
 
-function fmtDate(s: any): string {
-  if (!s) return "—";
-  try {
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return String(s);
-    return d.toLocaleDateString("pt-BR");
-  } catch { return String(s); }
+/* ───────────── Formatação ───────────── */
+
+const DATE_KEY_RE = /(date|data|_at|criado|atualizado|distribuicao|julgamento|prazo)/i;
+const MONEY_KEY_RE = /(valor|amount|preco|montante|causa)/i;
+const BOOL_LABELS: Record<string, string> = { true: "Sim", false: "Não" };
+
+const PT_LABELS: Record<string, string> = {
+  cnj: "Número CNJ",
+  code: "Código / CNJ",
+  name: "Nome",
+  amount: "Valor",
+  area: "Área",
+  city: "Cidade",
+  county: "Comarca / Vara",
+  state: "UF",
+  status: "Status",
+  phase: "Fase",
+  situation: "Situação",
+  instance: "Instância",
+  justice: "Justiça",
+  justice_description: "Justiça (descrição)",
+  free_justice: "Justiça gratuita",
+  judge: "Juiz / Relator",
+  distribution_date: "Data de distribuição",
+  created_at: "Criado em",
+  updated_at: "Atualizado em",
+  step_date: "Data do movimento",
+  step_id: "ID do movimento",
+  step_type: "Tipo do movimento",
+  steps_count: "Total de movimentos",
+  content: "Descrição",
+  source_name: "Fonte",
+  crawl_id: "ID da consulta (crawler)",
+  weight: "Peso",
+  secrecy_level: "Nível de sigilo",
+  private: "Sigiloso",
+  tribunal_acronym: "Tribunal",
+  orgao_julgador: "Órgão julgador",
+  classe: "Classe",
+  relator: "Relator",
+  turma: "Turma",
+  dossie: "Dossiê",
+  recorrente: "Recorrente",
+  tipo_recurso: "Tipo de recurso",
+  data_julgamento: "Data do julgamento",
+  horario_julgamento: "Horário do julgamento",
+  tipo_julgamento: "Tipo de julgamento",
+  tem_data_julgamento: "Tem data de julgamento",
+  processo_baixado: "Processo baixado",
+  situacao_processo: "Situação do processo",
+  valor_causa: "Valor da causa",
+  data_distribuicao: "Data de distribuição",
+  fonte: "Fonte",
+  documents: "Documentos",
+  main_document: "Documento principal",
+  person_type: "Tipo",
+  side: "Polo",
+  lawyers: "Advogados",
+  parties: "Partes",
+  parties_detail: "Partes (detalhe)",
+  steps: "Movimentações",
+  courts: "Tribunais",
+  classifications: "Classificações",
+  attachments: "Anexos",
+  pipelines: "Pipelines",
+  related_lawsuits: "Processos relacionados",
+  phase_history: "Histórico de fases",
+  last_step: "Último movimento",
+  crawler: "Crawler (metadados)",
+  cache_lookup: "Cache (consulta anterior)",
+  datajud_tst: "DataJud TST (CNJ)",
+  tribunal_hint: "Tribunal (sugerido)",
+  numeroProcesso: "Número do processo",
+  dataAjuizamento: "Data de ajuizamento",
+  movimentos: "Movimentos",
+  classe_orgaoJulgador: "Órgão julgador",
+};
+
+function label(k: string): string {
+  if (PT_LABELS[k]) return PT_LABELS[k];
+  return k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
-function fmtDateTime(s: any): string {
-  if (!s) return "—";
+
+function isIsoDate(v: any): boolean {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2})/.test(v);
+}
+function fmtDate(v: any): string {
+  if (!v) return "—";
   try {
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return String(s);
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
     return d.toLocaleString("pt-BR");
-  } catch { return String(s); }
-}
-function fmtBool(v: any): string {
-  if (v === true || v === "true" || v === "Sim" || v === "SIM") return "Sim";
-  if (v === false || v === "false" || v === "Não" || v === "NAO" || v === "NÃO") return "Não";
-  if (v === null || v === undefined || v === "") return "—";
-  return String(v);
+  } catch { return String(v); }
 }
 function fmtMoney(v: any): string {
-  if (v === null || v === undefined || v === "") return "—";
   const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d,.-]/g, "").replace(",", "."));
   if (isNaN(n)) return String(v);
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
-function nz(v: any): string {
+function fmtPrimitive(k: string, v: any): string {
   if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Sim" : "Não";
+  if (v === "true" || v === "false") return BOOL_LABELS[v];
+  if (MONEY_KEY_RE.test(k) && (typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v)))) return fmtMoney(v);
+  if (isIsoDate(v) || (DATE_KEY_RE.test(k) && typeof v === "string" && !isNaN(Date.parse(v)))) return fmtDate(v);
   return String(v);
 }
 
-function Field({ label, value, full }: { label: string; value: React.ReactNode; full?: boolean }) {
+/* ───────────── Renderizadores ───────────── */
+
+function PrimitiveField({ k, v }: { k: string; v: any }) {
   return (
-    <div className={full ? "md:col-span-2" : ""}>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-0.5">{label}</div>
-      <div className="text-sm text-foreground break-words">{value ?? "—"}</div>
+    <div className="min-w-0">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-0.5">{label(k)}</div>
+      <div className="text-sm text-foreground break-words">{fmtPrimitive(k, v)}</div>
     </div>
   );
 }
 
-function Section({
-  title,
-  icon: Icon,
-  children,
-  count,
-}: {
-  title: string;
-  icon: any;
-  children: React.ReactNode;
-  count?: number;
-}) {
+function PartiesList({ parties }: { parties: any[] }) {
+  if (!parties?.length) return <p className="text-sm text-muted-foreground italic">Nenhuma parte.</p>;
+  return (
+    <div className="space-y-2">
+      {parties.map((p, i) => {
+        const nome = p?.name || p?.nome || "—";
+        const tipo = p?.person_type || p?.type || p?.tipo || "";
+        const lado = p?.side || p?.polo || "";
+        const doc = p?.main_document || p?.document || p?.cpf || p?.cnpj || "";
+        const advs: any[] = Array.isArray(p?.lawyers) ? p.lawyers : (Array.isArray(p?.advogados) ? p.advogados : []);
+        return (
+          <div key={i} className="border rounded p-3 bg-muted/30">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="font-medium text-sm break-words">{nome}</div>
+              <div className="flex gap-1 flex-wrap">
+                {tipo && <Badge variant="outline" className="text-xs">{tipo}</Badge>}
+                {lado && <Badge variant="secondary" className="text-xs">{lado}</Badge>}
+              </div>
+            </div>
+            {doc && <div className="text-xs text-muted-foreground mt-1">Documento: {doc}</div>}
+            {advs.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Advogados ({advs.length}):</div>
+                <ul className="text-xs space-y-0.5 pl-4 list-disc">
+                  {advs.map((a, j) => {
+                    const an = a?.name || a?.nome || "—";
+                    const oab = a?.license_number || a?.oab || a?.numero_oab || a?.main_document || "";
+                    return <li key={j} className="break-words">{an}{oab ? ` — ${oab}` : ""}</li>;
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StepsTimeline({ steps }: { steps: any[] }) {
+  if (!steps?.length) return <p className="text-sm text-muted-foreground italic">Sem movimentações.</p>;
+  const sorted = [...steps].sort((a, b) => {
+    const da = new Date(a?.step_date || a?.date || a?.data || 0).getTime();
+    const db = new Date(b?.step_date || b?.date || b?.data || 0).getTime();
+    return db - da;
+  });
+  return (
+    <ol className="relative border-l border-border pl-4 space-y-3">
+      {sorted.slice(0, 200).map((s: any, i: number) => {
+        const data = s?.step_date || s?.date || s?.data || s?.dataHora;
+        const desc = s?.content || s?.descricao || s?.description || s?.title || s?.name || s?.nome;
+        const tipo = s?.step_type || s?.type;
+        return (
+          <li key={i} className="ml-1">
+            <div className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-primary border-2 border-background" />
+            <div className="text-xs text-muted-foreground">{fmtDate(data)}{tipo && tipo !== "NÃO INFORMADO" ? ` · ${tipo}` : ""}</div>
+            <div className="text-sm text-foreground break-words">{desc || "—"}</div>
+          </li>
+        );
+      })}
+      {sorted.length > 200 && (
+        <li className="text-xs text-muted-foreground italic ml-1">
+          Exibindo as 200 mais recentes de {sorted.length}.
+        </li>
+      )}
+    </ol>
+  );
+}
+
+function ListOfObjects({ items }: { items: any[] }) {
+  if (!items?.length) return <p className="text-sm text-muted-foreground italic">Nenhum item.</p>;
+  return (
+    <div className="space-y-2">
+      {items.map((it, i) => (
+        <div key={i} className="border rounded p-2 bg-muted/30">
+          {typeof it === "object" && it !== null ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+              {Object.entries(it).map(([k, v]) => {
+                if (v === null || v === undefined || v === "") return null;
+                if (Array.isArray(v) || typeof v === "object") {
+                  return (
+                    <div key={k} className="md:col-span-2">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-1">{label(k)}</div>
+                      {Array.isArray(v) ? (
+                        <ListOfObjects items={v} />
+                      ) : (
+                        <ObjectFlat obj={v} />
+                      )}
+                    </div>
+                  );
+                }
+                return <PrimitiveField key={k} k={k} v={v} />;
+              })}
+            </div>
+          ) : (
+            <div className="text-sm break-words">{String(it)}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Renderiza um objeto exibindo TODOS os campos (primitivos em grid, sub-objetos/arrays em sub-blocos). */
+function ObjectFlat({ obj }: { obj: any }) {
+  if (!obj || typeof obj !== "object") return <div className="text-sm">{String(obj ?? "—")}</div>;
+  const entries = Object.entries(obj);
+  const primitives = entries.filter(([_, v]) => v === null || (typeof v !== "object"));
+  const complexes = entries.filter(([_, v]) => v !== null && typeof v === "object");
+
+  return (
+    <div className="space-y-3">
+      {primitives.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
+          {primitives.map(([k, v]) => <PrimitiveField key={k} k={k} v={v} />)}
+        </div>
+      )}
+      {complexes.map(([k, v]) => {
+        const isArr = Array.isArray(v);
+        const count = isArr ? (v as any[]).length : Object.keys(v as any).length;
+        // Renderizadores especializados
+        if (isArr && (k === "parties" || k === "parties_detail")) {
+          return (
+            <div key={k}>
+              <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)} <Badge variant="secondary" className="text-xs ml-1">{count}</Badge></div>
+              <PartiesList parties={v as any[]} />
+            </div>
+          );
+        }
+        if (isArr && (k === "steps" || k === "movimentos")) {
+          return (
+            <div key={k}>
+              <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)} <Badge variant="secondary" className="text-xs ml-1">{count}</Badge></div>
+              <StepsTimeline steps={v as any[]} />
+            </div>
+          );
+        }
+        if (isArr) {
+          return (
+            <div key={k}>
+              <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)} <Badge variant="secondary" className="text-xs ml-1">{count}</Badge></div>
+              {count === 0
+                ? <p className="text-sm text-muted-foreground italic">Vazio.</p>
+                : <ListOfObjects items={v as any[]} />}
+            </div>
+          );
+        }
+        // Sub-objeto
+        return (
+          <div key={k} className="border rounded p-3 bg-muted/30">
+            <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)}</div>
+            <ObjectFlat obj={v} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ───────────── Card por fonte ───────────── */
+
+const SOURCE_META: Record<string, { title: string; icon: any }> = {
+  cache_lookup: { title: "Cache Judit (consulta anterior armazenada)", icon: Database },
+  crawler: { title: "Crawler Judit (consulta nova ao tribunal)", icon: Cloud },
+  datajud_tst: { title: "DataJud TST (API pública do CNJ)", icon: Building2 },
+};
+
+function SourceCard({ name, value }: { name: string; value: any }) {
+  const meta = SOURCE_META[name] || { title: label(name), icon: Database };
+  const Icon = meta.icon;
+  const empty = !value || (typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0);
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Icon className="w-4 h-4 text-primary" />
-          {title}
-          {typeof count === "number" && (
-            <Badge variant="secondary" className="text-xs">{count}</Badge>
-          )}
+          {meta.title}
         </CardTitle>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent>
+        {empty ? (
+          <p className="text-sm text-muted-foreground italic">Sem dados retornados por esta fonte.</p>
+        ) : typeof value === "object" && !Array.isArray(value) ? (
+          <ObjectFlat obj={value} />
+        ) : Array.isArray(value) ? (
+          <ListOfObjects items={value} />
+        ) : (
+          <div className="text-sm break-words">{String(value)}</div>
+        )}
+      </CardContent>
     </Card>
   );
 }
+
+/* ───────────── Componente principal ───────────── */
 
 export function AnaliseJuditTab({ processoNumero }: Props) {
   const [log, setLog] = useState<JuditLog | null>(null);
@@ -103,40 +346,24 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
       .eq("processo_numero", processoNumero)
       .order("created_at", { ascending: false })
       .limit(1);
-    if (error) {
-      toast.error("Erro ao carregar análise Judit: " + error.message);
-    } else {
-      const row = ((data as unknown) as JuditLog[])?.[0] || null;
-      setLog(row);
-    }
+    if (error) toast.error("Erro ao carregar análise Judit: " + error.message);
+    else setLog(((data as unknown) as JuditLog[])?.[0] || null);
     setLoading(false);
   }, [processoNumero]);
 
   useEffect(() => { void fetchLastLog(); }, [fetchLastLog]);
 
   const r: any = log?.raw_response || {};
+  const raw = r._judit_raw;
 
-  const partes = useMemo(() => {
-    const arr: any[] = Array.isArray(r.parties_detail) && r.parties_detail.length
-      ? r.parties_detail
-      : Array.isArray(r.parties) ? r.parties : [];
-    return arr;
-  }, [r]);
-
-  const movimentos = useMemo(() => {
-    const steps: any[] = Array.isArray(r.steps) ? r.steps : [];
-    // ordenar por data desc se possível
-    return [...steps].sort((a, b) => {
-      const da = new Date(a?.step_date || a?.date || a?.data || 0).getTime();
-      const db = new Date(b?.step_date || b?.date || b?.data || 0).getTime();
-      return db - da;
-    });
-  }, [r]);
-
-  const anexos: any[] = Array.isArray(r.attachments) ? r.attachments : [];
-  const tribunais: any[] = Array.isArray(r.courts) ? r.courts : [];
-  const recursos: any[] = Array.isArray(r.recursos) ? r.recursos : [];
-  const pauta = r.pauta_julgamento;
+  // Lista ordenada de fontes a exibir (cnj/tribunal_hint vão no cabeçalho)
+  const sources = useMemo(() => {
+    if (!raw || typeof raw !== "object") return [];
+    const order = ["cache_lookup", "crawler", "datajud_tst"];
+    const known = order.filter(k => k in raw);
+    const others = Object.keys(raw).filter(k => !order.includes(k) && !["cnj", "tribunal_hint"].includes(k));
+    return [...known, ...others];
+  }, [raw]);
 
   if (!processoNumero) {
     return <p className="text-sm text-muted-foreground">Salve o registro com um número de processo para visualizar a análise.</p>;
@@ -146,9 +373,9 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
     <div className="space-y-4 w-full min-w-0">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h3 className="text-base font-semibold">Análise da resposta Judit</h3>
+          <h3 className="text-base font-semibold">Análise da última consulta Judit</h3>
           <p className="text-sm text-muted-foreground">
-            Última consulta organizada de forma legível para análise jurídica.
+            Todos os dados retornados pela Judit (Cache + Crawler + DataJud), organizados de forma legível.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -160,9 +387,7 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
               {log.status}
             </Badge>
           )}
-          {log && (
-            <span className="text-xs text-muted-foreground">{fmtDateTime(log.created_at)}</span>
-          )}
+          {log && <span className="text-xs text-muted-foreground">{fmtDate(log.created_at)}</span>}
           <Button variant="outline" size="sm" onClick={() => void fetchLastLog()} disabled={loading}>
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
             Atualizar
@@ -176,188 +401,34 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
         <p className="text-base text-muted-foreground py-8 text-center">
           Nenhuma consulta Judit registrada para este processo ainda.
         </p>
+      ) : !raw ? (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-muted-foreground">
+              Esta consulta foi feita antes da gravação do <strong>Judit RAW</strong>. Clique novamente no botão Judit
+              na aba "Dados Benner" para registrar uma consulta nova com os dados completos.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <>
-          {log.error_message && (
-            <div className="p-3 rounded bg-destructive/10 border border-destructive/30 text-sm text-destructive">
-              <strong>Erro:</strong> {log.error_message}
-            </div>
-          )}
-
-          <Section title="Identificação do processo" icon={FileText}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-              <Field label="Número do processo" value={nz(r.processo || log.processo_numero)} />
-              <Field label="Tribunal" value={nz(r.tribunal_acronym || log.tribunal)} />
-              <Field label="Classe processual" value={nz(r.classe || r.classification)} />
-              <Field label="Dossiê" value={nz(r.dossie)} />
-              <Field label="Órgão julgador" value={nz(r.orgao_julgador)} />
-              <Field label="Turma" value={nz(r.turma)} />
-              <Field label="Relator" value={nz(r.relator)} />
-              <Field label="Situação" value={nz(r.situacao_processo)} />
-              <Field label="Processo baixado" value={fmtBool(r.processo_baixado)} />
-              <Field label="Data da distribuição" value={fmtDate(r.data_distribuicao)} />
-              <Field label="Valor da causa" value={fmtMoney(r.valor_causa)} />
-              <Field label="Fonte dos dados" value={nz(r._judit_meta?.fonte || r.fonte)} />
-            </div>
-          </Section>
-
-          <Section title="Recurso" icon={Scale}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-              <Field label="Recorrente" value={nz(r.recorrente)} />
-              <Field label="Tipo de recurso" value={nz(r.tipo_recurso)} />
-              <Field label="Tipo de recurso (reclamante)" value={nz(r.tipo_recurso_reclamante)} />
-              <Field label="Tipo de recurso (banco)" value={nz(r.tipo_recurso_banco)} />
-              <Field label="Fonte do tipo de recurso" value={nz(r._judit_meta?.fonte_tipo_recurso)} />
-            </div>
-            {recursos.length > 0 && (
-              <div className="mt-4 border-t pt-3">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-2">
-                  Recursos detectados ({recursos.length})
-                </div>
-                <ul className="space-y-1 text-sm list-disc pl-5">
-                  {recursos.map((rec: any, i: number) => (
-                    <li key={i} className="break-words">
-                      {typeof rec === "string" ? rec : (rec?.tipo || rec?.descricao || JSON.stringify(rec))}
-                    </li>
-                  ))}
-                </ul>
+          {/* Cabeçalho com cnj + tribunal_hint */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Identificação</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <PrimitiveField k="cnj" v={raw.cnj || log.processo_numero} />
+                <PrimitiveField k="tribunal_hint" v={raw.tribunal_hint || log.tribunal} />
+                <PrimitiveField k="created_at" v={log.created_at} />
               </div>
-            )}
-          </Section>
+            </CardContent>
+          </Card>
 
-          <Section title="Julgamento e pauta" icon={Calendar}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-              <Field label="Tem data de julgamento" value={fmtBool(r.tem_data_julgamento)} />
-              <Field label="Data do julgamento" value={fmtDate(r.data_julgamento)} />
-              <Field label="Horário" value={nz(r.horario_julgamento)} />
-              <Field label="Tipo de julgamento" value={nz(r.tipo_julgamento)} />
-            </div>
-            {pauta && (typeof pauta === "object") && (
-              <div className="mt-4 border-t pt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                {Object.entries(pauta).map(([k, v]) => (
-                  <Field key={k} label={k} value={typeof v === "object" ? JSON.stringify(v) : nz(v)} />
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section title="Partes do processo" icon={Users} count={partes.length}>
-            {partes.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Nenhuma parte retornada.</p>
-            ) : (
-              <div className="space-y-3">
-                {partes.map((p: any, i: number) => {
-                  const nome = p?.name || p?.nome || p?.party_name || "—";
-                  const tipo = p?.type || p?.tipo || p?.party_type || p?.role || "";
-                  const doc = p?.document || p?.cpf || p?.cnpj || p?.documento || "";
-                  const lado = p?.side || p?.polo || p?.polo_processual || "";
-                  const advs: any[] = Array.isArray(p?.lawyers) ? p.lawyers
-                    : Array.isArray(p?.advogados) ? p.advogados : [];
-                  return (
-                    <div key={i} className="border rounded p-3 bg-muted/30">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="font-medium text-sm">{nome}</div>
-                        <div className="flex gap-1 flex-wrap">
-                          {tipo && <Badge variant="outline" className="text-xs">{tipo}</Badge>}
-                          {lado && <Badge variant="secondary" className="text-xs">{lado}</Badge>}
-                        </div>
-                      </div>
-                      {doc && <div className="text-xs text-muted-foreground mt-1">Documento: {doc}</div>}
-                      {advs.length > 0 && (
-                        <div className="mt-2">
-                          <div className="text-xs font-medium text-muted-foreground mb-1">Advogados:</div>
-                          <ul className="text-xs space-y-0.5 pl-4 list-disc">
-                            {advs.map((a: any, j: number) => {
-                              const an = a?.name || a?.nome || "—";
-                              const oab = a?.license_number || a?.oab || a?.numero_oab || "";
-                              return <li key={j}>{an}{oab ? ` — OAB ${oab}` : ""}</li>;
-                            })}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Section>
-
-          <Section title="Tribunais / Instâncias" icon={Building2} count={tribunais.length}>
-            {tribunais.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Sem informações de instâncias.</p>
-            ) : (
-              <div className="space-y-2">
-                {tribunais.map((c: any, i: number) => (
-                  <div key={i} className="border rounded p-2 text-sm bg-muted/30">
-                    <div className="font-medium">{c?.tribunal_acronym || c?.acronym || c?.name || "Tribunal"}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1 text-xs text-muted-foreground">
-                      {c?.instance && <div>Instância: <span className="text-foreground">{c.instance}</span></div>}
-                      {c?.distribution_date && <div>Distribuição: <span className="text-foreground">{fmtDate(c.distribution_date)}</span></div>}
-                      {c?.judge && <div>Juiz/Relator: <span className="text-foreground">{c.judge}</span></div>}
-                      {c?.court && <div>Vara/Órgão: <span className="text-foreground">{c.court}</span></div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section title="Movimentações" icon={Gavel} count={movimentos.length}>
-            {movimentos.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Sem movimentações.</p>
-            ) : (
-              <ol className="relative border-l border-border pl-4 space-y-3">
-                {movimentos.slice(0, 100).map((s: any, i: number) => {
-                  const data = s?.step_date || s?.date || s?.data;
-                  const desc = s?.content || s?.descricao || s?.description || s?.title || s?.name;
-                  return (
-                    <li key={i} className="ml-1">
-                      <div className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-primary border-2 border-background" />
-                      <div className="text-xs text-muted-foreground">{fmtDate(data)}</div>
-                      <div className="text-sm text-foreground break-words">{nz(desc)}</div>
-                    </li>
-                  );
-                })}
-                {movimentos.length > 100 && (
-                  <li className="text-xs text-muted-foreground italic ml-1">
-                    Exibindo as 100 mais recentes de {movimentos.length}.
-                  </li>
-                )}
-              </ol>
-            )}
-          </Section>
-
-          <Section title="Anexos / Documentos" icon={Paperclip} count={anexos.length}>
-            {anexos.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Sem anexos retornados.</p>
-            ) : (
-              <ul className="space-y-2">
-                {anexos.map((a: any, i: number) => {
-                  const nome = a?.name || a?.title || a?.filename || `Anexo ${i + 1}`;
-                  const tipo = a?.type || a?.mime_type || "";
-                  const url = a?.url || a?.link;
-                  const data = a?.date || a?.created_at;
-                  return (
-                    <li key={i} className="border rounded p-2 text-sm bg-muted/30 flex items-center justify-between gap-2 flex-wrap">
-                      <div className="min-w-0">
-                        <div className="font-medium break-words">{nome}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {tipo && <span>{tipo}</span>}
-                          {tipo && data && <span> · </span>}
-                          {data && <span>{fmtDate(data)}</span>}
-                        </div>
-                      </div>
-                      {url && (
-                        <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline shrink-0">
-                          Abrir
-                        </a>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Section>
+          {sources.map(name => (
+            <SourceCard key={name} name={name} value={raw[name]} />
+          ))}
         </>
       )}
     </div>
