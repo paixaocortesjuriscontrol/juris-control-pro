@@ -340,6 +340,22 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: { numero_processo: processoNumero, tribunal: tribunalHint },
       });
+      // Persiste log da consulta Judit (visível na aba "Log Judit" da tela
+      // Distribuição TST). Falha de log nunca interrompe o fluxo.
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        await supabase.from("judit_logs" as any).insert({
+          processo_numero: processoNumero,
+          tribunal: tribunalHint,
+          request_payload: { numero_processo: processoNumero, tribunal: tribunalHint },
+          raw_response: data ?? null,
+          status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
+          error_message: error?.message || data?.error || null,
+          created_by: userData?.user?.id || null,
+        });
+      } catch (logErr) {
+        console.warn("Falha ao gravar judit_logs:", logErr);
+      }
 
       if (error) {
         console.error("Erro Judit:", error);

@@ -3365,6 +3365,42 @@ export type Database = {
           },
         ]
       }
+      judit_logs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          processo_numero: string
+          raw_response: Json | null
+          request_payload: Json | null
+          status: string
+          tribunal: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          processo_numero: string
+          raw_response?: Json | null
+          request_payload?: Json | null
+          status?: string
+          tribunal?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          processo_numero?: string
+          raw_response?: Json | null
+          request_payload?: Json | null
+          status?: string
+          tribunal?: string | null
+        }
+        Relationships: []
+      }
       lembretes_audiencia: {
         Row: {
           audiencia_id: string
