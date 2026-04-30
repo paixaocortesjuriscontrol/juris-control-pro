@@ -275,6 +275,14 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
     }
     setSaving(true);
 
+    // Garante sessão válida antes de tentar INSERT/UPDATE em tabelas com RLS.
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session?.user?.id) {
+      toast.error("Sua sessão expirou. Faça login novamente para salvar.");
+      setSaving(false);
+      return;
+    }
+
     if (!form.processo_id) {
       const { data: proc } = await supabase
         .from("processos")
@@ -290,7 +298,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
           .select("id")
           .single();
         if (error) {
-          toast.error("Erro ao criar processo: " + error.message);
+          const msg = /row-level security/i.test(error.message)
+            ? "Sem permissão para criar processo. Verifique se seu usuário está ativo e se a sessão não expirou."
+            : error.message;
+          toast.error("Erro ao criar processo: " + msg);
           setSaving(false);
           return;
         }
