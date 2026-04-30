@@ -1,0 +1,1 @@
+UPDATE public.dados_benner SET aba_origem = 'Manual' WHERE aba_origem IS NULL;
