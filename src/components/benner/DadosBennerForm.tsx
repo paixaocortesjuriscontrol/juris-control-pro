@@ -338,7 +338,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       // (o módulo Dados Benner é voltado para processos no TST).
       const tribunalHint = (form.tribunal && String(form.tribunal).trim()) || "TST";
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: tribunalHint },
+        body: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
       });
       // Persiste log da consulta Judit (visível na aba "Log Judit" da tela
       // Distribuição TST). Falha de log nunca interrompe o fluxo.
@@ -347,7 +347,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
         await supabase.from("judit_logs" as any).insert({
           processo_numero: processoNumero,
           tribunal: tribunalHint,
-          request_payload: { numero_processo: processoNumero, tribunal: tribunalHint },
+          request_payload: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
           raw_response: data ?? null,
           status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
           error_message: error?.message || data?.error || null,
