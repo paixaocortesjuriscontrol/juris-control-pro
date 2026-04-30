@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight, History } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props { processoNumero: string; }
@@ -363,10 +363,11 @@ function SourceCard({ name, value }: { name: string; value: any }) {
 /* ───────────── Componente principal ───────────── */
 
 export function AnaliseJuditTab({ processoNumero }: Props) {
-  const [log, setLog] = useState<JuditLog | null>(null);
+  const [logs, setLogs] = useState<JuditLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const [openPrev, setOpenPrev] = useState<Record<string, boolean>>({});
 
-  const fetchLastLog = useCallback(async () => {
+  const fetchLogs = useCallback(async () => {
     if (!processoNumero) return;
     setLoading(true);
     const { data, error } = await supabase
@@ -374,25 +375,28 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
       .select("*")
       .eq("processo_numero", processoNumero)
       .order("created_at", { ascending: false })
-      .limit(1);
+      .limit(50);
     if (error) toast.error("Erro ao carregar análise Judit: " + error.message);
-    else setLog(((data as unknown) as JuditLog[])?.[0] || null);
+    else setLogs(((data as unknown) as JuditLog[]) || []);
     setLoading(false);
   }, [processoNumero]);
 
-  useEffect(() => { void fetchLastLog(); }, [fetchLastLog]);
+  useEffect(() => { void fetchLogs(); }, [fetchLogs]);
 
+  const log = logs[0] || null;
+  const previousLogs = logs.slice(1);
   const r: any = log?.raw_response || {};
   const raw = r._judit_raw;
 
-  // Lista ordenada de fontes a exibir (cnj/tribunal_hint vão no cabeçalho)
-  const sources = useMemo(() => {
-    if (!raw || typeof raw !== "object") return [];
+  function getSources(rawObj: any): string[] {
+    if (!rawObj || typeof rawObj !== "object") return [];
     const order = ["cache_lookup", "crawler", "datajud_tst"];
-    const known = order.filter(k => k in raw);
-    const others = Object.keys(raw).filter(k => !order.includes(k) && !["cnj", "tribunal_hint"].includes(k));
+    const known = order.filter(k => k in rawObj);
+    const others = Object.keys(rawObj).filter(k => !order.includes(k) && !["cnj", "tribunal_hint"].includes(k));
     return [...known, ...others];
-  }, [raw]);
+  }
+
+  const sources = useMemo(() => getSources(raw), [raw]);
 
   if (!processoNumero) {
     return <p className="text-sm text-muted-foreground">Salve o registro com um número de processo para visualizar a análise.</p>;
@@ -404,7 +408,7 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
         <div>
           <h3 className="text-base font-semibold">Análise da última consulta Judit</h3>
           <p className="text-sm text-muted-foreground">
-            Todos os dados retornados pela Judit (Cache + Crawler + DataJud), organizados de forma legível.
+            A consulta mais recente aparece expandida. As anteriores ficam recolhidas no histórico abaixo.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -417,7 +421,7 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
             </Badge>
           )}
           {log && <span className="text-xs text-muted-foreground">{fmtDate(log.created_at)}</span>}
-          <Button variant="outline" size="sm" onClick={() => void fetchLastLog()} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => void fetchLogs()} disabled={loading}>
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
             Atualizar
           </Button>
@@ -442,9 +446,12 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
       ) : (
         <>
           {/* Cabeçalho com cnj + tribunal_hint */}
-          <Card>
+          <Card className="border-primary/40">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Identificação</CardTitle>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-primary" />
+                Última consulta — Identificação
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -458,6 +465,70 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
           {sources.map(name => (
             <SourceCard key={name} name={name} value={raw[name]} />
           ))}
+
+          {/* Histórico de consultas anteriores */}
+          {previousLogs.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <History className="w-4 h-4 text-muted-foreground" />
+                  Consultas anteriores
+                  <Badge variant="secondary" className="text-xs ml-1">{previousLogs.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {previousLogs.map((pl) => {
+                  const isOpen = !!openPrev[pl.id];
+                  const prevRaw = (pl.raw_response as any)?._judit_raw;
+                  const prevSources = getSources(prevRaw);
+                  return (
+                    <div key={pl.id} className="border rounded">
+                      <button
+                        type="button"
+                        onClick={() => setOpenPrev(o => ({ ...o, [pl.id]: !o[pl.id] }))}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                      >
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                        <span className="text-sm font-medium">{fmtDate(pl.created_at)}</span>
+                        <Badge variant={pl.status === "sucesso" ? "outline" : "destructive"} className="text-xs">
+                          {pl.status}
+                        </Badge>
+                        {pl.tribunal && (
+                          <Badge variant="secondary" className="text-xs">{pl.tribunal}</Badge>
+                        )}
+                        {!prevRaw && (
+                          <span className="text-xs text-muted-foreground italic ml-auto">sem RAW</span>
+                        )}
+                      </button>
+                      {isOpen && (
+                        <div className="border-t p-3 space-y-3 bg-muted/20">
+                          {pl.error_message && (
+                            <div className="text-xs text-destructive">{pl.error_message}</div>
+                          )}
+                          {!prevRaw ? (
+                            <p className="text-sm text-muted-foreground italic">
+                              Consulta sem dados RAW gravados.
+                            </p>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <PrimitiveField k="cnj" v={prevRaw.cnj || pl.processo_numero} />
+                                <PrimitiveField k="tribunal_hint" v={prevRaw.tribunal_hint || pl.tribunal} />
+                                <PrimitiveField k="created_at" v={pl.created_at} />
+                              </div>
+                              {prevSources.map(name => (
+                                <SourceCard key={name} name={name} value={prevRaw[name]} />
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
