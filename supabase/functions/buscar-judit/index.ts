@@ -1078,6 +1078,7 @@ serve(async (req) => {
           console.log(`[buscar-judit] Hint=TST não localizado no async; usando DataJud TST em vez de cair em TRT.`);
           const datajud = await consultarDataJud(cnj);
           if (datajud && (datajud.relator || datajud.turma || datajud.classe || datajud.steps?.length)) {
+            rawCollector.datajud_tst = datajud;
             rd = {
               tribunal_acronym: "TST",
               classifications: datajud.classe ? [{ name: datajud.classe }] : [],
