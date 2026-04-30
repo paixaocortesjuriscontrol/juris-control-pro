@@ -1173,10 +1173,21 @@ async function processarTermoEmTribunal(
           else inseridosCount += 1;
         }
       }
-      // Confiamos na comparação por chave já feita antes do insert.
-      // Reclassificações pelo trigger são contabilizadas como duplicadas.
-      novasInseridasEfetivas = inseridosCount;
-      duplicadasReclassificadas = hashesPayload.length - inseridosCount;
+      // Releitura confirmatória: o trigger pode reclassificar uma linha como
+      // 'duplicada' depois do INSERT. Contamos como "novas" apenas as que
+      // realmente ficaram com status='encontrada'.
+      let efetivamenteEncontradas = inseridosCount;
+      if (hashesPayload.length > 0) {
+        const { count: encCount } = await supabase
+          .from('publicacoes_djen')
+          .select('id', { count: 'exact', head: true })
+          .eq('monitoramento_id', mon.id)
+          .eq('status', 'encontrada')
+          .in('hash_conteudo', hashesPayload);
+        if (typeof encCount === 'number') efetivamenteEncontradas = encCount;
+      }
+      novasInseridasEfetivas = efetivamenteEncontradas;
+      duplicadasReclassificadas = Math.max(0, hashesPayload.length - efetivamenteEncontradas);
     }
   }
 
