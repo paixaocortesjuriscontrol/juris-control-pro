@@ -45,7 +45,7 @@ function KV({ items }: { items: Array<[string, any]> }) {
 }
 
 /** Renderiza uma seção JSON colapsável com pretty-print. */
-function JsonSection({ title, value, defaultOpen = false }: { title: string; value: any; defaultOpen?: boolean }) {
+function JsonSection({ title, value, defaultOpen = false, large = false }: { title: string; value: any; defaultOpen?: boolean; large?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const isArr = Array.isArray(value);
   const isObj = value && typeof value === "object";
@@ -61,7 +61,11 @@ function JsonSection({ title, value, defaultOpen = false }: { title: string; val
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="mt-1 p-3 bg-muted rounded text-xs leading-relaxed overflow-auto max-h-96 border border-border whitespace-pre-wrap break-words">
+        <pre
+          className={`mt-1 p-4 bg-muted rounded leading-relaxed overflow-auto border border-border whitespace-pre-wrap break-words ${
+            large ? "text-sm max-h-[80vh] min-h-[500px]" : "text-xs max-h-96"
+          }`}
+        >
           {JSON.stringify(value, null, 2)}
         </pre>
       </CollapsibleContent>
@@ -142,7 +146,7 @@ function LogCard({ log, defaultExpanded = false }: { log: JuditLog; defaultExpan
           <JsonSection title="Pauta de julgamento" value={r.pauta_julgamento} />
           <JsonSection title="Recursos detectados" value={r.recursos} />
           <JsonSection title="Metadados Judit (_judit_meta)" value={r._judit_meta} />
-          <JsonSection title="Resposta completa (JSON cru)" value={r} />
+          <JsonSection title="Resposta completa (JSON cru)" value={r} large defaultOpen />
           <JsonSection title="Payload da requisição" value={log.request_payload} />
         </CardContent>
       )}
