@@ -1732,6 +1732,10 @@ serve(async (req) => {
           content: (s.content || "").toString().substring(0, 250),
         })),
       },
+      // Dados absolutamente crus retornados pelas fontes (Judit cache, Judit
+      // crawler com TODAS as instâncias, e DataJud TST quando consultado).
+      // Sem nenhum tratamento da aplicação — base para auditoria no Log Judit.
+      _judit_raw: rawCollector,
     };
 
     console.log("[buscar-judit] resultado:", JSON.stringify(result));
