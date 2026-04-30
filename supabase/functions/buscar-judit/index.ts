@@ -992,6 +992,16 @@ serve(async (req) => {
     let allInstancesPageData: any[] = []; // guarda TODAS as instâncias do async para unir partes
 
     const cachedRd = await juditLookupCache(JUDIT_API_KEY, cnj);
+    // Coletor de TUDO que a Judit (e fontes auxiliares) devolveram, sem
+    // qualquer tratamento da aplicação. Vai para `_judit_raw` no resultado e
+    // é gravado integralmente em `judit_logs.raw_response`.
+    const rawCollector: any = {
+      cnj,
+      tribunal_hint: tribunalHint,
+      cache_lookup: cachedRd ?? null,
+      crawler: null,
+      datajud_tst: null,
+    };
     
     // Cache da Judit retorna apenas 1 instância (geralmente a originária — TRT/Vara).
     // Para preencher corretamente recorrente / tipo_recurso / trânsito / data
