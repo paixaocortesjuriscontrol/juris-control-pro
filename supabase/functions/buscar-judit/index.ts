@@ -67,6 +67,23 @@ async function juditCriarRequest(apiKey: string, cnj: string): Promise<string | 
   return juditCriarRequestComOpcoes(apiKey, cnj, false);
 }
 
+// Remove qualquer campo `attachments` (em qualquer profundidade) do payload bruto
+// devolvido pela Judit. A API retorna anexos dentro dos steps mesmo quando
+// `with_attachments=false` (vem do cache). Como a UI exibe o _judit_raw, isso
+// fazia aparecer "Anexos 99" mesmo sem o usuário marcar "Com anexos".
+function stripAttachments(value: any): any {
+  if (Array.isArray(value)) return value.map(stripAttachments);
+  if (value && typeof value === "object") {
+    const out: any = {};
+    for (const k of Object.keys(value)) {
+      if (k === "attachments") continue;
+      out[k] = stripAttachments(value[k]);
+    }
+    return out;
+  }
+  return value;
+}
+
 async function juditCriarRequestComOpcoes(
   apiKey: string,
   cnj: string,
