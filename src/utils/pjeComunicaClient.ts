@@ -565,6 +565,11 @@ export async function buscarPjeComunicaNoBrowser(
     return first;
   } catch (e: any) {
     lastErr = e;
+    // Quando o motor força uma VPS específica, não cair para Edge Function nem
+    // qualquer caminho direto. A falha deve voltar para o worker daquela VPS.
+    if (options?.forceVia && options?.fallbackToDirect !== true) {
+      throw e;
+    }
     // Detectar erro de CORS/bloqueio de rede
     if (e?.message?.includes('Failed to fetch') || e?.name === 'TypeError') {
       corsBlocked = true;
