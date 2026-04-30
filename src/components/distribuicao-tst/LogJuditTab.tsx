@@ -27,6 +27,95 @@ function formatDateTime(s: string) {
   try { return new Date(s).toLocaleString("pt-BR"); } catch { return s; }
 }
 
+/** Árvore JSON interativa: cada nó (objeto/array) pode ser expandido/recolhido individualmente. */
+function JsonNode({
+  data,
+  name,
+  level = 0,
+  defaultOpen = false,
+}: {
+  data: any;
+  name?: string;
+  level?: number;
+  defaultOpen?: boolean;
+}) {
+  // Abre por padrão os 2 primeiros níveis quando defaultOpen=true
+  const [open, setOpen] = useState(defaultOpen && level < 2);
+
+  const isArr = Array.isArray(data);
+  const isObj = data !== null && typeof data === "object" && !isArr;
+
+  const renderKey = name !== undefined ? (
+    <span className="text-primary font-medium">{isArr ? `[${name}]` : `"${name}"`}</span>
+  ) : null;
+
+  // Primitivos
+  if (!isArr && !isObj) {
+    let valueEl: React.ReactNode;
+    if (data === null) valueEl = <span className="text-muted-foreground">null</span>;
+    else if (data === undefined) valueEl = <span className="text-muted-foreground">undefined</span>;
+    else if (typeof data === "string") valueEl = <span className="text-emerald-700 dark:text-emerald-400 break-all">"{data}"</span>;
+    else if (typeof data === "number") valueEl = <span className="text-blue-700 dark:text-blue-400">{data}</span>;
+    else if (typeof data === "boolean") valueEl = <span className="text-amber-700 dark:text-amber-400">{String(data)}</span>;
+    else valueEl = <span>{String(data)}</span>;
+    return (
+      <div className="flex gap-2 py-0.5" style={{ paddingLeft: level * 14 }}>
+        {renderKey}
+        {renderKey && <span className="text-muted-foreground">:</span>}
+        {valueEl}
+      </div>
+    );
+  }
+
+  const entries: Array<[string, any]> = isArr
+    ? (data as any[]).map((v, i) => [String(i), v])
+    : Object.entries(data);
+  const count = entries.length;
+  const openBracket = isArr ? "[" : "{";
+  const closeBracket = isArr ? "]" : "}";
+
+  return (
+    <div style={{ paddingLeft: level === 0 ? 0 : 14 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 hover:bg-muted/60 rounded px-1 -ml-1 text-left w-full"
+      >
+        <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+        {renderKey}
+        {renderKey && <span className="text-muted-foreground">:</span>}
+        <span className="text-muted-foreground">{openBracket}</span>
+        {!open && (
+          <>
+            <span className="text-xs text-muted-foreground italic">
+              {count} {count === 1 ? "item" : "itens"}
+            </span>
+            <span className="text-muted-foreground">{closeBracket}</span>
+          </>
+        )}
+      </button>
+      {open && (
+        <>
+          <div>
+            {entries.map(([k, v]) => (
+              <JsonNode key={k} name={k} data={v} level={level + 1} defaultOpen={defaultOpen} />
+            ))}
+          </div>
+          <div className="text-muted-foreground" style={{ paddingLeft: 0 }}>{closeBracket}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function JsonTree({ value, defaultOpen = false }: { value: any; defaultOpen?: boolean }) {
+  return (
+    <div className="font-mono text-sm leading-relaxed bg-muted rounded border border-border p-3 overflow-x-auto w-full min-w-0">
+      <JsonNode data={value} defaultOpen={defaultOpen} />
+    </div>
+  );
+}
+
 /** Pares chave/valor renderizados em uma grid compacta. */
 function KV({ items }: { items: Array<[string, any]> }) {
   const visible = items.filter(([_, v]) => v !== null && v !== undefined && v !== "");
@@ -44,7 +133,7 @@ function KV({ items }: { items: Array<[string, any]> }) {
 }
 
 /** Renderiza uma seção JSON colapsável com pretty-print. */
-function JsonSection({ title, value, defaultOpen = false, large = false }: { title: string; value: any; defaultOpen?: boolean; large?: boolean }) {
+function JsonSection({ title, value, defaultOpen = false }: { title: string; value: any; defaultOpen?: boolean; large?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const isArr = Array.isArray(value);
   const isObj = value && typeof value === "object";
@@ -60,13 +149,9 @@ function JsonSection({ title, value, defaultOpen = false, large = false }: { tit
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre
-          className={`mt-1 p-4 bg-muted rounded leading-relaxed border border-border whitespace-pre-wrap break-words w-full min-w-0 ${
-            large ? "text-sm min-h-[70vh] overflow-visible" : "text-xs overflow-visible"
-          }`}
-        >
-          {JSON.stringify(value, null, 2)}
-        </pre>
+        <div className="mt-1">
+          <JsonTree value={value} defaultOpen={defaultOpen} />
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );
