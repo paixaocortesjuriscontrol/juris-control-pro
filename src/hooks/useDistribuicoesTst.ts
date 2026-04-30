@@ -345,7 +345,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const filtersKey = JSON.stringify(filters);
   useEffect(() => { setPage(1); }, [filtersKey]);
 
-  const saveDado = async (dado: DistribuicaoTstInsert, id?: string) => {
+  const saveDado = async (dado: DistribuicaoTstInsert, id?: string): Promise<boolean | string> => {
     const payload = distribuicaoToBenner(dado);
     const responsaveisIds = dado.responsaveis_ids || [];
     let rowId = id;
@@ -369,7 +369,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     }
     toast.success(id ? "Registro atualizado!" : "Registro salvo!");
     fetchDados();
-    return true;
+    // Retorna o id (novo ou existente) para que callers possam abrir abas dependentes
+    // imediatamente após o auto-save (ex.: botão Judit em "Novo registro").
+    return rowId || true;
   };
 
   const deleteDado = async (id: string) => {
