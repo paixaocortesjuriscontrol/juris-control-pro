@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2 } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props { processoNumero: string; }
@@ -99,6 +99,38 @@ const PT_LABELS: Record<string, string> = {
 function label(k: string): string {
   if (PT_LABELS[k]) return PT_LABELS[k];
   return k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/* ───────────── Collapsible wrapper para listas ───────────── */
+
+function CollapsibleSection({
+  title,
+  count,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  count?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-sm font-semibold mb-2 text-foreground/80 hover:text-foreground transition-colors w-full text-left"
+      >
+        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-90" : ""}`} />
+        <span>{title}</span>
+        {typeof count === "number" && (
+          <Badge variant="secondary" className="text-xs ml-1">{count}</Badge>
+        )}
+      </button>
+      {open && <div className="pl-1">{children}</div>}
+    </div>
+  );
 }
 
 function isIsoDate(v: any): boolean {
@@ -260,28 +292,25 @@ function ObjectFlat({ obj }: { obj: any }) {
         // Renderizadores especializados
         if (isArr && (k === "parties" || k === "parties_detail")) {
           return (
-            <div key={k}>
-              <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)} <Badge variant="secondary" className="text-xs ml-1">{count}</Badge></div>
+            <CollapsibleSection key={k} title={label(k)} count={count}>
               <PartiesList parties={v as any[]} />
-            </div>
+            </CollapsibleSection>
           );
         }
         if (isArr && (k === "steps" || k === "movimentos")) {
           return (
-            <div key={k}>
-              <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)} <Badge variant="secondary" className="text-xs ml-1">{count}</Badge></div>
+            <CollapsibleSection key={k} title={label(k)} count={count} defaultOpen={false}>
               <StepsTimeline steps={v as any[]} />
-            </div>
+            </CollapsibleSection>
           );
         }
         if (isArr) {
           return (
-            <div key={k}>
-              <div className="text-sm font-semibold mb-2 text-foreground/80">{label(k)} <Badge variant="secondary" className="text-xs ml-1">{count}</Badge></div>
+            <CollapsibleSection key={k} title={label(k)} count={count} defaultOpen={count > 0 && count <= 5}>
               {count === 0
                 ? <p className="text-sm text-muted-foreground italic">Vazio.</p>
                 : <ListOfObjects items={v as any[]} />}
-            </div>
+            </CollapsibleSection>
           );
         }
         // Sub-objeto
