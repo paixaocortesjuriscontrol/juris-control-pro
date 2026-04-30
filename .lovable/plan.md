@@ -1,65 +1,45 @@
 ## Objetivo
 
-Corrigir o efeito introduzido pela **classificação antes da gravação** sem mexer na busca paralela, no pool de VPS ou no fluxo geral que já funcionava antes.
+Permitir ao usuário escolher se a consulta Judit deve incluir os anexos (documentos/peças do processo). Como a consulta com anexos é significativamente mais cara no plano Judit, o padrão será **sem anexos**.
 
-## O que foi confirmado
+## O que muda na UI
 
-- A busca está retornando muitos resultados.
-- O problema aparece **depois** da etapa nova de classificação/formatação pré-gravação.
-- O trigger `mark_djen_duplicada_on_insert()` deduz duplicidade usando:
-  - `coordenacao_id`
-  - `dedup_processo_digits`
-  - `dedup_data_ref`
-  - `dedup_head_norm`
-- `dedup_head_norm` hoje é derivado do `conteudo` já formatado/classificado.
-- Como a publicação pode ser capturada por mais de um monitoramento/termo da mesma coordenação no mesmo dia, a regra atual está colapsando registros que antes apareciam corretamente.
+No componente `src/components/benner/DadosBennerPartesTab.tsx`, ao lado do botão **"Buscar Judit"**:
 
-## Hipótese principal
+- Adicionar um `Checkbox` rotulado **"Com anexos"** (padrão: desmarcado).
+- Tooltip/legenda discreta: *"Consulta mais cara. Inclui lista de documentos do processo."*
+- O estado fica em `useState<boolean>(false)`.
+- Quando o usuário clicar em "Buscar Judit", o valor do checkbox é enviado no body da invocação da função: `{ numero_processo, tribunal, com_anexos: true|false }`.
 
-A chave de duplicação por coordenação/dia ficou **ampla demais** depois da classificação pré-gravação. Em vez de preservar o vínculo por monitoramento/termo, ela passou a tratar capturas diferentes como a mesma publicação.
+Layout sugerido (mesma linha do botão):
 
-## Implementação proposta
+```text
+[ Buscar Judit ]  [☐] Com anexos    [ + Adicionar Manual ]   N parte(s)
+```
 
-### 1. Corrigir a regra de duplicidade no banco
+## O que muda na Edge Function `supabase/functions/buscar-judit/index.ts`
 
-Ajustar a função `public.mark_djen_duplicada_on_insert()` para que a comparação respeite o contexto correto da captura por termo.
+Hoje a função sempre dispara o crawler com `response_type: "lawsuit"` (sem anexos). Vamos:
 
-A correção seguirá uma destas abordagens, priorizando a mais conservadora:
+1. Ler `com_anexos: boolean` do body (default `false`).
+2. Em `juditCriarRequest`, passar `response_type` dinamicamente:
+   - `false` → `"lawsuit"` (comportamento atual, mais barato)
+   - `true`  → `"lawsuit_with_attachments"` (inclui lista de attachments por step)
+3. Quando `com_anexos = true`, repassar a lista de attachments no retorno (`attachments: [...]` agregados de `rd.steps[].attachments`) para futuro uso. Nada mais muda na lógica de extração de partes/relator/turma/situação/tipo de recurso.
+4. Logar no console qual modo foi usado para auditoria de custo.
 
-- **Opção preferida:** incluir `monitoramento_id` na lógica de deduplicação de `publicacoes_djen`
-- **Fallback conservador:** usar uma chave derivada do conteúdo original que não seja contaminada pelo cabeçalho/classificação adicionados antes do insert
+## Comportamento padrão
 
-A prioridade é restaurar o comportamento que existia antes da classificação pré-gravação, com o menor impacto possível.
+- Botão clicado sem marcar o checkbox → consulta barata (igual a hoje).
+- Botão clicado com checkbox marcado → consulta cara, traz anexos.
+- O estado do checkbox **não persiste** entre aberturas — sempre volta a desmarcado, evitando que o usuário ative por engano em consultas futuras.
 
-### 2. Alinhar o pré-check do frontend com a mesma regra
+## Arquivos afetados
 
-No arquivo `src/hooks/useDjenTermosParalelaEngine.ts`:
+- `src/components/benner/DadosBennerPartesTab.tsx` — adicionar checkbox e enviar `com_anexos`.
+- `supabase/functions/buscar-judit/index.ts` — aceitar `com_anexos` e ajustar `response_type` no `POST /requests`.
 
-- ajustar o pré-check de `chavesEncontradas`
-- fazer o filtro local usar exatamente a mesma lógica do banco
-- evitar que o frontend conte como “nova” uma publicação que o trigger ainda vai reclassificar
+## Fora de escopo
 
-### 3. Corrigir a contagem mostrada na execução
-
-Mesmo quando houver reclassificação legítima para `duplicada`, o contador exibido precisa refletir o resultado final real do banco.
-
-Assim, o usuário não verá mais casos como:
-- engine: 114 encontradas
-- tela: 15 visíveis
-
-## Arquivos / áreas afetadas
-
-- `supabase/migrations/...` — ajuste da função `mark_djen_duplicada_on_insert()`
-- `src/hooks/useDjenTermosParalelaEngine.ts` — alinhamento do pré-check e da contagem
-
-## Resultado esperado
-
-Após o ajuste:
-
-- a consulta volta a se comportar como antes da classificação pré-gravação
-- publicações não serão descartadas indevidamente por uma chave errada
-- a contagem da execução e a contagem exibida na Análise DJEN voltarão a bater
-
-## Observação
-
-Vou fazer isso de forma cirúrgica, sem redesenhar a engine paralela e sem mexer no pool Browser/VPS.
+- Não vamos mexer no botão **"Baixar Autos"** (`baixar-autos-judit`), que já é uma operação separada de download de PDFs.
+- Não vamos persistir os anexos retornados — apenas devolvê-los no JSON da resposta (uso futuro).

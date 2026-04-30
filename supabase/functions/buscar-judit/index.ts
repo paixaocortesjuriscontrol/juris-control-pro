@@ -64,6 +64,15 @@ async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
 // ---------- Judit crawler (assíncrono, agrega TODAS as instâncias) ---------
 
 async function juditCriarRequest(apiKey: string, cnj: string): Promise<string | null> {
+  return juditCriarRequestComOpcoes(apiKey, cnj, false);
+}
+
+async function juditCriarRequestComOpcoes(
+  apiKey: string,
+  cnj: string,
+  comAnexos: boolean,
+): Promise<string | null> {
+  const responseType = comAnexos ? "lawsuit_with_attachments" : "lawsuit";
   const r = await fetch(REQUESTS_URL, {
     method: "POST",
     headers: { "api-key": apiKey, "Content-Type": "application/json" },
@@ -71,7 +80,7 @@ async function juditCriarRequest(apiKey: string, cnj: string): Promise<string | 
       search: {
         search_type: "lawsuit_cnj",
         search_key: cnj,
-        response_type: "lawsuit",
+        response_type: responseType,
         cache_ttl_in_days: CACHE_TTL_DAYS,
       },
     }),
