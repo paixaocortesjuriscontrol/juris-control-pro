@@ -99,37 +99,37 @@ function LogCard({ log, defaultExpanded = false }: { log: JuditLog; defaultExpan
   ];
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-2">
         <button
           onClick={() => setOpen(o => !o)}
-          className="flex items-center justify-between w-full text-left"
+          className="flex items-center justify-between w-full text-left min-w-0"
         >
-          <div className="flex items-center gap-2">
-            <ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} />
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
             {ok ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-destructive" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
             )}
-            <CardTitle className="text-sm font-medium">{formatDateTime(log.created_at)}</CardTitle>
-            <Badge variant={ok ? "outline" : "destructive"} className="text-[10px]">
+            <CardTitle className="text-base font-medium">{formatDateTime(log.created_at)}</CardTitle>
+            <Badge variant={ok ? "outline" : "destructive"} className="text-xs">
               {log.status}
             </Badge>
-            {log.tribunal && <Badge variant="secondary" className="text-[10px]">{log.tribunal}</Badge>}
+            {log.tribunal && <Badge variant="secondary" className="text-xs">{log.tribunal}</Badge>}
           </div>
         </button>
       </CardHeader>
       {open && (
-        <CardContent className="space-y-3 pt-0">
+        <CardContent className="space-y-3 pt-0 min-w-0">
           {log.error_message && (
-            <div className="p-2 rounded bg-destructive/10 border border-destructive/30 text-xs text-destructive">
+            <div className="p-2 rounded bg-destructive/10 border border-destructive/30 text-sm text-destructive break-words">
               {log.error_message}
             </div>
           )}
 
           <div>
-            <h4 className="text-xs font-semibold mb-1.5 text-foreground/80">Campos principais</h4>
+            <h4 className="text-sm font-semibold mb-2 text-foreground/80">Campos principais</h4>
             <KV items={camposPrincipais} />
           </div>
 
@@ -178,11 +178,11 @@ export function LogJuditTab({ processoNumero }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold">Histórico de consultas Judit</h3>
-          <p className="text-xs text-muted-foreground">
+          <h3 className="text-base font-semibold">Histórico de consultas Judit</h3>
+          <p className="text-sm text-muted-foreground">
             Cada clique no botão Judit grava aqui a resposta completa retornada pela API.
           </p>
         </div>
@@ -195,12 +195,12 @@ export function LogJuditTab({ processoNumero }: Props) {
       {loading && logs.length === 0 ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
       ) : logs.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
+        <p className="text-base text-muted-foreground py-8 text-center">
           Nenhuma consulta Judit registrada para este processo ainda.
         </p>
       ) : (
-        <ScrollArea className="max-h-[70vh]">
-          <div className="space-y-2 pr-3">
+        <ScrollArea className="max-h-[75vh] w-full">
+          <div className="space-y-2 pr-3 w-full min-w-0">
             {logs.map((log, idx) => (
               <LogCard key={log.id} log={log} defaultExpanded={idx === 0} />
             ))}
