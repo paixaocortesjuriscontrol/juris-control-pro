@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, RefreshCw, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -62,8 +61,8 @@ function JsonSection({ title, value, defaultOpen = false, large = false }: { tit
       </CollapsibleTrigger>
       <CollapsibleContent>
         <pre
-          className={`mt-1 p-4 bg-muted rounded leading-relaxed overflow-auto border border-border whitespace-pre-wrap break-words ${
-            large ? "text-sm max-h-[80vh] min-h-[500px]" : "text-xs max-h-96"
+          className={`mt-1 p-4 bg-muted rounded leading-relaxed border border-border whitespace-pre-wrap break-words w-full min-w-0 ${
+            large ? "text-sm min-h-[70vh] overflow-visible" : "text-xs overflow-visible"
           }`}
         >
           {JSON.stringify(value, null, 2)}
@@ -203,13 +202,11 @@ export function LogJuditTab({ processoNumero }: Props) {
           Nenhuma consulta Judit registrada para este processo ainda.
         </p>
       ) : (
-        <ScrollArea className="max-h-[75vh] w-full">
-          <div className="space-y-2 pr-3 w-full min-w-0">
-            {logs.map((log, idx) => (
-              <LogCard key={log.id} log={log} defaultExpanded={idx === 0} />
-            ))}
-          </div>
-        </ScrollArea>
+        <div className="space-y-2 w-full min-w-0">
+          {logs.map((log, idx) => (
+            <LogCard key={log.id} log={log} defaultExpanded={idx === 0} />
+          ))}
+        </div>
       )}
     </div>
   );
