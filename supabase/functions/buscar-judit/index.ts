@@ -1047,6 +1047,12 @@ serve(async (req) => {
       allInstancesPageData = pageData;
       debugStatus = envelope.request_status;
       debugInstancias = pageData.length;
+      rawCollector.crawler = {
+        request_id: requestId,
+        request_status: envelope.request_status,
+        page_data: pageData,
+        envelope,
+      };
       console.log(
         `[buscar-judit] status=${envelope.request_status} instancias=${pageData.length} acronimos=${pageData
           .map((i: any) => i?.response_data?.tribunal_acronym)
