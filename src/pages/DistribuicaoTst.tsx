@@ -459,6 +459,10 @@ export default function DistribuicaoTst() {
       setBulkJuditProgress({ current: 0, total: unique.length });
       let successCount = 0;
 
+      // Cache do user id para gravar judit_logs (mesma lógica do botão individual)
+      const { data: bulkAuthData } = await supabase.auth.getUser();
+      const bulkUserId = bulkAuthData?.user?.id || null;
+
       for (let i = 0; i < unique.length; i++) {
         if (bulkAbortRef.current) { toast.info("Operação cancelada"); break; }
 
@@ -466,9 +470,26 @@ export default function DistribuicaoTst() {
         setBulkJuditProgress({ current: i + 1, total: unique.length });
 
         try {
+          const requestPayload = { numero_processo: proc.processo_numero, tribunal: "TST", com_anexos: false };
           const { data: juditData, error: juditError } = await supabase.functions.invoke("buscar-judit", {
-            body: { numero_processo: proc.processo_numero, tribunal: "TST" },
+            body: requestPayload,
           });
+
+          // Persiste log da consulta (sucesso, erro de função ou erro retornado),
+          // exatamente como o botão Judit individual faz.
+          try {
+            await supabase.from("judit_logs" as any).insert({
+              processo_numero: proc.processo_numero,
+              tribunal: "TST",
+              request_payload: requestPayload,
+              raw_response: juditData ?? null,
+              status: juditError ? "erro_funcao" : (juditData?.error ? "erro_api" : "sucesso"),
+              error_message: juditError?.message || juditData?.error || null,
+              created_by: bulkUserId,
+            });
+          } catch (logErr) {
+            console.warn("[bulk-judit] Falha ao gravar judit_logs:", logErr);
+          }
 
           if (juditError || juditData?.error) continue;
 
