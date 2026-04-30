@@ -72,7 +72,10 @@ async function juditCriarRequestComOpcoes(
   cnj: string,
   comAnexos: boolean,
 ): Promise<string | null> {
-  const responseType = comAnexos ? "lawsuit_with_attachments" : "lawsuit";
+  // Payload canônico da doc Judit (Busca Processual):
+  // with_attachments fica no NÍVEL RAIZ do body, não dentro de search.
+  // Padrão é false (consulta barata). Só vai true quando o usuário marca
+  // explicitamente "Com anexos" no botão Judit individual.
   const r = await fetch(REQUESTS_URL, {
     method: "POST",
     headers: { "api-key": apiKey, "Content-Type": "application/json" },
@@ -80,9 +83,9 @@ async function juditCriarRequestComOpcoes(
       search: {
         search_type: "lawsuit_cnj",
         search_key: cnj,
-        response_type: responseType,
         cache_ttl_in_days: CACHE_TTL_DAYS,
       },
+      with_attachments: comAnexos === true,
     }),
   });
   if (!r.ok) {
