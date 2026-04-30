@@ -1092,6 +1092,7 @@ async function processarTermoEmTribunal(
         .from('publicacoes_djen')
         .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
         .eq('coordenacao_id', mon.coordenacao_id)
+        .eq('monitoramento_id', mon.id)
         .eq('status', 'encontrada')
         .in('dedup_processo_digits', processosDigits)
         .in('dedup_data_ref', datasRef);
