@@ -114,7 +114,24 @@ function selecionarTst(pageData: any[]): { rd: any; foiTst: boolean } | null {
     .map((it) => it?.response_data)
     .filter((rd) => rd && typeof rd === "object");
   if (!rds.length) return null;
-  const tst = rds.find((rd) => (rd?.tribunal_acronym || "").toUpperCase() === "TST");
+  // A Judit NÃO marca instância TST via tribunal_acronym (continua TRT da origem).
+  // Identificadores reais de TST, em ordem de confiança:
+  //   1) crawler.source_name contém " TST "  (ex.: "PJE - TRT - TST - Lawsuit - Auth - 3 instance")
+  //   2) courts[0].name começa com "Gabinete do Ministro" (relatores do TST)
+  //   3) classifications[0].code é uma classe típica do TST (RR, AIRR, ED-RR, AgR, E-RR, ARR…)
+  const TST_CLASSES = new Set([
+    "RR", "AIRR", "ED-RR", "EDRR", "AGR-RR", "AGR", "E-RR", "ERR", "ARR", "AIRE", "ED-AIRR",
+  ]);
+  const isTst = (rd: any) => {
+    const src = String(rd?.crawler?.source_name || "").toUpperCase();
+    if (/\bTST\b/.test(src)) return true;
+    const court = String(rd?.courts?.[0]?.name || "").toLowerCase();
+    if (court.startsWith("gabinete do ministro")) return true;
+    const clsCode = String(rd?.classifications?.[0]?.code || "").toUpperCase();
+    if (TST_CLASSES.has(clsCode)) return true;
+    return false;
+  };
+  const tst = rds.find(isTst);
   if (tst) return { rd: tst, foiTst: true };
   // Sem TST: pega a maior instância (mais steps) como aproximação.
   rds.sort((a, b) => (b?.steps?.length || 0) - (a?.steps?.length || 0));
@@ -174,11 +191,23 @@ function extrairClasse(rd: any): string | null {
 }
 
 function extrairOrgaoERelator(rd: any): { orgao: string | null; relator: string | null; turma: string | null } {
-  // Judit costuma trazer: rd.judge?.name e rd.courts[0].name (ex.: "Gabinete do Ministro X")
-  const relator = rd?.judge?.name ? String(rd.judge.name).trim() : null;
+  // judge pode vir como string "NÃO INFORMADO", objeto {name}, ou ausente.
+  let relator: string | null = null;
+  const judge = rd?.judge;
+  if (judge && typeof judge === "object" && judge.name) {
+    relator = String(judge.name).trim();
+  } else if (typeof judge === "string" && judge.trim() && !/n[aã]o\s*informado/i.test(judge)) {
+    relator = judge.trim();
+  }
 
   const courts = Array.isArray(rd?.courts) ? rd.courts : [];
   const orgao = courts.length && courts[0]?.name ? String(courts[0].name).trim() : null;
+
+  // No TST o nome do órgão costuma ser "Gabinete do Ministro Fulano" — extrai relator daí.
+  if (!relator && orgao) {
+    const mGab = orgao.match(/^Gabinete\s+do\s+Ministro\s+(.+)$/i);
+    if (mGab) relator = mGab[1].trim();
+  }
 
   // Turma só quando o nome do órgão tem padrão "Nª Turma"
   let turma: string | null = null;
@@ -272,16 +301,67 @@ serve(async (req) => {
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     const situacao = extrairSituacao(rdSelecionada);
 
+    // Data de distribuição = data em que o processo chegou no órgão atual (instância
+    // selecionada). Quando temos a instância TST, isto corresponde à data em que o
+    // recurso foi distribuído lá (ex.: 10/12/2025), e NÃO à data da inicial do
+    // processo originário.
     const dataDistISO = rdSelecionada?.distribution_date
       ? String(rdSelecionada.distribution_date).substring(0, 10)
       : null;
     const dataDistBR = isoToBR(dataDistISO);
 
-    // Recorrente:
-    // Quando há classe RR/AIRR/etc., quem recorre é normalmente o polo ATIVO da
-    // peça recursal (que coincide com `side: ACTIVE`). A regra antiga tentava
-    // distinguir Banco/Reclamante por movimento; aqui usamos o polo ativo direto.
-    const recorrente = poloAtivo || null;
+    // Recorrente: na instância TST as partes vêm com person_type RECORRENTE/RECORRIDO
+    // (e side Active/Passive). Quem está com person_type=RECORRENTE é quem recorre.
+    const partiesArr: any[] = Array.isArray(rdSelecionada?.parties) ? rdSelecionada.parties : [];
+    const recorrentes = [...new Set(
+      partiesArr
+        .filter((p) => /RECORRENTE|AGRAVANTE|EMBARGANTE/i.test(String(p?.person_type || "")))
+        .map((p) => String(p?.name || "").trim())
+        .filter(Boolean)
+    )];
+    const recorrente = recorrentes.length ? recorrentes.join(", ") : (poloAtivo || null);
+
+    // Tipo de recurso por parte: cruza person_type da instância TST com o
+    // person_type da instância 1 (RECLAMANTE/RECLAMADO). Quem é RECORRENTE no TST
+    // e RECLAMANTE na origem -> tipo_recurso_reclamante = classe.
+    // Quem é RECORRENTE no TST e RECLAMADO na origem -> tipo_recurso_banco = classe.
+    let tipoRecursoReclamante: string | null = null;
+    let tipoRecursoBanco: string | null = null;
+    if (classe) {
+      // Mapa documento -> person_type original (instância 1, que está em rawCollector
+      // ou no cache_lookup). Usa o cache_lookup quando disponível, senão a primeira
+      // entrada do crawler que NÃO seja a instância TST.
+      const origemRd: any = rawCollector.cache_lookup
+        || (rawCollector.crawler?.page_data || [])
+            .map((it: any) => it?.response_data)
+            .find((rd: any) => rd && rd !== rdSelecionada);
+      const origemParties: any[] = Array.isArray(origemRd?.parties) ? origemRd.parties : [];
+      const origemMap = new Map<string, string>(); // doc -> person_type
+      for (const p of origemParties) {
+        const doc = String(p?.main_document || "").replace(/\D/g, "");
+        const pt = String(p?.person_type || "").toUpperCase();
+        if (doc && pt && pt !== "ADVOGADO") origemMap.set(doc, pt);
+      }
+      for (const p of partiesArr) {
+        const pt = String(p?.person_type || "").toUpperCase();
+        if (!/RECORRENTE|AGRAVANTE|EMBARGANTE/.test(pt)) continue;
+        const doc = String(p?.main_document || "").replace(/\D/g, "");
+        const origemPt = origemMap.get(doc) || "";
+        if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classe;
+        else if (/RECLAMAD|R[ÉE]U|EXECUTAD/.test(origemPt)) tipoRecursoBanco = classe;
+        else {
+          // sem dados de origem: usa side (Active = recorrente original = Banco em
+          // recursos do Banco; Passive = Reclamante)
+          const side = String(p?.side || "").toUpperCase();
+          if (side === "ACTIVE") tipoRecursoBanco = classe;
+          else if (side === "PASSIVE") tipoRecursoReclamante = classe;
+        }
+      }
+      // Fallback: se nenhum dos dois preenchido mas há classe, marca o lado ativo.
+      if (!tipoRecursoReclamante && !tipoRecursoBanco) {
+        tipoRecursoBanco = classe; // Banco é o cliente; assume que é ele recorrendo
+      }
+    }
 
     const result = {
       // Campos consumidos pelo DistribuicaoTstForm:
@@ -295,10 +375,8 @@ serve(async (req) => {
       polo_passivo: poloPassivo || null,
       situacao_processo: situacao,
       tipo_recurso: classe,
-      // Mantemos os campos por parte como null — sem heurística por movimentos.
-      // O usuário pode escolher manualmente no form.
-      tipo_recurso_reclamante: null,
-      tipo_recurso_banco: null,
+      tipo_recurso_reclamante: tipoRecursoReclamante,
+      tipo_recurso_banco: tipoRecursoBanco,
       // Campos de pauta/julgamento — não extraímos mais via heurística.
       tem_data_julgamento: "N",
       data_julgamento: null,
