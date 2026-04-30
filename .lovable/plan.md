@@ -1,112 +1,65 @@
+## Objetivo
 
-## Por que precisa baixar PDF
+Corrigir o efeito introduzido pela **classificação antes da gravação** sem mexer na busca paralela, no pool de VPS ou no fluxo geral que já funcionava antes.
 
-A API PJe Comunica (usada pela DJEN Termos Paralela) só expõe **intimações com efeito intimatório**. Pautas de julgamento da Justiça do Trabalho **não são intimações** — são publicações do caderno Judiciário do DEJT, distribuídas só em PDF. O Kurier faz exatamente isso: baixa o PDF do dia, do tribunal, e procura termos lá dentro. Não há atalho via API.
+## O que foi confirmado
 
-A boa notícia: já existe a edge function `baixar-dje-pdf` com o mapeamento de URLs DEJT (TST + TRTs 1, 2, 10, 23, 24). Vamos extrair esse mapa para `_shared` e completar com os 24 TRTs.
+- A busca está retornando muitos resultados.
+- O problema aparece **depois** da etapa nova de classificação/formatação pré-gravação.
+- O trigger `mark_djen_duplicada_on_insert()` deduz duplicidade usando:
+  - `coordenacao_id`
+  - `dedup_processo_digits`
+  - `dedup_data_ref`
+  - `dedup_head_norm`
+- `dedup_head_norm` hoje é derivado do `conteudo` já formatado/classificado.
+- Como a publicação pode ser capturada por mais de um monitoramento/termo da mesma coordenação no mesmo dia, a regra atual está colapsando registros que antes apareciam corretamente.
 
-## Princípio: separação total
+## Hipótese principal
 
-Nenhum arquivo da **DJEN Termos Paralela** será modificado. Tudo é cópia paralela:
+A chave de duplicação por coordenação/dia ficou **ampla demais** depois da classificação pré-gravação. Em vez de preservar o vínculo por monitoramento/termo, ela passou a tratar capturas diferentes como a mesma publicação.
 
-| DJEN Termos Paralela (existente) | DJET Pautas Paralela (nova) |
-|---|---|
-| `useDjenTermosParalelaEngine.ts` | `useDjetPautasParalelaEngine.ts` |
-| `useDjenTermosParalela.ts` | `useDjetPautasParalela.ts` |
-| `useDjenTermosParalelaScheduler.ts` | `useDjetPautasParalelaScheduler.ts` |
-| `MonitoramentoTermosParalelaCard.tsx` | `MonitoramentoDjetPautasCard.tsx` |
-| Edge: PJe Comunica (existente) | Edge nova: `buscar-dejt-pautas` |
-| `publicacoes_djen` (tipo intimação) | `publicacoes_djen` com `tipo_publicacao='pauta'` |
+## Implementação proposta
 
-## Arquitetura
+### 1. Corrigir a regra de duplicidade no banco
 
-```text
-┌────────────────────────────────────────────────────────┐
-│ Card: DJET Pautas Paralela                            │
-│ - Iniciar / Cancelar / Reset / Agendador              │
-│ - 25 tracks (TST + TRT1..TRT24), 5 em paralelo        │
-└──────────────┬─────────────────────────────────────────┘
-               │
-               ▼
-┌────────────────────────────────────────────────────────┐
-│ useDjetPautasParalelaEngine (browser, singleton)      │
-│ - loop: tribunal → dia                                 │
-│ - checkpoint em localStorage (chave própria)          │
-│ - dedup local + dedup por hash no banco               │
-└──────────────┬─────────────────────────────────────────┘
-               │ uma chamada por (tribunal, dia)
-               ▼
-┌────────────────────────────────────────────────────────┐
-│ Edge: buscar-dejt-pautas                               │
-│ 1. baixa PDF do caderno Judiciário (DEJT)              │
-│ 2. extrai texto com unpdf                              │
-│ 3. segmenta por marcadores de pauta                    │
-│ 4. casa termos/OAB/exclusões dos monitoramentos        │
-│ 5. devolve matches                                     │
-└──────────────┬─────────────────────────────────────────┘
-               │
-               ▼
-┌────────────────────────────────────────────────────────┐
-│ publicacoes_djen (tipo_publicacao='pauta')             │
-│ - reaproveita análise/notificações já existentes       │
-└────────────────────────────────────────────────────────┘
-```
+Ajustar a função `public.mark_djen_duplicada_on_insert()` para que a comparação respeite o contexto correto da captura por termo.
 
-## Passos
+A correção seguirá uma destas abordagens, priorizando a mais conservadora:
 
-### 1. Migration
-- Adicionar `tipo_publicacao text not null default 'intimacao'` em `publicacoes_djen` (`'intimacao'` | `'pauta'`).
-- Criar índice `(monitoramento_id, tipo_publicacao, data_publicacao desc)`.
-- Linhas existentes ficam automaticamente como `'intimacao'`. Nada quebra.
+- **Opção preferida:** incluir `monitoramento_id` na lógica de deduplicação de `publicacoes_djen`
+- **Fallback conservador:** usar uma chave derivada do conteúdo original que não seja contaminada pelo cabeçalho/classificação adicionados antes do insert
 
-### 2. Refator leve (não afeta DJEN)
-- Extrair o `TRIBUNAIS` map de `supabase/functions/baixar-dje-pdf/index.ts` para `supabase/functions/_shared/dejtTribunais.ts` e completar TRTs 3..22.
-- `baixar-dje-pdf` passa a importar do `_shared` (mudança de import só, comportamento igual).
+A prioridade é restaurar o comportamento que existia antes da classificação pré-gravação, com o menor impacto possível.
 
-### 3. Edge nova: `buscar-dejt-pautas`
-- `verify_jwt = true`. Sem novos secrets.
-- Input: `{ tribunal, dataDDMMYYYY, monitoramentos: [{id, termos, oab, exclusoes, ...}] }`.
-- Baixa PDF (`fetch`); se `content-type !== application/pdf` (manutenção/feriado), retorna `{ ok:true, sem_dados:true, motivo:'no-pdf' }` (200, mesmo padrão do `orquestrador-transito`).
-- Extrai texto com **unpdf** (Deno-friendly, sem deps nativas).
-- Segmenta por marcadores: `PAUTA DE JULGAMENTO`, `SESSÃO ORDINÁRIA`, `SESSÃO EXTRAORDINÁRIA`, `SESSÃO TELEPRESENCIAL`.
-- Para cada bloco: extrai número CNJ (regex), aplica matching de termos com a mesma lógica de exclusão/case-insensitive já usada pelo Termos Paralela.
-- Resposta: `{ matches: [{ processo, conteudo, hash, monitoramentoId, dataPublicacao }] }`.
+### 2. Alinhar o pré-check do frontend com a mesma regra
 
-### 4. Engine browser nova
-- `useDjetPautasParalelaEngine.ts`: cópia estrutural do Paralela atual (singleton, subscribe, checkpoint, force kill, reset total) com:
-  - Loop `tribunal → dia` (sem termo dentro — termos vão como lista para a edge function).
-  - Lista fixa: `['TST', 'TRT1', ..., 'TRT24']`.
-  - Insert em `publicacoes_djen` com `tipo_publicacao='pauta'`, `fonte='dejt-pdf'`.
-  - Chaves de localStorage e nomes de eventos com prefixo **distinto** (`djet-pautas-*`) para não colidir com o Paralela.
-- `useDjetPautasParalela.ts`: wrapper React (cópia simétrica).
-- `useDjetPautasParalelaScheduler.ts`: cron diário opcional (cópia simétrica).
+No arquivo `src/hooks/useDjenTermosParalelaEngine.ts`:
 
-### 5. UI nova
-- `src/components/configuracoes/MonitoramentoDjetPautasCard.tsx`: cópia visual do card Paralela. Título: "DJET Pautas Paralela (caderno Judiciário)".
-- Inclusão do card em `Configuracoes.tsx`, **abaixo** do card Termos Paralela existente.
+- ajustar o pré-check de `chavesEncontradas`
+- fazer o filtro local usar exatamente a mesma lógica do banco
+- evitar que o frontend conte como “nova” uma publicação que o trigger ainda vai reclassificar
 
-### 6. Análise/visualização
-- Em `useAnaliseDjen.ts`: filtro opcional `tipoPublicacao: 'intimacao' | 'pauta' | 'todos'` (default `todos`, retrocompatível).
-- Badge "Pauta" nas linhas de pauta.
+### 3. Corrigir a contagem mostrada na execução
 
-## Pontos de atenção
+Mesmo quando houver reclassificação legítima para `duplicada`, o contador exibido precisa refletir o resultado final real do banco.
 
-- **Volume**: cadernos do TRT2/TRT15 podem ter 1000+ páginas → 30–60 s por PDF. A paralelização por tribunal cobre isso.
-- **DEJT instável**: às vezes devolve HTML/erro → tratamento gracioso com `sem_dados:true`.
-- **Feriados/dias sem caderno**: ignorar silenciosamente.
-- **Dedup**: hash do bloco de pauta + nº processo evita duplicar quando o mesmo PDF cai para 2 monitoramentos.
-- **Escopo**: só JT (TST + TRTs). STF/STJ/TJs ficam de fora — DEJT é exclusivo da Justiça do Trabalho.
+Assim, o usuário não verá mais casos como:
+- engine: 114 encontradas
+- tela: 15 visíveis
 
-## Entregáveis
+## Arquivos / áreas afetadas
 
-1. Migration: coluna `tipo_publicacao` + índice
-2. `supabase/functions/_shared/dejtTribunais.ts` (extração)
-3. `supabase/functions/buscar-dejt-pautas/index.ts` (nova)
-4. `src/hooks/useDjetPautasParalelaEngine.ts` (nova)
-5. `src/hooks/useDjetPautasParalela.ts` (nova)
-6. `src/hooks/useDjetPautasParalelaScheduler.ts` (nova)
-7. `src/components/configuracoes/MonitoramentoDjetPautasCard.tsx` (nova)
-8. Ajuste retrocompatível em `useAnaliseDjen.ts`
-9. Inclusão do novo card em `Configuracoes.tsx`
+- `supabase/migrations/...` — ajuste da função `mark_djen_duplicada_on_insert()`
+- `src/hooks/useDjenTermosParalelaEngine.ts` — alinhamento do pré-check e da contagem
 
-**Zero alteração** em arquivos da DJEN Termos Paralela.
+## Resultado esperado
+
+Após o ajuste:
+
+- a consulta volta a se comportar como antes da classificação pré-gravação
+- publicações não serão descartadas indevidamente por uma chave errada
+- a contagem da execução e a contagem exibida na Análise DJEN voltarão a bater
+
+## Observação
+
+Vou fazer isso de forma cirúrgica, sem redesenhar a engine paralela e sem mexer no pool Browser/VPS.
