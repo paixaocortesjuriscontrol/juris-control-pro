@@ -31,13 +31,13 @@ function formatDateTime(s: string) {
 /** Pares chave/valor renderizados em uma grid compacta. */
 function KV({ items }: { items: Array<[string, any]> }) {
   const visible = items.filter(([_, v]) => v !== null && v !== undefined && v !== "");
-  if (!visible.length) return <p className="text-xs text-muted-foreground italic">Nenhum dado retornado.</p>;
+  if (!visible.length) return <p className="text-sm text-muted-foreground italic">Nenhum dado retornado.</p>;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
       {visible.map(([k, v]) => (
-        <div key={k} className="flex gap-2">
-          <span className="font-medium text-muted-foreground min-w-[140px]">{k}:</span>
-          <span className="text-foreground break-all">{typeof v === "boolean" ? (v ? "Sim" : "Não") : String(v)}</span>
+        <div key={k} className="flex gap-2 min-w-0">
+          <span className="font-medium text-muted-foreground min-w-[160px] shrink-0">{k}:</span>
+          <span className="text-foreground break-words min-w-0 flex-1">{typeof v === "boolean" ? (v ? "Sim" : "Não") : String(v)}</span>
         </div>
       ))}
     </div>
@@ -54,14 +54,14 @@ function JsonSection({ title, value, defaultOpen = false }: { title: string; val
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
-        <button className="flex items-center gap-1.5 text-xs font-medium hover:text-primary w-full text-left py-1">
-          <ChevronRight className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-90" : ""}`} />
+        <button className="flex items-center gap-1.5 text-sm font-medium hover:text-primary w-full text-left py-1">
+          <ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} />
           {title}
-          <Badge variant="secondary" className="text-[10px] h-4 px-1.5 ml-1">{count}</Badge>
+          <Badge variant="secondary" className="text-xs h-5 px-1.5 ml-1">{count}</Badge>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-auto max-h-80 border border-border">
+        <pre className="mt-1 p-3 bg-muted rounded text-xs leading-relaxed overflow-auto max-h-96 border border-border whitespace-pre-wrap break-words">
           {JSON.stringify(value, null, 2)}
         </pre>
       </CollapsibleContent>
