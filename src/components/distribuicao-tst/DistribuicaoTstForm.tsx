@@ -252,10 +252,13 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
               .maybeSingle();
             if (proc) payload.processo_id = proc.id;
           }
-          const ok = await onSave(payload, dado?.id);
-          if (ok) {
+          const result = await onSave(payload, dado?.id);
+          if (result) {
             toast.success("Distribuição TST e Dados Benner sincronizados com Judit");
-            onJuditSync?.();
+            // Se foi um insert novo, `result` é o id recém-criado; propaga para
+            // o container habilitar as abas dependentes imediatamente.
+            const newId = typeof result === "string" ? result : (dado?.id || undefined);
+            onJuditSync?.(newId);
           }
         } catch (e: any) {
           console.error("Auto-save Judit falhou:", e);
