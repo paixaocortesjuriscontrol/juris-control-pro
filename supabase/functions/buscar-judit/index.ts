@@ -252,6 +252,8 @@ serve(async (req) => {
     const numero = String(body?.numero_processo || "").trim();
     if (!numero) return json({ error: "numero_processo é obrigatório" }, 400);
     const tribunalHint = String(body?.tribunal || "").trim().toUpperCase() || null;
+    const comAnexos = body?.com_anexos === true;
+    console.log(`[buscar-judit] modo=${comAnexos ? "COM_ANEXOS (caro)" : "sem anexos"} cnj=${numero}`);
 
     const cnj = numero;
     const rawCollector: { cache_lookup: any; crawler: any } = {
@@ -270,7 +272,7 @@ serve(async (req) => {
     let rdSelecionada: any = null;
     let foiTst = false;
 
-    const reqId = await juditCriarRequest(apiKey, cnj);
+    const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos);
     if (reqId) {
       const envelope = await juditPollar(apiKey, reqId);
       if (envelope) {
