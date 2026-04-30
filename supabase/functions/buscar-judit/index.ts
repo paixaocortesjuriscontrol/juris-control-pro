@@ -64,6 +64,15 @@ async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
 // ---------- Judit crawler (assíncrono, agrega TODAS as instâncias) ---------
 
 async function juditCriarRequest(apiKey: string, cnj: string): Promise<string | null> {
+  return juditCriarRequestComOpcoes(apiKey, cnj, false);
+}
+
+async function juditCriarRequestComOpcoes(
+  apiKey: string,
+  cnj: string,
+  comAnexos: boolean,
+): Promise<string | null> {
+  const responseType = comAnexos ? "lawsuit_with_attachments" : "lawsuit";
   const r = await fetch(REQUESTS_URL, {
     method: "POST",
     headers: { "api-key": apiKey, "Content-Type": "application/json" },
@@ -71,7 +80,7 @@ async function juditCriarRequest(apiKey: string, cnj: string): Promise<string | 
       search: {
         search_type: "lawsuit_cnj",
         search_key: cnj,
-        response_type: "lawsuit",
+        response_type: responseType,
         cache_ttl_in_days: CACHE_TTL_DAYS,
       },
     }),
@@ -243,6 +252,8 @@ serve(async (req) => {
     const numero = String(body?.numero_processo || "").trim();
     if (!numero) return json({ error: "numero_processo é obrigatório" }, 400);
     const tribunalHint = String(body?.tribunal || "").trim().toUpperCase() || null;
+    const comAnexos = body?.com_anexos === true;
+    console.log(`[buscar-judit] modo=${comAnexos ? "COM_ANEXOS (caro)" : "sem anexos"} cnj=${numero}`);
 
     const cnj = numero;
     const rawCollector: { cache_lookup: any; crawler: any } = {
@@ -261,7 +272,7 @@ serve(async (req) => {
     let rdSelecionada: any = null;
     let foiTst = false;
 
-    const reqId = await juditCriarRequest(apiKey, cnj);
+    const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos);
     if (reqId) {
       const envelope = await juditPollar(apiKey, reqId);
       if (envelope) {
@@ -403,7 +414,23 @@ serve(async (req) => {
         fonte: foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio"),
         tribunal_selecionado: rdSelecionada?.tribunal_acronym || null,
         instance_selecionada: rdSelecionada?.instance || null,
+        com_anexos: comAnexos,
       },
+      attachments: comAnexos
+        ? (Array.isArray(rdSelecionada?.steps)
+            ? rdSelecionada.steps.flatMap((s: any) =>
+                Array.isArray(s?.attachments)
+                  ? s.attachments.map((a: any) => ({
+                      step_id: s?.step_id || s?.id || null,
+                      step_date: s?.step_date || s?.date || null,
+                      attachment_name: a?.name || a?.attachment_name || null,
+                      attachment_date: a?.date || a?.attachment_date || null,
+                      extension: a?.extension || null,
+                    }))
+                  : []
+              )
+            : [])
+        : null,
       _judit_raw: rawCollector,
     };
 

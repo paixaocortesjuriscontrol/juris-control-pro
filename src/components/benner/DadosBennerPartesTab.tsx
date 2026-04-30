@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Search, Trash2, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +51,7 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
   const [loading, setLoading] = useState(true);
   const [buscando, setBuscando] = useState(false);
   const [addingManual, setAddingManual] = useState(false);
+  const [comAnexos, setComAnexos] = useState(false);
   const [newNome, setNewNome] = useState("");
   const [newDocumento, setNewDocumento] = useState("");
   const [newPolo, setNewPolo] = useState("Active");
@@ -83,7 +85,7 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
     setBuscando(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: "TST" },
+        body: { numero_processo: processoNumero, tribunal: "TST", com_anexos: comAnexos },
       });
 
       if (error) {
@@ -153,6 +155,8 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
       if (insertError) throw insertError;
 
       toast.success(`${rows.length} partes importadas da Judit`);
+      // Reseta para evitar consultas caras acidentais nas próximas buscas
+      setComAnexos(false);
       await fetchPartes();
     } catch (e: any) {
       toast.error("Erro ao buscar Judit: " + (e.message || e));
@@ -207,6 +211,18 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
           {buscando ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Search className="w-4 h-4 mr-1" />}
           Buscar Judit
         </Button>
+        <label
+          className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
+          title="Consulta mais cara. Inclui a lista de documentos/anexos do processo."
+        >
+          <Checkbox
+            checked={comAnexos}
+            onCheckedChange={(v) => setComAnexos(v === true)}
+            disabled={buscando}
+          />
+          Com anexos
+          <span className="text-[10px] text-amber-600 dark:text-amber-400">(consulta cara)</span>
+        </label>
         <Button variant="outline" size="sm" onClick={() => setAddingManual(!addingManual)}>
           <Plus className="w-4 h-4 mr-1" /> Adicionar Manual
         </Button>
