@@ -24,15 +24,17 @@ import {
 
 interface Props {
   dado?: DistribuicaoTst | null;
-  onSave: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean>;
+  onSave: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
   /**
    * Callback chamado após o botão Judit preencher e auto-salvar com sucesso.
    * Usado pelo container (DistribuicaoTstDetail) para recarregar a aba paralela
    * "Dados Benner" — assim os dados aparecem sincronizados sem precisar
    * clicar em Salvar manualmente.
+   * Quando o registro foi recém-criado pelo auto-save, recebe o `newId` para
+   * que o container habilite as abas dependentes (Log Judit, Análise, Benner).
    */
-  onJuditSync?: () => void;
+  onJuditSync?: (newId?: string) => void;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
