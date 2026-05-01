@@ -360,7 +360,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         try {
           let q = (supabase
             .from('publicacoes_djen') as any)
-            .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
           if (di) q = q.gte('created_at', di);
           if (df) q = q.lte('created_at', df);
@@ -400,7 +400,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               coordenacao_nome: null,
               polo_ativo: null,
               polo_passivo: null,
-              tribunal: null,
+              tribunal: r.tribunal ?? null,
               orgao: null,
               tipo_comunicacao: null,
               meio: null,
@@ -726,6 +726,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             data_publicacao,
             data_disponibilizacao,
             fonte,
+            tribunal,
             lida,
             created_at,
             orgao,
@@ -833,7 +834,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
             polo_ativo: pub.polo_ativo || null,
             polo_passivo: pub.polo_passivo || null,
-            tribunal: null,
+            tribunal: pub.tribunal ?? null,
             orgao: pub.orgao || null,
             tipo_comunicacao: pub.tipo_comunicacao || null,
             meio: pub.meio || null,
