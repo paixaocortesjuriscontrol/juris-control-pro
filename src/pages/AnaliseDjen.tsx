@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Bord
 import {
   FileText,
   CalendarClock,
+  Database,
   Filter,
   Eye,
   Sparkles,
