@@ -340,7 +340,7 @@ const AnaliseDjen = () => {
       let query = (supabase.from('publicacoes_djen') as any)
         .select(`
           id, monitoramento_id, processo_numero, conteudo, data_publicacao,
-          data_disponibilizacao, fonte, lida, created_at, orgao, tipo_comunicacao,
+          data_disponibilizacao, fonte, tribunal, lida, created_at, orgao, tipo_comunicacao,
           meio, advogados_json, partes_json, polo_ativo, polo_passivo,
           monitoramento:monitoramentos_djen!inner(
             id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
@@ -400,7 +400,7 @@ const AnaliseDjen = () => {
         coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
         polo_ativo: pub.polo_ativo || null,
         polo_passivo: pub.polo_passivo || null,
-        tribunal: null,
+        tribunal: pub.tribunal ?? null,
         orgao: pub.orgao || null,
         tipo_comunicacao: pub.tipo_comunicacao || null,
         meio: pub.meio || null,
