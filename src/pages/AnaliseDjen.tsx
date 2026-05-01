@@ -80,6 +80,17 @@ type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
+const formatToUTC = (date: Date) => date.toISOString();
+
+const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (isEnd) {
+    const nextDay = addDays(new Date(year, month - 1, day), 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+};
+
 const AnaliseDjen = () => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
