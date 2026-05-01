@@ -2506,6 +2506,11 @@ const AnaliseDjen = () => {
 
                                   {/* Datas inline - sempre visíveis */}
                                   <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs ml-4 md:ml-6 mb-1.5">
+                                    {pub.tribunal && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                                        {pub.tribunal}
+                                      </span>
+                                    )}
                                     <div className="flex items-center gap-1">
                                       <span className="text-muted-foreground font-medium">Disp:</span>
                                       <span className="text-amber-600 dark:text-amber-400">{formatDateOnly(pub.data_disponibilizacao)}</span>
@@ -2564,11 +2569,6 @@ const AnaliseDjen = () => {
                                   </div>
                                 )}
 
-                                {!isExpanded && pub.tribunal && (
-                                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1 ml-4 md:ml-6">
-                                    <strong>Tribunal:</strong> {pub.tribunal}
-                                  </p>
-                                )}
                               </div>
                             </div>
                           </div>
