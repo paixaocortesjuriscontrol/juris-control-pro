@@ -1,0 +1,1 @@
+DELETE FROM public.dados_benner WHERE id = 'd6f9de13-997f-4730-9b3b-672058b63474';
