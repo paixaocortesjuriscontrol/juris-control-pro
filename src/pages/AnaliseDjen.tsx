@@ -57,10 +57,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
+import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
+import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
@@ -74,10 +75,22 @@ import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { DjenExecutionBannerPro } from "@/components/djen/DjenExecutionBannerPro";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { jsPDF } from "jspdf";
+import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas';
 type FiltroDiaDjen = 'hoje' | 'todos';
+
+const formatToUTC = (date: Date) => date.toISOString();
+
+const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (isEnd) {
+    const nextDay = addDays(new Date(year, month - 1, day), 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+};
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
@@ -306,7 +319,118 @@ const AnaliseDjen = () => {
   const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
 
-  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
+  const { data: pautasDejtStats = { total: 0 }, isLoading: isLoadingPautasDejtStats } = useQuery({
+    queryKey: ['pautas-dejt-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicio, dataFim, dataDisponibilizacao, termoBusca, monitoramentoId, readStatus],
+    queryFn: async () => {
+      if (!user?.id) return { total: 0 };
+
+      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
+      const dataFimEfetiva = dataDisponibilizacao || dataFim;
+      const dataInicioFiltro = apenasHoje
+        ? formatToUTC(startOfDay(new Date()))
+        : dataInicioEfetiva
+          ? dateLocalToUTCRange(dataInicioEfetiva, false)
+          : null;
+      const dataFimFiltro = apenasHoje
+        ? formatToUTC(endOfDay(new Date()))
+        : dataFimEfetiva
+          ? dateLocalToUTCRange(dataFimEfetiva, true)
+          : null;
+
+      let query = (supabase.from('publicacoes_djen') as any)
+        .select(`
+          id, monitoramento_id, processo_numero, conteudo, data_publicacao,
+          data_disponibilizacao, fonte, lida, created_at, orgao, tipo_comunicacao,
+          meio, advogados_json, partes_json, polo_ativo, polo_passivo,
+          monitoramento:monitoramentos_djen!inner(
+            id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
+            coordenacao:coordenacoes(id, nome)
+          )
+        `)
+        .eq('tipo_publicacao', 'pauta')
+        .order('created_at', { ascending: false });
+
+      if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
+      if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
+      if (coordenacaoFiltroEfetivo) query = query.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
+      if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
+        query = query.in('monitoramento.coordenacao_id', userCoordenacaoIds);
+      }
+      if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
+
+      const { data, error } = await query.limit(10000);
+      if (error) throw error;
+
+      let rows = (data || []) as any[];
+      if (dataDisponibilizacao) {
+        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacao);
+      }
+      if (termoBusca) {
+        const termoLower = termoBusca.toLowerCase();
+        const termoDigits = termoLower.replace(/\D/g, '');
+        rows = rows.filter((pub) => {
+          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
+          const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
+          const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
+          const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+            ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
+            : false;
+          return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
+        });
+      }
+
+      const mapped = rows.map((pub: any): PublicacaoUnificada => ({
+        id: pub.id,
+        tipo_origem: 'termo',
+        processo_id: null,
+        processo_numero: pub.processo_numero,
+        conteudo: pub.conteudo,
+        data_publicacao: pub.data_publicacao,
+        data_disponibilizacao: pub.data_disponibilizacao,
+        fonte: pub.fonte,
+        lida: false,
+        created_at: pub.created_at,
+        monitoramento_id: pub.monitoramento_id,
+        monitoramento_termo: pub.monitoramento?.termo_busca,
+        monitoramento_descricao: pub.monitoramento?.descricao,
+        monitoramento_tipo: pub.monitoramento?.tipo,
+        monitoramento_oab: pub.monitoramento?.oab,
+        monitoramento_uf: pub.monitoramento?.uf,
+        coordenacao_id: pub.monitoramento?.coordenacao_id,
+        coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
+        polo_ativo: pub.polo_ativo || null,
+        polo_passivo: pub.polo_passivo || null,
+        tribunal: null,
+        orgao: pub.orgao || null,
+        tipo_comunicacao: pub.tipo_comunicacao || null,
+        meio: pub.meio || null,
+        advogados_json: Array.isArray(pub.advogados_json) ? pub.advogados_json : null,
+        partes_json: Array.isArray(pub.partes_json) ? pub.partes_json : null,
+      }));
+
+      const deduped = dedupePublicacoesDjen(mapped);
+      const ids = deduped.map((pub) => pub.id);
+      const readSet = new Set<string>();
+      if (ids.length > 0) {
+        const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
+        (leituras || []).forEach((l: any) => {
+          if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
+        });
+      }
+
+      const total = readStatus === 'nao_lidas'
+        ? deduped.filter((pub) => !readSet.has(pub.id)).length
+        : readStatus === 'lidas'
+          ? deduped.filter((pub) => readSet.has(pub.id)).length
+          : deduped.length;
+
+      return { total };
+    },
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  });
+
+  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats;
   const totalGeralFiltrado = tipoOrigem === 'datajud'
     ? totalDatajudHoje
     : tipoOrigem === 'descartada'
@@ -320,6 +444,7 @@ const AnaliseDjen = () => {
   const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
   const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = tipoOrigem === 'descartada' ? totalDescartadasHoje : 0;
+  const totalPautasDejt = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? pautasDejtStats.total : 0;
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
@@ -1530,7 +1655,6 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
-  const totalPautasDejt = tipoOrigem === 'djet-pautas' ? totalListaVisivel : 0;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
 
