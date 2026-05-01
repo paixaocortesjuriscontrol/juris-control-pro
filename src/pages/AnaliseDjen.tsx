@@ -430,7 +430,76 @@ const AnaliseDjen = () => {
     staleTime: 30_000,
   });
 
-  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats;
+  // ===== Descartadas stats (independente, respeita filtros, igual aos demais cards) =====
+  const { data: descartadasStats = { total: 0 }, isLoading: isLoadingDescartadasStats } = useQuery({
+    queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicio, dataFim, dataDisponibilizacao, termoBusca, monitoramentoId],
+    queryFn: async () => {
+      if (!user?.id) return { total: 0 };
+
+      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
+      const dataFimEfetiva = dataDisponibilizacao || dataFim;
+      const dataInicioFiltro = apenasHoje
+        ? formatToUTC(startOfDay(new Date()))
+        : dataInicioEfetiva
+          ? dateLocalToUTCRange(dataInicioEfetiva, false)
+          : null;
+      const dataFimFiltro = apenasHoje
+        ? formatToUTC(endOfDay(new Date()))
+        : dataFimEfetiva
+          ? dateLocalToUTCRange(dataFimEfetiva, true)
+          : null;
+
+      try {
+        let q = (supabase.from('publicacoes_djen_descartadas') as any)
+          .select(`
+            id, processo_numero, conteudo, data_disponibilizacao, created_at,
+            monitoramento:monitoramentos_djen!inner(id, termo_busca, coordenacao_id)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
+        if (coordenacaoFiltroEfetivo) q = q.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
+        if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
+          q = q.in('monitoramento.coordenacao_id', userCoordenacaoIds);
+        }
+        if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
+
+        const { data, error } = await q.limit(10000);
+        if (error) {
+          console.warn('Erro ao contar descartadas (stats header):', error);
+          return { total: 0 };
+        }
+
+        let rows = (data || []) as any[];
+        if (dataDisponibilizacao) {
+          rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacao);
+        }
+        if (termoBusca) {
+          const termoLower = termoBusca.toLowerCase();
+          const termoDigits = termoLower.replace(/\D/g, '');
+          rows = rows.filter((pub) => {
+            const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
+            const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
+            const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
+            const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+              ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
+              : false;
+            return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
+          });
+        }
+
+        return { total: rows.length };
+      } catch (e) {
+        console.warn('Erro ao contar descartadas (stats header):', e);
+        return { total: 0 };
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  });
+
+  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats || isLoadingDescartadasStats;
   const totalGeralFiltrado = tipoOrigem === 'datajud'
     ? totalDatajudHoje
     : tipoOrigem === 'descartada'
@@ -443,7 +512,7 @@ const AnaliseDjen = () => {
       : naoLidasHoje;
   const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
   const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
-  const totalDescartadasFiltrado = tipoOrigem === 'descartada' ? totalDescartadasHoje : 0;
+  const totalDescartadasFiltrado = tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
   const totalPautasDejt = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? pautasDejtStats.total : 0;
 
   // Map DataJud results to PublicacaoUnificada format
