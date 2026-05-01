@@ -61,6 +61,7 @@ import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
+import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
@@ -323,15 +324,17 @@ const AnaliseDjen = () => {
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
+      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
+      const dataFimEfetiva = dataDisponibilizacao || dataFim;
       const dataInicioFiltro = apenasHoje
         ? formatToUTC(startOfDay(new Date()))
-        : dataInicio
-          ? dateLocalToUTCRange(dataInicio, false)
+        : dataInicioEfetiva
+          ? dateLocalToUTCRange(dataInicioEfetiva, false)
           : null;
       const dataFimFiltro = apenasHoje
         ? formatToUTC(endOfDay(new Date()))
-        : dataFim
-          ? dateLocalToUTCRange(dataFim, true)
+        : dataFimEfetiva
+          ? dateLocalToUTCRange(dataFimEfetiva, true)
           : null;
 
       let query = (supabase.from('publicacoes_djen') as any)
@@ -366,7 +369,7 @@ const AnaliseDjen = () => {
         const termoLower = termoBusca.toLowerCase();
         const termoDigits = termoLower.replace(/\D/g, '');
         rows = rows.filter((pub) => {
-          const matchConteudo = (pub.conteudo || '').toLowerCase().includes(termoLower);
+          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
           const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
           const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
           const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
