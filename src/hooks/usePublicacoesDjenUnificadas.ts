@@ -726,6 +726,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             data_publicacao,
             data_disponibilizacao,
             fonte,
+            tribunal,
             lida,
             created_at,
             orgao,
