@@ -834,7 +834,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
             polo_ativo: pub.polo_ativo || null,
             polo_passivo: pub.polo_passivo || null,
-            tribunal: null,
+            tribunal: pub.tribunal ?? null,
             orgao: pub.orgao || null,
             tipo_comunicacao: pub.tipo_comunicacao || null,
             meio: pub.meio || null,
