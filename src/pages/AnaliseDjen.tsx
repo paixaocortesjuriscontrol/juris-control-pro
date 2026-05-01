@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ShadingType, Tab, TabStopType, TabStopPosition, PageBreak, ExternalHyperlink } from "docx";
 import {
   FileText,
+  CalendarClock,
   Database,
   Filter,
   Eye,
@@ -304,7 +305,42 @@ const AnaliseDjen = () => {
   });
   const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
-  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
+
+  // ===== Pautas DEJT (totalizador independente) =====
+  const { data: pautasDejtStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingPautasDejtStats } = useQuery({
+    queryKey: ['pautas-dejt-count', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, monitoramentoId, readStatus],
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const buildQuery = (onlyUnread: boolean) => {
+        let q: any = (supabase.from('publicacoes_djen') as any)
+          .select('id, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact', head: true })
+          .eq('tipo_publicacao', 'pauta');
+        if (apenasHoje) {
+          q = q.gte('created_at', `${today}T00:00:00Z`);
+        } else {
+          if (dataInicio) q = q.gte('created_at', `${dataInicio}T00:00:00Z`);
+          if (dataFim) q = q.lte('created_at', `${dataFim}T23:59:59Z`);
+        }
+        if (coordenacaoFiltroEfetivo) q = q.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
+        if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
+        if (onlyUnread) q = q.eq('lida', false);
+        return q;
+      };
+      try {
+        const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([
+          buildQuery(false), buildQuery(true),
+        ]);
+        return { total: totalCount || 0, naoLidas: unreadCount || 0 };
+      } catch (e) {
+        console.warn('[pautas-dejt] count failed', e);
+        return { total: 0, naoLidas: 0 };
+      }
+    },
+    staleTime: 30_000,
+  });
+  const totalPautasDejt = pautasDejtStats.total;
+
+  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats;
   const totalGeralFiltrado = tipoOrigem === 'datajud'
     ? totalDatajudHoje
     : tipoOrigem === 'descartada'
@@ -1616,16 +1652,19 @@ const AnaliseDjen = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800">
+          <Card
+            className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-200 dark:border-indigo-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setTipoOrigem('djet-pautas')}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs md:text-sm font-medium text-cyan-600 dark:text-cyan-400 truncate">DataJud (CNJ)</p>
-                  <p className="text-xl md:text-3xl font-bold text-cyan-700 dark:text-cyan-300">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDatajudHoje}
+                  <p className="text-xs md:text-sm font-medium text-indigo-600 dark:text-indigo-400 truncate">Pautas DEJT</p>
+                  <p className="text-xl md:text-3xl font-bold text-indigo-700 dark:text-indigo-300">
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalPautasDejt}
                   </p>
                 </div>
-                <Database className="w-6 h-6 md:w-10 md:h-10 text-cyan-500/50 flex-shrink-0" />
+                <CalendarClock className="w-6 h-6 md:w-10 md:h-10 text-indigo-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
