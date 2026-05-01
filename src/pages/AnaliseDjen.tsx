@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
+import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -306,14 +307,14 @@ const AnaliseDjen = () => {
   const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
 
-  // ===== Pautas DEJT (totalizador independente) =====
+  // ===== Pautas DEJT (totalizador deduplicado, espelha a lista) =====
   const { data: pautasDejtStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingPautasDejtStats } = useQuery({
-    queryKey: ['pautas-dejt-count', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, monitoramentoId, readStatus],
+    queryKey: ['pautas-dejt-count-deduped', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, monitoramentoId, readStatus],
     queryFn: async () => {
-      const today = new Date().toISOString().slice(0, 10);
-      const buildQuery = (onlyUnread: boolean) => {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
         let q: any = (supabase.from('publicacoes_djen') as any)
-          .select('id, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact', head: true })
+          .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)')
           .eq('tipo_publicacao', 'pauta');
         if (apenasHoje) {
           q = q.gte('created_at', `${today}T00:00:00Z`);
@@ -323,14 +324,40 @@ const AnaliseDjen = () => {
         }
         if (coordenacaoFiltroEfetivo) q = q.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
         if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
-        if (onlyUnread) q = q.eq('lida', false);
-        return q;
-      };
-      try {
-        const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([
-          buildQuery(false), buildQuery(true),
-        ]);
-        return { total: totalCount || 0, naoLidas: unreadCount || 0 };
+        const { data: rows } = await q.limit(2000);
+        const deduped = dedupePublicacoesDjen(
+          (rows || []).map((r: any) => ({
+            id: r.id,
+            tipo_origem: 'termo',
+            processo_id: null,
+            processo_numero: r.processo_numero,
+            conteudo: r.conteudo,
+            data_publicacao: r.data_publicacao,
+            data_disponibilizacao: r.data_disponibilizacao,
+            fonte: null,
+            lida: r.lida,
+            created_at: r.created_at,
+            monitoramento_id: null,
+            monitoramento_termo: null,
+            monitoramento_descricao: null,
+            monitoramento_tipo: null,
+            monitoramento_oab: null,
+            monitoramento_uf: null,
+            coordenacao_id: r.monitoramento?.coordenacao_id ?? null,
+            coordenacao_nome: null,
+            polo_ativo: null,
+            polo_passivo: null,
+            tribunal: null,
+            orgao: null,
+            tipo_comunicacao: null,
+            meio: null,
+            advogados_json: [],
+            partes_json: [],
+          })) as any
+        );
+        const total = deduped.length;
+        const naoLidas = deduped.filter((r: any) => r.lida === false).length;
+        return { total, naoLidas };
       } catch (e) {
         console.warn('[pautas-dejt] count failed', e);
         return { total: 0, naoLidas: 0 };
