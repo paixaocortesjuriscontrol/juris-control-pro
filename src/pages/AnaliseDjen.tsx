@@ -305,7 +305,42 @@ const AnaliseDjen = () => {
   });
   const totalDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.total : 0;
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
-  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats;
+
+  // ===== Pautas DEJT (totalizador independente) =====
+  const { data: pautasDejtStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingPautasDejtStats } = useQuery({
+    queryKey: ['pautas-dejt-count', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, monitoramentoId, readStatus],
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const buildQuery = (onlyUnread: boolean) => {
+        let q: any = (supabase.from('publicacoes_djen') as any)
+          .select('id, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact', head: true })
+          .eq('tipo_publicacao', 'pauta');
+        if (apenasHoje) {
+          q = q.gte('created_at', `${today}T00:00:00Z`);
+        } else {
+          if (dataInicio) q = q.gte('created_at', `${dataInicio}T00:00:00Z`);
+          if (dataFim) q = q.lte('created_at', `${dataFim}T23:59:59Z`);
+        }
+        if (coordenacaoFiltroEfetivo) q = q.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
+        if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
+        if (onlyUnread) q = q.eq('lida', false);
+        return q;
+      };
+      try {
+        const [{ count: totalCount }, { count: unreadCount }] = await Promise.all([
+          buildQuery(false), buildQuery(true),
+        ]);
+        return { total: totalCount || 0, naoLidas: unreadCount || 0 };
+      } catch (e) {
+        console.warn('[pautas-dejt] count failed', e);
+        return { total: 0, naoLidas: 0 };
+      }
+    },
+    staleTime: 30_000,
+  });
+  const totalPautasDejt = pautasDejtStats.total;
+
+  const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats;
   const totalGeralFiltrado = tipoOrigem === 'datajud'
     ? totalDatajudHoje
     : tipoOrigem === 'descartada'
