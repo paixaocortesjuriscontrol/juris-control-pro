@@ -1530,6 +1530,7 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
+  const totalPautasDejt = tipoOrigem === 'djet-pautas' ? totalListaVisivel : 0;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
 
