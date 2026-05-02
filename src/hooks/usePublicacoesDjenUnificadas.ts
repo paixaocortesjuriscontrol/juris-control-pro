@@ -932,7 +932,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             coordenacao_nome: pub.processo?.coordenacao?.nome,
             polo_ativo: pub.processo?.polo_ativo,
             polo_passivo: pub.processo?.polo_passivo,
-            tribunal: pub.processo?.tribunal,
+            tribunal: pub.tribunal ?? pub.processo?.tribunal,
             orgao: pub.orgao || null,
             tipo_comunicacao: pub.tipo_comunicacao || null,
             meio: pub.meio || null,
