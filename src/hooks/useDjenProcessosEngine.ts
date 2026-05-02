@@ -440,7 +440,39 @@ async function runEngine(
       return;
     }
 
-    console.log(`[DJEN Processos] ${processosMonitorados.length} processos (${PARALLEL_WORKERS} paralelos)`);
+    // Sincroniza pool de VPS antes de definir concorrência (mesma estratégia
+    // do DJEN Termos Paralela). Quando o pool está ativo, cada VPS recebe um
+    // worker dedicado; sem pool, mantém o comportamento histórico (8 workers
+    // saindo do mesmo IP do navegador).
+    try {
+      await syncDjenProxyPoolFromSupabase();
+    } catch (e) {
+      console.warn('[DJEN Processos] Falha ao sincronizar pool de proxies:', e);
+    }
+
+    type ViaSpec = { id: string; label: string };
+    const viasProxy: ViaSpec[] = [];
+    const poolAtivo = isDjenProxyPoolEnabled();
+    if (poolAtivo) {
+      for (const slot of loadDjenProxyPool()) {
+        if (slot.enabled && slot.id && slot.baseUrl && slot.token) {
+          viasProxy.push({ id: slot.id, label: slot.label || slot.baseUrl });
+        }
+      }
+    }
+    const usandoPoolVps = viasProxy.length > 0;
+    const vias: ViaSpec[] = usandoPoolVps
+      ? viasProxy
+      : Array.from({ length: PARALLEL_WORKERS_DIRECT }, () => ({
+          id: DIRECT_SLOT_ID,
+          label: 'Direto (browser)',
+        }));
+    const parallelWorkers = vias.length;
+
+    console.log(
+      `[DJEN Processos] ${processosMonitorados.length} processos | ${parallelWorkers} workers ` +
+      `(${usandoPoolVps ? `VPS pool: ${viasProxy.map(v => v.label).join(', ')}` : 'browser direto'})`
+    );
 
     const totalProcessos = processosMonitorados.length;
     const processosLista = processosMonitorados;
@@ -448,7 +480,7 @@ async function runEngine(
     updateProgress({
       totalGroups: totalProcessos,
       currentGroup: startProcessoIdx,
-      mensagem: `${totalProcessos} processos (${PARALLEL_WORKERS} paralelos)`,
+      mensagem: `${totalProcessos} processos | ${parallelWorkers} workers ${usandoPoolVps ? `(VPS: ${viasProxy.map(v => v.label).join(' + ')})` : '(direto)'}`,
     });
 
     await persistMetadata({
@@ -458,16 +490,19 @@ async function runEngine(
       novas: novasTotal,
       duplicadas: duplicadasTotal,
       run_key: runKey,
-      browser_execution: true,
-      estrategia: 'singleton_engine_v3_parallel',
+      browser_execution: !usandoPoolVps,
+      estrategia: usandoPoolVps ? 'singleton_engine_v4_vps_pool' : 'singleton_engine_v3_parallel',
       turbo: turbo,
-      parallel_workers: PARALLEL_WORKERS,
+      parallel_workers: parallelWorkers,
+      pool_enabled: usandoPoolVps,
+      vias: vias.map(v => ({ id: v.id, label: v.label })),
     }, { force: true });
 
     // === Função para processar 1 processo (usada em paralelo) ===
     async function processOneProcess(
       processo: { id: string; numero: string; coordenacao_id: string | null },
-      idx: number
+      idx: number,
+      viaId: string,
     ): Promise<{ novas: number; duplicadas: number; analisadas: number; blocked: boolean }> {
       const numeroCompleto = processo.numero.trim();
       let page = 0;
@@ -494,7 +529,11 @@ async function runEngine(
               dataFim: dataFimYmd,
               page,
               pageSize: 50,
-            }, { signal });
+            }, {
+              signal,
+              forceVia: viaId,
+              fallbackToDirect: viaId === DIRECT_SLOT_ID,
+            });
 
             success = true;
           } catch (e: any) {
@@ -614,114 +653,108 @@ async function runEngine(
       return { novas, duplicadas, analisadas, blocked };
     }
 
-    // === Loop principal: processar em lotes paralelos de PARALLEL_WORKERS ===
-    for (let batchStart = startProcessoIdx; batchStart < processosLista.length; batchStart += PARALLEL_WORKERS) {
-      if (signal.aborted) break;
+    // === Loop principal: fila compartilhada com 1 worker por VIA ===
+    // Cada worker (VPS ou direto) puxa o próximo processo da fila assim que
+    // termina o anterior, dando paralelismo real por IP independente quando
+    // o pool está ativo. Sem pool, fica equivalente a PARALLEL_WORKERS_DIRECT
+    // chamadas concorrentes saindo do navegador (comportamento anterior).
+    const queue: typeof processosLista = processosLista.slice(startProcessoIdx);
+    let nextIdx = startProcessoIdx;
+    let processedSinceCheckpoint = 0;
+    const CHECKPOINT_EVERY = Math.max(parallelWorkers * 2, 5);
 
-      const batchEnd = Math.min(batchStart + PARALLEL_WORKERS, processosLista.length);
-      const batch = processosLista.slice(batchStart, batchEnd);
+    const runWorker = async (via: ViaSpec, workerIdx: number) => {
+      // Stagger inicial pequeno para não largar todas as chamadas no mesmo ms
+      await delay(workerIdx * 200);
+      while (!signal.aborted) {
+        if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) break;
+        const processo = queue.shift();
+        if (!processo) break;
+        const meuIdx = nextIdx++;
+        try {
+          const result = await processOneProcess(processo, meuIdx, via.id);
+          novasTotal += result.novas;
+          duplicadasTotal += result.duplicadas;
+          publicacoesAnalisadas += result.analisadas;
+          if (result.blocked) consecutiveBlocks++;
+          else consecutiveBlocks = 0;
+        } catch (err: any) {
+          console.warn(`[DJEN Processos][${via.label}] erro processo ${processo.numero}:`, err?.message || err);
+        }
 
-      updateProgress({
-        currentGroup: batchStart + 1,
-        percentage: Math.round(((batchStart + 1) / totalProcessos) * 100),
-        mensagem: `Lote ${Math.floor(batchStart / PARALLEL_WORKERS) + 1} (processos ${batchStart + 1}-${batchEnd}/${totalProcessos}) | ${PARALLEL_WORKERS} paralelos`,
-      });
+        processedSinceCheckpoint++;
+        const concluidos = totalProcessos - queue.length;
+        updateProgress({
+          currentGroup: concluidos,
+          percentage: Math.round((concluidos / totalProcessos) * 100),
+          novas: novasTotal,
+          duplicadas: duplicadasTotal,
+          totalPublicacoesAnalisadas: publicacoesAnalisadas,
+          mensagem: usandoPoolVps
+            ? `${concluidos}/${totalProcessos} | +${novasTotal} novas | VPS: ${vias.map(v => v.label).join(' + ')}`
+            : `${concluidos}/${totalProcessos} | +${novasTotal} novas | ${parallelWorkers} workers (direto)`,
+        });
 
-      // Executar batch em paralelo com stagger de 200ms entre cada
-      const promises = batch.map((processo, i) =>
-        delay(i * 200).then(() => processOneProcess(processo, batchStart + i))
-      );
-
-      const results = await Promise.all(promises);
-
-      let batchBlocked = 0;
-      for (const result of results) {
-        novasTotal += result.novas;
-        duplicadasTotal += result.duplicadas;
-        publicacoesAnalisadas += result.analisadas;
-        if (result.blocked) batchBlocked++;
-      }
-
-      // Circuit breaker: se todos no lote foram bloqueados
-      if (batchBlocked >= batch.length && batch.length > 1) {
-        consecutiveBlocks++;
-        console.warn(`[DJEN Processos] Lote inteiro bloqueado ${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}`);
-        
-        if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
-          console.error('[DJEN Processos] Circuit breaker ativado');
-          
+        if (processedSinceCheckpoint >= CHECKPOINT_EVERY) {
+          processedSinceCheckpoint = 0;
           saveCheckpoint({
             runKey,
-            processoIdx: batchStart,
+            processoIdx: concluidos,
             novas: novasTotal,
             duplicadas: duplicadasTotal,
             totalAnalisadas: publicacoesAnalisadas,
             tempoInicio,
             dataInicioYmd,
             dataFimYmd,
-            percentage: Math.round((batchStart / totalProcessos) * 100),
+            percentage: Math.round((concluidos / totalProcessos) * 100),
             totalGroups: totalProcessos,
           });
-
           await persistMetadata({
-            status: 'erro',
-            erro: 'API bloqueada - circuit breaker',
-            grupo_atual: batchStart,
+            status: 'executando',
+            grupo_atual: concluidos,
             total_grupos: totalProcessos,
             novas: novasTotal,
             duplicadas: duplicadasTotal,
-          }, { force: true });
-
-          updateProgress({
-            status: 'erro',
-            mensagem: `API bloqueada após ${consecutiveBlocks} lotes. Use "Continuar" para retomar.`,
+            percentage: Math.round((concluidos / totalProcessos) * 100),
+            run_key: runKey,
+            parallel_workers: parallelWorkers,
+            pool_enabled: usandoPoolVps,
           });
-
-          singletonState.isRunning = false;
-          if (singletonState.timerInterval) clearInterval(singletonState.timerInterval);
-          return;
         }
-      } else {
-        consecutiveBlocks = 0;
       }
+    };
 
-      updateProgress({
-        currentGroup: batchEnd,
-        percentage: Math.round((batchEnd / totalProcessos) * 100),
-        novas: novasTotal,
-        duplicadas: duplicadasTotal,
-        totalPublicacoesAnalisadas: publicacoesAnalisadas,
-        mensagem: `Lote concluído (${batchEnd}/${totalProcessos}) | +${novasTotal} novas | ${PARALLEL_WORKERS} paralelos`,
-      });
+    await Promise.all(vias.map((v, i) => runWorker(v, i)));
 
-      // Checkpoint a cada lote
+    if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS && !signal.aborted) {
+      console.error('[DJEN Processos] Circuit breaker ativado');
       saveCheckpoint({
         runKey,
-        processoIdx: batchEnd,
+        processoIdx: totalProcessos - queue.length,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
         totalAnalisadas: publicacoesAnalisadas,
         tempoInicio,
         dataInicioYmd,
         dataFimYmd,
-        percentage: Math.round((batchEnd / totalProcessos) * 100),
+        percentage: Math.round(((totalProcessos - queue.length) / totalProcessos) * 100),
         totalGroups: totalProcessos,
       });
-
       await persistMetadata({
-        status: 'executando',
-        grupo_atual: batchEnd,
+        status: 'erro',
+        erro: 'API bloqueada - circuit breaker',
+        grupo_atual: totalProcessos - queue.length,
         total_grupos: totalProcessos,
         novas: novasTotal,
         duplicadas: duplicadasTotal,
-        percentage: Math.round((batchEnd / totalProcessos) * 100),
-        run_key: runKey,
-        parallel_workers: PARALLEL_WORKERS,
+      }, { force: true });
+      updateProgress({
+        status: 'erro',
+        mensagem: `API bloqueada após ${consecutiveBlocks} bloqueios consecutivos. Use "Continuar" para retomar.`,
       });
-
-      if (!signal.aborted && batchEnd < processosLista.length) {
-        await delay(DELAY_BETWEEN_BATCHES_MS);
-      }
+      singletonState.isRunning = false;
+      if (singletonState.timerInterval) clearInterval(singletonState.timerInterval);
+      return;
     }
 
     // Finalização
