@@ -497,10 +497,31 @@ async function runEngine(
     const totalProcessos = processosMonitorados.length;
     const processosLista = processosMonitorados;
 
+    // Inicializar estado de workers (1 entry por VIA)
+    const workersState: WorkerProgress[] = vias.map((v, i) => ({
+      id: usandoPoolVps ? v.id : `${DIRECT_SLOT_ID}#${i}`,
+      label: usandoPoolVps ? v.label : `Direto #${i + 1}`,
+      kind: usandoPoolVps ? 'proxy' : 'direct',
+      status: 'idle',
+      processados: 0,
+      novas: 0,
+      duplicadas: 0,
+      analisadas: 0,
+      currentProcesso: null,
+      lastError: null,
+      blocked: 0,
+    }));
+    const updateWorker = (idx: number, patch: Partial<WorkerProgress>) => {
+      workersState[idx] = { ...workersState[idx], ...patch };
+      updateProgress({ workers: [...workersState] });
+    };
+
     updateProgress({
       totalGroups: totalProcessos,
       currentGroup: startProcessoIdx,
       mensagem: `${totalProcessos} processos | ${parallelWorkers} workers ${usandoPoolVps ? `(VPS: ${viasProxy.map(v => v.label).join(' + ')})` : '(direto)'}`,
+      workers: [...workersState],
+      poolEnabled: usandoPoolVps,
     });
 
     await persistMetadata({
