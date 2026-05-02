@@ -108,6 +108,24 @@ export interface DjenProcessosProgress {
   // Intervalo de busca
   dataInicioYmd: string | null;
   dataFimYmd: string | null;
+
+  // Workers / VPS em execução
+  workers: WorkerProgress[];
+  poolEnabled: boolean;
+}
+
+export interface WorkerProgress {
+  id: string;            // viaId (slot.id ou DIRECT_SLOT_ID)
+  label: string;
+  kind: 'direct' | 'proxy';
+  status: 'idle' | 'executando' | 'concluido' | 'erro';
+  processados: number;
+  novas: number;
+  duplicadas: number;
+  analisadas: number;
+  currentProcesso: string | null;
+  lastError: string | null;
+  blocked: number;
 }
 
 interface Checkpoint {
