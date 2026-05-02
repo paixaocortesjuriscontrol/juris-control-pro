@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, Globe, Skull, FileSearch, StopCircle, RotateCcw, Info } from "lucide-react";
+import { Loader2, RefreshCw, Clock, CalendarIcon, X, ExternalLink, ChevronDown, FileText, Layers, CheckCircle2, Play, Globe, Skull, FileSearch, StopCircle, RotateCcw, Info, Server, Wifi } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -410,6 +410,74 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
               </div>
               <Progress value={progresso?.percentage ?? 0} className="h-3" />
             </div>
+
+            {/* Workers / VPS em execução */}
+            {engineRunning && engineProgress.workers && engineProgress.workers.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-primary/20">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <Server className="h-3.5 w-3.5 text-primary" />
+                    {engineProgress.poolEnabled ? 'VPS em execução' : 'Workers (browser direto)'}
+                  </div>
+                  <span className="text-muted-foreground tabular-nums">
+                    {engineProgress.workers.length} worker{engineProgress.workers.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {engineProgress.workers.map((w) => {
+                    const isRunning = w.status === 'executando';
+                    const isDone = w.status === 'concluido';
+                    const totalProc = engineProgress.totalGroups || 1;
+                    const pct = Math.min(100, Math.round((w.processados / Math.max(1, totalProc / engineProgress.workers.length)) * 100));
+                    return (
+                      <div
+                        key={w.id}
+                        className={cn(
+                          "rounded-md border p-2 space-y-1 text-xs bg-background/60",
+                          isRunning && "border-primary/50 bg-primary/5",
+                          isDone && "border-emerald-500/40 bg-emerald-500/5",
+                          w.status === 'erro' && "border-destructive/40 bg-destructive/5"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1 min-w-0">
+                            {w.kind === 'proxy'
+                              ? <Server className="h-3 w-3 text-primary shrink-0" />
+                              : <Globe className="h-3 w-3 text-muted-foreground shrink-0" />}
+                            <span className="font-mono font-semibold truncate" title={w.label}>{w.label}</span>
+                            {isRunning && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+                            {isDone && <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />}
+                          </div>
+                          <span className="tabular-nums text-muted-foreground whitespace-nowrap">
+                            {w.processados} proc.
+                          </span>
+                        </div>
+                        <Progress value={pct} className="h-1" />
+                        <div className="flex items-center justify-between text-[10px] tabular-nums opacity-80">
+                          <span className="truncate flex-1" title={w.currentProcesso || ''}>
+                            {w.currentProcesso ? `→ ${w.currentProcesso}` : (isDone ? 'Finalizado' : 'Aguardando…')}
+                          </span>
+                          <span className="whitespace-nowrap ml-2">
+                            ✅{w.novas} ♻️{w.duplicadas}
+                            {w.blocked > 0 && <span className="text-amber-600 ml-1">⚠{w.blocked}</span>}
+                          </span>
+                        </div>
+                        {w.lastError && (
+                          <p className="text-[10px] text-destructive italic truncate" title={w.lastError}>
+                            ⚠ {w.lastError}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {!engineProgress.poolEnabled && (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Pool VPS desabilitado — execução saindo do navegador.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
