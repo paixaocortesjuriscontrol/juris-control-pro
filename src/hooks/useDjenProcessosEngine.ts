@@ -221,6 +221,8 @@ function createDefaultProgress(): DjenProcessosProgress {
     tempoDecorrido: 0,
     dataInicioYmd: null,
     dataFimYmd: null,
+    workers: [],
+    poolEnabled: false,
   };
 }
 
