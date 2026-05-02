@@ -872,6 +872,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             meio,
             advogados_json,
             partes_json,
+            tribunal,
             processo:processos!inner(
               id, numero, polo_ativo, polo_passivo, tribunal,
               coordenacao_id, coordenacao:coordenacoes(id, nome)
