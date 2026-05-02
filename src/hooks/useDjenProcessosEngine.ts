@@ -707,11 +707,13 @@ async function runEngine(
     const runWorker = async (via: ViaSpec, workerIdx: number) => {
       // Stagger inicial pequeno para não largar todas as chamadas no mesmo ms
       await delay(workerIdx * 200);
+      updateWorker(workerIdx, { status: 'executando' });
       while (!signal.aborted) {
         if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) break;
         const processo = queue.shift();
         if (!processo) break;
         const meuIdx = nextIdx++;
+        updateWorker(workerIdx, { currentProcesso: processo.numero });
         try {
           const result = await processOneProcess(processo, meuIdx, via.id);
           novasTotal += result.novas;
@@ -719,8 +721,20 @@ async function runEngine(
           publicacoesAnalisadas += result.analisadas;
           if (result.blocked) consecutiveBlocks++;
           else consecutiveBlocks = 0;
+          updateWorker(workerIdx, {
+            processados: workersState[workerIdx].processados + 1,
+            novas: workersState[workerIdx].novas + result.novas,
+            duplicadas: workersState[workerIdx].duplicadas + result.duplicadas,
+            analisadas: workersState[workerIdx].analisadas + result.analisadas,
+            blocked: workersState[workerIdx].blocked + (result.blocked ? 1 : 0),
+            currentProcesso: null,
+          });
         } catch (err: any) {
           console.warn(`[DJEN Processos][${via.label}] erro processo ${processo.numero}:`, err?.message || err);
+          updateWorker(workerIdx, {
+            lastError: err?.message ? String(err.message).slice(0, 200) : 'erro',
+            currentProcesso: null,
+          });
         }
 
         processedSinceCheckpoint++;
@@ -763,6 +777,7 @@ async function runEngine(
           });
         }
       }
+      updateWorker(workerIdx, { status: 'concluido', currentProcesso: null });
     };
 
     await Promise.all(vias.map((v, i) => runWorker(v, i)));
