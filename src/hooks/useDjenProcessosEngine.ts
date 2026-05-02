@@ -108,6 +108,24 @@ export interface DjenProcessosProgress {
   // Intervalo de busca
   dataInicioYmd: string | null;
   dataFimYmd: string | null;
+
+  // Workers / VPS em execução
+  workers: WorkerProgress[];
+  poolEnabled: boolean;
+}
+
+export interface WorkerProgress {
+  id: string;            // viaId (slot.id ou DIRECT_SLOT_ID)
+  label: string;
+  kind: 'direct' | 'proxy';
+  status: 'idle' | 'executando' | 'concluido' | 'erro';
+  processados: number;
+  novas: number;
+  duplicadas: number;
+  analisadas: number;
+  currentProcesso: string | null;
+  lastError: string | null;
+  blocked: number;
 }
 
 interface Checkpoint {
@@ -203,6 +221,8 @@ function createDefaultProgress(): DjenProcessosProgress {
     tempoDecorrido: 0,
     dataInicioYmd: null,
     dataFimYmd: null,
+    workers: [],
+    poolEnabled: false,
   };
 }
 
@@ -477,10 +497,31 @@ async function runEngine(
     const totalProcessos = processosMonitorados.length;
     const processosLista = processosMonitorados;
 
+    // Inicializar estado de workers (1 entry por VIA)
+    const workersState: WorkerProgress[] = vias.map((v, i) => ({
+      id: usandoPoolVps ? v.id : `${DIRECT_SLOT_ID}#${i}`,
+      label: usandoPoolVps ? v.label : `Direto #${i + 1}`,
+      kind: usandoPoolVps ? 'proxy' : 'direct',
+      status: 'idle',
+      processados: 0,
+      novas: 0,
+      duplicadas: 0,
+      analisadas: 0,
+      currentProcesso: null,
+      lastError: null,
+      blocked: 0,
+    }));
+    const updateWorker = (idx: number, patch: Partial<WorkerProgress>) => {
+      workersState[idx] = { ...workersState[idx], ...patch };
+      updateProgress({ workers: [...workersState] });
+    };
+
     updateProgress({
       totalGroups: totalProcessos,
       currentGroup: startProcessoIdx,
       mensagem: `${totalProcessos} processos | ${parallelWorkers} workers ${usandoPoolVps ? `(VPS: ${viasProxy.map(v => v.label).join(' + ')})` : '(direto)'}`,
+      workers: [...workersState],
+      poolEnabled: usandoPoolVps,
     });
 
     await persistMetadata({
@@ -666,11 +707,13 @@ async function runEngine(
     const runWorker = async (via: ViaSpec, workerIdx: number) => {
       // Stagger inicial pequeno para não largar todas as chamadas no mesmo ms
       await delay(workerIdx * 200);
+      updateWorker(workerIdx, { status: 'executando' });
       while (!signal.aborted) {
         if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) break;
         const processo = queue.shift();
         if (!processo) break;
         const meuIdx = nextIdx++;
+        updateWorker(workerIdx, { currentProcesso: processo.numero });
         try {
           const result = await processOneProcess(processo, meuIdx, via.id);
           novasTotal += result.novas;
@@ -678,8 +721,20 @@ async function runEngine(
           publicacoesAnalisadas += result.analisadas;
           if (result.blocked) consecutiveBlocks++;
           else consecutiveBlocks = 0;
+          updateWorker(workerIdx, {
+            processados: workersState[workerIdx].processados + 1,
+            novas: workersState[workerIdx].novas + result.novas,
+            duplicadas: workersState[workerIdx].duplicadas + result.duplicadas,
+            analisadas: workersState[workerIdx].analisadas + result.analisadas,
+            blocked: workersState[workerIdx].blocked + (result.blocked ? 1 : 0),
+            currentProcesso: null,
+          });
         } catch (err: any) {
           console.warn(`[DJEN Processos][${via.label}] erro processo ${processo.numero}:`, err?.message || err);
+          updateWorker(workerIdx, {
+            lastError: err?.message ? String(err.message).slice(0, 200) : 'erro',
+            currentProcesso: null,
+          });
         }
 
         processedSinceCheckpoint++;
@@ -722,6 +777,7 @@ async function runEngine(
           });
         }
       }
+      updateWorker(workerIdx, { status: 'concluido', currentProcesso: null });
     };
 
     await Promise.all(vias.map((v, i) => runWorker(v, i)));
