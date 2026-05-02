@@ -298,13 +298,13 @@ export function MonitoramentoDjenProcessosCard({ coordenacaoId, onOpenFullTab, o
   }, [executando, dataInicio, dataFim, engineExecutar, turboMode, handleExecutar]);
 
   const handleCancelar = useCallback(() => {
-    if (hybridMode || backgroundOnly) {
-      cancelarHibrido();
-    } else {
-      engineCancelar();
-    }
+    // Sempre cancelar nos dois lados:
+    // - engine local (caso esteja rodando no navegador)
+    // - backend (caso esteja rodando como agendado/híbrido/background)
+    try { engineCancelar(); } catch {}
+    cancelarHibrido().catch(() => {});
     toast.info('Cancelando...');
-  }, [engineCancelar, cancelarHibrido, hybridMode, backgroundOnly]);
+  }, [engineCancelar, cancelarHibrido]);
 
   const handleForceKill = useCallback(async () => {
     setShowKillDialog(false);
