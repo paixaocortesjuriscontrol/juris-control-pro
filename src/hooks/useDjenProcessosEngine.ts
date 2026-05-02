@@ -14,6 +14,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaNoBrowser } from "@/utils/pjeComunicaClient";
 import { toast } from "sonner";
 import { extractDestinatariosFromMeta, extractAdvogadosFromApiMeta, buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+import {
+  isDjenProxyPoolEnabled,
+  loadDjenProxyPool,
+  syncDjenProxyPoolFromSupabase,
+  DIRECT_SLOT_ID,
+} from "@/utils/djenProxyPool";
 
 // ============================================================================
 // EXTRAÇÃO DE ADVOGADOS VIA REGEX (fallback quando API não retorna metadados)
@@ -133,7 +139,10 @@ interface ParametrosDjen {
 // (processos.monitorar_djen = false), portanto não há mais filtro hardcoded aqui.
 
 const MAX_PAGES_PER_PROCESS = 10;
-const PARALLEL_WORKERS = 8;
+// Quando o pool de VPS está desligado/ vazio, mantemos o paralelismo histórico
+// (8 workers no IP do navegador). Quando o pool está ativo, a concorrência
+// passa a ser 1 worker por VPS (mesma estratégia do DJEN Termos Paralela).
+const PARALLEL_WORKERS_DIRECT = 8;
 const DELAY_BETWEEN_BATCHES_MS = 1500;
 
 const DEFAULT_PARAMS: ParametrosDjen = {
