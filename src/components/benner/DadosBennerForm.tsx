@@ -265,64 +265,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     toast.success("Dados preenchidos automaticamente!");
   };
 
-  const executarAnaliseTransito = useCallback(async (processoNumero: string, filled: Set<string>) => {
-    try {
-      const { data: processoDb } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("numero", processoNumero)
-        .maybeSingle();
-
-      if (!processoDb?.id) return;
-
-      const { data: orqData, error: orqError } = await supabase.functions.invoke(
-        "orquestrador-transito",
-        { body: { processo_id: processoDb.id } }
-      );
-
-      if (!orqError && orqData?.success) {
-        const statusMap: Record<string, string> = {
-          transitado_confirmado: "Trânsito em Julgado",
-          transitado_provavel: "Trânsito em Julgado",
-          em_curso: "Ativo",
-        };
-
-        const situacaoOrq = statusMap[orqData.status_transito] || null;
-        if (situacaoOrq) {
-          setForm(f => ({
-            ...f,
-            situacao_processo: situacaoOrq,
-            confianca_transito: orqData.status_transito === "transitado_confirmado"
-              ? 95
-              : orqData.status_transito === "transitado_provavel"
-                ? 70
-                : null,
-            data_transito_julgado: orqData.data_transito_estimada || f.data_transito_julgado,
-            notas: orqData.justificativa
-              ? `[Orquestrador] ${orqData.justificativa}${f.notas ? '\n' + f.notas : ''}`
-              : f.notas,
-          }));
-          filled.add("situacao_processo");
-          if (orqData.data_transito_estimada) filled.add("data_transito_julgado");
-          if (orqData.status_transito !== "em_curso") filled.add("confianca_transito");
-          setCamposJudit(new Set(filled));
-        }
-
-        const transitoMsg = orqData.status_transito === "transitado_confirmado"
-          ? "✅ Trânsito CONFIRMADO"
-          : orqData.status_transito === "transitado_provavel"
-            ? "⚠️ Trânsito PROVÁVEL (decurso de prazo)"
-            : "📋 Processo em curso";
-        toast.success(`${transitoMsg} | ${orqData.classificadas || 0} movimentações classificadas`);
-      } else if (orqError) {
-        console.warn("Orquestrador erro (não-fatal):", orqError);
-        toast.warning("Dados Judit preenchidos, mas análise de trânsito falhou");
-      }
-    } catch (error) {
-      console.warn("Falha ao executar análise de trânsito em segundo plano:", error);
-    }
-  }, []);
-
   const handleBuscarJudit = async () => {
     if (!form.processo?.trim()) {
       toast.warning("Digite o número do processo primeiro");
@@ -339,8 +281,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       // Respeita o tribunal informado no formulário; se vazio, usa TST como padrão
       // (o módulo Dados Benner é voltado para processos no TST).
       const tribunalHint = (form.tribunal && String(form.tribunal).trim()) || "TST";
+      const requestPayload = { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false };
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
+        body: requestPayload,
       });
       // Persiste log da consulta Judit (visível na aba "Log Judit" da tela
       // Distribuição TST). Falha de log nunca interrompe o fluxo.
@@ -351,9 +294,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
           // / dados_benner.processo) para que as abas Log Judit e Análise Judit
           // consigam localizar o registro mesmo quando o processo foi cadastrado
           // sem máscara CNJ. A máscara é aplicada apenas na chamada à API Judit.
-          processo_numero: processoOriginal,
+          processo_numero: processoNumero,
           tribunal: tribunalHint,
-          request_payload: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
+          request_payload: { ...requestPayload, numero_processo_original: processoOriginal },
           raw_response: data ?? null,
           status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
           error_message: error?.message || data?.error || null,
@@ -524,7 +467,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       }
 
       setBuscandoJudit(false);
-      void executarAnaliseTransito(processoNumero, filled);
       return;
     } catch (err: any) {
       console.error("Erro ao buscar Judit:", err);
