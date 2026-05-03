@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, RefreshCw, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 interface JuditLog {
   id: string;
@@ -246,10 +247,11 @@ export function LogJuditTab({ processoNumero }: Props) {
   const fetchLogs = useCallback(async () => {
     if (!processoNumero) return;
     setLoading(true);
+    const variantes = obterVariantesCnjBusca(processoNumero);
     const { data, error } = await supabase
       .from("judit_logs" as any)
       .select("*")
-      .eq("processo_numero", processoNumero)
+      .in("processo_numero", variantes)
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) {
