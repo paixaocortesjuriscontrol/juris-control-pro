@@ -36,7 +36,7 @@ function cnjValido(d: string): boolean {
 }
 
 function normalizarDigitosCnj(d: string): string | null {
-  if (d.length === 20) return d;
+  if (d.length === 20) return cnjValido(d) ? d : null;
   for (let i = 0; i <= d.length - 20; i++) {
     const candidato = d.slice(i, i + 20);
     if (cnjValido(candidato)) return candidato;
