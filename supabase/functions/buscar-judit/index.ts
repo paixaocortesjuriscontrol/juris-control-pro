@@ -275,7 +275,19 @@ serve(async (req) => {
     const comAnexos = body?.com_anexos === true;
     console.log(`[buscar-judit] modo=${comAnexos ? "COM_ANEXOS (caro)" : "sem anexos"} cnj=${numero}`);
 
-    const cnj = numero;
+    // Normaliza o CNJ para o formato canônico exigido pela Judit:
+    // NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos com máscara). A Judit rejeita
+    // strings com mais/menos dígitos ou sem máscara em alguns endpoints.
+    const apenasDigitos = numero.replace(/\D/g, "");
+    let cnj = numero;
+    if (apenasDigitos.length === 20) {
+      cnj = `${apenasDigitos.slice(0, 7)}-${apenasDigitos.slice(7, 9)}.${apenasDigitos.slice(9, 13)}.${apenasDigitos.slice(13, 14)}.${apenasDigitos.slice(14, 16)}.${apenasDigitos.slice(16, 20)}`;
+    } else if (apenasDigitos.length !== 20) {
+      return json({
+        error: `CNJ inválido: ${numero} (esperado 20 dígitos, recebido ${apenasDigitos.length})`,
+      }, 400);
+    }
+    console.log(`[buscar-judit] cnj normalizado=${cnj}`);
     const rawCollector: { cache_lookup: any; crawler: any } = {
       cache_lookup: null,
       crawler: null,
