@@ -660,6 +660,16 @@ async function runEngine(
           }
           const advogadosJsonPayload = advogadosMerged.length > 0 ? JSON.stringify(advogadosMerged) : null;
 
+          // Tribunal real da publicação (vindo da API DJEN), não o do processo cadastrado
+          const tribunalPubRaw =
+            pub?.siglaTribunal || pub?.tribunal || pub?.sigla_tribunal || null;
+          let tribunalPub: string | null = null;
+          if (tribunalPubRaw && typeof tribunalPubRaw === 'string') {
+            const up = tribunalPubRaw.toUpperCase();
+            const m = up.match(/\b(TJ\w+|TRT\d+|TRF\d+|TST|STJ|STF)\b/);
+            tribunalPub = m?.[1] ?? up.trim();
+          }
+
           const { error: insertError } = await supabase
             .from('publicacoes_djen_processos')
             .insert({
@@ -675,6 +685,7 @@ async function runEngine(
               meio: meioEstruturado ? String(meioEstruturado).trim() : null,
               advogados_json: advogadosJsonPayload,
               partes_json: partesJsonPayload,
+              tribunal: tribunalPub,
             });
 
           if (!insertError) {
