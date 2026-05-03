@@ -124,7 +124,8 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
   const handleBuscarJudit = async () => {
-    const numero = (form.processo_numero || "").trim();
+    const numeroRaw = (form.processo_numero || "").trim();
+    const numero = aplicarMascaraCnj(numeroRaw);
     if (!numero) {
       toast.warning("Informe o número do processo antes de buscar na Judit");
       return;
