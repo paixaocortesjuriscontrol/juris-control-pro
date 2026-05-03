@@ -339,8 +339,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       // Respeita o tribunal informado no formulário; se vazio, usa TST como padrão
       // (o módulo Dados Benner é voltado para processos no TST).
       const tribunalHint = (form.tribunal && String(form.tribunal).trim()) || "TST";
+      const requestPayload = { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false };
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
+        body: requestPayload,
       });
       // Persiste log da consulta Judit (visível na aba "Log Judit" da tela
       // Distribuição TST). Falha de log nunca interrompe o fluxo.
@@ -351,9 +352,9 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
           // / dados_benner.processo) para que as abas Log Judit e Análise Judit
           // consigam localizar o registro mesmo quando o processo foi cadastrado
           // sem máscara CNJ. A máscara é aplicada apenas na chamada à API Judit.
-          processo_numero: processoOriginal,
+          processo_numero: processoNumero,
           tribunal: tribunalHint,
-          request_payload: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
+          request_payload: { ...requestPayload, numero_processo_original: processoOriginal },
           raw_response: data ?? null,
           status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
           error_message: error?.message || data?.error || null,
