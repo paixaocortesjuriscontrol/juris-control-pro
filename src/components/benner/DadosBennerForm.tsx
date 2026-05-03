@@ -360,11 +360,13 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       if (error) {
         console.error("Erro Judit:", error);
         toast.error("Erro ao buscar na Judit: " + (error.message || "Erro desconhecido"));
+        setBuscandoJudit(false);
         return;
       }
 
       if (data?.error) {
         toast.error(data.error);
+        setBuscandoJudit(false);
         return;
       }
 
