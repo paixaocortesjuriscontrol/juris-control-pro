@@ -525,7 +525,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       }
 
       setBuscandoJudit(false);
-      void executarAnaliseTransito(processoNumero, filled);
       return;
     } catch (err: any) {
       console.error("Erro ao buscar Judit:", err);
