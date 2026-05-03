@@ -329,7 +329,8 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       return;
     }
 
-    const processoNumero = aplicarMascaraCnj(form.processo.trim());
+    const processoOriginal = form.processo.trim();
+    const processoNumero = aplicarMascaraCnj(processoOriginal);
     setBuscandoJudit(true);
     setModoTeste(false);
     setTipoRecursoJuditVazio(false);
@@ -346,7 +347,11 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       try {
         const { data: userData } = await supabase.auth.getUser();
         await supabase.from("judit_logs" as any).insert({
-          processo_numero: processoNumero,
+          // Usa o valor ORIGINAL (como salvo em distribuicoes_tst.processo_numero
+          // / dados_benner.processo) para que as abas Log Judit e Análise Judit
+          // consigam localizar o registro mesmo quando o processo foi cadastrado
+          // sem máscara CNJ. A máscara é aplicada apenas na chamada à API Judit.
+          processo_numero: processoOriginal,
           tribunal: tribunalHint,
           request_payload: { numero_processo: processoNumero, tribunal: tribunalHint, com_anexos: false },
           raw_response: data ?? null,
