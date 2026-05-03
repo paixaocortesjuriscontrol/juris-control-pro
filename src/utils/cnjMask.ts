@@ -5,7 +5,7 @@ function cnjValido(d: string): boolean {
 }
 
 function normalizarDigitosCnj(d: string): string | null {
-  if (d.length === 20) return d;
+  if (d.length === 20) return cnjValido(d) ? d : null;
 
   for (let i = 0; i <= d.length - 20; i++) {
     const candidato = d.slice(i, i + 20);
@@ -33,4 +33,12 @@ export function aplicarMascaraCnj(valor: string | null | undefined): string {
   const normalizado = normalizarDigitosCnj(d);
   if (!normalizado) return raw;
   return `${normalizado.slice(0, 7)}-${normalizado.slice(7, 9)}.${normalizado.slice(9, 13)}.${normalizado.slice(13, 14)}.${normalizado.slice(14, 16)}.${normalizado.slice(16, 20)}`;
+}
+
+export function obterVariantesCnjBusca(valor: string | null | undefined): string[] {
+  const raw = String(valor ?? "").trim();
+  const masked = aplicarMascaraCnj(raw);
+  const rawDigits = raw.replace(/\D/g, "");
+  const maskedDigits = masked.replace(/\D/g, "");
+  return [...new Set([raw, masked, rawDigits, maskedDigits].filter(Boolean))];
 }
