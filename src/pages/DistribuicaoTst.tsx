@@ -28,6 +28,7 @@ import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useUserRole } from "@/hooks/useUserRole";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
