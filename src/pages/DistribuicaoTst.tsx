@@ -28,6 +28,7 @@ import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useUserRole } from "@/hooks/useUserRole";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -470,7 +471,7 @@ export default function DistribuicaoTst() {
         setBulkJuditProgress({ current: i + 1, total: unique.length });
 
         try {
-          const requestPayload = { numero_processo: proc.processo_numero, tribunal: "TST", com_anexos: false };
+          const requestPayload = { numero_processo: aplicarMascaraCnj(proc.processo_numero), tribunal: "TST", com_anexos: false };
           const { data: juditData, error: juditError } = await supabase.functions.invoke("buscar-judit", {
             body: requestPayload,
           });

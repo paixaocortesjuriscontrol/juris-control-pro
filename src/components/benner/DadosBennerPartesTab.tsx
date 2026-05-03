@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
 interface Parte {
   id: string;
@@ -82,10 +83,11 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
       toast.error("Número do processo não informado");
       return;
     }
+    const cnjMascarado = aplicarMascaraCnj(processoNumero);
     setBuscando(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: "TST", com_anexos: comAnexos },
+        body: { numero_processo: cnjMascarado, tribunal: "TST", com_anexos: comAnexos },
       });
 
       if (error) {
