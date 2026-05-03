@@ -81,6 +81,11 @@ export default function DistribuicaoTst() {
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
 
+  const scrollPageToTop = useCallback(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.querySelector<HTMLElement>("[data-page-scroll-container]")?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   // Relatório PDF de Partes
   const [pdfRunning, setPdfRunning] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
@@ -307,6 +312,7 @@ export default function DistribuicaoTst() {
   // Open Dados Benner form for a distribuição row
   const handleOpenBenner = async (dist: DistTst) => {
     // Abre o detalhe unificado já posicionado na aba "Dados Benner".
+    scrollPageToTop();
     setDetailInitialTab("benner");
     setEditando(dist);
   };
