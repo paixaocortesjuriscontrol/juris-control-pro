@@ -82,10 +82,11 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
       toast.error("Número do processo não informado");
       return;
     }
+    const cnjMascarado = aplicarMascaraCnj(processoNumero);
     setBuscando(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: processoNumero, tribunal: "TST", com_anexos: comAnexos },
+        body: { numero_processo: cnjMascarado, tribunal: "TST", com_anexos: comAnexos },
       });
 
       if (error) {
