@@ -133,8 +133,9 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
     }
     setBuscandoJudit(true);
     try {
+      const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: juditComAnexos };
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: numero, tribunal: "TST", com_anexos: juditComAnexos },
+        body: requestPayload,
       });
       // Persiste log da consulta (sucesso, erro de função ou erro retornado).
       try {
@@ -142,7 +143,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numero,
           tribunal: "TST",
-          request_payload: { numero_processo: numero, tribunal: "TST", com_anexos: juditComAnexos },
+          request_payload: { ...requestPayload, numero_processo_original: numeroRaw },
           raw_response: data ?? null,
           status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
           error_message: error?.message || data?.error || null,
