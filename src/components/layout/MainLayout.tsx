@@ -43,7 +43,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
       <Sidebar />
       <div className={`transition-all duration-300 ${isMobile ? 'ml-0' : collapsed ? 'lg:ml-20' : 'lg:ml-64'} ${className || ''}`}>
         <Header title={title} subtitle={subtitle} headerActions={headerActions} />
-        <main className="p-4 md:p-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
+        <main data-page-scroll-container className="p-4 md:p-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
           {children}
         </main>
       </div>
