@@ -42,6 +42,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   // Sempre abre o detalhe no topo do formulário (evita herdar scroll da lista).
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.querySelector<HTMLElement>("[data-page-scroll-container]")?.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [dado?.id, initialTab]);
 
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);

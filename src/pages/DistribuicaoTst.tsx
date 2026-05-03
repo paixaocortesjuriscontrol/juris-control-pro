@@ -81,6 +81,11 @@ export default function DistribuicaoTst() {
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
 
+  const scrollPageToTop = useCallback(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.querySelector<HTMLElement>("[data-page-scroll-container]")?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   // Relatório PDF de Partes
   const [pdfRunning, setPdfRunning] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
@@ -307,6 +312,7 @@ export default function DistribuicaoTst() {
   // Open Dados Benner form for a distribuição row
   const handleOpenBenner = async (dist: DistTst) => {
     // Abre o detalhe unificado já posicionado na aba "Dados Benner".
+    scrollPageToTop();
     setDetailInitialTab("benner");
     setEditando(dist);
   };
@@ -859,7 +865,7 @@ export default function DistribuicaoTst() {
               <Trash2 className="w-4 h-4 mr-2" /> Apagar Todos
             </Button>
             )}
-            <Button onClick={() => { setDetailInitialTab("distribuicao"); setShowForm(true); }}>
+            <Button onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
             <Link to="/dados-benner">
@@ -1078,7 +1084,7 @@ export default function DistribuicaoTst() {
                     : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => { setDetailInitialTab("distribuicao"); setEditando(d); }}>
+                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}>
                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(d.id)}
