@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight, History } from "lucide-react";
 import { toast } from "sonner";
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 interface Props { processoNumero: string; }
 
@@ -370,10 +371,11 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
   const fetchLogs = useCallback(async () => {
     if (!processoNumero) return;
     setLoading(true);
+    const variantes = obterVariantesCnjBusca(processoNumero);
     const { data, error } = await supabase
       .from("judit_logs" as any)
       .select("*")
-      .eq("processo_numero", processoNumero)
+      .in("processo_numero", variantes)
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) toast.error("Erro ao carregar análise Judit: " + error.message);
