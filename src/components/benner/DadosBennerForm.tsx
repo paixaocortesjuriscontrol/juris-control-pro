@@ -328,7 +328,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       return;
     }
 
-    const processoNumero = form.processo.trim();
+    const processoNumero = aplicarMascaraCnj(form.processo.trim());
     setBuscandoJudit(true);
     setModoTeste(false);
     setTipoRecursoJuditVazio(false);
