@@ -38,6 +38,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const processoNumero = dado?.processo_numero || "";
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit">(initialTab);
+
+  // Sempre abre o detalhe no topo do formulário (evita herdar scroll da lista).
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [dado?.id, initialTab]);
+
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
   const [bennerLoading, setBennerLoading] = useState(false);
   const [bennerLoaded, setBennerLoaded] = useState(false);
