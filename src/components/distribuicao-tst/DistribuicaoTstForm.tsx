@@ -15,6 +15,7 @@ import { ResponsaveisSelector } from "@/components/distribuicao-tst/Responsaveis
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { Badge } from "@/components/ui/badge";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import {
   useTurmasTst,
   useRelatoresTst,
