@@ -29,6 +29,28 @@ const CACHE_TTL_DAYS = 7;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function cnjValido(d: string): boolean {
+  if (!/^\d{20}$/.test(d)) return false;
+  const rearranjado = `${d.slice(0, 7)}${d.slice(9, 13)}${d.slice(13, 14)}${d.slice(14, 16)}${d.slice(16, 20)}${d.slice(7, 9)}`;
+  return BigInt(rearranjado) % 97n === 1n;
+}
+
+function normalizarDigitosCnj(d: string): string | null {
+  if (d.length === 20) return d;
+  for (let i = 0; i <= d.length - 20; i++) {
+    const candidato = d.slice(i, i + 20);
+    if (cnjValido(candidato)) return candidato;
+  }
+  if (d.length > 20 && d.length <= 25) {
+    for (let i = 0; i < d.length; i++) {
+      const candidato = d.slice(0, i) + d.slice(i + 1);
+      const normalizado = normalizarDigitosCnj(candidato);
+      if (normalizado && cnjValido(normalizado)) return normalizado;
+    }
+  }
+  return null;
+}
+
 function isoToBR(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const s = String(iso).substring(0, 10);
@@ -279,14 +301,11 @@ serve(async (req) => {
     // NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos com máscara). A Judit rejeita
     // strings com mais/menos dígitos ou sem máscara em alguns endpoints.
     const apenasDigitos = numero.replace(/\D/g, "");
-    let cnj = numero;
-    if (apenasDigitos.length === 20) {
-      cnj = `${apenasDigitos.slice(0, 7)}-${apenasDigitos.slice(7, 9)}.${apenasDigitos.slice(9, 13)}.${apenasDigitos.slice(13, 14)}.${apenasDigitos.slice(14, 16)}.${apenasDigitos.slice(16, 20)}`;
-    } else if (apenasDigitos.length !== 20) {
-      return json({
-        error: `CNJ inválido: ${numero} (esperado 20 dígitos, recebido ${apenasDigitos.length})`,
-      }, 400);
-    }
+    const digitosCnj = normalizarDigitosCnj(apenasDigitos);
+    if (!digitosCnj) return json({
+      error: `CNJ inválido: ${numero} (não foi possível normalizar para 20 dígitos válidos)`,
+    }, 200);
+    const cnj = `${digitosCnj.slice(0, 7)}-${digitosCnj.slice(7, 9)}.${digitosCnj.slice(9, 13)}.${digitosCnj.slice(13, 14)}.${digitosCnj.slice(14, 16)}.${digitosCnj.slice(16, 20)}`;
     console.log(`[buscar-judit] cnj normalizado=${cnj}`);
     const rawCollector: { cache_lookup: any; crawler: any } = {
       cache_lookup: null,
@@ -336,7 +355,7 @@ serve(async (req) => {
       return json({
         error: "Judit não retornou dados para este processo",
         _judit_raw: rawCollector,
-      }, 404);
+      }, 200);
     }
 
     // ---------- Extração simples ----------
@@ -470,7 +489,7 @@ serve(async (req) => {
     return json(result, 200);
   } catch (e) {
     console.error("[buscar-judit] erro:", e);
-    return json({ error: (e as Error).message || "Erro interno" }, 500);
+    return json({ error: (e as Error).message || "Erro interno" }, 200);
   }
 });
 
