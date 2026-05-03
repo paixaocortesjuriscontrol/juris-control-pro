@@ -456,6 +456,13 @@ export function useMonitorarDjenProcessosBrowser(): MonitorarDjenProcessosBrowse
                 data_disponibilizacao: dataDisponibilizacao,
                 conteudo: conteudo.slice(0, 50000),
                 fonte: 'pje_comunica_browser_v7_processo_inteiro',
+                tribunal: (() => {
+                  const raw = (pub as any)?.siglaTribunal || (pub as any)?.tribunal || (pub as any)?.sigla_tribunal;
+                  if (!raw || typeof raw !== 'string') return null;
+                  const up = raw.toUpperCase();
+                  const m = up.match(/\b(TJ\w+|TRT\d+|TRF\d+|TST|STJ|STF)\b/);
+                  return m?.[1] ?? up.trim();
+                })(),
               });
 
             if (!insertError) {
