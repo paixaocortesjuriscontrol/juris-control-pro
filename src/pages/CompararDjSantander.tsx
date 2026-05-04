@@ -37,24 +37,35 @@ function formatarCNJ(numero: string): string {
   return numero;
 }
 
-// Captura APENAS processos que aparecem nos TÍTULOS das publicações.
-// Formatos suportados (cabeçalho de cada publicação):
-// 1) "COMUNICAÇÃO PJE #<CNJ>" (formato antigo do documento do advogado)
-// 2) "Processo <CNJ>" no início de uma linha (formato DJEN/TST)
-// Não captura CNJs citados no corpo da decisão para evitar falsos positivos.
-const COMUNICACAO_PJE_REGEX = /COMUNICA[CÇ][AÃ]O\s+PJE\s+#?\s*(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/gi;
-const PROCESSO_TITULO_REGEX = /(?:^|\n)\s*\**\s*Processo\**\s*[:\s]\s*\**\s*(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/gim;
+// Captura APENAS processos em linhas/títulos completos de publicação.
+// Não captura linhas em que o CNJ aparece seguido de texto do corpo da decisão.
+const CNJ_PATTERN = "(\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}|\\d{20})";
+const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*\\**\\s*${CNJ_PATTERN}\\s*\\**\\s*$`, "i");
+const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*\\**\\s*${CNJ_PATTERN}\\s*\\**\\s*$`, "i");
+const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
 
-function extrairProcessos(texto: string): string[] {
+function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: boolean } = {}): string[] {
   const matches: string[] = [];
-  const runRegex = (re: RegExp) => {
-    re.lastIndex = 0;
+  const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
+
+  for (const linha of linhas) {
+    const limpa = linha.trim();
+    const comunicacao = limpa.match(COMUNICACAO_PJE_TITULO_REGEX);
+    if (comunicacao) {
+      matches.push(formatarCNJ(comunicacao[1]));
+      continue;
+    }
+    const processo = limpa.match(PROCESSO_TITULO_REGEX);
+    if (processo) matches.push(formatarCNJ(processo[1]));
+  }
+
+  if (options.permitirComunicacaoInline) {
+    COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(texto)) !== null) matches.push(m[1]);
-    re.lastIndex = 0;
-  };
-  runRegex(COMUNICACAO_PJE_REGEX);
-  runRegex(PROCESSO_TITULO_REGEX);
+    while ((m = COMUNICACAO_PJE_INLINE_REGEX.exec(texto)) !== null) matches.push(formatarCNJ(m[1]));
+    COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
+  }
+
   return [...new Set(matches)];
 }
 
@@ -207,7 +218,7 @@ export default function CompararDjSantander() {
         const content = await page.getTextContent();
         text += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
-      const processos = extrairProcessos(text);
+      const processos = extrairProcessos(text, { permitirComunicacaoInline: true });
       setPdfProcessos(processos);
       toast.success(`PDF carregado: ${processos.length} processos encontrados`);
     } catch (err) {
