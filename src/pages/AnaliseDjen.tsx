@@ -70,6 +70,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { DjenExecutionBannerPro } from "@/components/djen/DjenExecutionBannerPro";
@@ -137,6 +138,13 @@ const AnaliseDjen = () => {
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 500;
 
+  // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
+  // a cada tecla (termo de busca + data digitada manualmente).
+  const termoBuscaDebounced = useDebouncedValue(termoBusca, 350);
+  const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
+  const dataFimDebounced = useDebouncedValue(dataFim, 250);
+  const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
     if (!loadingUserCoord && coordenacaoId === null) {
@@ -194,9 +202,9 @@ const AnaliseDjen = () => {
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
-    dataInicio: apenasHoje ? undefined : (dataDisponibilizacao || dataInicio || undefined),
-    dataFim: apenasHoje ? undefined : (dataDisponibilizacao || dataFim || undefined),
-    termoBusca: termoBusca || undefined,
+    dataInicio: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataInicioDebounced || undefined),
+    dataFim: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataFimDebounced || undefined),
+    termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
     readStatus,
@@ -215,13 +223,13 @@ const AnaliseDjen = () => {
   useEffect(() => {
     setPage(1);
   }, [
-    coordenacaoFiltroEfetivo, dataInicio, dataFim, dataDisponibilizacao,
-    termoBusca, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
+    coordenacaoFiltroEfetivo, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced,
+    termoBuscaDebounced, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
   ]);
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
-    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, readStatus],
+    queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicioDebounced, dataFimDebounced, termoBuscaDebounced, monitoramentoId, readStatus],
     queryFn: async () => {
       let query = supabase
         .from('movimentacoes_datajud')
@@ -248,15 +256,15 @@ const AnaliseDjen = () => {
         const today = new Date().toISOString().slice(0, 10);
         query = query.gte('created_at', `${today}T00:00:00Z`);
       } else {
-        if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
-        if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
+        if (dataInicioDebounced) query = query.gte('created_at', `${dataInicioDebounced}T00:00:00Z`);
+        if (dataFimDebounced) query = query.lte('created_at', `${dataFimDebounced}T23:59:59Z`);
       }
-      if (termoBusca) {
-        const digits = termoBusca.replace(/\D/g, '');
+      if (termoBuscaDebounced) {
+        const digits = termoBuscaDebounced.replace(/\D/g, '');
         if (digits.length >= 5) {
           query = query.ilike('numero_processo', `%${digits}%`);
         } else {
-          query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+          query = query.or(`tipo_movimentacao.ilike.%${termoBuscaDebounced}%,complemento.ilike.%${termoBuscaDebounced}%,assuntos.ilike.%${termoBuscaDebounced}%`);
         }
       }
 
@@ -270,7 +278,7 @@ const AnaliseDjen = () => {
 
   // Count DataJud for stats using the same filters as the list
   const { data: datajudStats = { total: 0, naoLidas: 0 }, isLoading: isLoadingDatajudStats } = useQuery({
-    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicio, dataFim, termoBusca, monitoramentoId, readStatus, tipoOrigem],
+    queryKey: ['datajud-count-hoje', coordenacaoFiltroEfetivo, apenasHoje, dataInicioDebounced, dataFimDebounced, termoBuscaDebounced, monitoramentoId, readStatus, tipoOrigem],
     queryFn: async () => {
       if (tipoOrigem !== 'datajud') {
         return { total: 0, naoLidas: 0 };
@@ -283,18 +291,18 @@ const AnaliseDjen = () => {
         if (apenasHoje) {
           query = query.gte('created_at', `${today}T00:00:00Z`);
         } else {
-          if (dataInicio) query = query.gte('created_at', `${dataInicio}T00:00:00Z`);
-          if (dataFim) query = query.lte('created_at', `${dataFim}T23:59:59Z`);
+          if (dataInicioDebounced) query = query.gte('created_at', `${dataInicioDebounced}T00:00:00Z`);
+          if (dataFimDebounced) query = query.lte('created_at', `${dataFimDebounced}T23:59:59Z`);
         }
         if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
         if (onlyUnread) query = query.eq('lida', false);
         if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
-        if (termoBusca) {
-          const digits = termoBusca.replace(/\D/g, '');
+        if (termoBuscaDebounced) {
+          const digits = termoBuscaDebounced.replace(/\D/g, '');
           if (digits.length >= 5) {
             query = query.ilike('numero_processo', `%${digits}%`);
           } else {
-            query = query.or(`tipo_movimentacao.ilike.%${termoBusca}%,complemento.ilike.%${termoBusca}%,assuntos.ilike.%${termoBusca}%`);
+            query = query.or(`tipo_movimentacao.ilike.%${termoBuscaDebounced}%,complemento.ilike.%${termoBuscaDebounced}%,assuntos.ilike.%${termoBuscaDebounced}%`);
           }
         }
         return query;
@@ -320,12 +328,12 @@ const AnaliseDjen = () => {
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
 
   const { data: pautasDejtStats = { total: 0 }, isLoading: isLoadingPautasDejtStats } = useQuery({
-    queryKey: ['pautas-dejt-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicio, dataFim, dataDisponibilizacao, termoBusca, monitoramentoId, readStatus],
+    queryKey: ['pautas-dejt-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, termoBuscaDebounced, monitoramentoId, readStatus, tipoOrigem],
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
-      const dataFimEfetiva = dataDisponibilizacao || dataFim;
+      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
+      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
       const dataInicioFiltro = apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : dataInicioEfetiva
@@ -362,14 +370,14 @@ const AnaliseDjen = () => {
       if (error) throw error;
 
       let rows = (data || []) as any[];
-      if (dataDisponibilizacao) {
-        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacao);
+      if (dataDisponibilizacaoDebounced) {
+        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
       }
-      if (termoBusca) {
-        const termoLower = termoBusca.toLowerCase();
+      if (termoBuscaDebounced) {
+        const termoLower = termoBuscaDebounced.toLowerCase();
         const termoDigits = termoLower.replace(/\D/g, '');
         rows = rows.filter((pub) => {
-          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
+          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
           const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
           const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
           const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
@@ -426,18 +434,21 @@ const AnaliseDjen = () => {
 
       return { total };
     },
-    enabled: !!user?.id,
+    // Heavy query (fetches up to 10k rows + leituras). Só roda quando o card
+    // está em foco (DJET Pautas selecionado) — antes disso o badge mostra 0,
+    // o que evita travar a tela quando o usuário muda filtros rapidamente.
+    enabled: !!user?.id && tipoOrigem === 'djet-pautas',
     staleTime: 30_000,
   });
 
   // ===== Descartadas stats (independente, respeita filtros, igual aos demais cards) =====
   const { data: descartadasStats = { total: 0 }, isLoading: isLoadingDescartadasStats } = useQuery({
-    queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicio, dataFim, dataDisponibilizacao, termoBusca, monitoramentoId],
+    queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, termoBuscaDebounced, monitoramentoId, tipoOrigem],
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
-      const dataFimEfetiva = dataDisponibilizacao || dataFim;
+      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
+      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
       const dataInicioFiltro = apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : dataInicioEfetiva
@@ -472,14 +483,14 @@ const AnaliseDjen = () => {
         }
 
         let rows = (data || []) as any[];
-        if (dataDisponibilizacao) {
-          rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacao);
+        if (dataDisponibilizacaoDebounced) {
+          rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
         }
-        if (termoBusca) {
-          const termoLower = termoBusca.toLowerCase();
+        if (termoBuscaDebounced) {
+          const termoLower = termoBuscaDebounced.toLowerCase();
           const termoDigits = termoLower.replace(/\D/g, '');
           rows = rows.filter((pub) => {
-            const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
+            const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
             const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
             const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
             const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
@@ -495,7 +506,9 @@ const AnaliseDjen = () => {
         return { total: 0 };
       }
     },
-    enabled: !!user?.id,
+    // Heavy query (até 10k rows). Só roda quando o card de Descartadas está
+    // selecionado — antes disso o badge mostra 0 e a tela responde rápido.
+    enabled: !!user?.id && tipoOrigem === 'descartada',
     staleTime: 30_000,
   });
 
