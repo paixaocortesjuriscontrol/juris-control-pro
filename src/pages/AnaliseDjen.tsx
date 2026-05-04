@@ -1741,6 +1741,7 @@ const AnaliseDjen = () => {
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
+  const temMaisResultados = totalFiltradoGeral > totalExibidoNaPagina;
 
   // Se houver seleção, gera apenas as selecionadas; senão, todas (já filtradas).
   const getPubsParaGerar = () => {
@@ -2601,11 +2602,23 @@ const AnaliseDjen = () => {
 
         {/* Total exibido — sem paginação para não ocultar publicações do dia */}
         {!isLoading && allPublicacoes.length > 0 && (
-          <div className="flex items-center justify-center mt-4 px-2">
-            <div className="text-xs md:text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-center gap-3 mt-4 px-2">
+            <div className="text-xs md:text-sm text-muted-foreground text-center">
               Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
-              {totalFiltradoGeral > totalExibidoNaPagina ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+              {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
             </div>
+            {temMaisResultados && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setListLimit((current) => current + LOAD_MORE_INCREMENT)}
+                disabled={isFetchingPublicacoes}
+              >
+                {isFetchingPublicacoes ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Carregar mais {Math.min(LOAD_MORE_INCREMENT, totalFiltradoGeral - totalExibidoNaPagina)}
+              </Button>
+            )}
           </div>
         )}
 
