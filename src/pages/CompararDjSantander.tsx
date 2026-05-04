@@ -37,14 +37,31 @@ function formatarCNJ(numero: string): string {
   return numero;
 }
 
-// Captura APENAS o cabeçalho real da publicação exportada pela Análise DJEN.
-// Evita o padrão genérico "Processo ...", pois ele também aparece no corpo do texto.
+// Títulos de publicação (cabeçalhos em NEGRITO no DOCX). Aceitamos os dois formatos:
+//   "COMUNICAÇÃO PJE #<CNJ>"  e  "Processo <CNJ>"
+// No DOC: só conta se o parágrafo inteiro do título estiver em negrito.
+// No PDF/texto plano: conta linhas curtas que sejam SÓ o título (sem corpo de decisão).
 const CNJ_PATTERN = "(\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}|\\d{20})";
-const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*\\**\\s*${CNJ_PATTERN}\\s*\\**\\s*$`, "i");
+const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}\\s*$`, "i");
+const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Verifica se o parágrafo do DOCX tem o seu conteúdo principal em NEGRITO.
+// Critério: pelo menos 80% do texto não vazio do bloco vem dentro de
+// elementos <strong>/<b> (ou parágrafos <h1-h6>, que já são títulos).
+function blocoEhTitulo(bloco: Element): boolean {
+  if (bloco.matches("h1,h2,h3,h4,h5,h6")) return true;
+  const totalLen = normalizarLinha(bloco.textContent || "").length;
+  if (!totalLen) return false;
+  let boldLen = 0;
+  bloco.querySelectorAll("strong,b").forEach((el) => {
+    boldLen += normalizarLinha(el.textContent || "").length;
+  });
+  return boldLen / totalLen >= 0.8;
 }
 
 function extrairProcessosDocHtml(html: string): string[] {
@@ -57,11 +74,13 @@ function extrairProcessosDocHtml(html: string): string[] {
     if (!texto) continue;
 
     const comunicacao = texto.match(COMUNICACAO_PJE_TITULO_REGEX);
-    if (comunicacao) {
-      matches.push(formatarCNJ(comunicacao[1]));
-      continue;
-    }
+    const processo = texto.match(PROCESSO_TITULO_REGEX);
+    if (!comunicacao && !processo) continue;
 
+    // Só conta se o título estiver em negrito (cabeçalho real da publicação).
+    if (!blocoEhTitulo(bloco)) continue;
+
+    matches.push(formatarCNJ((comunicacao ?? processo)![1]));
   }
 
   return [...new Set(matches)];
@@ -78,6 +97,8 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
       matches.push(formatarCNJ(comunicacao[1]));
       continue;
     }
+    const processo = limpa.match(PROCESSO_TITULO_REGEX);
+    if (processo) matches.push(formatarCNJ(processo[1]));
   }
 
   if (options.permitirComunicacaoInline) {
