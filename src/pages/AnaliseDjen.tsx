@@ -134,8 +134,10 @@ const AnaliseDjen = () => {
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Sem paginação: carrega um volume alto para exibir tudo do período/dia filtrado.
-  const LIST_LIMIT = 10000;
+  // Evita travar a tela renderizando milhares de cards de uma vez.
+  const INITIAL_LIST_LIMIT = 300;
+  const LOAD_MORE_INCREMENT = 300;
+  const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
@@ -169,6 +171,13 @@ const AnaliseDjen = () => {
   const [gerandoDocResumo, setGerandoDocResumo] = useState(false);
   const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
 
+  useEffect(() => {
+    setListLimit(INITIAL_LIST_LIMIT);
+    setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+    setExpandedPublicacoes(new Set());
+    setExpandirGeralAtivo(false);
+  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
+
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
     ? undefined
@@ -190,6 +199,7 @@ const AnaliseDjen = () => {
     publicacoes, 
     estatisticas, 
     isLoading: isLoadingPublicacoes, 
+    isFetching: isFetchingPublicacoes,
     loadingStats,
     marcarComoLida,
     totalHoje,
@@ -213,7 +223,7 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    pageSize: LIST_LIMIT,
+    pageSize: listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !coordenacaoFiltroEfetivo,
   });
@@ -1731,6 +1741,7 @@ const AnaliseDjen = () => {
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
+  const temMaisResultados = totalFiltradoGeral > totalExibidoNaPagina;
 
   // Se houver seleção, gera apenas as selecionadas; senão, todas (já filtradas).
   const getPubsParaGerar = () => {
@@ -2591,11 +2602,23 @@ const AnaliseDjen = () => {
 
         {/* Total exibido — sem paginação para não ocultar publicações do dia */}
         {!isLoading && allPublicacoes.length > 0 && (
-          <div className="flex items-center justify-center mt-4 px-2">
-            <div className="text-xs md:text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-center gap-3 mt-4 px-2">
+            <div className="text-xs md:text-sm text-muted-foreground text-center">
               Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
-              {totalFiltradoGeral > totalExibidoNaPagina ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+              {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
             </div>
+            {temMaisResultados && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setListLimit((current) => current + LOAD_MORE_INCREMENT)}
+                disabled={isFetchingPublicacoes}
+              >
+                {isFetchingPublicacoes ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Carregar mais {Math.min(LOAD_MORE_INCREMENT, totalFiltradoGeral - totalExibidoNaPagina)}
+              </Button>
+            )}
           </div>
         )}
 

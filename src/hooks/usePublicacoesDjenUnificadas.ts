@@ -330,8 +330,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
   const shouldLoadExactStats = !!user?.id
     && !filtros.desabilitarStats
-    && !!filtros.coordenacaoId
-    && !filtros.termoBusca;
+    && !!filtros.coordenacaoId;
 
   // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
   const { data: statsIndependentes, isLoading: isLoadingStats } = useQuery({
@@ -483,7 +482,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const pageSize = Math.max(1, filtros.pageSize ?? 500);
   const offsetGlobal = (page - 1) * pageSize;
 
-  const { data: queryResult, isLoading } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
+  const { data: queryResult, isLoading, isFetching } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 0,
     queryFn: async ({ signal }) => {
@@ -1340,6 +1339,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     publicacoes,
     estatisticas,
     isLoading,
+    isFetching,
     loadingStats: isLoadingStats,
     marcarComoLida,
     // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
