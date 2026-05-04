@@ -328,12 +328,12 @@ const AnaliseDjen = () => {
   const naoLidasDatajudHoje = tipoOrigem === 'datajud' ? datajudStats.naoLidas : 0;
 
   const { data: pautasDejtStats = { total: 0 }, isLoading: isLoadingPautasDejtStats } = useQuery({
-    queryKey: ['pautas-dejt-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicio, dataFim, dataDisponibilizacao, termoBusca, monitoramentoId, readStatus],
+    queryKey: ['pautas-dejt-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, termoBuscaDebounced, monitoramentoId, readStatus, tipoOrigem],
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
-      const dataFimEfetiva = dataDisponibilizacao || dataFim;
+      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
+      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
       const dataInicioFiltro = apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : dataInicioEfetiva
