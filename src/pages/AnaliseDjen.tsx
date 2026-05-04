@@ -134,8 +134,10 @@ const AnaliseDjen = () => {
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Sem paginação: carrega um volume alto para exibir tudo do período/dia filtrado.
-  const LIST_LIMIT = 10000;
+  // Evita travar a tela renderizando milhares de cards de uma vez.
+  const INITIAL_LIST_LIMIT = 300;
+  const LOAD_MORE_INCREMENT = 300;
+  const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
@@ -143,6 +145,13 @@ const AnaliseDjen = () => {
   const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+
+  useEffect(() => {
+    setListLimit(INITIAL_LIST_LIMIT);
+    setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+    setExpandedPublicacoes(new Set());
+    setExpandirGeralAtivo(false);
+  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
