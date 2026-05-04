@@ -217,7 +217,7 @@ const AnaliseDjen = () => {
     page,
     pageSize: PAGE_SIZE,
     desabilitarLista: tipoOrigem === 'datajud',
-    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
+    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !apenasHoje || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
   });
 
   // Reset página ao mudar qualquer filtro (evita ficar numa página vazia ao
