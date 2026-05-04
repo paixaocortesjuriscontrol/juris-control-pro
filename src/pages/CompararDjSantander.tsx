@@ -222,8 +222,8 @@ export default function CompararDjSantander() {
     setResult(null);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const { value } = await mammoth.extractRawText({ arrayBuffer });
-      const processos = extrairProcessos(value);
+      const { value } = await mammoth.convertToHtml({ arrayBuffer });
+      const processos = extrairProcessosDocHtml(value);
       setDocProcessos(processos);
       toast.success(`DOC carregado: ${processos.length} processos encontrados`);
     } catch (err) {
