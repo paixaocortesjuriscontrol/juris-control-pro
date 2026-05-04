@@ -53,6 +53,7 @@ export function useDjenTermos() {
         queryClient.invalidateQueries({ queryKey: ['djen-stats'] });
         queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
         queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
         queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
         queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
         
