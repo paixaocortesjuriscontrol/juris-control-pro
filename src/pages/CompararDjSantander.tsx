@@ -44,12 +44,42 @@ const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*COMUNICA[CÇ][AÃ]
 const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*\\**\\s*${CNJ_PATTERN}\\s*\\**\\s*$`, "i");
 const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
 
+function normalizarLinha(texto: string): string {
+  return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extrairProcessosDocHtml(html: string): string[] {
+  const matches: string[] = [];
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  const blocos = Array.from(parsed.body.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li"));
+
+  for (const bloco of blocos) {
+    const texto = normalizarLinha(bloco.textContent || "");
+    if (!texto) continue;
+
+    const comunicacao = texto.match(COMUNICACAO_PJE_TITULO_REGEX);
+    if (comunicacao) {
+      matches.push(formatarCNJ(comunicacao[1]));
+      continue;
+    }
+
+    const processo = texto.match(PROCESSO_TITULO_REGEX);
+    if (!processo) continue;
+
+    const isHeading = bloco.matches("h1,h2,h3,h4,h5,h6");
+    const hasTitleFormatting = !!bloco.querySelector("strong,b");
+    if (isHeading || hasTitleFormatting) matches.push(formatarCNJ(processo[1]));
+  }
+
+  return [...new Set(matches)];
+}
+
 function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: boolean } = {}): string[] {
   const matches: string[] = [];
   const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
 
   for (const linha of linhas) {
-    const limpa = linha.trim();
+    const limpa = normalizarLinha(linha);
     const comunicacao = limpa.match(COMUNICACAO_PJE_TITULO_REGEX);
     if (comunicacao) {
       matches.push(formatarCNJ(comunicacao[1]));
