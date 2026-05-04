@@ -1752,6 +1752,48 @@ const AnaliseDjen = () => {
     return allPublicacoes.filter(p => selectedIds.has(p.id));
   };
 
+  /**
+   * Busca todos os comentários (e nomes dos autores) das publicações informadas.
+   * Retorna Map<publicacao_id, Array<{ autor, comentario, created_at }>>
+   */
+  const fetchComentariosMap = async (
+    pubIds: string[]
+  ): Promise<Map<string, Array<{ autor: string; comentario: string; created_at: string }>>> => {
+    const out = new Map<string, Array<{ autor: string; comentario: string; created_at: string }>>();
+    if (pubIds.length === 0) return out;
+    try {
+      const { data: coms, error } = await supabase
+        .from("comentarios_publicacoes_djen")
+        .select("publicacao_id, user_id, comentario, created_at")
+        .in("publicacao_id", pubIds)
+        .order("created_at", { ascending: true });
+      if (error || !coms || coms.length === 0) return out;
+
+      const userIds = Array.from(new Set(coms.map((c: any) => c.user_id)));
+      const nomeMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", userIds);
+        (profs || []).forEach((p: any) => nomeMap.set(p.id, p.nome || "Usuário"));
+      }
+
+      coms.forEach((c: any) => {
+        const arr = out.get(c.publicacao_id) || [];
+        arr.push({
+          autor: nomeMap.get(c.user_id) || "Usuário",
+          comentario: c.comentario,
+          created_at: c.created_at,
+        });
+        out.set(c.publicacao_id, arr);
+      });
+    } catch (e) {
+      console.error("Erro ao buscar comentários para exportação:", e);
+    }
+    return out;
+  };
+
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
