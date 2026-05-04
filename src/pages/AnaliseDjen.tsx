@@ -199,6 +199,7 @@ const AnaliseDjen = () => {
     publicacoes, 
     estatisticas, 
     isLoading: isLoadingPublicacoes, 
+    isFetching: isFetchingPublicacoes,
     loadingStats,
     marcarComoLida,
     totalHoje,
@@ -222,7 +223,7 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    pageSize: LIST_LIMIT,
+    pageSize: listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !coordenacaoFiltroEfetivo,
   });
