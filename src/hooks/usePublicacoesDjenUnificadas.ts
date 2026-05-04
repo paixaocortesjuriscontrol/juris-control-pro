@@ -780,7 +780,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
 
         // Paginação real no fallback: usa range para a página solicitada.
-        const { data: termosData } = await queryTermos.range(offsetGlobal, offsetGlobal + pageSize - 1);
+        const { data: termosData } = await queryTermos
+          .range(offsetGlobal, offsetGlobal + pageSize - 1)
+          .abortSignal(signal);
 
         // Coletar números de processos para buscar IDs
         (termosData || []).forEach((pub: any) => {
@@ -796,7 +798,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           const { data: processosExistentes } = await supabase
             .from('processos')
             .select('id, numero')
-            .in('numero', uniqueNumeros);
+            .in('numero', uniqueNumeros)
+            .abortSignal(signal);
           
           (processosExistentes || []).forEach((p: any) => {
             processosExistentesMap[p.numero] = p.id;
@@ -901,7 +904,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
 
         // Paginação real no fallback: usa range para a página solicitada.
-        const { data: processosData } = await queryProcessos.range(offsetGlobal, offsetGlobal + pageSize - 1);
+        const { data: processosData } = await queryProcessos
+          .range(offsetGlobal, offsetGlobal + pageSize - 1)
+          .abortSignal(signal);
 
         (processosData || []).forEach((pub: any) => {
           // Com !inner + filtro no banco, essa checagem vira redundante; manter apenas como guarda.
@@ -986,7 +991,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
-        const { data: descartadasData } = await queryDescartadas.range(offsetGlobal, offsetGlobal + pageSize - 1);
+        const { data: descartadasData } = await queryDescartadas
+          .range(offsetGlobal, offsetGlobal + pageSize - 1)
+          .abortSignal(signal);
 
         (descartadasData || []).forEach((pub: any) => {
           // Filtrar por coordenação se especificado
