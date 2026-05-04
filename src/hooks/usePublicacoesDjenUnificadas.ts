@@ -1333,8 +1333,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     // Fallback para a contagem da página atual enquanto a query não carrega.
     totalHoje: statsIndependentes?.total ?? publicacoes.length,
     naoLidasHoje: statsIndependentes?.naoLidas ?? publicacoes.filter(p => !p.lida).length,
-    totalTermosHoje: statsIndependentes?.totalTermos ?? 0,
-    totalProcessosHoje: statsIndependentes?.totalProcessos ?? 0,
+    totalTermosHoje: statsIndependentes?.totalTermos ?? publicacoes.filter(p => p.tipo_origem === 'termo').length,
+    totalProcessosHoje: statsIndependentes?.totalProcessos ?? publicacoes.filter(p => p.tipo_origem === 'processo').length,
     totalDescartadasHoje,
     page,
     pageSize,
