@@ -253,6 +253,7 @@ function monitoramentoToInput(m: Monitoramento): {
   condicaoConcomitante?: string | null;
   exclusoes?: string[];
   oab?: string;
+  coordenacao_id?: string | null;
 } {
   const termos: string[] = [];
   if (m.termo_busca) termos.push(m.termo_busca);
@@ -266,6 +267,7 @@ function monitoramentoToInput(m: Monitoramento): {
     condicaoConcomitante: m.condicao_concomitante || undefined,
     exclusoes: m.exclusoes || [],
     oab: m.oab || undefined,
+    coordenacao_id: m.coordenacao_id ?? null,
   };
 }
 
@@ -433,6 +435,7 @@ async function buscarPautasNoNavegador(
       const hash = await sha256Hex(`${mon.id}|${tribunal}|${dataIso}|${processo || ""}|${conteudo.slice(0, 1024)}`);
       matches.push({
         monitoramentoId: mon.id,
+        coordenacaoId: mon.coordenacao_id ?? null,
         termoMatch: hit,
         processo,
         conteudo,
@@ -473,6 +476,7 @@ async function buscarPautasNoNavegador(
 
 interface MatchOut {
   monitoramentoId: string;
+  coordenacaoId: string | null;
   termoMatch: string;
   processo: string | null;
   conteudo: string;
@@ -493,6 +497,7 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     return true;
   }).map((m) => ({
     monitoramento_id: m.monitoramentoId,
+    coordenacao_id: m.coordenacaoId,
     hash_conteudo: m.hash,
     data_publicacao: m.dataPublicacao,
     processo_numero: m.processo,
