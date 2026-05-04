@@ -691,6 +691,7 @@ const AnaliseDjen = () => {
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
 
       toast.success("Publicação vinculada ao processo!", {
         action: {
@@ -813,6 +814,7 @@ const AnaliseDjen = () => {
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
       queryClient.invalidateQueries({ queryKey: ['processos'] });
       queryClient.invalidateQueries({ queryKey: ['pastas'] });
 
