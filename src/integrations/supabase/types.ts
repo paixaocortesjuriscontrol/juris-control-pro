@@ -6585,10 +6585,9 @@ export type Database = {
               p_inicio?: string
             }
             Returns: {
-              nao_lidas_processos: number
-              nao_lidas_termos: number
-              total_processos: number
-              total_termos: number
+              lidas: number
+              nao_lidas: number
+              total: number
             }[]
           }
         | {
