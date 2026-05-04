@@ -146,13 +146,6 @@ const AnaliseDjen = () => {
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
 
-  useEffect(() => {
-    setListLimit(INITIAL_LIST_LIMIT);
-    setSelectedIds(new Map<string, TipoOrigemPublicacao>());
-    setExpandedPublicacoes(new Set());
-    setExpandirGeralAtivo(false);
-  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
-
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
     if (!loadingUserCoord && coordenacaoId === null) {
@@ -177,6 +170,13 @@ const AnaliseDjen = () => {
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [gerandoDocResumo, setGerandoDocResumo] = useState(false);
   const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
+
+  useEffect(() => {
+    setListLimit(INITIAL_LIST_LIMIT);
+    setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+    setExpandedPublicacoes(new Set());
+    setExpandirGeralAtivo(false);
+  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
