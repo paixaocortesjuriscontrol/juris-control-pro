@@ -6537,7 +6537,7 @@ export type Database = {
       get_djen_publicacoes_unificadas: {
         Args: {
           p_apenas_nao_lidas?: boolean
-          p_coordenacao_id: string
+          p_coordenacao_id?: string
           p_fim?: string
           p_inicio?: string
           p_limit?: number

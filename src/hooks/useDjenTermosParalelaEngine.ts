@@ -1173,6 +1173,7 @@ async function processarTermoEmTribunal(
         meio: pub.meio || pub.meiocompleto || null,
         advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
         partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
+        coordenacao_id: mon.coordenacao_id ?? null,
       };
     });
 
