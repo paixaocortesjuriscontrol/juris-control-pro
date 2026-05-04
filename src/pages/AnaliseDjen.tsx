@@ -138,6 +138,13 @@ const AnaliseDjen = () => {
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 500;
 
+  // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
+  // a cada tecla (termo de busca + data digitada manualmente).
+  const termoBuscaDebounced = useDebouncedValue(termoBusca, 350);
+  const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
+  const dataFimDebounced = useDebouncedValue(dataFim, 250);
+  const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
     if (!loadingUserCoord && coordenacaoId === null) {
