@@ -941,13 +941,14 @@ const AnaliseDjen = () => {
   };
 
   // ===== PDF "Gerar PDF" - layout duas colunas (metadados esquerda, conteúdo direita) =====
-  const handleGerarPdf = () => {
+  const handleGerarPdf = async () => {
     const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
     }
     try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const mL = 15;
@@ -1052,6 +1053,31 @@ const AnaliseDjen = () => {
         });
 
         y = Math.max(yLeft, yRight) + 6;
+
+        // Comentários da coordenação
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          checkPage(10);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          doc.text(`Comentários da coordenação (${coms.length})`, mL, y);
+          y += 5;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL + 2, y);
+            y += 4;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(4); doc.text(l, mL + 4, y); y += 4; });
+            y += 1;
+          });
+          y += 4;
+        }
       });
 
       const total = doc.getNumberOfPages();
