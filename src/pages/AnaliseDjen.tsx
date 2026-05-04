@@ -1721,6 +1721,7 @@ const AnaliseDjen = () => {
       });
       toast.loading(`Gerando documentos... (Temas: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, useConclusao = false): Paragraph[] => {
         const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
         pubs.forEach((item, idx) => {
@@ -1744,6 +1745,7 @@ const AnaliseDjen = () => {
           } else {
             ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
           }
+          ch.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
         });
         return ch;
       };
