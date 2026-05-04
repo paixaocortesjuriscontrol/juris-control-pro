@@ -1309,8 +1309,8 @@ async function executarLoop(
         const heartbeatMs = r?.detalhes?.heartbeat_at ? new Date(r.detalhes.heartbeat_at).getTime() : 0;
         const iniciadoMs = r?.iniciado_em ? new Date(r.iniciado_em).getTime() : 0;
         return heartbeatMs > 0
-          ? now - heartbeatMs > 5 * 60 * 1000
-          : iniciadoMs > 0 && now - iniciadoMs > 10 * 60 * 1000;
+          ? now - heartbeatMs > 15 * 60 * 1000
+          : iniciadoMs > 0 && now - iniciadoMs > 20 * 60 * 1000;
       });
       if (stale.length > 0) {
         for (const s of stale) {
