@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import * as mammoth from "mammoth";
 import JSZip from "jszip";
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,42 +48,6 @@ const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-}
-
-// Verifica se o parágrafo do DOCX tem o seu conteúdo principal em NEGRITO.
-// Critério: pelo menos 80% do texto não vazio do bloco vem dentro de
-// elementos <strong>/<b> (ou parágrafos <h1-h6>, que já são títulos).
-function blocoEhTitulo(bloco: Element): boolean {
-  if (bloco.matches("h1,h2,h3,h4,h5,h6")) return true;
-  const totalLen = normalizarLinha(bloco.textContent || "").length;
-  if (!totalLen) return false;
-  let boldLen = 0;
-  bloco.querySelectorAll("strong,b").forEach((el) => {
-    boldLen += normalizarLinha(el.textContent || "").length;
-  });
-  return boldLen / totalLen >= 0.8;
-}
-
-function extrairProcessosDocHtml(html: string): string[] {
-  const matches: string[] = [];
-  const parsed = new DOMParser().parseFromString(html, "text/html");
-  const blocos = Array.from(parsed.body.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li"));
-
-  for (const bloco of blocos) {
-    const texto = normalizarLinha(bloco.textContent || "");
-    if (!texto) continue;
-
-    const comunicacao = texto.match(COMUNICACAO_PJE_TITULO_REGEX);
-    const processo = texto.match(PROCESSO_TITULO_REGEX);
-    if (!comunicacao && !processo) continue;
-
-    // Só conta se o título estiver em negrito (cabeçalho real da publicação).
-    if (!blocoEhTitulo(bloco)) continue;
-
-    matches.push(formatarCNJ((comunicacao ?? processo)![1]));
-  }
-
-  return [...new Set(matches)];
 }
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
