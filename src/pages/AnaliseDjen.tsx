@@ -1997,7 +1997,7 @@ const AnaliseDjen = () => {
           >
             {selectedIds.size === allPublicacoes.length && allPublicacoes.length > 0
               ? "Desmarcar"
-              : `Selecionar página (${totalExibidoNaPagina})`}
+              : `Selecionar todos (${totalExibidoNaPagina})`}
           </Button>
 
           <Button
@@ -2588,36 +2588,12 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* Paginação — 100 registros por página, paginação real no servidor */}
+        {/* Total exibido — sem paginação para não ocultar publicações do dia */}
         {!isLoading && allPublicacoes.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
+          <div className="flex items-center justify-center mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground">
-              Página <strong>{page}</strong> · exibindo <strong>{totalExibidoNaPagina}</strong> de <strong>{totalFiltradoGeral}</strong> registros filtrados
-              {hasNextPage ? "" : " · última página"}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => {
-                  setPage((p) => Math.max(1, p - 1));
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!hasNextPage}
-                onClick={() => {
-                  setPage((p) => p + 1);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                Próxima
-              </Button>
+              Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
+              {totalFiltradoGeral > totalExibidoNaPagina ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
             </div>
           </div>
         )}
