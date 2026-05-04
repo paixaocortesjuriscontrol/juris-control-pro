@@ -223,8 +223,8 @@ const AnaliseDjen = () => {
   useEffect(() => {
     setPage(1);
   }, [
-    coordenacaoFiltroEfetivo, dataInicio, dataFim, dataDisponibilizacao,
-    termoBusca, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
+    coordenacaoFiltroEfetivo, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced,
+    termoBuscaDebounced, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
   ]);
 
   // ===== DataJud (CNJ) query =====
