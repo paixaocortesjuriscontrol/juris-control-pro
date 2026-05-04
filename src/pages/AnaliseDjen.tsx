@@ -75,6 +75,7 @@ import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublic
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { DjenExecutionBannerPro } from "@/components/djen/DjenExecutionBannerPro";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
+import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 
@@ -2584,6 +2585,7 @@ const AnaliseDjen = () => {
                                       advogadosJson={pub.advogados_json}
                                       expandirGeralExterno={expandirGeralAtivo}
                                     />
+                                    <ComentariosPublicacaoDjen publicacaoId={pub.id} />
                                   </div>
                                 )}
 

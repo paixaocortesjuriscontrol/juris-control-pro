@@ -1114,6 +1114,41 @@ export type Database = {
           },
         ]
       }
+      comentarios_publicacoes_djen: {
+        Row: {
+          comentario: string
+          created_at: string
+          id: string
+          publicacao_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          comentario: string
+          created_at?: string
+          id?: string
+          publicacao_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          comentario?: string
+          created_at?: string
+          id?: string
+          publicacao_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comentarios_publicacoes_djen_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comentarios_tarefas: {
         Row: {
           autor_id: string
@@ -6737,6 +6772,10 @@ export type Database = {
         Returns: string
       }
       unaccent: { Args: { "": string }; Returns: string }
+      user_can_access_publicacao_djen: {
+        Args: { _publicacao_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:
