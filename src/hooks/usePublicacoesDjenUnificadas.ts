@@ -198,6 +198,10 @@ export interface FiltrosUnificados {
   page?: number;
   /** Tamanho de página. Default: 500. */
   pageSize?: number;
+  /** Desliga a busca DJEN quando a tela está exibindo outra fonte (ex.: DataJud). */
+  desabilitarLista?: boolean;
+  /** Desliga contadores exatos pesados quando a prioridade é listar rápido. */
+  desabilitarStats?: boolean;
 }
 
 export interface EstatisticasCoordenacao {
@@ -271,7 +275,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         readStatus,
       },
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user?.id) return 0;
 
       const dataInicioFiltro = filtros.apenasHoje
@@ -304,7 +308,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         }
 
-        const { count, error } = await q;
+        const { count, error } = await q.abortSignal(signal);
         if (error) {
           console.warn('Erro ao contar descartadas:', error);
           return 0;
@@ -315,9 +319,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         return 0;
       }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (filtros.incluirDescartadas || filtros.tipoOrigem === 'descartada'),
     staleTime: 30_000,
   });
+
+  const shouldLoadExactStats = !!user?.id
+    && !filtros.desabilitarStats
+    && !!filtros.coordenacaoId
+    && !filtros.termoBusca;
 
   // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
   const { data: statsIndependentes, isLoading: isLoadingStats } = useQuery({
@@ -335,7 +344,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         readStatus,
       },
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
 
       const di = filtros.apenasHoje
@@ -366,7 +375,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (df) q = q.lte('created_at', df);
           if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
-          const { data: pautasRows } = await q.limit(2000);
+          const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
           // Per-user read status via RPC
           const ids = (pautasRows || []).map((r: any) => r.id);
           let readSet = new Set<string>();
@@ -433,7 +442,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           : null,
         p_search_query: filtros.termoBusca || null,
         p_monitoramento_id: filtros.monitoramentoId || null,
-      });
+      }).abortSignal(signal);
       if (error) {
         console.error('[stats-header] get_djen_stats_per_user error', error);
         return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
@@ -460,7 +469,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         totalProcessos: tP,
       };
     },
-    enabled: !!user?.id,
+    enabled: shouldLoadExactStats,
     staleTime: 30_000,
   });
 
