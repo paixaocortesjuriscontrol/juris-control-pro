@@ -1107,6 +1107,7 @@ const AnaliseDjen = () => {
     const toastId = toast.loading(`Resumindo 1/${totalPubs}...`);
 
     try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       // 1. Chamar IA para resumir cada publicação (Dra. Renata não quer ler o texto na íntegra)
       const resumosMap = new Map<string, string>();
       let erros = 0;
@@ -1277,6 +1278,31 @@ const AnaliseDjen = () => {
             y += 2;
           });
           y += 2;
+        }
+
+        // Comentários da coordenação
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          y += 2;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          checkPage(8);
+          doc.text(`Comentários da coordenação (${coms.length}):`, mL, y);
+          y += 6;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(5); doc.text(l, mL + 4, y); y += 5; });
+            y += 2;
+          });
         }
 
         y += 6;
