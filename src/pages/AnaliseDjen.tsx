@@ -1751,7 +1751,7 @@ const AnaliseDjen = () => {
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
+                  <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total {periodoLabel}</p>
                   <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
                     {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalGeralFiltrado}
                   </p>
