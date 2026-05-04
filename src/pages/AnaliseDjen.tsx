@@ -134,9 +134,8 @@ const AnaliseDjen = () => {
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Paginação: 100 registros por página. Reset para 1 quando qualquer filtro muda.
-  const [page, setPage] = useState<number>(1);
-  const PAGE_SIZE = 100;
+  // Sem paginação: carrega um volume alto para exibir tudo do período/dia filtrado.
+  const LIST_LIMIT = 10000;
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
@@ -196,7 +195,6 @@ const AnaliseDjen = () => {
     totalHoje,
     naoLidasHoje,
     totalDescartadasHoje,
-    hasNextPage,
     totalTermosHoje,
     totalProcessosHoje,
   } = usePublicacoesDjenUnificadas({
@@ -214,20 +212,11 @@ const AnaliseDjen = () => {
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
-    page,
-    pageSize: PAGE_SIZE,
+    page: 1,
+    pageSize: LIST_LIMIT,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !apenasHoje || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
   });
-
-  // Reset página ao mudar qualquer filtro (evita ficar numa página vazia ao
-  // trocar de coordenação ou tirar um filtro).
-  useEffect(() => {
-    setPage(1);
-  }, [
-    coordenacaoFiltroEfetivo, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced,
-    termoBuscaDebounced, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
-  ]);
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
@@ -2008,7 +1997,7 @@ const AnaliseDjen = () => {
           >
             {selectedIds.size === allPublicacoes.length && allPublicacoes.length > 0
               ? "Desmarcar"
-              : `Selecionar página (${totalExibidoNaPagina})`}
+              : `Selecionar todos (${totalExibidoNaPagina})`}
           </Button>
 
           <Button
@@ -2599,36 +2588,12 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* Paginação — 100 registros por página, paginação real no servidor */}
+        {/* Total exibido — sem paginação para não ocultar publicações do dia */}
         {!isLoading && allPublicacoes.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
+          <div className="flex items-center justify-center mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground">
-              Página <strong>{page}</strong> · exibindo <strong>{totalExibidoNaPagina}</strong> de <strong>{totalFiltradoGeral}</strong> registros filtrados
-              {hasNextPage ? "" : " · última página"}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => {
-                  setPage((p) => Math.max(1, p - 1));
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!hasNextPage}
-                onClick={() => {
-                  setPage((p) => p + 1);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                Próxima
-              </Button>
+              Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
+              {totalFiltradoGeral > totalExibidoNaPagina ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
             </div>
           </div>
         )}
