@@ -485,8 +485,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
   const { data: queryResult, isLoading } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
-    staleTime: 60_000, // 1 minuto - evita refetches desnecessários
-    placeholderData: (previousData) => previousData,
+    staleTime: 0,
     queryFn: async ({ signal }) => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
