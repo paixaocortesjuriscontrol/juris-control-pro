@@ -443,12 +443,12 @@ const AnaliseDjen = () => {
 
   // ===== Descartadas stats (independente, respeita filtros, igual aos demais cards) =====
   const { data: descartadasStats = { total: 0 }, isLoading: isLoadingDescartadasStats } = useQuery({
-    queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicio, dataFim, dataDisponibilizacao, termoBusca, monitoramentoId],
+    queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, termoBuscaDebounced, monitoramentoId, tipoOrigem],
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacao || dataInicio;
-      const dataFimEfetiva = dataDisponibilizacao || dataFim;
+      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
+      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
       const dataInicioFiltro = apenasHoje
         ? formatToUTC(startOfDay(new Date()))
         : dataInicioEfetiva
@@ -483,14 +483,14 @@ const AnaliseDjen = () => {
         }
 
         let rows = (data || []) as any[];
-        if (dataDisponibilizacao) {
-          rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacao);
+        if (dataDisponibilizacaoDebounced) {
+          rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
         }
-        if (termoBusca) {
-          const termoLower = termoBusca.toLowerCase();
+        if (termoBuscaDebounced) {
+          const termoLower = termoBuscaDebounced.toLowerCase();
           const termoDigits = termoLower.replace(/\D/g, '');
           rows = rows.filter((pub) => {
-            const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
+            const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
             const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
             const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
             const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
@@ -506,7 +506,9 @@ const AnaliseDjen = () => {
         return { total: 0 };
       }
     },
-    enabled: !!user?.id,
+    // Heavy query (até 10k rows). Só roda quando o card de Descartadas está
+    // selecionado — antes disso o badge mostra 0 e a tela responde rápido.
+    enabled: !!user?.id && tipoOrigem === 'descartada',
     staleTime: 30_000,
   });
 
