@@ -941,13 +941,14 @@ const AnaliseDjen = () => {
   };
 
   // ===== PDF "Gerar PDF" - layout duas colunas (metadados esquerda, conteúdo direita) =====
-  const handleGerarPdf = () => {
+  const handleGerarPdf = async () => {
     const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
       toast.error("Nenhuma publicação para exportar");
       return;
     }
     try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const mL = 15;
@@ -1052,6 +1053,31 @@ const AnaliseDjen = () => {
         });
 
         y = Math.max(yLeft, yRight) + 6;
+
+        // Comentários da coordenação
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          checkPage(10);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          doc.text(`Comentários da coordenação (${coms.length})`, mL, y);
+          y += 5;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL + 2, y);
+            y += 4;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(4); doc.text(l, mL + 4, y); y += 4; });
+            y += 1;
+          });
+          y += 4;
+        }
       });
 
       const total = doc.getNumberOfPages();
@@ -1081,6 +1107,7 @@ const AnaliseDjen = () => {
     const toastId = toast.loading(`Resumindo 1/${totalPubs}...`);
 
     try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       // 1. Chamar IA para resumir cada publicação (Dra. Renata não quer ler o texto na íntegra)
       const resumosMap = new Map<string, string>();
       let erros = 0;
@@ -1251,6 +1278,31 @@ const AnaliseDjen = () => {
             y += 2;
           });
           y += 2;
+        }
+
+        // Comentários da coordenação
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          y += 2;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          checkPage(8);
+          doc.text(`Comentários da coordenação (${coms.length}):`, mL, y);
+          y += 6;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(5); doc.text(l, mL + 4, y); y += 5; });
+            y += 2;
+          });
         }
 
         y += 6;
@@ -1449,6 +1501,42 @@ const AnaliseDjen = () => {
     return paragraphs;
   };
 
+  /** Bloco de comentários da coordenação (DOCX) */
+  const buildComentariosParagraphs = (
+    comentarios: Array<{ autor: string; comentario: string; created_at: string }> | undefined
+  ): Paragraph[] => {
+    if (!comentarios || comentarios.length === 0) return [];
+    const paragraphs: Paragraph[] = [];
+    paragraphs.push(new Paragraph({
+      spacing: { before: 160, after: 80 },
+      children: [new TextRun({ text: `COMENTÁRIOS DA COORDENAÇÃO (${comentarios.length})`, bold: true, size: 20, font: docFont, color: mediumBlue })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+    }));
+    comentarios.forEach((c) => {
+      const dataFmt = (() => {
+        try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; }
+      })();
+      paragraphs.push(new Paragraph({
+        spacing: { before: 80, after: 20 },
+        indent: { left: 180 },
+        children: [
+          new TextRun({ text: `${sanitizeForXml(c.autor)} `, bold: true, size: docFontSize, font: docFont, color: "1E3A5F" }),
+          new TextRun({ text: `(${dataFmt})`, size: 18, font: docFont, color: "888888", italics: true }),
+        ],
+      }));
+      const linhas = sanitizeForXml(c.comentario).split(/\n+/).filter(l => l.trim());
+      linhas.forEach((line) => {
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40, line: 276 },
+          indent: { left: 360 },
+          children: [new TextRun({ text: line.trim(), size: docFontSize, font: docFont, color: "333333" })],
+        }));
+      });
+    });
+    paragraphs.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+    return paragraphs;
+  };
+
   // ===== "Gerar Doc" - DOCX (plain text sem IA) =====
   const handleGerarDoc = async () => {
     const allPublicacoes = getPubsParaGerar();
@@ -1461,10 +1549,12 @@ const AnaliseDjen = () => {
       const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
       const children: Paragraph[] = [...buildDocHeader(`Relatório de Publicações ${origemLabel}`, allPublicacoes.length)];
 
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       allPublicacoes.forEach((pub, idx) => {
         children.push(...buildPubMetadata(pub, idx));
         children.push(...buildPartesAdvogados(pub));
         children.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "CONTEÚDO INTEGRAL"));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
       });
 
       const doc = new Document({
@@ -1542,6 +1632,7 @@ const AnaliseDjen = () => {
       const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
       const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações ${origemLabel}${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
 
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       allPublicacoes.forEach((pub, idx) => {
         children.push(...buildPubMetadata(pub, idx));
         children.push(...buildPartesAdvogados(pub));
@@ -1565,6 +1656,7 @@ const AnaliseDjen = () => {
 
           children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
         }
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
       });
 
       const doc = new Document({
@@ -1629,6 +1721,7 @@ const AnaliseDjen = () => {
       });
       toast.loading(`Gerando documentos... (Temas: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, useConclusao = false): Paragraph[] => {
         const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
         pubs.forEach((item, idx) => {
@@ -1652,6 +1745,7 @@ const AnaliseDjen = () => {
           } else {
             ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
           }
+          ch.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
         });
         return ch;
       };
@@ -1750,6 +1844,48 @@ const AnaliseDjen = () => {
   const getPubsParaGerar = () => {
     if (selectedIds.size === 0) return allPublicacoes;
     return allPublicacoes.filter(p => selectedIds.has(p.id));
+  };
+
+  /**
+   * Busca todos os comentários (e nomes dos autores) das publicações informadas.
+   * Retorna Map<publicacao_id, Array<{ autor, comentario, created_at }>>
+   */
+  const fetchComentariosMap = async (
+    pubIds: string[]
+  ): Promise<Map<string, Array<{ autor: string; comentario: string; created_at: string }>>> => {
+    const out = new Map<string, Array<{ autor: string; comentario: string; created_at: string }>>();
+    if (pubIds.length === 0) return out;
+    try {
+      const { data: coms, error } = await supabase
+        .from("comentarios_publicacoes_djen")
+        .select("publicacao_id, user_id, comentario, created_at")
+        .in("publicacao_id", pubIds)
+        .order("created_at", { ascending: true });
+      if (error || !coms || coms.length === 0) return out;
+
+      const userIds = Array.from(new Set(coms.map((c: any) => c.user_id)));
+      const nomeMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", userIds);
+        (profs || []).forEach((p: any) => nomeMap.set(p.id, p.nome || "Usuário"));
+      }
+
+      coms.forEach((c: any) => {
+        const arr = out.get(c.publicacao_id) || [];
+        arr.push({
+          autor: nomeMap.get(c.user_id) || "Usuário",
+          comentario: c.comentario,
+          created_at: c.created_at,
+        });
+        out.set(c.publicacao_id, arr);
+      });
+    } catch (e) {
+      console.error("Erro ao buscar comentários para exportação:", e);
+    }
+    return out;
   };
 
   return (
