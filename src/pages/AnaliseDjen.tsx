@@ -225,7 +225,7 @@ const AnaliseDjen = () => {
     page: 1,
     pageSize: listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
-    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !coordenacaoFiltroEfetivo,
+    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
 
   // ===== DataJud (CNJ) query =====
