@@ -3,7 +3,7 @@
  * Wrapper reativo do singleton.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -26,12 +26,16 @@ export function useDjenTermosParalela() {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<DjenTermosParalelaProgress>(getDjenTermosParalelaProgress);
   const [isRunning, setIsRunning] = useState(isDjenTermosParalelaRunning);
+  const lastNotifiedStatusRef = useRef<string>(getDjenTermosParalelaProgress().status);
 
   useEffect(() => {
     const unsub = subscribeDjenTermosParalela((p) => {
       setProgress(p);
       setIsRunning(isDjenTermosParalelaRunning());
-      if (p.status === 'concluido') {
+      const prevStatus = lastNotifiedStatusRef.current;
+      const statusChanged = prevStatus !== p.status;
+      lastNotifiedStatusRef.current = p.status;
+      if (p.status === 'concluido' && statusChanged) {
         void (async () => {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] }),
@@ -43,7 +47,7 @@ export function useDjenTermosParalela() {
           if (p.novas > 0) toast.success(`DJEN Paralela: ${p.novas} novas publicações encontradas!`);
         })();
       }
-      if (p.status === 'erro') toast.error(p.mensagem || 'Erro DJEN Paralela');
+      if (p.status === 'erro' && statusChanged) toast.error(p.mensagem || 'Erro DJEN Paralela');
     });
 
     // Reidrata visual a partir da última execução agendada (cron/scheduler).

@@ -201,8 +201,8 @@ class DjenTermosParalelaScheduler {
         const iniciadoMs = exec?.iniciado_em ? new Date(exec.iniciado_em).getTime() : 0;
         const staleRunning = exec.status === 'executando' && (
           heartbeatMs > 0
-            ? Date.now() - heartbeatMs > 5 * 60 * 1000
-            : iniciadoMs > 0 && Date.now() - iniciadoMs > 10 * 60 * 1000
+            ? Date.now() - heartbeatMs > 15 * 60 * 1000
+            : iniciadoMs > 0 && Date.now() - iniciadoMs > 20 * 60 * 1000
         );
         if (staleRunning) {
           const detalhes = exec.detalhes && typeof exec.detalhes === 'object' && !Array.isArray(exec.detalhes)
