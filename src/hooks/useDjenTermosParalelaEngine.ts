@@ -1009,6 +1009,39 @@ async function processarTermoEmTribunal(
     }
   }
 
+  // Retry automático: a API do PJE Comunica ocasionalmente devolve listagem
+  // vazia (sem 429/5xx) para um termo que tem publicações. Antes de desistir,
+  // refazemos uma única tentativa após pequeno delay.
+  if (!signal.aborted && resultados.length === 0) {
+    try {
+      await abortableDelay(1500, signal);
+      if (!signal.aborted) {
+        console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: 0 resultados na 1ª passada — refazendo busca.`);
+        const respRetry = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
+          signal,
+          maxPages: null,
+          continueUntilEmpty: true,
+          delayMs: CONFIG.delay_between_pages,
+          maxRetries: CONFIG.max_retries,
+          retryBaseDelay: CONFIG.retry_base_delay,
+          onRateLimit: (waitMs, attempt, page) => {
+            rateLimitHits++;
+            ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
+          },
+          onPoolVia: (via) => registrarViaTrack(tribunal, via),
+          forceVia: viaId,
+          fallbackToDirect: viaId === DIRECT_SLOT_ID,
+        });
+        addResults(respRetry.items);
+        if (respRetry.items.length > 0) {
+          console.log(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: retry recuperou ${respRetry.items.length} item(ns).`);
+        }
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+    }
+  }
+
   if (signal.aborted || resultados.length === 0) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
