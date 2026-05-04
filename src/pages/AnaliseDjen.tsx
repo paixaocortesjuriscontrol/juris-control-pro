@@ -1632,6 +1632,7 @@ const AnaliseDjen = () => {
       const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
       const children: Paragraph[] = [...buildDocHeader(`Resumo de Publicações ${origemLabel}${erros > 0 ? ` (${erros} não resumida(s))` : ""}`, totalPubs)];
 
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       allPublicacoes.forEach((pub, idx) => {
         children.push(...buildPubMetadata(pub, idx));
         children.push(...buildPartesAdvogados(pub));
@@ -1655,6 +1656,7 @@ const AnaliseDjen = () => {
 
           children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
         }
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
       });
 
       const doc = new Document({
