@@ -478,7 +478,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const pageSize = Math.max(1, filtros.pageSize ?? 500);
   const offsetGlobal = (page - 1) * pageSize;
 
-  const { data: queryResult, isLoading } = useQuery({
+  const { data: queryResult, isLoading } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 60_000, // 1 minuto - evita refetches desnecessários
     placeholderData: (previousData) => previousData,
