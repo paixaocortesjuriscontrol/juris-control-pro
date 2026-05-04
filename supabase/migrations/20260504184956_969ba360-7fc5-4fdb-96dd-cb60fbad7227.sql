@@ -1,0 +1,1 @@
+UPDATE public.processos SET coordenacao_id = '9d4e11e2-e81f-45ef-a8d4-977ddf371e18' WHERE coordenacao_id = 'f73e8ee7-924c-4518-bbdc-62dd77df93a1';
