@@ -433,6 +433,7 @@ async function buscarPautasNoNavegador(
       const hash = await sha256Hex(`${mon.id}|${tribunal}|${dataIso}|${processo || ""}|${conteudo.slice(0, 1024)}`);
       matches.push({
         monitoramentoId: mon.id,
+        coordenacaoId: mon.coordenacao_id ?? null,
         termoMatch: hit,
         processo,
         conteudo,
@@ -473,6 +474,7 @@ async function buscarPautasNoNavegador(
 
 interface MatchOut {
   monitoramentoId: string;
+  coordenacaoId: string | null;
   termoMatch: string;
   processo: string | null;
   conteudo: string;
@@ -493,6 +495,7 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     return true;
   }).map((m) => ({
     monitoramento_id: m.monitoramentoId,
+    coordenacao_id: m.coordenacaoId,
     hash_conteudo: m.hash,
     data_publicacao: m.dataPublicacao,
     processo_numero: m.processo,
