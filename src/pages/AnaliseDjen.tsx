@@ -1449,6 +1449,42 @@ const AnaliseDjen = () => {
     return paragraphs;
   };
 
+  /** Bloco de comentários da coordenação (DOCX) */
+  const buildComentariosParagraphs = (
+    comentarios: Array<{ autor: string; comentario: string; created_at: string }> | undefined
+  ): Paragraph[] => {
+    if (!comentarios || comentarios.length === 0) return [];
+    const paragraphs: Paragraph[] = [];
+    paragraphs.push(new Paragraph({
+      spacing: { before: 160, after: 80 },
+      children: [new TextRun({ text: `COMENTÁRIOS DA COORDENAÇÃO (${comentarios.length})`, bold: true, size: 20, font: docFont, color: mediumBlue })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+    }));
+    comentarios.forEach((c) => {
+      const dataFmt = (() => {
+        try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; }
+      })();
+      paragraphs.push(new Paragraph({
+        spacing: { before: 80, after: 20 },
+        indent: { left: 180 },
+        children: [
+          new TextRun({ text: `${sanitizeForXml(c.autor)} `, bold: true, size: docFontSize, font: docFont, color: "1E3A5F" }),
+          new TextRun({ text: `(${dataFmt})`, size: 18, font: docFont, color: "888888", italics: true }),
+        ],
+      }));
+      const linhas = sanitizeForXml(c.comentario).split(/\n+/).filter(l => l.trim());
+      linhas.forEach((line) => {
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40, line: 276 },
+          indent: { left: 360 },
+          children: [new TextRun({ text: line.trim(), size: docFontSize, font: docFont, color: "333333" })],
+        }));
+      });
+    });
+    paragraphs.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+    return paragraphs;
+  };
+
   // ===== "Gerar Doc" - DOCX (plain text sem IA) =====
   const handleGerarDoc = async () => {
     const allPublicacoes = getPubsParaGerar();
