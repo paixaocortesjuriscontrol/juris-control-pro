@@ -329,8 +329,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   });
 
   const shouldLoadExactStats = !!user?.id
-    && !filtros.desabilitarStats
-    && !!filtros.coordenacaoId;
+    && !filtros.desabilitarStats;
 
   // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
   const { data: statsIndependentes, isLoading: isLoadingStats } = useQuery({
@@ -507,8 +506,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
-        const canUseRpc = !!filtros.coordenacaoId
-          && filtros.tipoOrigem !== 'descartada'
+        const canUseRpc = filtros.tipoOrigem !== 'descartada'
           && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
@@ -519,7 +517,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // 500 + 500 + 500 + 500 + 390 — sem encolher depois no client.
         const { data: pageRows, error: pageError } = await (supabase as any)
           .rpc('get_djen_publicacoes_unificadas', {
-            p_coordenacao_id: filtros.coordenacaoId,
+            p_coordenacao_id: filtros.coordenacaoId ?? null,
             p_inicio: dataInicioFiltro ?? null,
             p_fim: dataFimFiltro ?? null,
             p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
