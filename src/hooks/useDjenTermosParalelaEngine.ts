@@ -1797,8 +1797,8 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     const iniciadoMs = data.iniciado_em ? new Date(data.iniciado_em).getTime() : 0;
     const isStaleRunning = execStatus === 'executando' && (
       heartbeatMs > 0
-        ? Date.now() - heartbeatMs > 5 * 60 * 1000
-        : iniciadoMs > 0 && Date.now() - iniciadoMs > 10 * 60 * 1000
+        ? Date.now() - heartbeatMs > 15 * 60 * 1000
+        : iniciadoMs > 0 && Date.now() - iniciadoMs > 20 * 60 * 1000
     );
     if (isStaleRunning) {
       await supabase.from('execucoes_agendadas')
