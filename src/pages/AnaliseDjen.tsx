@@ -134,9 +134,9 @@ const AnaliseDjen = () => {
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Paginação: 500 registros por página. Reset para 1 quando qualquer filtro muda.
+  // Paginação: 100 registros por página. Reset para 1 quando qualquer filtro muda.
   const [page, setPage] = useState<number>(1);
-  const PAGE_SIZE = 500;
+  const PAGE_SIZE = 100;
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
@@ -216,6 +216,8 @@ const AnaliseDjen = () => {
     incluirDescartadas: tipoOrigem === 'descartada',
     page,
     pageSize: PAGE_SIZE,
+    desabilitarLista: tipoOrigem === 'datajud',
+    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !apenasHoje || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
   });
 
   // Reset página ao mudar qualquer filtro (evita ficar numa página vazia ao
@@ -2597,7 +2599,7 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* Paginação — 500 registros por página, paginação real no servidor */}
+        {/* Paginação — 100 registros por página, paginação real no servidor */}
         {!isLoading && allPublicacoes.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground">

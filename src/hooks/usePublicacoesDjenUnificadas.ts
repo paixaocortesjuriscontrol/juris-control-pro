@@ -53,6 +53,11 @@ function normalizarTermo(valor: string | null | undefined): string {
   return String(valor || "").trim();
 }
 
+function formatarCnjPorDigitos(digits: string): string | null {
+  if (digits.length !== 20) return null;
+  return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+}
+
 function parseTermosOr(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((v) => normalizarTermo(String(v))).filter(Boolean);
@@ -198,6 +203,10 @@ export interface FiltrosUnificados {
   page?: number;
   /** Tamanho de página. Default: 500. */
   pageSize?: number;
+  /** Desliga a busca DJEN quando a tela está exibindo outra fonte (ex.: DataJud). */
+  desabilitarLista?: boolean;
+  /** Desliga contadores exatos pesados quando a prioridade é listar rápido. */
+  desabilitarStats?: boolean;
 }
 
 export interface EstatisticasCoordenacao {
@@ -271,7 +280,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         readStatus,
       },
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user?.id) return 0;
 
       const dataInicioFiltro = filtros.apenasHoje
@@ -304,7 +313,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         }
 
-        const { count, error } = await q;
+        const { count, error } = await q.abortSignal(signal);
         if (error) {
           console.warn('Erro ao contar descartadas:', error);
           return 0;
@@ -315,9 +324,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         return 0;
       }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (filtros.incluirDescartadas || filtros.tipoOrigem === 'descartada'),
     staleTime: 30_000,
   });
+
+  const shouldLoadExactStats = !!user?.id
+    && !filtros.desabilitarStats
+    && !!filtros.coordenacaoId
+    && !filtros.termoBusca;
 
   // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
   const { data: statsIndependentes, isLoading: isLoadingStats } = useQuery({
@@ -335,7 +349,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         readStatus,
       },
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
 
       const di = filtros.apenasHoje
@@ -366,7 +380,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (df) q = q.lte('created_at', df);
           if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
-          const { data: pautasRows } = await q.limit(2000);
+          const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
           // Per-user read status via RPC
           const ids = (pautasRows || []).map((r: any) => r.id);
           let readSet = new Set<string>();
@@ -433,7 +447,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           : null,
         p_search_query: filtros.termoBusca || null,
         p_monitoramento_id: filtros.monitoramentoId || null,
-      });
+      }).abortSignal(signal);
       if (error) {
         console.error('[stats-header] get_djen_stats_per_user error', error);
         return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
@@ -460,7 +474,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         totalProcessos: tP,
       };
     },
-    enabled: !!user?.id,
+    enabled: shouldLoadExactStats,
     staleTime: 30_000,
   });
 
@@ -469,10 +483,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const pageSize = Math.max(1, filtros.pageSize ?? 500);
   const offsetGlobal = (page - 1) * pageSize;
 
-  const { data: queryResult, isLoading } = useQuery({
+  const { data: queryResult, isLoading } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 60_000, // 1 minuto - evita refetches desnecessários
-    queryFn: async () => {
+    placeholderData: (previousData) => previousData,
+    queryFn: async ({ signal }) => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
       const dataInicioFiltro = filtros.apenasHoje 
@@ -516,7 +531,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_monitoramento_id: filtros.monitoramentoId ?? null,
             p_tipo_origem: filtros.tipoOrigem ?? null,
             p_read_status: readStatus,
-          });
+          })
+          .abortSignal(signal);
 
         if (pageError) {
           throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
@@ -587,11 +603,20 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const resolveProcessoIdsPromise: Promise<void> = (async () => {
           if (termoSemId.length === 0) return;
           const toDigits = (n: string) => n.replace(/\D/g, '');
+          const candidateNumeros = [...new Set(
+            termoSemId.flatMap((p) => {
+              const raw = p.processo_numero || '';
+              const digits = toDigits(raw);
+              const formatted = formatarCnjPorDigitos(digits);
+              return [raw, digits, formatted].filter(Boolean) as string[];
+            })
+          )];
+          if (candidateNumeros.length === 0) return;
           let qProcessos = supabase.from('processos').select('id, numero');
           if (filtros.coordenacaoId) {
             qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
           }
-          const { data: processosExistentes } = await qProcessos;
+          const { data: processosExistentes } = await qProcessos.in('numero', candidateNumeros).abortSignal(signal);
           const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
             processosDigitsMap[toDigits(p.numero)] = p.id;
@@ -638,7 +663,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
-          const { data: descartadasData } = await queryDescartadas.limit(200);
+          const { data: descartadasData } = await queryDescartadas.limit(200).abortSignal(signal);
           return (descartadasData || []).map((pub: any) => ({
               id: pub.id,
               tipo_origem: 'descartada' as const,
@@ -769,7 +794,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
 
         // Paginação real no fallback: usa range para a página solicitada.
-        const { data: termosData } = await queryTermos.range(offsetGlobal, offsetGlobal + pageSize - 1);
+        const { data: termosData } = await queryTermos
+          .range(offsetGlobal, offsetGlobal + pageSize - 1)
+          .abortSignal(signal);
 
         // Coletar números de processos para buscar IDs
         (termosData || []).forEach((pub: any) => {
@@ -785,7 +812,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           const { data: processosExistentes } = await supabase
             .from('processos')
             .select('id, numero')
-            .in('numero', uniqueNumeros);
+            .in('numero', uniqueNumeros)
+            .abortSignal(signal);
           
           (processosExistentes || []).forEach((p: any) => {
             processosExistentesMap[p.numero] = p.id;
@@ -890,7 +918,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
 
         // Paginação real no fallback: usa range para a página solicitada.
-        const { data: processosData } = await queryProcessos.range(offsetGlobal, offsetGlobal + pageSize - 1);
+        const { data: processosData } = await queryProcessos
+          .range(offsetGlobal, offsetGlobal + pageSize - 1)
+          .abortSignal(signal);
 
         (processosData || []).forEach((pub: any) => {
           // Com !inner + filtro no banco, essa checagem vira redundante; manter apenas como guarda.
@@ -975,7 +1005,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
-        const { data: descartadasData } = await queryDescartadas.range(offsetGlobal, offsetGlobal + pageSize - 1);
+        const { data: descartadasData } = await queryDescartadas
+          .range(offsetGlobal, offsetGlobal + pageSize - 1)
+          .abortSignal(signal);
 
         (descartadasData || []).forEach((pub: any) => {
           // Filtrar por coordenação se especificado
@@ -1060,7 +1092,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       );
       return { rows: finalRowsFallback, lastChunkSize };
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !filtros.desabilitarLista,
   });
 
   const publicacoes: PublicacaoUnificada[] = queryResult?.rows ?? [];
@@ -1315,8 +1347,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     // Fallback para a contagem da página atual enquanto a query não carrega.
     totalHoje: statsIndependentes?.total ?? publicacoes.length,
     naoLidasHoje: statsIndependentes?.naoLidas ?? publicacoes.filter(p => !p.lida).length,
-    totalTermosHoje: statsIndependentes?.totalTermos ?? 0,
-    totalProcessosHoje: statsIndependentes?.totalProcessos ?? 0,
+    totalTermosHoje: statsIndependentes?.totalTermos ?? publicacoes.filter(p => p.tipo_origem === 'termo').length,
+    totalProcessosHoje: statsIndependentes?.totalProcessos ?? publicacoes.filter(p => p.tipo_origem === 'processo').length,
     totalDescartadasHoje,
     page,
     pageSize,
