@@ -370,14 +370,14 @@ const AnaliseDjen = () => {
       if (error) throw error;
 
       let rows = (data || []) as any[];
-      if (dataDisponibilizacao) {
-        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacao);
+      if (dataDisponibilizacaoDebounced) {
+        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
       }
-      if (termoBusca) {
-        const termoLower = termoBusca.toLowerCase();
+      if (termoBuscaDebounced) {
+        const termoLower = termoBuscaDebounced.toLowerCase();
         const termoDigits = termoLower.replace(/\D/g, '');
         rows = rows.filter((pub) => {
-          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBusca);
+          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
           const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
           const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
           const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
@@ -434,7 +434,10 @@ const AnaliseDjen = () => {
 
       return { total };
     },
-    enabled: !!user?.id,
+    // Heavy query (fetches up to 10k rows + leituras). Só roda quando o card
+    // está em foco (DJET Pautas selecionado) — antes disso o badge mostra 0,
+    // o que evita travar a tela quando o usuário muda filtros rapidamente.
+    enabled: !!user?.id && tipoOrigem === 'djet-pautas',
     staleTime: 30_000,
   });
 
