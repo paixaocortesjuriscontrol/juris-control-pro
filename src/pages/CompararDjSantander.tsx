@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import * as mammoth from "mammoth";
+import JSZip from "jszip";
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -50,40 +50,78 @@ function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Verifica se o parágrafo do DOCX tem o seu conteúdo principal em NEGRITO.
-// Critério: pelo menos 80% do texto não vazio do bloco vem dentro de
-// elementos <strong>/<b> (ou parágrafos <h1-h6>, que já são títulos).
-function blocoEhTitulo(bloco: Element): boolean {
-  if (bloco.matches("h1,h2,h3,h4,h5,h6")) return true;
-  const totalLen = normalizarLinha(bloco.textContent || "").length;
-  if (!totalLen) return false;
-  let boldLen = 0;
-  bloco.querySelectorAll("strong,b").forEach((el) => {
-    boldLen += normalizarLinha(el.textContent || "").length;
-  });
-  return boldLen / totalLen >= 0.8;
+const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+function nomeLocal(node: Element): string {
+  return node.localName || node.nodeName.split(":").pop() || "";
 }
 
-function extrairProcessosDocHtml(html: string): string[] {
-  const matches: string[] = [];
-  const parsed = new DOMParser().parseFromString(html, "text/html");
-  const blocos = Array.from(parsed.body.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li"));
+function filhosPorNome(el: Element, nome: string): Element[] {
+  return Array.from(el.children).filter((child) => nomeLocal(child) === nome);
+}
 
-  for (const bloco of blocos) {
-    const texto = normalizarLinha(bloco.textContent || "");
+function descendentesPorNome(el: Element, nome: string): Element[] {
+  return Array.from(el.getElementsByTagNameNS(WORD_NS, nome));
+}
+
+function atributoWord(el: Element, nome: string): string | null {
+  return el.getAttributeNS(WORD_NS, nome) ?? el.getAttribute(`w:${nome}`) ?? el.getAttribute(nome);
+}
+
+function valorBoldAtivo(el: Element): boolean {
+  const val = atributoWord(el, "val");
+  return val === null || !["0", "false", "off"].includes(val.toLowerCase());
+}
+
+function propriedadesTemNegrito(rPr?: Element): boolean {
+  if (!rPr) return false;
+  const bold = filhosPorNome(rPr, "b").find(valorBoldAtivo);
+  const boldCs = filhosPorNome(rPr, "bCs").find(valorBoldAtivo);
+  return Boolean(bold || boldCs);
+}
+
+function textoRun(run: Element): string {
+  return descendentesPorNome(run, "t").map((t) => t.textContent || "").join("");
+}
+
+function extrairProcessosDocxTitulosNegritoXml(xml: string): string[] {
+  const matches: string[] = [];
+  const parsed = new DOMParser().parseFromString(xml, "application/xml");
+  const paragrafos = Array.from(parsed.getElementsByTagNameNS(WORD_NS, "p"));
+
+  for (const paragrafo of paragrafos) {
+    const texto = normalizarLinha(descendentesPorNome(paragrafo, "t").map((t) => t.textContent || "").join(""));
     if (!texto) continue;
 
     const comunicacao = texto.match(COMUNICACAO_PJE_TITULO_REGEX);
     const processo = texto.match(PROCESSO_TITULO_REGEX);
     if (!comunicacao && !processo) continue;
 
-    // Só conta se o título estiver em negrito (cabeçalho real da publicação).
-    if (!blocoEhTitulo(bloco)) continue;
+    const pPr = filhosPorNome(paragrafo, "pPr")[0];
+    const paragrafoNegrito = propriedadesTemNegrito(filhosPorNome(pPr || paragrafo, "rPr")[0]);
+    let totalLen = 0;
+    let boldLen = 0;
 
-    matches.push(formatarCNJ((comunicacao ?? processo)![1]));
+    for (const run of descendentesPorNome(paragrafo, "r")) {
+      const runText = normalizarLinha(textoRun(run));
+      if (!runText) continue;
+      const len = runText.length;
+      totalLen += len;
+      const rPr = filhosPorNome(run, "rPr")[0];
+      if (paragrafoNegrito || propriedadesTemNegrito(rPr)) boldLen += len;
+    }
+
+    if (totalLen > 0 && boldLen / totalLen >= 0.8) matches.push(formatarCNJ((comunicacao ?? processo)![1]));
   }
 
   return [...new Set(matches)];
+}
+
+async function extrairProcessosDocxTitulosNegrito(arrayBuffer: ArrayBuffer): Promise<string[]> {
+  const zip = await JSZip.loadAsync(arrayBuffer.slice(0));
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  if (!documentXml) throw new Error("Arquivo DOCX sem word/document.xml");
+  return extrairProcessosDocxTitulosNegritoXml(documentXml);
 }
 
 function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: boolean } = {}): string[] {
@@ -234,8 +272,7 @@ export default function CompararDjSantander() {
     setResult(null);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const { value } = await mammoth.convertToHtml({ arrayBuffer });
-      const processos = extrairProcessosDocHtml(value);
+      const processos = await extrairProcessosDocxTitulosNegrito(arrayBuffer);
       setDocProcessos(processos);
       toast.success(`DOC carregado: ${processos.length} processos encontrados`);
     } catch (err) {
