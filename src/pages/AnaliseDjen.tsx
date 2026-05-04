@@ -215,7 +215,7 @@ const AnaliseDjen = () => {
     page: 1,
     pageSize: LIST_LIMIT,
     desabilitarLista: tipoOrigem === 'datajud',
-    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !apenasHoje || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
+    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !coordenacaoFiltroEfetivo,
   });
 
   // ===== DataJud (CNJ) query =====
@@ -518,6 +518,7 @@ const AnaliseDjen = () => {
   const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
   const totalPautasDejt = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? pautasDejtStats.total : 0;
+  const periodoLabel = apenasHoje ? 'Hoje' : 'no Período';
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
