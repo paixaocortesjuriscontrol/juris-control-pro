@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_pub_djen_proc_conteudo_trgm ON public.publicacoes_djen_processos USING gin (conteudo gin_trgm_ops);
