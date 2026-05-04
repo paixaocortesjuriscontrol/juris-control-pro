@@ -134,7 +134,7 @@ const AnaliseDjen = () => {
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Paginação: 500 registros por página. Reset para 1 quando qualquer filtro muda.
+  // Paginação: 100 registros por página. Reset para 1 quando qualquer filtro muda.
   const [page, setPage] = useState<number>(1);
   const PAGE_SIZE = 100;
 
@@ -2599,7 +2599,7 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* Paginação — 500 registros por página, paginação real no servidor */}
+        {/* Paginação — 100 registros por página, paginação real no servidor */}
         {!isLoading && allPublicacoes.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground">
