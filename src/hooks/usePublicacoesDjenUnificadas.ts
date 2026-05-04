@@ -481,7 +481,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const { data: queryResult, isLoading } = useQuery({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 60_000, // 1 minuto - evita refetches desnecessários
-    queryFn: async () => {
+    placeholderData: (previousData) => previousData,
+    queryFn: async ({ signal }) => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
       const dataInicioFiltro = filtros.apenasHoje 
@@ -525,7 +526,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_monitoramento_id: filtros.monitoramentoId ?? null,
             p_tipo_origem: filtros.tipoOrigem ?? null,
             p_read_status: readStatus,
-          });
+          })
+          .abortSignal(signal);
 
         if (pageError) {
           throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
@@ -600,7 +602,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (filtros.coordenacaoId) {
             qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
           }
-          const { data: processosExistentes } = await qProcessos;
+          const { data: processosExistentes } = await qProcessos.abortSignal(signal);
           const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
             processosDigitsMap[toDigits(p.numero)] = p.id;
@@ -647,7 +649,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
-          const { data: descartadasData } = await queryDescartadas.limit(200);
+          const { data: descartadasData } = await queryDescartadas.limit(200).abortSignal(signal);
           return (descartadasData || []).map((pub: any) => ({
               id: pub.id,
               tipo_origem: 'descartada' as const,
@@ -1069,7 +1071,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       );
       return { rows: finalRowsFallback, lastChunkSize };
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !filtros.desabilitarLista,
   });
 
   const publicacoes: PublicacaoUnificada[] = queryResult?.rows ?? [];
