@@ -202,9 +202,9 @@ const AnaliseDjen = () => {
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
-    dataInicio: apenasHoje ? undefined : (dataDisponibilizacao || dataInicio || undefined),
-    dataFim: apenasHoje ? undefined : (dataDisponibilizacao || dataFim || undefined),
-    termoBusca: termoBusca || undefined,
+    dataInicio: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataInicioDebounced || undefined),
+    dataFim: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataFimDebounced || undefined),
+    termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
     readStatus,
