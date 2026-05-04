@@ -53,6 +53,11 @@ function normalizarTermo(valor: string | null | undefined): string {
   return String(valor || "").trim();
 }
 
+function formatarCnjPorDigitos(digits: string): string | null {
+  if (digits.length !== 20) return null;
+  return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
+}
+
 function parseTermosOr(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((v) => normalizarTermo(String(v))).filter(Boolean);
@@ -598,11 +603,20 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const resolveProcessoIdsPromise: Promise<void> = (async () => {
           if (termoSemId.length === 0) return;
           const toDigits = (n: string) => n.replace(/\D/g, '');
+          const candidateNumeros = [...new Set(
+            termoSemId.flatMap((p) => {
+              const raw = p.processo_numero || '';
+              const digits = toDigits(raw);
+              const formatted = formatarCnjPorDigitos(digits);
+              return [raw, digits, formatted].filter(Boolean) as string[];
+            })
+          )];
+          if (candidateNumeros.length === 0) return;
           let qProcessos = supabase.from('processos').select('id, numero');
           if (filtros.coordenacaoId) {
             qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
           }
-          const { data: processosExistentes } = await qProcessos.abortSignal(signal);
+          const { data: processosExistentes } = await qProcessos.in('numero', candidateNumeros).abortSignal(signal);
           const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
             processosDigitsMap[toDigits(p.numero)] = p.id;
