@@ -215,7 +215,7 @@ const AnaliseDjen = () => {
     page: 1,
     pageSize: LIST_LIMIT,
     desabilitarLista: tipoOrigem === 'datajud',
-    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !apenasHoje || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
+    desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !coordenacaoFiltroEfetivo,
   });
 
   // ===== DataJud (CNJ) query =====
@@ -518,6 +518,7 @@ const AnaliseDjen = () => {
   const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
   const totalPautasDejt = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? pautasDejtStats.total : 0;
+  const periodoLabel = apenasHoje ? 'Hoje' : 'no Período';
 
   // Map DataJud results to PublicacaoUnificada format
   const datajudAsPublicacoes: PublicacaoUnificada[] = useMemo(() => {
@@ -1750,7 +1751,7 @@ const AnaliseDjen = () => {
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total Hoje</p>
+                  <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Total {periodoLabel}</p>
                   <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">
                     {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalGeralFiltrado}
                   </p>
