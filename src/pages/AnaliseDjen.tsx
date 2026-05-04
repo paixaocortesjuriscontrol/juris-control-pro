@@ -134,9 +134,8 @@ const AnaliseDjen = () => {
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Paginação: 100 registros por página. Reset para 1 quando qualquer filtro muda.
-  const [page, setPage] = useState<number>(1);
-  const PAGE_SIZE = 100;
+  // Sem paginação: carrega um volume alto para exibir tudo do período/dia filtrado.
+  const LIST_LIMIT = 10000;
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
@@ -196,7 +195,6 @@ const AnaliseDjen = () => {
     totalHoje,
     naoLidasHoje,
     totalDescartadasHoje,
-    hasNextPage,
     totalTermosHoje,
     totalProcessosHoje,
   } = usePublicacoesDjenUnificadas({
@@ -214,20 +212,11 @@ const AnaliseDjen = () => {
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
-    page,
-    pageSize: PAGE_SIZE,
+    page: 1,
+    pageSize: LIST_LIMIT,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas' || !apenasHoje || !!termoBuscaDebounced || !coordenacaoFiltroEfetivo,
   });
-
-  // Reset página ao mudar qualquer filtro (evita ficar numa página vazia ao
-  // trocar de coordenação ou tirar um filtro).
-  useEffect(() => {
-    setPage(1);
-  }, [
-    coordenacaoFiltroEfetivo, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced,
-    termoBuscaDebounced, monitoramentoId, readStatus, apenasHoje, tipoOrigem,
-  ]);
 
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
