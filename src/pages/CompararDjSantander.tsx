@@ -37,11 +37,10 @@ function formatarCNJ(numero: string): string {
   return numero;
 }
 
-// Captura APENAS processos em linhas/títulos completos de publicação.
-// Não captura linhas em que o CNJ aparece seguido de texto do corpo da decisão.
+// Captura APENAS o cabeçalho real da publicação exportada pela Análise DJEN.
+// Evita o padrão genérico "Processo ...", pois ele também aparece no corpo do texto.
 const CNJ_PATTERN = "(\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}|\\d{20})";
 const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*\\**\\s*${CNJ_PATTERN}\\s*\\**\\s*$`, "i");
-const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*\\**\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*\\**\\s*${CNJ_PATTERN}\\s*\\**\\s*$`, "i");
 const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
 
 function normalizarLinha(texto: string): string {
@@ -63,12 +62,6 @@ function extrairProcessosDocHtml(html: string): string[] {
       continue;
     }
 
-    const processo = texto.match(PROCESSO_TITULO_REGEX);
-    if (!processo) continue;
-
-    const isHeading = bloco.matches("h1,h2,h3,h4,h5,h6");
-    const hasTitleFormatting = !!bloco.querySelector("strong,b");
-    if (isHeading || hasTitleFormatting) matches.push(formatarCNJ(processo[1]));
   }
 
   return [...new Set(matches)];
@@ -85,8 +78,6 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
       matches.push(formatarCNJ(comunicacao[1]));
       continue;
     }
-    const processo = limpa.match(PROCESSO_TITULO_REGEX);
-    if (processo) matches.push(formatarCNJ(processo[1]));
   }
 
   if (options.permitirComunicacaoInline) {
