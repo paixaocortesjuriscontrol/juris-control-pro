@@ -1508,7 +1508,7 @@ async function executarLoop(
       }
     }
     const vias: ViaSpec[] = viasProxy.length > 0
-      ? viasProxy
+      ? [...viasProxy, { id: DIRECT_SLOT_ID, label: 'Direto (browser)' }]
       : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
     const usandoPoolVps = viasProxy.length > 0;
 
