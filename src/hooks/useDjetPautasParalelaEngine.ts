@@ -253,6 +253,7 @@ function monitoramentoToInput(m: Monitoramento): {
   condicaoConcomitante?: string | null;
   exclusoes?: string[];
   oab?: string;
+  coordenacao_id?: string | null;
 } {
   const termos: string[] = [];
   if (m.termo_busca) termos.push(m.termo_busca);
@@ -266,6 +267,7 @@ function monitoramentoToInput(m: Monitoramento): {
     condicaoConcomitante: m.condicao_concomitante || undefined,
     exclusoes: m.exclusoes || [],
     oab: m.oab || undefined,
+    coordenacao_id: m.coordenacao_id ?? null,
   };
 }
 
