@@ -84,6 +84,13 @@ function textoRun(run: Element): string {
   return descendentesPorNome(run, "t").map((t) => t.textContent || "").join("");
 }
 
+function textoNegritoExplicito(paragrafo: Element): string {
+  return descendentesPorNome(paragrafo, "r")
+    .filter((run) => propriedadesTemNegrito(filhosPorNome(run, "rPr")[0]))
+    .map(textoRun)
+    .join("");
+}
+
 function extrairProcessosDocxTitulosNegritoXml(xml: string): string[] {
   const matches: string[] = [];
   const parsed = new DOMParser().parseFromString(xml, "application/xml");
@@ -97,21 +104,11 @@ function extrairProcessosDocxTitulosNegritoXml(xml: string): string[] {
     const processo = texto.match(PROCESSO_TITULO_REGEX);
     if (!comunicacao && !processo) continue;
 
-    const pPr = filhosPorNome(paragrafo, "pPr")[0];
-    const paragrafoNegrito = propriedadesTemNegrito(filhosPorNome(pPr || paragrafo, "rPr")[0]);
-    let totalLen = 0;
-    let boldLen = 0;
-
-    for (const run of descendentesPorNome(paragrafo, "r")) {
-      const runText = normalizarLinha(textoRun(run));
-      if (!runText) continue;
-      const len = runText.length;
-      totalLen += len;
-      const rPr = filhosPorNome(run, "rPr")[0];
-      if (paragrafoNegrito || propriedadesTemNegrito(rPr)) boldLen += len;
-    }
-
-    if (totalLen > 0 && boldLen / totalLen >= 0.8) matches.push(formatarCNJ((comunicacao ?? processo)![1]));
+    // Conta só se o próprio texto do título (Processo/COMUNICAÇÃO + número)
+    // estiver em runs explicitamente negritados. Não usa negrito herdado do
+    // parágrafo, porque isso estava deixando linhas do corpo entrarem como título.
+    const negrito = normalizarLinha(textoNegritoExplicito(paragrafo));
+    if (negrito === texto) matches.push(formatarCNJ((comunicacao ?? processo)![1]));
   }
 
   return [...new Set(matches)];
