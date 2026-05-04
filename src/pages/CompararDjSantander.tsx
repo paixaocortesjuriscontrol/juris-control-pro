@@ -37,15 +37,26 @@ function formatarCNJ(numero: string): string {
   return numero;
 }
 
+// Captura processos em dois formatos comuns nos documentos do Santander:
+// 1) "COMUNICAÇÃO PJE #<CNJ>" (formato antigo)
+// 2) "Processo <CNJ>" (formato DJEN/TST - títulos das publicações)
 const COMUNICACAO_PJE_REGEX = /COMUNICA[CÇ][AÃ]O\s+PJE\s+#?\s*(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/gi;
+const PROCESSO_TITULO_REGEX = /Processo[\s:]+(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/gi;
+const CNJ_GENERICO_REGEX = /\b(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})\b/g;
 
 function extrairProcessos(texto: string): string[] {
   const matches: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = COMUNICACAO_PJE_REGEX.exec(texto)) !== null) {
-    matches.push(match[1]);
-  }
-  COMUNICACAO_PJE_REGEX.lastIndex = 0;
+  const runRegex = (re: RegExp) => {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(texto)) !== null) matches.push(m[1]);
+    re.lastIndex = 0;
+  };
+  runRegex(COMUNICACAO_PJE_REGEX);
+  runRegex(PROCESSO_TITULO_REGEX);
+  // Fallback: se nenhuma das marcações específicas encontrou nada,
+  // captura qualquer CNJ presente no texto (cobre PDFs/DOCXs sem rótulo).
+  if (matches.length === 0) runRegex(CNJ_GENERICO_REGEX);
   return [...new Set(matches)];
 }
 
