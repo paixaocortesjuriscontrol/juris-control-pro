@@ -44,6 +44,14 @@ export function useDjenTermosParalela() {
             queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
             queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] }),
           ]);
+          // Atualiza estatísticas dos índices DJEN (data_disponibilizacao + coordenacao_id)
+          // para que as próximas consultas usem o plano otimizado. Best-effort.
+          try {
+            const { supabase } = await import('@/integrations/supabase/client');
+            await (supabase as any).rpc('analyze_publicacoes_djen');
+          } catch (e) {
+            console.warn('[DJEN Paralela] Falha ao atualizar estatísticas (ANALYZE):', e);
+          }
           if (p.novas > 0) toast.success(`DJEN Paralela: ${p.novas} novas publicações encontradas!`);
         })();
       }
