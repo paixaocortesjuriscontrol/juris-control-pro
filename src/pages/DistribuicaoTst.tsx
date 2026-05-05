@@ -848,7 +848,6 @@ export default function DistribuicaoTst() {
 
             <Button
               size="sm"
-              variant="outline"
               className="h-8 text-xs"
               onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}
             >
