@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.analyze_publicacoes_djen() TO authenticated;
