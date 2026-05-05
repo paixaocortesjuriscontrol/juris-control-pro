@@ -316,6 +316,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   useImperativeHandle(ref, () => ({
     runJudit: (comAnexos: boolean) => handleBuscarJudit(comAnexos),
     isBuscando: () => buscandoJudit,
+    save: () => handleSave(),
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
   const handleSave = async () => {
