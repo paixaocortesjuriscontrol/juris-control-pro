@@ -35,6 +35,7 @@ interface Props {
 export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean) => Promise<void>;
   isBuscando: () => boolean;
+  save: () => Promise<void>;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
