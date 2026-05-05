@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Save } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DistribuicaoTstForm, DistribuicaoTstFormHandle } from "./DistribuicaoTstForm";
-import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
+import { DadosBennerForm, DadosBennerFormHandle } from "@/components/benner/DadosBennerForm";
 import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
@@ -44,6 +46,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [comAnexos, setComAnexos] = useState(false);
   const formRef = useRef<DistribuicaoTstFormHandle>(null);
+  const bennerFormRef = useRef<DadosBennerFormHandle>(null);
+  const [savingTop, setSavingTop] = useState(false);
+  const [prontoEnviar, setProntoEnviar] = useState(false);
 
   const runJudit = async (comAnexos: boolean) => {
     if (!formRef.current) return;
@@ -154,6 +159,25 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const titulo = processoNumero ? `Processo ${processoNumero}` : "Novo registro";
   const bennerDisabled = !processoNumero;
 
+  // Sincroniza o switch "Pronto para Enviar" do header com o status atual do registro Benner.
+  useEffect(() => {
+    setProntoEnviar((bennerDado as any)?.status === "pronto_envio");
+  }, [bennerDado]);
+
+  const handleSaveTop = async () => {
+    setSavingTop(true);
+    try {
+      // Salva o form da aba ativa. Para Distribuição/Benner, dispara o handler interno do form.
+      if (tab === "benner" && bennerFormRef.current) {
+        await bennerFormRef.current.save();
+      } else if (formRef.current) {
+        await formRef.current.save();
+      }
+    } finally {
+      setSavingTop(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -161,6 +185,20 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <ArrowLeft className="w-4 h-4 mr-1" /> Voltar à lista
         </Button>
         <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
+        <div className="ml-auto flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={prontoEnviar}
+              onCheckedChange={setProntoEnviar}
+              disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado"}
+            />
+            <Label className="text-sm font-medium">Pronto para Enviar</Label>
+          </div>
+          <Button onClick={handleSaveTop} disabled={savingTop}>
+            {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar
+          </Button>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
@@ -217,14 +255,19 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             </div>
           ) : bennerDado ? (
             <DadosBennerForm
+              ref={bennerFormRef}
               dado={bennerDado}
               markExistingJuditFields={!!(bennerDado as any)?.judit_preenchido}
               onSave={handleSaveBennerLocal}
               onCancel={onClose}
               onJuditSync={handleJuditSync}
+              prontoEnviar={prontoEnviar}
+              onProntoEnviarChange={setProntoEnviar}
+              hideFooter
             />
           ) : (
             <DadosBennerForm
+              ref={bennerFormRef}
               initialData={{
                 processo: processoNumero,
                 dossie: dado?.dossie || "",
@@ -238,6 +281,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               onSave={handleSaveBennerLocal}
               onCancel={onClose}
               onJuditSync={handleJuditSync}
+              prontoEnviar={prontoEnviar}
+              onProntoEnviarChange={setProntoEnviar}
+              hideFooter
             />
           )}
         </TabsContent>
