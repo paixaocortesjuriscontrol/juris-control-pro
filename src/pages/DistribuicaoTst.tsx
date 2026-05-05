@@ -809,9 +809,6 @@ export default function DistribuicaoTst() {
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
-            <Button onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}>
-              <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
-            </Button>
             <Link to="/dados-benner">
               <Button variant="outline">
                 <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
@@ -849,6 +846,14 @@ export default function DistribuicaoTst() {
 
             <div className="h-6 w-px bg-border mx-1" />
 
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}
+            >
+              <Plus className="w-3 h-3 mr-1" /> Nova Distribuição
+            </Button>
             <Button
               size="sm"
               onClick={handleBulkJudit}
