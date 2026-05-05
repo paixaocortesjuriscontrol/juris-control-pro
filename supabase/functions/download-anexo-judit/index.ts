@@ -24,12 +24,33 @@ Deno.serve(async (req) => {
     if (!cnj || !attachment_id) return json({ error: "cnj e attachment_id obrigatórios" }, 400);
 
     const cnjClean = String(cnj).replace(/[^0-9.-]/g, "").trim();
-    const inst = instance || "1";
-    const url = `${JUDIT_LAWSUITS}/lawsuits/${encodeURIComponent(cnjClean)}/${inst}/attachments/${encodeURIComponent(attachment_id)}`;
-    const res = await fetch(url, { headers: { "api-key": juditApiKey } });
-    if (!res.ok) {
-      const txt = await res.text();
-      return json({ error: `HTTP ${res.status}: ${txt.substring(0, 200)}` }, 200);
+
+    // Tenta a instância informada e, em caso de 404 ATTACHMENT_NOT_FOUND, faz
+    // fallback para outras instâncias (1, 2, 3) — a Judit às vezes devolve o
+    // anexo no nível da capa sem indicar a instância correta.
+    const tried = new Set<string>();
+    const order: string[] = [];
+    const primary = instance ? String(instance) : "1";
+    order.push(primary);
+    for (const i of ["1", "2", "3"]) if (!order.includes(i)) order.push(i);
+
+    let res: Response | null = null;
+    let lastErr = "";
+    for (const inst of order) {
+      if (tried.has(inst)) continue;
+      tried.add(inst);
+      const url = `${JUDIT_LAWSUITS}/lawsuits/${encodeURIComponent(cnjClean)}/${inst}/attachments/${encodeURIComponent(attachment_id)}`;
+      const r = await fetch(url, { headers: { "api-key": juditApiKey } });
+      if (r.ok) { res = r; break; }
+      const txt = await r.text();
+      lastErr = `HTTP ${r.status}: ${txt.substring(0, 200)}`;
+      // Só faz fallback em 404; outros erros são definitivos
+      if (r.status !== 404) {
+        return json({ error: lastErr }, 200);
+      }
+    }
+    if (!res) {
+      return json({ error: `Anexo não encontrado em nenhuma instância (1/2/3). Último erro: ${lastErr}` }, 200);
     }
     const buf = new Uint8Array(await res.arrayBuffer());
     const rawName = String(filename || `documento_${attachment_id}.pdf`);
