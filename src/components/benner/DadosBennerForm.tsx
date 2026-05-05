@@ -691,6 +691,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     if (result) onCancel();
   };
 
+  useImperativeHandle(ref, () => ({
+    save: () => handleSave(),
+    isSaving: () => saving,
+  }), [saving, form, prontoEnviar, partesJudit, dado]);
+
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (
     <div className={cn("px-4 py-2 rounded-t-lg font-semibold text-sm", color)}>
       {title}
