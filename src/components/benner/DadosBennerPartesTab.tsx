@@ -209,7 +209,19 @@ export function DadosBennerPartesTab({ dadosBennerId, processoNumero }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
-        <Button onClick={buscarJudit} disabled={buscando || !processoNumero} size="sm">
+        <Button
+          onClick={() => {
+            if (!processoNumero) {
+              toast.error(
+                "Este registro não possui número de processo (CNJ) cadastrado. Preencha o campo 'Processo' na aba 'Dados Carga Benner' antes de buscar na Judit."
+              );
+              return;
+            }
+            buscarJudit();
+          }}
+          disabled={buscando}
+          size="sm"
+        >
           {buscando ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Search className="w-4 h-4 mr-1" />}
           Buscar Judit
         </Button>
