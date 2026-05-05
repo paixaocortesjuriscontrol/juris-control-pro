@@ -1207,6 +1207,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       )}
 
       {/* Footer */}
+      {!hideFooter && (
       <div className="flex items-center justify-between border-t border-border pt-4">
         <div className="flex items-center gap-3">
           <Switch checked={prontoEnviar} onCheckedChange={setProntoEnviar}
@@ -1221,6 +1222,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           </Button>
         </div>
       </div>
+      )}
     </div>
   );
 });
