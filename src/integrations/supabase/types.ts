@@ -6442,6 +6442,7 @@ export type Database = {
       }
     }
     Functions: {
+      analyze_publicacoes_djen: { Args: never; Returns: undefined }
       backfill_djen_status_batch: {
         Args: { p_limit?: number }
         Returns: {
