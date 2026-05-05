@@ -809,7 +809,6 @@ export default function DistribuicaoTst() {
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
-            <BennerSimImport onUpdated={handleRefresh} />
             <Button onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}>
               <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
             </Button>
@@ -878,6 +877,7 @@ export default function DistribuicaoTst() {
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
               <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
+            <BennerSimImport onUpdated={handleRefresh} />
           </div>
         )}
 

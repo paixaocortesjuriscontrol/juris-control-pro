@@ -276,8 +276,8 @@ export function BennerSimImport({ onUpdated }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <CheckCircle2 className="w-4 h-4 mr-2" />
+        <Button variant="outline" size="sm" className="h-8 text-xs">
+          <CheckCircle2 className="w-3 h-3 mr-1" />
           Benner SIM
         </Button>
       </DialogTrigger>
