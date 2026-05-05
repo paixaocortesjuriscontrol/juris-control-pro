@@ -47,6 +47,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
   const runJudit = async (comAnexos: boolean) => {
     if (!formRef.current) return;
+    if (comAnexos) setAnexos([]);
     setBuscandoJudit(true);
     try {
       await formRef.current.runJudit(comAnexos);
@@ -138,7 +139,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             <TabsTrigger value="benner" disabled={bennerDisabled}>Dados Benner</TabsTrigger>
             <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             <TabsTrigger value="analise-judit" disabled={bennerDisabled}>Análise Judit</TabsTrigger>
-            {anexos && anexos.length > 0 && (
+            {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
           </TabsList>
@@ -174,7 +175,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
-            onAnexosFound={(atts) => { setAnexos(atts); if (atts?.length) setTab("anexos"); }}
+            onAnexosFound={(atts) => { setAnexos(atts || []); setTab("anexos"); }}
           />
         </TabsContent>
 
