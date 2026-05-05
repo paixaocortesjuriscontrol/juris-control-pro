@@ -106,6 +106,48 @@ function stripAttachments(value: any): any {
   return value;
 }
 
+// Coleta attachments de TODAS as instâncias retornadas (cache + crawler page_data),
+// não só da `rdSelecionada`. A Judit costuma colocar os anexos nos steps da
+// instância de origem (TRT), enquanto a `rdSelecionada` é a do TST.
+function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string): any[] {
+  const fontes: any[] = [];
+  if (rdSelecionada) fontes.push(rdSelecionada);
+  if (rawCollector?.cache_lookup) fontes.push(rawCollector.cache_lookup);
+  const pageData = rawCollector?.crawler?.page_data || [];
+  for (const it of pageData) {
+    const rd = it?.response_data;
+    if (rd && !fontes.includes(rd)) fontes.push(rd);
+  }
+
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const rd of fontes) {
+    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
+    const instance = rd?.instance ?? rd?.crawler?.instance ?? null;
+    for (const s of steps) {
+      const atts = Array.isArray(s?.attachments) ? s.attachments : [];
+      for (const a of atts) {
+        const stepId = s?.step_id || s?.id || a?.step_id || null;
+        const attId = a?.id || a?.attachment_id || stepId;
+        if (!attId) continue;
+        const key = `${instance ?? "?"}::${attId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          step_id: attId,
+          step_date: s?.step_date || s?.date || null,
+          attachment_name: a?.name || a?.attachment_name || a?.title || null,
+          attachment_date: a?.date || a?.attachment_date || null,
+          extension: a?.extension || a?.ext || null,
+          instance,
+          cnj,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 async function juditCriarRequestComOpcoes(
   apiKey: string,
   cnj: string,
@@ -468,21 +510,7 @@ serve(async (req) => {
         com_anexos: comAnexos,
       },
       attachments: comAnexos
-        ? (Array.isArray(rdSelecionada?.steps)
-            ? rdSelecionada.steps.flatMap((s: any) =>
-                Array.isArray(s?.attachments)
-                  ? s.attachments.map((a: any) => ({
-                      step_id: s?.step_id || s?.id || null,
-                      step_date: s?.step_date || s?.date || null,
-                      attachment_name: a?.name || a?.attachment_name || null,
-                      attachment_date: a?.date || a?.attachment_date || null,
-                      extension: a?.extension || null,
-                      instance: rdSelecionada?.instance || null,
-                      cnj,
-                    }))
-                  : []
-              )
-            : [])
+        ? coletarAttachments(rdSelecionada, rawCollector, cnj)
         : null,
       _judit_raw: comAnexos ? rawCollector : stripAttachments(rawCollector),
     };

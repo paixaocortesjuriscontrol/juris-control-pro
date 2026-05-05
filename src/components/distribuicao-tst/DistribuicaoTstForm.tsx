@@ -162,8 +162,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         return;
       }
 
-      if (comAnexosArg && Array.isArray((data as any)?.attachments)) {
-        onAnexosFound?.((data as any).attachments);
+      if (comAnexosArg) {
+        const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
+        onAnexosFound?.(atts);
+        if (atts.length === 0) {
+          toast.warning("Judit não retornou anexos para este processo.");
+        } else {
+          toast.success(`Judit retornou ${atts.length} anexo(s).`);
+        }
       }
 
       // Extrai reclamante / reclamada das partes (polo ativo / passivo, sem advogados).
