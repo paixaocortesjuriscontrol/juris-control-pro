@@ -289,6 +289,9 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
+const CNJ_REGEX_GLOBAL = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g;
+const MAX_BLOCO_CHARS = 400_000;
+const MAX_BUF_FLUSH_CHARS = 800_000;
 const PAUTA_MARKERS = [
   "PAUTA DE JULGAMENTO",
   "PAUTAS DE JULGAMENTO",
@@ -322,19 +325,19 @@ function makePautaStreamSegmenter() {
       const next = markerRe.exec(buf);
       if (!next) {
         if (final) {
-          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          const bloco = buf.length > MAX_BLOCO_CHARS ? buf.slice(0, MAX_BLOCO_CHARS) : buf;
           buf = "";
           inBlock = false;
           yield bloco;
-        } else if (buf.length > 16000) {
-          yield buf.slice(0, 8000);
+        } else if (buf.length > MAX_BUF_FLUSH_CHARS) {
+          yield buf.slice(0, MAX_BLOCO_CHARS);
           buf = buf.slice(-4000);
           inBlock = false;
         }
         return;
       }
       const bloco = buf.slice(0, next.index);
-      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      yield bloco.length > MAX_BLOCO_CHARS ? bloco.slice(0, MAX_BLOCO_CHARS) : bloco;
       buf = buf.slice(next.index);
     }
   }
@@ -348,6 +351,41 @@ function makePautaStreamSegmenter() {
 function extractCnj(text: string): string | null {
   const m = text.match(CNJ_REGEX);
   return m ? m[0] : null;
+}
+
+/**
+ * Subdivide um bloco de Sessão em sub-blocos por processo (CNJ).
+ * Para cada CNJ encontrado, recorta o trecho do CNJ até o próximo CNJ
+ * (ou ~3 KB de contexto para o último), prefixado com o cabeçalho da
+ * Sessão (até o primeiro CNJ) — preserva Turma, data/hora, órgão.
+ * Se nenhum CNJ for encontrado, devolve o bloco inteiro com processo=null.
+ */
+function splitBlocoByProcessos(bloco: string): Array<{ processo: string | null; texto: string }> {
+  const cnjs: Array<{ value: string; index: number }> = [];
+  CNJ_REGEX_GLOBAL.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CNJ_REGEX_GLOBAL.exec(bloco)) !== null) {
+    cnjs.push({ value: m[0], index: m.index });
+  }
+  if (cnjs.length === 0) {
+    return [{ processo: null, texto: bloco }];
+  }
+  const headerEnd = cnjs[0].index;
+  const header = bloco.slice(0, Math.min(headerEnd, 1500));
+  const out: Array<{ processo: string | null; texto: string }> = [];
+  // Dedup por CNJ (mesmo CNJ aparece várias vezes no bloco -> uma única sub-pauta)
+  const seen = new Set<string>();
+  for (let i = 0; i < cnjs.length; i++) {
+    const cur = cnjs[i];
+    if (seen.has(cur.value)) continue;
+    seen.add(cur.value);
+    const next = cnjs[i + 1];
+    const end = next ? next.index : Math.min(bloco.length, cur.index + 3000);
+    const slice = bloco.slice(cur.index, end);
+    const texto = (header && cur.index > 0 ? `${header}\n` : "") + slice;
+    out.push({ processo: cur.value, texto: texto.length > 8000 ? texto.slice(0, 8000) : texto });
+  }
+  return out;
 }
 
 function condicaoConcomitanteAtendidaBloco(blocoNorm: string, condicao?: string | null): boolean {
@@ -426,24 +464,28 @@ async function buscarPautasNoNavegador(
 
   const processBloco = async (bloco: string) => {
     totalBlocos++;
-    const blocoNorm = normalizeDjetText(bloco);
-    const processo = extractCnj(bloco);
-    for (const mon of monitoramentos) {
-      const hit = matchBlocoMonitoramento(blocoNorm, mon);
-      if (!hit) continue;
-      const conteudo = bloco.trim();
-      const hash = await sha256Hex(`${mon.id}|${tribunal}|${dataIso}|${processo || ""}|${conteudo.slice(0, 1024)}`);
-      matches.push({
-        monitoramentoId: mon.id,
-        coordenacaoId: mon.coordenacao_id ?? null,
-        termoMatch: hit,
-        processo,
-        conteudo,
-        hash,
-        dataPublicacao: dataIso,
-        fonte: "dejt-pdf",
-        tribunal,
-      });
+    const subBlocos = splitBlocoByProcessos(bloco);
+    for (const sub of subBlocos) {
+      const subNorm = normalizeDjetText(sub.texto);
+      for (const mon of monitoramentos) {
+        const hit = matchBlocoMonitoramento(subNorm, mon);
+        if (!hit) continue;
+        const conteudo = sub.texto.trim();
+        const hash = await sha256Hex(
+          `${mon.id}|${tribunal}|${dataIso}|${sub.processo || ""}|${conteudo.slice(0, 1024)}`,
+        );
+        matches.push({
+          monitoramentoId: mon.id,
+          coordenacaoId: mon.coordenacao_id ?? null,
+          termoMatch: hit,
+          processo: sub.processo,
+          conteudo,
+          hash,
+          dataPublicacao: dataIso,
+          fonte: "dejt-pdf",
+          tribunal,
+        });
+      }
     }
   };
 
