@@ -879,32 +879,29 @@ export default function DistribuicaoTst() {
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
 
-        {/* Mês/Ano tabs */}
+        {/* Mês/Ano dropdown */}
         {mesesAnos.length > 0 && (
-          <div className="flex gap-1 flex-wrap">
-            <Button
-              variant={filtroMesAno === "todos" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFiltroMesAno("todos")}
-              className="text-xs h-7"
-            >
-              Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
-            </Button>
-            {mesesAnos.map(({ key, count }) => {
-              const [y, m] = key.split("-");
-              const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
-              return (
-                <Button
-                  key={key}
-                  variant={filtroMesAno === key ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFiltroMesAno(key)}
-                  className="text-xs h-7"
-                >
-                  {label} ({count})
-                </Button>
-              );
-            })}
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
+            <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
+              <SelectTrigger className="h-8 text-xs w-64">
+                <SelectValue placeholder="Selecione o mês/ano" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">
+                  Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
+                </SelectItem>
+                {mesesAnos.map(({ key, count }) => {
+                  const [y, m] = key.split("-");
+                  const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
+                  return (
+                    <SelectItem key={key} value={key}>
+                      {label} ({count})
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
