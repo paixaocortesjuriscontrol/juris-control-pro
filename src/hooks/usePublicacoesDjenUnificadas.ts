@@ -1159,19 +1159,30 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
       });
 
-      if (seedTermos.length + seedProcessos.length + seedDescartadas.length > 0) {
+      // Helper local: chunk genérico
+      const chunkArr = <T,>(arr: T[], size: number): T[][] => {
+        const out: T[][] = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+      };
+
+      // Expansão de irmãs em CHUNKS — evita timeout quando o usuário marca centenas de uma vez.
+      const SEED_CHUNK = 100;
+      const expandSeeds = async (
+        t: string[] | null,
+        p: string[] | null,
+        d: string[] | null,
+      ) => {
         try {
           const { data: relacionadas, error: relErr } = await (supabase as any).rpc(
             'get_publicacoes_relacionadas_por_dedup',
-            {
-              p_ids_termos: seedTermos.length ? seedTermos : null,
-              p_ids_processos: seedProcessos.length ? seedProcessos : null,
-              p_ids_descartadas: seedDescartadas.length ? seedDescartadas : null,
-            }
+            { p_ids_termos: t, p_ids_processos: p, p_ids_descartadas: d }
           );
           if (relErr) {
             console.warn('[DJEN] Falha ao expandir irmãs via RPC (best-effort):', relErr.message);
-          } else if (Array.isArray(relacionadas)) {
+            return;
+          }
+          if (Array.isArray(relacionadas)) {
             relacionadas.forEach((r: any) => {
               if (r?.publicacao_id && (r.tabela_origem === 'termo' || r.tabela_origem === 'processo' || r.tabela_origem === 'descartada')) {
                 expandedMap.set(r.publicacao_id as string, r.tabela_origem);
@@ -1181,7 +1192,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         } catch (e: any) {
           console.warn('[DJEN] Exceção ao expandir irmãs via RPC (best-effort):', e?.message || e);
         }
-      }
+      };
+      for (const c of chunkArr(seedTermos, SEED_CHUNK)) await expandSeeds(c, null, null);
+      for (const c of chunkArr(seedProcessos, SEED_CHUNK)) await expandSeeds(null, c, null);
+      for (const c of chunkArr(seedDescartadas, SEED_CHUNK)) await expandSeeds(null, null, c);
 
       const expanded = Array.from(expandedMap.entries()).map(([id, tipo_origem]) => ({ id, tipo_origem }));
       const totalExpandido = expanded.length;
@@ -1257,16 +1271,28 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }));
 
       if (leiturasToInsert.length > 0) {
-        // Upsert per-user em chunks também (evita payloads enormes)
-        for (const c of chunk(leiturasToInsert, 500)) {
-          const { error: upErr } = await (supabase as any)
-            .from('publicacoes_djen_leituras')
-            .upsert(c, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
-          if (upErr) {
-            console.error('[DJEN] Erro ao salvar leitura per-user:', upErr.message);
-            throw new Error(upErr.message);
+        // Upsert per-user em chunks menores (200) — payloads grandes causam timeout
+        // e deixam algumas marcações pendentes. Em caso de falha de um chunk,
+        // tentamos novamente uma vez antes de propagar o erro.
+        let firstError: string | null = null;
+        for (const c of chunk(leiturasToInsert, 200)) {
+          let attempts = 0;
+          let lastErr: string | null = null;
+          while (attempts < 2) {
+            const { error: upErr } = await (supabase as any)
+              .from('publicacoes_djen_leituras')
+              .upsert(c, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
+            if (!upErr) { lastErr = null; break; }
+            lastErr = upErr.message;
+            attempts++;
+            await new Promise(r => setTimeout(r, 300));
+          }
+          if (lastErr) {
+            console.error('[DJEN] Chunk falhou após retry:', lastErr);
+            if (!firstError) firstError = lastErr;
           }
         }
+        if (firstError) throw new Error(firstError);
       }
 
       console.log('[DJEN] Publicações marcadas (RPC agregado):', rpcAggregate);
