@@ -1,65 +1,54 @@
+# Diagnóstico
 
-## Plano aprovado
+Os processos **0001281-69.2023.5.10.0005** e **0000081-65.2025.5.10.0002** existem no PDF do DEJT do TRT10 do dia 04/05/2026, mas a busca "Análise DJEN" não os encontra. Verifiquei direto no banco:
 
-### 1. Criar a nova coordenação
-- **Nome:** `Coordenação Dra. Janaina Completa`
-- **Área:** `trabalhista`
-- **Coordenador:** mesmo da `Coordenacão Dra. Janaina` (`f73e8ee7-924c-4518-bbdc-62dd77df93a1`)
-- **Flags:** `monitorar_redistribuicoes=true`, `monitorar_distribuicoes=true`
+- `0000081-65.2025.5.10.0002` está presente no `conteudo` de 14 registros gravados (todos do dia 05/05/2026, monitoramentos diferentes), mas o `processo_numero` salvo é **`0000020-07.2025.5.10.0003`** (o primeiro CNJ do bloco). Por isso a busca por número não acha.
+- `0001281-69.2023.5.10.0005` **não aparece em nenhum `conteudo`** — foi cortado fora.
 
-### 2. Copiar membros
-Inserir em `membros_coordenacao` todos os usuários hoje vinculados às duas coordenações de origem (união, sem duplicar `usuario_id`), preservando o `cargo` original (priorizando o registro da coord trabalhista quando houver conflito).
+Causa raiz no `useDjetPautasParalelaEngine.ts` (segmentador de pautas):
 
-### 3. Inserir 37 termos consolidados em `monitoramentos_djen`
-Todos com `ativo=true`, `tipo='parte'`, `coordenacao_id` = nova coord.
+1. **Truncamento agressivo a 8000 chars** (`makePautaStreamSegmenter`, linhas 302–346 + `processBloco` em ~434): qualquer Sessão de Julgamento com muitos processos (uma sessão TRT10 lista facilmente 50+ feitos, ultrapassando 20–30 mil chars) é cortada em 8000 chars, perdendo todos os processos a partir desse ponto. É exatamente o caso do `0001281-69.2023.5.10.0005`, que aparece depois.
+2. **`extractCnj` devolve só o primeiro CNJ** (`text.match(CNJ_REGEX)` linha 348-351). Como gravamos um único `processo_numero` por bloco, todos os processos da mesma Sessão somem do filtro por número (caso do `0000081-65...`, capturado no texto mas indexado com CNJ alheio).
+3. Hoje cada hit gera 1 linha por monitoramento × bloco, então blocos enormes inflam por monitoramento e pioram o problema, em vez de gerar uma linha por processo dentro da pauta.
 
-**Excluídos por serem genéricos / risco de ruído:** `UNICOM`, `SUPER QUADRA`, `EXPRESSO UNIAO`.
+Os 14 registros de `0000081-65...` no `conteudo` confirmam que o PDF foi baixado e parseado — o problema é puramente do segmentador/persistência.
 
-| # | Termo | Tribunais |
-|---|---|---|
-| 1 | ACREDITAR ONCOLOGIA | STF, STJ, TJDFT, TRT10 |
-| 2 | AGENCIA ESTADO | STF, STJ, TJDFT |
-| 3 | ANIMA CENTRO HOSPITALAR | STF, STJ, TJGO, TRT18 |
-| 4 | BASE INVESTIMENTOS E INCORPORACOES | TRT1–TRT24 |
-| 5 | CARLOS JOSE ELIAS JUNIOR | STF, STJ, TJDFT, TJGO, TJMS, TJMT, TRT10, TRT18, TRT23, TRT24, TST |
-| 6 | CEDIMAGEM CENTRO DE DIAGNOSTICO MEDICO POR IMAGEM | TRT23 |
-| 7 | CENTRAL PARK ESTACIONAMENTO | STF, STJ, TJDFT, TRT10 |
-| 8 | CENTRO RADIOLOGICO DE BRASILIA | STF, STJ, todos TJ, TRT10 |
-| 9 | CENTRO RADIOLOGICO DO GAMA | STF, STJ, TJDFT, TRT10 |
-| 10 | CLINICA CAMPO GRANDE | STF, STJ, TJMS, TRT24, TST |
-| 11 | CLINICA SANTA ROSA | TRT23 |
-| 12 | HCBR HOSPITAL DO CORACAO | TRT10 |
-| 13 | HOSPITAIS INTEGRADOS DA GAVEA | STF, STJ, TJDFT, TRT10 |
-| 14 | HOSPITAL DE MEDICINA ESPECIALIZADA | STF, STJ, TJMT, TRT23 |
-| 15 | HOSPITAL DF STAR | STF, STJ, TJDFT |
-| 16 | HOSPITAL DO CORACAO DO BRASIL | STF, STJ, TJDFT |
-| 17 | HOSPITAL MARIA AUXILIADORA | STF, STJ, TJDFT, TRT10 |
-| 18 | HOSPITAL ORTOPEDICO | STF, STJ, TJMT, TRT23 |
-| 19 | HOSPITAL PLACI | STF, STJ, TJDFT |
-| 20 | HOSPITAL PRONTONORTE | STF, STJ, TJDFT, TRT10 |
-| 21 | HOSPITAL SANTA HELENA | STF, STJ, TJDFT, TRT10 |
-| 22 | HOSPITAL SANTA LUCIA | STF, STJ, TJDFT, TRT10 |
-| 23 | HOSPITAL SANTA ROSA | STF, STJ, TJMT, TRT23 |
-| 24 | LABORATORIO SANTA ROSA | TRT23 |
-| 25 | MEDGRUPO PARTICIPACOES | STF, STJ, TJDFT, TRT10 |
-| 26 | MONTREAL INFORMATICA | STF, STJ, todos TJ |
-| 27 | NEW HSH PARTICIPACOES | STF, STJ, TJDFT, TRT10 |
-| 28 | NEW YORK EMPREENDIMENTOS IMOBILIARIOS | TRT1–TRT24 |
-| 29 | PARQUE PLANALTO EMPREENDIMENTOS IMOBILIARIOS | TRT1–TRT24 |
-| 30 | PC SERVICE TECNOLOGIA | STF, STJ, todos TJ |
-| 31 | POLICLINICAS MEDICAS SANTA LUCIA | STF, STJ, TJDFT, TRT10 |
-| 32 | PROCARDIO CENTRO CARDIO RESPIRATORIO | STF, STJ, todos TJ, TRT24 |
-| 33 | REDE D'OR SAO LUIZ | STF, STJ, TJDFT, TRT10 |
-| 34 | S.A. O ESTADO DE SAO PAULO | STF, STJ, TJDFT |
-| 35 | SALUTE CLINICAS MEDICAS ESPECIALIZADAS | STF, STJ, TJDFT, TRT10 |
-| 36 | VIACAO PIRACICABANA | STF, STJ, TJDFT |
-| 37 | VILLAGGIO PARK SUL EMPREENDIMENTOS IMOBILIARIOS | TRT1–TRT24 |
+# Correções
 
-### 4. Não tocar nas coordenações antigas
-- `Coordenação Dra. Janaina Astrea Teste` e `Coordenacão Dra. Janaina` permanecem **intactas e ativas** para comparação.
+### 1. Reescrever `useDjetPautasParalelaEngine.ts`
+- Remover o cap de 8000 chars do `makePautaStreamSegmenter`. Acumular o bloco inteiro de cada Sessão até encontrar o próximo marcador (ou fim do PDF). Manter apenas um teto defensivo alto (ex.: 400 KB) para evitar runaway.
+- Após segmentar a Sessão, **subdividir o bloco em sub-blocos por processo**:
+  - Detectar todos os CNJs (`matchAll(CNJ_REGEX)`).
+  - Para cada CNJ, recortar uma janela do texto (ex.: do CNJ atual até o próximo CNJ, ou ~3 KB de contexto se for o último), preservando o cabeçalho da Sessão (Turma, data/hora, órgão) que aparece antes do primeiro processo.
+  - Cada sub-bloco vira uma `MatchOut` com `processo` correto.
+- Trocar `processBloco(bloco)` para iterar nos sub-blocos por CNJ; aplicar `matchBlocoMonitoramento` em cada um.
+- Atualizar o `hash` para `mon.id|tribunal|dataIso|processoCNJ|sub.slice(0,1024)` (mais granular, evita colapso entre processos da mesma Sessão).
+- Se a Sessão não tiver nenhum CNJ (raro), manter o comportamento antigo: tratar o bloco inteiro como um match único.
 
-### Execução técnica
-- 1 INSERT em `coordenacoes` (capturar o novo `id`).
-- N INSERTs em `membros_coordenacao` (união dos membros das duas coords).
-- 37 INSERTs em `monitoramentos_djen` na nova coord.
-- Todas as operações via tool de insert do Supabase (sem migration de schema).
+### 2. Reprocessar 04/05 e 05/05/2026 do TRT10 (e idealmente todos os tribunais)
+- Limpar registros antigos `fonte='dejt-pdf'` dos dias 2026-05-04 e 2026-05-05 via migração (DELETE com filtro), pois eles têm `processo_numero` errado.
+- Reexecutar a DJET Pautas Paralela para o intervalo 04/05–05/05/2026 (botão "Executar" no card já existente).
+
+### 3. Validação pós-correção
+Conferir no banco:
+```sql
+select processo_numero, count(*)
+from publicacoes_djen
+where fonte='dejt-pdf'
+  and data_publicacao between '2026-05-04' and '2026-05-05'
+  and processo_numero in (
+    '0001281-69.2023.5.10.0005',
+    '0000081-65.2025.5.10.0002'
+  )
+group by 1;
+```
+Deve retornar ambos com pelo menos 1 linha cada (ou mais, conforme nº de monitoramentos casados).
+
+# Arquivos afetados
+- `src/hooks/useDjetPautasParalelaEngine.ts` — segmentador + persistência por processo.
+- Nova migration SQL para apagar os registros mal indexados de 04–05/05/2026 (`fonte='dejt-pdf'`).
+
+# Detalhes técnicos
+- Sem mudança de schema; só dados.
+- Não altera a edge function `buscar-dejt-pautas` (já entrega o PDF inteiro).
+- Mantém compatibilidade com matchers atuais (`matchBlocoMonitoramento`, `condicaoConcomitanteAtendidaBloco`) — a única mudança é o tamanho/escopo do bloco passado.
