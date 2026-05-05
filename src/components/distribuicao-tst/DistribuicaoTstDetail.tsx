@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Search, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DistribuicaoTstForm, DistribuicaoTstFormHandle } from "./DistribuicaoTstForm";
@@ -43,6 +42,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const [comAnexos, setComAnexos] = useState(false);
   const formRef = useRef<DistribuicaoTstFormHandle>(null);
 
   const runJudit = async (comAnexos: boolean) => {
@@ -142,26 +142,29 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
           </TabsList>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={buscandoJudit || !processoNumero}
-                className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-              >
-                {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-                Judit
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => runJudit(false)}>
-                Buscar (sem anexos)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => runJudit(true)}>
-                Buscar com anexos <span className="ml-2 text-[10px] text-amber-600">(caro)</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-3">
+            <label
+              className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
+              title="Inclui a lista de documentos/anexos do processo (consulta mais cara)."
+            >
+              <Checkbox
+                checked={comAnexos}
+                onCheckedChange={(v) => setComAnexos(v === true)}
+                disabled={buscandoJudit}
+              />
+              Com anexos
+              <span className="text-[10px] text-amber-600 dark:text-amber-400">(caro)</span>
+            </label>
+            <Button
+              variant="outline"
+              onClick={() => runJudit(comAnexos)}
+              disabled={buscandoJudit || !processoNumero}
+              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            >
+              {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+              Judit
+            </Button>
+          </div>
         </div>
 
         <TabsContent value="distribuicao" className="mt-4">
