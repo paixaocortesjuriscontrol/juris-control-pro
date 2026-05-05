@@ -1046,7 +1046,7 @@ export default function DistribuicaoTst() {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Filtrar por Responsáveis</Label>
+            <Label className="text-xs font-bold text-muted-foreground">Filtrar por Responsáveis</Label>
             <ResponsaveisSelector
               selectedIds={filtroResponsavelIds}
               onChange={setFiltroResponsavelIds}
