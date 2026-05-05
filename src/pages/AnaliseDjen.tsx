@@ -224,7 +224,8 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    pageSize: listLimit,
+    // Quando há coordenação selecionada, carrega tudo de uma vez (sem paginação visual)
+    pageSize: coordenacaoFiltroEfetivo ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
@@ -2747,7 +2748,7 @@ const AnaliseDjen = () => {
               Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
               {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
             </div>
-            {temMaisResultados && (
+            {temMaisResultados && !coordenacaoFiltroEfetivo && (
               <Button
                 type="button"
                 variant="outline"
