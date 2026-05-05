@@ -468,21 +468,7 @@ serve(async (req) => {
         com_anexos: comAnexos,
       },
       attachments: comAnexos
-        ? (Array.isArray(rdSelecionada?.steps)
-            ? rdSelecionada.steps.flatMap((s: any) =>
-                Array.isArray(s?.attachments)
-                  ? s.attachments.map((a: any) => ({
-                      step_id: s?.step_id || s?.id || null,
-                      step_date: s?.step_date || s?.date || null,
-                      attachment_name: a?.name || a?.attachment_name || null,
-                      attachment_date: a?.date || a?.attachment_date || null,
-                      extension: a?.extension || null,
-                      instance: rdSelecionada?.instance || null,
-                      cnj,
-                    }))
-                  : []
-              )
-            : [])
+        ? coletarAttachments(rdSelecionada, rawCollector, cnj)
         : null,
       _judit_raw: comAnexos ? rawCollector : stripAttachments(rawCollector),
     };
