@@ -165,6 +165,31 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       if (comAnexosArg) {
         const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
         onAnexosFound?.(atts);
+        // Persiste no Supabase (judit_anexos) para sobreviver a reload/nova busca.
+        if (atts.length > 0) {
+          try {
+            const { data: userData } = await supabase.auth.getUser();
+            const rows = atts.map((a: any) => ({
+              processo_numero: numero,
+              cnj: a?.cnj || numero,
+              instance: a?.instance != null ? String(a.instance) : null,
+              attachment_id: String(a?.step_id || a?.attachment_id || ""),
+              step_id: a?.step_id ? String(a.step_id) : null,
+              attachment_name: a?.attachment_name || null,
+              attachment_date: a?.attachment_date || null,
+              extension: a?.extension || null,
+              raw_attachment: a,
+              created_by: userData?.user?.id || null,
+            })).filter((r: any) => r.attachment_id);
+            if (rows.length > 0) {
+              await supabase
+                .from("judit_anexos" as any)
+                .upsert(rows, { onConflict: "processo_numero,instance,attachment_id" });
+            }
+          } catch (e) {
+            console.warn("Falha ao persistir judit_anexos:", e);
+          }
+        }
         if (atts.length === 0) {
           toast.warning("Judit não retornou anexos para este processo.");
         } else {

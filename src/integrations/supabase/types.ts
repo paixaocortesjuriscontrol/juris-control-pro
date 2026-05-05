@@ -3400,6 +3400,54 @@ export type Database = {
           },
         ]
       }
+      judit_anexos: {
+        Row: {
+          attachment_date: string | null
+          attachment_id: string
+          attachment_name: string | null
+          cnj: string | null
+          created_at: string
+          created_by: string | null
+          extension: string | null
+          id: string
+          instance: string | null
+          processo_numero: string
+          raw_attachment: Json | null
+          step_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attachment_date?: string | null
+          attachment_id: string
+          attachment_name?: string | null
+          cnj?: string | null
+          created_at?: string
+          created_by?: string | null
+          extension?: string | null
+          id?: string
+          instance?: string | null
+          processo_numero: string
+          raw_attachment?: Json | null
+          step_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attachment_date?: string | null
+          attachment_id?: string
+          attachment_name?: string | null
+          cnj?: string | null
+          created_at?: string
+          created_by?: string | null
+          extension?: string | null
+          id?: string
+          instance?: string | null
+          processo_numero?: string
+          raw_attachment?: Json | null
+          step_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       judit_logs: {
         Row: {
           created_at: string
