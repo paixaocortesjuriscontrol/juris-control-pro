@@ -35,6 +35,7 @@ interface Props {
 export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean) => Promise<void>;
   isBuscando: () => boolean;
+  save: () => Promise<void>;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -315,6 +316,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   useImperativeHandle(ref, () => ({
     runJudit: (comAnexos: boolean) => handleBuscarJudit(comAnexos),
     isBuscando: () => buscandoJudit,
+    save: () => handleSave(),
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
   const handleSave = async () => {

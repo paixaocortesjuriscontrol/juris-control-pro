@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,16 @@ interface Props {
    * clicar em Salvar manualmente.
    */
   onJuditSync?: () => void;
+  /** Controle externo do switch "Pronto para Enviar" (header fixo). */
+  prontoEnviar?: boolean;
+  onProntoEnviarChange?: (v: boolean) => void;
+  /** Quando true, oculta o footer com Salvar/Pronto pra Enviar (movido para o topo). */
+  hideFooter?: boolean;
+}
+
+export interface DadosBennerFormHandle {
+  save: () => Promise<void>;
+  isSaving: () => boolean;
 }
 
 type ParteJudit = {
@@ -103,11 +113,19 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
   return filled;
 };
 
-export function DadosBennerForm({ dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync }: Props) {
+export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function DadosBennerForm(
+  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false }: Props,
+  ref,
+) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
   const { data: turmasTst = [] } = useTurmasTst();
   const { data: relatoresTst = [] } = useRelatoresTst();
-  const [prontoEnviar, setProntoEnviar] = useState(false);
+  const [prontoEnviarLocal, setProntoEnviarLocal] = useState(false);
+  const prontoEnviar = prontoEnviarProp ?? prontoEnviarLocal;
+  const setProntoEnviar = (v: boolean) => {
+    setProntoEnviarLocal(v);
+    onProntoEnviarChange?.(v);
+  };
   const [saving, setSaving] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
@@ -673,6 +691,11 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
     if (result) onCancel();
   };
 
+  useImperativeHandle(ref, () => ({
+    save: () => handleSave(),
+    isSaving: () => saving,
+  }), [saving, form, prontoEnviar, partesJudit, dado]);
+
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (
     <div className={cn("px-4 py-2 rounded-t-lg font-semibold text-sm", color)}>
       {title}
@@ -1184,6 +1207,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
       )}
 
       {/* Footer */}
+      {!hideFooter && (
       <div className="flex items-center justify-between border-t border-border pt-4">
         <div className="flex items-center gap-3">
           <Switch checked={prontoEnviar} onCheckedChange={setProntoEnviar}
@@ -1198,6 +1222,7 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
           </Button>
         </div>
       </div>
+      )}
     </div>
   );
-}
+});
