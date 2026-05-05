@@ -173,6 +173,19 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       } else if (formRef.current) {
         await formRef.current.save();
       }
+      // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
+      // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
+      const currentStatus = (bennerDado as any)?.status;
+      if (currentStatus !== "planilhado" && currentStatus !== "enviado") {
+        const desiredStatus = prontoEnviar ? "pronto_envio" : "rascunho";
+        if (currentStatus && currentStatus !== desiredStatus && (bennerDado as any)?.id) {
+          await supabase
+            .from("dados_benner" as any)
+            .update({ status: desiredStatus } as any)
+            .eq("id", (bennerDado as any).id);
+          setBennerLoaded(false);
+        }
+      }
     } finally {
       setSavingTop(false);
     }
