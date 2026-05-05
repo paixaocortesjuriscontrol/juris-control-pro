@@ -794,24 +794,6 @@ export default function DistribuicaoTst() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
           <div className="flex gap-2 flex-wrap">
-            <Button 
-              variant="default" 
-              onClick={handleBulkJudit} 
-              disabled={bulkJuditRunning}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {bulkJuditRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              {bulkJuditRunning 
-                ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}` 
-                : selectedIds.size > 0 
-                  ? `Preencher Selecionados (${selectedIds.size}) com Judit`
-                  : "Preencher com Judit"}
-            </Button>
-            {bulkJuditRunning && (
-              <Button variant="destructive" size="sm" onClick={() => { bulkAbortRef.current = true; }}>
-                <X className="w-4 h-4 mr-1" /> Cancelar
-              </Button>
-            )}
             <Button
               variant="outline"
               onClick={handleGerarRelatorioPdf}
@@ -824,16 +806,6 @@ export default function DistribuicaoTst() {
                 : selectedIds.size > 0
                   ? `Relatório PDF Partes (${selectedIds.size})`
                   : "Relatório PDF Partes"}
-            </Button>
-            <Button variant="secondary" onClick={() => setShowCarga(true)}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> 
-              {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
-            </Button>
-            <Button variant="outline" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
-              <CheckCircle className="w-4 h-4 mr-2" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-            </Button>
-            <Button variant="outline" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
-              <Send className="w-4 h-4 mr-2" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
@@ -854,7 +826,7 @@ export default function DistribuicaoTst() {
 
         {/* Mês/Ano dropdown */}
         {mesesAnos.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
             <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
               <SelectTrigger className="h-8 text-xs w-64">
@@ -875,6 +847,37 @@ export default function DistribuicaoTst() {
                 })}
               </SelectContent>
             </Select>
+
+            <div className="h-6 w-px bg-border mx-1" />
+
+            <Button
+              size="sm"
+              onClick={handleBulkJudit}
+              disabled={bulkJuditRunning}
+              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {bulkJuditRunning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+              {bulkJuditRunning
+                ? `Judit ${bulkJuditProgress.current}/${bulkJuditProgress.total}`
+                : selectedIds.size > 0
+                  ? `Preencher c/ Judit (${selectedIds.size})`
+                  : "Preencher com Judit"}
+            </Button>
+            {bulkJuditRunning && (
+              <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => { bulkAbortRef.current = true; }}>
+                <X className="w-3 h-3 mr-1" /> Cancelar
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={() => setShowCarga(true)}>
+              <FileSpreadsheet className="w-3 h-3 mr-1" />
+              {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
+              <CheckCircle className="w-3 h-3 mr-1" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
+              <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
           </div>
         )}
 
