@@ -107,8 +107,8 @@ function stripAttachments(value: any): any {
 }
 
 // Coleta attachments de TODAS as instâncias retornadas (cache + crawler page_data),
-// não só da `rdSelecionada`. A Judit costuma colocar os anexos nos steps da
-// instância de origem (TRT), enquanto a `rdSelecionada` é a do TST.
+// não só da `rdSelecionada`. A Judit pode devolver os anexos no nível da capa
+// (`response_data.attachments`) e/ou dentro dos andamentos.
 function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string): any[] {
   const fontes: any[] = [];
   if (rdSelecionada) fontes.push(rdSelecionada);
@@ -122,8 +122,25 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
   const seen = new Set<string>();
   const out: any[] = [];
   for (const rd of fontes) {
-    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
     const instance = rd?.instance ?? rd?.crawler?.instance ?? null;
+    const directAttachments = Array.isArray(rd?.attachments) ? rd.attachments : [];
+    for (const a of directAttachments) {
+      const attId = a?.attachment_id || a?.id || a?.step_id;
+      if (!attId) continue;
+      const key = `${instance ?? "?"}::${attId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        step_id: attId,
+        attachment_name: a?.attachment_name || a?.name || a?.title || null,
+        attachment_date: a?.attachment_date || a?.date || null,
+        extension: a?.extension || a?.ext || null,
+        instance,
+        cnj,
+      });
+    }
+
+    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
     for (const s of steps) {
       const atts = Array.isArray(s?.attachments) ? s.attachments : [];
       for (const a of atts) {
