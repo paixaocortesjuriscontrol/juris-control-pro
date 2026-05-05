@@ -937,14 +937,6 @@ export default function DistribuicaoTst() {
               </div>
               <div className="relative">
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Buscar por Turma (ex: 1ª Turma)" value={filtroTurma} onChange={e => setFiltroTurma(e.target.value)} className="h-8 text-xs pl-7" />
-              </div>
-              <div className="relative">
-                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Buscar por Relator (nome do ministro)" value={filtroRelator} onChange={e => setFiltroRelator(e.target.value)} className="h-8 text-xs pl-7" />
-              </div>
-              <div className="relative">
-                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder="Buscar por Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs pl-7" />
               </div>
               <div className="relative">
@@ -1020,16 +1012,6 @@ export default function DistribuicaoTst() {
                 <SelectItem value="todos">Judit: Todos</SelectItem>
                 <SelectItem value="sim">Preenchido com Judit</SelectItem>
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filtroErroJudit} onValueChange={setFiltroErroJudit}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Erro Judit" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Erro Judit: Todos</SelectItem>
-                <SelectItem value="sim">Erro Judit: Sim</SelectItem>
-                <SelectItem value="nao">Erro Judit: Não</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
