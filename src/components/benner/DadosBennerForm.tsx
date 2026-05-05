@@ -742,35 +742,6 @@ export function DadosBennerForm({ dado, initialData, markExistingJuditFields = f
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                 Buscar
               </Button>
-              <Button 
-                variant="default" 
-                onClick={handleBuscarJudit}
-                disabled={buscandoJudit || !form.processo?.trim()}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {buscandoJudit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Judit
-              </Button>
-              <Button
-                variant="default"
-                onClick={handleTestarPje}
-                disabled={testandoPje || !form.processo?.trim()}
-                className="bg-rose-600 hover:bg-rose-700 text-white"
-                title="Consulta o PJE via MNI usando a credencial de teste do Cofre (Paixão Cortes - TST)"
-              >
-                {testandoPje ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Testar
-              </Button>
-              <Button 
-                variant="default" 
-                onClick={handleBaixarAutos} 
-                disabled={baixandoAutos || !form.processo?.trim() || !dado?.id}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                title="Baixar documentos do processo via Judit"
-              >
-                {baixandoAutos ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                Autos
-              </Button>
             </div>
             {/* Progress de download de autos */}
             {autosProgress && (

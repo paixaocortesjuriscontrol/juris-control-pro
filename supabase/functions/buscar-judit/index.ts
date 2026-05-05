@@ -477,6 +477,8 @@ serve(async (req) => {
                       attachment_name: a?.name || a?.attachment_name || null,
                       attachment_date: a?.date || a?.attachment_date || null,
                       extension: a?.extension || null,
+                      instance: rdSelecionada?.instance || null,
+                      cnj,
                     }))
                   : []
               )

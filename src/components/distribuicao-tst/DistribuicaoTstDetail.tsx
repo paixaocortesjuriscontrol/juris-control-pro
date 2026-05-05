@@ -1,13 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Download } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { DistribuicaoTstForm } from "./DistribuicaoTstForm";
+import { DistribuicaoTstForm, DistribuicaoTstFormHandle } from "./DistribuicaoTstForm";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
+import { AnexosJuditTab } from "./AnexosJuditTab";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 
@@ -37,7 +40,20 @@ interface Props {
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const processoNumero = dado?.processo_numero || "";
 
-  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit">(initialTab);
+  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos">(initialTab);
+  const [anexos, setAnexos] = useState<any[] | null>(null);
+  const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const formRef = useRef<DistribuicaoTstFormHandle>(null);
+
+  const runJudit = async (comAnexos: boolean) => {
+    if (!formRef.current) return;
+    setBuscandoJudit(true);
+    try {
+      await formRef.current.runJudit(comAnexos);
+    } finally {
+      setBuscandoJudit(false);
+    }
+  };
 
   // Sempre abre o detalhe no topo do formulário (evita herdar scroll da lista).
   useEffect(() => {
@@ -115,26 +131,47 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "distribuicao" | "benner" | "log-judit" | "analise-judit")} className="w-full">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
-          <TabsTrigger value="benner" disabled={bennerDisabled}>
-            Dados Benner
-          </TabsTrigger>
-          <TabsTrigger value="log-judit" disabled={bennerDisabled}>
-            Log Judit
-          </TabsTrigger>
-          <TabsTrigger value="analise-judit" disabled={bennerDisabled}>
-            Análise Judit
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <TabsList className="justify-start">
+            <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
+            <TabsTrigger value="benner" disabled={bennerDisabled}>Dados Benner</TabsTrigger>
+            <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
+            <TabsTrigger value="analise-judit" disabled={bennerDisabled}>Análise Judit</TabsTrigger>
+            {anexos && anexos.length > 0 && (
+              <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
+            )}
+          </TabsList>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={buscandoJudit || !processoNumero}
+                className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              >
+                {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+                Judit
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => runJudit(false)}>
+                Buscar (sem anexos)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => runJudit(true)}>
+                Buscar com anexos <span className="ml-2 text-[10px] text-amber-600">(caro)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <TabsContent value="distribuicao" className="mt-4">
           <DistribuicaoTstForm
+            ref={formRef}
             dado={dado || null}
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
+            onAnexosFound={(atts) => { setAnexos(atts); if (atts?.length) setTab("anexos"); }}
           />
         </TabsContent>
 
@@ -176,6 +213,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
         <TabsContent value="analise-judit" className="mt-4">
           <AnaliseJuditTab processoNumero={processoNumero} />
+        </TabsContent>
+
+        <TabsContent value="anexos" className="mt-4">
+          <AnexosJuditTab
+            processoNumero={processoNumero}
+            attachments={anexos || []}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Save, ArrowLeft, Loader2, Search } from "lucide-react";
+// Checkbox removido — opção "Com anexos" agora vive no DistribuicaoTstDetail.
+import { Save, ArrowLeft, Loader2 } from "lucide-react";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -27,15 +27,14 @@ interface Props {
   dado?: DistribuicaoTst | null;
   onSave: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean | string>;
   onCancel: () => void;
-  /**
-   * Callback chamado após o botão Judit preencher e auto-salvar com sucesso.
-   * Usado pelo container (DistribuicaoTstDetail) para recarregar a aba paralela
-   * "Dados Benner" — assim os dados aparecem sincronizados sem precisar
-   * clicar em Salvar manualmente.
-   * Quando o registro foi recém-criado pelo auto-save, recebe o `newId` para
-   * que o container habilite as abas dependentes (Log Judit, Análise, Benner).
-   */
   onJuditSync?: (newId?: string) => void;
+  /** Callback disparado quando a busca Judit retorna attachments (com anexos). */
+  onAnexosFound?: (atts: any[]) => void;
+}
+
+export interface DistribuicaoTstFormHandle {
+  runJudit: (comAnexos: boolean) => Promise<void>;
+  isBuscando: () => boolean;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -79,11 +78,13 @@ const emptyForm: DistribuicaoTstInsert = {
   observacao_advogado: null,
 };
 
-export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Props) {
+export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound }: Props,
+  ref
+) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
-  const [juditComAnexos, setJuditComAnexos] = useState(false);
   const { data: turmasTst = [] } = useTurmasTst();
   const { data: relatoresTst = [] } = useRelatoresTst();
   // Marca dinamicamente, durante a sessão, os campos preenchidos por esta busca Judit.
@@ -124,7 +125,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleBuscarJudit = async () => {
+  const handleBuscarJudit = async (comAnexosArg = false) => {
     const numeroRaw = (form.processo_numero || "").trim();
     const numero = aplicarMascaraCnj(numeroRaw);
     if (!numero) {
@@ -133,7 +134,7 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
     }
     setBuscandoJudit(true);
     try {
-      const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: juditComAnexos };
+      const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: comAnexosArg };
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: requestPayload,
       });
@@ -159,6 +160,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
       if (data?.error) {
         toast.error(data.error);
         return;
+      }
+
+      if (comAnexosArg && Array.isArray((data as any)?.attachments)) {
+        onAnexosFound?.((data as any).attachments);
       }
 
       // Extrai reclamante / reclamada das partes (polo ativo / passivo, sem advogados).
@@ -276,6 +281,11 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    runJudit: (comAnexos: boolean) => handleBuscarJudit(comAnexos),
+    isBuscando: () => buscandoJudit,
+  }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
+
   const handleSave = async () => {
     if (!form.processo_numero?.trim()) {
       toast.warning("Informe o número do processo");
@@ -343,33 +353,10 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
           <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
           <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Distribuição" : "Nova Distribuição"}</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <label
-            className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none mr-1"
-            title="Consulta mais cara. Inclui a lista de documentos/anexos do processo."
-          >
-            <Checkbox
-              checked={juditComAnexos}
-              onCheckedChange={(v) => setJuditComAnexos(v === true)}
-              disabled={buscandoJudit}
-            />
-            Com anexos
-            <span className="text-[10px] text-amber-600 dark:text-amber-400">(caro)</span>
-          </label>
-          <Button
-            variant="outline"
-            onClick={handleBuscarJudit}
-            disabled={buscandoJudit || !form.processo_numero?.trim()}
-            className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-          >
-            {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-            Judit
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar
-          </Button>
-        </div>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Salvar
+        </Button>
       </div>
 
       {/* SEÇÃO 1 - Rosa: Dados Básicos */}
@@ -669,4 +656,4 @@ export function DistribuicaoTstForm({ dado, onSave, onCancel, onJuditSync }: Pro
       </div>
     </div>
   );
-}
+});
