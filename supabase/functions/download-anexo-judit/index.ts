@@ -32,10 +32,14 @@ Deno.serve(async (req) => {
       return json({ error: `HTTP ${res.status}: ${txt.substring(0, 200)}` }, 200);
     }
     const buf = new Uint8Array(await res.arrayBuffer());
-    const safeName = String(filename || `documento_${attachment_id}.pdf`)
-      .replace(/[\\/:*?"<>|]+/g, "_")
-      .replace(/\s+/g, " ")
-      .trim();
+    const rawName = String(filename || `documento_${attachment_id}.pdf`);
+    const safeName = rawName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // strip accents
+      .replace(/[^a-zA-Z0-9._-]+/g, "_") // only safe ascii for storage key
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      || `documento_${attachment_id}.pdf`;
     const contentType = res.headers.get("content-type") || (safeName.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
     const path = `judit-temp/${user.id}/${Date.now()}_${safeName}`;
     const { error: upErr } = await supabase.storage.from("documentos_processos").upload(path, buf, { upsert: true, contentType });
