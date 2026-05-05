@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const juditApiKey = Deno.env.get("JUDIT_API_KEY");
     if (!juditApiKey) return json({ error: "JUDIT_API_KEY não configurada" }, 500);
 
-    const { cnj, instance, attachment_id } = await req.json();
+    const { cnj, instance, attachment_id, filename } = await req.json();
     if (!cnj || !attachment_id) return json({ error: "cnj e attachment_id obrigatórios" }, 400);
 
     const cnjClean = String(cnj).replace(/[^0-9.-]/g, "").trim();
@@ -32,12 +32,17 @@ Deno.serve(async (req) => {
       return json({ error: `HTTP ${res.status}: ${txt.substring(0, 200)}` }, 200);
     }
     const buf = new Uint8Array(await res.arrayBuffer());
-    const path = `judit-temp/${user.id}/${Date.now()}_${attachment_id}`;
-    const { error: upErr } = await supabase.storage.from("documentos_processos").upload(path, buf, { upsert: true });
+    const safeName = String(filename || `documento_${attachment_id}.pdf`)
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/\s+/g, " ")
+      .trim();
+    const contentType = res.headers.get("content-type") || (safeName.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
+    const path = `judit-temp/${user.id}/${Date.now()}_${safeName}`;
+    const { error: upErr } = await supabase.storage.from("documentos_processos").upload(path, buf, { upsert: true, contentType });
     if (upErr) return json({ error: "Upload falhou: " + upErr.message }, 200);
     const { data: signed, error: signErr } = await supabase.storage.from("documentos_processos").createSignedUrl(path, 3600);
     if (signErr || !signed?.signedUrl) return json({ error: "Falha ao gerar URL: " + (signErr?.message || "") }, 200);
-    return json({ signed_url: signed.signedUrl }, 200);
+    return json({ signed_url: signed.signedUrl, filename: safeName }, 200);
   } catch (e) {
     return json({ error: (e as Error).message }, 200);
   }

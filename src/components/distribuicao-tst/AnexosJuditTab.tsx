@@ -30,19 +30,27 @@ export function AnexosJuditTab({ processoNumero, attachments }: Props) {
           cnj: att.cnj || processoNumero,
           instance: att.instance || null,
           attachment_id: att.step_id,
+          filename: att.attachment_name || `documento_${att.step_id}${att.extension ? `.${att.extension}` : ""}`,
         },
       });
       if (error || !data?.signed_url) {
         toast.error("Erro ao baixar anexo: " + (error?.message || data?.error || "desconhecido"));
         return;
       }
+      const fileRes = await fetch(data.signed_url);
+      if (!fileRes.ok) {
+        toast.error("Erro ao baixar anexo: HTTP " + fileRes.status);
+        return;
+      }
+      const blob = await fileRes.blob();
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = data.signed_url;
-      a.download = att.attachment_name || `documento_${att.step_id}`;
-      a.target = "_blank";
+      a.href = objectUrl;
+      a.download = data.filename || att.attachment_name || `documento_${att.step_id}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
     } catch (e: any) {
       toast.error("Falha ao baixar: " + (e?.message || "erro"));
     } finally {
