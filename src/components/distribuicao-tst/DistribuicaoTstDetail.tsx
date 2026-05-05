@@ -51,6 +51,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setBuscandoJudit(true);
     try {
       await formRef.current.runJudit(comAnexos);
+      if (comAnexos) {
+        // Após a busca, recarrega do Supabase para refletir o que foi persistido.
+        await reloadAnexos();
+      }
     } finally {
       setBuscandoJudit(false);
     }
@@ -61,6 +65,33 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.querySelector<HTMLElement>("[data-page-scroll-container]")?.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [dado?.id, initialTab]);
+
+  const reloadAnexos = useCallback(async () => {
+    if (!processoNumero) return;
+    const { data, error } = await supabase
+      .from("judit_anexos" as any)
+      .select("*")
+      .eq("processo_numero", processoNumero)
+      .order("attachment_date", { ascending: false });
+    if (error) {
+      console.warn("Erro ao carregar judit_anexos:", error.message);
+      return;
+    }
+    const list = ((data as any[]) || []).map((r) => ({
+      step_id: r.attachment_id,
+      attachment_name: r.attachment_name,
+      attachment_date: r.attachment_date,
+      extension: r.extension,
+      instance: r.instance,
+      cnj: r.cnj,
+    }));
+    setAnexos(list);
+  }, [processoNumero]);
+
+  // Carrega anexos persistidos ao abrir / trocar de processo.
+  useEffect(() => {
+    void reloadAnexos();
+  }, [reloadAnexos]);
 
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
   const [bennerLoading, setBennerLoading] = useState(false);
