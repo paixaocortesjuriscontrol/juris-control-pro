@@ -1218,4 +1218,4 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       </div>
     </div>
   );
-}
+});
