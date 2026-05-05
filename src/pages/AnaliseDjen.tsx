@@ -437,10 +437,9 @@ const AnaliseDjen = () => {
 
       return { total };
     },
-    // Heavy query (fetches up to 10k rows + leituras). Só roda quando o card
-    // está em foco (DJET Pautas selecionado) — antes disso o badge mostra 0,
-    // o que evita travar a tela quando o usuário muda filtros rapidamente.
-    enabled: !!user?.id && tipoOrigem === 'djet-pautas',
+    // Sempre habilitado para manter o badge "Pautas DEJT" visível,
+    // respeitando coordenação selecionada (ou todas as do usuário) e filtros.
+    enabled: !!user?.id,
     staleTime: 30_000,
   });
 
@@ -529,7 +528,7 @@ const AnaliseDjen = () => {
   const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
   const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
-  const totalPautasDejt = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? pautasDejtStats.total : 0;
+  const totalPautasDejt = pautasDejtStats.total;
   const periodoLabel = apenasHoje ? 'Hoje' : 'no Período';
 
   // Map DataJud results to PublicacaoUnificada format
