@@ -920,6 +920,16 @@ export default function DistribuicaoTst() {
               </Button>
             )}
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-bold text-muted-foreground">Filtrar por Responsáveis</Label>
+            <ResponsaveisSelector
+              selectedIds={filtroResponsavelIds}
+              onChange={setFiltroResponsavelIds}
+              placeholder="Todos os responsáveis"
+              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
+              includeUnassignedOption
+            />
+          </div>
           {/* Busca por texto livre */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1026,16 +1036,6 @@ export default function DistribuicaoTst() {
               </SelectContent>
             </Select>
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">Filtrar por Responsáveis</Label>
-            <ResponsaveisSelector
-              selectedIds={filtroResponsavelIds}
-              onChange={setFiltroResponsavelIds}
-              placeholder="Todos os responsáveis"
-              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
-              includeUnassignedOption
-            />
           </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
