@@ -101,6 +101,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       extension: r.extension,
       instance: r.instance,
       cnj: r.cnj,
+      texto_indexado: !!r.texto_indexado,
+      documento_id: r.documento_id || null,
     }));
     setAnexos(list);
   }, [processoNumero]);
@@ -113,6 +115,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [bennerDado, setBennerDado] = useState<DadoBenner | null>(null);
   const [bennerLoading, setBennerLoading] = useState(false);
   const [bennerLoaded, setBennerLoaded] = useState(false);
+
+  // Sugestões de IA (a partir dos anexos) para destacar campos preenchidos em azul.
+  const [iaDistribuicao, setIaDistribuicao] = useState<Record<string, any> | null>(null);
+  const [iaBenner, setIaBenner] = useState<Record<string, any> | null>(null);
 
   const fetchBennerByProcesso = useCallback(async () => {
     if (!processoNumero) {
@@ -271,6 +277,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
+            iaSugestao={iaDistribuicao}
             onAnexosFound={(atts) => {
               const list = atts || [];
               setAnexos(list);
@@ -295,6 +302,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               onSave={handleSaveBennerLocal}
               onCancel={onClose}
               onJuditSync={handleJuditSync}
+              iaSugestao={iaBenner}
               prontoEnviar={prontoEnviar}
               onProntoEnviarChange={setProntoEnviar}
               hideFooter
@@ -315,6 +323,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               onSave={handleSaveBennerLocal}
               onCancel={onClose}
               onJuditSync={handleJuditSync}
+              iaSugestao={iaBenner}
               prontoEnviar={prontoEnviar}
               onProntoEnviarChange={setProntoEnviar}
               hideFooter
@@ -336,6 +345,15 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnexosJuditTab
             processoNumero={processoNumero}
             attachments={anexos || []}
+            onIaPreenchido={({ distribuicao_tst, dados_benner }) => {
+              setIaDistribuicao(distribuicao_tst || {});
+              setIaBenner(dados_benner || {});
+              if (Object.keys(distribuicao_tst || {}).length > 0) {
+                setTab("distribuicao");
+              } else if (Object.keys(dados_benner || {}).length > 0) {
+                setTab("benner");
+              }
+            }}
           />
         </TabsContent>
       </Tabs>

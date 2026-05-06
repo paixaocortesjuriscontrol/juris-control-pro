@@ -30,6 +30,8 @@ interface Props {
   onJuditSync?: (newId?: string) => void;
   /** Callback disparado quando a busca Judit retorna attachments (com anexos). */
   onAnexosFound?: (atts: any[]) => void;
+  /** Sugestões geradas por IA a partir dos anexos. Aplicadas e marcadas em azul. */
+  iaSugestao?: Record<string, any> | null;
 }
 
 export interface DistribuicaoTstFormHandle {
@@ -80,7 +82,7 @@ const emptyForm: DistribuicaoTstInsert = {
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
-  { dado, onSave, onCancel, onJuditSync, onAnexosFound }: Props,
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao }: Props,
   ref
 ) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
@@ -90,6 +92,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const { data: relatoresTst = [] } = useRelatoresTst();
   // Marca dinamicamente, durante a sessão, os campos preenchidos por esta busca Judit.
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
+  // Marca os campos preenchidos pela IA a partir dos anexos.
+  const [iaFields, setIaFields] = useState<Set<string>>(new Set());
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
@@ -104,6 +108,42 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         Judit
       </Badge>
     ) : null;
+
+  const isIaFilled = (field: string, value: any) =>
+    iaFields.has(field) && !!(value !== null && value !== undefined && String(value).trim() !== "");
+  const iaClass = (field: string, value: any) =>
+    isIaFilled(field, value)
+      ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all"
+      : "";
+  const fieldClass = (field: string, value: any) =>
+    juditClass(value) || iaClass(field, value);
+  const IaBadge = ({ field, value }: { field: string; value: any }) =>
+    isIaFilled(field, value) ? (
+      <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0 h-4 font-normal border-sky-500 text-sky-600 dark:text-sky-400">
+        IA
+      </Badge>
+    ) : null;
+
+  // Aplica sugestões da IA quando recebidas — sem sobrescrever o que o usuário já editou no formulário corrente.
+  useEffect(() => {
+    if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    setForm((prev) => {
+      const next: any = { ...prev };
+      const filled = new Set(iaFields);
+      for (const [k, v] of Object.entries(iaSugestao)) {
+        if (v === null || v === undefined) continue;
+        const cur = (prev as any)[k];
+        const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+        if (curEmpty) {
+          next[k] = v;
+          filled.add(k);
+        }
+      }
+      setIaFields(filled);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(iaSugestao || {})]);
 
   useEffect(() => {
     const loadResponsaveis = async (id: string) => {
@@ -521,10 +561,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Recurso Reclamante" color="bg-[#F9CB9C] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditClass(form.tipo_recurso_reclamante))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_reclamante", form.tipo_recurso_reclamante))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Reclamante
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
+                <IaBadge field="tipo_recurso_reclamante" value={form.tipo_recurso_reclamante} />
               </Label>
               <MultiTipoRecurso
                 value={form.tipo_recurso_reclamante}
@@ -568,10 +609,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Recurso Banco" color="bg-[#B6D7A8] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditClass(form.tipo_recurso_banco))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_banco", form.tipo_recurso_banco))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Banco
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
+                <IaBadge field="tipo_recurso_banco" value={form.tipo_recurso_banco} />
               </Label>
               <MultiTipoRecurso
                 value={form.tipo_recurso_banco}
