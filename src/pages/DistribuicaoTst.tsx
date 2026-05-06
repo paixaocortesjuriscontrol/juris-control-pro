@@ -793,6 +793,17 @@ export default function DistribuicaoTst() {
 
   const mesesLabels = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
+  const delegarButton = isAdminOrCoordinator ? (
+    <Button
+      size="sm"
+      className="h-8 text-xs"
+      onClick={() => setDelegarOpen(true)}
+      disabled={selectedIds.size === 0}
+    >
+      <UserPlus className="w-3 h-3 mr-1" /> Delegar{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+    </Button>
+  ) : null;
+
   return (
     <MainLayout title="Distribuição TST">
       <div className="space-y-4">
@@ -856,16 +867,7 @@ export default function DistribuicaoTst() {
 
             <div className="h-6 w-px bg-border mx-1" />
 
-            {isAdminOrCoordinator && (
-              <Button
-                size="sm"
-                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => setDelegarOpen(true)}
-                disabled={selectedIds.size === 0}
-              >
-                <UserPlus className="w-3 h-3 mr-1" /> Delegar{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-              </Button>
-            )}
+            {delegarButton}
             <Button
               size="sm"
               className="h-8 text-xs"
