@@ -119,6 +119,10 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
           failed.push({ step_id: a.step_id, error: e?.message || "falha na leitura" });
           continue;
         }
+        if (!arquivo) {
+          failed.push({ step_id: a.step_id, error: "Arquivo não baixado" });
+          continue;
+        }
 
         setStage(`Gravando texto ${i + 1}/${lista.length}…`);
         const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
