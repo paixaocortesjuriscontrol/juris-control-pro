@@ -15,6 +15,7 @@ import { AnexosJuditTab } from "./AnexosJuditTab";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
+import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
@@ -94,8 +95,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       console.warn("Erro ao carregar judit_anexos:", error.message);
       return;
     }
-    const list = ((data as any[]) || []).map((r) => ({
+    const list = dedupeJuditAttachments(((data as any[]) || []).map((r) => ({
       step_id: r.attachment_id,
+      attachment_id: r.attachment_id,
       attachment_name: r.attachment_name,
       attachment_date: r.attachment_date,
       extension: r.extension,
@@ -103,7 +105,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       cnj: r.cnj,
       texto_indexado: !!r.texto_indexado,
       documento_id: r.documento_id || null,
-    }));
+      storage_path: r.storage_path || null,
+    })));
     setAnexos(list);
   }, [processoNumero]);
 
@@ -279,7 +282,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onJuditSync={handleJuditSync}
             iaSugestao={iaDistribuicao}
             onAnexosFound={(atts) => {
-              const list = atts || [];
+              const list = dedupeJuditAttachments(atts || []);
               setAnexos(list);
               // Só pula para a aba Anexos quando a Judit realmente trouxe algum
               // documento — caso contrário mantém o usuário na aba atual e o

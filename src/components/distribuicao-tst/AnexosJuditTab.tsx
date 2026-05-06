@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
+import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
@@ -35,10 +36,11 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<string>("");
+  const uniqueAttachments = useMemo(() => dedupeJuditAttachments(attachments), [JSON.stringify(attachments)]);
 
   const allChecked = useMemo(
-    () => attachments.length > 0 && selected.size === attachments.length,
-    [attachments.length, selected.size]
+    () => uniqueAttachments.length > 0 && selected.size === uniqueAttachments.length,
+    [uniqueAttachments.length, selected.size]
   );
   const toggle = (id: string, v: boolean) => {
     setSelected((prev) => {
@@ -48,7 +50,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     });
   };
   const toggleAll = (v: boolean) => {
-    setSelected(v ? new Set(attachments.map((a) => a.step_id)) : new Set());
+    setSelected(v ? new Set(uniqueAttachments.map((a) => a.step_id)) : new Set());
   };
 
   const baixarAnexoParaIndexacao = async (att: Attachment) => {
@@ -107,7 +109,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
       toast.warning("Selecione ao menos um anexo.");
       return;
     }
-    const lista = attachments.filter((a) => selected.has(a.step_id));
+    const lista = uniqueAttachments.filter((a) => selected.has(a.step_id));
     setProcessing(true);
     try {
       // A extração pesada do PDF acontece no navegador; o Edge só grava o arquivo/texto no repositório de IA.
@@ -264,7 +266,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     }
   };
 
-  if (!attachments.length) {
+  if (!uniqueAttachments.length) {
     return (
       <Card><CardContent className="py-12 text-center text-muted-foreground">
         Nenhum anexo carregado. Use o botão Judit → "Buscar com anexos".
@@ -294,7 +296,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
           )}
         </Button>
       </div>
-      {attachments.map((att) => (
+      {uniqueAttachments.map((att) => (
         <div key={att.step_id} className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-muted/50">
           <div className="flex items-center gap-3 min-w-0">
             <Checkbox

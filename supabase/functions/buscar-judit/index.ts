@@ -108,6 +108,19 @@ function stripAttachments(value: any): any {
   return value;
 }
 
+function attachmentLogicalKey(nameValue: any, dateValue: any, extValue: any): string {
+  const name = String(nameValue || "")
+    .trim()
+    .replace(/\s*\(C[ÓO]PIA\)\s*/gi, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/gi, "")
+    .toUpperCase();
+  const date = String(dateValue || "").trim();
+  const ext = String(extValue || "").trim().toLowerCase();
+  return `${name}::${date}::${ext}`;
+}
+
 // Coleta attachments de TODAS as instâncias retornadas (cache + crawler page_data),
 // não só da `rdSelecionada`. A Judit pode devolver os anexos no nível da capa
 // (`response_data.attachments`) e/ou dentro dos andamentos.
@@ -129,10 +142,7 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
     for (const a of directAttachments) {
       const attId = a?.attachment_id || a?.id || a?.step_id;
       if (!attId) continue;
-      const name = (a?.attachment_name || a?.name || a?.title || "").toString().trim().toUpperCase();
-      const date = (a?.attachment_date || a?.date || "").toString().slice(0, 10);
-      const ext = (a?.extension || a?.ext || "").toString().toLowerCase();
-      const contentKey = `${instance ?? "?"}::${name}::${date}::${ext}`;
+      const contentKey = attachmentLogicalKey(a?.attachment_name || a?.name || a?.title, a?.attachment_date || a?.date, a?.extension || a?.ext);
       const idKey = `${instance ?? "?"}::${attId}`;
       if (seen.has(contentKey) || seen.has(idKey)) continue;
       seen.add(contentKey);
@@ -154,10 +164,7 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
         const stepId = s?.step_id || s?.id || a?.step_id || null;
         const attId = a?.id || a?.attachment_id || stepId;
         if (!attId) continue;
-        const name = (a?.name || a?.attachment_name || a?.title || "").toString().trim().toUpperCase();
-        const date = (a?.date || a?.attachment_date || s?.step_date || "").toString().slice(0, 10);
-        const ext = (a?.extension || a?.ext || "").toString().toLowerCase();
-        const contentKey = `${instance ?? "?"}::${name}::${date}::${ext}`;
+        const contentKey = attachmentLogicalKey(a?.name || a?.attachment_name || a?.title, a?.date || a?.attachment_date || s?.step_date, a?.extension || a?.ext);
         const idKey = `${instance ?? "?"}::${attId}`;
         if (seen.has(contentKey) || seen.has(idKey)) continue;
         seen.add(contentKey);
