@@ -130,8 +130,20 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     setForm((prev) => {
       const next: any = { ...prev };
       const filled = new Set(iaFields);
+      const isJuditField = (k: string) => {
+        // Bloqueia a IA de tocar em qualquer campo cujo valor veio (ou virá ao recarregar)
+        // da Judit — fonte da verdade. Isso cobre tanto a sessão atual quanto o registro
+        // já marcado como `judit_preenchido` no banco.
+        if (juditSessionFields.has(k)) return true;
+        if ((dado as any)?.judit_preenchido) {
+          const v = (dado as any)?.[k];
+          if (v !== null && v !== undefined && String(v).trim() !== "") return true;
+        }
+        return false;
+      };
       for (const [k, v] of Object.entries(iaSugestao)) {
         if (v === null || v === undefined) continue;
+        if (isJuditField(k)) continue;
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {

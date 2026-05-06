@@ -211,7 +211,14 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
         distribuicao_tst: iaData?.distribuicao_tst || {},
         dados_benner: iaData?.dados_benner || {},
       });
-      toast.success(`IA preencheu ${distQ} campo(s) em Distribuição TST e ${benQ} em Dados Benner.`);
+      const distKeys = Object.keys(iaData?.distribuicao_tst || {});
+      const benKeys = Object.keys(iaData?.dados_benner || {});
+      console.log("[IA Anexos] Sugestões recebidas:", { distribuicao_tst: iaData?.distribuicao_tst, dados_benner: iaData?.dados_benner });
+      toast.success(
+        `IA sugeriu ${distQ} campo(s) em Distribuição TST e ${benQ} em Dados Benner. ` +
+        `Campos já preenchidos pela Judit são preservados.`,
+        { description: [distKeys.length ? `Distribuição: ${distKeys.join(", ")}` : null, benKeys.length ? `Benner: ${benKeys.join(", ")}` : null].filter(Boolean).join(" • ") }
+      );
       setSelected(new Set());
     } catch (e: any) {
       toast.error("Falha: " + (e?.message || "erro"));
