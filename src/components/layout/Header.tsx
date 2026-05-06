@@ -115,20 +115,6 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
           </Badge>
         )}
 
-        {/* Search - Hidden on mobile */}
-        <div className="relative hidden lg:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Buscar processo, cliente..." 
-            className="w-64 pl-9 bg-secondary/50 border-border/50"
-          />
-        </div>
-
-        {/* Mobile Search Button */}
-        <Button variant="ghost" size="icon" className="lg:hidden">
-          <Search className="w-5 h-5 text-muted-foreground" />
-        </Button>
-
         {/* Notifications */}
         <NotificacoesDropdown />
 
