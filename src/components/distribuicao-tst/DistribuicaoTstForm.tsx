@@ -561,10 +561,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Recurso Reclamante" color="bg-[#F9CB9C] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditClass(form.tipo_recurso_reclamante))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_reclamante", form.tipo_recurso_reclamante))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Reclamante
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
+                <IaBadge field="tipo_recurso_reclamante" value={form.tipo_recurso_reclamante} />
               </Label>
               <MultiTipoRecurso
                 value={form.tipo_recurso_reclamante}
@@ -608,10 +609,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Recurso Banco" color="bg-[#B6D7A8] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", juditClass(form.tipo_recurso_banco))}>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_banco", form.tipo_recurso_banco))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Banco
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
+                <IaBadge field="tipo_recurso_banco" value={form.tipo_recurso_banco} />
               </Label>
               <MultiTipoRecurso
                 value={form.tipo_recurso_banco}
