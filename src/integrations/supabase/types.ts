@@ -1544,8 +1544,12 @@ export type Database = {
           data_julgamento: string | null
           data_transito_julgado: string | null
           decisao_quarteirizado: string | null
+          distribuido_em: string | null
+          distribuido_por: string | null
           dossie: string | null
           entrega_memoriais: string | null
+          entregue_em: string | null
+          entregue_por: string | null
           equipe: string | null
           erro_judit: boolean
           execucao: string | null
@@ -1562,6 +1566,7 @@ export type Database = {
           midia_negativa: string | null
           notas: string | null
           observacao_advogado: string | null
+          observacao_distribuicao: string | null
           observacoes: string | null
           parte_recorrente_origem: string | null
           perdemos: boolean | null
@@ -1569,6 +1574,7 @@ export type Database = {
           posicao_relator_favoravel: boolean | null
           posicao_turma_desfavoravel: boolean | null
           posicao_turma_favoravel: boolean | null
+          prazo_entrega: string | null
           processo: string | null
           processo_baixado: string | null
           provas_digitais: string | null
@@ -1588,6 +1594,7 @@ export type Database = {
           risco_midia: string | null
           situacao_processo: string | null
           status: string
+          status_distribuicao: string | null
           sustentacao_oral: string | null
           tem_data_julgamento: string | null
           tema: string | null
@@ -1620,8 +1627,12 @@ export type Database = {
           data_julgamento?: string | null
           data_transito_julgado?: string | null
           decisao_quarteirizado?: string | null
+          distribuido_em?: string | null
+          distribuido_por?: string | null
           dossie?: string | null
           entrega_memoriais?: string | null
+          entregue_em?: string | null
+          entregue_por?: string | null
           equipe?: string | null
           erro_judit?: boolean
           execucao?: string | null
@@ -1638,6 +1649,7 @@ export type Database = {
           midia_negativa?: string | null
           notas?: string | null
           observacao_advogado?: string | null
+          observacao_distribuicao?: string | null
           observacoes?: string | null
           parte_recorrente_origem?: string | null
           perdemos?: boolean | null
@@ -1645,6 +1657,7 @@ export type Database = {
           posicao_relator_favoravel?: boolean | null
           posicao_turma_desfavoravel?: boolean | null
           posicao_turma_favoravel?: boolean | null
+          prazo_entrega?: string | null
           processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
@@ -1664,6 +1677,7 @@ export type Database = {
           risco_midia?: string | null
           situacao_processo?: string | null
           status?: string
+          status_distribuicao?: string | null
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
           tema?: string | null
@@ -1696,8 +1710,12 @@ export type Database = {
           data_julgamento?: string | null
           data_transito_julgado?: string | null
           decisao_quarteirizado?: string | null
+          distribuido_em?: string | null
+          distribuido_por?: string | null
           dossie?: string | null
           entrega_memoriais?: string | null
+          entregue_em?: string | null
+          entregue_por?: string | null
           equipe?: string | null
           erro_judit?: boolean
           execucao?: string | null
@@ -1714,6 +1732,7 @@ export type Database = {
           midia_negativa?: string | null
           notas?: string | null
           observacao_advogado?: string | null
+          observacao_distribuicao?: string | null
           observacoes?: string | null
           parte_recorrente_origem?: string | null
           perdemos?: boolean | null
@@ -1721,6 +1740,7 @@ export type Database = {
           posicao_relator_favoravel?: boolean | null
           posicao_turma_desfavoravel?: boolean | null
           posicao_turma_favoravel?: boolean | null
+          prazo_entrega?: string | null
           processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
@@ -1740,6 +1760,7 @@ export type Database = {
           risco_midia?: string | null
           situacao_processo?: string | null
           status?: string
+          status_distribuicao?: string | null
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
           tema?: string | null
