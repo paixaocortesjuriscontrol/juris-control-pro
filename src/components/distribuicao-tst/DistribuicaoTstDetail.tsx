@@ -14,6 +14,7 @@ import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
@@ -40,6 +41,8 @@ interface Props {
  */
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const processoNumero = dado?.processo_numero || "";
+  const { user } = useAuth();
+  const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
@@ -219,7 +222,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <TabsList className="justify-start">
             <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
             <TabsTrigger value="benner" disabled={bennerDisabled}>Dados Benner</TabsTrigger>
-            <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
+            {podeVerLogJudit && (
+              <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
+            )}
             <TabsTrigger value="analise-judit" disabled={bennerDisabled}>Análise Judit</TabsTrigger>
             {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
@@ -301,9 +306,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           )}
         </TabsContent>
 
-        <TabsContent value="log-judit" className="mt-4">
-          <LogJuditTab processoNumero={processoNumero} />
-        </TabsContent>
+        {podeVerLogJudit && (
+          <TabsContent value="log-judit" className="mt-4">
+            <LogJuditTab processoNumero={processoNumero} />
+          </TabsContent>
+        )}
 
         <TabsContent value="analise-judit" className="mt-4">
           <AnaliseJuditTab processoNumero={processoNumero} />
