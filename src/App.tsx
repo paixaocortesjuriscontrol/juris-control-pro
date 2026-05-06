@@ -63,6 +63,7 @@ import PlanilhaTst from "./pages/PlanilhaTst";
 import CargaBenner from "./pages/CargaBenner";
 import DadosBenner from "./pages/DadosBenner";
 import DistribuicaoTst from "./pages/DistribuicaoTst";
+import DistribuicaoTstKanban from "./pages/DistribuicaoTstKanban";
 import PautasTst from "./pages/PautasTst";
 import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
@@ -151,6 +152,7 @@ function App() {
               <Route path="/carga-benner" element={<ProtectedRoute><CargaBenner /></ProtectedRoute>} />
               <Route path="/dados-benner" element={<ProtectedRoute><DadosBenner /></ProtectedRoute>} />
               <Route path="/distribuicao-tst" element={<ProtectedRoute><DistribuicaoTst /></ProtectedRoute>} />
+              <Route path="/distribuicao-tst/kanban" element={<ProtectedRoute><DistribuicaoTstKanban /></ProtectedRoute>} />
               <Route path="/materias-benner" element={<ProtectedRoute><MateriasBenner /></ProtectedRoute>} />
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
