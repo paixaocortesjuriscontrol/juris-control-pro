@@ -1288,6 +1288,12 @@ export default function DistribuicaoTst() {
           </div>
         )}
       </div>
+      <DelegarProcessosDialog
+        open={delegarOpen}
+        onOpenChange={setDelegarOpen}
+        selectedIds={Array.from(selectedIds)}
+        onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
+      />
     </MainLayout>
   );
 }
