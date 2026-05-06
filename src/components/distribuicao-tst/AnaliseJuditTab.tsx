@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight, History } from "lucide-react";
 import { toast } from "sonner";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
@@ -465,8 +466,52 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
           </Card>
 
           {sources.map(name => (
-            <SourceCard key={name} name={name} value={raw[name]} />
-          ))}
+          {(() => {
+            const cacheVal = raw.cache_lookup;
+            const crawlerVal = raw.crawler;
+            const datajudVal = raw.datajud_tst;
+            const otherKeys = sources.filter(
+              (k) => !["cache_lookup", "crawler", "datajud_tst"].includes(k)
+            );
+            const hasCrawler = crawlerVal !== undefined;
+            const hasCache = cacheVal !== undefined;
+            const defaultTab = hasCrawler ? "crawler" : hasCache ? "cache" : "datajud";
+            return (
+              <Tabs defaultValue={defaultTab} className="w-full">
+                <TabsList>
+                  <TabsTrigger value="crawler" disabled={!hasCrawler}>
+                    <Cloud className="w-3.5 h-3.5 mr-1" /> Crawler (mais atualizado)
+                  </TabsTrigger>
+                  <TabsTrigger value="cache" disabled={!hasCache}>
+                    <Database className="w-3.5 h-3.5 mr-1" /> Cache Judit
+                  </TabsTrigger>
+                  {datajudVal !== undefined && (
+                    <TabsTrigger value="datajud">
+                      <Building2 className="w-3.5 h-3.5 mr-1" /> DataJud
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+                <TabsContent value="crawler" className="mt-3">
+                  <SourceCard name="crawler" value={crawlerVal} />
+                </TabsContent>
+                <TabsContent value="cache" className="mt-3">
+                  <SourceCard name="cache_lookup" value={cacheVal} />
+                </TabsContent>
+                {datajudVal !== undefined && (
+                  <TabsContent value="datajud" className="mt-3">
+                    <SourceCard name="datajud_tst" value={datajudVal} />
+                  </TabsContent>
+                )}
+                {otherKeys.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    {otherKeys.map((name) => (
+                      <SourceCard key={name} name={name} value={raw[name]} />
+                    ))}
+                  </div>
+                )}
+              </Tabs>
+            );
+          })()}
 
           {/* Histórico de consultas anteriores */}
           {previousLogs.length > 0 && (
@@ -518,9 +563,52 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
                                 <PrimitiveField k="tribunal_hint" v={prevRaw.tribunal_hint || pl.tribunal} />
                                 <PrimitiveField k="created_at" v={pl.created_at} />
                               </div>
-                              {prevSources.map(name => (
-                                <SourceCard key={name} name={name} value={prevRaw[name]} />
-                              ))}
+                              {(() => {
+                                const cacheVal = prevRaw.cache_lookup;
+                                const crawlerVal = prevRaw.crawler;
+                                const datajudVal = prevRaw.datajud_tst;
+                                const otherKeys = prevSources.filter(
+                                  (k) => !["cache_lookup", "crawler", "datajud_tst"].includes(k)
+                                );
+                                const hasCrawler = crawlerVal !== undefined;
+                                const hasCache = cacheVal !== undefined;
+                                const defTab = hasCrawler ? "crawler" : hasCache ? "cache" : "datajud";
+                                return (
+                                  <Tabs defaultValue={defTab} className="w-full">
+                                    <TabsList>
+                                      <TabsTrigger value="crawler" disabled={!hasCrawler}>
+                                        <Cloud className="w-3.5 h-3.5 mr-1" /> Crawler
+                                      </TabsTrigger>
+                                      <TabsTrigger value="cache" disabled={!hasCache}>
+                                        <Database className="w-3.5 h-3.5 mr-1" /> Cache
+                                      </TabsTrigger>
+                                      {datajudVal !== undefined && (
+                                        <TabsTrigger value="datajud">
+                                          <Building2 className="w-3.5 h-3.5 mr-1" /> DataJud
+                                        </TabsTrigger>
+                                      )}
+                                    </TabsList>
+                                    <TabsContent value="crawler" className="mt-3">
+                                      <SourceCard name="crawler" value={crawlerVal} />
+                                    </TabsContent>
+                                    <TabsContent value="cache" className="mt-3">
+                                      <SourceCard name="cache_lookup" value={cacheVal} />
+                                    </TabsContent>
+                                    {datajudVal !== undefined && (
+                                      <TabsContent value="datajud" className="mt-3">
+                                        <SourceCard name="datajud_tst" value={datajudVal} />
+                                      </TabsContent>
+                                    )}
+                                    {otherKeys.length > 0 && (
+                                      <div className="mt-3 space-y-3">
+                                        {otherKeys.map((name) => (
+                                          <SourceCard key={name} name={name} value={prevRaw[name]} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </Tabs>
+                                );
+                              })()}
                             </>
                           )}
                         </div>
