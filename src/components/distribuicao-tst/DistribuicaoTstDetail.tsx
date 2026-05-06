@@ -271,7 +271,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
-            onAnexosFound={(atts) => { setAnexos(atts || []); setTab("anexos"); }}
+            onAnexosFound={(atts) => {
+              const list = atts || [];
+              setAnexos(list);
+              // Só pula para a aba Anexos quando a Judit realmente trouxe algum
+              // documento — caso contrário mantém o usuário na aba atual e o
+              // toast de "sem anexos" disparado no form já dá o feedback.
+              if (list.length > 0) setTab("anexos");
+            }}
           />
         </TabsContent>
 
