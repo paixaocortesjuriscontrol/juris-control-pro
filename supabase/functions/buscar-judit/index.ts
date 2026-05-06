@@ -129,9 +129,14 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
     for (const a of directAttachments) {
       const attId = a?.attachment_id || a?.id || a?.step_id;
       if (!attId) continue;
-      const key = `${instance ?? "?"}::${attId}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      const name = (a?.attachment_name || a?.name || a?.title || "").toString().trim().toUpperCase();
+      const date = (a?.attachment_date || a?.date || "").toString().slice(0, 10);
+      const ext = (a?.extension || a?.ext || "").toString().toLowerCase();
+      const contentKey = `${instance ?? "?"}::${name}::${date}::${ext}`;
+      const idKey = `${instance ?? "?"}::${attId}`;
+      if (seen.has(contentKey) || seen.has(idKey)) continue;
+      seen.add(contentKey);
+      seen.add(idKey);
       out.push({
         step_id: attId,
         attachment_name: a?.attachment_name || a?.name || a?.title || null,
@@ -149,9 +154,14 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
         const stepId = s?.step_id || s?.id || a?.step_id || null;
         const attId = a?.id || a?.attachment_id || stepId;
         if (!attId) continue;
-        const key = `${instance ?? "?"}::${attId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
+        const name = (a?.name || a?.attachment_name || a?.title || "").toString().trim().toUpperCase();
+        const date = (a?.date || a?.attachment_date || s?.step_date || "").toString().slice(0, 10);
+        const ext = (a?.extension || a?.ext || "").toString().toLowerCase();
+        const contentKey = `${instance ?? "?"}::${name}::${date}::${ext}`;
+        const idKey = `${instance ?? "?"}::${attId}`;
+        if (seen.has(contentKey) || seen.has(idKey)) continue;
+        seen.add(contentKey);
+        seen.add(idKey);
         out.push({
           step_id: attId,
           step_date: s?.step_date || s?.date || null,
