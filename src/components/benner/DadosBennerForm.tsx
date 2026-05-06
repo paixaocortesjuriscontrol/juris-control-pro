@@ -401,22 +401,25 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
         : null;
       const situacaoMapeada = data.situacao_processo || null;
 
-      const partesAtivas = Array.isArray(data.parties_detail)
-        ? [...new Set(
-            data.parties_detail
-              .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "ACTIVE" && !p?.is_advogado)
-              .map((p: any) => String(p?.nome || "").trim())
-              .filter(Boolean)
-          )].join(" / ")
-        : "";
-      const partesPassivas = Array.isArray(data.parties_detail)
-        ? [...new Set(
-            data.parties_detail
-              .filter((p: any) => (p?.polo || "").toString().toUpperCase() === "PASSIVE" && !p?.is_advogado)
-              .map((p: any) => String(p?.nome || "").trim())
-              .filter(Boolean)
-          )].join(" / ")
-        : "";
+      // ATENÇÃO: ACTIVE/PASSIVE na instância TST = recorrente/recorrido, NÃO
+      // reclamante/reclamada (quando o Banco recorre, ele é ACTIVE no TST mas
+      // RECLAMADO na origem). O backend já desambigua via person_type da origem
+      // e devolve `data.reclamante` / `data.reclamada` — usamos esses valores.
+      const partesPorPersonType = (re: RegExp) =>
+        Array.isArray(data.parties_detail)
+          ? [...new Set(
+              data.parties_detail
+                .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
+                .map((p: any) => String(p?.nome || "").trim())
+                .filter(Boolean)
+            )].join(" / ")
+          : "";
+      const partesAtivas = (data.reclamante && String(data.reclamante).trim())
+        || partesPorPersonType(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i)
+        || "";
+      const partesPassivas = (data.reclamada && String(data.reclamada).trim())
+        || partesPorPersonType(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i)
+        || "";
       // Política: a Judit é fonte da verdade — quando retorna um valor,
       // SEMPRE sobrescreve o que estiver no formulário (manual ou anterior).
       // Só preserva o valor atual quando a Judit não retornou nada para o campo.
