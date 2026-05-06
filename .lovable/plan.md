@@ -1,81 +1,36 @@
-## Objetivo
+# Preencher tipo_recurso_reclamante / banco via Judit no form Distribuição TST
 
-Permitir que **admins e coordenadores** distribuam processos da tela **Distribuição TST** entre advogados, registrando data de distribuição, prazo de entrega e status, com **Kanban híbrido** de acompanhamento.
+## Problema
+No `DistribuicaoTstForm.tsx`, ao clicar em **Judit**, apenas `tipo_recurso` (classe da capa) é preenchido. Os campos **Tipo de Recurso – Reclamante** e **Tipo de Recurso – Banco** ficam manuais, mesmo o backend `buscar-judit` já retornando `tipo_recurso_reclamante` e `tipo_recurso_banco` calculados (cruzamento RECORRENTE no TST × RECLAMANTE/RECLAMADO na origem).
 
----
+Resultado: usuário precisa preencher manualmente e os campos não recebem o destaque verde da Judit.
 
-## 1. Banco de dados (migration)
+## Solução
+Ligar os dois campos ao retorno da Judit, exatamente como já é feito em `tipo_recurso`, e deixar o destaque verde funcionar (a infra `juditClass` + `JuditBadge` já está nos campos — só falta marcar como preenchidos).
 
-Adicionar à tabela `dados_benner`:
+### Mudanças
+**Arquivo:** `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`
 
-- `distribuido_em` (timestamptz)
-- `distribuido_por` (uuid)
-- `prazo_entrega` (date)
-- `status_distribuicao` (text, default `pendente`) — valores: `pendente | em_andamento | entregue`
-- `entregue_em` (timestamptz, nullable)
-- `entregue_por` (uuid, nullable)
-- `observacao_distribuicao` (text, nullable)
+Dentro do bloco do `runJudit` (linhas ~225–272), adicionar logo após `apply("tipo_recurso", data.tipo_recurso);`:
 
-Índices: `status_distribuicao`, `prazo_entrega`, `distribuido_em`.
-
-Vínculos com advogados continuam em `dados_benner_responsaveis` (já existe). RLS herda das políticas atuais.
-
----
-
-## 2. Delegação em lote (tela Distribuição TST)
-
-A tela `src/pages/DistribuicaoTst.tsx` já tem `selectedIds`. Adicionar:
-
-- Botão **"Delegar selecionados (N)"** na barra de ações, visível apenas se `isAdminOrCoordinator` (via `useUserRole`).
-- Abre `DelegarProcessosDialog`:
-  - **Multi-select de advogados** (reaproveita `useProfilesBasic`, filtrado pela coordenação quando aplicável).
-  - **Prazo de entrega** (DatePicker shadcn, único para o batch).
-  - **Observação** (opcional).
-  - Confirmar → para cada `id` selecionado:
-    - `UPDATE dados_benner SET distribuido_em=now(), distribuido_por=auth.uid(), prazo_entrega=$prazo, status_distribuicao='pendente', observacao_distribuicao=$obs WHERE id=ANY($ids)`.
-    - `INSERT INTO dados_benner_responsaveis` para cada par (id × advogado), **sem apagar vínculos existentes** (`ON CONFLICT DO NOTHING`).
-  - `await queryClient.invalidateQueries` antes de fechar e exibir toast.
-
-Adicionar à tabela duas colunas: **Prazo entrega** e **Status** (badge colorido).
-
----
-
-## 3. Kanban híbrido `/distribuicao-tst/kanban`
-
-Nova página `src/pages/DistribuicaoTstKanban.tsx`, link a partir do header da Distribuição TST.
-
-Colunas (baseadas em `prazo_entrega` + `status_distribuicao`):
-
-```text
-[ Sem prazo ] [ >5 dias ] [ 4 dias ] [ 3 dias ] [ 2 dias ] [ Prazo Fatal/Atrasado ] [ Entregue ]
+```ts
+apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
+apply("tipo_recurso_banco", data.tipo_recurso_banco);
 ```
 
-- Processos com `status_distribuicao='entregue'` vão direto para a coluna **Entregue** (independente do prazo).
-- Demais são distribuídos pelas colunas de prazo (igual lógica de `TstKanbanBoard.tsx`).
-- Atrasados (prazo < hoje, status ≠ entregue) caem em **Prazo Fatal/Atrasado**.
+Como o helper `apply` já:
+- só sobrescreve quando a Judit traz valor (`hasValue`),
+- adiciona o nome do campo ao `filled` set (que alimenta `juditSessionFields`),
 
-Cards exibem: nº processo, dossiê, advogado(s) responsável(eis), prazo, dias restantes, coordenador, badge de status.
+o destaque verde (via `juditClass(form.tipo_recurso_reclamante/banco)` + `<JuditBadge show={isJuditFilled(...)} />` já presentes nas linhas 507–561) passa a aparecer automaticamente, igual aos outros campos preenchidos pela Judit.
 
-Filtros no topo: por **advogado**, **coordenação**, **aba_origem**, **status**. Padrão para advogado comum = "meus processos".
+### Comportamento resultante
+- Clique em **Judit** → backend retorna `tipo_recurso_reclamante` / `tipo_recurso_banco` já calculados → form preenche os dois campos.
+- Ambos ficam com fundo verde (mesmo padrão do form Dados Benner) e badge "Judit".
+- Auto-save persiste os valores em `distribuicoes_tst` (colunas já existem).
+- Se a Judit não retornar (`null`), o valor manual atual é preservado (regra do `apply` com `hasValue`).
 
-Ações no card:
-- **Marcar como entregue** → `status_distribuicao='entregue'`, `entregue_em=now()`, `entregue_por=auth.uid()`.
-- **Marcar em andamento** → `status_distribuicao='em_andamento'`.
-- Clique no card abre o detail sheet existente (`DistribuicaoTstDetail`).
-
-Reaproveitar visual de `src/components/tst-prazos/TstKanbanBoard.tsx` (mesmas cores por urgência).
-
----
-
-## 4. Hooks
-
-- `src/hooks/useDelegacaoTst.ts` — mutations: `delegarProcessos({ ids, advogadoIds, prazo, observacao })`, `marcarStatus({ id, status })`.
-- Estender `useDistribuicoesTst.ts` para retornar os novos campos.
-- `src/hooks/useDistribuicaoTstKanban.ts` — query agrupada com filtros + map de responsáveis (reaproveita `loadResponsaveisMap`).
-
----
-
-## 5. Permissões
-
-- Botão **Delegar** e ações de status: somente `isAdminOrCoordinator`.
-- Advogados comuns: visualizam o Kanban, veem por padrão só seus processos, podem marcar entrega dos próprios.
+### Não muda
+- Backend `buscar-judit` (já calcula corretamente).
+- Form Dados Benner (já consome via `applyJuditOnly`).
+- Política de sobrescrita / regra "Judit é fonte da verdade" do form Distribuição TST.

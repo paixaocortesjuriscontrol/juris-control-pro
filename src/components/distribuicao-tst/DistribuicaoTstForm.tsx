@@ -257,6 +257,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         // Sem heurística por movimentos. Se a Judit não trouxer, não preenche
         // nem apaga — usuário escolhe manualmente.
         apply("tipo_recurso", data.tipo_recurso);
+        apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
+        apply("tipo_recurso_banco", data.tipo_recurso_banco);
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
