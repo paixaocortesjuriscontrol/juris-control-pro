@@ -174,3 +174,6 @@ verify_jwt = false
 
 [functions.buscar-dejt-pautas]
 verify_jwt = true
+
+[functions.executar-djet-pautas-agendado]
+verify_jwt = false
