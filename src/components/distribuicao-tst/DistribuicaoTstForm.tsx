@@ -130,7 +130,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     setForm((prev) => {
       const next: any = { ...prev };
       const filled = new Set(iaFields);
+      // Campos que SEMPRE são da Judit (reutilizados também no Dados Benner).
+      // A IA nunca pode tocar nesses, mesmo quando ainda estão vazios — eles
+      // dependem da consulta Judit/cadastro existente.
+      const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
       const isJuditField = (k: string) => {
+        if (ALWAYS_JUDIT.has(k)) return true;
         // Bloqueia a IA de tocar em qualquer campo cujo valor veio (ou virá ao recarregar)
         // da Judit — fonte da verdade. Isso cobre tanto a sessão atual quanto o registro
         // já marcado como `judit_preenchido` no banco.
@@ -155,7 +160,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(iaSugestao || {})]);
+  }, [JSON.stringify(iaSugestao || {}), dado?.id]);
 
   useEffect(() => {
     const loadResponsaveis = async (id: string) => {
