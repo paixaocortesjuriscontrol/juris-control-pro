@@ -3429,12 +3429,18 @@ export type Database = {
           cnj: string | null
           created_at: string
           created_by: string | null
+          documento_id: string | null
           extension: string | null
           id: string
           instance: string | null
+          paginas_extraidas: number | null
+          processo_id: string | null
           processo_numero: string
           raw_attachment: Json | null
           step_id: string | null
+          storage_path: string | null
+          texto_indexado: boolean
+          texto_indexado_em: string | null
           updated_at: string
         }
         Insert: {
@@ -3444,12 +3450,18 @@ export type Database = {
           cnj?: string | null
           created_at?: string
           created_by?: string | null
+          documento_id?: string | null
           extension?: string | null
           id?: string
           instance?: string | null
+          paginas_extraidas?: number | null
+          processo_id?: string | null
           processo_numero: string
           raw_attachment?: Json | null
           step_id?: string | null
+          storage_path?: string | null
+          texto_indexado?: boolean
+          texto_indexado_em?: string | null
           updated_at?: string
         }
         Update: {
@@ -3459,12 +3471,18 @@ export type Database = {
           cnj?: string | null
           created_at?: string
           created_by?: string | null
+          documento_id?: string | null
           extension?: string | null
           id?: string
           instance?: string | null
+          paginas_extraidas?: number | null
+          processo_id?: string | null
           processo_numero?: string
           raw_attachment?: Json | null
           step_id?: string | null
+          storage_path?: string | null
+          texto_indexado?: boolean
+          texto_indexado_em?: string | null
           updated_at?: string
         }
         Relationships: []
