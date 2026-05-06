@@ -174,12 +174,43 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
     if (dado) {
       const { id, created_at, updated_at, ...rest } = dado;
-      setForm({ ...emptyForm, ...rest, responsaveis_ids: [] } as DistribuicaoTstInsert);
+      const base: any = { ...emptyForm, ...rest, responsaveis_ids: [] };
+      // Reaplica sugestões da IA (somente em campos vazios e não-Judit) para
+      // que a montagem da aba não apague as sugestões pendentes.
+      if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
+        const filled = new Set<string>();
+        for (const [k, v] of Object.entries(iaSugestao)) {
+          if (v === null || v === undefined) continue;
+          if (ALWAYS_JUDIT.has(k)) continue;
+          if ((dado as any)?.judit_preenchido) {
+            const dv = (dado as any)?.[k];
+            if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
+          }
+          const cur = base[k];
+          const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+          if (curEmpty) { base[k] = v; filled.add(k); }
+        }
+        if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
+      }
+      setForm(base as DistribuicaoTstInsert);
       loadResponsaveis(dado.id);
     } else {
-      setForm({ ...emptyForm });
+      const base: any = { ...emptyForm };
+      if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
+        const filled = new Set<string>();
+        for (const [k, v] of Object.entries(iaSugestao)) {
+          if (v === null || v === undefined) continue;
+          if (ALWAYS_JUDIT.has(k)) continue;
+          base[k] = v; filled.add(k);
+        }
+        if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
+      }
+      setForm(base);
     }
-  }, [dado]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dado, JSON.stringify(iaSugestao || {})]);
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
