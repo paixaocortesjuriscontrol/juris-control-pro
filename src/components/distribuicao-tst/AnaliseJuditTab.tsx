@@ -465,7 +465,6 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
             </CardContent>
           </Card>
 
-          {sources.map(name => (
           {(() => {
             const cacheVal = raw.cache_lookup;
             const crawlerVal = raw.crawler;
