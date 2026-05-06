@@ -163,8 +163,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       const filled = new Set(camposIa);
       const juditLocked = camposJudit;
       const dadoJuditOk = !!(dado as any)?.judit_preenchido;
+      // Campos sempre vindos da Judit (compartilhados com Distribuição TST).
+      const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso", "recorrente"]);
       for (const [k, v] of Object.entries(iaSugestao)) {
         if (v === null || v === undefined) continue;
+        if (ALWAYS_JUDIT.has(k)) continue;
         // Nunca sobrescreve campos que a Judit já preencheu (sessão atual ou registro).
         if (juditLocked.has(k)) continue;
         if (dadoJuditOk) {
@@ -216,12 +219,15 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   useEffect(() => {
     if (dado) {
       const { id, created_at, updated_at, ...rest } = dado;
-      setForm(rest as DadoBennerInsert);
+      const base: any = { ...rest };
+      applyIaToBase(base, dado);
+      setForm(base as DadoBennerInsert);
       setProntoEnviar(dado.status === "pronto_envio");
       setCamposJudit(markExistingJuditFields ? inferCamposJudit(rest as Partial<DadoBennerInsert>) : new Set());
       void carregarPartesPersistidas(dado.id);
     } else if (initialData) {
       const nextForm = { ...emptyForm, ...initialData };
+      applyIaToBase(nextForm as any, null);
       setForm(nextForm);
       setCamposJudit(markExistingJuditFields ? inferCamposJudit(nextForm) : new Set());
       setPartesJudit([]);
@@ -236,7 +242,28 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
         if (data.user) setForm(f => ({ ...f, user_id: data.user!.id }));
       });
     }
-  }, [dado, markExistingJuditFields, JSON.stringify(initialData), carregarPartesPersistidas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dado, markExistingJuditFields, JSON.stringify(initialData), carregarPartesPersistidas, JSON.stringify(iaSugestao || {})]);
+
+  // Helper: aplica iaSugestao em uma base de form, respeitando Judit e ALWAYS_JUDIT.
+  function applyIaToBase(base: Record<string, any>, dadoSrc: any) {
+    if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso", "recorrente"]);
+    const dadoJuditOk = !!dadoSrc?.judit_preenchido;
+    const filled = new Set<string>();
+    for (const [k, v] of Object.entries(iaSugestao)) {
+      if (v === null || v === undefined) continue;
+      if (ALWAYS_JUDIT.has(k)) continue;
+      if (dadoJuditOk) {
+        const dv = dadoSrc?.[k];
+        if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
+      }
+      const cur = base[k];
+      const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+      if (curEmpty) { base[k] = v; filled.add(k); }
+    }
+    if (filled.size > 0) setCamposIa((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
+  }
 
   // Poll progress for autos download job
   const startPolling = useCallback((jobId: string) => {
