@@ -1015,6 +1015,18 @@ export default function DistribuicaoTst() {
                 <SelectItem value="outros">Outros</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Status envio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Status: Todos</SelectItem>
+                <SelectItem value="rascunho">Rascunho</SelectItem>
+                <SelectItem value="pronto_envio">Pronto para Enviar</SelectItem>
+                <SelectItem value="enviado">Enviado</SelectItem>
+                <SelectItem value="planilhado">Planilhado</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
           <div className="flex items-center gap-2">
