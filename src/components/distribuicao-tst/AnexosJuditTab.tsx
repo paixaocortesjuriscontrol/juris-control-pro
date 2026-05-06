@@ -104,7 +104,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
       for (let i = 0; i < lista.length; i++) {
         const a = lista[i];
         setStage(`Baixando anexo ${i + 1}/${lista.length}…`);
-        let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>>;
+        let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>> | null = null;
         let pagesText: string[] = [];
         try {
           arquivo = await baixarAnexoParaIndexacao(a);
