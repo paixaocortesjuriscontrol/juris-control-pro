@@ -566,12 +566,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Relator e Turma" color="bg-[#6D9EEB]" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Relator</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
+              <Label className="flex items-center">Relator <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
               <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Relator (+ ou -)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
+              <Label className="flex items-center">Relator (+ ou -) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
               <Select value={form.relator_favorabilidade || ""} onValueChange={v => set("relator_favorabilidade", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -582,12 +582,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Turma</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
+              <Label className="flex items-center">Turma <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
               <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Turma (+ ou -)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
+              <Label className="flex items-center">Turma (+ ou -) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
               <Select value={form.turma_favorabilidade || ""} onValueChange={v => set("turma_favorabilidade", v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -596,8 +596,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Parte Recorrente</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("parte_recorrente", form.parte_recorrente))}>
+              <Label className="flex items-center">Parte Recorrente <JuditBadge show={isJuditFilled(form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
               <Input value={form.parte_recorrente || ""} onChange={e => set("parte_recorrente", e.target.value)} />
             </div>
           </div>
