@@ -742,8 +742,14 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     return "";
   };
 
-  // Combined highlight: Judit takes priority, then DataJud
-  const fieldHighlight = (field: string) => juditHighlight(field) || datajudHighlight(field);
+  // Highlight para campos preenchidos pela IA (anexos)
+  const iaHighlight = (field: string) =>
+    camposIa.has(field) && !camposJudit.has(field)
+      ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all duration-500"
+      : "";
+
+  // Combined highlight: Judit > IA (anexos) > DataJud
+  const fieldHighlight = (field: string) => juditHighlight(field) || iaHighlight(field) || datajudHighlight(field);
 
   const JuditLabel = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <div className="flex items-center gap-1.5">
@@ -759,6 +765,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           )}
         >
           {modoTeste ? "Teste" : "Judit"}
+        </Badge>
+      )}
+      {camposIa.has(field) && !camposJudit.has(field) && (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-sky-500 text-sky-600 dark:text-sky-400 font-normal">
+          IA
         </Badge>
       )}
       {field === "tipo_recurso" && form.tipo_recurso_auto && !camposJudit.has(field) && (
