@@ -76,14 +76,27 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     const fileRes = await fetch(signedUrl);
     if (!fileRes.ok) throw new Error(`Falha ao abrir PDF: HTTP ${fileRes.status}`);
     const arrayBuffer = await fileRes.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({
+      data: arrayBuffer,
+      disableFontFace: true,
+      useSystemFonts: false,
+      isEvalSupported: false,
+    } as any).promise;
     const pagesText: string[] = [];
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      pagesText.push(content.items.map((item: any) => item.str).join(" ").trim());
+    try {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const page = await pdf.getPage(i);
+        try {
+          const content = await page.getTextContent();
+          pagesText.push(content.items.map((item: any) => item.str).join(" ").trim());
+        } finally {
+          try { (page as any).cleanup?.(); } catch {}
+        }
+      }
+    } finally {
+      try { await (pdf as any).destroy?.(); } catch {}
     }
 
     return pagesText;
@@ -124,31 +137,52 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
           continue;
         }
 
-        setStage(`Gravando texto ${i + 1}/${lista.length}…`);
-        const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
-          body: {
-            processo_numero: processoNumero,
-            processo_id: processoIdAcc,
-            source_storage_path: arquivo.storage_path,
-            content_type: arquivo.content_type,
-            file_size: arquivo.file_size,
-            pages_text: pagesText,
-            attachments: [{
-              step_id: a.step_id,
-              attachment_name: arquivo.filename || a.attachment_name,
-              instance: a.instance || null,
-              cnj: a.cnj || processoNumero,
-              extension: a.extension || null,
-            }],
-          },
-        });
-        if (procErr || procData?.error) {
-          failed.push({ step_id: a.step_id, error: procErr?.message || procData?.error });
-          continue;
+        // Envia em chunks de páginas (streaming) para evitar payloads grandes e timeout
+        const CHUNK = 25;
+        let lastResult: any = null;
+        let lastDocId: string | null = null;
+        let totalPagesSent = 0;
+        for (let start = 0; start < pagesText.length; start += CHUNK) {
+          const slice = pagesText.slice(start, start + CHUNK);
+          const isFirst = start === 0;
+          const isLast = start + CHUNK >= pagesText.length;
+          setStage(`Gravando texto ${i + 1}/${lista.length} (${Math.min(start + CHUNK, pagesText.length)}/${pagesText.length}p)…`);
+          const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
+            body: {
+              processo_numero: processoNumero,
+              processo_id: processoIdAcc,
+              source_storage_path: isFirst ? arquivo.storage_path : null,
+              content_type: arquivo.content_type,
+              file_size: arquivo.file_size,
+              pages_text: slice,
+              page_offset: totalPagesSent,
+              chunk_first: isFirst,
+              chunk_last: isLast,
+              documento_id: lastDocId,
+              attachments: [{
+                step_id: a.step_id,
+                attachment_name: arquivo.filename || a.attachment_name,
+                instance: a.instance || null,
+                cnj: a.cnj || processoNumero,
+                extension: a.extension || null,
+              }],
+            },
+          });
+          if (procErr || procData?.error) {
+            failed.push({ step_id: a.step_id, error: procErr?.message || procData?.error });
+            lastResult = null;
+            break;
+          }
+          if (procData?.processo_id) processoIdAcc = procData.processo_id;
+          const r = (procData?.results || [])[0];
+          if (r?.documento_id) lastDocId = r.documento_id;
+          totalPagesSent += slice.length;
+          lastResult = r;
+          if (!r?.ok && isLast) {
+            failed.push({ step_id: a.step_id, error: r?.error || "falha" });
+          }
         }
-        if (procData?.processo_id) processoIdAcc = procData.processo_id;
-        const r = (procData?.results || [])[0];
-        if (r?.ok) okResults.push(r); else failed.push({ step_id: a.step_id, error: r?.error || "falha" });
+        if (lastResult?.ok) okResults.push(lastResult);
       }
       if (failed.length > 0) {
         console.warn("Anexos com falha:", failed);
