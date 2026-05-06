@@ -856,6 +856,16 @@ export default function DistribuicaoTst() {
 
             <div className="h-6 w-px bg-border mx-1" />
 
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setDelegarOpen(true)}
+                disabled={selectedIds.size === 0}
+              >
+                <UserPlus className="w-3 h-3 mr-1" /> Delegar{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+              </Button>
+            )}
             <Button
               size="sm"
               className="h-8 text-xs"
