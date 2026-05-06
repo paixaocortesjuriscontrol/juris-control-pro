@@ -5,6 +5,9 @@ import { Download, Loader2, FileText, Sparkles, CheckCircle2 } from "lucide-reac
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 interface Attachment {
   step_id: string;
@@ -48,6 +51,44 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     setSelected(v ? new Set(attachments.map((a) => a.step_id)) : new Set());
   };
 
+  const baixarAnexoParaIndexacao = async (att: Attachment) => {
+    const { data, error } = await supabase.functions.invoke("download-anexo-judit", {
+      body: {
+        cnj: att.cnj || processoNumero,
+        instance: att.instance || null,
+        attachment_id: att.step_id,
+        filename: att.attachment_name || `documento_${att.step_id}${att.extension ? `.${att.extension}` : ""}`,
+      },
+    });
+    if (error || !data?.signed_url || data?.error) {
+      throw new Error(error?.message || data?.error || "Falha ao baixar anexo");
+    }
+    return data as {
+      signed_url: string;
+      filename?: string;
+      storage_path?: string;
+      content_type?: string;
+      file_size?: number;
+    };
+  };
+
+  const extrairTextoPdfNoNavegador = async (signedUrl: string) => {
+    const fileRes = await fetch(signedUrl);
+    if (!fileRes.ok) throw new Error(`Falha ao abrir PDF: HTTP ${fileRes.status}`);
+    const arrayBuffer = await fileRes.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pagesText: string[] = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      pagesText.push(content.items.map((item: any) => item.str).join(" ").trim());
+    }
+
+    return pagesText;
+  };
+
   const processarComIA = async () => {
     if (selected.size === 0) {
       toast.warning("Selecione ao menos um anexo.");
@@ -56,20 +97,45 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     const lista = attachments.filter((a) => selected.has(a.step_id));
     setProcessing(true);
     try {
-      // Processa UM anexo por invocação para respeitar o limite de CPU do Edge Function (~2s).
+      // A extração pesada do PDF acontece no navegador; o Edge só grava o arquivo/texto no repositório de IA.
       const okResults: Array<{ step_id: string; documento_id?: string; pages?: number }> = [];
       const failed: Array<{ step_id: string; error?: string }> = [];
       let processoIdAcc: string | null = null;
       for (let i = 0; i < lista.length; i++) {
         const a = lista[i];
-        setStage(`Indexando anexo ${i + 1}/${lista.length}…`);
+        setStage(`Baixando anexo ${i + 1}/${lista.length}…`);
+        let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>> | null = null;
+        let pagesText: string[] = [];
+        try {
+          arquivo = await baixarAnexoParaIndexacao(a);
+          const isPdf = (arquivo.content_type || "").includes("pdf") || (arquivo.filename || a.attachment_name || "").toLowerCase().endsWith(".pdf");
+          if (!isPdf) throw new Error("Somente anexos PDF podem ser lidos com IA nesta rotina.");
+          setStage(`Lendo PDF ${i + 1}/${lista.length}…`);
+          pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
+          if (!pagesText.some((page) => page.trim())) {
+            throw new Error("PDF sem texto extraível no navegador.");
+          }
+        } catch (e: any) {
+          failed.push({ step_id: a.step_id, error: e?.message || "falha na leitura" });
+          continue;
+        }
+        if (!arquivo) {
+          failed.push({ step_id: a.step_id, error: "Arquivo não baixado" });
+          continue;
+        }
+
+        setStage(`Gravando texto ${i + 1}/${lista.length}…`);
         const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
           body: {
             processo_numero: processoNumero,
             processo_id: processoIdAcc,
+            source_storage_path: arquivo.storage_path,
+            content_type: arquivo.content_type,
+            file_size: arquivo.file_size,
+            pages_text: pagesText,
             attachments: [{
               step_id: a.step_id,
-              attachment_name: a.attachment_name,
+              attachment_name: arquivo.filename || a.attachment_name,
               instance: a.instance || null,
               cnj: a.cnj || processoNumero,
               extension: a.extension || null,
