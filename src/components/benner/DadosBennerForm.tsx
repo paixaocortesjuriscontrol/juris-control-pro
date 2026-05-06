@@ -41,6 +41,8 @@ interface Props {
   onProntoEnviarChange?: (v: boolean) => void;
   /** Quando true, oculta o footer com Salvar/Pronto pra Enviar (movido para o topo). */
   hideFooter?: boolean;
+  /** Sugestões de IA aplicadas a partir dos anexos. Marcadas em azul. */
+  iaSugestao?: Record<string, any> | null;
 }
 
 export interface DadosBennerFormHandle {
@@ -114,7 +116,7 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
 };
 
 export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function DadosBennerForm(
-  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false }: Props,
+  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false, iaSugestao }: Props,
   ref,
 ) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
@@ -151,6 +153,28 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   // foram intencionalmente apagados (e não estão vazios por engano).
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState<boolean>(false);
   const [partesJudit, setPartesJudit] = useState<ParteJudit[]>([]);
+  const [camposIa, setCamposIa] = useState<Set<string>>(new Set());
+
+  // Aplica sugestões da IA — preenche apenas campos vazios e os marca em azul.
+  useEffect(() => {
+    if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    setForm((prev) => {
+      const next: any = { ...prev };
+      const filled = new Set(camposIa);
+      for (const [k, v] of Object.entries(iaSugestao)) {
+        if (v === null || v === undefined) continue;
+        const cur = (prev as any)[k];
+        const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+        if (curEmpty) {
+          next[k] = v;
+          filled.add(k);
+        }
+      }
+      setCamposIa(filled);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(iaSugestao || {})]);
 
   const carregarPartesPersistidas = useCallback(async (dadosBennerId?: string | null) => {
     if (!dadosBennerId) {
