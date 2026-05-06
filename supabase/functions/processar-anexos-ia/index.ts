@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +6,7 @@ const corsHeaders = {
 };
 
 const JUDIT_LAWSUITS = "https://lawsuits.production.judit.io";
+const BUCKET = "documentos_processos";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -21,6 +21,39 @@ interface AttIn {
   instance?: string | null;
   cnj?: string | null;
   extension?: string | null;
+  source_storage_path?: string | null;
+  content_type?: string | null;
+  file_size?: number | null;
+  pages_text?: string[] | null;
+}
+
+function safeFileName(rawName: string, fallback: string) {
+  return rawName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "") || fallback;
+}
+
+function normalizePages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? "").replace(/\u0000/g, "").trim())
+    .filter(Boolean);
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 Deno.serve(async (req) => {
@@ -31,7 +64,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
@@ -43,11 +76,15 @@ Deno.serve(async (req) => {
     const processoNumero: string = String(body?.processo_numero || "").trim();
     let processoId: string | null = body?.processo_id || null;
     const attachments: AttIn[] = Array.isArray(body?.attachments) ? body.attachments : [];
+    const topLevelPages = normalizePages(body?.pages_text);
+    const topLevelSourcePath = body?.source_storage_path ? String(body.source_storage_path) : null;
+    const topLevelContentType = body?.content_type ? String(body.content_type) : null;
+    const topLevelFileSize = Number(body?.file_size || 0) || null;
+
     if (!processoNumero || attachments.length === 0) {
       return json({ error: "processo_numero e attachments são obrigatórios" }, 400);
     }
 
-    // Garante processo_id (cria se necessário) — espelha o repositório de IA usado nas outras telas.
     if (!processoId) {
       const { data: proc } = await supabase
         .from("processos")
@@ -75,49 +112,69 @@ Deno.serve(async (req) => {
         results.push({ step_id: stepId, ok: false, error: "step_id ausente" });
         continue;
       }
+
       try {
-        const cnj = String(att.cnj || processoNumero).replace(/[^0-9.-]/g, "").trim();
-        // Tenta a instância informada e faz fallback (1/2/3) — Judit nem sempre traz a instância correta.
-        const order: string[] = [];
-        const primary = att.instance ? String(att.instance) : "1";
-        order.push(primary);
-        for (const i of ["1", "2", "3"]) if (!order.includes(i)) order.push(i);
-
-        let pdfRes: Response | null = null;
-        let lastErr = "";
-        for (const inst of order) {
-          const url = `${JUDIT_LAWSUITS}/lawsuits/${encodeURIComponent(cnj)}/${inst}/attachments/${encodeURIComponent(stepId)}`;
-          const r = await fetch(url, { headers: { "api-key": juditApiKey } });
-          if (r.ok) { pdfRes = r; break; }
-          lastErr = `HTTP ${r.status}`;
-          if (r.status !== 404) break;
-        }
-        if (!pdfRes) {
-          results.push({ step_id: stepId, ok: false, error: `Anexo não encontrado (${lastErr})` });
-          continue;
-        }
-        const buf = new Uint8Array(await pdfRes.arrayBuffer());
         const rawName = String(att.attachment_name || `documento_${stepId}.${att.extension || "pdf"}`);
-        const safeName = rawName
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9._-]+/g, "_")
-          .replace(/_+/g, "_")
-          .replace(/^_+|_+$/g, "") || `documento_${stepId}.pdf`;
-
+        const safeName = safeFileName(rawName, `documento_${stepId}.pdf`);
         const storagePath = `${processoId}/judit-anexos/${stepId}_${safeName}`;
-        const { error: upErr } = await supabase.storage
-          .from("documentos_processos")
-          .upload(storagePath, buf, {
-            upsert: true,
-            contentType: pdfRes.headers.get("content-type") || "application/pdf",
-          });
-        if (upErr) {
-          results.push({ step_id: stepId, ok: false, error: "Upload falhou: " + upErr.message });
-          continue;
+        const suppliedSourcePath = att.source_storage_path || topLevelSourcePath;
+        let contentType = att.content_type || topLevelContentType || "application/pdf";
+        let fileSize = Number(att.file_size || topLevelFileSize || 0) || 0;
+        let downloadedBytes: Uint8Array | null = null;
+
+        if (suppliedSourcePath) {
+          await supabase.storage.from(BUCKET).remove([storagePath]);
+          const { error: copyErr } = await (supabase.storage.from(BUCKET) as any).copy(suppliedSourcePath, storagePath);
+          if (copyErr) {
+            const { data: sourceBlob, error: dlErr } = await supabase.storage.from(BUCKET).download(suppliedSourcePath);
+            if (dlErr || !sourceBlob) {
+              results.push({ step_id: stepId, ok: false, error: "Falha ao copiar anexo do storage: " + (copyErr.message || dlErr?.message || "") });
+              continue;
+            }
+            downloadedBytes = new Uint8Array(await sourceBlob.arrayBuffer());
+            fileSize = downloadedBytes.byteLength;
+            contentType = sourceBlob.type || contentType;
+            const { error: upErr } = await supabase.storage
+              .from(BUCKET)
+              .upload(storagePath, downloadedBytes, { upsert: true, contentType });
+            if (upErr) {
+              results.push({ step_id: stepId, ok: false, error: "Upload falhou: " + upErr.message });
+              continue;
+            }
+          }
+        } else {
+          const cnj = String(att.cnj || processoNumero).replace(/[^0-9.-]/g, "").trim();
+          const order: string[] = [];
+          const primary = att.instance ? String(att.instance) : "1";
+          order.push(primary);
+          for (const i of ["1", "2", "3"]) if (!order.includes(i)) order.push(i);
+
+          let fileRes: Response | null = null;
+          let lastErr = "";
+          for (const inst of order) {
+            const url = `${JUDIT_LAWSUITS}/lawsuits/${encodeURIComponent(cnj)}/${inst}/attachments/${encodeURIComponent(stepId)}`;
+            const r = await fetch(url, { headers: { "api-key": juditApiKey } });
+            if (r.ok) { fileRes = r; break; }
+            lastErr = `HTTP ${r.status}`;
+            if (r.status !== 404) break;
+          }
+          if (!fileRes) {
+            results.push({ step_id: stepId, ok: false, error: `Anexo não encontrado (${lastErr})` });
+            continue;
+          }
+
+          downloadedBytes = new Uint8Array(await fileRes.arrayBuffer());
+          fileSize = downloadedBytes.byteLength;
+          contentType = fileRes.headers.get("content-type") || contentType;
+          const { error: upErr } = await supabase.storage
+            .from(BUCKET)
+            .upload(storagePath, downloadedBytes, { upsert: true, contentType });
+          if (upErr) {
+            results.push({ step_id: stepId, ok: false, error: "Upload falhou: " + upErr.message });
+            continue;
+          }
         }
 
-        // Cria/recupera documento
         let documentoId: string | null = null;
         const { data: existingDoc } = await supabase
           .from("documentos")
@@ -128,8 +185,8 @@ Deno.serve(async (req) => {
         if (existingDoc?.id) {
           documentoId = existingDoc.id;
           await supabase.from("documentos").update({
-            tamanho_bytes: buf.byteLength,
-            tipo: "application/pdf",
+            tamanho_bytes: fileSize,
+            tipo: contentType,
             categoria: "anexo-judit",
           } as any).eq("id", documentoId);
         } else {
@@ -138,8 +195,8 @@ Deno.serve(async (req) => {
             .insert({
               processo_id: processoId,
               nome: safeName,
-              tipo: "application/pdf",
-              tamanho_bytes: buf.byteLength,
+              tipo: contentType,
+              tamanho_bytes: fileSize,
               uploaded_by: user.id,
               categoria: "anexo-judit",
               tipo_documento: "ANEXO_JUDIT",
@@ -153,58 +210,36 @@ Deno.serve(async (req) => {
           documentoId = newDoc.id;
         }
 
-        // Extrai texto página a página (mesma lógica do DEJT Paralela: unpdf)
-        let pagesText: string[] = [];
-        let totalPages = 0;
-        try {
-          const pdf = await getDocumentProxy(buf, { useSystemFonts: true } as any);
-          totalPages = pdf.numPages || 0;
-          for (let i = 1; i <= totalPages; i++) {
-            try {
-              const { text } = await extractText(pdf, { mergePages: false, page: i } as any);
-              const pageStr = Array.isArray(text) ? text[0] || "" : String(text || "");
-              pagesText.push(pageStr);
-            } catch (_e) {
-              pagesText.push("");
-            }
-          }
-        } catch (e: any) {
-          // Fallback: extrai tudo numa string única
-          try {
-            const pdf2 = await getDocumentProxy(buf, { useSystemFonts: true } as any);
-            const { text, totalPages: tp } = await extractText(pdf2, { mergePages: true } as any);
-            totalPages = tp || 1;
-            pagesText = [String(text || "")];
-          } catch (e2: any) {
-            results.push({ step_id: stepId, ok: false, error: "PDF sem texto extraível: " + (e2?.message || e?.message) });
-            continue;
-          }
+        let pagesText = normalizePages(att.pages_text);
+        if (pagesText.length === 0) pagesText = topLevelPages;
+        if (pagesText.length === 0 && downloadedBytes && !contentType.includes("pdf")) {
+          const decoded = new TextDecoder("utf-8").decode(downloadedBytes);
+          pagesText = [contentType.includes("html") ? stripHtml(decoded) : decoded.trim()].filter(Boolean);
+        }
+        if (pagesText.length === 0) {
+          results.push({ step_id: stepId, ok: false, error: "Nenhum texto extraído foi recebido para este anexo." });
+          continue;
         }
 
-        // Limpa páginas anteriores deste documento (reprocessamento)
         await supabase.from("documentos_texto_indexado").delete().eq("documento_id", documentoId);
 
-        const rows = pagesText
-          .map((t, idx) => ({
-            documento_id: documentoId!,
-            processo_id: processoId!,
-            pagina: idx + 1,
-            conteudo_texto: (t || "").trim(),
-          }))
-          .filter((r) => r.conteudo_texto.length > 0);
+        const rows = pagesText.map((t, idx) => ({
+          documento_id: documentoId!,
+          processo_id: processoId!,
+          pagina: idx + 1,
+          conteudo_texto: t.trim(),
+        })).filter((r) => r.conteudo_texto.length > 0);
 
-        // Insere em lotes de 50
         for (let i = 0; i < rows.length; i += 50) {
           const slice = rows.slice(i, i + 50);
           const { error: insErr } = await supabase
             .from("documentos_texto_indexado")
             .insert(slice as any);
-          if (insErr) {
-            console.warn("Insert texto falhou:", insErr.message);
-          }
+          if (insErr) console.warn("Insert texto falhou:", insErr.message);
         }
 
-        const conteudoFlat = pagesText.join("\n\n").substring(0, 60000);
+        const totalPages = pagesText.length;
+        const conteudoFlat = pagesText.map((text, idx) => `--- Página ${idx + 1} ---\n${text}`).join("\n\n").substring(0, 60000);
         await supabase.from("documentos").update({
           texto_completo_indexado: true,
           paginas_extraidas: totalPages,
