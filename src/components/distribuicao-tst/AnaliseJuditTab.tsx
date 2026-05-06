@@ -478,7 +478,11 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
             return (
               <Tabs defaultValue={defaultTab} className="w-full">
                 <TabsList>
-                  <TabsTrigger value="crawler" disabled={!hasCrawler}>
+                  <TabsTrigger
+                    value="crawler"
+                    disabled={!hasCrawler}
+                    className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  >
                     <Cloud className="w-3.5 h-3.5 mr-1" /> Crawler (mais atualizado)
                   </TabsTrigger>
                   <TabsTrigger value="cache" disabled={!hasCache}>
