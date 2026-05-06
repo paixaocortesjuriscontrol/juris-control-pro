@@ -212,10 +212,10 @@ async function runJob(
       .update({
         status: "concluido",
         finalizado_em: new Date().toISOString(),
-        novas_publicacoes: totalNovas,
-        duplicadas: totalDuplicadas,
+        registros_encontrados: totalNovas,
+        registros_processados: totalNovas + totalDuplicadas,
         erros: totalErros,
-        duracao_ms: Date.now() - startedAt,
+        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt },
       })
       .eq("id", execId);
 
@@ -230,8 +230,8 @@ async function runJob(
       .update({
         status: "falhou",
         finalizado_em: new Date().toISOString(),
-        erro_mensagem: String((e as Error)?.message || e),
-        duracao_ms: Date.now() - startedAt,
+        ultimo_erro: String((e as Error)?.message || e),
+        detalhes: { duracao_ms: Date.now() - startedAt },
       })
       .eq("id", execId);
   }
