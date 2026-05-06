@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
+import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarProcessosDialog";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useUserRole } from "@/hooks/useUserRole";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
@@ -70,7 +71,8 @@ export default function DistribuicaoTst() {
   const [editando, setEditando] = useState<DistTst | null>(null);
   // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const [delegarOpen, setDelegarOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
   
   // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
@@ -817,6 +819,11 @@ export default function DistribuicaoTst() {
                 <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
               </Button>
             </Link>
+            <Link to="/distribuicao-tst/kanban">
+              <Button variant="outline">
+                <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -884,6 +891,16 @@ export default function DistribuicaoTst() {
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
               <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setDelegarOpen(true)}
+                disabled={selectedIds.size === 0}
+              >
+                <UserPlus className="w-3 h-3 mr-1" /> Delegar{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+              </Button>
+            )}
             <BennerSimImport onUpdated={handleRefresh} />
           </div>
         )}
@@ -1271,6 +1288,12 @@ export default function DistribuicaoTst() {
           </div>
         )}
       </div>
+      <DelegarProcessosDialog
+        open={delegarOpen}
+        onOpenChange={setDelegarOpen}
+        selectedIds={Array.from(selectedIds)}
+        onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
+      />
     </MainLayout>
   );
 }
