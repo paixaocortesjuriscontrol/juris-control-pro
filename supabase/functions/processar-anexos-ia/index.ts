@@ -80,6 +80,10 @@ Deno.serve(async (req) => {
     const topLevelSourcePath = body?.source_storage_path ? String(body.source_storage_path) : null;
     const topLevelContentType = body?.content_type ? String(body.content_type) : null;
     const topLevelFileSize = Number(body?.file_size || 0) || null;
+    const chunkFirst: boolean = body?.chunk_first !== false; // default true (compat)
+    const chunkLast: boolean = body?.chunk_last !== false;   // default true (compat)
+    const pageOffset: number = Math.max(0, Number(body?.page_offset || 0) | 0);
+    const incomingDocId: string | null = body?.documento_id ? String(body.documento_id) : null;
 
     if (!processoNumero || attachments.length === 0) {
       return json({ error: "processo_numero e attachments são obrigatórios" }, 400);
@@ -122,7 +126,7 @@ Deno.serve(async (req) => {
         let fileSize = Number(att.file_size || topLevelFileSize || 0) || 0;
         let downloadedBytes: Uint8Array | null = null;
 
-        if (suppliedSourcePath) {
+        if (suppliedSourcePath && chunkFirst) {
           await supabase.storage.from(BUCKET).remove([storagePath]);
           const { error: copyErr } = await (supabase.storage.from(BUCKET) as any).copy(suppliedSourcePath, storagePath);
           if (copyErr) {
@@ -142,7 +146,7 @@ Deno.serve(async (req) => {
               continue;
             }
           }
-        } else {
+        } else if (!suppliedSourcePath && chunkFirst) {
           const cnj = String(att.cnj || processoNumero).replace(/[^0-9.-]/g, "").trim();
           const order: string[] = [];
           const primary = att.instance ? String(att.instance) : "1";
@@ -176,38 +180,42 @@ Deno.serve(async (req) => {
         }
 
         let documentoId: string | null = null;
-        const { data: existingDoc } = await supabase
-          .from("documentos")
-          .select("id")
-          .eq("processo_id", processoId)
-          .eq("nome", safeName)
-          .maybeSingle();
-        if (existingDoc?.id) {
-          documentoId = existingDoc.id;
-          await supabase.from("documentos").update({
-            tamanho_bytes: fileSize,
-            tipo: contentType,
-            categoria: "anexo-judit",
-          } as any).eq("id", documentoId);
+        if (incomingDocId) {
+          documentoId = incomingDocId;
         } else {
-          const { data: newDoc, error: docErr } = await supabase
+          const { data: existingDoc } = await supabase
             .from("documentos")
-            .insert({
-              processo_id: processoId,
-              nome: safeName,
-              tipo: contentType,
-              tamanho_bytes: fileSize,
-              uploaded_by: user.id,
-              categoria: "anexo-judit",
-              tipo_documento: "ANEXO_JUDIT",
-            } as any)
             .select("id")
-            .single();
-          if (docErr || !newDoc) {
-            results.push({ step_id: stepId, ok: false, error: "Falha ao criar documento: " + docErr?.message });
-            continue;
+            .eq("processo_id", processoId)
+            .eq("nome", safeName)
+            .maybeSingle();
+          if (existingDoc?.id) {
+            documentoId = existingDoc.id;
+            await supabase.from("documentos").update({
+              tamanho_bytes: fileSize,
+              tipo: contentType,
+              categoria: "anexo-judit",
+            } as any).eq("id", documentoId);
+          } else {
+            const { data: newDoc, error: docErr } = await supabase
+              .from("documentos")
+              .insert({
+                processo_id: processoId,
+                nome: safeName,
+                tipo: contentType,
+                tamanho_bytes: fileSize,
+                uploaded_by: user.id,
+                categoria: "anexo-judit",
+                tipo_documento: "ANEXO_JUDIT",
+              } as any)
+              .select("id")
+              .single();
+            if (docErr || !newDoc) {
+              results.push({ step_id: stepId, ok: false, error: "Falha ao criar documento: " + docErr?.message });
+              continue;
+            }
+            documentoId = newDoc.id;
           }
-          documentoId = newDoc.id;
         }
 
         let pagesText = normalizePages(att.pages_text);
@@ -221,12 +229,14 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        await supabase.from("documentos_texto_indexado").delete().eq("documento_id", documentoId);
+        if (chunkFirst && pageOffset === 0) {
+          await supabase.from("documentos_texto_indexado").delete().eq("documento_id", documentoId);
+        }
 
         const rows = pagesText.map((t, idx) => ({
           documento_id: documentoId!,
           processo_id: processoId!,
-          pagina: idx + 1,
+          pagina: pageOffset + idx + 1,
           conteudo_texto: t.trim(),
         })).filter((r) => r.conteudo_texto.length > 0);
 
@@ -238,27 +248,46 @@ Deno.serve(async (req) => {
           if (insErr) console.warn("Insert texto falhou:", insErr.message);
         }
 
-        const totalPages = pagesText.length;
-        const conteudoFlat = pagesText.map((text, idx) => `--- Página ${idx + 1} ---\n${text}`).join("\n\n").substring(0, 60000);
-        await supabase.from("documentos").update({
-          texto_completo_indexado: true,
-          paginas_extraidas: totalPages,
-          conteudo_extraido: conteudoFlat,
-        } as any).eq("id", documentoId);
+        if (chunkLast) {
+          const { count: totalPages } = await supabase
+            .from("documentos_texto_indexado")
+            .select("id", { count: "exact", head: true })
+            .eq("documento_id", documentoId);
+          const finalPages = totalPages || (pageOffset + pagesText.length);
 
-        await supabase.from("judit_anexos")
-          .update({
-            texto_indexado: true,
-            texto_indexado_em: new Date().toISOString(),
-            documento_id: documentoId,
-            processo_id: processoId,
-            storage_path: storagePath,
-            paginas_extraidas: totalPages,
-          } as any)
-          .eq("processo_numero", processoNumero)
-          .eq("attachment_id", stepId);
+          // Build flat content from indexed pages (cap to 60k)
+          const { data: pagesRows } = await supabase
+            .from("documentos_texto_indexado")
+            .select("pagina, conteudo_texto")
+            .eq("documento_id", documentoId)
+            .order("pagina", { ascending: true });
+          const conteudoFlat = (pagesRows || [])
+            .map((p: any) => `--- Página ${p.pagina} ---\n${p.conteudo_texto}`)
+            .join("\n\n")
+            .substring(0, 60000);
 
-        results.push({ step_id: stepId, ok: true, pages: totalPages, documento_id: documentoId! });
+          await supabase.from("documentos").update({
+            texto_completo_indexado: true,
+            paginas_extraidas: finalPages,
+            conteudo_extraido: conteudoFlat,
+          } as any).eq("id", documentoId);
+
+          await supabase.from("judit_anexos")
+            .update({
+              texto_indexado: true,
+              texto_indexado_em: new Date().toISOString(),
+              documento_id: documentoId,
+              processo_id: processoId,
+              storage_path: storagePath,
+              paginas_extraidas: finalPages,
+            } as any)
+            .eq("processo_numero", processoNumero)
+            .eq("attachment_id", stepId);
+
+          results.push({ step_id: stepId, ok: true, pages: finalPages, documento_id: documentoId! });
+        } else {
+          results.push({ step_id: stepId, ok: true, pages: pageOffset + pagesText.length, documento_id: documentoId! });
+        }
       } catch (e: any) {
         results.push({ step_id: stepId, ok: false, error: e?.message || String(e) });
       }
