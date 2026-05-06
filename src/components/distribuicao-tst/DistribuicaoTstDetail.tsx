@@ -54,7 +54,16 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [prontoEnviar, setProntoEnviar] = useState(false);
 
   const runJudit = async (comAnexos: boolean) => {
-    if (!formRef.current) return;
+    // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
+    // de Distribuição está desmontado e formRef.current é null. Voltamos
+    // para a aba "Distribuição TST" e aguardamos o React montar o form
+    // antes de disparar a busca — assim o botão Judit funciona em qualquer aba.
+    if (!formRef.current) {
+      setTab("distribuicao");
+      // Aguarda dois frames para garantir que o form remontou e registrou o ref
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      if (!formRef.current) return;
+    }
     if (comAnexos) setAnexos([]);
     setBuscandoJudit(true);
     try {
