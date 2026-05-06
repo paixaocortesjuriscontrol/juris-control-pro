@@ -20,8 +20,8 @@ Regras:
 - Só preencha um campo se houver evidência CLARA no texto. Não invente.
 - Para listas (matérias), use termos curtos separados por vírgula.
 - Para favorabilidade, use "POSITIVA"/"NEGATIVA" (turma) ou "POSITIVO"/"NEGATIVO" (relator).
-- Para chance de êxito use uma das: "ALTA", "MEDIA", "BAIXA".
-- Para aparelhamento use "BEM_APARELHADO" ou "MAL_APARELHADO".
+- Para chance de êxito use uma das: "PROVÁVEL", "POSSÍVEL", "REMOTA".
+- Para aparelhamento use "BEM APARELHADO" ou "MAL APARELHADO".
 - Para tema/honra use frase curta (até 200 chars).
 - Para datas, use ISO YYYY-MM-DD.
 - Devolva APENAS via tool call (preencher_formulario). Campos sem evidência devem ser omitidos do JSON.`;
