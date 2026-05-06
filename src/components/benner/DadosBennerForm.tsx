@@ -161,8 +161,16 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     setForm((prev) => {
       const next: any = { ...prev };
       const filled = new Set(camposIa);
+      const juditLocked = camposJudit;
+      const dadoJuditOk = !!(dado as any)?.judit_preenchido;
       for (const [k, v] of Object.entries(iaSugestao)) {
         if (v === null || v === undefined) continue;
+        // Nunca sobrescreve campos que a Judit já preencheu (sessão atual ou registro).
+        if (juditLocked.has(k)) continue;
+        if (dadoJuditOk) {
+          const dv = (dado as any)?.[k];
+          if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
+        }
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {
@@ -174,7 +182,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(iaSugestao || {})]);
+  }, [JSON.stringify(iaSugestao || {}), JSON.stringify(Array.from(camposJudit))]);
 
   const carregarPartesPersistidas = useCallback(async (dadosBennerId?: string | null) => {
     if (!dadosBennerId) {
