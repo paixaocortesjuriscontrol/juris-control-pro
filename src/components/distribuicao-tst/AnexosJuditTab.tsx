@@ -97,20 +97,41 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     const lista = attachments.filter((a) => selected.has(a.step_id));
     setProcessing(true);
     try {
-      // Processa UM anexo por invocação para respeitar o limite de CPU do Edge Function (~2s).
+      // A extração pesada do PDF acontece no navegador; o Edge só grava o arquivo/texto no repositório de IA.
       const okResults: Array<{ step_id: string; documento_id?: string; pages?: number }> = [];
       const failed: Array<{ step_id: string; error?: string }> = [];
       let processoIdAcc: string | null = null;
       for (let i = 0; i < lista.length; i++) {
         const a = lista[i];
-        setStage(`Indexando anexo ${i + 1}/${lista.length}…`);
+        setStage(`Baixando anexo ${i + 1}/${lista.length}…`);
+        let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>>;
+        let pagesText: string[] = [];
+        try {
+          arquivo = await baixarAnexoParaIndexacao(a);
+          const isPdf = (arquivo.content_type || "").includes("pdf") || (arquivo.filename || a.attachment_name || "").toLowerCase().endsWith(".pdf");
+          if (!isPdf) throw new Error("Somente anexos PDF podem ser lidos com IA nesta rotina.");
+          setStage(`Lendo PDF ${i + 1}/${lista.length}…`);
+          pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
+          if (!pagesText.some((page) => page.trim())) {
+            throw new Error("PDF sem texto extraível no navegador.");
+          }
+        } catch (e: any) {
+          failed.push({ step_id: a.step_id, error: e?.message || "falha na leitura" });
+          continue;
+        }
+
+        setStage(`Gravando texto ${i + 1}/${lista.length}…`);
         const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
           body: {
             processo_numero: processoNumero,
             processo_id: processoIdAcc,
+            source_storage_path: arquivo.storage_path,
+            content_type: arquivo.content_type,
+            file_size: arquivo.file_size,
+            pages_text: pagesText,
             attachments: [{
               step_id: a.step_id,
-              attachment_name: a.attachment_name,
+              attachment_name: arquivo.filename || a.attachment_name,
               instance: a.instance || null,
               cnj: a.cnj || processoNumero,
               extension: a.extension || null,
