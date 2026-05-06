@@ -113,6 +113,7 @@ export default function DistribuicaoTst() {
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
   const [filtroSemTurma, setFiltroSemTurma] = useState<boolean>(false);
+  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -138,10 +139,11 @@ export default function DistribuicaoTst() {
         dataFim: filtroDataFim || undefined,
         responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined,
         semTurma: filtroSemTurma || undefined,
+        status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
@@ -187,7 +189,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -198,6 +200,7 @@ export default function DistribuicaoTst() {
     setFiltroJudit("todos");
     setFiltroErroJudit("todos");
     setFiltroSituacaoProcesso("todos");
+    setFiltroStatus("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
