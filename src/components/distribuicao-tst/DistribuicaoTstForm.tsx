@@ -16,6 +16,7 @@ import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMulti
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { Badge } from "@/components/ui/badge";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import {
   useTurmasTst,
   useRelatoresTst,
@@ -281,15 +282,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               raw_attachment: a,
               created_by: userData?.user?.id || null,
             })).filter((r: any) => r.attachment_id);
-            // Deduplica no cliente: mesma instância + nome + data + ext = mesmo anexo.
+            // Deduplica no cliente: mesmo nome/data/ext = mesmo documento lógico,
+            // ainda que a Judit repita em instâncias diferentes ou marque como "(cópia)".
             const seen = new Set<string>();
             const rows = rowsRaw.filter((r: any) => {
-              const key = [
-                r.instance ?? "",
-                (r.attachment_name ?? "").toString().trim().toUpperCase(),
-                (r.attachment_date ?? "").toString().slice(0, 10),
-                (r.extension ?? "").toString().toLowerCase(),
-              ].join("::");
+              const key = getJuditAttachmentDedupKey(r);
               if (seen.has(key)) return false;
               seen.add(key);
               return true;
