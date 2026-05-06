@@ -84,6 +84,7 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
   if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
   if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
+  if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
   return query;
 }
 
