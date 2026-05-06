@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
+import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarProcessosDialog";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useUserRole } from "@/hooks/useUserRole";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
@@ -70,7 +71,8 @@ export default function DistribuicaoTst() {
   const [editando, setEditando] = useState<DistTst | null>(null);
   // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const [delegarOpen, setDelegarOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
   
   // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
