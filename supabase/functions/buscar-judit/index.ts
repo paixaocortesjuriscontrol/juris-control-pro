@@ -23,7 +23,9 @@ const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 1000;
 const POLL_TIMEOUT_MS = 20_000;
-const CACHE_TTL_DAYS = 7;
+// Forçar refresh do crawler — cache de 7 dias estava devolvendo dados de até 1 ano atrás
+// quando a Judit reaproveitava resultados antigos. Com 0 a Judit sempre roda o crawler.
+const CACHE_TTL_DAYS = 0;
 
 // ---------- Helpers ---------------------------------------------------------
 
@@ -423,6 +425,42 @@ serve(async (req) => {
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     const situacao = extrairSituacao(rdSelecionada);
 
+    // ---------- Reclamante / Reclamada (cruzando com a instância de origem) ----------
+    // Na instância TST as partes vêm como RECORRENTE/RECORRIDO (Active/Passive), o que
+    // NÃO equivale a reclamante/reclamada — quando o Banco recorre, ele é ACTIVE no TST
+    // mas é RECLAMADO na origem. Para evitar a inversão, identificamos reclamante/reclamada
+    // pelo person_type da instância 1 (origem). Quando não houver origem disponível,
+    // usamos a heurística pelo próprio person_type da instância selecionada.
+    const origemRdParties: any = rawCollector.cache_lookup
+      || (rawCollector.crawler?.page_data || [])
+          .map((it: any) => it?.response_data)
+          .find((rd: any) => rd && rd !== rdSelecionada);
+    const origemPartiesArr: any[] = Array.isArray(origemRdParties?.parties) ? origemRdParties.parties : [];
+    const ativosOrigem: string[] = [];
+    const passivosOrigem: string[] = [];
+    const seenOr = new Set<string>();
+    const collectByPersonType = (arr: any[]) => {
+      for (const p of arr) {
+        const pt = String(p?.person_type || "").toUpperCase();
+        if (pt === "ADVOGADO") continue;
+        const nome = String(p?.name || "").trim();
+        if (!nome) continue;
+        const doc = String(p?.main_document || "").replace(/\D/g, "");
+        const k = `${doc || nome.toUpperCase()}`;
+        if (seenOr.has(k)) continue;
+        if (/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/.test(pt)) { ativosOrigem.push(nome); seenOr.add(k); }
+        else if (/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/.test(pt)) { passivosOrigem.push(nome); seenOr.add(k); }
+      }
+    };
+    collectByPersonType(origemPartiesArr);
+    // Se origem não trouxe, tenta extrair pelo person_type da própria instância selecionada
+    if (ativosOrigem.length === 0 && passivosOrigem.length === 0) {
+      collectByPersonType(Array.isArray(rdSelecionada?.parties) ? rdSelecionada.parties : []);
+    }
+    // Último fallback: usa polo ACTIVE/PASSIVE da instância selecionada
+    const reclamanteFinal = ativosOrigem.length ? ativosOrigem.join(" / ") : (poloAtivo || null);
+    const reclamadaFinal = passivosOrigem.length ? passivosOrigem.join(" / ") : (poloPassivo || null);
+
     // Data de distribuição = data em que o processo chegou no órgão atual (instância
     // selecionada). Quando temos a instância TST, isto corresponde à data em que o
     // recurso foi distribuído lá (ex.: 10/12/2025), e NÃO à data da inicial do
@@ -518,6 +556,10 @@ serve(async (req) => {
       classe_capa: classe,
       data_distribuicao_br: dataDistBR,
       parties_detail: partiesDetail,
+      // Reclamante/Reclamada já desambiguados — frontend deve preferir esses campos
+      // ao invés de filtrar parties_detail por ACTIVE/PASSIVE.
+      reclamante: reclamanteFinal,
+      reclamada: reclamadaFinal,
 
       // Auditoria — exibida na aba Análise Judit:
       _judit_meta: {
