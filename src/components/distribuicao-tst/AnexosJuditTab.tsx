@@ -56,24 +56,34 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
     const lista = attachments.filter((a) => selected.has(a.step_id));
     setProcessing(true);
     try {
-      setStage(`Baixando e indexando ${lista.length} anexo(s)…`);
-      const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
-        body: {
-          processo_numero: processoNumero,
-          attachments: lista.map((a) => ({
-            step_id: a.step_id,
-            attachment_name: a.attachment_name,
-            instance: a.instance || null,
-            cnj: a.cnj || processoNumero,
-            extension: a.extension || null,
-          })),
-        },
-      });
-      if (procErr || procData?.error) {
-        throw new Error(procErr?.message || procData?.error || "Falha ao processar anexos");
+      // Processa UM anexo por invocação para respeitar o limite de CPU do Edge Function (~2s).
+      const okResults: Array<{ step_id: string; documento_id?: string; pages?: number }> = [];
+      const failed: Array<{ step_id: string; error?: string }> = [];
+      let processoIdAcc: string | null = null;
+      for (let i = 0; i < lista.length; i++) {
+        const a = lista[i];
+        setStage(`Indexando anexo ${i + 1}/${lista.length}…`);
+        const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
+          body: {
+            processo_numero: processoNumero,
+            processo_id: processoIdAcc,
+            attachments: [{
+              step_id: a.step_id,
+              attachment_name: a.attachment_name,
+              instance: a.instance || null,
+              cnj: a.cnj || processoNumero,
+              extension: a.extension || null,
+            }],
+          },
+        });
+        if (procErr || procData?.error) {
+          failed.push({ step_id: a.step_id, error: procErr?.message || procData?.error });
+          continue;
+        }
+        if (procData?.processo_id) processoIdAcc = procData.processo_id;
+        const r = (procData?.results || [])[0];
+        if (r?.ok) okResults.push(r); else failed.push({ step_id: a.step_id, error: r?.error || "falha" });
       }
-      const okResults = (procData?.results || []).filter((r: any) => r.ok);
-      const failed = (procData?.results || []).filter((r: any) => !r.ok);
       if (failed.length > 0) {
         console.warn("Anexos com falha:", failed);
         toast.warning(`${failed.length} anexo(s) falharam ao indexar.`);
@@ -87,7 +97,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
       setStage("Analisando peças com IA…");
       const { data: iaData, error: iaErr } = await supabase.functions.invoke("preencher-form-ia-anexos", {
         body: {
-          processo_id: procData?.processo_id || null,
+          processo_id: processoIdAcc,
           processo_numero: processoNumero,
           documento_ids: okResults.map((r: any) => r.documento_id).filter(Boolean),
         },
