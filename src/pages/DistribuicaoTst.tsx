@@ -891,6 +891,16 @@ export default function DistribuicaoTst() {
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
               <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setDelegarOpen(true)}
+                disabled={selectedIds.size === 0}
+              >
+                <UserPlus className="w-3 h-3 mr-1" /> Delegar{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+              </Button>
+            )}
             <BennerSimImport onUpdated={handleRefresh} />
           </div>
         )}
