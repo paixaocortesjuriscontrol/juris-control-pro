@@ -269,7 +269,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (atts.length > 0) {
           try {
             const { data: userData } = await supabase.auth.getUser();
-            const rows = atts.map((a: any) => ({
+            const rowsRaw = atts.map((a: any) => ({
               processo_numero: numero,
               cnj: a?.cnj || numero,
               instance: a?.instance != null ? String(a.instance) : null,
@@ -281,6 +281,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               raw_attachment: a,
               created_by: userData?.user?.id || null,
             })).filter((r: any) => r.attachment_id);
+            // Deduplica no cliente: mesma instância + nome + data + ext = mesmo anexo.
+            const seen = new Set<string>();
+            const rows = rowsRaw.filter((r: any) => {
+              const key = [
+                r.instance ?? "",
+                (r.attachment_name ?? "").toString().trim().toUpperCase(),
+                (r.attachment_date ?? "").toString().slice(0, 10),
+                (r.extension ?? "").toString().toLowerCase(),
+              ].join("::");
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
             if (rows.length > 0) {
               // Substitui a lista anterior do processo por completo.
               await supabase
