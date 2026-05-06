@@ -215,11 +215,18 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
   const handleBuscarJudit = async (comAnexosArg = false) => {
-    const numeroRaw = (form.processo_numero || "").trim();
+    // Aceita o número vindo do form OU do `dado` carregado (corrige o bug onde
+    // a 1ª tentativa falha "informe o número" porque o estado do form ainda não
+    // sincronizou com a row do banco).
+    const numeroRaw = ((form.processo_numero || (dado as any)?.processo_numero || "") as string).trim();
     const numero = aplicarMascaraCnj(numeroRaw);
     if (!numero) {
       toast.warning("Informe o número do processo antes de buscar na Judit");
       return;
+    }
+    // Garante que o form tem o número (caso o usuário tenha digitado sem blur)
+    if (!form.processo_numero || form.processo_numero !== numero) {
+      setForm(f => ({ ...f, processo_numero: numero }));
     }
     setBuscandoJudit(true);
     try {
@@ -305,23 +312,25 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // Usa `lado_efetivo` (derivado de person_type) quando disponível; cai para `polo`
       // apenas como fallback. Isso evita misturar banco/reclamante em recursos onde
       // ambos figuram como AGRAVANTE/RECORRENTE.
+      // PRIORIDADE: usa reclamante/reclamada já desambiguados pelo backend
+      // (cruzamento com person_type da instância de origem). Só faz fallback
+      // por polo ACTIVE/PASSIVE quando o backend não conseguiu identificar —
+      // ATENÇÃO: ACTIVE/PASSIVE no TST = recorrente/recorrido, NÃO reclamante/reclamada,
+      // por isso o backend é a fonte preferida.
       const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
-      const roleOriginal = (tipo: string) => /RECLAMANTE|RECLAMAD|AUTOR|AUTORA|R[ÉE]U|EXECUTAD|EXEQUENTE/i.test(tipo || "");
-      const nomesPorPolo = (poloUpper: string) =>
+      const nomesPorPersonType = (re: RegExp) =>
         [...new Set(
           partes
-            .filter((p: any) => {
-              if (p?.is_advogado) return false;
-              const efetivo = (p?.lado_efetivo || "").toString().toUpperCase();
-              const lado = efetivo || (p?.polo || "").toString().toUpperCase();
-              return lado === poloUpper;
-            })
-            .sort((a: any, b: any) => Number(roleOriginal(b?.tipo_pessoa)) - Number(roleOriginal(a?.tipo_pessoa)))
+            .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
             .map((p: any) => String(p?.nome || "").trim())
             .filter(Boolean)
         )].join(" / ");
-      const reclamanteJudit = nomesPorPolo("ACTIVE");
-      const reclamadaJudit = nomesPorPolo("PASSIVE");
+      const reclamanteJudit = (data?.reclamante && String(data.reclamante).trim())
+        || nomesPorPersonType(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i)
+        || "";
+      const reclamadaJudit = (data?.reclamada && String(data.reclamada).trim())
+        || nomesPorPersonType(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i)
+        || "";
 
       const filled = new Set<string>(juditSessionFields);
       const hasValue = (value: any) => value !== null && value !== undefined && String(value).trim() !== "";
