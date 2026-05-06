@@ -819,6 +819,11 @@ export default function DistribuicaoTst() {
                 <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
               </Button>
             </Link>
+            <Link to="/distribuicao-tst/kanban">
+              <Button variant="outline">
+                <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+              </Button>
+            </Link>
           </div>
         </div>
 
