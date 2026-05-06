@@ -250,7 +250,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           </div>
         </div>
 
-        <TabsContent value="distribuicao" className="mt-4" forceMount>
+        <TabsContent value="distribuicao" className="mt-4">
           <DistribuicaoTstForm
             ref={formRef}
             dado={dado || null}
