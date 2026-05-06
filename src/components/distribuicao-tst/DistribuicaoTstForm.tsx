@@ -215,11 +215,18 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
   const handleBuscarJudit = async (comAnexosArg = false) => {
-    const numeroRaw = (form.processo_numero || "").trim();
+    // Aceita o número vindo do form OU do `dado` carregado (corrige o bug onde
+    // a 1ª tentativa falha "informe o número" porque o estado do form ainda não
+    // sincronizou com a row do banco).
+    const numeroRaw = ((form.processo_numero || (dado as any)?.processo_numero || "") as string).trim();
     const numero = aplicarMascaraCnj(numeroRaw);
     if (!numero) {
       toast.warning("Informe o número do processo antes de buscar na Judit");
       return;
+    }
+    // Garante que o form tem o número (caso o usuário tenha digitado sem blur)
+    if (!form.processo_numero || form.processo_numero !== numero) {
+      setForm(f => ({ ...f, processo_numero: numero }));
     }
     setBuscandoJudit(true);
     try {
