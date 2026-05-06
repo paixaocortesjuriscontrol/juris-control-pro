@@ -67,7 +67,13 @@ Deno.serve(async (req) => {
     if (upErr) return json({ error: "Upload falhou: " + upErr.message }, 200);
     const { data: signed, error: signErr } = await supabase.storage.from("documentos_processos").createSignedUrl(path, 3600);
     if (signErr || !signed?.signedUrl) return json({ error: "Falha ao gerar URL: " + (signErr?.message || "") }, 200);
-    return json({ signed_url: signed.signedUrl, filename: safeName }, 200);
+    return json({
+      signed_url: signed.signedUrl,
+      filename: safeName,
+      storage_path: path,
+      content_type: contentType,
+      file_size: buf.byteLength,
+    }, 200);
   } catch (e) {
     return json({ error: (e as Error).message }, 200);
   }
