@@ -165,8 +165,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
       if (comAnexosArg) {
         const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
-        onAnexosFound?.(atts);
         // Persiste no Supabase (judit_anexos) para sobreviver a reload/nova busca.
+        // Quando a busca atual TAMBÉM é "com anexos", a lista deve ser ATUALIZADA
+        // (substituída) com o resultado mais recente — apagamos os registros
+        // antigos do mesmo processo antes de inserir os novos. Quando a Judit
+        // retorna 0 anexos nesta tentativa, preservamos a lista anterior
+        // (não apagamos nada) para não perder o que veio da consulta anterior.
         if (atts.length > 0) {
           try {
             const { data: userData } = await supabase.auth.getUser();
@@ -183,16 +187,27 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               created_by: userData?.user?.id || null,
             })).filter((r: any) => r.attachment_id);
             if (rows.length > 0) {
+              // Substitui a lista anterior do processo por completo.
               await supabase
                 .from("judit_anexos" as any)
-                .upsert(rows, { onConflict: "processo_numero,instance,attachment_id" });
+                .delete()
+                .eq("processo_numero", numero);
+              await supabase
+                .from("judit_anexos" as any)
+                .insert(rows);
             }
           } catch (e) {
             console.warn("Falha ao persistir judit_anexos:", e);
           }
         }
+        // Notifica o parent: quando vieram anexos novos, manda a lista nova;
+        // quando a busca não retornou nada, NÃO sobrescreve a lista existente
+        // (passa undefined para que o parent recarregue do Supabase).
+        if (atts.length > 0) {
+          onAnexosFound?.(atts);
+        }
         if (atts.length === 0) {
-          toast.warning("Judit não retornou anexos para este processo.");
+          toast.warning("Judit não retornou anexos nesta consulta — a lista anterior foi mantida.");
         } else {
           toast.success(`Judit retornou ${atts.length} anexo(s).`);
         }
