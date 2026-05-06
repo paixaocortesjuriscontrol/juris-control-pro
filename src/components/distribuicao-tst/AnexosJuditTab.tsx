@@ -5,6 +5,9 @@ import { Download, Loader2, FileText, Sparkles, CheckCircle2 } from "lucide-reac
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 interface Attachment {
   step_id: string;
@@ -46,6 +49,44 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
   };
   const toggleAll = (v: boolean) => {
     setSelected(v ? new Set(attachments.map((a) => a.step_id)) : new Set());
+  };
+
+  const baixarAnexoParaIndexacao = async (att: Attachment) => {
+    const { data, error } = await supabase.functions.invoke("download-anexo-judit", {
+      body: {
+        cnj: att.cnj || processoNumero,
+        instance: att.instance || null,
+        attachment_id: att.step_id,
+        filename: att.attachment_name || `documento_${att.step_id}${att.extension ? `.${att.extension}` : ""}`,
+      },
+    });
+    if (error || !data?.signed_url || data?.error) {
+      throw new Error(error?.message || data?.error || "Falha ao baixar anexo");
+    }
+    return data as {
+      signed_url: string;
+      filename?: string;
+      storage_path?: string;
+      content_type?: string;
+      file_size?: number;
+    };
+  };
+
+  const extrairTextoPdfNoNavegador = async (signedUrl: string) => {
+    const fileRes = await fetch(signedUrl);
+    if (!fileRes.ok) throw new Error(`Falha ao abrir PDF: HTTP ${fileRes.status}`);
+    const arrayBuffer = await fileRes.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pagesText: string[] = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      pagesText.push(content.items.map((item: any) => item.str).join(" ").trim());
+    }
+
+    return pagesText;
   };
 
   const processarComIA = async () => {
