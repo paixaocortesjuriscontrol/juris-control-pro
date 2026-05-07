@@ -136,6 +136,7 @@ export default function DistribuicaoTst() {
   const [filtroSemTurma, setFiltroSemTurma] = useState<boolean>(false);
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
+  const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -163,10 +164,11 @@ export default function DistribuicaoTst() {
         semTurma: filtroSemTurma || undefined,
         status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
         emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
+        problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
@@ -261,6 +263,7 @@ export default function DistribuicaoTst() {
     if (filtroSituacaoProcesso === "transito" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "transitoJulgado" as const;
     if (filtroSituacaoProcesso === "outros" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "outrosSituacao" as const;
     if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
+    if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
     return null;
   })();
 
@@ -274,6 +277,7 @@ export default function DistribuicaoTst() {
     setFiltroBenner("todos");
     setFiltroSituacaoProcesso("todos");
     setFiltroSemTurma(false);
+    setFiltroProblemaJudit("todos");
     setSelectedIds(new Set());
     if (isActive || key === "total") return;
     switch (key) {
@@ -289,6 +293,7 @@ export default function DistribuicaoTst() {
       case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
       case "outrosSituacao": setFiltroSituacaoProcesso("outros"); break;
       case "semTurma": setFiltroSemTurma(true); break;
+      case "problemaJudit": setFiltroProblemaJudit("sim"); break;
     }
   };
 
