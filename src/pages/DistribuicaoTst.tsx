@@ -1147,6 +1147,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="planilhado">Planilhado</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Em análise" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Em análise: Todos</SelectItem>
+                <SelectItem value="sim">Apenas Em análise</SelectItem>
+                <SelectItem value="nao">Não em análise</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
           <div className="flex items-center gap-2">
