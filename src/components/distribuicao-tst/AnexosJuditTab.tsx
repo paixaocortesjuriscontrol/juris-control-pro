@@ -91,15 +91,6 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
       lastErr = error?.message || data?.error || "Falha ao baixar anexo";
     }
     throw new Error(lastErr || "Falha ao baixar anexo");
-    // unreachable
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _typeHint: {
-      signed_url: string;
-      filename?: string;
-      storage_path?: string;
-      content_type?: string;
-      file_size?: number;
-    } = {} as any;
   };
 
   const extrairTextoPdfNoNavegador = async (signedUrl: string) => {
