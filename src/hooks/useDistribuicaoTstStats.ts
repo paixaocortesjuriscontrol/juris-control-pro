@@ -17,6 +17,7 @@ export interface DistribuicaoTstStats {
   transitoJulgado: number;
   outrosSituacao: number;
   semTurma: number;
+  problemaJudit: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -34,6 +35,7 @@ const ZERO: DistribuicaoTstStats = {
   transitoJulgado: 0,
   outrosSituacao: 0,
   semTurma: 0,
+  problemaJudit: 0,
 };
 
 // Mesma regra usada na coluna "Dossiê" (filtro válido/inválido)
@@ -85,14 +87,16 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
   if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
   if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
+  if ((filters as any).problemaJudit === "sim") query = query.eq("problema_judit", true);
+  else if ((filters as any).problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
   return query;
 }
 
 function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma, dados_benner_responsaveis!inner(usuario_id)"
-    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma, problema_judit, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma, problema_judit";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
@@ -169,6 +173,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           // Sem Turma
           const turma = String(r.turma || "").trim();
           if (!turma) acc.semTurma++;
+          if (r.problema_judit) acc.problemaJudit++;
         }
         if (rows.length < FETCH_SIZE) break;
         offset += FETCH_SIZE;
