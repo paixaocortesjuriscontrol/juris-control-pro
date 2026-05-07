@@ -194,7 +194,7 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   return payload;
 }
 
-export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
+export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, stickyId?: string | null) {
   const [dados, setDados] = useState<DistribuicaoTst[]>([]);
   const [responsaveisMap, setResponsaveisMap] = useState<Map<string, { id: string; nome: string }[]>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -306,9 +306,23 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       setLoading(false);
       return;
     }
-    const rows = ((data as any[]) || []).map(bennerToDistribuicao);
-    setDados(rows);
+    let rows = ((data as any[]) || []).map(bennerToDistribuicao);
     setTotalCount(count || 0);
+
+    // Se houver um registro recém-editado (sticky) que NÃO bate mais com
+    // os filtros atuais, busca-o à parte e prepende na lista para que a
+    // advogada continue vendo o que acabou de salvar.
+    if (stickyId && !rows.some((r) => r.id === stickyId)) {
+      const { data: stickyData } = await supabase
+        .from("dados_benner" as any)
+        .select("*")
+        .eq("id", stickyId)
+        .maybeSingle();
+      if (stickyData) {
+        rows = [bennerToDistribuicao(stickyData as any), ...rows];
+      }
+    }
+    setDados(rows);
 
     // Carrega responsáveis para os ids visíveis
     const visibleIds = rows.map(r => r.id);
@@ -340,7 +354,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     }
 
     setLoading(false);
-  }, [page, JSON.stringify(filters)]);
+  }, [page, JSON.stringify(filters), stickyId || ""]);
 
   useEffect(() => { fetchDados(); }, [fetchDados]);
 

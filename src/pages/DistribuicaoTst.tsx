@@ -95,6 +95,21 @@ export default function DistribuicaoTst() {
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
+  // mesmo se ele não bater mais com os filtros, e destaca a linha por alguns
+  // segundos para que a advogada localize o que mudou.
+  const [stickyId, setStickyId] = useState<string | null>(null);
+  const [highlightUntil, setHighlightUntil] = useState<number>(0);
+  useEffect(() => {
+    if (!stickyId) return;
+    const t = window.setTimeout(() => {
+      setHighlightUntil(0);
+      // Mantém o sticky até a próxima ação do usuário (mudança de filtro/página),
+      // mas tira o destaque visual após 8s para não poluir.
+    }, 8000);
+    return () => window.clearTimeout(t);
+  }, [stickyId]);
+
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
   const [filtroBenner, setFiltroBenner] = useState<string>("todos");
@@ -147,7 +162,15 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus]);
 
-  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters);
+  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
+
+  // Limpa o sticky se o usuário mexer em filtros, página ou recarregar.
+  // (Mantemos o sticky apenas para o fluxo "salvou e voltou".)
+  useEffect(() => {
+    setStickyId(null);
+    setHighlightUntil(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
@@ -746,8 +769,18 @@ export default function DistribuicaoTst() {
           <DistribuicaoTstDetail
             dado={editando}
             initialTab={detailInitialTab}
-            onSaveDistribuicao={saveDado}
-            onSaveBenner={handleSaveBenner}
+            onSaveDistribuicao={async (d, id) => {
+              const result = await saveDado(d, id);
+              const savedId = typeof result === "string" ? result : (id || null);
+              if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
+              return result;
+            }}
+            onSaveBenner={async (d, id) => {
+              const result = await handleSaveBenner(d, id);
+              const savedId = typeof result === "string" ? result : (id || null);
+              if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
+              return result;
+            }}
             onAfterJuditSync={async (newId?: string) => {
               // Após o auto-save do botão Judit, recarrega o registro atual
               // do banco e atualiza `editando` para que `judit_preenchido=true`
@@ -778,6 +811,7 @@ export default function DistribuicaoTst() {
                   judit_preenchido: !!b.judit_preenchido,
                 } as any);
               }
+              if (id) { setStickyId(id); setHighlightUntil(Date.now() + 8000); }
               handleRefresh();
             }}
             onClose={() => {
@@ -1118,7 +1152,14 @@ export default function DistribuicaoTst() {
                     : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}>
+                <TableRow
+                  key={d.id}
+                  className={cn(
+                    "cursor-pointer hover:bg-muted/50 align-middle",
+                    d.id === stickyId && highlightUntil > Date.now() && "bg-yellow-100 dark:bg-yellow-900/30 ring-1 ring-yellow-400 animate-pulse"
+                  )}
+                  onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
+                >
                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(d.id)}
