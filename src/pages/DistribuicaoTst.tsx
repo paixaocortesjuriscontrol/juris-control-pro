@@ -131,6 +131,7 @@ export default function DistribuicaoTst() {
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
   const [filtroSemTurma, setFiltroSemTurma] = useState<boolean>(false);
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
+  const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -157,10 +158,11 @@ export default function DistribuicaoTst() {
         responsavelIds: filtroResponsavelIds.length > 0 ? filtroResponsavelIds : undefined,
         semTurma: filtroSemTurma || undefined,
         status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
+        emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
@@ -214,7 +216,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -226,6 +228,7 @@ export default function DistribuicaoTst() {
     setFiltroErroJudit("todos");
     setFiltroSituacaoProcesso("todos");
     setFiltroStatus("todos");
+    setFiltroEmAnalise("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -330,6 +333,50 @@ export default function DistribuicaoTst() {
         if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
       }
       toast.success(`${ids.length} registro(s) marcado(s) como Enviado!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
+  const handleMarcarEmAnalise = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como Em análise"); return; }
+    const { data: authData } = await supabase.auth.getUser();
+    const uid = authData?.user?.id || null;
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update({ em_analise: true, em_analise_por: uid, em_analise_em: new Date().toISOString() } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao marcar Em análise: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) marcado(s) como Em análise!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
+  const handleFinalizarAnalise = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para finalizar a análise"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update({ em_analise: false, em_analise_por: null, em_analise_em: null } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao finalizar análise: " + error.message); return; }
+      }
+      toast.success(`Análise finalizada em ${ids.length} registro(s)!`);
       setSelectedIds(new Set());
       handleRefresh();
     } catch (err: any) {
@@ -937,6 +984,26 @@ export default function DistribuicaoTst() {
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
               <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              onClick={handleMarcarEmAnalise}
+              disabled={selectedIds.size === 0}
+              title="Trava esses registros como 'Em análise' — eles ficam estáveis na lista até você finalizar"
+            >
+              <Filter className="w-3 h-3 mr-1" /> Marcar Em Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleFinalizarAnalise}
+              disabled={selectedIds.size === 0}
+              title="Remove a marca 'Em análise' dos registros selecionados"
+            >
+              <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
             <BennerSimImport onUpdated={handleRefresh} />
           </div>
         )}
@@ -1080,6 +1147,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="planilhado">Planilhado</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Em análise" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Em análise: Todos</SelectItem>
+                <SelectItem value="sim">Apenas Em análise</SelectItem>
+                <SelectItem value="nao">Não em análise</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1156,7 +1233,7 @@ export default function DistribuicaoTst() {
                   key={d.id}
                   className={cn(
                     "cursor-pointer hover:bg-muted/50 align-middle",
-                    d.id === stickyId && highlightUntil > Date.now() && "bg-yellow-100 dark:bg-yellow-900/30 ring-1 ring-yellow-400 animate-pulse"
+                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
                   )}
                   onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
                 >
@@ -1193,6 +1270,11 @@ export default function DistribuicaoTst() {
                             <div className={cn("whitespace-nowrap inline-flex items-center gap-1", situacaoClass)}>
                               <span>{numero}</span>
                               <CopyButton value={numero} label="Processo" />
+                              {(d as any).em_analise && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
+                                  Em análise
+                                </Badge>
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1202,6 +1284,11 @@ export default function DistribuicaoTst() {
                         <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
                           <span>{raw}</span>
                           {raw && <CopyButton value={raw} label="Processo" />}
+                          {(d as any).em_analise && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
+                              Em análise
+                            </Badge>
+                          )}
                         </div>
                       );
                     })()}
