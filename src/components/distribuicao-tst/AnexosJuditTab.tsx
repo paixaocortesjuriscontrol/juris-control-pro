@@ -12,6 +12,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
 
 interface Attachment {
   step_id: string;
+  attachment_id?: string | null;
   attachment_name: string | null;
   attachment_date: string | null;
   extension: string | null;
@@ -75,7 +76,10 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
         body: {
           cnj: cand.cnj || processoNumero,
           instance: cand.instance || null,
-          attachment_id: cand.step_id,
+          attachment_id: cand.attachment_id || cand.step_id,
+          attachment_name: cand.attachment_name || null,
+          attachment_date: cand.attachment_date || null,
+          extension: cand.extension || null,
           filename: cand.attachment_name || `documento_${cand.step_id}${cand.extension ? `.${cand.extension}` : ""}`,
         },
       });
@@ -262,7 +266,10 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
           body: {
             cnj: cand.cnj || processoNumero,
             instance: cand.instance || null,
-            attachment_id: cand.step_id,
+            attachment_id: cand.attachment_id || cand.step_id,
+            attachment_name: cand.attachment_name || null,
+            attachment_date: cand.attachment_date || null,
+            extension: cand.extension || null,
             filename: cand.attachment_name || `documento_${cand.step_id}${cand.extension ? `.${cand.extension}` : ""}`,
           },
         });
