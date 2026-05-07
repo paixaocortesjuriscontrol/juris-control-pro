@@ -389,6 +389,9 @@ export default function DistribuicaoTst() {
       }
       toast.success(`Análise finalizada em ${ids.length} registro(s)!`);
       setSelectedIds(new Set());
+      // Os registros saem do estado "Em análise"; se o filtro continuar
+      // em "sim", a lista esvazia e parece que a tela se perdeu.
+      setFiltroEmAnalise("todos");
       handleRefresh();
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || "desconhecido"));
