@@ -53,6 +53,9 @@ export interface DistribuicaoTst {
   coordenacao_id: string | null;
   responsaveis_ids?: string[];
   observacao_advogado?: string | null;
+  em_analise?: boolean;
+  em_analise_por?: string | null;
+  em_analise_em?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +84,7 @@ export interface DistribuicaoTstFilters {
   responsavelIds?: string[];
   semTurma?: boolean;
   status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
+  emAnalise?: "todos" | "sim" | "nao";
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -126,6 +130,9 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     erro_judit: !!b.erro_judit,
     coordenacao_id: b.coordenacao_id ?? null,
     observacao_advogado: b.observacao_advogado ?? null,
+    em_analise: !!b.em_analise,
+    em_analise_por: b.em_analise_por ?? null,
+    em_analise_em: b.em_analise_em ?? null,
     created_at: b.created_at,
     updated_at: b.updated_at,
   };
@@ -235,8 +242,16 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     let query = supabase
       .from("dados_benner" as any)
       .select(selectClause, { count: "exact" })
-      .not("aba_origem", "is", null)
-      .order("created_at", { ascending: false });
+      .not("aba_origem", "is", null);
+
+    // Quando o filtro está em "Em análise: sim", ordena por em_analise_em
+    // (mais antigos primeiro) para que a lista fique estável durante o
+    // trabalho da advogada — registros editados não mudam de posição.
+    if (filters.emAnalise === "sim") {
+      query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
 
     if (hasResponsavelFilter) {
       query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
@@ -296,6 +311,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
+    if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
+    else if (filters.emAnalise === "nao") query = query.or("em_analise.is.null,em_analise.eq.false");
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
