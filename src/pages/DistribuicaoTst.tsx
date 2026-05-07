@@ -1385,11 +1385,6 @@ export default function DistribuicaoTst() {
                   <TableCell className={cn("text-xs align-middle", turmaClass)}>
                     <div className="flex items-center gap-1 flex-wrap">
                       <span>{d.turma || "—"}</span>
-                      {d.erro_judit && (
-                        <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 font-normal" title="Turma fora da composição oficial do TST (1ª-8ª Turma)">
-                          Erro Judit
-                        </Badge>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-xs align-middle">
