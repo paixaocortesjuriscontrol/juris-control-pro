@@ -85,6 +85,7 @@ export interface DistribuicaoTstFilters {
   semTurma?: boolean;
   status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
   emAnalise?: "todos" | "sim" | "nao";
+  problemaJudit?: "todos" | "sim" | "nao";
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
