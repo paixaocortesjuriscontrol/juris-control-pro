@@ -48,13 +48,11 @@ function collectAttachmentCandidates(payload: any, wanted: { id: string; name?: 
 
   const maybeAdd = (a: any, rd: any, step?: any) => {
     const ids: string[] = [];
-    // O endpoint da Judit usa o ID do andamento (`step_id`) para baixar o anexo;
-    // alguns payloads também trazem `id`/`attachment_id`, mas esses podem dar 404.
+    uniquePush(ids, a?.attachment_id);
+    uniquePush(ids, a?.id);
     uniquePush(ids, a?.step_id);
     uniquePush(ids, step?.step_id);
     uniquePush(ids, step?.id);
-    uniquePush(ids, a?.attachment_id);
-    uniquePush(ids, a?.id);
 
     if (!ids.length) return;
     const name = normalizeAttachmentKey(a?.attachment_name || a?.name || a?.title);
@@ -63,6 +61,7 @@ function collectAttachmentCandidates(payload: any, wanted: { id: string; name?: 
     const idMatches = ids.includes(wanted.id);
     const metaMatches = !!wantedName && name === wantedName && (!wantedDate || date === wantedDate) && (!wantedExt || ext === wantedExt);
     if (!idMatches && !metaMatches) return;
+    if (String(a?.status || "done").toLowerCase() !== "done" || a?.corrupted === true) return;
 
     out.push({ ids, instances: instanceCandidates(rd?.instance || rd?.crawler?.instance) });
   };
