@@ -49,12 +49,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [anexos, setAnexos] = useState<any[] | null>(null);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [comAnexos, setComAnexos] = useState(false);
+  // Contador ao vivo (segundos decorridos) durante a busca Judit, para o
+  // usuário perceber o progresso e não achar que travou.
+  const [juditElapsed, setJuditElapsed] = useState(0);
+  useEffect(() => {
+    if (!buscandoJudit) { setJuditElapsed(0); return; }
+    const start = Date.now();
+    const id = window.setInterval(() => setJuditElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    return () => window.clearInterval(id);
+  }, [buscandoJudit]);
   const formRef = useRef<DistribuicaoTstFormHandle>(null);
   const bennerFormRef = useRef<DadosBennerFormHandle>(null);
   const [savingTop, setSavingTop] = useState(false);
   const [prontoEnviar, setProntoEnviar] = useState(false);
 
-  const runJudit = async (comAnexos: boolean) => {
+  const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
     // de Distribuição está desmontado e formRef.current é null. Voltamos
     // para a aba "Distribuição TST" e aguardamos o React montar o form
@@ -68,7 +77,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     if (comAnexos) setAnexos([]);
     setBuscandoJudit(true);
     try {
-      await formRef.current.runJudit(comAnexos);
+      await formRef.current.runJudit(comAnexos, forceRefresh);
       if (comAnexos) {
         // Após a busca, recarrega do Supabase para refletir o que foi persistido.
         await reloadAnexos();
@@ -290,12 +299,25 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             </label>
             <Button
               variant="outline"
-              onClick={() => runJudit(comAnexos)}
+              onClick={() => runJudit(comAnexos, false)}
               disabled={buscandoJudit || !processoNumero}
               className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              title="Usa cache do dia quando disponível (mais rápido)"
             >
               {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-              Judit
+              {buscandoJudit
+                ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
+                : "Judit"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => runJudit(comAnexos, true)}
+              disabled={buscandoJudit || !processoNumero}
+              title="Ignora cache e força nova consulta na Judit (mais lento)"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Forçar atualização
             </Button>
           </div>
         </div>

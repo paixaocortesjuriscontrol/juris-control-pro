@@ -1,78 +1,80 @@
 ## Objetivo
-Garantir que o **DJET Pautas Paralela** rode todo dia no horário configurado, mesmo sem nenhuma aba aberta, via `pg_cron` + edge function, mantendo o scheduler client-side existente em paralelo (com trava para não rodar em duplicidade).
 
-## Arquitetura
+Reduzir o tempo percebido das buscas Judit em **Distribuição TST**, atacando os dois lados:
+1. **Repetições no mesmo processo** ficam quase instantâneas (cache).
+2. **Primeira busca** continua existindo, mas com **feedback visual claro de progresso** e sem voltar vazia por timeout curto.
 
-```text
-pg_cron (a cada 5min)
-   └─► net.http_post → edge function "executar-djet-pautas-agendado"
-                            │
-                            ├─ lê configuracoes_monitoramento (tipo='djet_pautas')
-                            │  → ativo? horário casa com agora (BRT, ±5min)?
-                            │  → trava do dia já existe em execucoes_agendadas?
-                            │
-                            ├─ cria registro em execucoes_agendadas (tipo='djet_pautas', status='executando')
-                            │
-                            ├─ carrega monitoramentos ativos (mesma query do engine)
-                            │
-                            ├─ loop tribunal × dia (hoje BRT)
-                            │     └─ chama buscar-dejt-pautas (já existe)
-                            │     └─ insere matches em publicacoes_djen (tipo='pauta', fonte='dejt-pdf')
-                            │
-                            └─ finaliza execucoes_agendadas (status='concluido', finalizado_em=now())
-```
+Sem mexer na UI fora do botão Judit (filtros, lista, formulários permanecem iguais).
 
-O scheduler client-side (`useDjetPautasParalelaScheduler`) já consulta `execucoes_agendadas` antes de disparar — bastará garantir que ele respeite uma execução `'djet_pautas'` em andamento/concluída no dia (trava compartilhada).
+---
 
 ## Mudanças
 
-### 1. Banco (migration)
-- Garantir que o CHECK de `execucoes_agendadas.tipo` aceite `'djet_pautas'` (verificar; se não aceitar, expandir).
-- Índice/uniqueness lógica: usaremos consulta `WHERE tipo='djet_pautas' AND date(criado_em AT TIME ZONE 'America/Sao_Paulo') = current_date_brt` para a trava (nada novo precisa ser criado se já existir índice por tipo+criado_em).
+### 1. Cache controlado da Judit (backend)
 
-### 2. Nova edge function `executar-djet-pautas-agendado`
-- `verify_jwt = false` (chamada por pg_cron com apikey).
-- Lógica:
-  1. Lê `configuracoes_monitoramento` (`tipo='djet_pautas'`). Se `ativo=false`, sai.
-  2. Compara `horarios_execucao[0]` com hora atual BRT — só prossegue se `agora ∈ [target, target+10min]`.
-  3. Verifica trava do dia em `execucoes_agendadas` (tipo `djet_pautas`). Se já existe execução do dia (qualquer status), sai.
-  4. Insere registro `executando`.
-  5. Carrega `monitoramentos_djen` (ativos) — mesma query do engine.
-  6. Para cada tribunal (TST + TRT1..TRT24) chama `buscar-dejt-pautas` (interno) com `dataDDMMYYYY` = hoje BRT.
-  7. Para cada match retornado, faz upsert em `publicacoes_djen` (mesma forma do engine: `tipo_publicacao='pauta'`, `fonte='dejt-pdf'`, hash).
-  8. Atualiza `execucoes_agendadas` com `status='concluido'`, contadores e `ultima_execucao` em `configuracoes_monitoramento`.
-  9. Em erro, marca `status='erro'` com `erro_mensagem`.
-- Timeout/sequencial: processa tribunais em série (concorrência = 1, igual à UI) com pequeno delay entre dias para não estourar o limite de execução; retorna 202 imediatamente após criar o lock e roda o loop em `EdgeRuntime.waitUntil(...)` (background task) para não exceder o timeout do pg_cron.
+Arquivo: `supabase/functions/buscar-judit/index.ts`
 
-### 3. Agendamento (`pg_cron` + `pg_net`)
-- Habilitar extensões `pg_cron` e `pg_net`.
-- Job rodando a cada 5 minutos:
-  ```sql
-  select cron.schedule(
-    'djet-pautas-trigger-5min',
-    '*/5 * * * *',
-    $$ select net.http_post(
-         url:='https://bfxahrrvoqxcdmfsvnrk.supabase.co/functions/v1/executar-djet-pautas-agendado',
-         headers:='{"Content-Type":"application/json","apikey":"<ANON>"}'::jsonb,
-         body:='{}'::jsonb
-       ); $$
-  );
-  ```
-- Como o cron roda a cada 5min e a edge function só executa se a hora atual BRT casar com `horarios_execucao[0]` (janela de 10min) **e** não houver lock do dia, isso permite que o usuário mude o horário pela UI sem mexer no cron.
+- Subir `CACHE_TTL_DAYS` de **0 → 1** (busca repetida no mesmo dia volta do cache da Judit em ~1–2s).
+- Aceitar parâmetro novo `force_refresh: boolean` no body. Quando `true`, envia `cache_ttl_in_days: 0` (comportamento atual). Quando ausente/false, usa `1`.
+- Garantir que `cache_ttl_in_days` é enviado **também** quando `with_attachments=true` (hoje só está no caminho sem anexos).
 
-### 4. Scheduler client-side (mínimo ajuste)
-- `useDjetPautasParalelaScheduler.checkAndRun` já consulta `isDjetPautasParalelaRunning()`; adicionar checagem em `execucoes_agendadas` (tipo `djet_pautas`, status `executando` OU `concluido` no dia BRT) para evitar disparo duplicado quando o servidor já rodou.
+### 2. Timeout maior + feedback de etapas (backend)
 
-### 5. Manter intacto
-- Edge function `buscar-dejt-pautas`: nenhuma mudança.
-- UI do DJET Pautas Paralela: nenhuma mudança — continua salvando horário em `configuracoes_monitoramento`.
-- `useDjetPautasParalelaEngine`: nenhuma mudança.
+Mesmo arquivo:
+- `POLL_TIMEOUT_MS`: **20s → 60s** (Judit costuma completar em 8–25s; 20s estava cortando antes).
+- `POLL_INTERVAL_MS`: manter 1000ms.
+- Retornar campo extra `_meta.elapsed_ms` na resposta para diagnóstico.
+- Em 429 (rate limit), backoff exponencial 3s/6s/12s com no máx. 3 tentativas (hoje só dorme 3s e continua).
 
-## Resultado
-- Com a aba fechada: pg_cron dispara a edge function a cada 5min; quando bate o horário configurado, ela executa no servidor e grava em `publicacoes_djen`.
-- Com a aba aberta: o client-side vê o lock em `execucoes_agendadas` e não duplica.
-- Mudar o horário pela UI continua sendo a única ação necessária do usuário.
+### 3. Botão Judit com indicador de progresso (frontend)
 
-## Pontos a confirmar antes de implementar
-- `execucoes_agendadas.tipo` aceita `'djet_pautas'`? (vou verificar e estender a CHECK constraint via migration se necessário).
-- A inserção em `publicacoes_djen` exige algum campo extra além dos usados pelo engine atual (vou espelhar 1:1).
+Arquivo: `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`
+
+- Substituir o estado `buscandoJudit` (boolean) por estado com **fases visíveis no botão**:
+  - "Consultando Judit…" (0–3s)
+  - "Aguardando crawler… (Xs)" (contador ao vivo a cada 1s)
+  - "Processando resposta…" (após receber)
+- Adicionar **botão secundário "Forçar atualização"** ao lado do Judit (envia `force_refresh: true`). O botão Judit padrão usa cache.
+- Mensagem de erro específica para timeout: "A Judit demorou mais que o normal. Tente novamente em alguns segundos — o resultado pode já estar em cache."
+
+### 4. Não bloquear gravação do log em caso de timeout
+
+Hoje, se a função volta vazia, o frontend grava log como "sucesso". Ajustar para classificar como `timeout` quando a resposta vier sem `request_status=completed`, para não poluir métricas.
+
+---
+
+## Detalhes técnicos
+
+| Constante | Antes | Depois |
+|---|---|---|
+| `CACHE_TTL_DAYS` (default) | 0 | 1 |
+| `CACHE_TTL_DAYS` (force_refresh=true) | — | 0 |
+| `POLL_TIMEOUT_MS` | 20 000 | 60 000 |
+| Retry em 429 | 1× / 3s | 3× / 3s, 6s, 12s |
+
+Payload novo do `invoke("buscar-judit")`:
+```json
+{ "numero_processo": "...", "tribunal": "TST", "com_anexos": false, "force_refresh": false }
+```
+
+Estados do botão Judit (frontend):
+```
+ocioso → "consultando" → "aguardando_crawler" (com contador) → "processando" → ocioso
+```
+
+---
+
+## O que NÃO muda
+
+- Lista, filtros, paginação, sticky highlight (já implementado).
+- Comportamento da aba "Anexos" e do download.
+- RLS, schema do banco, edge functions de download/sincronização.
+- `consultar-processo-judit` (usado em outros fluxos) fica intocada.
+
+---
+
+## Ganho esperado
+
+- 2ª busca em diante no mesmo processo/dia: **~1–3s** (vs. 15–25s hoje).
+- 1ª busca: tempo igual ao atual, mas o usuário vê progresso e o sistema não erra por timeout curto.
+- Botão "Forçar atualização" disponível quando a advogada precisa ignorar cache (raro).
