@@ -82,6 +82,9 @@ export default function DistribuicaoTst() {
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
+  // Quando ligado, o "Preencher com Judit" em lote chama a Judit com
+  // with_attachments=true (consulta cara). Default false para preservar quota.
+  const [bulkComAnexos, setBulkComAnexos] = useState(false);
 
   const scrollPageToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
