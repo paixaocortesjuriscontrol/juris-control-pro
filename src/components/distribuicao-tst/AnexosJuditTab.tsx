@@ -10,6 +10,26 @@ import { dedupeJuditAttachments, getJuditAttachmentDedupKey } from "@/lib/juditA
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
+const formatarDataAnexo = (raw?: string | null): string => {
+  if (!raw) return "—";
+  const s = String(raw).trim();
+  // Tenta ISO ou outros formatos parseáveis
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    const temHora = /\d{2}:\d{2}/.test(s);
+    return temHora ? `${dd}/${mm}/${yyyy} às ${hh}:${mi}` : `${dd}/${mm}/${yyyy}`;
+  }
+  // Fallback: YYYY-MM-DD puro
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
+};
+
 interface Attachment {
   step_id: string;
   attachment_id?: string | null;
@@ -350,7 +370,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                {att.attachment_date || "—"} {att.extension ? ` · .${att.extension}` : ""}
+                {formatarDataAnexo(att.attachment_date)}{att.extension ? ` · .${att.extension}` : ""}
               </p>
             </div>
           </div>
