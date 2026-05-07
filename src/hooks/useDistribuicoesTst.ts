@@ -314,6 +314,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (filters.emAnalise === "nao") query = query.or("em_analise.is.null,em_analise.eq.false");
+    if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
+    else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
