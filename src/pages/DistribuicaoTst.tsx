@@ -340,6 +340,50 @@ export default function DistribuicaoTst() {
     }
   };
 
+  const handleMarcarEmAnalise = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para marcar como Em análise"); return; }
+    const { data: authData } = await supabase.auth.getUser();
+    const uid = authData?.user?.id || null;
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update({ em_analise: true, em_analise_por: uid, em_analise_em: new Date().toISOString() } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao marcar Em análise: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) marcado(s) como Em análise!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
+  const handleFinalizarAnalise = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para finalizar a análise"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update({ em_analise: false, em_analise_por: null, em_analise_em: null } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao finalizar análise: " + error.message); return; }
+      }
+      toast.success(`Análise finalizada em ${ids.length} registro(s)!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
   // Open Dados Benner form for a distribuição row
   const handleOpenBenner = async (dist: DistTst) => {
     // Abre o detalhe unificado já posicionado na aba "Dados Benner".
