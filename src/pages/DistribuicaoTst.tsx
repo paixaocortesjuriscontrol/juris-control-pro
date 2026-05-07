@@ -357,6 +357,7 @@ export default function DistribuicaoTst() {
       }
       toast.success(`${ids.length} registro(s) marcado(s) como Em análise!`);
       setSelectedIds(new Set());
+      setFiltroEmAnalise("sim");
       handleRefresh();
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || "desconhecido"));
