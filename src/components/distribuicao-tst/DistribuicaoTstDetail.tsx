@@ -227,6 +227,15 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setProblemaJudit(!!(bennerDado as any)?.problema_judit);
   }, [bennerDado]);
 
+  // Carrega o registro Benner ao abrir o detalhe (independente da aba), para
+  // que o switch "Problema Judit" reflita o valor real e o save consiga
+  // localizar a linha em dados_benner.
+  useEffect(() => {
+    if (!bennerLoaded && processoNumero) {
+      void fetchBennerByProcesso();
+    }
+  }, [bennerLoaded, processoNumero, fetchBennerByProcesso]);
+
   const handleSaveTop = async () => {
     setSavingTop(true);
     try {
@@ -251,18 +260,23 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       }
       // Persiste o flag "Problema Judit" se alterado em relação ao banco.
       const currentProblema = !!(bennerDado as any)?.problema_judit;
-      if (currentProblema !== problemaJudit && (bennerDado as any)?.id) {
+      if (currentProblema !== problemaJudit) {
         const { data: authData } = await supabase.auth.getUser();
         const uid = authData?.user?.id || null;
-        await supabase
-          .from("dados_benner" as any)
-          .update({
-            problema_judit: problemaJudit,
-            problema_judit_em: problemaJudit ? new Date().toISOString() : null,
-            problema_judit_por: problemaJudit ? uid : null,
-          } as any)
-          .eq("id", (bennerDado as any).id);
-        setBennerLoaded(false);
+        const payload = {
+          problema_judit: problemaJudit,
+          problema_judit_em: problemaJudit ? new Date().toISOString() : null,
+          problema_judit_por: problemaJudit ? uid : null,
+        } as any;
+        const targetId = (bennerDado as any)?.id;
+        const { error: updErr } = targetId
+          ? await supabase.from("dados_benner" as any).update(payload).eq("id", targetId)
+          : await supabase.from("dados_benner" as any).update(payload).eq("processo", processoNumero);
+        if (updErr) {
+          toast.error("Erro ao salvar Problema Judit: " + updErr.message);
+        } else {
+          setBennerLoaded(false);
+        }
       }
     } finally {
       setSavingTop(false);
