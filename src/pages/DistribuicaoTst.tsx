@@ -1270,6 +1270,11 @@ export default function DistribuicaoTst() {
                             <div className={cn("whitespace-nowrap inline-flex items-center gap-1", situacaoClass)}>
                               <span>{numero}</span>
                               <CopyButton value={numero} label="Processo" />
+                              {(d as any).em_analise && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
+                                  Em análise
+                                </Badge>
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1279,6 +1284,11 @@ export default function DistribuicaoTst() {
                         <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
                           <span>{raw}</span>
                           {raw && <CopyButton value={raw} label="Processo" />}
+                          {(d as any).em_analise && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
+                              Em análise
+                            </Badge>
+                          )}
                         </div>
                       );
                     })()}
