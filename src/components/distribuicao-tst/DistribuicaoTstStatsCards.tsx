@@ -16,7 +16,8 @@ export type StatsCardKey =
   | "processosAtivos"
   | "transitoJulgado"
   | "outrosSituacao"
-  | "semTurma";
+  | "semTurma"
+  | "problemaJudit";
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -48,6 +49,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "transitoJulgado", label: "Trânsito em Julgado", value: stats.transitoJulgado, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-600 dark:text-amber-400" },
     { key: "outrosSituacao", label: "Outros", value: stats.outrosSituacao, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-200 dark:border-zinc-800", textClass: "text-zinc-600 dark:text-zinc-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
+    { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
   ];
 
   return (
