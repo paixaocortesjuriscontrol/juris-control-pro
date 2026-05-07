@@ -542,6 +542,7 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     coordenacao_id: m.coordenacaoId,
     hash_conteudo: m.hash,
     data_publicacao: m.dataPublicacao,
+    data_disponibilizacao: m.dataPublicacao,
     processo_numero: m.processo,
     conteudo: m.conteudo,
     fonte: m.fonte,
