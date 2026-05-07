@@ -62,6 +62,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const bennerFormRef = useRef<DadosBennerFormHandle>(null);
   const [savingTop, setSavingTop] = useState(false);
   const [prontoEnviar, setProntoEnviar] = useState(false);
+  const [problemaJudit, setProblemaJudit] = useState(false);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
@@ -221,6 +222,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setProntoEnviar((bennerDado as any)?.status === "pronto_envio");
   }, [bennerDado]);
 
+  // Sincroniza o switch "Problema Judit" com o registro Benner.
+  useEffect(() => {
+    setProblemaJudit(!!(bennerDado as any)?.problema_judit);
+  }, [bennerDado]);
+
   const handleSaveTop = async () => {
     setSavingTop(true);
     try {
@@ -243,6 +249,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           setBennerLoaded(false);
         }
       }
+      // Persiste o flag "Problema Judit" se alterado em relação ao banco.
+      const currentProblema = !!(bennerDado as any)?.problema_judit;
+      if (currentProblema !== problemaJudit && (bennerDado as any)?.id) {
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id || null;
+        await supabase
+          .from("dados_benner" as any)
+          .update({
+            problema_judit: problemaJudit,
+            problema_judit_em: problemaJudit ? new Date().toISOString() : null,
+            problema_judit_por: problemaJudit ? uid : null,
+          } as any)
+          .eq("id", (bennerDado as any).id);
+        setBennerLoaded(false);
+      }
     } finally {
       setSavingTop(false);
     }
@@ -256,13 +277,22 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         </Button>
         <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
         <div className="ml-auto flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={prontoEnviar}
-              onCheckedChange={setProntoEnviar}
-              disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado"}
-            />
-            <Label className="text-sm font-medium">Pronto para Enviar</Label>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={prontoEnviar}
+                onCheckedChange={setProntoEnviar}
+                disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado"}
+              />
+              <Label className="text-sm font-medium">Pronto para Enviar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={problemaJudit}
+                onCheckedChange={setProblemaJudit}
+              />
+              <Label className="text-sm font-medium text-amber-700 dark:text-amber-400">Problema Judit</Label>
+            </div>
           </div>
           <Button onClick={handleSaveTop} disabled={savingTop}>
             {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
