@@ -180,3 +180,7 @@ export function useDjetPautasParalelaScheduler() {
     setTime: (h: number, m: number) => getScheduler().setTime(h, m),
   };
 }
+
+export function getDjetPautasParalelaSchedulerStatus(): DjetPautasSchedulerStatus {
+  return getScheduler().getStatus();
+}
