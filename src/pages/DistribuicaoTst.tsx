@@ -28,6 +28,7 @@ import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarProcessosDialog";
 import { CopyButton } from "@/components/ui/copy-button";
+import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
