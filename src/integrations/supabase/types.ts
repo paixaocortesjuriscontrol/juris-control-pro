@@ -1578,6 +1578,9 @@ export type Database = {
           posicao_turma_desfavoravel: boolean | null
           posicao_turma_favoravel: boolean | null
           prazo_entrega: string | null
+          problema_judit: boolean
+          problema_judit_em: string | null
+          problema_judit_por: string | null
           processo: string | null
           processo_baixado: string | null
           provas_digitais: string | null
@@ -1664,6 +1667,9 @@ export type Database = {
           posicao_turma_desfavoravel?: boolean | null
           posicao_turma_favoravel?: boolean | null
           prazo_entrega?: string | null
+          problema_judit?: boolean
+          problema_judit_em?: string | null
+          problema_judit_por?: string | null
           processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null
@@ -1750,6 +1756,9 @@ export type Database = {
           posicao_turma_desfavoravel?: boolean | null
           posicao_turma_favoravel?: boolean | null
           prazo_entrega?: string | null
+          problema_judit?: boolean
+          problema_judit_em?: string | null
+          problema_judit_por?: string | null
           processo?: string | null
           processo_baixado?: string | null
           provas_digitais?: string | null

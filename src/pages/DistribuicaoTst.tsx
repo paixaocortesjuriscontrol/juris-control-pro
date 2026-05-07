@@ -82,6 +82,9 @@ export default function DistribuicaoTst() {
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
+  // Quando ligado, o "Preencher com Judit" em lote chama a Judit com
+  // with_attachments=true (consulta cara). Default false para preservar quota.
+  const [bulkComAnexos, setBulkComAnexos] = useState(false);
 
   const scrollPageToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -553,7 +556,7 @@ export default function DistribuicaoTst() {
         setBulkJuditProgress({ current: i + 1, total: unique.length });
 
         try {
-          const requestPayload = { numero_processo: aplicarMascaraCnj(proc.processo_numero), tribunal: "TST", com_anexos: false };
+          const requestPayload = { numero_processo: aplicarMascaraCnj(proc.processo_numero), tribunal: "TST", com_anexos: bulkComAnexos };
           const { data: juditData, error: juditError } = await supabase.functions.invoke("buscar-judit", {
             body: requestPayload,
           });
@@ -970,6 +973,17 @@ export default function DistribuicaoTst() {
                   ? `Preencher c/ Judit (${selectedIds.size})`
                   : "Preencher com Judit"}
             </Button>
+            <label
+              className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1"
+              title="Inclui a lista de anexos do processo (consulta Judit mais cara)."
+            >
+              <Checkbox
+                checked={bulkComAnexos}
+                onCheckedChange={(v) => setBulkComAnexos(v === true)}
+                disabled={bulkJuditRunning}
+              />
+              Com anexos
+            </label>
             {bulkJuditRunning && (
               <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => { bulkAbortRef.current = true; }}>
                 <X className="w-3 h-3 mr-1" /> Cancelar
