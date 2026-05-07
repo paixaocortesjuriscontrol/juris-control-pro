@@ -392,7 +392,10 @@ serve(async (req) => {
     if (!numero) return json({ error: "numero_processo é obrigatório" }, 400);
     const tribunalHint = String(body?.tribunal || "").trim().toUpperCase() || null;
     const comAnexos = body?.com_anexos === true;
-    console.log(`[buscar-judit] modo=${comAnexos ? "COM_ANEXOS (caro)" : "sem anexos"} cnj=${numero}`);
+    const forceRefresh = body?.force_refresh === true;
+    const cacheTtlDays = forceRefresh ? 0 : CACHE_TTL_DAYS_DEFAULT;
+    const t0 = Date.now();
+    console.log(`[buscar-judit] modo=${comAnexos ? "COM_ANEXOS (caro)" : "sem anexos"} cnj=${numero} cache_ttl=${cacheTtlDays}d`);
 
     // Normaliza o CNJ para o formato canônico exigido pela Judit:
     // NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos com máscara). A Judit rejeita
@@ -420,7 +423,7 @@ serve(async (req) => {
     let rdSelecionada: any = null;
     let foiTst = false;
 
-    const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos);
+    const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos, cacheTtlDays);
     if (reqId) {
       const envelope = await juditPollar(apiKey, reqId);
       if (envelope) {
@@ -603,6 +606,9 @@ serve(async (req) => {
         tribunal_selecionado: rdSelecionada?.tribunal_acronym || null,
         instance_selecionada: rdSelecionada?.instance || null,
         com_anexos: comAnexos,
+        force_refresh: forceRefresh,
+        cache_ttl_days: cacheTtlDays,
+        elapsed_ms: Date.now() - t0,
       },
       attachments: comAnexos
         ? coletarAttachments(rdSelecionada, rawCollector, cnj)
