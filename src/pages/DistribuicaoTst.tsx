@@ -769,8 +769,18 @@ export default function DistribuicaoTst() {
           <DistribuicaoTstDetail
             dado={editando}
             initialTab={detailInitialTab}
-            onSaveDistribuicao={saveDado}
-            onSaveBenner={handleSaveBenner}
+            onSaveDistribuicao={async (d, id) => {
+              const result = await saveDado(d, id);
+              const savedId = typeof result === "string" ? result : (id || null);
+              if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
+              return result;
+            }}
+            onSaveBenner={async (d, id) => {
+              const result = await handleSaveBenner(d, id);
+              const savedId = typeof result === "string" ? result : (id || null);
+              if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
+              return result;
+            }}
             onAfterJuditSync={async (newId?: string) => {
               // Após o auto-save do botão Judit, recarrega o registro atual
               // do banco e atualiza `editando` para que `judit_preenchido=true`
@@ -801,6 +811,7 @@ export default function DistribuicaoTst() {
                   judit_preenchido: !!b.judit_preenchido,
                 } as any);
               }
+              if (id) { setStickyId(id); setHighlightUntil(Date.now() + 8000); }
               handleRefresh();
             }}
             onClose={() => {
