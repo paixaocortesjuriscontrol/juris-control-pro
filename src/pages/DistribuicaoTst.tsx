@@ -583,6 +583,49 @@ export default function DistribuicaoTst() {
           const recorrenteJudit = getJuditPartesResumo(juditData, proc.parte_recorrente);
           const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
 
+          // Quando a busca em lote foi solicitada COM ANEXOS, persiste a lista
+          // em judit_anexos exatamente como o botão individual do formulário.
+          if (bulkComAnexos) {
+            const atts = Array.isArray((juditData as any)?.attachments) ? (juditData as any).attachments : [];
+            if (atts.length > 0) {
+              try {
+                const numeroMasc = aplicarMascaraCnj(proc.processo_numero);
+                const rowsRaw = atts.map((a: any) => ({
+                  processo_numero: proc.processo_numero,
+                  cnj: a?.cnj || numeroMasc,
+                  instance: a?.instance != null ? String(a.instance) : null,
+                  attachment_id: String(a?.step_id || a?.attachment_id || ""),
+                  step_id: a?.step_id ? String(a.step_id) : null,
+                  attachment_name: a?.attachment_name || null,
+                  attachment_date: a?.attachment_date || null,
+                  extension: a?.extension || null,
+                  status: a?.status || "done",
+                  corrupted: a?.corrupted ?? false,
+                  raw_attachment: a,
+                  created_by: bulkUserId,
+                })).filter((r: any) => r.attachment_id);
+                const seen = new Set<string>();
+                const rows = rowsRaw.filter((r: any) => {
+                  const key = getJuditAttachmentDedupKey(r);
+                  if (seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+                if (rows.length > 0) {
+                  await supabase
+                    .from("judit_anexos" as any)
+                    .delete()
+                    .eq("processo_numero", proc.processo_numero);
+                  await supabase
+                    .from("judit_anexos" as any)
+                    .insert(rows);
+                }
+              } catch (e) {
+                console.warn("[bulk-judit] Falha ao persistir judit_anexos:", e);
+              }
+            }
+          }
+
           // Mesma extração do formulário individual: nomes por polo (sem advogados)
           const nomesPorPolo = (poloUpper: string) =>
             [...new Set(
