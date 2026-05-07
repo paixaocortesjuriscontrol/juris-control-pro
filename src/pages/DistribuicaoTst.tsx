@@ -801,6 +801,9 @@ export default function DistribuicaoTst() {
       toast.error("Erro no preenchimento em massa: " + (err?.message || "Erro desconhecido"));
     }
     setBulkJuditRunning(false);
+    // Recarrega a lista e os stats para refletir judit_preenchido / dados atualizados
+    try { await fetchDados(); } catch {}
+    try { refetchStats(); } catch {}
   };
 
   const formatDate = (d: string | null) => {
