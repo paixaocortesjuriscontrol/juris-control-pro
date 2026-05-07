@@ -247,10 +247,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       }
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
+      // Só mexe no status se ele estiver em um dos estados controlados pelo switch
+      // "Pronto para Enviar" (rascunho ⇄ pronto_envio). Qualquer outro status
+      // (em_analise, planilhado, enviado, etc.) é preservado.
       const currentStatus = (bennerDado as any)?.status;
-      if (currentStatus !== "planilhado" && currentStatus !== "enviado") {
+      const switchControlado = currentStatus === "rascunho" || currentStatus === "pronto_envio";
+      if (switchControlado) {
         const desiredStatus = prontoEnviar ? "pronto_envio" : "rascunho";
-        if (currentStatus && currentStatus !== desiredStatus && (bennerDado as any)?.id) {
+        if (currentStatus !== desiredStatus && (bennerDado as any)?.id) {
           await supabase
             .from("dados_benner" as any)
             .update({ status: desiredStatus } as any)
