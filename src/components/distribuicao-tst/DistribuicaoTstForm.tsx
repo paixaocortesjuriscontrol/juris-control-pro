@@ -36,7 +36,7 @@ interface Props {
 }
 
 export interface DistribuicaoTstFormHandle {
-  runJudit: (comAnexos: boolean) => Promise<void>;
+  runJudit: (comAnexos: boolean, forceRefresh?: boolean) => Promise<void>;
   isBuscando: () => boolean;
   save: () => Promise<void>;
 }
