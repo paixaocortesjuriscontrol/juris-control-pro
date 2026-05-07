@@ -299,12 +299,25 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             </label>
             <Button
               variant="outline"
-              onClick={() => runJudit(comAnexos)}
+              onClick={() => runJudit(comAnexos, false)}
               disabled={buscandoJudit || !processoNumero}
               className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              title="Usa cache do dia quando disponível (mais rápido)"
             >
               {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-              Judit
+              {buscandoJudit
+                ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
+                : "Judit"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => runJudit(comAnexos, true)}
+              disabled={buscandoJudit || !processoNumero}
+              title="Ignora cache e força nova consulta na Judit (mais lento)"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Forçar atualização
             </Button>
           </div>
         </div>
