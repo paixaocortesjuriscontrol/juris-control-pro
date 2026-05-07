@@ -245,6 +245,7 @@ export default function DistribuicaoTst() {
     setFiltroDataFim("");
     setFiltroResponsavelIds([]);
     setFiltroSemTurma(false);
+    setFiltroProblemaJudit("todos");
     setSelectedIds(new Set());
   };
 
