@@ -1233,7 +1233,7 @@ export default function DistribuicaoTst() {
                   key={d.id}
                   className={cn(
                     "cursor-pointer hover:bg-muted/50 align-middle",
-                    d.id === stickyId && highlightUntil > Date.now() && "bg-yellow-100 dark:bg-yellow-900/30 ring-1 ring-yellow-400 animate-pulse"
+                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
                   )}
                   onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
                 >
