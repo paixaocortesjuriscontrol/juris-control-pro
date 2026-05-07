@@ -922,6 +922,8 @@ export default function DistribuicaoTst() {
               setShowForm(false);
               setEditando(null);
               setDetailInitialTab("distribuicao");
+              try { fetchDados(); } catch {}
+              try { refetchStats(); } catch {}
             }}
           />
         </div>
