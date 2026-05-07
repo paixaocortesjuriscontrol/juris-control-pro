@@ -1152,7 +1152,14 @@ export default function DistribuicaoTst() {
                     : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50 align-middle" onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}>
+                <TableRow
+                  key={d.id}
+                  className={cn(
+                    "cursor-pointer hover:bg-muted/50 align-middle",
+                    d.id === stickyId && highlightUntil > Date.now() && "bg-yellow-100 dark:bg-yellow-900/30 ring-1 ring-yellow-400 animate-pulse"
+                  )}
+                  onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
+                >
                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(d.id)}
