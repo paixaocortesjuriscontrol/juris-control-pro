@@ -556,7 +556,7 @@ export default function DistribuicaoTst() {
         setBulkJuditProgress({ current: i + 1, total: unique.length });
 
         try {
-          const requestPayload = { numero_processo: aplicarMascaraCnj(proc.processo_numero), tribunal: "TST", com_anexos: false };
+          const requestPayload = { numero_processo: aplicarMascaraCnj(proc.processo_numero), tribunal: "TST", com_anexos: bulkComAnexos };
           const { data: juditData, error: juditError } = await supabase.functions.invoke("buscar-judit", {
             body: requestPayload,
           });
