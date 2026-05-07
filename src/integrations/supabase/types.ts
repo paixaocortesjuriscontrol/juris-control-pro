@@ -1547,6 +1547,9 @@ export type Database = {
           distribuido_em: string | null
           distribuido_por: string | null
           dossie: string | null
+          em_analise: boolean
+          em_analise_em: string | null
+          em_analise_por: string | null
           entrega_memoriais: string | null
           entregue_em: string | null
           entregue_por: string | null
@@ -1630,6 +1633,9 @@ export type Database = {
           distribuido_em?: string | null
           distribuido_por?: string | null
           dossie?: string | null
+          em_analise?: boolean
+          em_analise_em?: string | null
+          em_analise_por?: string | null
           entrega_memoriais?: string | null
           entregue_em?: string | null
           entregue_por?: string | null
@@ -1713,6 +1719,9 @@ export type Database = {
           distribuido_em?: string | null
           distribuido_por?: string | null
           dossie?: string | null
+          em_analise?: boolean
+          em_analise_em?: string | null
+          em_analise_por?: string | null
           entrega_memoriais?: string | null
           entregue_em?: string | null
           entregue_por?: string | null
