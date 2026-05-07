@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
-import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
+import { dedupeJuditAttachments, getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
@@ -37,6 +37,17 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<string>("");
   const uniqueAttachments = useMemo(() => dedupeJuditAttachments(attachments), [JSON.stringify(attachments)]);
+  // Mantém todos os "irmãos" (mesmo documento lógico em outra instância/cnj)
+  // para fallback quando a Judit retornar ATTACHMENT_NOT_FOUND no escolhido.
+  const siblingsByKey = useMemo(() => {
+    const map = new Map<string, Attachment[]>();
+    for (const a of attachments) {
+      const key = getJuditAttachmentDedupKey(a as any);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+    return map;
+  }, [JSON.stringify(attachments)]);
 
   const allChecked = useMemo(
     () => uniqueAttachments.length > 0 && selected.size === uniqueAttachments.length,
@@ -54,24 +65,32 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
   };
 
   const baixarAnexoParaIndexacao = async (att: Attachment) => {
-    const { data, error } = await supabase.functions.invoke("download-anexo-judit", {
-      body: {
-        cnj: att.cnj || processoNumero,
-        instance: att.instance || null,
-        attachment_id: att.step_id,
-        filename: att.attachment_name || `documento_${att.step_id}${att.extension ? `.${att.extension}` : ""}`,
-      },
-    });
-    if (error || !data?.signed_url || data?.error) {
-      throw new Error(error?.message || data?.error || "Falha ao baixar anexo");
+    const key = getJuditAttachmentDedupKey(att as any);
+    const siblings = siblingsByKey.get(key) || [att];
+    // Tenta o escolhido primeiro, depois irmãos com outro attachment_id/instance/cnj
+    const ordered = [att, ...siblings.filter((s) => s.step_id !== att.step_id)];
+    let lastErr = "";
+    for (const cand of ordered) {
+      const { data, error } = await supabase.functions.invoke("download-anexo-judit", {
+        body: {
+          cnj: cand.cnj || processoNumero,
+          instance: cand.instance || null,
+          attachment_id: cand.step_id,
+          filename: cand.attachment_name || `documento_${cand.step_id}${cand.extension ? `.${cand.extension}` : ""}`,
+        },
+      });
+      if (!error && data?.signed_url && !data?.error) {
+        return data as {
+          signed_url: string;
+          filename?: string;
+          storage_path?: string;
+          content_type?: string;
+          file_size?: number;
+        };
+      }
+      lastErr = error?.message || data?.error || "Falha ao baixar anexo";
     }
-    return data as {
-      signed_url: string;
-      filename?: string;
-      storage_path?: string;
-      content_type?: string;
-      file_size?: number;
-    };
+    throw new Error(lastErr || "Falha ao baixar anexo");
   };
 
   const extrairTextoPdfNoNavegador = async (signedUrl: string) => {
@@ -233,16 +252,25 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
   const handleDownload = async (att: Attachment) => {
     setDownloadingId(att.step_id);
     try {
-      const { data, error } = await supabase.functions.invoke("download-anexo-judit", {
-        body: {
-          cnj: att.cnj || processoNumero,
-          instance: att.instance || null,
-          attachment_id: att.step_id,
-          filename: att.attachment_name || `documento_${att.step_id}${att.extension ? `.${att.extension}` : ""}`,
-        },
-      });
-      if (error || !data?.signed_url) {
-        toast.error("Erro ao baixar anexo: " + (error?.message || data?.error || "desconhecido"));
+      let data: any = null;
+      let lastErr = "";
+      const key = getJuditAttachmentDedupKey(att as any);
+      const siblings = siblingsByKey.get(key) || [att];
+      const ordered = [att, ...siblings.filter((s) => s.step_id !== att.step_id)];
+      for (const cand of ordered) {
+        const { data: d, error } = await supabase.functions.invoke("download-anexo-judit", {
+          body: {
+            cnj: cand.cnj || processoNumero,
+            instance: cand.instance || null,
+            attachment_id: cand.step_id,
+            filename: cand.attachment_name || `documento_${cand.step_id}${cand.extension ? `.${cand.extension}` : ""}`,
+          },
+        });
+        if (!error && d?.signed_url && !d?.error) { data = d; break; }
+        lastErr = error?.message || d?.error || "desconhecido";
+      }
+      if (!data?.signed_url) {
+        toast.error("Erro ao baixar anexo: " + lastErr);
         return;
       }
       const fileRes = await fetch(data.signed_url);

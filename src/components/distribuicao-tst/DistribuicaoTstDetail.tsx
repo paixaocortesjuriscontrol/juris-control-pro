@@ -95,7 +95,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       console.warn("Erro ao carregar judit_anexos:", error.message);
       return;
     }
-    const list = dedupeJuditAttachments(((data as any[]) || []).map((r) => ({
+    const list = ((data as any[]) || []).map((r) => ({
       step_id: r.attachment_id,
       attachment_id: r.attachment_id,
       attachment_name: r.attachment_name,
@@ -106,7 +106,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       texto_indexado: !!r.texto_indexado,
       documento_id: r.documento_id || null,
       storage_path: r.storage_path || null,
-    })));
+    }));
     setAnexos(list);
   }, [processoNumero]);
 
