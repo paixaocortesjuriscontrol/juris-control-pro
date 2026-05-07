@@ -9,6 +9,7 @@
 // AnaliseJuditTab) preservado nos nomes principais.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { derivarTurmaDoRelator } from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -462,6 +463,14 @@ serve(async (req) => {
     const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
     const classe = extrairClasse(rdSelecionada);
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
+    // Fallback: no TST a Judit costuma devolver "Gabinete do Ministro Fulano"
+    // como nome do órgão, sem expor a Turma. Quando temos relator mas a turma
+    // não foi extraída, usamos o mapeamento oficial Relator→Turma do TST.
+    let turmaFinal = turma;
+    if (!turmaFinal && relator) {
+      const derivada = derivarTurmaDoRelator(relator);
+      if (derivada) turmaFinal = derivada;
+    }
     const situacao = extrairSituacao(rdSelecionada);
 
     // ---------- Reclamante / Reclamada (cruzando com a instância de origem) ----------
@@ -567,7 +576,7 @@ serve(async (req) => {
       dossie: null,
       data_distribuicao: dataDistISO,
       relator: relator,
-      turma: turma,
+      turma: turmaFinal,
       // Regras:
       //  - Se identificamos a instância TST, retorna "TST".
       //  - Se o caller pediu "TST" mas NÃO achamos instância TST, retorna null

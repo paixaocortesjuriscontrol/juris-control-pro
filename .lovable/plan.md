@@ -1,80 +1,33 @@
-## Objetivo
+# Por que a Turma não está sendo preenchida
 
-Reduzir o tempo percebido das buscas Judit em **Distribuição TST**, atacando os dois lados:
-1. **Repetições no mesmo processo** ficam quase instantâneas (cache).
-2. **Primeira busca** continua existindo, mas com **feedback visual claro de progresso** e sem voltar vazia por timeout curto.
+No screenshot, o processo `0010746-27.2024.5.03.0017` foi consultado pelo botão Judit e retornou:
+- **Tribunal:** TST ✅
+- **Relator:** Ives Gandra da Silva Martins Filho ✅
+- **Turma:** vazio ❌
 
-Sem mexer na UI fora do botão Judit (filtros, lista, formulários permanecem iguais).
+A Judit, para processos no TST, devolve o "court" como `Gabinete do Ministro Fulano`, e não como `4ª Turma`. A função `extrairOrgaoERelator` em `supabase/functions/buscar-judit/index.ts` só preenche `turma` quando o nome do órgão casa com a regex `/(\d+)\s*[ªºa]?\s*turma/i`. Como o nome é "Gabinete do Ministro…", a regex não encontra nada e `turma` fica `null`.
 
----
+Curiosamente, a outra edge function (`consultar-processo-judit`) já trata esse caso usando `derivarTurmaDoRelator(relator)` do `_shared/extrair-relator.ts`, que mapeia cada Ministro para sua Turma (ex.: Ives Gandra → 4ª Turma). O `buscar-judit` (chamado pelo botão Judit do formulário Benner) **não usa** esse fallback.
 
-## Mudanças
+# Correção
 
-### 1. Cache controlado da Judit (backend)
+Em `supabase/functions/buscar-judit/index.ts`:
 
-Arquivo: `supabase/functions/buscar-judit/index.ts`
+1. Importar `derivarTurmaDoRelator` de `../_shared/extrair-relator.ts`.
+2. Logo após a chamada `const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);`, adicionar:
+   ```ts
+   let turmaFinal = turma;
+   if (!turmaFinal && relator) {
+     turmaFinal = derivarTurmaDoRelator(relator);
+   }
+   ```
+3. Usar `turmaFinal` no payload retornado (linha 570, `turma: turma` → `turma: turmaFinal`).
 
-- Subir `CACHE_TTL_DAYS` de **0 → 1** (busca repetida no mesmo dia volta do cache da Judit em ~1–2s).
-- Aceitar parâmetro novo `force_refresh: boolean` no body. Quando `true`, envia `cache_ttl_in_days: 0` (comportamento atual). Quando ausente/false, usa `1`.
-- Garantir que `cache_ttl_in_days` é enviado **também** quando `with_attachments=true` (hoje só está no caminho sem anexos).
+Isso resolve tanto o botão Judit individual no `DadosBennerForm` quanto o lote Judit do `DistribuicaoTst`, pois ambos consomem essa mesma function.
 
-### 2. Timeout maior + feedback de etapas (backend)
+Não é necessária mudança no frontend — a classificação automática (`classificarTurmaDB`) já roda quando `data.turma` chega preenchido.
 
-Mesmo arquivo:
-- `POLL_TIMEOUT_MS`: **20s → 60s** (Judit costuma completar em 8–25s; 20s estava cortando antes).
-- `POLL_INTERVAL_MS`: manter 1000ms.
-- Retornar campo extra `_meta.elapsed_ms` na resposta para diagnóstico.
-- Em 429 (rate limit), backoff exponencial 3s/6s/12s com no máx. 3 tentativas (hoje só dorme 3s e continua).
+# Fora do escopo
 
-### 3. Botão Judit com indicador de progresso (frontend)
-
-Arquivo: `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`
-
-- Substituir o estado `buscandoJudit` (boolean) por estado com **fases visíveis no botão**:
-  - "Consultando Judit…" (0–3s)
-  - "Aguardando crawler… (Xs)" (contador ao vivo a cada 1s)
-  - "Processando resposta…" (após receber)
-- Adicionar **botão secundário "Forçar atualização"** ao lado do Judit (envia `force_refresh: true`). O botão Judit padrão usa cache.
-- Mensagem de erro específica para timeout: "A Judit demorou mais que o normal. Tente novamente em alguns segundos — o resultado pode já estar em cache."
-
-### 4. Não bloquear gravação do log em caso de timeout
-
-Hoje, se a função volta vazia, o frontend grava log como "sucesso". Ajustar para classificar como `timeout` quando a resposta vier sem `request_status=completed`, para não poluir métricas.
-
----
-
-## Detalhes técnicos
-
-| Constante | Antes | Depois |
-|---|---|---|
-| `CACHE_TTL_DAYS` (default) | 0 | 1 |
-| `CACHE_TTL_DAYS` (force_refresh=true) | — | 0 |
-| `POLL_TIMEOUT_MS` | 20 000 | 60 000 |
-| Retry em 429 | 1× / 3s | 3× / 3s, 6s, 12s |
-
-Payload novo do `invoke("buscar-judit")`:
-```json
-{ "numero_processo": "...", "tribunal": "TST", "com_anexos": false, "force_refresh": false }
-```
-
-Estados do botão Judit (frontend):
-```
-ocioso → "consultando" → "aguardando_crawler" (com contador) → "processando" → ocioso
-```
-
----
-
-## O que NÃO muda
-
-- Lista, filtros, paginação, sticky highlight (já implementado).
-- Comportamento da aba "Anexos" e do download.
-- RLS, schema do banco, edge functions de download/sincronização.
-- `consultar-processo-judit` (usado em outros fluxos) fica intocada.
-
----
-
-## Ganho esperado
-
-- 2ª busca em diante no mesmo processo/dia: **~1–3s** (vs. 15–25s hoje).
-- 1ª busca: tempo igual ao atual, mas o usuário vê progresso e o sistema não erra por timeout curto.
-- Botão "Forçar atualização" disponível quando a advogada precisa ignorar cache (raro).
+- Não toca em `consultar-processo-judit` (já trata o caso).
+- Não altera o mapeamento Relator→Turma (já está correto e compartilhado).
