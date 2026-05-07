@@ -140,7 +140,8 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
     const instance = rd?.instance ?? rd?.crawler?.instance ?? null;
     const directAttachments = Array.isArray(rd?.attachments) ? rd.attachments : [];
     for (const a of directAttachments) {
-      const downloadId = a?.step_id || a?.attachment_id || a?.id;
+      if (String(a?.status || "done").toLowerCase() !== "done" || a?.corrupted === true) continue;
+      const downloadId = a?.attachment_id || a?.id || a?.step_id;
       if (!downloadId) continue;
       const contentKey = attachmentLogicalKey(a?.attachment_name || a?.name || a?.title, a?.attachment_date || a?.date, a?.extension || a?.ext);
       const idKey = `${instance ?? "?"}::${downloadId}`;
@@ -163,7 +164,8 @@ function coletarAttachments(rdSelecionada: any, rawCollector: any, cnj: string):
       const atts = Array.isArray(s?.attachments) ? s.attachments : [];
       for (const a of atts) {
         const stepId = s?.step_id || s?.id || a?.step_id || null;
-        const downloadId = a?.step_id || stepId || a?.attachment_id || a?.id;
+        if (String(a?.status || "done").toLowerCase() !== "done" || a?.corrupted === true) continue;
+        const downloadId = a?.attachment_id || a?.id || a?.step_id || stepId;
         if (!downloadId) continue;
         const contentKey = attachmentLogicalKey(a?.name || a?.attachment_name || a?.title, a?.date || a?.attachment_date || s?.step_date, a?.extension || a?.ext);
         const idKey = `${instance ?? "?"}::${downloadId}`;
