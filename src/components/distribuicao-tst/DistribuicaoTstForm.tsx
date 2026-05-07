@@ -215,7 +215,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleBuscarJudit = async (comAnexosArg = false) => {
+  const handleBuscarJudit = async (comAnexosArg = false, forceRefresh = false) => {
     // Aceita o número vindo do form OU do `dado` carregado (corrige o bug onde
     // a 1ª tentativa falha "informe o número" porque o estado do form ainda não
     // sincronizou com a row do banco).
@@ -231,7 +231,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     }
     setBuscandoJudit(true);
     try {
-      const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: comAnexosArg };
+      const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: comAnexosArg, force_refresh: forceRefresh };
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: requestPayload,
       });
@@ -251,7 +251,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         console.warn("Falha ao gravar judit_logs:", logErr);
       }
       if (error) {
-        toast.error("Erro ao buscar na Judit: " + (error.message || "desconhecido"));
+        const msg = (error.message || "").toLowerCase();
+        if (msg.includes("timeout") || msg.includes("aborted") || msg.includes("network")) {
+          toast.error("A Judit demorou mais que o normal. Tente novamente em alguns segundos — o resultado já pode estar em cache.");
+        } else {
+          toast.error("Erro ao buscar na Judit: " + (error.message || "desconhecido"));
+        }
         return;
       }
       if (data?.error) {
@@ -440,7 +445,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   };
 
   useImperativeHandle(ref, () => ({
-    runJudit: (comAnexos: boolean) => handleBuscarJudit(comAnexos),
+    runJudit: (comAnexos: boolean, forceRefresh: boolean = false) => handleBuscarJudit(comAnexos, forceRefresh),
     isBuscando: () => buscandoJudit,
     save: () => handleSave(),
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
