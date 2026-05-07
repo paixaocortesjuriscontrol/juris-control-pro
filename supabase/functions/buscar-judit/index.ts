@@ -22,10 +22,13 @@ const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 1000;
-const POLL_TIMEOUT_MS = 20_000;
-// Forçar refresh do crawler — cache de 7 dias estava devolvendo dados de até 1 ano atrás
-// quando a Judit reaproveitava resultados antigos. Com 0 a Judit sempre roda o crawler.
-const CACHE_TTL_DAYS = 0;
+// Crawler do TST normalmente leva 8–25s; o cap antigo de 20s estava cortando
+// antes da Judit completar.
+const POLL_TIMEOUT_MS = 60_000;
+// Cache padrão de 1 dia — buscas repetidas no mesmo processo no mesmo dia
+// voltam quase instantâneas. Quando precisa ignorar o cache, passar
+// `force_refresh: true` no body (envia cache_ttl_in_days=0).
+const CACHE_TTL_DAYS_DEFAULT = 1;
 
 // ---------- Helpers ---------------------------------------------------------
 
@@ -88,7 +91,7 @@ async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
 // ---------- Judit crawler (assíncrono, agrega TODAS as instâncias) ---------
 
 async function juditCriarRequest(apiKey: string, cnj: string): Promise<string | null> {
-  return juditCriarRequestComOpcoes(apiKey, cnj, false);
+  return juditCriarRequestComOpcoes(apiKey, cnj, false, CACHE_TTL_DAYS_DEFAULT);
 }
 
 // Remove qualquer campo `attachments` (em qualquer profundidade) do payload bruto
@@ -192,6 +195,7 @@ async function juditCriarRequestComOpcoes(
   apiKey: string,
   cnj: string,
   comAnexos: boolean,
+  cacheTtlDays: number = CACHE_TTL_DAYS_DEFAULT,
 ): Promise<string | null> {
   // Payload canônico da doc Judit (Busca Processual):
   // with_attachments fica no NÍVEL RAIZ do body, não dentro de search.
@@ -204,7 +208,7 @@ async function juditCriarRequestComOpcoes(
       search: {
         search_type: "lawsuit_cnj",
         search_key: cnj,
-        cache_ttl_in_days: CACHE_TTL_DAYS,
+        cache_ttl_in_days: cacheTtlDays,
       },
       with_attachments: comAnexos === true,
     }),
@@ -220,13 +224,24 @@ async function juditCriarRequestComOpcoes(
 async function juditPollar(apiKey: string, requestId: string): Promise<any | null> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   let ultima: any = null;
+  let backoff429 = 3000;
+  let attempts429 = 0;
   while (Date.now() < deadline) {
     try {
       const url = new URL(RESPONSES_URL);
       url.searchParams.set("request_id", requestId);
       url.searchParams.set("page_size", "50");
       const r = await fetch(url.toString(), { headers: { "api-key": apiKey } });
-      if (r.status === 429) { await sleep(3000); continue; }
+      if (r.status === 429) {
+        attempts429++;
+        if (attempts429 >= 3) {
+          console.warn("[buscar-judit] 429 persistente — abortando polling");
+          return ultima;
+        }
+        await sleep(backoff429);
+        backoff429 = Math.min(backoff429 * 2, 12_000);
+        continue;
+      }
       if (!r.ok) { await r.text(); await sleep(POLL_INTERVAL_MS); continue; }
       const data = await r.json();
       ultima = data;
