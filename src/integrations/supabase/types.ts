@@ -3427,6 +3427,7 @@ export type Database = {
           attachment_id: string
           attachment_name: string | null
           cnj: string | null
+          corrupted: boolean | null
           created_at: string
           created_by: string | null
           documento_id: string | null
@@ -3437,6 +3438,7 @@ export type Database = {
           processo_id: string | null
           processo_numero: string
           raw_attachment: Json | null
+          status: string | null
           step_id: string | null
           storage_path: string | null
           texto_indexado: boolean
@@ -3448,6 +3450,7 @@ export type Database = {
           attachment_id: string
           attachment_name?: string | null
           cnj?: string | null
+          corrupted?: boolean | null
           created_at?: string
           created_by?: string | null
           documento_id?: string | null
@@ -3458,6 +3461,7 @@ export type Database = {
           processo_id?: string | null
           processo_numero: string
           raw_attachment?: Json | null
+          status?: string | null
           step_id?: string | null
           storage_path?: string | null
           texto_indexado?: boolean
@@ -3469,6 +3473,7 @@ export type Database = {
           attachment_id?: string
           attachment_name?: string | null
           cnj?: string | null
+          corrupted?: boolean | null
           created_at?: string
           created_by?: string | null
           documento_id?: string | null
@@ -3479,6 +3484,7 @@ export type Database = {
           processo_id?: string | null
           processo_numero?: string
           raw_attachment?: Json | null
+          status?: string | null
           step_id?: string | null
           storage_path?: string | null
           texto_indexado?: boolean

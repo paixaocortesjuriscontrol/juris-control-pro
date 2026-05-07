@@ -86,16 +86,43 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
   const reloadAnexos = useCallback(async () => {
     if (!processoNumero) return;
-    const { data, error } = await supabase
-      .from("judit_anexos" as any)
-      .select("*")
-      .eq("processo_numero", processoNumero)
-      .order("attachment_date", { ascending: false });
-    if (error) {
-      console.warn("Erro ao carregar judit_anexos:", error.message);
-      return;
+    const fetchList = async () => {
+      const { data, error } = await supabase
+        .from("judit_anexos" as any)
+        .select("*")
+        .eq("processo_numero", processoNumero)
+        .order("attachment_date", { ascending: false });
+      if (error) {
+        console.warn("Erro ao carregar judit_anexos:", error.message);
+        return null;
+      }
+      return (data as any[]) || [];
+    };
+    let raw = await fetchList();
+    if (raw === null) return;
+    // Se a lista persistida não tem `status` (registros antigos, anteriores à
+    // correção), ressincroniza com o datalake da Judit para descartar anexos
+    // pendentes/corrompidos que devolveriam 404 ao tentar baixar.
+    const precisaSync = raw.length > 0 && raw.every((r) => r.status == null);
+    if (precisaSync) {
+      try {
+        await supabase.functions.invoke("sincronizar-judit-anexos", {
+          body: { processo_numero: processoNumero },
+        });
+        const fresh = await fetchList();
+        if (fresh !== null) raw = fresh;
+      } catch (e) {
+        console.warn("Falha ao ressincronizar anexos:", e);
+      }
     }
-    const list = ((data as any[]) || []).map((r) => ({
+    // Esconde anexos marcados como pending/corrupted (vindos da Judit) — só
+    // exibe os baixáveis. Quando `status` é null tratamos como "done" para
+    // não esconder dados legados que ainda não foram ressincronizados.
+    const visiveis = raw.filter((r) => {
+      const status = (r.status || "done").toString().toLowerCase();
+      return status === "done" && r.corrupted !== true;
+    });
+    const list = visiveis.map((r) => ({
       step_id: r.attachment_id,
       attachment_id: r.attachment_id,
       attachment_name: r.attachment_name,

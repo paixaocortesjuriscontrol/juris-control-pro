@@ -279,6 +279,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               attachment_name: a?.attachment_name || null,
               attachment_date: a?.attachment_date || null,
               extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
               raw_attachment: a,
               created_by: userData?.user?.id || null,
             })).filter((r: any) => r.attachment_id);
