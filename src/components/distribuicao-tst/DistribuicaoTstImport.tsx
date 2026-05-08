@@ -425,11 +425,14 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         setDetailText(`${done}/${processosToUpsert.length} processos · ${newProcessos} novos · ${updatedProcessos} atualizados${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
       }
 
-      // === STEP 3: Upsert distribuições direto em dados_benner (tabela única) ===
+      // === STEP 3: Salvar TODAS as linhas em dados_benner (sem dedup) ===
+      // Estratégia: preservar registros judit_preenchido=true intactos; remover outros
+      // registros antigos por processo e re-inserir todas as linhas da planilha.
+      // Linhas de processos repetidos recebem ic_duplicado=true.
       setStatusText("Etapa 3/3: Salvando distribuições em Dados Benner");
       startTimeRef.current = Date.now();
 
-      const upsertRecords = [...latestRowByProcess.values()]
+      const allRecords = allRows
         .filter(rec => processoIdMap.has(rec.processoNumero) && rec.processoNumero)
         .map(({ sheetName, processoNumero, row: r }) => {
           const relatorFav = norm(r[7]).toLowerCase();
@@ -475,11 +478,11 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           };
         });
 
-      const existingRowsByProcess = new Map<string, { id: string; dossie: string | null; judit_preenchido: boolean | null }[]>();
+      const existingRowsByProcess = new Map<string, { id: string; judit_preenchido: boolean | null }[]>();
       for (let i = 0; i < uniqueNumeros.length; i += EXISTING_CHECK_BATCH_SIZE) {
         const batch = uniqueNumeros.slice(i, i + EXISTING_CHECK_BATCH_SIZE);
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("id, processo, dossie, judit_preenchido")
+          .select("id, processo, judit_preenchido")
           .eq("tribunal", "TST")
           .in("processo", batch);
         if (error) throw error;
@@ -490,73 +493,79 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         });
       }
 
-      const recordsToPersist = upsertRecords.filter((record) => {
-        const existingRows = existingRowsByProcess.get(record.processo) || [];
-        if (existingRows.some((row) => row.judit_preenchido === true)) return false;
-        if (!record.dossie && existingRows.some((row) => !!row.dossie)) return false;
-        return true;
-      });
+      // Por processo: deletar antigos não-judit, marcar ic_duplicado nas novas linhas
+      // e nas judit preservadas, inserir todas as linhas da planilha.
+      const idsToDelete: string[] = [];
+      const recordsToInsert: any[] = [];
+      const juditIdsDup: string[] = [];
+      const juditIdsNotDup: string[] = [];
+      let preservedJudit = 0;
 
-      const existingPairs = new Set<string>();
-      const juditPairs = new Set<string>(); // pares processo||dossie com judit_preenchido=true (não sobrescrever)
-      const recordKeys = recordsToPersist.map(record => `${record.processo}||${record.dossie ?? ""}`);
+      for (const proc of uniqueNumeros) {
+        const existing = existingRowsByProcess.get(proc) || [];
+        const juditExisting = existing.filter(r => r.judit_preenchido === true);
+        const nonJuditExisting = existing.filter(r => r.judit_preenchido !== true);
+        const recsForProc = allRecords.filter(r => r.processo === proc);
 
-      recordsToPersist.forEach((record) => {
-        const key = `${record.processo}||${record.dossie ?? ""}`;
-        if ((existingRowsByProcess.get(record.processo) || []).some((row) => normalizeDossie(row.dossie) === normalizeDossie(record.dossie))) {
-          existingPairs.add(key);
-        }
-      });
-      existingRowsByProcess.forEach((rows, processo) => {
-        rows.filter((row) => row.judit_preenchido === true).forEach((row) => {
-          juditPairs.add(`${processo}||${row.dossie ?? ""}`);
-        });
-      });
+        nonJuditExisting.forEach(r => idsToDelete.push(r.id));
+        preservedJudit += juditExisting.length;
+
+        const totalAfter = juditExisting.length + recsForProc.length;
+        const isDup = totalAfter > 1;
+        recsForProc.forEach(r => recordsToInsert.push({ ...r, ic_duplicado: isDup }));
+        juditExisting.forEach(r => (isDup ? juditIdsDup : juditIdsNotDup).push(r.id));
+      }
 
       let totalUpserted = 0;
       let totalErrors = 0;
       let firstError: string | null = null;
-      const totalRecords = recordsToPersist.length;
+      const totalRecords = recordsToInsert.length;
 
-      const processBatch = async (records: any[], mode: "insert" | "upsert") => {
-        for (let i = 0; i < records.length; i += BATCH_SIZE) {
-          if (cancelRef.current) return false;
-          const batch = records.slice(i, i + BATCH_SIZE);
+      // Deletar antigos não-judit
+      const DEL_BATCH_SIZE = 200;
+      for (let i = 0; i < idsToDelete.length; i += DEL_BATCH_SIZE) {
+        if (cancelRef.current) { toast.info("Cancelado."); resetState(); return; }
+        const ids = idsToDelete.slice(i, i + DEL_BATCH_SIZE);
+        const { error } = await (supabase.from("dados_benner" as any) as any).delete().in("id", ids);
+        if (error) console.error("Erro ao deletar antigos:", error);
+      }
 
-          let error: any;
-          if (mode === "upsert") {
-            const res = await (supabase.from("dados_benner" as any) as any)
-              .upsert(batch, { onConflict: "processo,dossie", ignoreDuplicates: false });
-            error = res.error;
-          } else {
-            const res = await supabase.from("dados_benner" as any).insert(batch as any);
-            error = res.error;
-          }
-
-          if (error) {
-            console.error("Erro ao salvar dados_benner:", error, "Sample record:", batch[0]);
-            if (!firstError) firstError = `${error.message}${error.details ? ` | ${error.details}` : ""}${error.hint ? ` | ${error.hint}` : ""}`;
-            totalErrors += batch.length;
-          } else {
-            totalUpserted += batch.length;
-          }
-
-          const done = totalUpserted + totalErrors;
-          const pct = totalRecords > 0 ? 30 + Math.round((done / totalRecords) * 70) : 100;
-          setProgress(pct);
-          const elapsed = (Date.now() - startTimeRef.current) / 1000;
-          const eta = done > 0 ? ((totalRecords - done) * elapsed / done) : 0;
-          setDetailText(`${done}/${totalRecords} distribuições · ${totalErrors > 0 ? `${totalErrors} erros · ` : ""}${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
+      // Atualizar ic_duplicado nas linhas judit preservadas
+      const updateJuditDup = async (ids: string[], value: boolean) => {
+        for (let i = 0; i < ids.length; i += DEL_BATCH_SIZE) {
+          if (cancelRef.current) return;
+          const slice = ids.slice(i, i + DEL_BATCH_SIZE);
+          const { error } = await (supabase.from("dados_benner" as any) as any)
+            .update({ ic_duplicado: value }).in("id", slice);
+          if (error) console.error("Erro ao atualizar ic_duplicado (judit):", error);
         }
-        return true;
       };
+      await updateJuditDup(juditIdsDup, true);
+      await updateJuditDup(juditIdsNotDup, false);
 
-      const okPersist = await processBatch(recordsToPersist, "upsert");
-      if (!okPersist) {
-        toast.info(`Cancelado. ${totalUpserted} registros processados.`);
-        onImported();
-        resetState();
-        return;
+      // Inserir todas as linhas da planilha
+      for (let i = 0; i < recordsToInsert.length; i += BATCH_SIZE) {
+        if (cancelRef.current) {
+          toast.info(`Cancelado. ${totalUpserted} registros processados.`);
+          onImported();
+          resetState();
+          return;
+        }
+        const batch = recordsToInsert.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from("dados_benner" as any).insert(batch as any);
+        if (error) {
+          console.error("Erro ao inserir dados_benner:", error, "Sample:", batch[0]);
+          if (!firstError) firstError = `${error.message}${error.details ? ` | ${error.details}` : ""}${error.hint ? ` | ${error.hint}` : ""}`;
+          totalErrors += batch.length;
+        } else {
+          totalUpserted += batch.length;
+        }
+        const done = totalUpserted + totalErrors;
+        const pct = totalRecords > 0 ? 30 + Math.round((done / totalRecords) * 70) : 100;
+        setProgress(pct);
+        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        const eta = done > 0 ? ((totalRecords - done) * elapsed / done) : 0;
+        setDetailText(`${done}/${totalRecords} distribuições · ${totalErrors > 0 ? `${totalErrors} erros · ` : ""}${formatDuration(elapsed)}${eta > 2 ? ` · ~${formatDuration(eta)} restante` : ""}`);
       }
 
       // === STEP 4: Atualizar responsável (coluna AB) ===
@@ -634,7 +643,8 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         const parts: string[] = [`${totalUpserted} distribuições salvas`];
         if (newProcessos > 0) parts.push(`${newProcessos} processos novos`);
         if (updatedProcessos > 0) parts.push(`${updatedProcessos} processos atualizados`);
-        if (juditPairs.size > 0) parts.push(`${juditPairs.size} preservados (Judit)`);
+        if (preservedJudit > 0) parts.push(`${preservedJudit} preservados (Judit)`);
+        if (dupRows.length > 0) parts.push(`${dupRows.length} marcados como duplicados`);
         if (respAtualizados > 0) parts.push(`${respAtualizados} responsáveis atualizados`);
         if (totalErrors > 0) parts.push(`${totalErrors} erros`);
         toast.success(parts.join(", ") + "!");
