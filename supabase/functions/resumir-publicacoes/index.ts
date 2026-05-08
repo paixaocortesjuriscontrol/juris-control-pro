@@ -18,7 +18,29 @@ REGRAS OBRIGATÓRIAS:
    - O fechamento formal se houver (ex.: "ISTO POSTO / ACORDAM os Ministros da Terceira Turma...")
 4. Uma linha em branco entre blocos de citação. Texto puro, sem markdown (sem ###, **, listas).
 5. Não invente texto. Só transcrever ou resumir com base no conteúdo fornecido. Não repita processo, órgão ou data (já constam nos metadados).
-6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.`;
+6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.
+7. OBRIGATÓRIO — TRECHO FINAL: o resumo SEMPRE deve terminar transcrevendo na íntegra os 2 últimos blocos da publicação (separados por linha em branco no original), que serão fornecidos abaixo como "TRECHO FINAL OBRIGATÓRIO". Para intimações curtas (bloco único), inclua o bloco inteiro. Para acórdãos longos, esses blocos finais conterão a conclusão do voto e o "ISTO POSTO / ACORDAM" — pule todo o relatório/fundamentos iniciais e mostre esses trechos finais literalmente. O advogado precisa saber rapidamente o resultado (provido, negado, qual verba foi incluída etc.).`;
+
+// Extrai os últimos N blocos (separados por linha em branco) preservando texto literal.
+function extrairUltimosBlocos(textoBruto: string, n = 2): string {
+  if (!textoBruto) return '';
+  // Limpa HTML mas preserva quebras de linha
+  const semHtml = textoBruto
+    .replace(/<br\s*\/?>(?=)/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\r\n?/g, '\n');
+  // Normaliza espaços horizontais sem destruir quebras de linha
+  const normalizado = semHtml
+    .split('\n')
+    .map(l => l.replace(/[ \t]+/g, ' ').trim())
+    .join('\n');
+  // Divide em blocos por linhas em branco (1+ linhas vazias)
+  const blocos = normalizado.split(/\n\s*\n+/).map(b => b.trim()).filter(b => b.length > 0);
+  if (blocos.length === 0) return '';
+  const ultimos = blocos.slice(-n);
+  return ultimos.join('\n\n');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -46,7 +68,8 @@ serve(async (req) => {
         );
       }
 
-      const conteudo = (pub.conteudo || pub.texto || pub.teor || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
+      const conteudo = conteudoBruto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       if (!conteudo || conteudo.length < 20) {
         return new Response(
           JSON.stringify({ id: pub.id, resumo: 'Publicação sem conteúdo suficiente para resumir.' }),
@@ -55,7 +78,8 @@ serve(async (req) => {
       }
 
       const truncated = conteudo.substring(0, 4000);
-      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}`;
+      const trechoFinal = extrairUltimosBlocos(conteudoBruto, 2);
+      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n---\nTRECHO FINAL OBRIGATÓRIO (últimos 2 blocos da publicação — transcreva na íntegra ao fim do resumo):\n${trechoFinal || '(não foi possível identificar blocos finais — use o final do conteúdo acima)'}`;
 
       let resumo = 'Não foi possível gerar resumo.';
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
