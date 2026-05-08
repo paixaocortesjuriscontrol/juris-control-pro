@@ -279,7 +279,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.dossieStatus === "invalido_ou_nao_preenchido") query = query.or("dossie.is.null,dossie.eq.,dossie.not.like.__.__.___.______%/__");
     // Processo CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (somente dígitos)
     const CNJ_REGEX = "^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]\\.[0-9]{2}\\.[0-9]{4}$";
-    if (filters.processoStatus === "valido") query = query.filter("processo", "~", CNJ_REGEX);
+    if (filters.processoStatus === "valido") query = query.filter("processo", "match", CNJ_REGEX);
     else if (filters.processoStatus === "invalido") query = query.or(`processo.is.null,processo.eq.,processo.not.match."${CNJ_REGEX}"`);
     if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
