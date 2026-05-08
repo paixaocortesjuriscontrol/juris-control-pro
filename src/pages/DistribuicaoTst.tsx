@@ -163,6 +163,7 @@ export default function DistribuicaoTst() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
+  const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -191,10 +192,11 @@ export default function DistribuicaoTst() {
         status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
         emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
+        duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
