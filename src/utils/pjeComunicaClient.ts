@@ -75,7 +75,7 @@ function getTotal(data: any): number | null {
 
 // Texto completo é essencial para análise jurídica - NÃO truncar
 // O limite anterior de 4000 chars cortava publicações importantes
-const MAX_TEXT_LENGTH = 100000;
+const MAX_TEXT_LENGTH = 500000;
 
 // Headers seguros no browser.
 // IMPORTANTE: User-Agent / Origin / Referer / Accept-Language são headers proibidos no fetch do browser
