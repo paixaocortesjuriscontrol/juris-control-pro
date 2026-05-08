@@ -213,7 +213,7 @@ export default function DistribuicaoTstKanban() {
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-3 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
             {columns.map((col) => {
               const items = cards.filter(col.match);
               return (
