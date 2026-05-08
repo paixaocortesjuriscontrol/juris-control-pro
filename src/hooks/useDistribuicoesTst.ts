@@ -251,7 +251,11 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     // Quando o filtro está em "Em análise: sim", ordena por em_analise_em
     // (mais antigos primeiro) para que a lista fique estável durante o
     // trabalho da advogada — registros editados não mudam de posição.
-    if (filters.emAnalise === "sim") {
+    if (filters.duplicado === "sim") {
+      // Ordena por número do processo para que as linhas duplicadas
+      // (mesmo número) fiquem agrupadas e fáceis de comparar.
+      query = query.order("processo", { ascending: true, nullsFirst: false });
+    } else if (filters.emAnalise === "sim") {
       query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
     } else {
       query = query.order("created_at", { ascending: false });
