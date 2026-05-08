@@ -89,6 +89,8 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
   if ((filters as any).problemaJudit === "sim") query = query.eq("problema_judit", true);
   else if ((filters as any).problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
+  if ((filters as any).duplicado === "sim") query = query.eq("ic_duplicado", true);
+  else if ((filters as any).duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
   return query;
 }
 
