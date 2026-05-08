@@ -185,9 +185,9 @@ export default function DistribuicaoTstKanban() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="delegada">Delegada</SelectItem>
                 <SelectItem value="em_andamento">Em andamento</SelectItem>
-                <SelectItem value="entregue">Entregue</SelectItem>
+                <SelectItem value="finalizada">Finalizada</SelectItem>
               </SelectContent>
             </Select>
           </div>
