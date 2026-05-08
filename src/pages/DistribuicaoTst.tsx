@@ -263,6 +263,7 @@ export default function DistribuicaoTst() {
     setFiltroSituacaoProcesso("todos");
     setFiltroStatus("todos");
     setFiltroEmAnalise("todos");
+    setFiltroDuplicado("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
