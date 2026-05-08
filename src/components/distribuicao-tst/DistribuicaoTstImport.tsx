@@ -306,18 +306,14 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         latestResponsavelByProcess.set(rec.processoNumero, { raw, userId, clear, meta: nextMeta } as any);
       }
 
-      // === Detectar duplicados (mesmo processo+dossie aparecendo mais de uma vez) ===
-      const counts = new Map<string, number>();
+      // === Detectar duplicados (mesmo número de processo aparecendo mais de uma vez) ===
+      // Não removemos mais — todas serão gravadas e marcadas com ic_duplicado=true.
+      const procCounts = new Map<string, number>();
       for (const rec of allRows) {
-        const dossie = norm(rec.row[2]);
-        const key = `${rec.processoNumero}||${dossie}`;
-        counts.set(key, (counts.get(key) || 0) + 1);
+        procCounts.set(rec.processoNumero, (procCounts.get(rec.processoNumero) || 0) + 1);
       }
       const dupRows: DuplicateRow[] = allRows
-        .filter(rec => {
-          const dossie = norm(rec.row[2]);
-          return (counts.get(`${rec.processoNumero}||${dossie}`) || 0) > 1;
-        })
+        .filter(rec => (procCounts.get(rec.processoNumero) || 0) > 1)
         .map(rec => ({
           sheetName: rec.sheetName,
           rowIndex: rec.rowIndex,
@@ -328,7 +324,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       if (dupRows.length > 0) {
         setDuplicates(dupRows);
         setDuplicatesHeader(capturedHeader);
-        toast.warning(`${dupRows.length} linhas duplicadas detectadas. Use o botão "Baixar Duplicados" para revisar.`, { duration: 10000 });
+        toast.info(`${dupRows.length} linhas serão marcadas como duplicadas (mesmo nº de processo). Use "Baixar Duplicados" para revisar.`, { duration: 10000 });
       }
 
       // === STEP 2: Upsert processos (bulk, no lookup needed) ===
