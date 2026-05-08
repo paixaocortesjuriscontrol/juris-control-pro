@@ -1386,6 +1386,11 @@ export default function DistribuicaoTst() {
                                   Em análise
                                 </Badge>
                               )}
+                              {(d as any).ic_duplicado && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
+                                  Dup.
+                                </Badge>
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1398,6 +1403,11 @@ export default function DistribuicaoTst() {
                           {(d as any).em_analise && (
                             <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
                               Em análise
+                            </Badge>
+                          )}
+                          {(d as any).ic_duplicado && (
+                            <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
+                              Dup.
                             </Badge>
                           )}
                         </div>
