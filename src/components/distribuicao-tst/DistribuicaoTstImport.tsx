@@ -516,6 +516,33 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         juditExisting.forEach(r => (isDup ? juditIdsDup : juditIdsNotDup).push(r.id));
       }
 
+      // === PRESERVAR RESPONSÁVEIS EXISTENTES ===
+      // Antes de apagar os dados_benner antigos (cascade apaga dados_benner_responsaveis),
+      // capturamos quem está delegado em cada processo para reanexar depois ao novo registro.
+      // Usuário pediu explicitamente: "não pode alterar os responsáveis".
+      const responsaveisPreservadosPorProcesso = new Map<string, Set<string>>();
+      const allExistingIds: string[] = [];
+      existingRowsByProcess.forEach(rows => rows.forEach(r => allExistingIds.push(r.id)));
+      const idToProcesso = new Map<string, string>();
+      existingRowsByProcess.forEach((rows, processo) => rows.forEach(r => idToProcesso.set(r.id, processo)));
+
+      const RESP_LOOKUP_BATCH = 200;
+      for (let i = 0; i < allExistingIds.length; i += RESP_LOOKUP_BATCH) {
+        if (cancelRef.current) break;
+        const slice = allExistingIds.slice(i, i + RESP_LOOKUP_BATCH);
+        const { data, error } = await (supabase.from("dados_benner_responsaveis" as any) as any)
+          .select("dados_benner_id, usuario_id")
+          .in("dados_benner_id", slice);
+        if (error) { console.error("Erro ao capturar responsáveis existentes:", error); continue; }
+        (data || []).forEach((row: any) => {
+          const proc = idToProcesso.get(row.dados_benner_id);
+          if (!proc) return;
+          const set = responsaveisPreservadosPorProcesso.get(proc) || new Set<string>();
+          set.add(row.usuario_id);
+          responsaveisPreservadosPorProcesso.set(proc, set);
+        });
+      }
+
       let totalUpserted = 0;
       let totalErrors = 0;
       let firstError: string | null = null;
@@ -628,7 +655,20 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           if (error) { console.error("Erro ao checar responsáveis existentes:", error); continue; }
           (data || []).forEach((r: any) => idsComResponsavel.add(r.dados_benner_id));
         }
-        const insertRows = candidatos.filter(c => !idsComResponsavel.has(c.dados_benner_id));
+        // Para processos que já tinham responsáveis preservados, NUNCA sobrescrever com
+        // o que veio da planilha — só aceitar planilha quando o processo não tinha ninguém.
+        const insertRows = candidatos.filter(c => {
+          if (idsComResponsavel.has(c.dados_benner_id)) return false;
+          const proc = latestResponsavelByProcess.has;
+          // bloqueia se havia responsáveis preservados para esse processo
+          for (const [processo, payload] of latestResponsavelByProcess.entries()) {
+            if (processToBennerId.get(processo) === c.dados_benner_id) {
+              if ((responsaveisPreservadosPorProcesso.get(processo)?.size || 0) > 0) return false;
+              break;
+            }
+          }
+          return true;
+        });
 
         for (let i = 0; i < insertRows.length; i += DEL_BATCH) {
           if (cancelRef.current) break;
@@ -637,6 +677,72 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             .insert(slice as any);
           if (insErr) { console.error("Erro ao inserir responsáveis:", insErr); continue; }
           respAtualizados += slice.length;
+        }
+      }
+
+      // === RESTAURAR RESPONSÁVEIS PRESERVADOS ===
+      // Reanexa ao novo dados_benner_id de cada processo os responsáveis que existiam
+      // antes da importação (e foram apagados pelo cascade do DELETE).
+      let respRestaurados = 0;
+      if (responsaveisPreservadosPorProcesso.size > 0) {
+        // Precisamos do bennerId "principal" de cada processo. Reaproveita a mesma lógica
+        // do bloco de responsáveis (busca o id mais recente com dossiê preferencial).
+        const procsParaRestaurar = [...responsaveisPreservadosPorProcesso.keys()];
+        const procToNewBennerId = new Map<string, string>();
+        const LOOKUP_BATCH = 100;
+        for (let i = 0; i < procsParaRestaurar.length; i += LOOKUP_BATCH) {
+          if (cancelRef.current) break;
+          const batchProc = procsParaRestaurar.slice(i, i + LOOKUP_BATCH);
+          const { data, error } = await (supabase.from("dados_benner") as any)
+            .select("id, processo, dossie, updated_at, created_at")
+            .eq("tribunal", "TST")
+            .in("processo", batchProc);
+          if (error) { console.error("Erro ao buscar IDs para restaurar responsáveis:", error); continue; }
+          const grouped = new Map<string, any[]>();
+          (data || []).forEach((row: any) => {
+            const list = grouped.get(row.processo) || [];
+            list.push(row);
+            grouped.set(row.processo, list);
+          });
+          grouped.forEach((rows, processo) => {
+            rows.sort((a, b) => {
+              const aValid = !!a.dossie;
+              const bValid = !!b.dossie;
+              if (aValid !== bValid) return aValid ? -1 : 1;
+              return String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at));
+            });
+            procToNewBennerId.set(processo, rows[0].id);
+          });
+        }
+
+        // Verifica quais novos bennerIds já têm responsáveis (caso a planilha já tenha inserido)
+        const novosIds = [...new Set([...procToNewBennerId.values()])];
+        const novosIdsComResp = new Set<string>();
+        const CHK_BATCH = 200;
+        for (let i = 0; i < novosIds.length; i += CHK_BATCH) {
+          if (cancelRef.current) break;
+          const slice = novosIds.slice(i, i + CHK_BATCH);
+          const { data } = await (supabase.from("dados_benner_responsaveis" as any) as any)
+            .select("dados_benner_id")
+            .in("dados_benner_id", slice);
+          (data || []).forEach((r: any) => novosIdsComResp.add(r.dados_benner_id));
+        }
+
+        const restoreRows: { dados_benner_id: string; usuario_id: string }[] = [];
+        responsaveisPreservadosPorProcesso.forEach((userIds, processo) => {
+          const bennerId = procToNewBennerId.get(processo);
+          if (!bennerId) return;
+          if (novosIdsComResp.has(bennerId)) return; // já tem responsável (planilha) — não duplicar
+          userIds.forEach(uid => restoreRows.push({ dados_benner_id: bennerId, usuario_id: uid }));
+        });
+
+        for (let i = 0; i < restoreRows.length; i += CHK_BATCH) {
+          if (cancelRef.current) break;
+          const slice = restoreRows.slice(i, i + CHK_BATCH);
+          const { error } = await (supabase.from("dados_benner_responsaveis" as any) as any)
+            .insert(slice as any);
+          if (error) { console.error("Erro ao restaurar responsáveis:", error); continue; }
+          respRestaurados += slice.length;
         }
       }
 
@@ -650,6 +756,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         if (preservedJudit > 0) parts.push(`${preservedJudit} preservados (Judit)`);
         if (dupRows.length > 0) parts.push(`${dupRows.length} marcados como duplicados`);
         if (respAtualizados > 0) parts.push(`${respAtualizados} responsáveis atualizados`);
+        if (respRestaurados > 0) parts.push(`${respRestaurados} responsáveis preservados`);
         if (totalErrors > 0) parts.push(`${totalErrors} erros`);
         toast.success(parts.join(", ") + "!");
         if (responsavelNaoEncontrados.size > 0) {
