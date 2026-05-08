@@ -1225,6 +1225,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroDuplicado} onValueChange={setFiltroDuplicado}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Duplicados" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Duplicados: Todos</SelectItem>
+                <SelectItem value="sim">Apenas duplicados</SelectItem>
+                <SelectItem value="nao">Apenas não duplicados</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Situação" />
