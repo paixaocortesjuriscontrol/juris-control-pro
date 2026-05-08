@@ -50,6 +50,7 @@ export interface DistribuicaoTst {
   judit_preenchido_em: string | null;
   judit_preenchido_por: string | null;
   erro_judit?: boolean;
+  ic_duplicado?: boolean;
   coordenacao_id: string | null;
   responsaveis_ids?: string[];
   observacao_advogado?: string | null;
@@ -86,6 +87,7 @@ export interface DistribuicaoTstFilters {
   status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
   emAnalise?: "todos" | "sim" | "nao";
   problemaJudit?: "todos" | "sim" | "nao";
+  duplicado?: "todos" | "sim" | "nao";
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -129,6 +131,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     judit_preenchido_em: b.judit_preenchido_em ?? null,
     judit_preenchido_por: b.judit_preenchido_por ?? null,
     erro_judit: !!b.erro_judit,
+    ic_duplicado: !!b.ic_duplicado,
     coordenacao_id: b.coordenacao_id ?? null,
     observacao_advogado: b.observacao_advogado ?? null,
     em_analise: !!b.em_analise,
@@ -316,6 +319,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.emAnalise === "nao") query = query.or("em_analise.is.null,em_analise.eq.false");
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
+    if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
+    else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
