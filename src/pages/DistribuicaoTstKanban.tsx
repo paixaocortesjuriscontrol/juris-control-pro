@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle2, Clock, ExternalLink, Loader2, PlayCircle, RefreshCw } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Clock, Loader2, RefreshCw } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { differenceInCalendarDays, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -32,28 +34,21 @@ function getDias(prazo: string | null): number | null {
   return differenceInCalendarDays(new Date(prazo + "T12:00:00"), new Date());
 }
 
-type ColKey = "sem-prazo" | "5+" | "4" | "3" | "2" | "fatal" | "entregue";
+type ColKey = "delegada" | "em_andamento" | "finalizada";
 
 const columns: { key: ColKey; label: string; color: string; bg: string; match: (c: Card) => boolean }[] = [
-  { key: "sem-prazo", label: "Sem Prazo", color: "text-slate-500", bg: "bg-slate-500/10 border-slate-500/30",
-    match: (c) => c.status_distribuicao !== "entregue" && getDias(c.prazo_entrega) === null },
-  { key: "5+", label: "Mais de 5 dias", color: "text-green-600", bg: "bg-green-500/10 border-green-500/30",
-    match: (c) => { if (c.status_distribuicao === "entregue") return false; const d = getDias(c.prazo_entrega); return d !== null && d >= 5; } },
-  { key: "4", label: "4 dias", color: "text-yellow-600", bg: "bg-yellow-500/10 border-yellow-500/30",
-    match: (c) => c.status_distribuicao !== "entregue" && getDias(c.prazo_entrega) === 4 },
-  { key: "3", label: "3 dias", color: "text-orange-600", bg: "bg-orange-500/10 border-orange-500/30",
-    match: (c) => c.status_distribuicao !== "entregue" && getDias(c.prazo_entrega) === 3 },
-  { key: "2", label: "2 dias", color: "text-red-400", bg: "bg-red-400/10 border-red-400/30",
-    match: (c) => c.status_distribuicao !== "entregue" && getDias(c.prazo_entrega) === 2 },
-  { key: "fatal", label: "Prazo Fatal / Atrasado", color: "text-red-600", bg: "bg-red-600/10 border-red-600/30",
-    match: (c) => { if (c.status_distribuicao === "entregue") return false; const d = getDias(c.prazo_entrega); return d !== null && d <= 1; } },
-  { key: "entregue", label: "Entregue", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
-    match: (c) => c.status_distribuicao === "entregue" },
+  { key: "delegada", label: "Delegada", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/30",
+    match: (c) => (c.status_distribuicao || "delegada") === "delegada" },
+  { key: "em_andamento", label: "Em andamento", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
+    match: (c) => c.status_distribuicao === "em_andamento" },
+  { key: "finalizada", label: "Finalizada", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
+    match: (c) => c.status_distribuicao === "finalizada" },
 ];
 
 export default function DistribuicaoTstKanban() {
   const { user } = useAuth();
   const { isAdminOrCoordinator } = useUserRole();
+  const navigate = useNavigate();
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroAdvogados, setFiltroAdvogados] = useState<string[]>([]);
@@ -61,6 +56,18 @@ export default function DistribuicaoTstKanban() {
   const [filtroAba, setFiltroAba] = useState<string>("todas");
   const [abas, setAbas] = useState<string[]>([]);
   const [meusOnly, setMeusOnly] = useState<boolean>(!isAdminOrCoordinator);
+
+  // Dialog para alterar status / observação
+  const [statusCard, setStatusCard] = useState<Card | null>(null);
+  const [statusValue, setStatusValue] = useState<string>("delegada");
+  const [obsValue, setObsValue] = useState<string>("");
+  const [savingStatus, setSavingStatus] = useState(false);
+
+  const openStatusDialog = (c: Card) => {
+    setStatusCard(c);
+    setStatusValue(c.status_distribuicao || "delegada");
+    setObsValue(c.observacao_distribuicao || "");
+  };
 
   useEffect(() => { setMeusOnly(!isAdminOrCoordinator); }, [isAdminOrCoordinator]);
 
@@ -122,19 +129,31 @@ export default function DistribuicaoTstKanban() {
     })();
   }, []);
 
-  const updateStatus = async (id: string, status: "pendente" | "em_andamento" | "entregue") => {
-    const patch: any = { status_distribuicao: status };
-    if (status === "entregue") {
-      patch.entregue_em = new Date().toISOString();
-      patch.entregue_por = user?.id || null;
-    } else {
-      patch.entregue_em = null;
-      patch.entregue_por = null;
+  const saveStatusDialog = async () => {
+    if (!statusCard) return;
+    setSavingStatus(true);
+    try {
+      const patch: any = {
+        status_distribuicao: statusValue,
+        observacao_distribuicao: obsValue || null,
+      };
+      if (statusValue === "finalizada") {
+        patch.entregue_em = new Date().toISOString();
+        patch.entregue_por = user?.id || null;
+      } else {
+        patch.entregue_em = null;
+        patch.entregue_por = null;
+      }
+      const { error } = await supabase.from("dados_benner" as any).update(patch).eq("id", statusCard.id);
+      if (error) throw error;
+      toast.success("Tarefa atualizada");
+      setStatusCard(null);
+      await fetchData();
+    } catch (e: any) {
+      toast.error("Erro: " + (e?.message || ""));
+    } finally {
+      setSavingStatus(false);
     }
-    const { error } = await supabase.from("dados_benner" as any).update(patch).eq("id", id);
-    if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success("Status atualizado");
-    await fetchData();
   };
 
   const totals = useMemo(() => columns.map((c) => ({ key: c.key, count: cards.filter(c.match).length })), [cards]);
@@ -166,9 +185,9 @@ export default function DistribuicaoTstKanban() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="delegada">Delegada</SelectItem>
                 <SelectItem value="em_andamento">Em andamento</SelectItem>
-                <SelectItem value="entregue">Entregue</SelectItem>
+                <SelectItem value="finalizada">Finalizada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -194,7 +213,7 @@ export default function DistribuicaoTstKanban() {
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-3 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
             {columns.map((col) => {
               const items = cards.filter(col.match);
               return (
@@ -208,13 +227,14 @@ export default function DistribuicaoTstKanban() {
                       {items.map((c) => {
                         const dias = getDias(c.prazo_entrega);
                         return (
-                          <div key={c.id} className="bg-card border border-border rounded-lg p-2 space-y-1">
+                          <div key={c.id} className="bg-card border border-border rounded-lg p-2 space-y-1 hover:border-primary/60 transition-colors cursor-pointer"
+                               onClick={() => navigate(`/distribuicao-tst?editId=${c.id}`)}>
                             <p className="text-xs font-mono font-semibold truncate">{c.processo || "Sem nº"}</p>
                             {c.dossie && <p className="text-[11px] text-muted-foreground truncate">Dossiê: {c.dossie}</p>}
                             <div className="flex items-center gap-1 flex-wrap text-[11px] text-muted-foreground">
                               <Clock className="w-3 h-3" />
                               {c.prazo_entrega ? format(new Date(c.prazo_entrega + "T12:00:00"), "dd/MM/yyyy") : "Sem prazo"}
-                              {c.status_distribuicao !== "entregue" && (
+                              {c.status_distribuicao !== "finalizada" && c.prazo_entrega && (
                                 <Badge variant={dias !== null && dias <= 1 ? "destructive" : "secondary"} className="text-[10px] px-1 py-0">
                                   {dias === null ? "S/P" : dias < 0 ? `${Math.abs(dias)}d atraso` : `${dias}d`}
                                 </Badge>
@@ -229,28 +249,14 @@ export default function DistribuicaoTstKanban() {
                               <p className="text-[10px] text-muted-foreground italic line-clamp-2">{c.observacao_distribuicao}</p>
                             )}
                             <div className="flex items-center gap-1 pt-1 flex-wrap">
-                              {c.status_distribuicao !== "entregue" && (
-                                <>
-                                  {c.status_distribuicao !== "em_andamento" && (
-                                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => updateStatus(c.id, "em_andamento")}>
-                                      <PlayCircle className="w-3 h-3 mr-1" /> Em andamento
-                                    </Button>
-                                  )}
-                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-emerald-600" onClick={() => updateStatus(c.id, "entregue")}>
-                                    <CheckCircle2 className="w-3 h-3 mr-1" /> Entregue
-                                  </Button>
-                                </>
-                              )}
-                              {c.status_distribuicao === "entregue" && isAdminOrCoordinator && (
-                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => updateStatus(c.id, "pendente")}>
-                                  Reabrir
-                                </Button>
-                              )}
-                              <Link to={`/distribuicao-tst`} className="ml-auto">
-                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]">
-                                  <ExternalLink className="w-3 h-3" />
-                                </Button>
-                              </Link>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px] ml-auto"
+                                onClick={(e) => { e.stopPropagation(); openStatusDialog(c); }}
+                              >
+                                Alterar situação
+                              </Button>
                             </div>
                           </div>
                         );
@@ -266,6 +272,49 @@ export default function DistribuicaoTstKanban() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!statusCard} onOpenChange={(o) => !o && setStatusCard(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Situação da delegação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {statusCard && (
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p className="font-mono text-foreground">{statusCard.processo || "Sem nº"}</p>
+                {statusCard.dossie && <p>Dossiê: {statusCard.dossie}</p>}
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Situação</Label>
+              <Select value={statusValue} onValueChange={setStatusValue}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="delegada">Delegada</SelectItem>
+                  <SelectItem value="em_andamento">Em andamento</SelectItem>
+                  <SelectItem value="finalizada">Finalizada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Observação</Label>
+              <Textarea
+                rows={4}
+                value={obsValue}
+                onChange={(e) => setObsValue(e.target.value)}
+                placeholder="Anotações sobre o andamento da tarefa..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusCard(null)} disabled={savingStatus}>Cancelar</Button>
+            <Button onClick={saveStatusDialog} disabled={savingStatus}>
+              {savingStatus && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

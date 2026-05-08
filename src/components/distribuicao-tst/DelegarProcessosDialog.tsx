@@ -49,7 +49,7 @@ export function DelegarProcessosDialog({ open, onOpenChange, selectedIds, onSucc
             distribuido_em: nowIso,
             distribuido_por: uid,
             prazo_entrega: prazoStr,
-            status_distribuicao: "pendente",
+            status_distribuicao: "delegada",
             observacao_distribuicao: observacao || null,
           } as any)
           .in("id", batch);

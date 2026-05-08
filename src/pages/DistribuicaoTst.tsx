@@ -20,7 +20,7 @@ import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -70,6 +70,32 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Abre detalhe automaticamente quando navegado com ?editId=...
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get("editId");
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("dados_benner" as any)
+        .select("*")
+        .eq("id", editId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        toast.error("Registro não encontrado");
+      } else {
+        setEditando(data as any);
+      }
+      // limpa o query param para não reabrir ao voltar
+      navigate("/distribuicao-tst", { replace: true });
+    })();
+    return () => { cancelled = true; };
+  }, [location.search, navigate]);
   // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
