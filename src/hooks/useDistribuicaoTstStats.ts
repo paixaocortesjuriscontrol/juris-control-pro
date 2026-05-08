@@ -62,11 +62,14 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
   else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
   if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
-  else if (filters.situacaoProcesso === "transito") query = query.ilike("situacao_processo", "%trânsito em julgado%");
+  else if (filters.situacaoProcesso === "transito") {
+    query = query.or("transito_julgado.eq.true,situacao_processo.ilike.*trânsito em julgado*");
+  }
   else if (filters.situacaoProcesso === "outros") {
     query = query.or(
       'situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.*trânsito em julgado*)'
     );
+    query = query.or("transito_julgado.is.null,transito_julgado.eq.false");
   }
   if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
   if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
@@ -97,8 +100,8 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
 function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma, problema_judit, dados_benner_responsaveis!inner(usuario_id)"
-    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, turma, problema_judit";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
@@ -169,9 +172,10 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           else acc.bennerNao++;
           // Processos Ativos
           const situacao = String(r.situacao_processo || "").trim().toLowerCase();
-          if (situacao === "ativo") acc.processosAtivos++;
-          if (situacao.includes("trânsito em julgado") || situacao.includes("transito em julgado")) acc.transitoJulgado++;
-          if (!situacao || (situacao !== "ativo" && !situacao.includes("trânsito em julgado") && !situacao.includes("transito em julgado"))) acc.outrosSituacao++;
+          const isTransito = r.transito_julgado === true || situacao.includes("trânsito em julgado") || situacao.includes("transito em julgado");
+          if (isTransito) acc.transitoJulgado++;
+          else if (situacao === "ativo") acc.processosAtivos++;
+          else acc.outrosSituacao++;
           // Sem Turma
           const turma = String(r.turma || "").trim();
           if (!turma) acc.semTurma++;
