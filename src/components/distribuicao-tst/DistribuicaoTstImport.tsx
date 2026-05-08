@@ -605,26 +605,30 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           });
         }
 
-        const bennerIdsParaLimpar: string[] = [];
-        const insertRows: { dados_benner_id: string; usuario_id: string }[] = [];
+        // Preservar responsáveis existentes: só atribuir quando o registro
+        // ainda não tem nenhum responsável cadastrado. Nunca sobrescrever.
+        const candidatos: { dados_benner_id: string; usuario_id: string }[] = [];
         for (const [processo, payload] of latestResponsavelByProcess.entries()) {
           const bennerId = processToBennerId.get(processo);
           if (!bennerId) continue;
-          bennerIdsParaLimpar.push(bennerId);
-          if (!payload.clear && payload.userId) {
-            insertRows.push({ dados_benner_id: bennerId, usuario_id: payload.userId });
-          }
+          if (payload.clear || !payload.userId) continue;
+          candidatos.push({ dados_benner_id: bennerId, usuario_id: payload.userId });
         }
 
         const DEL_BATCH = 200;
-        for (let i = 0; i < bennerIdsParaLimpar.length; i += DEL_BATCH) {
+        // Descobrir quais dados_benner_id já têm responsáveis e excluí-los
+        const idsParaChecar = [...new Set(candidatos.map(c => c.dados_benner_id))];
+        const idsComResponsavel = new Set<string>();
+        for (let i = 0; i < idsParaChecar.length; i += DEL_BATCH) {
           if (cancelRef.current) break;
-          const ids = bennerIdsParaLimpar.slice(i, i + DEL_BATCH);
-          const { error: delErr } = await (supabase.from("dados_benner_responsaveis" as any) as any)
-            .delete()
-            .in("dados_benner_id", ids);
-          if (delErr) { console.error("Erro ao limpar responsáveis:", delErr); continue; }
+          const slice = idsParaChecar.slice(i, i + DEL_BATCH);
+          const { data, error } = await (supabase.from("dados_benner_responsaveis" as any) as any)
+            .select("dados_benner_id")
+            .in("dados_benner_id", slice);
+          if (error) { console.error("Erro ao checar responsáveis existentes:", error); continue; }
+          (data || []).forEach((r: any) => idsComResponsavel.add(r.dados_benner_id));
         }
+        const insertRows = candidatos.filter(c => !idsComResponsavel.has(c.dados_benner_id));
 
         for (let i = 0; i < insertRows.length; i += DEL_BATCH) {
           if (cancelRef.current) break;
