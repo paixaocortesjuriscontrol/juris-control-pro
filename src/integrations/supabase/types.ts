@@ -1559,6 +1559,7 @@ export type Database = {
           ganhamos: boolean | null
           honra: string | null
           horario_julgamento: string | null
+          ic_duplicado: boolean
           id: string
           judit_preenchido: boolean | null
           judit_preenchido_em: string | null
@@ -1648,6 +1649,7 @@ export type Database = {
           ganhamos?: boolean | null
           honra?: string | null
           horario_julgamento?: string | null
+          ic_duplicado?: boolean
           id?: string
           judit_preenchido?: boolean | null
           judit_preenchido_em?: string | null
@@ -1737,6 +1739,7 @@ export type Database = {
           ganhamos?: boolean | null
           honra?: string | null
           horario_julgamento?: string | null
+          ic_duplicado?: boolean
           id?: string
           judit_preenchido?: boolean | null
           judit_preenchido_em?: string | null

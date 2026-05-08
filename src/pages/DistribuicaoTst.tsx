@@ -163,6 +163,7 @@ export default function DistribuicaoTst() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
+  const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -191,10 +192,11 @@ export default function DistribuicaoTst() {
         status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
         emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
+        duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
@@ -248,7 +250,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -261,6 +263,7 @@ export default function DistribuicaoTst() {
     setFiltroSituacaoProcesso("todos");
     setFiltroStatus("todos");
     setFiltroEmAnalise("todos");
+    setFiltroDuplicado("todos");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -1223,6 +1226,16 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Não preenchido com Judit</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroDuplicado} onValueChange={setFiltroDuplicado}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Duplicados" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Duplicados: Todos</SelectItem>
+                <SelectItem value="sim">Apenas duplicados</SelectItem>
+                <SelectItem value="nao">Apenas não duplicados</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Situação" />
@@ -1374,6 +1387,11 @@ export default function DistribuicaoTst() {
                                   Em análise
                                 </Badge>
                               )}
+                              {(d as any).ic_duplicado && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
+                                  Dup.
+                                </Badge>
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1386,6 +1404,11 @@ export default function DistribuicaoTst() {
                           {(d as any).em_analise && (
                             <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
                               Em análise
+                            </Badge>
+                          )}
+                          {(d as any).ic_duplicado && (
+                            <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
+                              Dup.
                             </Badge>
                           )}
                         </div>
