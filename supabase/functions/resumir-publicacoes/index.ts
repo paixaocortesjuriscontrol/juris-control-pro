@@ -7,19 +7,46 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT_INDIVIDUAL = `Você é um advogado sênior que prepara o "Conteúdo Integral" de publicações do DJE para a Dra. Renata. Ela não lê o texto na íntegra; você deve TRANSCREVER os trechos mais importantes da publicação, como um advogado faria ao destacar o que importa.
+// Prompt completo do "Agente de Resumo de Publicações DJEN/PJe" (ver prompt-agente.md).
+const SYSTEM_PROMPT_INDIVIDUAL = `# AGENTE DE RESUMO DE PUBLICAÇÕES — DJEN / PJe
 
-REGRAS OBRIGATÓRIAS:
-1. Comece pelo TIPO do ato, em maiúsculas, como no original: A C Ó R D Ã O, DESPACHO, INTIMAÇÃO, CERTIDÃO, TERMO DE AUDIÊNCIA, etc.
-2. Em seguida, CITE trechos literais da publicação: transcreva as frases ou parágrafos que contêm o núcleo da decisão, a fundamentação relevante e o dispositivo. Não parafraseie — use as palavras do texto quando forem decisivas.
-3. Inclua sempre que existir:
-   - O trecho que explica o entendimento do órgão (ex.: "Nesse contexto, não se constata omissão...")
-   - O dispositivo na íntegra (ex.: "Ante o exposto, NEGO PROVIMENTO aos embargos de declaração.")
-   - O fechamento formal se houver (ex.: "ISTO POSTO / ACORDAM os Ministros da Terceira Turma...")
-4. Uma linha em branco entre blocos de citação. Texto puro, sem markdown (sem ###, **, listas).
-5. Não invente texto. Só transcrever ou resumir com base no conteúdo fornecido. Não repita processo, órgão ou data (já constam nos metadados).
-6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.
-7. NÃO inclua o trecho final no seu resumo — ele será anexado automaticamente, na íntegra, ao final do texto. Foque apenas em destacar/transcrever os trechos relevantes do meio da publicação. Não mencione "TRECHO FINAL" nem repita os últimos blocos.`;
+## 1. IDENTIDADE E PAPEL
+Você é um assistente jurídico sênior, especializado na leitura, interpretação e síntese de publicações do Diário da Justiça Eletrônico Nacional (DJEN) e de comunicações processuais oriundas do PJe. Atua como apoio direto a advogados, exigindo rigor técnico, precisão terminológica e absoluta fidelidade ao texto original.
+
+## 2. OBJETIVO
+Transformar publicações judiciais em resumos objetivos que permitam ao destinatário, em poucos segundos: identificar a natureza do ato, compreender o conteúdo decisório/intimatório, reconhecer prazos e providências, e preservar sem alteração os trechos sensíveis indicados na Seção 6.
+
+## 3. DIRETRIZES
+Identifique tipo do ato, número do processo, órgão, partes, magistrado/relator, data, comando central, prazos, urgências e consequências processuais. NÃO interprete, NÃO opine, NÃO extrapole.
+
+## 4. ESTILO
+Português jurídico formal, claro e direto. Frases curtas. Terminologia técnica correta. Sem coloquialismos nem hedging. Não invente dados ausentes — use null.
+
+## 5. FORMATO DE SAÍDA — JSON ESTRITO
+Retorne SEMPRE um único objeto JSON válido, sem texto fora do objeto, sem markdown:
+{
+  "tipo_ato": "string | null",
+  "numero_processo": "string | null",
+  "orgao": "string | null",
+  "partes": { "ativa": "string | null", "passiva": "string | null" },
+  "magistrado_relator": "string | null",
+  "data_publicacao": "string | null",
+  "resumo": "string",
+  "prazo": { "existe": true|false, "descricao": "string|null", "dias": number|null, "tipo": "uteis|corridos|null" },
+  "providencias": ["string"],
+  "alertas": ["string"],
+  "trecho_preservado": "string",
+  "assinatura": "string | null"
+}
+
+## 6. REGRAS CRÍTICAS DE PRESERVAÇÃO TEXTUAL (INVIOLÁVEIS)
+6.1. Reproduza SEMPRE o último parágrafo da publicação, palavra por palavra, sem resumir, sem parafrasear, sem corrigir pontuação ou ortografia. Não inclua a assinatura no trecho_preservado (ela tem campo próprio). Ignore metadados de sistema do DJEN/PJe (ex.: "Intimado(s) / Citado(s) - NOME").
+6.2. Se o último parágrafo (sem assinatura/metadados) tiver MENOS de 400 caracteres OU MENOS de 5 linhas, reproduza na íntegra os DOIS últimos parágrafos, separados por \\n. Se ainda assim ficar com menos de 400 caracteres, inclua também o terceiro parágrafo anterior, na ordem original.
+6.3. Se houver assinatura ao final (nome do magistrado, secretário, escrivão, etc.), reproduza-a integralmente no campo "assinatura" — incluindo cargo, vara, comarca, matrícula. Se não houver, retorne null. Nunca invente.
+6.4. Preservação > concisão. Fidelidade > legibilidade. Não reescreva o trecho_preservado nem a assinatura, mesmo com erros gramaticais.
+
+## 7. RESTRIÇÕES
+Sem juízo de valor. Sem estratégia processual. Não traduza/modernize/simplifique o trecho preservado nem a assinatura. Se a publicação for ininteligível, retorne resumo "Conteúdo insuficiente para resumo confiável." e ainda assim aplique a Seção 6 ao que estiver disponível.`;
 
 // Normaliza HTML/whitespace e devolve a lista de parágrafos.
 function normalizarParagrafos(textoBruto: string): string[] {
@@ -147,9 +174,8 @@ serve(async (req) => {
         );
       }
 
-      const truncated = conteudo.substring(0, 4000);
-      const trechoFinal = extrairTrechoFinal(conteudoBruto);
-      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n(O trecho final (ementa do acórdão ou texto integral da intimação + assinatura do Relator) será anexado automaticamente, na íntegra, ao final. NÃO o inclua no seu resumo.)`;
+      const truncated = conteudo.substring(0, 8000);
+      const userMsg = `Texto integral da publicação a ser resumida (metadados do sistema podem aparecer no início/fim — descarte-os conforme Seção 8):\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\n---\n${truncated}\n---\n\nRetorne APENAS o objeto JSON conforme a Seção 5, sem texto adicional.`;
 
       let resumo = 'Não foi possível gerar resumo.';
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
@@ -169,8 +195,9 @@ serve(async (req) => {
                 { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
                 { role: 'user', content: userMsg },
               ],
-              max_tokens: 1200,
-              temperature: 0.2,
+              max_tokens: 2000,
+              temperature: 0.1,
+              response_format: { type: 'json_object' },
             }),
           });
 
@@ -193,15 +220,8 @@ serve(async (req) => {
         }
       }
 
-      // Garantia: SEMPRE anexar o trecho final literal da publicação ao fim do resumo,
-      // sem nenhuma alteração do conteúdo original. Se o modelo já incluiu, removemos
-      // a versão dele para evitar duplicação e colocamos a versão literal.
-      if (trechoFinal) {
-        // Remove qualquer seção "TRECHO FINAL" anterior gerada pelo modelo
-        const marcador = /\n*-{2,}\s*TRECHO FINAL[^\n]*\n[\s\S]*$/i;
-        const resumoLimpo = resumo.replace(marcador, '').trimEnd();
-        resumo = `${resumoLimpo}\n\n--- TRECHO FINAL DA PUBLICAÇÃO (original, sem resumir) ---\n${trechoFinal}`;
-      }
+      // Converte o JSON do agente em markdown legível para a UI.
+      resumo = formatarResumoMarkdown(resumo);
 
       return new Response(
         JSON.stringify({ id: pub.id, resumo }),
