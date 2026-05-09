@@ -42,7 +42,14 @@ function extrairUltimosBlocos(textoBruto: string, n = 3): string {
     paragrafos = normalizado.split(/\n+/).map(b => b.trim()).filter(b => b.length > 0);
   }
   if (paragrafos.length === 0) return '';
-  return paragrafos.slice(-n).join('\n\n');
+  // Começa com os últimos N; se total < 100 chars, vai subindo parágrafos.
+  let count = Math.min(n, paragrafos.length);
+  let selecionados = paragrafos.slice(-count);
+  while (selecionados.join('\n\n').length < 100 && count < paragrafos.length) {
+    count++;
+    selecionados = paragrafos.slice(-count);
+  }
+  return selecionados.join('\n\n');
 }
 
 serve(async (req) => {
