@@ -148,8 +148,8 @@ serve(async (req) => {
       }
 
       const truncated = conteudo.substring(0, 4000);
-      const trechoFinal = extrairUltimosBlocos(conteudoBruto, 3);
-      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n(Os últimos 3 parágrafos serão anexados automaticamente, na íntegra, ao final. NÃO os inclua no seu resumo.)`;
+      const trechoFinal = extrairTrechoFinal(conteudoBruto);
+      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n(O trecho final (ementa do acórdão ou texto integral da intimação + assinatura do Relator) será anexado automaticamente, na íntegra, ao final. NÃO o inclua no seu resumo.)`;
 
       let resumo = 'Não foi possível gerar resumo.';
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
@@ -200,7 +200,7 @@ serve(async (req) => {
         // Remove qualquer seção "TRECHO FINAL" anterior gerada pelo modelo
         const marcador = /\n*-{2,}\s*TRECHO FINAL[^\n]*\n[\s\S]*$/i;
         const resumoLimpo = resumo.replace(marcador, '').trimEnd();
-        resumo = `${resumoLimpo}\n\n--- ÚLTIMOS 3 PARÁGRAFOS DA PUBLICAÇÃO (original, sem resumir) ---\n${trechoFinal}`;
+        resumo = `${resumoLimpo}\n\n--- TRECHO FINAL DA PUBLICAÇÃO (original, sem resumir) ---\n${trechoFinal}`;
       }
 
       return new Response(
