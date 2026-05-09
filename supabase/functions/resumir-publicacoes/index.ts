@@ -123,6 +123,16 @@ serve(async (req) => {
         }
       }
 
+      // Garantia: SEMPRE anexar o trecho final literal da publicação ao fim do resumo,
+      // sem nenhuma alteração do conteúdo original. Se o modelo já incluiu, removemos
+      // a versão dele para evitar duplicação e colocamos a versão literal.
+      if (trechoFinal) {
+        // Remove qualquer seção "TRECHO FINAL" anterior gerada pelo modelo
+        const marcador = /\n*-{2,}\s*TRECHO FINAL[^\n]*\n[\s\S]*$/i;
+        const resumoLimpo = resumo.replace(marcador, '').trimEnd();
+        resumo = `${resumoLimpo}\n\n--- TRECHO FINAL DA PUBLICAÇÃO (original) ---\n${trechoFinal}`;
+      }
+
       return new Response(
         JSON.stringify({ id: pub.id, resumo }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
