@@ -42,7 +42,6 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-function SchedulerPanel() {
 const DIAS_SEMANA = [
   { idx: 0, label: "Dom", full: "Domingo" },
   { idx: 1, label: "Seg", full: "Segunda" },
