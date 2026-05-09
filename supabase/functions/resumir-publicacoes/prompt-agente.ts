@@ -622,9 +622,16 @@ O texto enviado já contém a porção final da publicação. LEIA DE TRÁS PARA
 \`\`\`json
 {
   "trecho_preservado": "string",
-  "assinatura": "string | null"
+  "assinatura": "string | null",
+  "intimados": "string | null"
 }
 \`\`\`
+
+## CAMPO \`intimados\` (NOVO)
+- Se ao final da publicação existir um bloco "Intimado(s) / Citado(s) - …" (uma ou mais linhas), reproduza-o INTEGRALMENTE e LITERALMENTE neste campo, incluindo a etiqueta "Intimado(s) / Citado(s) -" e todos os nomes/qualificações listados, preservando quebras de linha originais com \`\\n\`.
+- NÃO inclua esse bloco dentro de \`trecho_preservado\` nem de \`assinatura\` — ele tem campo próprio.
+- Se NÃO houver esse bloco, retorne \`null\`. Nunca invente nomes.
+- Não resuma, não reordene, não normalize maiúsculas/minúsculas — cópia literal.
 
 Retorne APENAS esse objeto JSON, sem texto adicional, sem markdown, sem comentários.
 `;
