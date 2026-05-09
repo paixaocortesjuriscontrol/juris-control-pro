@@ -139,6 +139,72 @@ function extrairUltimosBlocos(textoBruto: string, _n = 3): string {
   return extrairTrechoFinal(textoBruto);
 }
 
+// Converte o JSON do agente DJEN em markdown legível para exibição na UI.
+function formatarResumoMarkdown(jsonStr: string): string {
+  let data: any;
+  try {
+    data = JSON.parse(jsonStr);
+  } catch {
+    // Se vier com cercas de código, tentar limpar
+    const limpo = jsonStr.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    try { data = JSON.parse(limpo); } catch { return jsonStr; }
+  }
+
+  const linhas: string[] = [];
+  const push = (label: string, val: any) => {
+    if (val === null || val === undefined || val === '') return;
+    linhas.push(`**${label}:** ${val}`);
+  };
+
+  push('Tipo de ato', data.tipo_ato);
+  push('Processo', data.numero_processo);
+  push('Órgão', data.orgao);
+  if (data.partes && (data.partes.ativa || data.partes.passiva)) {
+    const partes = [data.partes.ativa, data.partes.passiva].filter(Boolean).join(' x ');
+    push('Partes', partes);
+  }
+  push('Relator(a)', data.magistrado_relator);
+  push('Data', data.data_publicacao);
+
+  if (data.resumo) {
+    linhas.push('');
+    linhas.push(`**Resumo:** ${data.resumo}`);
+  }
+
+  if (data.prazo && data.prazo.existe) {
+    linhas.push('');
+    const partes = [data.prazo.descricao];
+    if (data.prazo.dias) partes.push(`${data.prazo.dias} dia(s) ${data.prazo.tipo || ''}`.trim());
+    push('Prazo', partes.filter(Boolean).join(' — '));
+  }
+
+  if (Array.isArray(data.providencias) && data.providencias.length > 0) {
+    linhas.push('');
+    linhas.push('**Providências:**');
+    data.providencias.forEach((p: string) => linhas.push(`- ${p}`));
+  }
+
+  if (Array.isArray(data.alertas) && data.alertas.length > 0) {
+    linhas.push('');
+    linhas.push('**Alertas:**');
+    data.alertas.forEach((a: string) => linhas.push(`- ${a}`));
+  }
+
+  if (data.trecho_preservado) {
+    linhas.push('');
+    linhas.push('--- TRECHO FINAL DA PUBLICAÇÃO (original, sem resumir) ---');
+    linhas.push(data.trecho_preservado);
+  }
+
+  if (data.assinatura) {
+    linhas.push('');
+    linhas.push('**Assinatura:**');
+    linhas.push(data.assinatura);
+  }
+
+  return linhas.join('\n').trim();
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
