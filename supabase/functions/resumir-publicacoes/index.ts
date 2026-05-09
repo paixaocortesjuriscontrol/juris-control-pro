@@ -38,7 +38,16 @@ function extrairUltimosBlocos(textoBruto: string, n = 2): string {
   // Divide em blocos por linhas em branco (1+ linhas vazias)
   const blocos = normalizado.split(/\n\s*\n+/).map(b => b.trim()).filter(b => b.length > 0);
   if (blocos.length === 0) return '';
-  const ultimos = blocos.slice(-n);
+  // Se há apenas 1 bloco, retorna ele inteiro
+  if (blocos.length === 1) return blocos[0];
+  // Pega os últimos N blocos
+  let ultimos = blocos.slice(-n);
+  // Se o primeiro dos selecionados (penúltimo da publicação) for muito curto (<50 chars),
+  // sobe mais um bloco para incluir contexto.
+  const idxInicio = blocos.length - ultimos.length;
+  if (idxInicio > 0 && ultimos[0].length < 50) {
+    ultimos = blocos.slice(idxInicio - 1);
+  }
   return ultimos.join('\n\n');
 }
 
