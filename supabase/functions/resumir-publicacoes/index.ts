@@ -1,7 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { SYSTEM_PROMPT as SYSTEM_PROMPT_INDIVIDUAL } from './prompt-agente.ts';
+import {
+  SYSTEM_PROMPT as SYSTEM_PROMPT_INDIVIDUAL,
+  SYSTEM_PROMPT_FASE_RESUMO,
+  SYSTEM_PROMPT_FASE_TRECHO,
+} from './prompt-agente.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -201,54 +205,94 @@ serve(async (req) => {
         );
       }
 
-      const truncated = conteudo.substring(0, 8000);
-      const userMsg = `Texto integral da publicação a ser resumida (metadados do sistema podem aparecer no início/fim — descarte-os conforme Seção 8):\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\n---\n${truncated}\n---\n\nRetorne APENAS o objeto JSON conforme a Seção 5, sem texto adicional.`;
-
-      let resumo = 'Não foi possível gerar resumo.';
+      // Execução em DUAS FASES por publicação, com isolamento total entre publicações
+      // (cada chamada é independente — sem histórico, sem contexto compartilhado).
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
       const maxRetries = 3;
+      const processo = pub.processo || pub.numeroProcesso || 'N/A';
+      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
 
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openAIApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: summaryModel,
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT_INDIVIDUAL },
-                { role: 'user', content: userMsg },
-              ],
-              max_tokens: 2000,
-              temperature: 0.1,
-              response_format: { type: 'json_object' },
-            }),
-          });
-
-          if (resp.status === 429) {
-            const waitMs = Math.min(2000 * Math.pow(2, attempt), 10000);
-            console.warn(`Rate limited (429) for pub ${pub.id}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`);
-            await new Promise(r => setTimeout(r, waitMs));
-            continue;
-          }
-
-          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
-          const aiResponse = await resp.json();
-          resumo = aiResponse.choices?.[0]?.message?.content?.trim() || resumo;
-          break; // success
-        } catch (e) {
-          if (attempt === maxRetries - 1) {
-            console.error(`Erro ao resumir pub ${pub.id} após ${maxRetries} tentativas:`, e);
-            resumo = 'Erro ao gerar resumo desta publicação.';
+      // Helper: 1 chamada à OpenAI com retry/backoff
+      async function callOpenAI(systemPrompt: string, userMsg: string, maxTokens: number): Promise<string> {
+        let lastErr: unknown = null;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openAIApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: summaryModel,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userMsg },
+                ],
+                max_tokens: maxTokens,
+                temperature: 0.1,
+                response_format: { type: 'json_object' },
+              }),
+            });
+            if (resp.status === 429) {
+              const waitMs = Math.min(2000 * Math.pow(2, attempt), 10000);
+              console.warn(`Rate limited (429) pub ${pub.id}, retry em ${waitMs}ms (${attempt + 1}/${maxRetries})`);
+              await new Promise(r => setTimeout(r, waitMs));
+              continue;
+            }
+            if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+            const aiResponse = await resp.json();
+            return aiResponse.choices?.[0]?.message?.content?.trim() || '';
+          } catch (e) {
+            lastErr = e;
           }
         }
+        throw lastErr || new Error('Falha após retries');
       }
 
-      // Converte o JSON do agente em markdown legível para a UI.
-      resumo = formatarResumoMarkdown(resumo);
+      // ── FASE 1: RESUMO (sem trecho_preservado / assinatura) ──
+      const truncadoInicio = conteudo.substring(0, 8000);
+      const userMsgFase1 = `PUBLICAÇÃO ÚNICA — analise SOMENTE este texto, isolado de qualquer outro contexto.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- TEXTO INTEGRAL ---\n${truncadoInicio}\n--- FIM DO TEXTO ---\n\nRetorne APENAS o JSON da Fase 1 (sem trecho_preservado nem assinatura).`;
+
+      // ── FASE 2: TRECHO FINAL — apenas a porção FINAL do texto ──
+      // Envia os últimos 6000 caracteres para o modelo focar no fim.
+      const tailLength = 6000;
+      const trechoFinal = conteudo.length > tailLength
+        ? '…' + conteudo.substring(conteudo.length - tailLength)
+        : conteudo;
+      const userMsgFase2 = `PUBLICAÇÃO ÚNICA — extraia trecho_preservado e assinatura SOMENTE deste texto, lendo do FINAL para o começo. Ignore qualquer contexto anterior.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- PORÇÃO FINAL DO TEXTO (leia de trás para frente) ---\n${trechoFinal}\n--- FIM ---\n\nRetorne APENAS o JSON da Fase 2 com os campos trecho_preservado e assinatura.`;
+
+      let dadosResumo: any = {};
+      let dadosTrecho: any = {};
+
+      try {
+        const [respFase1, respFase2] = await Promise.all([
+          callOpenAI(SYSTEM_PROMPT_FASE_RESUMO, userMsgFase1, 1500),
+          callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000),
+        ]);
+        try { dadosResumo = JSON.parse(respFase1); } catch {
+          const limpo = respFase1.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+          try { dadosResumo = JSON.parse(limpo); } catch { dadosResumo = { resumo: respFase1 }; }
+        }
+        try { dadosTrecho = JSON.parse(respFase2); } catch {
+          const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+          try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
+        }
+      } catch (e) {
+        console.error(`Erro ao resumir pub ${pub.id}:`, e);
+        return new Response(
+          JSON.stringify({ id: pub.id, resumo: 'Erro ao gerar resumo desta publicação.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Mescla as duas fases em um único objeto e formata em markdown
+      const merged = {
+        ...dadosResumo,
+        trecho_preservado: dadosTrecho.trecho_preservado ?? null,
+        assinatura: dadosTrecho.assinatura ?? null,
+      };
+      const resumo = formatarResumoMarkdown(JSON.stringify(merged));
 
       return new Response(
         JSON.stringify({ id: pub.id, resumo }),
