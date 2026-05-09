@@ -37,6 +37,28 @@ function brtNow(): { ymd: string; hour: number; minute: number; ddmmyyyy: string
   return { ymd, hour: h === 24 ? 0 : h, minute: m, ddmmyyyy: `${d}/${mo}/${y}` };
 }
 
+/**
+ * Retorna o weekday em BRT: 0=domingo, 1=segunda, ..., 6=sábado.
+ */
+function brtWeekday(ymd: string): number {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  // meio-dia UTC para evitar viradas de fuso
+  return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)).getUTCDay();
+}
+
+/**
+ * Resolve o horário do dia atual a partir do array em horarios_execucao.
+ * - Array com 7 posições: usa horarios[weekday] (0=dom..6=sáb). "" ou null = desativado.
+ * - Array com 1 posição (legado): usa o mesmo horário todos os dias.
+ * Retorna null se o dia estiver desativado.
+ */
+function resolveHorarioDoDia(horarios: (string | null)[] | null, weekday: number): string | null {
+  if (!horarios || horarios.length === 0) return "06:00";
+  if (horarios.length === 1) return horarios[0] || null;
+  const v = horarios[weekday];
+  return v && v.trim() !== "" ? v : null;
+}
+
 function ymdToDdmmyyyy(ymd: string): string {
   const [y, m, d] = ymd.split("-");
   return `${d}/${m}/${y}`;
@@ -271,7 +293,13 @@ Deno.serve(async (req) => {
 
     // 2) Janela de horário
     if (!force) {
-      const horario = (cfg.horarios_execucao as string[] | null)?.[0] || "06:00";
+      const wd = brtWeekday(now.ymd);
+      const horario = resolveHorarioDoDia(cfg.horarios_execucao as (string | null)[] | null, wd);
+      if (!horario) {
+        return new Response(JSON.stringify({ skipped: "dia_desativado", weekday: wd }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const [hh, mm] = horario.split(":").map(Number);
       if (isNaN(hh) || isNaN(mm)) {
         return new Response(JSON.stringify({ skipped: "horario_invalido" }), {

@@ -15,7 +15,10 @@ export interface DjetPautasSchedulerStatus {
   ativo: boolean;
   proximoHorario: string | null;
   ultimaExecucao: string | null;
+  /** Horário do dia atual em BRT (vazio se hoje estiver desativado). */
   horario: string;
+  /** Array de 7 horários (0=domingo..6=sábado). String vazia = dia desativado. */
+  horariosPorDia: string[];
 }
 
 let schedulerInstance: DjetPautasScheduler | null = null;
@@ -26,8 +29,8 @@ class DjetPautasScheduler {
   private isRunning = false;
   private lastRunDate: string | null = null;
   private dbConfigId: string | null = null;
-  private targetHour = 6;
-  private targetMinute = 0;
+  /** Index 0=domingo .. 6=sábado. "" = desativado naquele dia. */
+  private horariosPorDia: string[] = ["", "06:00", "06:00", "06:00", "06:00", "06:00", ""];
   private readonly INTERVAL_MS = 30000;
   private readonly WINDOW_MIN = 30;
 
@@ -46,10 +49,13 @@ class DjetPautasScheduler {
         .maybeSingle();
       if (data) {
         this.dbConfigId = data.id;
-        const h = (data.horarios_execucao as string[] | null)?.[0];
-        if (h) {
-          const [hh, mm] = h.split(":").map(Number);
-          if (!isNaN(hh) && !isNaN(mm)) { this.targetHour = hh; this.targetMinute = mm; }
+        const arr = (data.horarios_execucao as (string | null)[] | null) ?? [];
+        if (arr.length === 7) {
+          this.horariosPorDia = arr.map((v) => (v ?? "").trim());
+        } else if (arr.length >= 1 && arr[0]) {
+          // Legado: 1 horário aplicado em seg-sex; sáb/dom desativados.
+          const h = String(arr[0]);
+          this.horariosPorDia = ["", h, h, h, h, h, ""];
         }
         if (data.ativo && !this.isRunning) this.startInternal();
       }
@@ -59,16 +65,16 @@ class DjetPautasScheduler {
 
   private async saveToDb() {
     try {
-      const horarioStr = `${String(this.targetHour).padStart(2, "0")}:${String(this.targetMinute).padStart(2, "0")}`;
+      const arr = this.horariosPorDia;
       if (this.dbConfigId) {
         await supabase
           .from("configuracoes_monitoramento")
-          .update({ ativo: this.isRunning, horarios_execucao: [horarioStr], updated_at: new Date().toISOString() })
+          .update({ ativo: this.isRunning, horarios_execucao: arr, updated_at: new Date().toISOString() })
           .eq("id", this.dbConfigId);
       } else {
         const { data } = await supabase
           .from("configuracoes_monitoramento")
-          .insert({ tipo: "djet_pautas", ativo: this.isRunning, horarios_execucao: [horarioStr], frequencia: "diario" } as any)
+          .insert({ tipo: "djet_pautas", ativo: this.isRunning, horarios_execucao: arr, frequencia: "diario" } as any)
           .select("id")
           .single();
         if (data) this.dbConfigId = (data as any).id;
@@ -91,10 +97,26 @@ class DjetPautasScheduler {
     return { hour: h === 24 ? 0 : h, minute: m };
   }
 
+  private getBrtWeekday(): number {
+    const ymd = this.getTodayYmd();
+    const [y, mo, d] = ymd.split("-").map(Number);
+    return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)).getUTCDay();
+  }
+
+  /** Retorna "HH:MM" do dia atual ou null se desativado. */
+  private getHorarioHoje(): string | null {
+    const v = this.horariosPorDia[this.getBrtWeekday()];
+    return v && v.trim() !== "" ? v : null;
+  }
+
   private shouldRunToday(): boolean {
+    const horarioHoje = this.getHorarioHoje();
+    if (!horarioHoje) return false;
+    const [hh, mm] = horarioHoje.split(":").map(Number);
+    if (isNaN(hh) || isNaN(mm)) return false;
     const { hour, minute } = this.getBrtHm();
     const now = hour * 60 + minute;
-    const tgt = this.targetHour * 60 + this.targetMinute;
+    const tgt = hh * 60 + mm;
     return now >= tgt && now <= tgt + this.WINDOW_MIN;
   }
 
@@ -138,22 +160,65 @@ class DjetPautasScheduler {
     this.notify();
   }
 
-  setTime(h: number, m: number) {
-    this.targetHour = h; this.targetMinute = m;
+  /**
+   * Define o horário "HH:MM" para um dia da semana (0=dom..6=sáb).
+   * Passe horario = "" para desativar o dia.
+   */
+  setHorarioDia(weekday: number, horario: string) {
+    if (weekday < 0 || weekday > 6) return;
+    const arr = [...this.horariosPorDia];
+    arr[weekday] = horario.trim();
+    this.horariosPorDia = arr;
     void this.saveToDb();
     this.notify();
   }
 
   getStatus(): DjetPautasSchedulerStatus {
-    const timeStr = `${String(this.targetHour).padStart(2, "0")}:${String(this.targetMinute).padStart(2, "0")}`;
+    const horarioHoje = this.getHorarioHoje() || "";
     let proximoHorario: string | null = null;
     if (this.isRunning) {
       const today = this.getTodayYmd();
-      if (this.lastRunDate === today) proximoHorario = `Amanhã às ${timeStr}`;
-      else if (this.shouldRunToday()) proximoHorario = "Em breve (aguardando)";
-      else proximoHorario = `Hoje às ${timeStr}`;
+      const proximo = this.computeProximaExecucao();
+      if (this.lastRunDate === today && horarioHoje) {
+        proximoHorario = proximo;
+      } else if (this.shouldRunToday()) {
+        proximoHorario = "Em breve (aguardando)";
+      } else {
+        proximoHorario = proximo;
+      }
     }
-    return { ativo: this.isRunning, proximoHorario, ultimaExecucao: this.lastRunDate, horario: timeStr };
+    return {
+      ativo: this.isRunning,
+      proximoHorario,
+      ultimaExecucao: this.lastRunDate,
+      horario: horarioHoje,
+      horariosPorDia: [...this.horariosPorDia],
+    };
+  }
+
+  /** Calcula a string "Hoje/Amanhã/<dia> às HH:MM" do próximo horário ativo. */
+  private computeProximaExecucao(): string | null {
+    const dias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+    const wdHoje = this.getBrtWeekday();
+    const today = this.getTodayYmd();
+    const horarioHoje = this.getHorarioHoje();
+    const { hour, minute } = this.getBrtHm();
+    const nowMin = hour * 60 + minute;
+    if (horarioHoje && this.lastRunDate !== today) {
+      const [hh, mm] = horarioHoje.split(":").map(Number);
+      if (!isNaN(hh) && !isNaN(mm) && nowMin <= hh * 60 + mm + this.WINDOW_MIN) {
+        return `Hoje às ${horarioHoje}`;
+      }
+    }
+    for (let i = 1; i <= 7; i++) {
+      const wd = (wdHoje + i) % 7;
+      const v = this.horariosPorDia[wd];
+      if (v && v.trim() !== "") {
+        const label = i === 1 ? "Amanhã" : dias[wd];
+        return `${label} às ${v}`;
+      }
+    }
+    return null;
   }
 
   private notify() {
@@ -177,7 +242,7 @@ export function useDjetPautasParalelaScheduler() {
     ...status,
     start: () => getScheduler().start(),
     stop: () => getScheduler().stop(),
-    setTime: (h: number, m: number) => getScheduler().setTime(h, m),
+    setHorarioDia: (weekday: number, horario: string) => getScheduler().setHorarioDia(weekday, horario),
   };
 }
 

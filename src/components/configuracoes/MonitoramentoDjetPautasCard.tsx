@@ -42,60 +42,80 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+const DIAS_SEMANA = [
+  { idx: 0, label: "Dom", full: "Domingo" },
+  { idx: 1, label: "Seg", full: "Segunda" },
+  { idx: 2, label: "Ter", full: "Terça" },
+  { idx: 3, label: "Qua", full: "Quarta" },
+  { idx: 4, label: "Qui", full: "Quinta" },
+  { idx: 5, label: "Sex", full: "Sexta" },
+  { idx: 6, label: "Sáb", full: "Sábado" },
+];
+
 function SchedulerPanel() {
-  const { ativo, horario, proximoHorario, start, stop, setTime } = useDjetPautasParalelaScheduler();
-  const [editing, setEditing] = useState(false);
-  const [tempTime, setTempTime] = useState(horario);
+  const { ativo, horario, horariosPorDia, proximoHorario, start, stop, setHorarioDia } = useDjetPautasParalelaScheduler();
+  const wdHoje = new Date().getDay();
 
   return (
     <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Clock className="h-4 w-4 text-primary" />
-          Agendamento automático
+          Agendamento automático por dia da semana
         </div>
         <Badge variant={ativo ? "default" : "secondary"}>
           {ativo ? "Ativo" : "Inativo"}
         </Badge>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
         <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-          <span className="text-xs text-muted-foreground">Horário diário (BRT)</span>
-          {editing ? (
-            <div className="flex items-center gap-1">
-              <Input
-                type="time"
-                value={tempTime}
-                onChange={(e) => setTempTime(e.target.value)}
-                className="h-7 w-24 text-xs"
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  const [h, m] = tempTime.split(":").map(Number);
-                  if (!isNaN(h) && !isNaN(m)) setTime(h, m);
-                  setEditing(false);
-                }}
-              >Salvar</Button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="text-sm font-mono hover:underline"
-              onClick={() => { setTempTime(horario); setEditing(true); }}
-            >{horario}</button>
-          )}
+          <span className="text-muted-foreground">Hoje (BRT)</span>
+          <span className="font-mono">{horario || "Desativado"}</span>
         </div>
         <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-          <span className="text-xs text-muted-foreground">Próxima execução</span>
-          <span className="text-sm font-mono">{proximoHorario || "—"}</span>
+          <span className="text-muted-foreground">Próxima execução</span>
+          <span className="font-mono">{proximoHorario || "—"}</span>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
+        {DIAS_SEMANA.map((d) => {
+          const valor = horariosPorDia[d.idx] || "";
+          const ativoDia = valor.trim() !== "";
+          const isHoje = d.idx === wdHoje;
+          return (
+            <div
+              key={d.idx}
+              className={cn(
+                "rounded-md border bg-background px-2 py-2 space-y-1.5",
+                isHoje && "border-primary/50 ring-1 ring-primary/20"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px] font-semibold">
+                  {d.label}{isHoje ? " (hoje)" : ""}
+                </Label>
+                <Switch
+                  checked={ativoDia}
+                  onCheckedChange={(v) => setHorarioDia(d.idx, v ? (valor || "07:30") : "")}
+                />
+              </div>
+              <Input
+                type="time"
+                value={valor || ""}
+                disabled={!ativoDia}
+                onChange={(e) => setHorarioDia(d.idx, e.target.value)}
+                className="h-7 text-xs"
+              />
+            </div>
+          );
+        })}
+      </div>
+
       <div className="flex items-center gap-2">
         <Switch checked={ativo} onCheckedChange={(v) => (v ? start() : stop())} />
-        <Label className="text-sm">{ativo ? "Desativar agendamento" : "Ativar agendamento diário"}</Label>
+        <Label className="text-sm">{ativo ? "Desativar agendamento" : "Ativar agendamento"}</Label>
       </div>
     </div>
   );
