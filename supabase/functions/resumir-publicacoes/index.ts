@@ -167,6 +167,11 @@ function formatarResumoMarkdown(jsonStr: string): string {
     linhas.push(data.assinatura);
   }
 
+  if (data.intimados) {
+    linhas.push('');
+    linhas.push(data.intimados);
+  }
+
   return linhas.join('\n').trim();
 }
 
@@ -291,6 +296,7 @@ serve(async (req) => {
         ...dadosResumo,
         trecho_preservado: dadosTrecho.trecho_preservado ?? null,
         assinatura: dadosTrecho.assinatura ?? null,
+        intimados: dadosTrecho.intimados ?? null,
       };
       const resumo = formatarResumoMarkdown(JSON.stringify(merged));
 
