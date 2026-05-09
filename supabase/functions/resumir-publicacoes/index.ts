@@ -21,35 +21,95 @@ REGRAS OBRIGATÓRIAS:
 6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.
 7. NÃO inclua o trecho final no seu resumo — ele será anexado automaticamente, na íntegra, ao final do texto. Foque apenas em destacar/transcrever os trechos relevantes do meio da publicação. Não mencione "TRECHO FINAL" nem repita os últimos blocos.`;
 
-// Extrai os últimos N parágrafos preservando texto literal (sem resumir).
-function extrairUltimosBlocos(textoBruto: string, n = 3): string {
-  if (!textoBruto) return '';
-  // Limpa HTML mas preserva quebras de linha
+// Normaliza HTML/whitespace e devolve a lista de parágrafos.
+function normalizarParagrafos(textoBruto: string): string[] {
+  if (!textoBruto) return [];
   const semHtml = textoBruto
     .replace(/<br\s*\/?>(?=)/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
     .replace(/<[^>]+>/g, '')
     .replace(/\r\n?/g, '\n');
-  // Normaliza espaços horizontais sem destruir quebras de linha
   const normalizado = semHtml
     .split('\n')
     .map(l => l.replace(/[ \t]+/g, ' ').trim())
     .join('\n');
-  // Divide em parágrafos: primeiro tenta linhas em branco; se resultar em 1 só,
-  // cai pra divisão por linha simples (publicações sem linhas vazias).
   let paragrafos = normalizado.split(/\n\s*\n+/).map(b => b.trim()).filter(b => b.length > 0);
   if (paragrafos.length <= 1) {
     paragrafos = normalizado.split(/\n+/).map(b => b.trim()).filter(b => b.length > 0);
   }
+  return paragrafos;
+}
+
+// Detecta linha de assinatura do Relator (ex.: "Ministro FULANO" / "Desembargador ..." / "Relator").
+function ehAssinaturaRelator(p: string): boolean {
+  if (!p) return false;
+  if (p.length > 220) return false;
+  return /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente)\b/i.test(p);
+}
+
+// Extrai o trecho final segundo as regras do usuário.
+// CASO 1 — Acórdão: do marcador "A C Ó R D Ã O" até antes de "Vistos, relatados..." ou "V O T O", + assinatura.
+// CASO 2 — Sem acórdão: bloco completo + assinatura.
+// Fallback: últimos 2 parágrafos substantivos antes da assinatura.
+function extrairTrechoFinal(textoBruto: string): string {
+  const paragrafos = normalizarParagrafos(textoBruto);
   if (paragrafos.length === 0) return '';
-  // Começa com os últimos N; se total < 100 chars, vai subindo parágrafos.
-  let count = Math.min(n, paragrafos.length);
-  let selecionados = paragrafos.slice(-count);
-  while (selecionados.join('\n\n').length < 100 && count < paragrafos.length) {
-    count++;
-    selecionados = paragrafos.slice(-count);
+
+  // Localiza assinatura (último parágrafo curto que pareça ser autoria)
+  let idxAssinatura = -1;
+  for (let i = paragrafos.length - 1; i >= Math.max(0, paragrafos.length - 5); i--) {
+    if (ehAssinaturaRelator(paragrafos[i])) { idxAssinatura = i; break; }
   }
-  return selecionados.join('\n\n');
+  const assinatura = idxAssinatura >= 0 ? paragrafos[idxAssinatura] : '';
+  const limiteFim = idxAssinatura >= 0 ? idxAssinatura : paragrafos.length;
+
+  // Procura marcador de ACÓRDÃO
+  const reAcordao = /^\s*(A\s*C\s*Ó\s*R\s*D\s*Ã\s*O|AC[ÓO]RD[ÃA]O)\s*$/i;
+  let idxAcordao = -1;
+  for (let i = 0; i < limiteFim; i++) {
+    if (reAcordao.test(paragrafos[i]) || reAcordao.test(paragrafos[i].split('\n')[0] || '')) {
+      idxAcordao = i; break;
+    }
+  }
+  // Também aceita marcador embutido no início de um parágrafo
+  if (idxAcordao < 0) {
+    for (let i = 0; i < limiteFim; i++) {
+      if (/^(A\s*C\s*Ó\s*R\s*D\s*Ã\s*O|AC[ÓO]RD[ÃA]O)\b/i.test(paragrafos[i])) {
+        idxAcordao = i; break;
+      }
+    }
+  }
+
+  const reFimEmenta = /^(\s*)(Vistos,?\s+relatados|V\s*O\s*T\s*O\b|RELAT[ÓO]RIO\b)/i;
+
+  let selecionados: string[] = [];
+
+  if (idxAcordao >= 0) {
+    // CASO 1 — extrai do A C Ó R D Ã O até antes do relatório/voto
+    let idxFim = limiteFim;
+    for (let i = idxAcordao + 1; i < limiteFim; i++) {
+      if (reFimEmenta.test(paragrafos[i])) { idxFim = i; break; }
+    }
+    selecionados = paragrafos.slice(idxAcordao, idxFim);
+  } else {
+    // CASO 2 — sem acórdão: inclui o bloco inteiro
+    selecionados = paragrafos.slice(0, limiteFim);
+  }
+
+  // Salvaguarda: nunca devolver só a assinatura — garantir ao menos 2 parágrafos substantivos
+  const substantivos = selecionados.filter(p => p.length >= 30 && !ehAssinaturaRelator(p));
+  if (substantivos.length < 2) {
+    const candidatos = paragrafos.slice(0, limiteFim).filter(p => p.length >= 30 && !ehAssinaturaRelator(p));
+    selecionados = candidatos.slice(-2);
+  }
+
+  if (assinatura) selecionados = [...selecionados, assinatura];
+  return selecionados.join('\n\n').trim();
+}
+
+// Mantém compat com chamadas antigas.
+function extrairUltimosBlocos(textoBruto: string, _n = 3): string {
+  return extrairTrechoFinal(textoBruto);
 }
 
 serve(async (req) => {
@@ -88,8 +148,8 @@ serve(async (req) => {
       }
 
       const truncated = conteudo.substring(0, 4000);
-      const trechoFinal = extrairUltimosBlocos(conteudoBruto, 3);
-      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n(Os últimos 3 parágrafos serão anexados automaticamente, na íntegra, ao final. NÃO os inclua no seu resumo.)`;
+      const trechoFinal = extrairTrechoFinal(conteudoBruto);
+      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n(O trecho final (ementa do acórdão ou texto integral da intimação + assinatura do Relator) será anexado automaticamente, na íntegra, ao final. NÃO o inclua no seu resumo.)`;
 
       let resumo = 'Não foi possível gerar resumo.';
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
@@ -140,7 +200,7 @@ serve(async (req) => {
         // Remove qualquer seção "TRECHO FINAL" anterior gerada pelo modelo
         const marcador = /\n*-{2,}\s*TRECHO FINAL[^\n]*\n[\s\S]*$/i;
         const resumoLimpo = resumo.replace(marcador, '').trimEnd();
-        resumo = `${resumoLimpo}\n\n--- ÚLTIMOS 3 PARÁGRAFOS DA PUBLICAÇÃO (original, sem resumir) ---\n${trechoFinal}`;
+        resumo = `${resumoLimpo}\n\n--- TRECHO FINAL DA PUBLICAÇÃO (original, sem resumir) ---\n${trechoFinal}`;
       }
 
       return new Response(
