@@ -21,8 +21,8 @@ REGRAS OBRIGATÓRIAS:
 6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.
 7. NÃO inclua o trecho final no seu resumo — ele será anexado automaticamente, na íntegra, ao final do texto. Foque apenas em destacar/transcrever os trechos relevantes do meio da publicação. Não mencione "TRECHO FINAL" nem repita os últimos blocos.`;
 
-// Extrai os últimos N blocos (separados por linha em branco) preservando texto literal.
-function extrairUltimosBlocos(textoBruto: string, n = 2): string {
+// Extrai os últimos N parágrafos preservando texto literal (sem resumir).
+function extrairUltimosBlocos(textoBruto: string, n = 3): string {
   if (!textoBruto) return '';
   // Limpa HTML mas preserva quebras de linha
   const semHtml = textoBruto
@@ -35,20 +35,14 @@ function extrairUltimosBlocos(textoBruto: string, n = 2): string {
     .split('\n')
     .map(l => l.replace(/[ \t]+/g, ' ').trim())
     .join('\n');
-  // Divide em blocos por linhas em branco (1+ linhas vazias)
-  const blocos = normalizado.split(/\n\s*\n+/).map(b => b.trim()).filter(b => b.length > 0);
-  if (blocos.length === 0) return '';
-  // Se há apenas 1 bloco, retorna ele inteiro
-  if (blocos.length === 1) return blocos[0];
-  // Pega os últimos N blocos
-  let ultimos = blocos.slice(-n);
-  // Se o primeiro dos selecionados (penúltimo da publicação) for muito curto (<50 chars),
-  // sobe mais um bloco para incluir contexto.
-  const idxInicio = blocos.length - ultimos.length;
-  if (idxInicio > 0 && ultimos[0].length < 50) {
-    ultimos = blocos.slice(idxInicio - 1);
+  // Divide em parágrafos: primeiro tenta linhas em branco; se resultar em 1 só,
+  // cai pra divisão por linha simples (publicações sem linhas vazias).
+  let paragrafos = normalizado.split(/\n\s*\n+/).map(b => b.trim()).filter(b => b.length > 0);
+  if (paragrafos.length <= 1) {
+    paragrafos = normalizado.split(/\n+/).map(b => b.trim()).filter(b => b.length > 0);
   }
-  return ultimos.join('\n\n');
+  if (paragrafos.length === 0) return '';
+  return paragrafos.slice(-n).join('\n\n');
 }
 
 serve(async (req) => {
@@ -87,8 +81,8 @@ serve(async (req) => {
       }
 
       const truncated = conteudo.substring(0, 4000);
-      const trechoFinal = extrairUltimosBlocos(conteudoBruto, 2);
-      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n---\nTRECHO FINAL OBRIGATÓRIO (últimos 2 blocos da publicação — transcreva na íntegra ao fim do resumo):\n${trechoFinal || '(não foi possível identificar blocos finais — use o final do conteúdo acima)'}`;
+      const trechoFinal = extrairUltimosBlocos(conteudoBruto, 3);
+      const userMsg = `Analise e resuma esta publicação jurídica:\n\nProcesso: ${pub.processo || pub.numeroProcesso || 'N/A'}\nData: ${pub.data || pub.dataDisponibilizacao || 'N/A'}\n\nConteúdo da publicação:\n${truncated}\n\n(Os últimos 3 parágrafos serão anexados automaticamente, na íntegra, ao final. NÃO os inclua no seu resumo.)`;
 
       let resumo = 'Não foi possível gerar resumo.';
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
@@ -139,7 +133,7 @@ serve(async (req) => {
         // Remove qualquer seção "TRECHO FINAL" anterior gerada pelo modelo
         const marcador = /\n*-{2,}\s*TRECHO FINAL[^\n]*\n[\s\S]*$/i;
         const resumoLimpo = resumo.replace(marcador, '').trimEnd();
-        resumo = `${resumoLimpo}\n\n--- TRECHO FINAL DA PUBLICAÇÃO (original) ---\n${trechoFinal}`;
+        resumo = `${resumoLimpo}\n\n--- ÚLTIMOS 3 PARÁGRAFOS DA PUBLICAÇÃO (original, sem resumir) ---\n${trechoFinal}`;
       }
 
       return new Response(
