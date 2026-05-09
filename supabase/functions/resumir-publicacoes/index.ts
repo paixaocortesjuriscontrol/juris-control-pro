@@ -19,7 +19,7 @@ REGRAS OBRIGATÓRIAS:
 4. Uma linha em branco entre blocos de citação. Texto puro, sem markdown (sem ###, **, listas).
 5. Não invente texto. Só transcrever ou resumir com base no conteúdo fornecido. Não repita processo, órgão ou data (já constam nos metadados).
 6. Se a publicação for curta (certidão, intimação simples), pode transcrever os trechos principais quase na íntegra. Se for longa, selecione os trechos que um advogado sublinharia para a cliente.
-7. OBRIGATÓRIO — TRECHO FINAL: o resumo SEMPRE deve terminar transcrevendo na íntegra os 2 últimos blocos da publicação (separados por linha em branco no original), que serão fornecidos abaixo como "TRECHO FINAL OBRIGATÓRIO". Para intimações curtas (bloco único), inclua o bloco inteiro. Para acórdãos longos, esses blocos finais conterão a conclusão do voto e o "ISTO POSTO / ACORDAM" — pule todo o relatório/fundamentos iniciais e mostre esses trechos finais literalmente. O advogado precisa saber rapidamente o resultado (provido, negado, qual verba foi incluída etc.).`;
+7. NÃO inclua o trecho final no seu resumo — ele será anexado automaticamente, na íntegra, ao final do texto. Foque apenas em destacar/transcrever os trechos relevantes do meio da publicação. Não mencione "TRECHO FINAL" nem repita os últimos blocos.`;
 
 // Extrai os últimos N blocos (separados por linha em branco) preservando texto literal.
 function extrairUltimosBlocos(textoBruto: string, n = 2): string {
