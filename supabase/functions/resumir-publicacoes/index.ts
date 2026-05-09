@@ -1,15 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { SYSTEM_PROMPT as SYSTEM_PROMPT_INDIVIDUAL } from './prompt-agente.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Prompt completo do "Agente de Resumo de Publicações DJEN/PJe" carregado de prompt-agente.md
-const PROMPT_PATH = new URL('./prompt-agente.md', import.meta.url);
-const SYSTEM_PROMPT_INDIVIDUAL = await Deno.readTextFile(PROMPT_PATH);
 
 // Normaliza HTML/whitespace e devolve a lista de parágrafos.
 function normalizarParagrafos(textoBruto: string): string[] {
