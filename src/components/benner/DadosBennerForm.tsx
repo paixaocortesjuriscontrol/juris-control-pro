@@ -161,6 +161,14 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     setForm((prev) => {
       const next: any = { ...prev };
       const filled = new Set(camposIa);
+      const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
+      const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
+      if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
+        next.processo_baixado = "N";
+        next.data_transito_julgado = null;
+        next.confianca_transito = null;
+        filled.add("processo_baixado");
+      }
       const juditLocked = camposJudit;
       const dadoJuditOk = !!(dado as any)?.judit_preenchido;
       // Campos sempre vindos da Judit (compartilhados com Distribuição TST).
@@ -248,6 +256,14 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   // Helper: aplica iaSugestao em uma base de form, respeitando Judit e ALWAYS_JUDIT.
   function applyIaToBase(base: Record<string, any>, dadoSrc: any) {
     if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
+    const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
+    const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N";
+    if (juditAtivo) {
+      base.processo_baixado = "N";
+      base.data_transito_julgado = null;
+      base.confianca_transito = null;
+    }
     const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso", "recorrente"]);
     const dadoJuditOk = !!dadoSrc?.judit_preenchido;
     const filled = new Set<string>();

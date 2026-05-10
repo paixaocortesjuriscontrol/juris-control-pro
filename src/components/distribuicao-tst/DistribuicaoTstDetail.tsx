@@ -457,7 +457,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               recorrentes: dado.parte_recorrente
                 ? dado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
                 : null,
-              situacao_processo: dado.situacao_processo || null,
+              situacao_processo: (bennerDado as any)?.situacao_processo || dado.situacao_processo || null,
+              processo_baixado: (bennerDado as any)?.processo_baixado || null,
             } : null}
             onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
               setIaDistribuicao(distribuicao_tst || {});

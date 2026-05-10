@@ -21,6 +21,7 @@ export interface DadosJudit {
   relator?: string | null;
   recorrentes?: string[] | null;
   situacao_processo?: string | null;
+  processo_baixado?: string | null;
 }
 
 export interface ExtracaoIA {
@@ -145,10 +146,11 @@ function hidratarJudit(
   // Situação do processo segundo a Judit é fonte de verdade.
   // Se a Judit diz "Ativo" / "Em curso", JAMAIS permitir trânsito em julgado pela IA.
   const sitJudit = String(judit.situacao_processo || "").trim().toLowerCase();
-  const ativo = /ativ|em\s*curso|em\s*tramita/.test(sitJudit);
+  const baixadoJudit = String(judit.processo_baixado || "").trim().toUpperCase();
+  const ativo = /ativ|active|em\s*curso|em\s*tramita|andamento/.test(sitJudit);
   const transitado = /tr[âa]nsito|baixad/.test(sitJudit);
 
-  if (ativo) {
+  if (ativo || (baixadoJudit === "N" && !transitado)) {
     if (dist.transito_julgado === true) {
       alertas.push("IA marcou 'trânsito em julgado' mas Judit indica processo ATIVO. Override aplicado.");
     }

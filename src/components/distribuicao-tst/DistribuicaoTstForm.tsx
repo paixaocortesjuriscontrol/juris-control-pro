@@ -134,6 +134,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     setForm((prev) => {
       const next: any = { ...prev };
       const filled = new Set(iaFields);
+      const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
+      const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
+      if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
+        next.transito_julgado = false;
+        next.data_transito_julgado = null;
+        filled.delete("transito_julgado");
+      }
       // Campos que SEMPRE são da Judit (reutilizados também no Dados Benner).
       // A IA nunca pode tocar nesses, mesmo quando ainda estão vazios — eles
       // dependem da consulta Judit/cadastro existente.
@@ -182,6 +189,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // Reaplica sugestões da IA (somente em campos vazios e não-Judit) para
       // que a montagem da aba não apague as sugestões pendentes.
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
+        const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
+        if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
+          base.transito_julgado = false;
+          base.data_transito_julgado = null;
+        }
         const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
@@ -202,6 +215,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     } else {
       const base: any = { ...emptyForm };
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
+        const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
+        if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
+          base.transito_julgado = false;
+          base.data_transito_julgado = null;
+        }
         const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
@@ -408,8 +427,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
         const baixado = (data.processo_baixado || "").toString().toUpperCase();
-        const ehTransito = /arquivad|baixad/i.test(situacao) || baixado === "S";
-        if (ehTransito && next.transito_julgado !== true) {
+        if (baixado) next.processo_baixado = baixado;
+        const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
+        const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
+        if (juditAtivo) {
+          next.transito_julgado = false;
+          next.data_transito_julgado = null;
+          filled.delete("transito_julgado");
+        } else if (ehTransito && next.transito_julgado !== true) {
           next.transito_julgado = true;
           filled.add("transito_julgado");
         }
