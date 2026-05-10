@@ -100,6 +100,7 @@ Deno.serve(async (req) => {
     }
 
     if (!processoId) {
+      console.log("[processar-anexos-ia] resolving processo by numero", processoNumero);
       const { data: proc } = await supabase
         .from("processos")
         .select("id")
@@ -108,14 +109,19 @@ Deno.serve(async (req) => {
       if (proc?.id) {
         processoId = proc.id;
       } else {
+        console.log("[processar-anexos-ia] creating processo", processoNumero);
         const { data: newProc, error: newErr } = await supabase
           .from("processos")
           .insert({ numero: processoNumero, tipo: "civil", status: "ativo" } as any)
           .select("id")
           .single();
-        if (newErr) return json({ error: "Falha ao criar processo: " + newErr.message }, 500);
+        if (newErr) {
+          console.error("[processar-anexos-ia] insert processo erro", newErr);
+          return json({ error: "Falha ao criar processo: " + newErr.message }, 200);
+        }
         processoId = newProc!.id;
       }
+      console.log("[processar-anexos-ia] processo_id", processoId);
     }
 
     const results: Array<{ step_id: string; ok: boolean; pages?: number; error?: string; documento_id?: string }> = [];
