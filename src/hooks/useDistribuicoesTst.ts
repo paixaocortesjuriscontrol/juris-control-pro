@@ -183,6 +183,8 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   const anyD = d as any;
   if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
   if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
+  if (anyD.processo_baixado !== undefined) payload.processo_baixado = anyD.processo_baixado;
+  if (anyD.data_transito_julgado !== undefined) payload.data_transito_julgado = anyD.data_transito_julgado;
   // Campos de pauta de julgamento preenchidos pela Judit (existem em dados_benner
   // mas não fazem parte da interface DistribuicaoTst).
   if (anyD.tem_data_julgamento !== undefined) payload.tem_data_julgamento = anyD.tem_data_julgamento;
