@@ -159,6 +159,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   // Sugestões de IA (a partir dos anexos) para destacar campos preenchidos em azul.
   const [iaDistribuicao, setIaDistribuicao] = useState<Record<string, any> | null>(null);
   const [iaBenner, setIaBenner] = useState<Record<string, any> | null>(null);
+  const [iaResumo, setIaResumo] = useState<string | null>(null);
 
   const fetchBennerByProcesso = useCallback(async () => {
     if (!processoNumero) {
@@ -378,6 +379,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onCancel={onClose}
             onJuditSync={handleJuditSync}
             iaSugestao={iaDistribuicao}
+            iaResumo={iaResumo}
             onAnexosFound={(atts) => {
               const list = dedupeJuditAttachments(atts || []);
               setAnexos(list);
@@ -456,9 +458,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 ? dado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
                 : null,
             } : null}
-            onIaPreenchido={({ distribuicao_tst, dados_benner }) => {
+            onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
               setIaDistribuicao(distribuicao_tst || {});
               setIaBenner(dados_benner || {});
+              setIaResumo(resumo || null);
               if (Object.keys(distribuicao_tst || {}).length > 0) {
                 setTab("distribuicao");
               } else if (Object.keys(dados_benner || {}).length > 0) {

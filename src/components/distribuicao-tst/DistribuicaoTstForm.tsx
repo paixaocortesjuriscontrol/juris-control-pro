@@ -33,6 +33,9 @@ interface Props {
   onAnexosFound?: (atts: any[]) => void;
   /** Sugestões geradas por IA a partir dos anexos. Aplicadas e marcadas em azul. */
   iaSugestao?: Record<string, any> | null;
+  /** Resumo textual da última execução da IA (anexos), exibido próximo ao título
+   *  e mesclado automaticamente em "Observação Advogado" para ficar persistido. */
+  iaResumo?: string | null;
 }
 
 export interface DistribuicaoTstFormHandle {
@@ -83,7 +86,7 @@ const emptyForm: DistribuicaoTstInsert = {
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
-  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao }: Props,
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo }: Props,
   ref
 ) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
@@ -214,6 +217,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   }, [dado, JSON.stringify(iaSugestao || {})]);
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
+
+  // Mescla o resumo da IA em "Observação Advogado" para que fique persistido
+  // de forma definitiva quando o usuário salvar. Evita duplicar o mesmo bloco.
+  useEffect(() => {
+    if (!iaResumo) return;
+    setForm((prev) => {
+      const atual = (prev.observacao_advogado || "").trim();
+      if (atual.includes(iaResumo.trim())) return prev;
+      const novo = atual ? `${atual}\n\n${iaResumo}` : iaResumo;
+      return { ...prev, observacao_advogado: novo };
+    });
+    setIaFields((prev) => new Set([...Array.from(prev), "observacao_advogado"]));
+  }, [iaResumo]);
 
   const handleBuscarJudit = async (comAnexosArg = false, forceRefresh = false) => {
     // Aceita o número vindo do form OU do `dado` carregado (corrige o bug onde
@@ -515,6 +531,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
         <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Distribuição" : "Nova Distribuição"}</h2>
+        {iaResumo && (
+          <div
+            className="ml-2 max-w-[60%] rounded-md border border-sky-500/40 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-[11px] leading-snug text-sky-900 dark:text-sky-200 whitespace-pre-wrap"
+            title="Resumo da última análise da IA — gravado em Observação Advogado ao salvar"
+          >
+            {iaResumo}
+          </div>
+        )}
       </div>
 
       {/* SEÇÃO 1 - Rosa: Dados Básicos */}
