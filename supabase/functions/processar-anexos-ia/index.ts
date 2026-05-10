@@ -59,6 +59,7 @@ function stripHtml(value: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    console.log("[processar-anexos-ia] start", { method: req.method });
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Não autenticado" }, 401);
 
@@ -73,6 +74,15 @@ Deno.serve(async (req) => {
     if (!juditApiKey) return json({ error: "JUDIT_API_KEY não configurada" }, 500);
 
     const body = await req.json();
+    console.log("[processar-anexos-ia] body keys", Object.keys(body || {}), {
+      processo_numero: body?.processo_numero,
+      attachments: Array.isArray(body?.attachments) ? body.attachments.length : 0,
+      pages_text: Array.isArray(body?.pages_text) ? body.pages_text.length : 0,
+      chunk_first: body?.chunk_first,
+      chunk_last: body?.chunk_last,
+      page_offset: body?.page_offset,
+      documento_id: body?.documento_id,
+    });
     const processoNumero: string = String(body?.processo_numero || "").trim();
     let processoId: string | null = body?.processo_id || null;
     const attachments: AttIn[] = Array.isArray(body?.attachments) ? body.attachments : [];
@@ -296,6 +306,6 @@ Deno.serve(async (req) => {
     return json({ processo_id: processoId, results });
   } catch (e: any) {
     console.error("processar-anexos-ia erro:", e);
-    return json({ error: e?.message || String(e) }, 500);
+    return json({ error: e?.message || String(e), stack: e?.stack }, 200);
   }
 });
