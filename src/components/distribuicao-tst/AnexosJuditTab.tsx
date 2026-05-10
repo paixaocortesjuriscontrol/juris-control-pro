@@ -195,15 +195,40 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
 
 
       let reaproveitadosStorage = 0;
-      for (let i = 0; i < pendentesAnexos.length; i++) {
-        const a = pendentesAnexos[i];
+      // Resolve/cria processo_id uma única vez para permitir paralelismo real
+      if (!processoIdAcc) {
+        const { data: proc } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processoNumero)
+          .maybeSingle();
+        if (proc?.id) {
+          processoIdAcc = proc.id;
+        } else {
+          const { data: novo, error: novoErr } = await supabase
+            .from("processos")
+            .insert({ numero: processoNumero, area: "trabalhista", status: "ativo" } as any)
+            .select("id")
+            .single();
+          if (!novoErr && novo?.id) processoIdAcc = novo.id;
+        }
+      }
+
+      // Processa anexos em paralelo (limite de concorrência) — cada anexo
+      // executa download → extração de PDF → gravação em chunks. Como o
+      // processo_id já foi resolvido acima, não há contenção entre anexos.
+      const CONCURRENCY = 3;
+      let concluidos = 0;
+      const total = pendentesAnexos.length;
+
+      const processarAnexo = async (a: typeof pendentesAnexos[number], idx: number) => {
+        const label = `${idx + 1}/${total}`;
         let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>> | null = null;
         let pagesText: string[] = [];
-        // Otimização: se o arquivo já está no storage (storage_path setado), pula o re-download da Judit.
         const temNoStorage = !!a.storage_path;
         try {
           if (temNoStorage) {
-            setStage(`Reusando storage ${i + 1}/${pendentesAnexos.length}…`);
+            setStage(`Baixando/lendo ${label} (paralelo)…`);
             const { data: signed, error: signErr } = await supabase.storage
               .from("documentos_processos")
               .createSignedUrl(a.storage_path!, 600);
@@ -217,27 +242,29 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
             };
             reaproveitadosStorage++;
           } else {
-            setStage(`Baixando anexo ${i + 1}/${pendentesAnexos.length}…`);
+            setStage(`Baixando/lendo ${label} (paralelo)…`);
             arquivo = await baixarAnexoParaIndexacao(a);
           }
           const isPdf = (arquivo.content_type || "").includes("pdf") || (arquivo.filename || a.attachment_name || "").toLowerCase().endsWith(".pdf");
           if (!isPdf) throw new Error("Somente anexos PDF podem ser lidos com IA nesta rotina.");
-          setStage(`Lendo PDF ${i + 1}/${pendentesAnexos.length}…`);
           pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
           if (!pagesText.some((page) => page.trim())) {
             throw new Error("PDF sem texto extraível no navegador.");
           }
         } catch (e: any) {
           failed.push({ step_id: a.step_id, error: e?.message || "falha na leitura" });
-          continue;
+          concluidos++;
+          return;
         }
         if (!arquivo) {
           failed.push({ step_id: a.step_id, error: "Arquivo não baixado" });
-          continue;
+          concluidos++;
+          return;
         }
 
-        // Envia em chunks de páginas (streaming) para evitar payloads grandes e timeout
-        const CHUNK = 25;
+        // Envia em chunks de páginas (streaming) para evitar payloads grandes e timeout.
+        // Chunks dentro do mesmo anexo precisam ser sequenciais (compartilham documento_id).
+        const CHUNK = 50;
         let lastResult: any = null;
         let lastDocId: string | null = null;
         let totalPagesSent = 0;
@@ -245,14 +272,14 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
           const slice = pagesText.slice(start, start + CHUNK);
           const isFirst = start === 0;
           const isLast = start + CHUNK >= pagesText.length;
-          setStage(`Gravando texto ${i + 1}/${lista.length} (${Math.min(start + CHUNK, pagesText.length)}/${pagesText.length}p)…`);
+          setStage(`Gravando ${label} (${Math.min(start + CHUNK, pagesText.length)}/${pagesText.length}p)…`);
           const { data: procData, error: procErr } = await supabase.functions.invoke("processar-anexos-ia", {
             body: {
               processo_numero: processoNumero,
               processo_id: processoIdAcc,
-              source_storage_path: isFirst ? arquivo.storage_path : null,
-              content_type: arquivo.content_type,
-              file_size: arquivo.file_size,
+              source_storage_path: isFirst ? arquivo!.storage_path : null,
+              content_type: arquivo!.content_type,
+              file_size: arquivo!.file_size,
               pages_text: slice,
               page_offset: totalPagesSent,
               chunk_first: isFirst,
@@ -260,7 +287,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
               documento_id: lastDocId,
               attachments: [{
                 step_id: a.step_id,
-                attachment_name: arquivo.filename || a.attachment_name,
+                attachment_name: arquivo!.filename || a.attachment_name,
                 instance: a.instance || null,
                 cnj: a.cnj || processoNumero,
                 extension: a.extension || null,
@@ -282,7 +309,23 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
           }
         }
         if (lastResult?.ok) okResults.push(lastResult);
+        concluidos++;
+        setStage(`Processados ${concluidos}/${total}…`);
+      };
+
+      // Pool de workers paralelos
+      let cursor = 0;
+      const workers: Promise<void>[] = [];
+      for (let w = 0; w < Math.min(CONCURRENCY, pendentesAnexos.length); w++) {
+        workers.push((async () => {
+          while (true) {
+            const idx = cursor++;
+            if (idx >= pendentesAnexos.length) return;
+            await processarAnexo(pendentesAnexos[idx], idx);
+          }
+        })());
       }
+      await Promise.all(workers);
       if (failed.length > 0) {
         console.warn("Anexos com falha:", failed);
         toast.warning(`${failed.length} anexo(s) falharam ao indexar.`);
