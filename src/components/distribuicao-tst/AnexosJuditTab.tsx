@@ -57,6 +57,7 @@ interface Props {
     relator?: string | null;
     recorrentes?: string[] | null;
     situacao_processo?: string | null;
+    processo_baixado?: string | null;
   } | null;
   /** Disparado quando IA conclui o preenchimento dos formulários, com os campos sugeridos. */
   onIaPreenchido?: (payload: {
