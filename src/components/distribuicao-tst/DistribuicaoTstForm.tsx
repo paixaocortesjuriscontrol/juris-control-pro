@@ -86,7 +86,7 @@ const emptyForm: DistribuicaoTstInsert = {
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
-  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao }: Props,
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo }: Props,
   ref
 ) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
