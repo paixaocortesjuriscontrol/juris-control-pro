@@ -33,6 +33,9 @@ interface Props {
   onAnexosFound?: (atts: any[]) => void;
   /** Sugestões geradas por IA a partir dos anexos. Aplicadas e marcadas em azul. */
   iaSugestao?: Record<string, any> | null;
+  /** Resumo textual da última execução da IA (anexos), exibido próximo ao título
+   *  e mesclado automaticamente em "Observação Advogado" para ficar persistido. */
+  iaResumo?: string | null;
 }
 
 export interface DistribuicaoTstFormHandle {
