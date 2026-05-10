@@ -306,15 +306,25 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       }
       const distQ = Object.keys(iaData?.distribuicao_tst || {}).length;
       const benQ = Object.keys(iaData?.dados_benner || {}).length;
-      onIaPreenchido?.({
-        distribuicao_tst: iaData?.distribuicao_tst || {},
-        dados_benner: iaData?.dados_benner || {},
-      });
       const distKeys = Object.keys(iaData?.distribuicao_tst || {});
       const benKeys = Object.keys(iaData?.dados_benner || {});
       const alertas: string[] = Array.isArray(iaData?.alertas) ? iaData.alertas : [];
       const pendentes: string[] = Array.isArray(iaData?.pendentes) ? iaData.pendentes : [];
       const juditAplicado: string[] = Array.isArray(iaData?.judit_aplicado) ? iaData.judit_aplicado : [];
+      const resumoLinhas: string[] = [
+        `IA preencheu ${distQ} campo(s) em Distribuição TST e ${benQ} em Dados Benner.`,
+        juditAplicado.length ? `Judit (camada 1): ${juditAplicado.join(", ")}` : "",
+        distKeys.length ? `Distribuição: ${distKeys.join(", ")}` : "",
+        benKeys.length ? `Benner: ${benKeys.join(", ")}` : "",
+        pendentes.length ? `⚠ Revisar: ${pendentes.join(", ")}` : "",
+        alertas.length ? `Alertas: ${alertas.join(" | ")}` : "",
+      ].filter(Boolean);
+      const resumoIa = `[IA ${new Date().toLocaleString("pt-BR")}]\n${resumoLinhas.join("\n")}`;
+      onIaPreenchido?.({
+        distribuicao_tst: iaData?.distribuicao_tst || {},
+        dados_benner: iaData?.dados_benner || {},
+        resumo: resumoIa,
+      });
       console.log("[IA Anexos] Resultado:", {
         distribuicao_tst: iaData?.distribuicao_tst,
         dados_benner: iaData?.dados_benner,
