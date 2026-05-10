@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
         console.log("[processar-anexos-ia] creating processo", processoNumero);
         const { data: newProc, error: newErr } = await supabase
           .from("processos")
-          .insert({ numero: processoNumero, status: "ativo" } as any)
+          .insert({ numero: processoNumero, area: "trabalhista", status: "ativo" } as any)
           .select("id")
           .single();
         if (newErr) {
