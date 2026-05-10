@@ -45,6 +45,17 @@ interface Attachment {
 interface Props {
   processoNumero: string;
   attachments: Attachment[];
+  /** Dados estruturados da Judit a serem usados como camada 1 (hidratação determinística).
+   *  Esses campos NÃO serão extraídos do PDF — são copiados literalmente no backend. */
+  dadosJudit?: {
+    dossie?: string | null;
+    tribunal?: string | null;
+    tipo_recurso?: string | null;
+    data_distribuicao?: string | null;
+    turma?: string | null;
+    relator?: string | null;
+    recorrentes?: string[] | null;
+  } | null;
   /** Disparado quando IA conclui o preenchimento dos formulários, com os campos sugeridos. */
   onIaPreenchido?: (payload: {
     distribuicao_tst: Record<string, any>;
@@ -52,7 +63,7 @@ interface Props {
   }) => void;
 }
 
-export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: Props) {
+export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPreenchido }: Props) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
@@ -245,6 +256,7 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
           processo_id: processoIdAcc,
           processo_numero: processoNumero,
           documento_ids: okResults.map((r: any) => r.documento_id).filter(Boolean),
+          dados_judit: dadosJudit || null,
         },
       });
       if (iaErr || iaData?.error) {
@@ -258,12 +270,30 @@ export function AnexosJuditTab({ processoNumero, attachments, onIaPreenchido }: 
       });
       const distKeys = Object.keys(iaData?.distribuicao_tst || {});
       const benKeys = Object.keys(iaData?.dados_benner || {});
-      console.log("[IA Anexos] Sugestões recebidas:", { distribuicao_tst: iaData?.distribuicao_tst, dados_benner: iaData?.dados_benner });
+      const alertas: string[] = Array.isArray(iaData?.alertas) ? iaData.alertas : [];
+      const pendentes: string[] = Array.isArray(iaData?.pendentes) ? iaData.pendentes : [];
+      const juditAplicado: string[] = Array.isArray(iaData?.judit_aplicado) ? iaData.judit_aplicado : [];
+      console.log("[IA Anexos] Resultado:", {
+        distribuicao_tst: iaData?.distribuicao_tst,
+        dados_benner: iaData?.dados_benner,
+        alertas, pendentes, judit_aplicado: juditAplicado,
+        evidencias: iaData?.evidencias,
+      });
       toast.success(
-        `IA sugeriu ${distQ} campo(s) em Distribuição TST e ${benQ} em Dados Benner. ` +
-        `Campos já preenchidos pela Judit são preservados.`,
-        { description: [distKeys.length ? `Distribuição: ${distKeys.join(", ")}` : null, benKeys.length ? `Benner: ${benKeys.join(", ")}` : null].filter(Boolean).join(" • ") }
+        `IA preencheu ${distQ} campo(s) em Distribuição TST e ${benQ} em Dados Benner.`,
+        {
+          description: [
+            juditAplicado.length ? `Judit (camada 1): ${juditAplicado.join(", ")}` : null,
+            distKeys.length ? `Distribuição: ${distKeys.join(", ")}` : null,
+            benKeys.length ? `Benner: ${benKeys.join(", ")}` : null,
+            pendentes.length ? `⚠ Revisar: ${pendentes.slice(0, 6).join(", ")}${pendentes.length > 6 ? ` (+${pendentes.length - 6})` : ""}` : null,
+          ].filter(Boolean).join(" • "),
+        }
       );
+      if (alertas.length > 0) {
+        for (const a of alertas.slice(0, 3)) toast.warning(a);
+        if (alertas.length > 3) toast.warning(`+${alertas.length - 3} alerta(s) — veja console.`);
+      }
       setSelected(new Set());
     } catch (e: any) {
       toast.error("Falha: " + (e?.message || "erro"));
