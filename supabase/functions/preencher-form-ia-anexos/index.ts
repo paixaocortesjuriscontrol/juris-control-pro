@@ -26,7 +26,22 @@ REGRA DE OURO
 CAMPOS DA JUDIT (NÃO REESCREVA)
 Os seguintes campos serão sobrescritos pelos dados estruturados da Judit APÓS sua resposta.
 Você pode mencioná-los se quiser, mas NÃO se preocupe em extraí-los do PDF nem reformatá-los:
-  • dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, parte_recorrente, recorrente.
+  • dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, parte_recorrente, recorrente,
+    situacao_processo (Ativo / Trânsito em Julgado / etc.).
+
+REGRA CRÍTICA — TRÂNSITO EM JULGADO
+• Se "DADOS DA JUDIT" informar situacao_processo = "Ativo" (ou "Em curso", "Em tramitação"),
+  você está PROIBIDO de devolver:
+    - distribuicao_tst.transito_julgado = true
+    - dados_benner.transito_julgado = true
+    - dados_benner.processo_baixado = "S"
+    - dados_benner.data_transito_julgado
+  Mesmo que algum PDF contenha "trânsito em julgado" ou "certidão de baixa", a Judit é
+  fonte de verdade sobre o estado atual do processo. Se houver conflito, registre em
+  "_alertas" como "Acórdão menciona trânsito mas Judit indica processo ATIVO" e OMITA
+  os campos acima do retorno.
+• Só marque trânsito em julgado quando a Judit NÃO contradiga e você tiver certidão
+  de baixa explícita citável em "_evidencias".
 
 CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
 
@@ -42,6 +57,7 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
   - decisao_quarteirizado: descrição da decisão sobre quarteirização, só se houver.
   - recurso_terceiros: idem.
   - transito_julgado: true se houver certidão de baixa / trânsito explícito.
+    NUNCA preencher se a Judit indicar processo Ativo — ver regra crítica acima.
   - situacao_processo: descrição curta do estado atual.
   - observacao_advogado: resumo factual de até 2 frases, sem juízo de valor.
 

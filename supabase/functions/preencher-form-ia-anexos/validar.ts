@@ -20,6 +20,7 @@ export interface DadosJudit {
   turma?: string | null;
   relator?: string | null;
   recorrentes?: string[] | null;
+  situacao_processo?: string | null;
 }
 
 export interface ExtracaoIA {
@@ -140,6 +141,38 @@ function hidratarJudit(
     setIfDifferent(dist, "parte_recorrente", recorrenteStr, "parte_recorrente");
     setIfDifferent(benner, "recorrente", recorrenteStr, "recorrente");
   }
+
+  // Situação do processo segundo a Judit é fonte de verdade.
+  // Se a Judit diz "Ativo" / "Em curso", JAMAIS permitir trânsito em julgado pela IA.
+  const sitJudit = String(judit.situacao_processo || "").trim().toLowerCase();
+  const ativo = /ativ|em\s*curso|em\s*tramita/.test(sitJudit);
+  const transitado = /tr[âa]nsito|baixad/.test(sitJudit);
+
+  if (ativo) {
+    if (dist.transito_julgado === true) {
+      alertas.push("IA marcou 'trânsito em julgado' mas Judit indica processo ATIVO. Override aplicado.");
+    }
+    dist.transito_julgado = false;
+    if (benner.transito_julgado === true) {
+      alertas.push("IA marcou 'trânsito em julgado' (Benner) mas Judit indica processo ATIVO. Override aplicado.");
+    }
+    benner.transito_julgado = false;
+    if (benner.processo_baixado === "S") {
+      alertas.push("IA marcou 'processo baixado=S' mas Judit indica ATIVO. Forçado para 'N'.");
+    }
+    benner.processo_baixado = "N";
+    if (benner.data_transito_julgado) {
+      alertas.push("Removida 'data_transito_julgado' devido à Judit indicar processo ATIVO.");
+      delete benner.data_transito_julgado;
+    }
+    setIfDifferent(dist, "situacao_processo", judit.situacao_processo, "situacao_processo");
+    setIfDifferent(benner, "situacao_processo", judit.situacao_processo, "situacao_processo");
+    aplicados.push("transito_julgado");
+  } else if (transitado) {
+    setIfDifferent(dist, "situacao_processo", judit.situacao_processo, "situacao_processo");
+    setIfDifferent(benner, "situacao_processo", judit.situacao_processo, "situacao_processo");
+  }
+
   return { aplicados, alertas };
 }
 
