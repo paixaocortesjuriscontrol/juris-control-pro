@@ -215,6 +215,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     } else {
       const base: any = { ...emptyForm };
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
+        const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
+        if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
+          base.transito_julgado = false;
+          base.data_transito_julgado = null;
+        }
         const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
