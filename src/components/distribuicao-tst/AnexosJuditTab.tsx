@@ -191,6 +191,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
         toast.info(`${jaIndexados.length} anexo(s) já indexado(s) reaproveitado(s).`);
       }
 
+
       let reaproveitadosStorage = 0;
       for (let i = 0; i < pendentesAnexos.length; i++) {
         const a = pendentesAnexos[i];
