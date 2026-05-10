@@ -445,6 +445,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnexosJuditTab
             processoNumero={processoNumero}
             attachments={anexos || []}
+            dadosJudit={dado ? {
+              dossie: dado.dossie,
+              tribunal: "TST",
+              tipo_recurso: dado.tipo_recurso || dado.tipo_recurso_reclamante || dado.tipo_recurso_banco || null,
+              data_distribuicao: dado.data_distribuicao_real || dado.data_distribuicao_planilha || null,
+              turma: dado.turma,
+              relator: dado.relator,
+              recorrentes: dado.parte_recorrente
+                ? dado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+                : null,
+            } : null}
             onIaPreenchido={({ distribuicao_tst, dados_benner }) => {
               setIaDistribuicao(distribuicao_tst || {});
               setIaBenner(dados_benner || {});
