@@ -61,6 +61,7 @@ interface Props {
   onIaPreenchido?: (payload: {
     distribuicao_tst: Record<string, any>;
     dados_benner: Record<string, any>;
+    resumo?: string;
   }) => void;
 }
 
