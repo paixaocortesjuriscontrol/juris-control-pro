@@ -1247,7 +1247,18 @@ export default function DistribuicaoTst() {
                 <SelectItem value="outros">Outros</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+            <Select
+              value={filtroProblemaJudit === "sim" ? "problema_judit" : filtroStatus}
+              onValueChange={(v) => {
+                if (v === "problema_judit") {
+                  setFiltroProblemaJudit("sim");
+                  setFiltroStatus("todos");
+                } else {
+                  setFiltroProblemaJudit("todos");
+                  setFiltroStatus(v);
+                }
+              }}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Status envio" />
               </SelectTrigger>
@@ -1257,6 +1268,7 @@ export default function DistribuicaoTst() {
                 <SelectItem value="pronto_envio">Pronto para Enviar</SelectItem>
                 <SelectItem value="enviado">Enviado</SelectItem>
                 <SelectItem value="planilhado">Planilhado</SelectItem>
+                <SelectItem value="problema_judit">Problema Judit</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
