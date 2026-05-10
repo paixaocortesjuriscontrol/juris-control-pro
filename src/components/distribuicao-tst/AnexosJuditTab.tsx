@@ -170,9 +170,29 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       const okResults: Array<{ step_id: string; documento_id?: string; pages?: number }> = [];
       const failed: Array<{ step_id: string; error?: string }> = [];
       let processoIdAcc: string | null = null;
-      for (let i = 0; i < lista.length; i++) {
-        const a = lista[i];
-        setStage(`Baixando anexo ${i + 1}/${lista.length}…`);
+
+      // Reaproveita anexos já salvos/indexados no repositório (judit_anexos.texto_indexado=true)
+      const jaIndexados = lista.filter((a) => a.texto_indexado && a.documento_id);
+      const pendentesAnexos = lista.filter((a) => !(a.texto_indexado && a.documento_id));
+      for (const a of jaIndexados) {
+        okResults.push({ step_id: a.step_id, documento_id: a.documento_id! });
+      }
+      if (jaIndexados.length > 0 && pendentesAnexos.length === 0) {
+        // Nenhum anexo novo para baixar — resolve processo_id direto pelo número.
+        const { data: proc } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processoNumero)
+          .maybeSingle();
+        processoIdAcc = proc?.id || null;
+      }
+      if (jaIndexados.length > 0) {
+        toast.info(`${jaIndexados.length} anexo(s) já indexado(s) reaproveitado(s).`);
+      }
+
+      for (let i = 0; i < pendentesAnexos.length; i++) {
+        const a = pendentesAnexos[i];
+        setStage(`Baixando anexo ${i + 1}/${pendentesAnexos.length}…`);
         let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>> | null = null;
         let pagesText: string[] = [];
         try {
