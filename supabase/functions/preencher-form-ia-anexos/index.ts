@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { validarEHidratar, type DadosJudit } from "./validar.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,19 +13,81 @@ function json(body: unknown, status = 200) {
   });
 }
 
-const SYSTEM_PROMPT = `Você é um analista jurídico especializado em recursos no TST.
-Sua tarefa: ler trechos de PEÇAS PROCESSUAIS (decisões, acórdãos, intimações, despachos, certidões, recursos)
-e extrair informações para preencher campos do formulário "Distribuição TST" e "Dados Benner" do escritório.
+const SYSTEM_PROMPT = `Você é um analista de Direito do Trabalho especializado em recursos no TST.
+Sua tarefa: ler trechos de PEÇAS PROCESSUAIS (acórdãos, decisões monocráticas, intimações,
+pautas, despachos, certidões) e devolver dados estruturados para preencher os formulários
+"Distribuição TST" e "Dados Benner" do escritório.
 
-Regras:
-- Só preencha um campo se houver evidência CLARA no texto. Não invente.
-- Para listas (matérias), use termos curtos separados por vírgula.
-- Para favorabilidade, use "POSITIVA"/"NEGATIVA" (turma) ou "POSITIVO"/"NEGATIVO" (relator).
-- Para chance de êxito use uma das: "PROVÁVEL", "POSSÍVEL", "REMOTA".
-- Para aparelhamento use "BEM APARELHADO" ou "MAL APARELHADO".
-- Para tema/honra use frase curta (até 200 chars).
-- Para datas, use ISO YYYY-MM-DD.
-- Devolva APENAS via tool call (preencher_formulario). Campos sem evidência devem ser omitidos do JSON.`;
+REGRA DE OURO
+• NUNCA invente. Se a informação não está EXPLÍCITA no documento ou nos dados estruturados
+  da Judit, OMITA o campo do retorno. "Não sei" é resposta válida — alucinar não é.
+• Inferência razoável é permitida APENAS para os campos derivados por regra (ex: tem_data_julgamento).
+
+CAMPOS DA JUDIT (NÃO REESCREVA)
+Os seguintes campos serão sobrescritos pelos dados estruturados da Judit APÓS sua resposta.
+Você pode mencioná-los se quiser, mas NÃO se preocupe em extraí-los do PDF nem reformatá-los:
+  • dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, parte_recorrente, recorrente.
+
+CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
+
+▸ Em "distribuicao_tst":
+  - materias_recurso_reclamante / materias_recurso_banco: termos curtos separados por vírgula.
+    Só preencha se identificar claramente a matéria do recurso de cada lado.
+  - tipo_recurso_reclamante / tipo_recurso_banco: literal Judit; omita se não tiver certeza.
+  - honra: frase curta sobre matéria de honra (≤200 chars), só se houver "destaque", "matéria de honra",
+    "destacado pelo relator" no documento.
+  - tema: tema central do recurso em até 200 chars.
+  - execucao: descrição em fase de execução, se houver.
+  - midia_negativa: "S" ou "N" — só preencha se houver evidência (ex: notícia anexada).
+  - decisao_quarteirizado: descrição da decisão sobre quarteirização, só se houver.
+  - recurso_terceiros: idem.
+  - transito_julgado: true se houver certidão de baixa / trânsito explícito.
+  - situacao_processo: descrição curta do estado atual.
+  - observacao_advogado: resumo factual de até 2 frases, sem juízo de valor.
+
+▸ Em "dados_benner":
+  - materia_honra: "S" ou "N".
+  - provas_digitais: "S" se o recurso/acórdão menciona "prova digital", "documento eletrônico",
+    "WhatsApp", "e-mail como prova", "gravação", "ata notarial digital", "blockchain"
+    como objeto de discussão probatória. "N" se claramente não há.
+  - tem_data_julgamento: "S" se há sessão marcada/realizada; "N" caso contrário.
+  - data_julgamento: DD/MM/AAAA — pegar a data MAIS RECENTE entre certidão de pauta,
+    intimação de julgamento e acórdão. Adiamento vence pauta antiga.
+  - horario_julgamento: HH:MM (24h). "às 9h" → "09:00".
+  - tipo_julgamento: "Virtual" | "Telepresencial" | "Híbrido" | "Presencial".
+    Mapear: "plenário virtual"/"julgamento virtual"→Virtual; "telepresencial"/"videoconferência"→Telepresencial;
+    "híbrido"/"misto"→Híbrido; "presencial"/"sessão presencial"→Presencial.
+  - processo_baixado: "S" se há "baixa definitiva", "remetidos os autos à origem",
+    "trânsito em julgado e baixa". "N" caso contrário.
+  - data_transito_julgado: DD/MM/AAAA, só se houver certidão explícita.
+  - notas / observacoes: resumo factual de até 2 frases.
+
+EVIDÊNCIA OBRIGATÓRIA
+Para CADA campo que você preencher (exceto os derivados por regra), inclua em "_evidencias"
+o trecho literal (até 200 chars) que sustenta a extração:
+  "_evidencias": { "data_julgamento": { "trecho": "...sessão de 06/06/2025 às 14h..." } }
+Se não conseguir citar trecho literal, NÃO preencha o campo.
+
+CONFIANÇA
+Para cada campo extraído, classifique em "_confianca":
+  "alta"  → trecho literal e inequívoco no documento
+  "media" → exigiu interpretação leve (ex: "às 9h" → "09:00")
+  "baixa" → houve ambiguidade, datas conflitantes, OCR ruim
+
+ALERTAS
+Em "_alertas" (array de strings curtas), reporte: conflito entre documentos, PDF ilegível,
+provimento parcial (acórdão deu provimento em parte e negou em parte), recurso bilateral
+(ambas as partes recorreram), acórdão posterior à certidão de baixa.
+
+CAMPOS QUE NÃO DEVEM SER PREENCHIDOS POR ESTE PROMPT
+Estes exigem juízo do advogado ou base de jurisprudência externa. Sempre OMITA:
+  honra (juízo), midia_negativa (juízo), aparelhamento_*, chance_exito_*,
+  relator_favorabilidade, turma_favorabilidade, decisao_quarteirizado.
+(O sistema marcará automaticamente como pendentes de revisão humana.)
+
+SAÍDA
+Devolva EXCLUSIVAMENTE via tool call "preencher_formulario". Sem markdown, sem texto extra.
+Campos sem evidência: OMITA do JSON (não devolva null nem string vazia).`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -46,6 +109,9 @@ Deno.serve(async (req) => {
     const processoId: string | null = body?.processo_id || null;
     const processoNumero: string = String(body?.processo_numero || "").trim();
     const documentoIds: string[] = Array.isArray(body?.documento_ids) ? body.documento_ids : [];
+    const dadosJudit: DadosJudit | null = body?.dados_judit && typeof body.dados_judit === "object"
+      ? body.dados_judit
+      : null;
 
     if (!processoId && !processoNumero) {
       return json({ error: "processo_id ou processo_numero é obrigatório" }, 400);
@@ -117,11 +183,8 @@ Deno.serve(async (req) => {
               type: "object",
               additionalProperties: false,
               properties: {
-                relator: { type: "string" },
-                turma: { type: "string" },
                 relator_favorabilidade: { type: "string", enum: ["POSITIVO", "NEGATIVO"] },
                 turma_favorabilidade: { type: "string", enum: ["POSITIVA", "NEGATIVA"] },
-                parte_recorrente: { type: "string" },
                 tipo_recurso_reclamante: { type: "string" },
                 tipo_recurso_banco: { type: "string" },
                 materias_recurso_reclamante: { type: "string" },
@@ -133,7 +196,7 @@ Deno.serve(async (req) => {
                 honra: { type: "string" },
                 tema: { type: "string" },
                 execucao: { type: "string" },
-                midia_negativa: { type: "string" },
+                midia_negativa: { type: "string", enum: ["S", "N"] },
                 decisao_quarteirizado: { type: "string" },
                 recurso_terceiros: { type: "string" },
                 transito_julgado: { type: "boolean" },
@@ -145,27 +208,40 @@ Deno.serve(async (req) => {
               type: "object",
               additionalProperties: false,
               properties: {
-                relator: { type: "string" },
-                turma: { type: "string" },
-                tipo_recurso: { type: "string" },
-                recorrente: { type: "string" },
-                materia_honra: { type: "string" },
+                materia_honra: { type: "string", enum: ["S", "N"] },
                 analise_quarteirizado: { type: "string" },
-                risco_midia: { type: "string" },
+                risco_midia: { type: "string", enum: ["S", "N"] },
                 risco_descricao: { type: "string" },
-                provas_digitais: { type: "string" },
-                tem_data_julgamento: { type: "string" },
-                data_julgamento: { type: "string" },
-                horario_julgamento: { type: "string" },
-                tipo_julgamento: { type: "string" },
+                provas_digitais: { type: "string", enum: ["S", "N"] },
+                tem_data_julgamento: { type: "string", enum: ["S", "N"] },
+                data_julgamento: { type: "string", description: "DD/MM/AAAA" },
+                horario_julgamento: { type: "string", description: "HH:MM 24h" },
+                tipo_julgamento: { type: "string", enum: ["Virtual", "Telepresencial", "Híbrido", "Presencial"] },
                 situacao_processo: { type: "string" },
                 processo_baixado: { type: "string", enum: ["S", "N"] },
                 transito_julgado: { type: "boolean" },
-                data_transito_julgado: { type: "string" },
+                data_transito_julgado: { type: "string", description: "DD/MM/AAAA" },
                 notas: { type: "string" },
                 observacoes: { type: "string" },
               },
             },
+            _evidencias: {
+              type: "object",
+              additionalProperties: {
+                type: "object",
+                properties: {
+                  trecho: { type: "string" },
+                  documento_id: { type: "string" },
+                },
+              },
+              description: "Mapa campo→{trecho citado, documento_id}. Obrigatório para cada campo extraído de PDF.",
+            },
+            _confianca: {
+              type: "object",
+              additionalProperties: { type: "string", enum: ["alta", "media", "baixa"] },
+            },
+            _alertas: { type: "array", items: { type: "string" } },
+            _campos_pendentes_revisao_humana: { type: "array", items: { type: "string" } },
           },
           required: ["distribuicao_tst", "dados_benner"],
         },
@@ -185,7 +261,14 @@ Deno.serve(async (req) => {
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
-            content: `Processo: ${processoNumero}\n\nTrechos das peças:\n\n${fullText}\n\nUse a função preencher_formulario para devolver SOMENTE os campos com evidência clara.`,
+            content: [
+              `Processo: ${processoNumero}`,
+              dadosJudit
+                ? `\nDADOS DA JUDIT (já confirmados, NÃO reextrair, serão sobrescritos pelo sistema):\n${JSON.stringify(dadosJudit, null, 2)}`
+                : `\n(Sem dados da Judit disponíveis para este processo.)`,
+              `\nTrechos das peças (ordenados por documento):\n\n${fullText}`,
+              `\nUse a função preencher_formulario para devolver SOMENTE campos com evidência citável em "_evidencias".`,
+            ].join("\n"),
           },
         ],
         tools: [tool],
@@ -210,25 +293,27 @@ Deno.serve(async (req) => {
       return json({ error: "Falha ao parsear resposta da IA" }, 500);
     }
 
-    const dist = parsed?.distribuicao_tst || {};
-    const benner = parsed?.dados_benner || {};
-
-    // Limpeza: remove campos vazios
-    const clean = (obj: any) => {
-      const out: any = {};
-      for (const k of Object.keys(obj)) {
-        const v = obj[k];
-        if (v === null || v === undefined) continue;
-        if (typeof v === "string" && v.trim() === "") continue;
-        out[k] = typeof v === "string" ? v.trim() : v;
-      }
-      return out;
-    };
+    // Camada 4 — validação programática + hidratação Judit determinística.
+    const validado = validarEHidratar(
+      {
+        distribuicao_tst: parsed?.distribuicao_tst || {},
+        dados_benner: parsed?.dados_benner || {},
+        _evidencias: parsed?._evidencias || {},
+        _confianca: parsed?._confianca || {},
+        _alertas: parsed?._alertas || [],
+        _campos_pendentes_revisao_humana: parsed?._campos_pendentes_revisao_humana || [],
+      },
+      dadosJudit
+    );
 
     return json({
       processo_id: pid,
-      distribuicao_tst: clean(dist),
-      dados_benner: clean(benner),
+      distribuicao_tst: validado.distribuicao_tst,
+      dados_benner: validado.dados_benner,
+      alertas: validado.alertas,
+      pendentes: validado.pendentes,
+      evidencias: validado.evidencias,
+      judit_aplicado: validado.judit_aplicado,
       docs_analisados: docIds.length,
       paginas_analisadas: paginas.length,
       tokens: aiJson?.usage || null,
