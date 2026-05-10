@@ -40,6 +40,7 @@ interface Attachment {
   cnj?: string | null;
   texto_indexado?: boolean | null;
   documento_id?: string | null;
+  storage_path?: string | null;
 }
 
 interface Props {
@@ -190,16 +191,35 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
         toast.info(`${jaIndexados.length} anexo(s) já indexado(s) reaproveitado(s).`);
       }
 
+      let reaproveitadosStorage = 0;
       for (let i = 0; i < pendentesAnexos.length; i++) {
         const a = pendentesAnexos[i];
-        setStage(`Baixando anexo ${i + 1}/${pendentesAnexos.length}…`);
         let arquivo: Awaited<ReturnType<typeof baixarAnexoParaIndexacao>> | null = null;
         let pagesText: string[] = [];
+        // Otimização: se o arquivo já está no storage (storage_path setado), pula o re-download da Judit.
+        const temNoStorage = !!a.storage_path;
         try {
-          arquivo = await baixarAnexoParaIndexacao(a);
+          if (temNoStorage) {
+            setStage(`Reusando storage ${i + 1}/${pendentesAnexos.length}…`);
+            const { data: signed, error: signErr } = await supabase.storage
+              .from("documentos_processos")
+              .createSignedUrl(a.storage_path!, 600);
+            if (signErr || !signed?.signedUrl) throw new Error("Falha ao assinar URL do storage: " + (signErr?.message || ""));
+            arquivo = {
+              signed_url: signed.signedUrl,
+              filename: a.attachment_name || `documento_${a.step_id}.pdf`,
+              storage_path: a.storage_path!,
+              content_type: "application/pdf",
+              file_size: 0,
+            };
+            reaproveitadosStorage++;
+          } else {
+            setStage(`Baixando anexo ${i + 1}/${pendentesAnexos.length}…`);
+            arquivo = await baixarAnexoParaIndexacao(a);
+          }
           const isPdf = (arquivo.content_type || "").includes("pdf") || (arquivo.filename || a.attachment_name || "").toLowerCase().endsWith(".pdf");
           if (!isPdf) throw new Error("Somente anexos PDF podem ser lidos com IA nesta rotina.");
-          setStage(`Lendo PDF ${i + 1}/${lista.length}…`);
+          setStage(`Lendo PDF ${i + 1}/${pendentesAnexos.length}…`);
           pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
           if (!pagesText.some((page) => page.trim())) {
             throw new Error("PDF sem texto extraível no navegador.");
