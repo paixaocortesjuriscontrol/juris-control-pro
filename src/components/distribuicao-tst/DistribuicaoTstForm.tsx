@@ -408,8 +408,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
         const baixado = (data.processo_baixado || "").toString().toUpperCase();
-        const ehTransito = /arquivad|baixad/i.test(situacao) || baixado === "S";
-        if (ehTransito && next.transito_julgado !== true) {
+        const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
+        const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
+        if (juditAtivo) {
+          next.transito_julgado = false;
+          filled.delete("transito_julgado");
+        } else if (ehTransito && next.transito_julgado !== true) {
           next.transito_julgado = true;
           filled.add("transito_julgado");
         }
