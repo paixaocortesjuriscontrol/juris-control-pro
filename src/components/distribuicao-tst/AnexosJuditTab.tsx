@@ -338,12 +338,31 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       toast.success(`${okResults.length} anexo(s) indexado(s) no repositório de IA.`);
 
       setStage("Analisando peças com IA…");
+      const { data: bennerAtual } = await supabase
+        .from("dados_benner" as any)
+        .select("dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, recorrente, situacao_processo, processo_baixado")
+        .eq("processo", processoNumero)
+        .maybeSingle();
+      const dadosJuditAtualizados = {
+        ...(dadosJudit || {}),
+        dossie: (bennerAtual as any)?.dossie || dadosJudit?.dossie || null,
+        tribunal: (bennerAtual as any)?.tribunal || dadosJudit?.tribunal || null,
+        tipo_recurso: (bennerAtual as any)?.tipo_recurso || dadosJudit?.tipo_recurso || null,
+        data_distribuicao: (bennerAtual as any)?.data_distribuicao || dadosJudit?.data_distribuicao || null,
+        turma: (bennerAtual as any)?.turma || dadosJudit?.turma || null,
+        relator: (bennerAtual as any)?.relator || dadosJudit?.relator || null,
+        recorrentes: (bennerAtual as any)?.recorrente
+          ? String((bennerAtual as any).recorrente).split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+          : dadosJudit?.recorrentes || null,
+        situacao_processo: (bennerAtual as any)?.situacao_processo || dadosJudit?.situacao_processo || null,
+        processo_baixado: (bennerAtual as any)?.processo_baixado || dadosJudit?.processo_baixado || null,
+      };
       const { data: iaData, error: iaErr } = await supabase.functions.invoke("preencher-form-ia-anexos", {
         body: {
           processo_id: processoIdAcc,
           processo_numero: processoNumero,
           documento_ids: okResults.map((r: any) => r.documento_id).filter(Boolean),
-          dados_judit: dadosJudit || null,
+          dados_judit: dadosJuditAtualizados,
         },
       });
       if (iaErr || iaData?.error) {
