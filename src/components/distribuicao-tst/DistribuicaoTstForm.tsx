@@ -120,7 +120,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all"
       : "";
   const fieldClass = (field: string, value: any) =>
-    juditClass(value) || iaClass(field, value);
+    iaClass(field, value) || juditClass(value);
   const IaBadge = ({ field, value }: { field: string; value: any }) =>
     isIaFilled(field, value) ? (
       <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0 h-4 font-normal border-sky-500 text-sky-600 dark:text-sky-400">
