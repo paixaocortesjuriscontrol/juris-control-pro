@@ -30,7 +30,8 @@ Você pode mencioná-los se quiser, mas NÃO se preocupe em extraí-los do PDF n
     situacao_processo (Ativo / Trânsito em Julgado / etc.).
 
 REGRA CRÍTICA — TRÂNSITO EM JULGADO
-• Se "DADOS DA JUDIT" informar situacao_processo = "Ativo" (ou "Em curso", "Em tramitação"),
+• Se "DADOS DA JUDIT" informar situacao_processo = "Ativo" (ou "Em curso", "Em tramitação")
+  OU processo_baixado = "N",
   você está PROIBIDO de devolver:
     - distribuicao_tst.transito_julgado = true
     - dados_benner.transito_julgado = true
