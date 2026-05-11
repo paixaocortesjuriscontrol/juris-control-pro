@@ -9,6 +9,6 @@ Botão "Docs TST" (Análise DJEN) gera até 5 `.docx` classificando publicaçõe
 2. **PAUTA** → contém `pauta de julgamento`.
 3. **CEJUSC** → contém `plataforma zoom`.
 4. **DISTRIBUIÇÕES** → contém `lista de distribuição`.
-5. **PRAZOS** (default) → restante. Conteúdo limitado às **últimas 20 linhas não-vazias** após strip de HTML.
+5. **PRAZOS** (default) → restante. Conteúdo integral (sem corte).
 
 Edge Function `classificar-publicacoes-tst` ficou órfã (pode ser removida em limpeza futura).

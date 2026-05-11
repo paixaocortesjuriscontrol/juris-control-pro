@@ -2313,15 +2313,6 @@ const AnaliseDjen = () => {
         // 5. PRAZOS (default)
         return { id: pub.id, categoria: "PRAZOS" };
       };
-      const pegarUltimasNLinhas = (conteudo: string, n: number): string => {
-        const limpo = (conteudo || "")
-          .replace(/<br\s*\/?>/gi, "\n")
-          .replace(/<\/p>/gi, "\n")
-          .replace(/<[^>]*>/g, " ");
-        const linhas = limpo.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
-        if (linhas.length <= n) return linhas.join("\n");
-        return linhas.slice(-n).join("\n");
-      };
       const pubsTemasIRR: PubComClass[] = [];
       const pubsPauta: PubComClass[] = [];
       const pubsCejusc: PubComClass[] = [];
@@ -2341,7 +2332,7 @@ const AnaliseDjen = () => {
       toast.loading(`Gerando documentos... (IRR: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
-      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, modo: "integral" | "ultimas20" = "integral"): Paragraph[] => {
+      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string): Paragraph[] => {
         const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
         pubs.forEach((item, idx) => {
           const { pub, class_info: ci } = item;
@@ -2358,12 +2349,7 @@ const AnaliseDjen = () => {
           }
           if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
           ch.push(...buildPartesAdvogados(pub));
-          if (modo === "ultimas20") {
-            const trecho = pegarUltimasNLinhas(pub.conteudo || "", 20);
-            ch.push(...buildConteudoParagraphs(trecho || "Sem conteúdo", "Trecho final da decisão (últimas 20 linhas)"));
-          } else {
-            ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
-          }
+          ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
           ch.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
         });
         return ch;
@@ -2375,7 +2361,7 @@ const AnaliseDjen = () => {
       if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`)), `PAUTA_${dataStr}.docx`); dg++; }
       if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`)), `CEJUSC_${dataStr}.docx`); dg++; }
       if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Distribuições - ${dataStr}`)), `DISTRIBUICOES_${dataStr}.docx`); dg++; }
-      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos e Decisões - ${dataStr}`, "ultimas20")), `PRAZOS_${dataStr}.docx`); dg++; }
+      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos e Decisões - ${dataStr}`)), `PRAZOS_${dataStr}.docx`); dg++; }
       toast.success(`${dg} documento(s) gerado(s)! (IRR: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
