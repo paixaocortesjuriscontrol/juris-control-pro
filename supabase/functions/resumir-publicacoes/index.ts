@@ -435,6 +435,16 @@ serve(async (req) => {
       const processo = pub.processo || pub.numeroProcesso || 'N/A';
       const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
 
+      const resumoPautaLocal = isPautaDeJulgamento(conteudoBruto)
+        ? resumirPautaDeterministico(conteudoBruto, processo)
+        : '';
+      if (resumoPautaLocal) {
+        return new Response(
+          JSON.stringify({ id: pub.id, resumo: resumoPautaLocal, orgao: null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Helper: 1 chamada à OpenAI com retry/backoff
       async function callOpenAI(systemPrompt: string, userMsg: string, maxTokens: number): Promise<string> {
         let lastErr: unknown = null;
