@@ -18,6 +18,7 @@ import { DistribuicaoTstImport } from "@/components/distribuicao-tst/Distribuica
 import { CertidaoPdfImport } from "@/components/distribuicao-tst/CertidaoPdfImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
+import { RespostaSantanderImport } from "@/components/distribuicao-tst/RespostaSantanderImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
@@ -1109,6 +1110,7 @@ export default function DistribuicaoTst() {
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
             <BennerSimImport onUpdated={handleRefresh} />
+            <RespostaSantanderImport onUpdated={handleRefresh} />
           </div>
         )}
 
