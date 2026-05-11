@@ -1095,6 +1095,45 @@ const AnaliseDjen = () => {
   // ===== PDF "Gerar PDF Resumo" - formato DOC do advogado (estilo Comunica PJE) =====
   const [gerandoResumo, setGerandoResumo] = useState(false);
 
+  // Detecta se a publicação é uma Pauta de Julgamento (sessão virtual/presencial).
+  const isPautaDeJulgamento = (conteudo?: string | null): boolean => {
+    if (!conteudo) return false;
+    const txt = String(conteudo).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    return /Pauta\s+de\s+Julgamento/i.test(txt) ||
+      (/\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
+        /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
+  };
+
+  // Para pautas, retorna o INÍCIO do texto (do "Pauta de Julgamento" até a linha
+  // que contém a data de encerramento da sessão). Retorna "" se não for pauta.
+  const extractTrechoPauta = (conteudo?: string | null): string => {
+    if (!conteudo || !isPautaDeJulgamento(conteudo)) return "";
+    const semHtml = String(conteudo)
+      .replace(/<br\s*\/?>(?=)/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\r\n?/g, "\n");
+    const txt = semHtml.split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean).join("\n");
+    const m = txt.match(/Pauta\s+de\s+Julgamento/i);
+    const start = m ? m.index! : 0;
+    const body = txt.slice(start);
+    // Fim ideal: linha que contém "encerramento" + data dd/mm/aaaa
+    const fim = body.match(/encerramento[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
+    if (fim) {
+      const end = (fim.index ?? 0) + fim[0].length;
+      return body.slice(0, end).trim();
+    }
+    // Fallback: até "início" + data, ou primeiros ~1500 chars terminando em ponto.
+    const ini = body.match(/in[ií]cio[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
+    if (ini) {
+      const end = (ini.index ?? 0) + ini[0].length;
+      return body.slice(0, end).trim();
+    }
+    const cut = body.slice(0, 1500);
+    const lastDot = cut.lastIndexOf(".");
+    return (lastDot > 200 ? cut.slice(0, lastDot + 1) : cut).trim();
+  };
+
   // Extrai o trecho final ORIGINAL da publicação contendo o dispositivo/acórdão,
   // assinatura do relator e intimados. Mesma lógica usada pelo edge function
   // `resumir-publicacoes` (lê do final para o começo, preserva quebras de linha).
