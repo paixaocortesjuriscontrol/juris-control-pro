@@ -123,6 +123,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const reset = () => {
     setFile(null);
@@ -133,9 +134,24 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
   };
 
   const handleClose = (next: boolean) => {
-    if (importing) return;
+    if (importing && next === false) {
+      // Solicita cancelamento; o fechamento real ocorre no finally
+      cancelRef.current = true;
+      setStatusText("Cancelando…");
+      return;
+    }
     setOpen(next);
     if (!next) reset();
+  };
+
+  const handleCancel = () => {
+    if (importing) {
+      cancelRef.current = true;
+      setStatusText("Cancelando…");
+    } else {
+      setOpen(false);
+      reset();
+    }
   };
 
   const handleProcess = async () => {
@@ -146,6 +162,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
     setImporting(true);
     setProgress(0);
     setStatusText("Lendo planilha…");
+    cancelRef.current = false;
 
     try {
       const buffer = await file.arrayBuffer();
