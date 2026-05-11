@@ -1154,6 +1154,35 @@ const AnaliseDjen = () => {
     return [header, bloco].filter(Boolean).join("\n\n").trim();
   };
 
+  const resumirTrechoPauta = (trecho?: string | null): string => {
+    if (!trecho) return "";
+    const linhas = String(trecho).split(/\n+/).map(l => l.trim()).filter(Boolean);
+    const get = (re: RegExp) => linhas.find(l => re.test(l)) || "";
+    const titulo = get(/Pauta\s+de\s+Julgamento/i) || "Pauta de julgamento";
+    const cnj = get(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\b\d{20}\b/);
+    const relatorIdx = linhas.findIndex(l => /^Relator\b/i.test(l));
+    const relator = relatorIdx >= 0
+      ? [linhas[relatorIdx].replace(/^Relator\s*/i, ""), linhas[relatorIdx + 1] && !/^(Revisor|AGRAVANTE|AGRAVADO|RECORRENTE|RECORRIDO|RECLAMANTE|RECLAMADO|ADVOGADO|Intimado)/i.test(linhas[relatorIdx + 1]) ? linhas[relatorIdx + 1] : ""].filter(Boolean).join(" ").trim()
+      : "";
+    const partes = linhas.filter(l => /^(AGRAVANTE|AGRAVADO|RECORRENTE|RECORRIDO|RECLAMANTE|RECLAMADO)\b/i.test(l));
+    const advogados = linhas.filter(l => /^ADVOGADO\b/i.test(l)).map(l => l.replace(/^ADVOGADO\s*/i, "").trim());
+    const intimadosIdx = linhas.findIndex(l => /^Intimado\(s\)\/Citado\(s\)/i.test(l));
+    const intimados = intimadosIdx >= 0 ? linhas.slice(intimadosIdx + 1).filter(l => /^-\s*/.test(l)).map(l => l.replace(/^-\s*/, "")).join("; ") : "";
+    const saida = [`Resumo: ${titulo}.`];
+    const inicio = get(/^Data e hora de início/i);
+    const fim = get(/^Data e hora de encerramento/i);
+    const presencial = get(/^Data da sessão PRESENCIAL/i);
+    if (inicio) saida.push(inicio.replace(/:$/, "") + ".");
+    if (fim) saida.push(fim.replace(/:$/, "") + ".");
+    if (presencial) saida.push(presencial.replace(/:$/, "") + ".");
+    if (cnj) saida.push(`Processo em pauta: ${cnj}.`);
+    if (relator) saida.push(`Relator(a): ${relator}.`);
+    if (partes.length) saida.push(`Partes: ${partes.join("; ")}.`);
+    if (advogados.length) saida.push(`Advogados: ${advogados.join("; ")}.`);
+    if (intimados) saida.push(`Intimado(s)/Citado(s): ${intimados}.`);
+    return saida.join("\n");
+  };
+
   // Extrai o trecho final ORIGINAL da publicação contendo o dispositivo/acórdão,
   // assinatura do relator e intimados. Mesma lógica usada pelo edge function
   // `resumir-publicacoes` (lê do final para o começo, preserva quebras de linha).
