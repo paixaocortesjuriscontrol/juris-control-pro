@@ -408,30 +408,29 @@ serve(async (req) => {
       let dadosResumo: any = {};
       let dadosTrecho: any = {};
 
-      // PAUTA: para pautas de julgamento, o trecho relevante é o cabeçalho
-      // (data da sessão virtual/presencial), não o final. Pré-extrai localmente
-      // e pula a Fase 2 da IA.
+      // PAUTA: para pautas de julgamento, usa extração local determinística
+      // (cabeçalho da sessão + bloco do processo). Não chama a IA para trecho,
+      // evitando repetição do início ou retorno da pauta completa.
       const ehPauta = isPautaDeJulgamento(conteudoBruto);
-      const trechoPautaLocal = ehPauta ? extrairTrechoPauta(conteudoBruto) : '';
+      const trechoPautaLocal = ehPauta ? extrairTrechoPauta(conteudoBruto, processo) : '';
 
       try {
         const tarefas: Promise<string>[] = [callOpenAI(SYSTEM_PROMPT_FASE_RESUMO, userMsgFase1, 1500)];
-        tarefas.push(callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000));
+        if (!trechoPautaLocal) tarefas.push(callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000));
         const respostas = await Promise.all(tarefas);
         const respFase1 = respostas[0];
-        const respFase2 = respostas[1];
         try { dadosResumo = JSON.parse(respFase1); } catch {
           const limpo = respFase1.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
           try { dadosResumo = JSON.parse(limpo); } catch { dadosResumo = { resumo: respFase1 }; }
         }
-        try { dadosTrecho = JSON.parse(respFase2); } catch {
-          const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-          try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
-        }
         if (trechoPautaLocal) {
-          // Prepende o cabeçalho da pauta ao trecho_preservado retornado pela IA.
-          const orig = (dadosTrecho.trecho_preservado || '').toString().trim();
-          dadosTrecho.trecho_preservado = orig ? `${trechoPautaLocal}\n\n${orig}` : trechoPautaLocal;
+          dadosTrecho = { trecho_preservado: trechoPautaLocal, assinatura: null, intimados: null };
+        } else {
+          const respFase2 = respostas[1];
+          try { dadosTrecho = JSON.parse(respFase2); } catch {
+            const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+            try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
+          }
         }
       } catch (e) {
         console.error(`Erro ao resumir pub ${pub.id}:`, e);
