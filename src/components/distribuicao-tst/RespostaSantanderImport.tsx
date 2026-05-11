@@ -53,6 +53,7 @@ function hasValue(val: unknown): boolean {
 }
 
 type ColMap = Record<string, number>;
+const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 
 function detectColumns(row: any[]): ColMap {
   const map: ColMap = {};
@@ -109,6 +110,7 @@ function detectColumns(row: any[]): ColMap {
 interface RowIn {
   processo_digits: string;
   processo_raw: string;
+  aba_origem: string;
   payload: Record<string, any>;
 }
 
@@ -254,7 +256,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             if (v) payload.__dossie = v;
           }
 
-          all.push({ processo_digits: digits, processo_raw: processoRaw, payload });
+          all.push({ processo_digits: digits, processo_raw: processoRaw, aba_origem: sheetName, payload });
         }
       }
 
@@ -273,7 +275,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
 
       // Busca todos pelos dígitos (compara via regexp_replace).
       // Para evitar N consultas, buscamos em lotes filtrando processo ILIKE.
-      const existentesByDigits = new Map<string, { id: string; dossie: string | null }[]>();
+      const existentesByDigits = new Map<string, { id: string; dossie: string | null; aba_origem: string | null; coordenacao_id: string | null }[]>();
       const LOOKUP_BATCH = 200;
       // Estratégia simples: buscamos por `processo` com OR de cada raw + digits.
       for (let i = 0; i < rows.length; i += LOOKUP_BATCH) {
@@ -283,8 +285,9 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
           new Set(slice.flatMap((r) => [r.processo_raw, r.processo_digits]).filter(Boolean)),
         );
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("id, processo, dossie")
-          .in("processo", candidatos);
+          .select("id, processo, dossie, aba_origem, coordenacao_id")
+          .in("processo", candidatos)
+          .or(`coordenacao_id.eq.${RENATA_COORDENACAO_ID},coordenacao_id.is.null`);
         if (error) {
           console.error(error);
           continue;
@@ -293,7 +296,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
           const d = onlyDigits(row.processo);
           if (!d) return;
           const arr = existentesByDigits.get(d) || [];
-          arr.push({ id: row.id, dossie: row.dossie });
+          arr.push({ id: row.id, dossie: row.dossie, aba_origem: row.aba_origem, coordenacao_id: row.coordenacao_id });
           existentesByDigits.set(d, arr);
         });
       }
@@ -312,6 +315,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             ...attrs,
             processo: r.processo_raw,
             dossie: __dossie || null,
+            aba_origem: r.aba_origem,
+            coordenacao_id: RENATA_COORDENACAO_ID,
             tribunal: "TST",
             benner_atualizado: true,
           });
@@ -319,6 +324,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
           for (const ex of existentes) {
             const updatePayload: any = { ...attrs, benner_atualizado: true };
             if (__dossie) updatePayload.dossie = __dossie;
+            if (!ex.aba_origem) updatePayload.aba_origem = r.aba_origem;
+            if (!ex.coordenacao_id) updatePayload.coordenacao_id = RENATA_COORDENACAO_ID;
             toUpdate.push({ id: ex.id, payload: updatePayload });
           }
         }
