@@ -210,7 +210,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r) continue;
-          const processoRaw = norm(r[cols.processo]);
+          const processoRaw = cleanProcessNumber(r[cols.processo]);
           const digits = onlyDigits(processoRaw);
           if (digits.length < 11) continue;
 
@@ -225,6 +225,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             "comarca",
             "juizo",
             "uf",
+            "turma",
+            "relator",
             "objeto_padrao",
             "assunto",
             "categoria",
@@ -265,11 +267,9 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             }
           }
 
-          // Dossiê — também sobrescreve quando a planilha trouxer valor
-          if (cols.dossie !== undefined) {
-            const v = norm(r[cols.dossie]);
-            if (v) payload.__dossie = v;
-          }
+          // Dossiê: nesta planilha vem obrigatoriamente da coluna B.
+          const dossieColB = norm(r[DOSSIE_COL_B]);
+          if (dossieColB) payload.__dossie = dossieColB;
 
           all.push({ processo_digits: digits, processo_raw: processoRaw, aba_origem: sheetName, payload });
         }
