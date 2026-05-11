@@ -388,18 +388,31 @@ serve(async (req) => {
       let dadosResumo: any = {};
       let dadosTrecho: any = {};
 
+      // PAUTA: para pautas de julgamento, o trecho relevante é o cabeçalho
+      // (data da sessão virtual/presencial), não o final. Pré-extrai localmente
+      // e pula a Fase 2 da IA.
+      const ehPauta = isPautaDeJulgamento(conteudoBruto);
+      const trechoPautaLocal = ehPauta ? extrairTrechoPauta(conteudoBruto) : '';
+
       try {
-        const [respFase1, respFase2] = await Promise.all([
-          callOpenAI(SYSTEM_PROMPT_FASE_RESUMO, userMsgFase1, 1500),
-          callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000),
-        ]);
+        const tarefas: Promise<string>[] = [callOpenAI(SYSTEM_PROMPT_FASE_RESUMO, userMsgFase1, 1500)];
+        if (!trechoPautaLocal) {
+          tarefas.push(callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000));
+        }
+        const respostas = await Promise.all(tarefas);
+        const respFase1 = respostas[0];
+        const respFase2 = trechoPautaLocal ? '' : respostas[1];
         try { dadosResumo = JSON.parse(respFase1); } catch {
           const limpo = respFase1.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
           try { dadosResumo = JSON.parse(limpo); } catch { dadosResumo = { resumo: respFase1 }; }
         }
-        try { dadosTrecho = JSON.parse(respFase2); } catch {
-          const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-          try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
+        if (trechoPautaLocal) {
+          dadosTrecho = { trecho_preservado: trechoPautaLocal, assinatura: null, intimados: null };
+        } else {
+          try { dadosTrecho = JSON.parse(respFase2); } catch {
+            const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+            try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
+          }
         }
       } catch (e) {
         console.error(`Erro ao resumir pub ${pub.id}:`, e);
