@@ -19,8 +19,8 @@ import * as XLSX from "xlsx";
 /**
  * Importação da planilha "Resposta Santander".
  *
- * - Normaliza o número do processo para apenas dígitos para fazer o match
- *   com `dados_benner.processo`.
+ * - Normaliza o número do processo para remover caracteres inválidos antes
+ *   de fazer o match e antes de gravar em `dados_benner.processo`.
  * - Processos encontrados são marcados como Benner=SIM (`benner_atualizado=true`).
  * - Processos não encontrados são criados com tribunal=TST e Benner=SIM.
  * - Preenche atributos novos (centralizador, comarca, juízo, UF, objeto
@@ -35,6 +35,16 @@ function norm(val: unknown): string {
 }
 function onlyDigits(val: unknown): string {
   return String(val ?? "").replace(/\D+/g, "");
+}
+function cleanProcessNumber(val: unknown): string {
+  const raw = norm(val)
+    .replace(/^[\s'`´‘’"]+/, "")
+    .replace(/[^\d.\-/]/g, "");
+  const digits = onlyDigits(raw);
+  if (digits.length === 20) {
+    return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16)}`;
+  }
+  return raw;
 }
 function normalizeHeader(val: unknown): string {
   return String(val ?? "")
@@ -54,6 +64,7 @@ function hasValue(val: unknown): boolean {
 
 type ColMap = Record<string, number>;
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+const DOSSIE_COL_B = 1;
 
 function detectColumns(row: any[]): ColMap {
   const map: ColMap = {};
@@ -79,6 +90,10 @@ function detectColumns(row: any[]): ColMap {
     else if (h === "assunto") set("assunto", j);
     else if (h.includes("subcategoria")) set("subcategoria", j);
     else if (h.includes("categoria")) set("categoria", j);
+
+    // Turma / Relator textuais
+    else if (h === "turma" || h.includes("turma tst")) set("turma", j);
+    else if (h === "relator" || h.includes("ministro relator") || h.includes("relator tst")) set("relator", j);
 
     // Booleanos posicionamento
     else if (h.includes("turma") && (h.includes("favor") || h.includes("positiv"))) set("posicao_turma_favoravel", j);
