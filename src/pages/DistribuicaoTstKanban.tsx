@@ -233,6 +233,15 @@ export default function DistribuicaoTstKanban() {
                                onClick={() => navigate(`/distribuicao-tst?editId=${c.id}`)}>
                             <p className="text-xs font-mono font-semibold truncate">{c.processo || "Sem nº"}</p>
                             {c.dossie && <p className="text-[11px] text-muted-foreground truncate">Dossiê: {c.dossie}</p>}
+                            {c.fontes_importacao && c.fontes_importacao.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {c.fontes_importacao.map((f) => (
+                                  <Badge key={f} variant="outline" className="text-[9px] px-1 py-0 font-normal">
+                                    {f}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex items-center gap-1 flex-wrap text-[11px] text-muted-foreground">
                               <Clock className="w-3 h-3" />
                               {c.prazo_entrega ? format(new Date(c.prazo_entrega + "T12:00:00"), "dd/MM/yyyy") : "Sem prazo"}
