@@ -2361,7 +2361,7 @@ const AnaliseDjen = () => {
       if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`)), `PAUTA_${dataStr}.docx`); dg++; }
       if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`)), `CEJUSC_${dataStr}.docx`); dg++; }
       if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Distribuições - ${dataStr}`)), `DISTRIBUICOES_${dataStr}.docx`); dg++; }
-      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos e Decisões - ${dataStr}`, "ultimas20")), `PRAZOS_${dataStr}.docx`); dg++; }
+      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos e Decisões - ${dataStr}`)), `PRAZOS_${dataStr}.docx`); dg++; }
       toast.success(`${dg} documento(s) gerado(s)! (IRR: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
