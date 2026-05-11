@@ -240,11 +240,15 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const handleSaveTop = async () => {
     setSavingTop(true);
     try {
-      // Salva o form da aba ativa. Para Distribuição/Benner, dispara o handler interno do form.
-      if (tab === "benner" && bennerFormRef.current) {
-        await bennerFormRef.current.save();
-      } else if (formRef.current) {
+      // Salva ambos os forms (Distribuição TST e Dados Benner) quando montados,
+      // para que sugestões de IA aplicadas em uma aba não se percam ao salvar
+      // estando em outra aba (ex.: análise quarteirizado preenchida pela IA
+      // enquanto o usuário está na aba Anexos/Distribuição).
+      if (formRef.current) {
         await formRef.current.save();
+      }
+      if (bennerFormRef.current) {
+        await bennerFormRef.current.save();
       }
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
