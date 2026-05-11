@@ -123,6 +123,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
 
   const reset = () => {
     setFile(null);
@@ -133,9 +134,24 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
   };
 
   const handleClose = (next: boolean) => {
-    if (importing) return;
+    if (importing && next === false) {
+      // Solicita cancelamento; o fechamento real ocorre no finally
+      cancelRef.current = true;
+      setStatusText("Cancelando…");
+      return;
+    }
     setOpen(next);
     if (!next) reset();
+  };
+
+  const handleCancel = () => {
+    if (importing) {
+      cancelRef.current = true;
+      setStatusText("Cancelando…");
+    } else {
+      setOpen(false);
+      reset();
+    }
   };
 
   const handleProcess = async () => {
@@ -146,6 +162,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
     setImporting(true);
     setProgress(0);
     setStatusText("Lendo planilha…");
+    cancelRef.current = false;
 
     try {
       const buffer = await file.arrayBuffer();
@@ -261,6 +278,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       const LOOKUP_BATCH = 200;
       // Estratégia simples: buscamos por `processo` com OR de cada raw + digits.
       for (let i = 0; i < rows.length; i += LOOKUP_BATCH) {
+        if (cancelRef.current) throw new Error("__CANCELLED__");
         const slice = rows.slice(i, i + LOOKUP_BATCH);
         const candidatos = Array.from(
           new Set(slice.flatMap((r) => [r.processo_raw, r.processo_digits]).filter(Boolean)),
@@ -312,6 +330,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       // Inserts em lote
       const INSERT_BATCH = 500;
       for (let i = 0; i < toInsert.length; i += INSERT_BATCH) {
+        if (cancelRef.current) throw new Error("__CANCELLED__");
         const slice = toInsert.slice(i, i + INSERT_BATCH);
         setStatusText(`Inserindo ${i + slice.length}/${toInsert.length} novos…`);
         const { error } = await (supabase.from("dados_benner") as any).insert(slice);
@@ -340,6 +359,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       };
 
       for (let i = 0; i < toUpdate.length; i += CONCURRENCY) {
+        if (cancelRef.current) throw new Error("__CANCELLED__");
         const chunk = toUpdate.slice(i, i + CONCURRENCY);
         await Promise.all(chunk.map(runUpdate));
       }
@@ -356,9 +376,16 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         reset();
       }, 1500);
     } catch (err: any) {
-      console.error(err);
-      toast.error("Erro: " + (err?.message || String(err)));
-      setImporting(false);
+      if (err?.message === "__CANCELLED__") {
+        toast.info("Importação cancelada");
+        onUpdated();
+        setOpen(false);
+        reset();
+      } else {
+        console.error(err);
+        toast.error("Erro: " + (err?.message || String(err)));
+        setImporting(false);
+      }
     }
   };
 
@@ -408,8 +435,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => handleClose(false)} disabled={importing}>
-            Cancelar
+          <Button variant="ghost" onClick={handleCancel}>
+            {importing ? "Cancelar importação" : "Cancelar"}
           </Button>
           <Button onClick={handleProcess} disabled={importing || !file}>
             {importing ? (
