@@ -1283,6 +1283,17 @@ export default function DistribuicaoTst() {
                 <SelectItem value="nao">Apenas não duplicados</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroFonteImportacao} onValueChange={setFiltroFonteImportacao}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Origem importação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Origem: Todas</SelectItem>
+                <SelectItem value="Resposta Santander">Resposta Santander</SelectItem>
+                <SelectItem value="Certidão TST">Certidão TST (PDF)</SelectItem>
+                <SelectItem value="Planilha Distribuição">Planilha Distribuição</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Situação" />
