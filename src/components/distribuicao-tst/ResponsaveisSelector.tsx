@@ -59,7 +59,7 @@ export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Sel
                 <>
                   {unassignedSelected && (
                     <Badge variant="outline" className="gap-1 border-dashed">
-                      Não distribuído
+                      Processos sem responsáveis
                       <button onClick={(e) => remove(UNASSIGNED_RESPONSAVEL_ID, e)} className="hover:text-destructive">
                         <X className="w-3 h-3" />
                       </button>
@@ -86,9 +86,9 @@ export function ResponsaveisSelector({ selectedIds, onChange, placeholder = "Sel
               <CommandEmpty>{loading ? "Carregando..." : "Nenhum encontrado."}</CommandEmpty>
               <CommandGroup>
                 {includeUnassignedOption && (
-                  <CommandItem value="Não distribuído" onSelect={() => toggle(UNASSIGNED_RESPONSAVEL_ID)}>
+                  <CommandItem value="Processos sem responsáveis" onSelect={() => toggle(UNASSIGNED_RESPONSAVEL_ID)}>
                     <Check className={cn("mr-2 h-4 w-4", unassignedSelected ? "opacity-100" : "opacity-0")} />
-                    <span className="italic text-muted-foreground">Não distribuído (sem responsável)</span>
+                    <span className="italic text-muted-foreground">Processos sem responsáveis</span>
                   </CommandItem>
                 )}
                 {profiles.map(p => (
