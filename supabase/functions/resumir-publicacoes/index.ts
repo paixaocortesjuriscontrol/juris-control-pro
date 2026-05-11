@@ -247,16 +247,8 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // PAUTA: trecho relevante é o cabeçalho, não o final.
-      if (isPautaDeJulgamento(conteudoBruto)) {
-        const trechoPauta = extrairTrechoPauta(conteudoBruto);
-        if (trechoPauta) {
-          return new Response(
-            JSON.stringify({ id: pub.id, trecho: trechoPauta }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
+      // PAUTA: prepende cabeçalho (data da sessão) e segue para extração do trecho final via IA.
+      const trechoPautaPrefix = isPautaDeJulgamento(conteudoBruto) ? extrairTrechoPauta(conteudoBruto) : '';
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
       const tailLength = 6000;
       const trechoTail = conteudo.length > tailLength ? '…' + conteudo.substring(conteudo.length - tailLength) : conteudo;
@@ -292,6 +284,7 @@ serve(async (req) => {
           try { dados = JSON.parse(limpo); } catch { dados = {}; }
         }
         const partes: string[] = [];
+        if (trechoPautaPrefix) { partes.push(trechoPautaPrefix); partes.push(''); }
         if (dados.trecho_preservado) partes.push(String(dados.trecho_preservado).trim());
         if (dados.assinatura) { partes.push(''); partes.push(String(dados.assinatura).trim()); }
         if (dados.intimados) { partes.push(''); partes.push(String(dados.intimados).trim()); }
@@ -302,7 +295,7 @@ serve(async (req) => {
       } catch (e) {
         console.error(`Erro apenasTrecho pub ${pub.id}:`, e);
         return new Response(
-          JSON.stringify({ id: pub.id, trecho: '' }),
+          JSON.stringify({ id: pub.id, trecho: trechoPautaPrefix }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
