@@ -1756,6 +1756,7 @@ const AnaliseDjen = () => {
 
     try {
       const resumosMap = new Map<string, string>();
+      const orgaosMap = new Map<string, string>();
       let erros = 0;
 
       for (let i = 0; i < totalPubs; i++) {
