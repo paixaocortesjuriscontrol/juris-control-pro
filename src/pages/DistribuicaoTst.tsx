@@ -166,6 +166,9 @@ export default function DistribuicaoTst() {
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
+  // Filtro por Centralizador. Default: Paixão Cortes (escritório principal)
+  const PAIXAO_CORTES_DEFAULT = "Paixao Cortes Madeira e Adv Associados S/C - Centralizador";
+  const [filtroCentralizador, setFiltroCentralizador] = useState<string>(PAIXAO_CORTES_DEFAULT);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -195,10 +198,11 @@ export default function DistribuicaoTst() {
         emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
         duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
+        centralizador: filtroCentralizador !== "todos" ? filtroCentralizador : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroCentralizador]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
@@ -214,6 +218,7 @@ export default function DistribuicaoTst() {
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
   const [mesesAnos, setMesesAnos] = useState<{ key: string; count: number }[]>([]);
+  const [centralizadores, setCentralizadores] = useState<{ nome: string; count: number }[]>([]);
 
   const fetchTabsData = useCallback(async () => {
     // Lê de dados_benner (tabela única) restringindo ao escopo de distribuições (aba_origem != null)
@@ -246,13 +251,35 @@ export default function DistribuicaoTst() {
       });
       setMesesAnos([...map.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.key.localeCompare(a.key)));
     }
+
+    // Distinct centralizadores (paginado para evitar limite 1000)
+    const centMap = new Map<string, number>();
+    let off = 0;
+    const SZ = 1000;
+    while (true) {
+      const { data: cd } = await supabase
+        .from("dados_benner" as any)
+        .select("centralizador")
+        .not("aba_origem", "is", null)
+        .range(off, off + SZ - 1);
+      const rows = (cd as any[]) || [];
+      for (const r of rows) {
+        const c = (r.centralizador || "").trim();
+        if (c) centMap.set(c, (centMap.get(c) || 0) + 1);
+      }
+      if (rows.length < SZ) break;
+      off += SZ;
+    }
+    setCentralizadores(
+      [...centMap.entries()].map(([nome, count]) => ({ nome, count })).sort((a, b) => b.count - a.count)
+    );
   }, []);
 
   useEffect(() => { fetchTabsData(); }, [fetchTabsData]);
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroCentralizador !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -277,6 +304,7 @@ export default function DistribuicaoTst() {
     setFiltroResponsavelIds([]);
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
+    setFiltroCentralizador("todos");
     setSelectedIds(new Set());
   };
 
