@@ -88,6 +88,7 @@ export interface DistribuicaoTstFilters {
   emAnalise?: "todos" | "sim" | "nao";
   problemaJudit?: "todos" | "sim" | "nao";
   duplicado?: "todos" | "sim" | "nao";
+  centralizador?: string;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -279,6 +280,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
 
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
+    if (filters.centralizador && filters.centralizador !== "todos") {
+      if (filters.centralizador === "__sem__") query = query.or("centralizador.is.null,centralizador.eq.");
+      else query = query.eq("centralizador", filters.centralizador);
+    }
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
