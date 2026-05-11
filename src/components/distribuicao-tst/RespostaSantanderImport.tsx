@@ -19,8 +19,8 @@ import * as XLSX from "xlsx";
 /**
  * Importação da planilha "Resposta Santander".
  *
- * - Normaliza o número do processo para apenas dígitos para fazer o match
- *   com `dados_benner.processo`.
+ * - Normaliza o número do processo para remover caracteres inválidos antes
+ *   de fazer o match e antes de gravar em `dados_benner.processo`.
  * - Processos encontrados são marcados como Benner=SIM (`benner_atualizado=true`).
  * - Processos não encontrados são criados com tribunal=TST e Benner=SIM.
  * - Preenche atributos novos (centralizador, comarca, juízo, UF, objeto
@@ -35,6 +35,16 @@ function norm(val: unknown): string {
 }
 function onlyDigits(val: unknown): string {
   return String(val ?? "").replace(/\D+/g, "");
+}
+function cleanProcessNumber(val: unknown): string {
+  const raw = norm(val)
+    .replace(/^[\s'`´‘’"]+/, "")
+    .replace(/[^\d.\-/]/g, "");
+  const digits = onlyDigits(raw);
+  if (digits.length === 20) {
+    return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16)}`;
+  }
+  return raw;
 }
 function normalizeHeader(val: unknown): string {
   return String(val ?? "")
@@ -54,6 +64,7 @@ function hasValue(val: unknown): boolean {
 
 type ColMap = Record<string, number>;
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+const DOSSIE_COL_B = 1;
 
 function detectColumns(row: any[]): ColMap {
   const map: ColMap = {};
@@ -79,6 +90,10 @@ function detectColumns(row: any[]): ColMap {
     else if (h === "assunto") set("assunto", j);
     else if (h.includes("subcategoria")) set("subcategoria", j);
     else if (h.includes("categoria")) set("categoria", j);
+
+    // Turma / Relator textuais
+    else if (h === "turma" || h.includes("turma tst")) set("turma", j);
+    else if (h === "relator" || h.includes("ministro relator") || h.includes("relator tst")) set("relator", j);
 
     // Booleanos posicionamento
     else if (h.includes("turma") && (h.includes("favor") || h.includes("positiv"))) set("posicao_turma_favoravel", j);
@@ -195,7 +210,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r) continue;
-          const processoRaw = norm(r[cols.processo]);
+          const processoRaw = cleanProcessNumber(r[cols.processo]);
           const digits = onlyDigits(processoRaw);
           if (digits.length < 11) continue;
 
@@ -210,6 +225,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             "comarca",
             "juizo",
             "uf",
+            "turma",
+            "relator",
             "objeto_padrao",
             "assunto",
             "categoria",
@@ -250,11 +267,9 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             }
           }
 
-          // Dossiê — também sobrescreve quando a planilha trouxer valor
-          if (cols.dossie !== undefined) {
-            const v = norm(r[cols.dossie]);
-            if (v) payload.__dossie = v;
-          }
+          // Dossiê: nesta planilha vem obrigatoriamente da coluna B.
+          const dossieColB = norm(r[DOSSIE_COL_B]);
+          if (dossieColB) payload.__dossie = dossieColB;
 
           all.push({ processo_digits: digits, processo_raw: processoRaw, aba_origem: sheetName, payload });
         }
@@ -276,13 +291,17 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       // Busca todos pelos dígitos (compara via regexp_replace).
       // Para evitar N consultas, buscamos em lotes filtrando processo ILIKE.
       const existentesByDigits = new Map<string, { id: string; dossie: string | null; aba_origem: string | null; coordenacao_id: string | null }[]>();
-      const LOOKUP_BATCH = 200;
+      const LOOKUP_BATCH = 80;
       // Estratégia simples: buscamos por `processo` com OR de cada raw + digits.
       for (let i = 0; i < rows.length; i += LOOKUP_BATCH) {
         if (cancelRef.current) throw new Error("__CANCELLED__");
         const slice = rows.slice(i, i + LOOKUP_BATCH);
         const candidatos = Array.from(
-          new Set(slice.flatMap((r) => [r.processo_raw, r.processo_digits]).filter(Boolean)),
+          new Set(
+            slice
+              .flatMap((r) => [r.processo_raw, r.processo_digits, `'${r.processo_raw}`, `'${r.processo_digits}`])
+              .filter(Boolean),
+          ),
         );
         const { data, error } = await (supabase.from("dados_benner") as any)
           .select("id, processo, dossie, aba_origem, coordenacao_id")
