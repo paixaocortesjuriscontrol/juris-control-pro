@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -29,6 +29,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarProcessosDialog";
+import { DistribuirAutomaticoDialog } from "@/components/distribuicao-tst/DistribuirAutomaticoDialog";
 import { CopyButton } from "@/components/ui/copy-button";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -102,6 +103,7 @@ export default function DistribuicaoTst() {
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const [delegarOpen, setDelegarOpen] = useState(false);
+  const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
   
   // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
@@ -1041,6 +1043,17 @@ export default function DistribuicaoTst() {
                 <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
               </Button>
             </Link>
+            {isAdminOrCoordinator && (
+              <Button
+                variant="outline"
+                onClick={() => setAutoDistOpen(true)}
+                disabled={totalCount === 0}
+                title="Divide automaticamente todos os processos do filtro atual entre os advogados selecionados (round-robin)."
+              >
+                <Shuffle className="w-4 h-4 mr-2" /> Distribuir automaticamente
+                {totalCount > 0 ? ` (${totalCount})` : ""}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1609,6 +1622,13 @@ export default function DistribuicaoTst() {
         open={delegarOpen}
         onOpenChange={setDelegarOpen}
         selectedIds={Array.from(selectedIds)}
+        onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
+      />
+      <DistribuirAutomaticoDialog
+        open={autoDistOpen}
+        onOpenChange={setAutoDistOpen}
+        filters={debouncedFilters}
+        totalCount={totalCount}
         onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
       />
     </MainLayout>
