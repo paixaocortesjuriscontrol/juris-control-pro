@@ -370,7 +370,7 @@ serve(async (req) => {
       const resumo = formatarResumoTextoPlano(JSON.stringify(merged));
 
       return new Response(
-        JSON.stringify({ id: pub.id, resumo }),
+        JSON.stringify({ id: pub.id, resumo, orgao: merged.orgao ?? null }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
