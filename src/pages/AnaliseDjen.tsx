@@ -1151,6 +1151,14 @@ const AnaliseDjen = () => {
       bloco = linhas.slice(start, end).filter(limparLinha).join("\n").trim();
     }
 
+    // Garantia: pautas NUNCA devem cair no resumo "trecho final" (que pega o final do texto inteiro).
+    // Se não conseguimos isolar o bloco do processo, devolve o cabeçalho + os primeiros
+    // ~1500 chars limpos da pauta como amostra mínima (em vez de devolver vazio
+    // e permitir que o fallback dump a publicação inteira).
+    if (!bloco) {
+      bloco = linhas.filter(limparLinha).slice(0, 40).join("\n").trim().slice(0, 1500);
+    }
+
     return [header, bloco].filter(Boolean).join("\n\n").trim();
   };
 
@@ -1355,7 +1363,12 @@ const AnaliseDjen = () => {
     // Pautas: extração determinística, sem IA, para não repetir o início nem trazer a pauta completa.
     const ehPauta = isPautaDeJulgamento(original);
     const heur = ehPauta ? extractTrechoPauta(original, pub?.processo_numero) : extractTrechoFinal(original);
-    if (ehPauta && heur) return heur;
+    // Pautas: SEMPRE retornamos o resultado determinístico, sem fallback IA nem
+    // "trecho final" — isso evita que a publicação inteira da pauta (com dezenas
+    // de processos) seja despejada no Resumo Rápido.
+    if (ehPauta) {
+      return heur || (original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1500));
+    }
     const tamanhoOriginal = original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
     const tamanhoHeur = heur.length;
     const ratio = tamanhoOriginal > 0 ? tamanhoHeur / tamanhoOriginal : 0;
