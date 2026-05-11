@@ -1216,6 +1216,18 @@ export default function DistribuicaoTst() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={filtroCentralizador} onValueChange={setFiltroCentralizador}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Centralizador" />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                <SelectItem value="todos">Centralizador: Todos</SelectItem>
+                <SelectItem value="__sem__">Sem centralizador</SelectItem>
+                {centralizadores.map(({ nome, count }) => (
+                  <SelectItem key={nome} value={nome}>{nome} ({count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={filtroBenner} onValueChange={setFiltroBenner}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Benner" />
