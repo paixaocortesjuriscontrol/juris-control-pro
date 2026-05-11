@@ -1263,6 +1263,7 @@ const AnaliseDjen = () => {
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       // 1. Chamar IA para resumir cada publicação (Dra. Renata não quer ler o texto na íntegra)
       const resumosMap = new Map<string, string>();
+      const orgaosMap = new Map<string, string>();
       let erros = 0;
 
       for (let i = 0; i < totalPubs; i++) {
@@ -1546,7 +1547,7 @@ const AnaliseDjen = () => {
   };
 
   /** Cria bloco de metadados estilizado para cada publicação */
-  const buildPubMetadata = (pub: any, idx: number): Paragraph[] => {
+  const buildPubMetadata = (pub: any, idx: number, orgaoExtra?: string | null): Paragraph[] => {
     const paragraphs: Paragraph[] = [];
 
     paragraphs.push(new Paragraph({
@@ -1560,9 +1561,10 @@ const AnaliseDjen = () => {
     }));
 
     const metaItems: TextRun[] = [];
-    if (pub.tribunal) {
+    const orgaoCombo = [pub.tribunal, orgaoExtra].filter(Boolean).join(' - ');
+    if (orgaoCombo) {
       metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
-      metaItems.push(new TextRun({ text: sanitizeForXml(pub.tribunal) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(orgaoCombo) + "   ", size: docFontSize, font: docFont, color: "555555" }));
     }
     if (pub.data_disponibilizacao) {
       metaItems.push(new TextRun({ text: "Data: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
@@ -1754,6 +1756,7 @@ const AnaliseDjen = () => {
 
     try {
       const resumosMap = new Map<string, string>();
+      const orgaosMap = new Map<string, string>();
       let erros = 0;
 
       for (let i = 0; i < totalPubs; i++) {
@@ -1773,6 +1776,7 @@ const AnaliseDjen = () => {
           });
           if (aiError) throw aiError;
           if (aiData?.resumo) resumosMap.set(pub.id, aiData.resumo);
+          if (aiData?.orgao) orgaosMap.set(pub.id, String(aiData.orgao));
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
@@ -1787,7 +1791,7 @@ const AnaliseDjen = () => {
 
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       allPublicacoes.forEach((pub, idx) => {
-        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPubMetadata(pub, idx, orgaosMap.get(pub.id) || null));
         children.push(...buildPartesAdvogados(pub));
 
         const resumo = resumosMap.get(pub.id);
