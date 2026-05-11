@@ -1106,10 +1106,14 @@ const AnaliseDjen = () => {
       .replace(/<\/p>/gi, "\n\n")
       .replace(/<[^>]+>/g, "")
       .replace(/\r\n?/g, "\n");
-    const normalizado = semHtml
+    const normalizadoBruto = semHtml
       .split("\n")
       .map((l) => l.replace(/[ \t]+/g, " ").trim())
       .join("\n");
+    // 1.a) Remove cabeçalho de metadados que vem prefixado em algumas publicações
+    // (Órgão / Data de disponibilização / Tipo de comunicação / Meio / Processo / Parte(s) ... )
+    // para evitar duplicação com o cabeçalho do PDF.
+    const normalizado = stripMetadataHeader(normalizadoBruto);
     let paragrafos = normalizado.split(/\n\s*\n+/).map((b) => b.trim()).filter((b) => b.length > 0);
     if (paragrafos.length <= 1) {
       paragrafos = normalizado.split(/\n+/).map((b) => b.trim()).filter((b) => b.length > 0);
