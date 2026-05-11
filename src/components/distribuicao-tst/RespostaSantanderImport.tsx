@@ -285,44 +285,63 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       let atualizados = 0;
       const total = rows.length;
 
-      for (let idx = 0; idx < rows.length; idx++) {
-        const r = rows[idx];
-        setProgress(Math.round(((idx + 1) / total) * 100));
-        if (idx % 25 === 0)
-          setStatusText(`Processando ${idx + 1}/${total} · ${criados} novos · ${atualizados} atualizados`);
+      // Separa em inserts e updates
+      const toInsert: any[] = [];
+      const toUpdate: { id: string; payload: any }[] = [];
 
+      for (const r of rows) {
         const { __dossie, ...attrs } = r.payload;
         const existentes = existentesByDigits.get(r.processo_digits) || [];
-
         if (existentes.length === 0) {
-          const insertPayload: any = {
+          toInsert.push({
             ...attrs,
             processo: r.processo_raw,
             dossie: __dossie || null,
             tribunal: "TST",
             benner_atualizado: true,
-          };
-          const { error: insErr } = await (supabase.from("dados_benner") as any).insert(insertPayload);
-          if (insErr) {
-            console.error("Erro insert:", insErr);
-            continue;
-          }
-          criados++;
+          });
         } else {
           for (const ex of existentes) {
             const updatePayload: any = { ...attrs, benner_atualizado: true };
-            // O que vale é a planilha — se a planilha trouxer dossiê, sobrescreve.
             if (__dossie) updatePayload.dossie = __dossie;
-            const { error: upErr } = await (supabase.from("dados_benner") as any)
-              .update(updatePayload)
-              .eq("id", ex.id);
-            if (upErr) {
-              console.error("Erro update:", upErr);
-              continue;
-            }
-            atualizados++;
+            toUpdate.push({ id: ex.id, payload: updatePayload });
           }
         }
+      }
+
+      // Inserts em lote
+      const INSERT_BATCH = 500;
+      for (let i = 0; i < toInsert.length; i += INSERT_BATCH) {
+        const slice = toInsert.slice(i, i + INSERT_BATCH);
+        setStatusText(`Inserindo ${i + slice.length}/${toInsert.length} novos…`);
+        const { error } = await (supabase.from("dados_benner") as any).insert(slice);
+        if (error) {
+          console.error("Erro insert lote:", error);
+        } else {
+          criados += slice.length;
+        }
+        setProgress(Math.round(((i + slice.length) / Math.max(total, 1)) * 30));
+      }
+
+      // Updates paralelos com limite de concorrência
+      const CONCURRENCY = 20;
+      let done = 0;
+      const runUpdate = async (item: { id: string; payload: any }) => {
+        const { error } = await (supabase.from("dados_benner") as any)
+          .update(item.payload)
+          .eq("id", item.id);
+        if (error) console.error("Erro update:", error);
+        else atualizados++;
+        done++;
+        if (done % 50 === 0 || done === toUpdate.length) {
+          setStatusText(`Atualizando ${done}/${toUpdate.length} · ${criados} novos`);
+          setProgress(30 + Math.round((done / Math.max(toUpdate.length, 1)) * 70));
+        }
+      };
+
+      for (let i = 0; i < toUpdate.length; i += CONCURRENCY) {
+        const chunk = toUpdate.slice(i, i + CONCURRENCY);
+        await Promise.all(chunk.map(runUpdate));
       }
 
       setProgress(100);
