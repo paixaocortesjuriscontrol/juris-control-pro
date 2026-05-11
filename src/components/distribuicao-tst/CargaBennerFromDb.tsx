@@ -326,7 +326,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       while (true) {
         const { data, error } = await supabase
           .from("dados_benner")
-          .select("processo, dossie, data_julgamento, horario_julgamento, tipo_julgamento, sustentacao_oral, entrega_memoriais, provas_digitais, processo_baixado, observacoes, ganhamos, perdemos, resultado_sem_transcendencia, resultado_nao_conhecido, resultado_conhecido_provido, resultado_conhecido_nao_provido, resultado_outra, chance_exito, recurso_bem_aparelhado, recurso_mal_aparelhado, posicao_turma_favoravel, posicao_turma_desfavoravel, posicao_relator_favoravel, posicao_relator_desfavoravel, recorrente, risco_midia, risco_descricao, materia_honra")
+          .select("processo, dossie, data_julgamento, horario_julgamento, tipo_julgamento, sustentacao_oral, entrega_memoriais, provas_digitais, processo_baixado, observacoes, ganhamos, perdemos, resultado_sem_transcendencia, resultado_nao_conhecido, resultado_conhecido_provido, resultado_conhecido_nao_provido, resultado_outra, chance_exito, recurso_bem_aparelhado, recurso_mal_aparelhado, posicao_turma_favoravel, posicao_turma_desfavoravel, posicao_relator_favoravel, posicao_relator_desfavoravel, recorrente, risco_midia, risco_descricao, materia_honra, analise_quarteirizado")
           .range(page * pageSize, (page + 1) * pageSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
@@ -450,9 +450,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
         outRow[LAYOUT_COLS[4]] = turmaVal;
         outRow[LAYOUT_COLS[5]] = String(d.relator ?? "").trim();
-        outRow[LAYOUT_COLS[6]] = String(d.decisao_quarteirizado ?? "");
-        outRow[LAYOUT_COLS[7]] = midiaH;
-        outRow[LAYOUT_COLS[8]] = risco;
+        outRow[LAYOUT_COLS[6]] = String(benner?.analise_quarteirizado ?? d.decisao_quarteirizado ?? "");
+        outRow[LAYOUT_COLS[7]] = midiaH || (benner?.risco_midia ? toSN(benner.risco_midia) : "");
+        outRow[LAYOUT_COLS[8]] = risco || String(benner?.risco_descricao ?? "");
         outRow[LAYOUT_COLS[9]] = benner?.provas_digitais ? toSN(benner.provas_digitais) : "N";
         outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N";
         outRow[LAYOUT_COLS[11]] = hasJulg ? formatDateDDMMYYYY(benner.data_julgamento) : "";
