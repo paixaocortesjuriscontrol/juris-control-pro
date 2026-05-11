@@ -1263,6 +1263,7 @@ const AnaliseDjen = () => {
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       // 1. Chamar IA para resumir cada publicação (Dra. Renata não quer ler o texto na íntegra)
       const resumosMap = new Map<string, string>();
+      const orgaosMap = new Map<string, string>();
       let erros = 0;
 
       for (let i = 0; i < totalPubs; i++) {
@@ -1774,6 +1775,7 @@ const AnaliseDjen = () => {
           });
           if (aiError) throw aiError;
           if (aiData?.resumo) resumosMap.set(pub.id, aiData.resumo);
+          if (aiData?.orgao) orgaosMap.set(pub.id, String(aiData.orgao));
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
@@ -1788,7 +1790,7 @@ const AnaliseDjen = () => {
 
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       allPublicacoes.forEach((pub, idx) => {
-        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPubMetadata(pub, idx, orgaosMap.get(pub.id) || null));
         children.push(...buildPartesAdvogados(pub));
 
         const resumo = resumosMap.get(pub.id);
