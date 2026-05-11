@@ -62,6 +62,44 @@ function hasValue(val: unknown): boolean {
   return true;
 }
 
+/**
+ * Converte uma célula (Date/serial/string dd/mm/yyyy) em ISO yyyy-mm-dd.
+ * Retorna null quando vazio ou inválido.
+ */
+function parseDateCell(val: unknown): string | null {
+  if (val === null || val === undefined || val === "") return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, "0");
+    const d = String(val.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof val === "number" && isFinite(val)) {
+    // Excel serial date
+    const ms = Math.round((val - 25569) * 86400 * 1000);
+    const dt = new Date(ms);
+    if (!isNaN(dt.getTime())) {
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(dt.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  const s = String(val).trim();
+  if (!s) return null;
+  const m1 = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m1) {
+    const dd = m1[1].padStart(2, "0");
+    const mm = m1[2].padStart(2, "0");
+    let yy = m1[3];
+    if (yy.length === 2) yy = (parseInt(yy, 10) > 50 ? "19" : "20") + yy;
+    return `${yy}-${mm}-${dd}`;
+  }
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return `${m2[1]}-${m2[2]}-${m2[3]}`;
+  return null;
+}
+
 type ColMap = Record<string, number>;
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const DOSSIE_COL_B = 1;
@@ -94,6 +132,9 @@ function detectColumns(row: any[]): ColMap {
     // Turma / Relator textuais
     else if (h === "turma" || h.includes("turma tst")) set("turma", j);
     else if (h === "relator" || h.includes("ministro relator") || h.includes("relator tst")) set("relator", j);
+
+    // Data de distribuição (coluna O na planilha; detectada por nome também)
+    else if (h.includes("data") && h.includes("distribui")) set("data_distribuicao", j);
 
     // Booleanos posicionamento
     else if (h.includes("turma") && (h.includes("favor") || h.includes("positiv"))) set("posicao_turma_favoravel", j);
@@ -236,6 +277,13 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
               const v = norm(r[cols[k]]);
               payload[k] = v ? (k === "uf" ? v.toUpperCase().slice(0, 2) : v) : null;
             }
+          }
+
+          // Data de distribuição: prioriza header detectado, com fallback para coluna O (índice 14)
+          {
+            const idx = cols.data_distribuicao !== undefined ? cols.data_distribuicao : 14;
+            const iso = parseDateCell(r[idx]);
+            payload.data_distribuicao = iso;
           }
 
           // Booleanos (vazio => false)
