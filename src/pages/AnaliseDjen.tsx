@@ -1241,6 +1241,18 @@ const AnaliseDjen = () => {
       selecionados = candidatos.slice(-2);
     }
 
+    // 4.b) Trecho muito curto (< 300 chars sem assinatura): inclui parágrafos
+    // anteriores até alcançar o mínimo ou esgotar o texto.
+    const tamanhoSemAssinatura = () => selecionados.filter(p => !ehAssinaturaRelator(p)).join("\n\n").length;
+    while (tamanhoSemAssinatura() < 300 && selecionados.length > 0) {
+      const primeiro = selecionados[0];
+      const idxPrimeiro = paragrafos.indexOf(primeiro);
+      if (idxPrimeiro <= 0) break;
+      const anterior = paragrafos[idxPrimeiro - 1];
+      if (!anterior || ehAssinaturaRelator(anterior)) break;
+      selecionados = [anterior, ...selecionados];
+    }
+
     if (assinatura) selecionados = [...selecionados, assinatura];
     return selecionados.join("\n\n").trim();
   };
