@@ -1409,6 +1409,11 @@ const AnaliseDjen = () => {
         toast.loading(`Resumindo ${i + 1}/${totalPubs}...`, { id: toastId });
 
         try {
+          const resumoPauta = isPautaDeJulgamento(pub.conteudo) ? resumirTrechoPauta(extractTrechoPauta(pub.conteudo, pub.processo_numero)) : "";
+          if (resumoPauta) {
+            resumosMap.set(pub.id, resumoPauta);
+            continue;
+          }
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
               resumoIndividual: true,
@@ -1901,6 +1906,11 @@ const AnaliseDjen = () => {
         const pub = allPublicacoes[i];
         toast.loading(`Resumindo ${i + 1}/${totalPubs}...`, { id: toastId });
         try {
+          const resumoPauta = isPautaDeJulgamento(pub.conteudo) ? resumirTrechoPauta(extractTrechoPauta(pub.conteudo, pub.processo_numero)) : "";
+          if (resumoPauta) {
+            resumosMap.set(pub.id, resumoPauta);
+            continue;
+          }
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
               resumoIndividual: true,
