@@ -1140,10 +1140,18 @@ const AnaliseDjen = () => {
   const extractTrechoFinal = (conteudo?: string | null): string => {
     if (!conteudo) return "";
     // CASO ESPECIAL — PAUTA DE JULGAMENTO
-    // Para pautas, o trecho relevante está no INÍCIO (cabeçalho com data da sessão
-    // virtual/presencial), não no final. Detecta e retorna o cabeçalho.
+    // Para pautas, prepende o cabeçalho (com data da sessão virtual/presencial)
+    // e também retorna o trecho final (assinatura + intimados).
     const pauta = extractTrechoPauta(conteudo);
-    if (pauta) return pauta;
+    const finalCore = extractTrechoFinalCore(conteudo);
+    if (pauta) return finalCore ? `${pauta}\n\n${finalCore}` : pauta;
+    return finalCore;
+  };
+
+  // Núcleo da extração do trecho final (assinatura + intimados),
+  // SEM detecção de pauta — usado isoladamente e combinado com cabeçalho de pauta.
+  const extractTrechoFinalCore = (conteudo?: string | null): string => {
+    if (!conteudo) return "";
     // 1) Normaliza HTML/whitespace e devolve a lista de parágrafos.
     const semHtml = String(conteudo)
       .replace(/<br\s*\/?>(?=)/gi, "\n")
@@ -1294,12 +1302,10 @@ const AnaliseDjen = () => {
   // visivelmente ruim (muito longo, muito curto ou cobre quase todo o texto).
   const extractTrechoHibrido = async (pub: any): Promise<string> => {
     const original = String(pub?.conteudo || "");
-    // Pautas: heurística sempre vence (cabeçalho com data da sessão).
-    if (isPautaDeJulgamento(original)) {
-      const t = extractTrechoPauta(original);
-      if (t) return t;
-    }
+    // Pautas: combina cabeçalho (data da sessão) + trecho final.
+    const ehPauta = isPautaDeJulgamento(original);
     const heur = extractTrechoFinal(original);
+    if (ehPauta && heur) return heur;
     const tamanhoOriginal = original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
     const tamanhoHeur = heur.length;
     const ratio = tamanhoOriginal > 0 ? tamanhoHeur / tamanhoOriginal : 0;
