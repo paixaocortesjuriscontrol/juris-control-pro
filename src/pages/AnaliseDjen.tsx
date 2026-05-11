@@ -1929,6 +1929,58 @@ const AnaliseDjen = () => {
         addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Parte(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (partes.length > 0) {
+          checkPage(10 + partes.length * 5);
+          partes.forEach(p => {
+            checkPage(5);
+            const iconColor = getParteIconColor(p);
+            const nome = cleanParteName(p);
+            drawPersonIcon(doc, mL, y, iconColor);
+            const linhas = doc.splitTextToSize(nome, maxW - 8);
+            linhas.forEach((l: string) => {
+              doc.text(l, mL + 6, y);
+              y += 5;
+            });
+          });
+        } else {
+          doc.text("—", mL, y);
+          y += 5;
+        }
+        y += 2;
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Advogado(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (advogados.length > 0) {
+          checkPage(10 + advogados.length * 5);
+          advogados.forEach(a => {
+            checkPage(5);
+            drawPersonIcon(doc, mL, y, 'black');
+            const linhas = doc.splitTextToSize(a, maxW - 8);
+            linhas.forEach((l: string) => {
+              doc.text(l, mL + 6, y);
+              y += 5;
+            });
+          });
+        } else {
+          doc.text("—", mL, y);
+          y += 5;
+        }
+        y += 2;
+
         // Trecho final ORIGINAL (assinatura + intimados)
         const trecho = trechosMap.get(pub.id) || extractTrechoFinal(pub.conteudo);
         if (trecho) {
