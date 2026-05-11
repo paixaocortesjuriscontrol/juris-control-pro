@@ -2067,25 +2067,29 @@ const AnaliseDjen = () => {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs md:text-sm" title="Data em que a publicação foi capturada no sistema">Data Início (captura)</Label>
-                <Input
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
-                  className="h-9 md:h-10 text-sm"
-                />
-              </div>
+              {!apenasHoje && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs md:text-sm" title="Data em que a publicação foi capturada no sistema">Data Início (captura)</Label>
+                    <Input
+                      type="date"
+                      value={dataInicio}
+                      onChange={(e) => setDataInicio(e.target.value)}
+                      className="h-9 md:h-10 text-sm"
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs md:text-sm" title="Data em que a publicação foi capturada no sistema">Data Fim (captura)</Label>
-                <Input
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
-                  className="h-9 md:h-10 text-sm"
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs md:text-sm" title="Data em que a publicação foi capturada no sistema">Data Fim (captura)</Label>
+                    <Input
+                      type="date"
+                      value={dataFim}
+                      onChange={(e) => setDataFim(e.target.value)}
+                      className="h-9 md:h-10 text-sm"
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
                 <Label className="text-xs md:text-sm">Buscar</Label>
