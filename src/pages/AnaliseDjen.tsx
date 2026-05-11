@@ -1116,6 +1116,13 @@ const AnaliseDjen = () => {
     }
     if (paragrafos.length === 0) return "";
 
+    // 1.b) FALLBACK p/ parágrafo único gigante: corte por marcadores inline.
+    // Muitas publicações DJEN vêm como uma só linha com tudo concatenado.
+    if (paragrafos.length <= 2 && normalizado.length > 1500) {
+      const corte = recortarPorMarcadoresInline(normalizado);
+      if (corte) return corte;
+    }
+
     // 2) Detecta assinatura do relator (parágrafo curto com termos típicos).
     const ehAssinaturaRelator = (p: string): boolean => {
       if (!p || p.length > 220) return false;
@@ -1166,6 +1173,76 @@ const AnaliseDjen = () => {
 
     if (assinatura) selecionados = [...selecionados, assinatura];
     return selecionados.join("\n\n").trim();
+  };
+
+  // Recorta o texto a partir do ÚLTIMO marcador de dispositivo/intimação encontrado.
+  // Útil quando a publicação inteira veio como um único parágrafo concatenado.
+  const recortarPorMarcadoresInline = (texto: string): string => {
+    if (!texto) return "";
+    const marcadores: RegExp[] = [
+      /A\s*C\s*Ó\s*R\s*D\s*Ã\s*O\b/gi,
+      /D\s*E\s*S\s*P\s*A\s*C\s*H\s*O\b/gi,
+      /D\s*E\s*C\s*I\s*S\s*Ã\s*O\b/gi,
+      /\bISTO\s+POSTO\s+ACORDAM\b/gi,
+      /\bACORDAM\s+os\s+Ministros\b/gi,
+      /\bINTIMAÇÃO\b/gi,
+      /\bEm\s+cumprimento\s+ao\s+(art\.|disposto)/gi,
+      /\bFica(?:m)?\s+(?:V\.?\s*Sa\.?\s+)?intimad[oa]s?/gi,
+      /\bAnte\s+o\s+exposto\b/gi,
+      /\bIsso\s+posto\b/gi,
+    ];
+    let melhorIdx = -1;
+    for (const re of marcadores) {
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(texto)) !== null) {
+        // Exige pelo menos 150 chars de conteúdo após o marcador
+        if (texto.length - m.index >= 150 && m.index > melhorIdx) melhorIdx = m.index;
+      }
+    }
+    if (melhorIdx < 0) {
+      // sem marcador: pega os últimos ~2000 chars
+      melhorIdx = Math.max(0, texto.length - 2000);
+      const nl = texto.indexOf("\n", melhorIdx);
+      if (nl > -1 && nl - melhorIdx < 300) melhorIdx = nl + 1;
+    }
+    return texto.slice(melhorIdx).trim();
+  };
+
+  // Modo HÍBRIDO: usa heurística e cai para IA quando o resultado é
+  // visivelmente ruim (muito longo, muito curto ou cobre quase todo o texto).
+  const extractTrechoHibrido = async (pub: any): Promise<string> => {
+    const original = String(pub?.conteudo || "");
+    const heur = extractTrechoFinal(original);
+    const tamanhoOriginal = original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
+    const tamanhoHeur = heur.length;
+    const ratio = tamanhoOriginal > 0 ? tamanhoHeur / tamanhoOriginal : 0;
+
+    const precisaIA = (
+      tamanhoHeur < 80 ||
+      tamanhoHeur > 2500 ||
+      (tamanhoOriginal > 1500 && ratio > 0.65)
+    );
+    if (!precisaIA) return heur;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("resumir-publicacoes", {
+        body: {
+          apenasTrecho: true,
+          publicacao: {
+            id: pub.id,
+            conteudo: original,
+            processo: pub.processo_numero,
+            data: pub.data_disponibilizacao,
+          },
+        },
+      });
+      if (error) throw error;
+      const trechoIA: string = (data?.trecho || "").trim();
+      if (trechoIA && trechoIA.length >= 40) return trechoIA;
+    } catch (e) {
+      console.warn("Fallback IA falhou para pub", pub?.id, e);
+    }
+    return heur;
   };
 
   const [gerandoResumoRapido, setGerandoResumoRapido] = useState(false);
