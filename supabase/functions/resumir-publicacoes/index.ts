@@ -188,7 +188,75 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { publicacoes, publicacao, monitoramentoId, resumoIndividual } = body;
+    const { publicacoes, publicacao, monitoramentoId, resumoIndividual, apenasTrecho } = body;
+
+    // ── Modo APENAS TRECHO: roda só a Fase 2 e devolve trecho_preservado + assinatura + intimados (texto puro) ──
+    if (apenasTrecho) {
+      const pub = publicacao || (publicacoes && publicacoes[0]);
+      if (!pub) {
+        return new Response(
+          JSON.stringify({ id: null, trecho: '' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
+      const conteudo = conteudoBruto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!conteudo || conteudo.length < 20) {
+        return new Response(
+          JSON.stringify({ id: pub.id, trecho: '' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+      const tailLength = 6000;
+      const trechoTail = conteudo.length > tailLength ? '…' + conteudo.substring(conteudo.length - tailLength) : conteudo;
+      const processo = pub.processo || pub.numeroProcesso || 'N/A';
+      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
+      const userMsg = `PUBLICAÇÃO ÚNICA — extraia trecho_preservado e assinatura SOMENTE deste texto, lendo do FINAL para o começo. Ignore qualquer contexto anterior.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- PORÇÃO FINAL DO TEXTO (leia de trás para frente) ---\n${trechoTail}\n--- FIM ---\n\nRetorne APENAS o JSON da Fase 2 com os campos trecho_preservado e assinatura.`;
+      try {
+        let respText = '';
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${openAIApiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: summaryModel,
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT_FASE_TRECHO },
+                { role: 'user', content: userMsg },
+              ],
+              max_tokens: 2000,
+              temperature: 0.1,
+              response_format: { type: 'json_object' },
+            }),
+          });
+          if (resp.status === 429) { await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt), 10000))); continue; }
+          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+          const aiResp = await resp.json();
+          respText = aiResp.choices?.[0]?.message?.content?.trim() || '';
+          break;
+        }
+        let dados: any = {};
+        try { dados = JSON.parse(respText); } catch {
+          const limpo = respText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+          try { dados = JSON.parse(limpo); } catch { dados = {}; }
+        }
+        const partes: string[] = [];
+        if (dados.trecho_preservado) partes.push(String(dados.trecho_preservado).trim());
+        if (dados.assinatura) { partes.push(''); partes.push(String(dados.assinatura).trim()); }
+        if (dados.intimados) { partes.push(''); partes.push(String(dados.intimados).trim()); }
+        return new Response(
+          JSON.stringify({ id: pub.id, trecho: partes.join('\n\n').trim() }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (e) {
+        console.error(`Erro apenasTrecho pub ${pub.id}:`, e);
+        return new Response(
+          JSON.stringify({ id: pub.id, trecho: '' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // ── Modo INDIVIDUAL: resumir UMA publicação ──
     if (resumoIndividual) {
