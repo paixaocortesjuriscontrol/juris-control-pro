@@ -2313,15 +2313,6 @@ const AnaliseDjen = () => {
         // 5. PRAZOS (default)
         return { id: pub.id, categoria: "PRAZOS" };
       };
-      const pegarUltimasNLinhas = (conteudo: string, n: number): string => {
-        const limpo = (conteudo || "")
-          .replace(/<br\s*\/?>/gi, "\n")
-          .replace(/<\/p>/gi, "\n")
-          .replace(/<[^>]*>/g, " ");
-        const linhas = limpo.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
-        if (linhas.length <= n) return linhas.join("\n");
-        return linhas.slice(-n).join("\n");
-      };
       const pubsTemasIRR: PubComClass[] = [];
       const pubsPauta: PubComClass[] = [];
       const pubsCejusc: PubComClass[] = [];
