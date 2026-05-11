@@ -449,6 +449,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnaliseJuditTab processoNumero={processoNumero} />
         </TabsContent>
 
+        <TabsContent value="centralizadores" className="mt-4">
+          <CentralizadoresTab
+            dadoId={(bennerDado as any)?.id || (dado as any)?.id || null}
+            processoNumero={processoNumero}
+          />
+        </TabsContent>
+
         <TabsContent value="anexos" className="mt-4">
           <AnexosJuditTab
             processoNumero={processoNumero}
