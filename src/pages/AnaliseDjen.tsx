@@ -1140,10 +1140,18 @@ const AnaliseDjen = () => {
   const extractTrechoFinal = (conteudo?: string | null): string => {
     if (!conteudo) return "";
     // CASO ESPECIAL — PAUTA DE JULGAMENTO
-    // Para pautas, o trecho relevante está no INÍCIO (cabeçalho com data da sessão
-    // virtual/presencial), não no final. Detecta e retorna o cabeçalho.
+    // Para pautas, prepende o cabeçalho (com data da sessão virtual/presencial)
+    // e também retorna o trecho final (assinatura + intimados).
     const pauta = extractTrechoPauta(conteudo);
-    if (pauta) return pauta;
+    const finalCore = extractTrechoFinalCore(conteudo);
+    if (pauta) return finalCore ? `${pauta}\n\n${finalCore}` : pauta;
+    return finalCore;
+  };
+
+  // Núcleo da extração do trecho final (assinatura + intimados),
+  // SEM detecção de pauta — usado isoladamente e combinado com cabeçalho de pauta.
+  const extractTrechoFinalCore = (conteudo?: string | null): string => {
+    if (!conteudo) return "";
     // 1) Normaliza HTML/whitespace e devolve a lista de parágrafos.
     const semHtml = String(conteudo)
       .replace(/<br\s*\/?>(?=)/gi, "\n")
