@@ -400,7 +400,7 @@ serve(async (req) => {
     }).join('\n---\n');
 
     const avisoTruncamento = totalOriginal > MAX_PUBLICACOES 
-      ? `\n\n**AVISO:** Foram analisadas ${MAX_PUBLICACOES} de ${totalOriginal} publicações.`
+      ? `\n\nAVISO: Foram analisadas ${MAX_PUBLICACOES} de ${totalOriginal} publicações.`
       : '';
 
     console.log(`Resumindo ${publicacoesLimitadas.length} de ${totalOriginal} publicações para monitoramento:`, monitoramentoId);
