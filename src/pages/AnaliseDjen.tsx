@@ -1158,6 +1158,11 @@ const AnaliseDjen = () => {
     if (!trecho) return "";
     const linhas = String(trecho).split(/\n+/).map(l => l.trim()).filter(Boolean);
     const get = (re: RegExp) => linhas.find(l => re.test(l)) || "";
+    const all = linhas.join(" ").replace(/\s+/g, " ").trim();
+    const pick = (label: string, stops: string[]) => {
+      const stopRe = [...stops, "OBS\\.", "\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}", "$"].join("|");
+      return (all.match(new RegExp(`${label}\\s*:?\\s*(.*?)(?=${stopRe})`, "i"))?.[1] || "").trim();
+    };
     const titulo = get(/Pauta\s+de\s+Julgamento/i) || "Pauta de julgamento";
     const cnj = get(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\b\d{20}\b/);
     const relatorIdx = linhas.findIndex(l => /^Relator\b/i.test(l));
@@ -1169,12 +1174,12 @@ const AnaliseDjen = () => {
     const intimadosIdx = linhas.findIndex(l => /^Intimado\(s\)\/Citado\(s\)/i.test(l));
     const intimados = intimadosIdx >= 0 ? linhas.slice(intimadosIdx + 1).filter(l => /^-\s*/.test(l)).map(l => l.replace(/^-\s*/, "")).join("; ") : "";
     const saida = [`Resumo: ${titulo}.`];
-    const inicio = get(/^Data e hora de início/i);
-    const fim = get(/^Data e hora de encerramento/i);
-    const presencial = get(/^Data da sessão PRESENCIAL/i);
-    if (inicio) saida.push(inicio.replace(/:$/, "") + ".");
-    if (fim) saida.push(fim.replace(/:$/, "") + ".");
-    if (presencial) saida.push(presencial.replace(/:$/, "") + ".");
+    const inicio = pick("Data e hora de início da sessão Virtual", ["Data e hora de encerramento da sessão Virtual", "Data da sessão PRESENCIAL"]);
+    const fim = pick("Data e hora de encerramento da sessão Virtual", ["Data da sessão PRESENCIAL"]);
+    const presencial = pick("Data da sessão PRESENCIAL", []);
+    if (inicio) saida.push(`Início da sessão virtual: ${inicio}.`);
+    if (fim) saida.push(`Encerramento da sessão virtual: ${fim}.`);
+    if (presencial) saida.push(`Sessão presencial: ${presencial}.`);
     if (cnj) saida.push(`Processo em pauta: ${cnj}.`);
     if (relator) saida.push(`Relator(a): ${relator}.`);
     if (partes.length) saida.push(`Partes: ${partes.join("; ")}.`);
