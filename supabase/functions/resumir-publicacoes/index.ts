@@ -165,6 +165,87 @@ function extrairTrechoPauta(conteudo: string, processo?: string): string {
   return [header, bloco].filter(Boolean).join("\n\n").trim();
 }
 
+function resumirPautaDeterministico(conteudo: string, processo?: string): string {
+  if (!conteudo || !isPautaDeJulgamento(conteudo)) return "";
+  const linhas = conteudo
+    .replace(/<br\s*\/?>(?=)/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(l => l.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .filter(l => !/^C[oó]digo para aferir autenticidade/i.test(l)
+      && !/^Data da Disponibiliza[cç][aã]o:/i.test(l)
+      && !/^\d+\/\d+\s+Tribunal Regional do Trabalho/i.test(l));
+  if (linhas.length === 0) return "";
+
+  const cnjRe = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\b\d{20}\b/;
+  const digitsProc = String(processo || "").replace(/\D/g, "");
+  const all = linhas.join(" ").replace(/\s+/g, " ").trim();
+  const pick = (label: string, nextLabels: string[]) => {
+    const next = nextLabels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    const stops = [next, "OBS\\.", "As inscri[cç][oõ]es", "Para os processos", cnjRe.source, "$"].filter(Boolean).join("|");
+    const re = new RegExp(`${label}\\s*:?\\s*(.*?)(?=${stops})`, "i");
+    return (all.match(re)?.[1] || "").replace(/\s+/g, " ").trim();
+  };
+
+  let start = -1;
+  if (digitsProc.length >= 15) start = linhas.findIndex(l => l.replace(/\D/g, "").includes(digitsProc));
+  if (start < 0) start = linhas.findIndex(l => cnjRe.test(l));
+
+  let bloco: string[] = [];
+  if (start >= 0) {
+    let end = linhas.length;
+    for (let i = start + 1; i < linhas.length; i++) {
+      const lineDigits = linhas[i].replace(/\D/g, "");
+      const sameProcess = digitsProc.length >= 15 && lineDigits.includes(digitsProc);
+      if (/^Processo\s+N[ºo]/i.test(linhas[i]) || (cnjRe.test(linhas[i]) && !sameProcess)) { end = i; break; }
+    }
+    bloco = linhas.slice(start, end);
+  }
+
+  const campo = (nome: string) => {
+    const idx = bloco.findIndex(l => new RegExp(`^${nome}\\b`, "i").test(l));
+    if (idx < 0) return "";
+    const partes = [bloco[idx].replace(new RegExp(`^${nome}\\s*`, "i"), "").trim()];
+    for (let i = idx + 1; i < bloco.length; i++) {
+      if (/^(Complemento|Relator|Revisor|AGRAVANTE|AGRAVADO|RECORRENTE|RECORRIDO|RECLAMANTE|RECLAMADO|ADVOGADO|Intimado\(s\)\/Citado\(s\)|Processo\s+N[ºo])/i.test(bloco[i])) break;
+      partes.push(bloco[i]);
+    }
+    return partes.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  };
+
+  const advogados = bloco
+    .map((l, i) => /^ADVOGADO\b/i.test(l)
+      ? [l.replace(/^ADVOGADO\s*/i, "").trim(), bloco[i + 1] && !/^(Complemento|Relator|Revisor|AGRAVANTE|AGRAVADO|RECORRENTE|RECORRIDO|RECLAMANTE|RECLAMADO|ADVOGADO|Intimado\(s\)\/Citado\(s\))/i.test(bloco[i + 1]) ? bloco[i + 1] : ""].filter(Boolean).join(" ")
+      : "")
+    .filter(Boolean);
+  const partes = bloco
+    .filter(l => /^(AGRAVANTE|AGRAVADO|RECORRENTE|RECORRIDO|RECLAMANTE|RECLAMADO)\b/i.test(l))
+    .map(l => l.replace(/\s+/g, " ").trim());
+  const intimadosIdx = bloco.findIndex(l => /^Intimado\(s\)\/Citado\(s\)/i.test(l));
+  const intimados = intimadosIdx >= 0 ? bloco.slice(intimadosIdx + 1).filter(l => /^-\s*/.test(l)).map(l => l.replace(/^-\s*/, "")).join("; ") : "";
+
+  const titulo = linhas.find(l => /Pauta\s+de\s+Julgamento/i.test(l)) || "Pauta de julgamento";
+  const saida: string[] = [`Resumo: ${titulo}.`];
+  const inicioVirtual = pick("Data e hora de início da sessão Virtual", ["Data e hora de encerramento da sessão Virtual", "Data da sessão PRESENCIAL"]);
+  const fimVirtual = pick("Data e hora de encerramento da sessão Virtual", ["Data da sessão PRESENCIAL"]);
+  const sessaoPresencial = pick("Data da sessão PRESENCIAL", []);
+  if (inicioVirtual) saida.push(`Início da sessão virtual: ${inicioVirtual}.`);
+  if (fimVirtual) saida.push(`Encerramento da sessão virtual: ${fimVirtual}.`);
+  if (sessaoPresencial) saida.push(`Sessão presencial: ${sessaoPresencial}.`);
+  const proc = (bloco.find(l => cnjRe.test(l)) || processo || "").trim();
+  if (proc) saida.push(`Processo em pauta: ${proc}.`);
+  const relator = campo("Relator");
+  if (relator) saida.push(`Relator(a): ${relator}.`);
+  if (partes.length > 0) saida.push(`Partes: ${partes.join("; ")}.`);
+  if (advogados.length > 0) saida.push(`Advogados: ${advogados.join("; ")}.`);
+  if (intimados) saida.push(`Intimado(s)/Citado(s): ${intimados}.`);
+
+  return saida.join("\n").trim();
+}
+
 // Converte o JSON do agente DJEN em texto plano legível para exibição na UI.
 function formatarResumoTextoPlano(jsonStr: string): string {
   let data: any;
@@ -354,6 +435,16 @@ serve(async (req) => {
       const maxRetries = 3;
       const processo = pub.processo || pub.numeroProcesso || 'N/A';
       const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
+
+      const resumoPautaLocal = isPautaDeJulgamento(conteudoBruto)
+        ? resumirPautaDeterministico(conteudoBruto, processo)
+        : '';
+      if (resumoPautaLocal) {
+        return new Response(
+          JSON.stringify({ id: pub.id, resumo: resumoPautaLocal, orgao: null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       // Helper: 1 chamada à OpenAI com retry/backoff
       async function callOpenAI(systemPrompt: string, userMsg: string, maxTokens: number): Promise<string> {
