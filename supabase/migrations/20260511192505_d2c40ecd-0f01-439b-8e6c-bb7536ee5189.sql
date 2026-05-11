@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_dados_benner_centralizador ON public.dados_benner (centralizador);
+CREATE INDEX IF NOT EXISTS idx_dados_benner_centralizador_aba ON public.dados_benner (centralizador, aba_origem) WHERE aba_origem IS NOT NULL;
