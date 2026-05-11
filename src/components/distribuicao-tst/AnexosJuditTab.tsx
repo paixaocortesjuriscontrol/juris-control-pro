@@ -389,6 +389,14 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       } else if (quartData?.skipped) {
         console.info("[Quarteirizado IA] pulado:", quartData.motivo);
       }
+      console.log("[IA Anexos] quarteirizado:", {
+        len: (quartData?.analise_quarteirizado || "").length,
+        preview: (quartData?.analise_quarteirizado || "").slice(0, 120),
+        confianca: quartData?.confianca,
+        skipped: quartData?.skipped,
+        motivo: quartData?.motivo,
+        merged_in_benner: iaData?.dados_benner?.analise_quarteirizado?.slice?.(0, 80),
+      });
       const distQ = Object.keys(iaData?.distribuicao_tst || {}).length;
       const benQ = Object.keys(iaData?.dados_benner || {}).length;
       const distKeys = Object.keys(iaData?.distribuicao_tst || {});
