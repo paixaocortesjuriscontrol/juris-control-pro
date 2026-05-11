@@ -1104,34 +1104,54 @@ const AnaliseDjen = () => {
         /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
   };
 
-  // Para pautas, retorna o INÍCIO do texto (do "Pauta de Julgamento" até a linha
-  // que contém a data de encerramento da sessão). Retorna "" se não for pauta.
-  const extractTrechoPauta = (conteudo?: string | null): string => {
+  // Para pautas, retorna apenas o cabeçalho da sessão e o bloco do processo atual.
+  // Evita trazer a pauta completa ou repetir as linhas iniciais no resumo.
+  const extractTrechoPauta = (conteudo?: string | null, processo?: string | null): string => {
     if (!conteudo || !isPautaDeJulgamento(conteudo)) return "";
-    const semHtml = String(conteudo)
+    const linhas = String(conteudo)
       .replace(/<br\s*\/?>(?=)/gi, "\n")
       .replace(/<\/p>/gi, "\n\n")
       .replace(/<[^>]+>/g, "")
-      .replace(/\r\n?/g, "\n");
-    const txt = semHtml.split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean).join("\n");
-    const m = txt.match(/Pauta\s+de\s+Julgamento/i);
-    const start = m ? m.index! : 0;
-    const body = txt.slice(start);
-    // Fim ideal: linha que contém "encerramento" + data dd/mm/aaaa
-    const fim = body.match(/encerramento[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
-    if (fim) {
-      const end = (fim.index ?? 0) + fim[0].length;
-      return body.slice(0, end).trim();
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map(l => l.replace(/[ \t]+/g, " ").trim())
+      .filter(Boolean);
+
+    const limparLinha = (l: string) => !/^C[oó]digo para aferir autenticidade/i.test(l)
+      && !/^Data da Disponibiliza[cç][aã]o:/i.test(l)
+      && !/^\d+\/\d+\s+Tribunal Regional do Trabalho/i.test(l);
+    const cnjRe = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\b\d{20}\b/;
+    const digitsProc = String(processo || "").replace(/\D/g, "");
+    const isProcessStart = (linha: string) => /^Processo\s+N[ºo]/i.test(linha) || cnjRe.test(linha);
+    const firstProcessIdx = linhas.findIndex(isProcessStart);
+
+    let headerLines = (firstProcessIdx > 0 ? linhas.slice(0, firstProcessIdx) : linhas.slice(0, 12)).filter(limparLinha);
+    const obsIdx = headerLines.findIndex(l => /^OBS\.:/i.test(l) || /^As inscri[cç][oõ]es/i.test(l) || /^Para os processos/i.test(l));
+    if (obsIdx > -1) headerLines = headerLines.slice(0, obsIdx);
+    const header = headerLines.join("\n").trim();
+
+    let start = -1;
+    if (digitsProc.length >= 15) {
+      start = linhas.findIndex(l => l.replace(/\D/g, "").includes(digitsProc));
     }
-    // Fallback: até "início" + data, ou primeiros ~1500 chars terminando em ponto.
-    const ini = body.match(/in[ií]cio[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
-    if (ini) {
-      const end = (ini.index ?? 0) + ini[0].length;
-      return body.slice(0, end).trim();
+    if (start < 0) start = firstProcessIdx;
+    if (start > 0 && /^Processo\s+N[ºo]/i.test(linhas[start - 1]) && !cnjRe.test(linhas[start - 1])) start--;
+
+    let bloco = "";
+    if (start >= 0) {
+      let end = linhas.length;
+      for (let i = start + 1; i < linhas.length; i++) {
+        const lineDigits = linhas[i].replace(/\D/g, "");
+        const sameProcess = digitsProc.length >= 15 && lineDigits.includes(digitsProc);
+        if (/^Processo\s+N[ºo]/i.test(linhas[i]) || (cnjRe.test(linhas[i]) && !sameProcess)) {
+          end = i;
+          break;
+        }
+      }
+      bloco = linhas.slice(start, end).filter(limparLinha).join("\n").trim();
     }
-    const cut = body.slice(0, 1500);
-    const lastDot = cut.lastIndexOf(".");
-    return (lastDot > 200 ? cut.slice(0, lastDot + 1) : cut).trim();
+
+    return [header, bloco].filter(Boolean).join("\n\n").trim();
   };
 
   // Extrai o trecho final ORIGINAL da publicação contendo o dispositivo/acórdão,
@@ -1139,13 +1159,9 @@ const AnaliseDjen = () => {
   // `resumir-publicacoes` (lê do final para o começo, preserva quebras de linha).
   const extractTrechoFinal = (conteudo?: string | null): string => {
     if (!conteudo) return "";
-    // CASO ESPECIAL — PAUTA DE JULGAMENTO
-    // Para pautas, prepende o cabeçalho (com data da sessão virtual/presencial)
-    // e também retorna o trecho final (assinatura + intimados).
     const pauta = extractTrechoPauta(conteudo);
-    const finalCore = extractTrechoFinalCore(conteudo);
-    if (pauta) return finalCore ? `${pauta}\n\n${finalCore}` : pauta;
-    return finalCore;
+    if (pauta) return pauta;
+    return extractTrechoFinalCore(conteudo);
   };
 
   // Núcleo da extração do trecho final (assinatura + intimados),
