@@ -185,7 +185,8 @@ function resumirPautaDeterministico(conteudo: string, processo?: string): string
   const all = linhas.join(" ").replace(/\s+/g, " ").trim();
   const pick = (label: string, nextLabels: string[]) => {
     const next = nextLabels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-    const re = new RegExp(`${label}\\s*:?\\s*(.*?)(?=${next}|OBS\\.:|As inscri[cç][oõ]es|Para os processos|${cnjRe.source}|$)`, "i");
+    const stops = [next, "OBS\\.", "As inscri[cç][oõ]es", "Para os processos", cnjRe.source, "$"].filter(Boolean).join("|");
+    const re = new RegExp(`${label}\\s*:?\\s*(.*?)(?=${stops})`, "i");
     return (all.match(re)?.[1] || "").replace(/\s+/g, " ").trim();
   };
 
