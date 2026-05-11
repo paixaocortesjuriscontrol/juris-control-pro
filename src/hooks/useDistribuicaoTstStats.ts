@@ -4,6 +4,7 @@ import { DistribuicaoTstFilters } from "./useDistribuicoesTst";
 
 export interface DistribuicaoTstStats {
   total: number;
+  processosUnicos: number;
   processosValidos: number;
   processosInvalidos: number;
   dossiesValidos: number;
@@ -22,6 +23,7 @@ export interface DistribuicaoTstStats {
 
 const ZERO: DistribuicaoTstStats = {
   total: 0,
+  processosUnicos: 0,
   processosValidos: 0,
   processosInvalidos: 0,
   dossiesValidos: 0,
@@ -98,6 +100,9 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   else if ((filters as any).problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
   if ((filters as any).duplicado === "sim") query = query.eq("ic_duplicado", true);
   else if ((filters as any).duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
+  if ((filters as any).fonteImportacao && (filters as any).fonteImportacao !== "todas") {
+    query = query.contains("fontes_importacao", [(filters as any).fonteImportacao]);
+  }
   return query;
 }
 
@@ -150,6 +155,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
       const FETCH_SIZE = 1000;
       let offset = 0;
       const acc: DistribuicaoTstStats = { ...ZERO };
+      const processosSet = new Set<string>();
       while (true) {
         const { data, error } = await baseQuery(filters, realRespIds, idsWithoutResponsavel).range(offset, offset + FETCH_SIZE - 1);
         if (error) {
@@ -161,6 +167,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           acc.total++;
           // Processo válido / inválido (CNJ)
           const proc = String(r.processo || "").trim();
+          if (proc) processosSet.add(proc.toLowerCase());
           if (proc && CNJ_REGEX.test(proc)) acc.processosValidos++;
           else acc.processosInvalidos++;
           // Dossiê
@@ -188,6 +195,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         if (rows.length < FETCH_SIZE) break;
         offset += FETCH_SIZE;
       }
+      acc.processosUnicos = processosSet.size;
       setStats(acc);
     } finally {
       setLoading(false);
