@@ -161,6 +161,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
     setStatusText("Lendo planilha…");
     cancelRef.current = false;
 
+    let criados = 0;
+    let atualizados = 0;
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
@@ -296,8 +298,6 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         });
       }
 
-      let criados = 0;
-      let atualizados = 0;
       const total = rows.length;
 
       // Separa em inserts e updates
