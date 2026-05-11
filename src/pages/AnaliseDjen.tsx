@@ -1721,6 +1721,191 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Gerar PDF Resumo Rápido" - apenas trecho final ORIGINAL (assinatura + intimados), SEM IA =====
+  const handleGerarPdfResumoRapido = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoResumoRapido(true);
+    const toastId = toast.loading("Gerando PDF Resumo Rápido...");
+    try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const mL = 15;
+      const mR = 15;
+      const maxW = pageW - mL - mR;
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      drawPdfHeader(doc, pageW, `Resumo Rápido de Publicações ${origemLabel}`);
+      let y = 34;
+      const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+
+      const dataDisp = allPublicacoes[0]?.data_disponibilizacao;
+      if (dataDisp) {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Data de disponibilização: ${formatDateOnlyFull(dataDisp)}`, mL, y);
+        y += 10;
+      }
+
+      allPublicacoes.forEach((pub, idx) => {
+        if (idx > 0) {
+          checkPage(14);
+          y += 4;
+          doc.setDrawColor(30, 58, 95);
+          doc.setLineWidth(0.8);
+          doc.line(mL, y, pageW - mR, y);
+          y += 10;
+        }
+
+        checkPage(60);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
+        y += 8;
+
+        doc.setFontSize(10);
+        const labelW = 52;
+        const tableX = mL;
+        const tableW = pageW - mR - mL;
+        const rowH = 6;
+        const addRow = (label: string, value: string) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(label, tableX, y);
+          doc.setFont("helvetica", "normal");
+          const valLines = doc.splitTextToSize(value, tableW - labelW - 4);
+          valLines.forEach((l: string, i: number) => {
+            doc.text(l, tableX + labelW, y + i * 5);
+          });
+          y += Math.max(rowH, valLines.length * 5);
+        };
+
+        addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
+        addRow("Órgão", (pub.orgao || pub.tribunal) || "—");
+        addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
+        addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
+
+        // Trecho final ORIGINAL (assinatura + intimados)
+        const trecho = extractTrechoFinal(pub.conteudo);
+        if (trecho) {
+          y += 4;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text("Trecho final (assinatura e intimados):", mL, y);
+          y += 6;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const paragrafos = trecho.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+          paragrafos.forEach((bloco) => {
+            doc.splitTextToSize(bloco, maxW).forEach((line: string) => {
+              checkPage(5);
+              doc.text(line, mL, y);
+              y += 5;
+            });
+            y += 2;
+          });
+          y += 2;
+        }
+
+        // Comentários da coordenação
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          y += 2;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          checkPage(8);
+          doc.text(`Comentários da coordenação (${coms.length}):`, mL, y);
+          y += 6;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(5); doc.text(l, mL + 4, y); y += 5; });
+            y += 2;
+          });
+        }
+
+        y += 6;
+      });
+
+      const total = doc.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
+        doc.text(`Juris Control – Página ${i}/${total}`, pageW / 2, 292, { align: "center" });
+      }
+
+      doc.save(`resumo_rapido_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success("PDF Resumo Rápido gerado!", { id: toastId });
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF Resumo Rápido:", error);
+      toast.error(`Erro ao gerar PDF Resumo Rápido: ${error?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoResumoRapido(false);
+    }
+  };
+
+  // ===== "Gerar Doc Resumo Rápido" - DOCX apenas com trecho final ORIGINAL =====
+  const handleGerarDocResumoRapido = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoDocResumoRapido(true);
+    const toastId = toast.loading("Gerando Doc Resumo Rápido...");
+    try {
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Resumo Rápido de Publicações ${origemLabel}`, allPublicacoes.length)];
+
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+      allPublicacoes.forEach((pub, idx) => {
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        const trecho = extractTrechoFinal(pub.conteudo);
+        children.push(...buildConteudoParagraphs(trecho || "Sem trecho disponível", "TRECHO FINAL (ASSINATURA E INTIMADOS)"));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
+      });
+
+      const doc = new Document({
+        styles: {
+          default: { document: { run: { font: docFont, size: docFontSize } } },
+        },
+        sections: [{
+          properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } },
+          children,
+        }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resumo_rapido_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Doc Resumo Rápido gerado!", { id: toastId });
+    } catch (err: any) {
+      console.error("Erro ao gerar Doc Resumo Rápido:", err);
+      toast.error(`Erro ao gerar Doc Resumo Rápido: ${err?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoDocResumoRapido(false);
+    }
+  };
+
   // ===== "Gerar Docs TST" - Classifica publicações e gera 3 documentos Word (TEMAS_IRR, PAUTA, PRAZOS) =====
   const handleGerarDocsTST = async () => {
     const allPublicacoes = getPubsParaGerar();
