@@ -12,7 +12,20 @@ interface Props {
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 
 // Linha típica: "0000006-91.2023.5.21.0001  AIRR  05/03/2026 14:42"
-const LINE_RE = /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})\s+\S+\s+(\d{2}\/\d{2}\/\d{4})/g;
+// Alguns PDFs (ex: Aymoré) saem com espaços entre dígitos: "0000092 - 91 . 2024 . 5 . 09 . 0088"
+// e classe quebrada ("A I RR"); por isso normalizamos e usamos regex tolerante.
+const LINE_RE = /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})[^\d]*?(\d{2}\/\d{2}\/\d{4})/g;
+
+function normalizeNumberSpacing(raw: string): string {
+  // Remove espaços entre caracteres de número/pontuação (ex: "0000092 - 91 . 2024" -> "0000092-91.2024")
+  let prev = raw;
+  for (let i = 0; i < 4; i++) {
+    const next = prev.replace(/([\d.\-/:])\s+(?=[\d.\-/:])/g, "$1");
+    if (next === prev) break;
+    prev = next;
+  }
+  return prev;
+}
 
 function brToIso(br: string): string | null {
   const m = br.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -60,6 +73,9 @@ export function CertidaoPdfImport({ onImported }: Props) {
         text += content.items.map((it: any) => it.str).join(" ") + "\n";
         setProgress(Math.round((i / pdf.numPages) * 20));
       }
+
+      // Normaliza espaçamento dentro de números/datas para suportar PDFs como o da Aymoré
+      text = normalizeNumberSpacing(text);
 
       // Extrai pares (numero, data autuação)
       const map = new Map<string, string>(); // processo -> data ISO
