@@ -26,6 +26,7 @@ interface Card {
   distribuido_em: string | null;
   observacao_distribuicao: string | null;
   aba_origem: string | null;
+  fontes_importacao?: string[] | null;
   responsaveis: ProfileBasic[];
 }
 
@@ -76,7 +77,7 @@ export default function DistribuicaoTstKanban() {
     try {
       let query = supabase
         .from("dados_benner" as any)
-        .select("id, processo, dossie, prazo_entrega, status_distribuicao, distribuido_em, observacao_distribuicao, aba_origem, dados_benner_responsaveis!inner(usuario_id)")
+        .select("id, processo, dossie, prazo_entrega, status_distribuicao, distribuido_em, observacao_distribuicao, aba_origem, fontes_importacao, dados_benner_responsaveis!inner(usuario_id)")
         .not("distribuido_em", "is", null)
         .order("prazo_entrega", { ascending: true, nullsFirst: false })
         .limit(2000);
@@ -109,6 +110,7 @@ export default function DistribuicaoTstKanban() {
         distribuido_em: r.distribuido_em,
         observacao_distribuicao: r.observacao_distribuicao,
         aba_origem: r.aba_origem,
+        fontes_importacao: r.fontes_importacao || [],
         responsaveis: respMap.get(r.id) || [],
       })));
     } catch (e: any) {
