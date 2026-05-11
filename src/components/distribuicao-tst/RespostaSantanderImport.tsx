@@ -297,7 +297,11 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         if (cancelRef.current) throw new Error("__CANCELLED__");
         const slice = rows.slice(i, i + LOOKUP_BATCH);
         const candidatos = Array.from(
-          new Set(slice.flatMap((r) => [r.processo_raw, r.processo_digits]).filter(Boolean)),
+          new Set(
+            slice
+              .flatMap((r) => [r.processo_raw, r.processo_digits, `'${r.processo_raw}`, `'${r.processo_digits}`])
+              .filter(Boolean),
+          ),
         );
         const { data, error } = await (supabase.from("dados_benner") as any)
           .select("id, processo, dossie, aba_origem, coordenacao_id")
