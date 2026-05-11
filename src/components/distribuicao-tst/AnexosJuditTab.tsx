@@ -357,16 +357,37 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
         situacao_processo: (bennerAtual as any)?.situacao_processo || dadosJudit?.situacao_processo || null,
         processo_baixado: (bennerAtual as any)?.processo_baixado || dadosJudit?.processo_baixado || null,
       };
-      const { data: iaData, error: iaErr } = await supabase.functions.invoke("preencher-form-ia-anexos", {
-        body: {
-          processo_id: processoIdAcc,
-          processo_numero: processoNumero,
-          documento_ids: okResults.map((r: any) => r.documento_id).filter(Boolean),
-          dados_judit: dadosJuditAtualizados,
-        },
-      });
+      const documentoIdsExtracao = okResults.map((r: any) => r.documento_id).filter(Boolean);
+      // Roda em paralelo: extração principal + análise específica do quarteirizado.
+      const [iaResp, quartResp] = await Promise.all([
+        supabase.functions.invoke("preencher-form-ia-anexos", {
+          body: {
+            processo_id: processoIdAcc,
+            processo_numero: processoNumero,
+            documento_ids: documentoIdsExtracao,
+            dados_judit: dadosJuditAtualizados,
+          },
+        }),
+        supabase.functions.invoke("analise-quarteirizado-ia", {
+          body: {
+            processo_id: processoIdAcc,
+            processo_numero: processoNumero,
+            documento_ids: documentoIdsExtracao,
+          },
+        }),
+      ]);
+      const { data: iaData, error: iaErr } = iaResp as any;
       if (iaErr || iaData?.error) {
         throw new Error(iaErr?.message || iaData?.error || "Falha na análise IA");
+      }
+      const quartData: any = (quartResp as any)?.data || null;
+      const quartErr: any = (quartResp as any)?.error || null;
+      if (quartErr) console.warn("[Quarteirizado IA] erro:", quartErr);
+      if (quartData?.analise_quarteirizado) {
+        iaData.dados_benner = iaData.dados_benner || {};
+        iaData.dados_benner.analise_quarteirizado = quartData.analise_quarteirizado;
+      } else if (quartData?.skipped) {
+        console.info("[Quarteirizado IA] pulado:", quartData.motivo);
       }
       const distQ = Object.keys(iaData?.distribuicao_tst || {}).length;
       const benQ = Object.keys(iaData?.dados_benner || {}).length;
@@ -375,11 +396,17 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       const alertas: string[] = Array.isArray(iaData?.alertas) ? iaData.alertas : [];
       const pendentes: string[] = Array.isArray(iaData?.pendentes) ? iaData.pendentes : [];
       const juditAplicado: string[] = Array.isArray(iaData?.judit_aplicado) ? iaData.judit_aplicado : [];
+      const quartInfo = quartData?.analise_quarteirizado
+        ? `Análise Quarteirizado preenchida (confiança: ${quartData.confianca || "—"}).`
+        : quartData?.skipped
+          ? `Quarteirizado: ${quartData.motivo}`
+          : "";
       const resumoLinhas: string[] = [
         `IA preencheu ${distQ} campo(s) em Distribuição TST e ${benQ} em Dados Benner.`,
         juditAplicado.length ? `Judit (camada 1): ${juditAplicado.join(", ")}` : "",
         distKeys.length ? `Distribuição: ${distKeys.join(", ")}` : "",
         benKeys.length ? `Benner: ${benKeys.join(", ")}` : "",
+        quartInfo,
         pendentes.length ? `⚠ Revisar: ${pendentes.join(", ")}` : "",
         alertas.length ? `Alertas: ${alertas.join(" | ")}` : "",
       ].filter(Boolean);
