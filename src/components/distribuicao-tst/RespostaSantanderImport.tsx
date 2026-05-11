@@ -291,7 +291,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       // Busca todos pelos dígitos (compara via regexp_replace).
       // Para evitar N consultas, buscamos em lotes filtrando processo ILIKE.
       const existentesByDigits = new Map<string, { id: string; dossie: string | null; aba_origem: string | null; coordenacao_id: string | null }[]>();
-      const LOOKUP_BATCH = 200;
+      const LOOKUP_BATCH = 80;
       // Estratégia simples: buscamos por `processo` com OR de cada raw + digits.
       for (let i = 0; i < rows.length; i += LOOKUP_BATCH) {
         if (cancelRef.current) throw new Error("__CANCELLED__");
