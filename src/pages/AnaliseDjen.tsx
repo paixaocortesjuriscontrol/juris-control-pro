@@ -1318,9 +1318,9 @@ const AnaliseDjen = () => {
   // visivelmente ruim (muito longo, muito curto ou cobre quase todo o texto).
   const extractTrechoHibrido = async (pub: any): Promise<string> => {
     const original = String(pub?.conteudo || "");
-    // Pautas: combina cabeçalho (data da sessão) + trecho final.
+    // Pautas: extração determinística, sem IA, para não repetir o início nem trazer a pauta completa.
     const ehPauta = isPautaDeJulgamento(original);
-    const heur = extractTrechoFinal(original);
+    const heur = ehPauta ? extractTrechoPauta(original, pub?.processo_numero) : extractTrechoFinal(original);
     if (ehPauta && heur) return heur;
     const tamanhoOriginal = original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
     const tamanhoHeur = heur.length;
