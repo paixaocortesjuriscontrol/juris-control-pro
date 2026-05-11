@@ -89,6 +89,7 @@ export interface DistribuicaoTstFilters {
   problemaJudit?: "todos" | "sim" | "nao";
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;
+  fonteImportacao?: string;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
