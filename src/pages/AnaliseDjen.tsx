@@ -1151,6 +1151,14 @@ const AnaliseDjen = () => {
       bloco = linhas.slice(start, end).filter(limparLinha).join("\n").trim();
     }
 
+    // Garantia: pautas NUNCA devem cair no resumo "trecho final" (que pega o final do texto inteiro).
+    // Se não conseguimos isolar o bloco do processo, devolve o cabeçalho + os primeiros
+    // ~1500 chars limpos da pauta como amostra mínima (em vez de devolver vazio
+    // e permitir que o fallback dump a publicação inteira).
+    if (!bloco) {
+      bloco = linhas.filter(limparLinha).slice(0, 40).join("\n").trim().slice(0, 1500);
+    }
+
     return [header, bloco].filter(Boolean).join("\n\n").trim();
   };
 
