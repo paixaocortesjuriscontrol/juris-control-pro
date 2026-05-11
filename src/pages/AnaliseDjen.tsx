@@ -1857,6 +1857,16 @@ const AnaliseDjen = () => {
     try {
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
 
+      // Pré-extrai os trechos (com fallback IA), com throttling de 800ms entre chamadas
+      const trechosMap = new Map<string, string>();
+      for (let i = 0; i < allPublicacoes.length; i++) {
+        const pub = allPublicacoes[i];
+        toast.loading(`Extraindo trechos ${i + 1}/${allPublicacoes.length}...`, { id: toastId });
+        trechosMap.set(pub.id, await extractTrechoHibrido(pub));
+        if (i < allPublicacoes.length - 1) await new Promise(r => setTimeout(r, 800));
+      }
+      toast.loading("Montando PDF...", { id: toastId });
+
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = doc.internal.pageSize.getWidth();
       const mL = 15;
@@ -1916,7 +1926,7 @@ const AnaliseDjen = () => {
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
         // Trecho final ORIGINAL (assinatura + intimados)
-        const trecho = extractTrechoFinal(pub.conteudo);
+        const trecho = trechosMap.get(pub.id) || extractTrechoFinal(pub.conteudo);
         if (trecho) {
           y += 4;
           doc.setFontSize(12);
@@ -1997,10 +2007,21 @@ const AnaliseDjen = () => {
       const children: Paragraph[] = [...buildDocHeader(`Resumo Rápido de Publicações ${origemLabel}`, allPublicacoes.length)];
 
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+
+      // Pré-extrai os trechos (com fallback IA), com throttling de 800ms entre chamadas
+      const trechosMap = new Map<string, string>();
+      for (let i = 0; i < allPublicacoes.length; i++) {
+        const pub = allPublicacoes[i];
+        toast.loading(`Extraindo trechos ${i + 1}/${allPublicacoes.length}...`, { id: toastId });
+        trechosMap.set(pub.id, await extractTrechoHibrido(pub));
+        if (i < allPublicacoes.length - 1) await new Promise(r => setTimeout(r, 800));
+      }
+      toast.loading("Montando DOCX...", { id: toastId });
+
       allPublicacoes.forEach((pub, idx) => {
         children.push(...buildPubMetadata(pub, idx));
         children.push(...buildPartesAdvogados(pub));
-        const trecho = extractTrechoFinal(pub.conteudo);
+        const trecho = trechosMap.get(pub.id) || extractTrechoFinal(pub.conteudo);
         children.push(...buildConteudoParagraphs(trecho || "Sem trecho disponível", "TRECHO FINAL (ASSINATURA E INTIMADOS)"));
         children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
       });
