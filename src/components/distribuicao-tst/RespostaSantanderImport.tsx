@@ -103,6 +103,46 @@ function parseDateCell(val: unknown): string | null {
 type ColMap = Record<string, number>;
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const DOSSIE_COL_B = 1;
+const CENTRALIZADOR_COL_C = 2;
+const TIPO_RECURSO_COL_N = 13;
+const PARTE_RECURSO_COL_P = 15;
+const TIPO_RECURSO_DESCARTAR = "incidente de superacao e revisao dos precedentes";
+
+function stripAccentsLower(v: unknown): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Centralizador aceito: vazio, "0" ou contém "Paixão". */
+function centralizadorPermitido(val: unknown): boolean {
+  const s = stripAccentsLower(val);
+  if (!s) return true;
+  if (s === "0") return true;
+  return s.includes("paixao");
+}
+
+/** Distribui o tipo de recurso (col N) entre banco/reclamante conforme col P. */
+function classificarTipoRecurso(
+  tipoRecursoRaw: unknown,
+  parteRaw: unknown,
+): { banco: string | null; reclamante: string | null } {
+  const tipo = norm(tipoRecursoRaw);
+  const parte = norm(parteRaw);
+  if (!tipo || !parte) return { banco: null, reclamante: null };
+  // Se a coluna P só tem '|' (sem palavras), não preencher.
+  const semParte = stripAccentsLower(parte).replace(/[|\s]/g, "") === "";
+  if (semParte) return { banco: null, reclamante: null };
+  const lower = stripAccentsLower(parte);
+  const temReclamada = /reclamad/.test(lower);
+  const temReclamante = /reclamante/.test(lower);
+  return {
+    banco: temReclamada ? tipo : null,
+    reclamante: temReclamante ? tipo : null,
+  };
+}
 
 function detectColumns(row: any[]): ColMap {
   const map: ColMap = {};
@@ -251,6 +291,22 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r) continue;
+
+          // REGRA 1: descartar linhas cujo tipo de recurso (col N) seja
+          // "Incidente de superação e revisão dos precedentes".
+          const tipoRecursoCelula = norm(r[TIPO_RECURSO_COL_N]);
+          if (
+            tipoRecursoCelula &&
+            stripAccentsLower(tipoRecursoCelula).includes(TIPO_RECURSO_DESCARTAR)
+          ) {
+            continue;
+          }
+
+          // REGRA 2: só gravar quando centralizador (col C) for vazio, "0" ou Paixão.
+          if (!centralizadorPermitido(r[CENTRALIZADOR_COL_C])) {
+            continue;
+          }
+
           const processoRaw = cleanProcessNumber(r[cols.processo]);
           const digits = onlyDigits(processoRaw);
           if (digits.length < 11) continue;
@@ -315,6 +371,14 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             }
           }
 
+          // REGRA 3: Tipo de recurso por parte (col N + col P).
+          const { banco, reclamante } = classificarTipoRecurso(
+            r[TIPO_RECURSO_COL_N],
+            r[PARTE_RECURSO_COL_P],
+          );
+          payload.tipo_recurso_banco = banco;
+          payload.tipo_recurso_reclamante = reclamante;
+
           // Dossiê: nesta planilha vem obrigatoriamente da coluna B.
           const dossieColB = norm(r[DOSSIE_COL_B]);
           if (dossieColB) payload.__dossie = dossieColB;
@@ -329,10 +393,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         return;
       }
 
-      // Deduplica por processo (mantém último não-vazio)
-      const byProcesso = new Map<string, RowIn>();
-      for (const r of all) byProcesso.set(r.processo_digits, r);
-      const rows = [...byProcesso.values()];
+      // REGRA 4: NÃO deduplicar — mantém todas as linhas da planilha.
+      const rows = all;
 
       setStatusText(`Buscando processos existentes (${rows.length})…`);
 
