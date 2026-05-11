@@ -1106,10 +1106,36 @@ const AnaliseDjen = () => {
       .replace(/<\/p>/gi, "\n\n")
       .replace(/<[^>]+>/g, "")
       .replace(/\r\n?/g, "\n");
-    const normalizado = semHtml
+    const normalizadoBruto = semHtml
       .split("\n")
       .map((l) => l.replace(/[ \t]+/g, " ").trim())
       .join("\n");
+    // 1.a) Remove cabeçalho de metadados que vem prefixado em algumas publicações
+    // (Órgão / Data de disponibilização / Tipo de comunicação / Meio / Processo / Parte(s) ... )
+    // para evitar duplicação com o cabeçalho do PDF.
+    const normalizado = (() => {
+      const linhas = normalizadoBruto.split("\n");
+      const reLabel = /^(Órg[aã]o|Data de disponibiliza[cç][aã]o|Tipo de comunica[cç][aã]o|Meio|Processo|Parte\(s\)|Intimad[oa]\(s\)|Citad[oa]\(s\))\s*:/i;
+      let i = 0;
+      let viuLabel = false;
+      // Pula linhas iniciais que sejam labels OU continuações curtas (nomes de partes
+      // sem rótulo logo após "Parte(s):"). Para na primeira linha "substantiva"
+      // (parágrafo longo) ou em marcadores típicos do corpo.
+      const reCorpo = /^(PODER\s+JUDICI[ÁA]RIO|TRIBUNAL|JUSTI[ÇC]A|AC[ÓO]RD[ÃA]O|DESPACHO|DECIS[ÃA]O|RELAT[ÓO]RIO|VOTO|EMENTA|INTIMA[ÇC][ÃA]O|Em cumprimento|Ante o exposto|Vistos)/i;
+      while (i < linhas.length) {
+        const l = linhas[i];
+        if (!l) { i++; continue; }
+        if (reCorpo.test(l)) break;
+        if (reLabel.test(l)) { viuLabel = true; i++; continue; }
+        // Nome solto curto (provável continuação de Parte(s)/Intimados): pula.
+        if (viuLabel && l.length < 120 && /^[-•\s]*[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9]/.test(l)) { i++; continue; }
+        break;
+      }
+      if (i === 0 || !viuLabel) return normalizadoBruto;
+      const restante = linhas.slice(i).join("\n").replace(/^\s+/, "");
+      // Se sobrou muito pouco, mantém o original para não perder conteúdo.
+      return restante.length >= 80 ? restante : normalizadoBruto;
+    })();
     let paragrafos = normalizado.split(/\n\s*\n+/).map((b) => b.trim()).filter((b) => b.length > 0);
     if (paragrafos.length <= 1) {
       paragrafos = normalizado.split(/\n+/).map((b) => b.trim()).filter((b) => b.length > 0);
