@@ -181,9 +181,12 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
           const digits = onlyDigits(processoRaw);
           if (digits.length < 11) continue;
 
+          // Regra: o que vale é a planilha. Se a coluna existe nesta aba,
+          // sempre escrevemos o valor — vazio vira null/false para sobrescrever
+          // qualquer dado anterior conflitante.
           const payload: Record<string, any> = {};
 
-          // Texto novo
+          // Texto
           for (const k of [
             "centralizador",
             "comarca",
@@ -196,11 +199,11 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
           ] as const) {
             if (cols[k] !== undefined) {
               const v = norm(r[cols[k]]);
-              if (v) payload[k] = k === "uf" ? v.toUpperCase().slice(0, 2) : v;
+              payload[k] = v ? (k === "uf" ? v.toUpperCase().slice(0, 2) : v) : null;
             }
           }
 
-          // Booleanos
+          // Booleanos (vazio => false)
           for (const k of [
             "posicao_turma_favoravel",
             "posicao_turma_desfavoravel",
@@ -215,23 +218,25 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             "ganhamos",
             "perdemos",
           ] as const) {
-            if (cols[k] !== undefined && hasValue(r[cols[k]])) payload[k] = true;
+            if (cols[k] !== undefined) payload[k] = hasValue(r[cols[k]]);
           }
 
-          // chance_exito (texto único: derivado das colunas SIM/NÃO)
-          if (cols.chance_exito_sim !== undefined && hasValue(r[cols.chance_exito_sim])) {
-            payload.chance_exito = "Sim";
-          } else if (cols.chance_exito_nao !== undefined && hasValue(r[cols.chance_exito_nao])) {
-            payload.chance_exito = "Não";
+          // chance_exito (texto único: Sim / Não / null)
+          if (cols.chance_exito_sim !== undefined || cols.chance_exito_nao !== undefined) {
+            if (cols.chance_exito_sim !== undefined && hasValue(r[cols.chance_exito_sim])) {
+              payload.chance_exito = "Sim";
+            } else if (cols.chance_exito_nao !== undefined && hasValue(r[cols.chance_exito_nao])) {
+              payload.chance_exito = "Não";
+            } else {
+              payload.chance_exito = null;
+            }
           }
 
-          // Dossiê (apenas para criar / preencher se vazio)
-          let dossie: string | null = null;
+          // Dossiê — também sobrescreve quando a planilha trouxer valor
           if (cols.dossie !== undefined) {
             const v = norm(r[cols.dossie]);
-            if (v) dossie = v;
+            if (v) payload.__dossie = v;
           }
-          if (dossie) payload.__dossie = dossie;
 
           all.push({ processo_digits: digits, processo_raw: processoRaw, payload });
         }
