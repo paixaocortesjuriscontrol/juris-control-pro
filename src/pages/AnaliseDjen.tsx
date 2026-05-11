@@ -1095,6 +1095,35 @@ const AnaliseDjen = () => {
   // ===== PDF "Gerar PDF Resumo" - formato DOC do advogado (estilo Comunica PJE) =====
   const [gerandoResumo, setGerandoResumo] = useState(false);
 
+  // Extrai o trecho final ORIGINAL da publicação contendo assinatura + intimados.
+  // Sem chamada à IA — apenas recorte heurístico do conteúdo original.
+  const extractTrechoFinal = (conteudo?: string | null): string => {
+    if (!conteudo) return "";
+    const text = String(conteudo).replace(/\r\n/g, "\n").trim();
+    if (!text) return "";
+    // Procura a ÚLTIMA ocorrência de "Intimado(s)" / "Citado(s)" / "Notificado(s)"
+    const re = /(intimad[oa]s?|citad[oa]s?|notificad[oa]s?)(\s*\(s\))?\s*[:\-]/gi;
+    let lastIdx = -1;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) lastIdx = m.index;
+    let start: number;
+    if (lastIdx >= 0) {
+      // Recua até ~600 chars antes para capturar a assinatura do magistrado
+      start = Math.max(0, lastIdx - 600);
+      // Tenta alinhar em uma quebra de parágrafo
+      const nlBefore = text.lastIndexOf("\n", lastIdx);
+      if (nlBefore > start) start = nlBefore + 1;
+    } else {
+      start = Math.max(0, text.length - 1500);
+      const nlBefore = text.indexOf("\n", start);
+      if (nlBefore > -1 && nlBefore - start < 300) start = nlBefore + 1;
+    }
+    return text.slice(start).trim();
+  };
+
+  const [gerandoResumoRapido, setGerandoResumoRapido] = useState(false);
+  const [gerandoDocResumoRapido, setGerandoDocResumoRapido] = useState(false);
+
   const handleGerarPdfResumo = async () => {
     const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) {
