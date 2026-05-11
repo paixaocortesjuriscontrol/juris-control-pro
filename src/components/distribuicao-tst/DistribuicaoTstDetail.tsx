@@ -12,6 +12,7 @@ import { DadosBennerForm, DadosBennerFormHandle } from "@/components/benner/Dado
 import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
+import { CentralizadoresTab } from "./CentralizadoresTab";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +22,7 @@ interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
   dado?: DistribuicaoTst | null;
   /** Aba a abrir inicialmente. Default "distribuicao". */
-  initialTab?: "distribuicao" | "benner" | "log-judit" | "analise-judit";
+  initialTab?: "distribuicao" | "benner" | "log-judit" | "analise-judit" | "centralizadores";
   onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean | string>;
   onSaveBenner: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onClose: () => void;
@@ -45,7 +46,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
 
-  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos">(initialTab);
+  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "centralizadores">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [comAnexos, setComAnexos] = useState(false);
@@ -328,6 +329,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <TabsList className="justify-start">
             <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
+            <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
             <TabsTrigger value="benner" disabled={bennerDisabled}>Dados Benner</TabsTrigger>
             {podeVerLogJudit && (
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
