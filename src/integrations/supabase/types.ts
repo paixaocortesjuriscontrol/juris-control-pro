@@ -1560,6 +1560,7 @@ export type Database = {
           equipe: string | null
           erro_judit: boolean
           execucao: string | null
+          fontes_importacao: string[]
           ganhamos: boolean | null
           honra: string | null
           horario_julgamento: string | null
@@ -1658,6 +1659,7 @@ export type Database = {
           equipe?: string | null
           erro_judit?: boolean
           execucao?: string | null
+          fontes_importacao?: string[]
           ganhamos?: boolean | null
           honra?: string | null
           horario_julgamento?: string | null
@@ -1756,6 +1758,7 @@ export type Database = {
           equipe?: string | null
           erro_judit?: boolean
           execucao?: string | null
+          fontes_importacao?: string[]
           ganhamos?: boolean | null
           honra?: string | null
           horario_julgamento?: string | null
@@ -6532,6 +6535,10 @@ export type Database = {
       }
     }
     Functions: {
+      add_fonte_importacao: {
+        Args: { p_fonte: string; p_id: string }
+        Returns: undefined
+      }
       analyze_publicacoes_djen: { Args: never; Returns: undefined }
       backfill_djen_status_batch: {
         Args: { p_limit?: number }

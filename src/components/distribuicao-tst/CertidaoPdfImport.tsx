@@ -132,6 +132,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
           status: "rascunho",
           user_id: user.id,
           coordenacao_id: RENATA_COORDENACAO_ID,
+          fontes_importacao: ["Certidão TST"],
         };
       });
 

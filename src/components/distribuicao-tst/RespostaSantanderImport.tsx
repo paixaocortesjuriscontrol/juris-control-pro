@@ -460,6 +460,7 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             coordenacao_id: RENATA_COORDENACAO_ID,
             tribunal: "TST",
             benner_atualizado: true,
+            fontes_importacao: ["Resposta Santander"],
           });
         } else {
           for (const ex of existentes) {
@@ -496,6 +497,11 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
           .eq("id", item.id);
         if (error) console.error("Erro update:", error);
         else atualizados++;
+        // Marca a fonte de importação sem sobrescrever outras tags já presentes
+        await (supabase as any).rpc("add_fonte_importacao", {
+          p_id: item.id,
+          p_fonte: "Resposta Santander",
+        });
         done++;
         if (done % 50 === 0 || done === toUpdate.length) {
           setStatusText(`Atualizando ${done}/${toUpdate.length} · ${criados} novos`);

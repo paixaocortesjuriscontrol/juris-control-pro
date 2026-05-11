@@ -26,6 +26,7 @@ interface Card {
   distribuido_em: string | null;
   observacao_distribuicao: string | null;
   aba_origem: string | null;
+  fontes_importacao?: string[] | null;
   responsaveis: ProfileBasic[];
 }
 
@@ -76,7 +77,7 @@ export default function DistribuicaoTstKanban() {
     try {
       let query = supabase
         .from("dados_benner" as any)
-        .select("id, processo, dossie, prazo_entrega, status_distribuicao, distribuido_em, observacao_distribuicao, aba_origem, dados_benner_responsaveis!inner(usuario_id)")
+        .select("id, processo, dossie, prazo_entrega, status_distribuicao, distribuido_em, observacao_distribuicao, aba_origem, fontes_importacao, dados_benner_responsaveis!inner(usuario_id)")
         .not("distribuido_em", "is", null)
         .order("prazo_entrega", { ascending: true, nullsFirst: false })
         .limit(2000);
@@ -109,6 +110,7 @@ export default function DistribuicaoTstKanban() {
         distribuido_em: r.distribuido_em,
         observacao_distribuicao: r.observacao_distribuicao,
         aba_origem: r.aba_origem,
+        fontes_importacao: r.fontes_importacao || [],
         responsaveis: respMap.get(r.id) || [],
       })));
     } catch (e: any) {
@@ -231,6 +233,15 @@ export default function DistribuicaoTstKanban() {
                                onClick={() => navigate(`/distribuicao-tst?editId=${c.id}`)}>
                             <p className="text-xs font-mono font-semibold truncate">{c.processo || "Sem nº"}</p>
                             {c.dossie && <p className="text-[11px] text-muted-foreground truncate">Dossiê: {c.dossie}</p>}
+                            {c.fontes_importacao && c.fontes_importacao.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {c.fontes_importacao.map((f) => (
+                                  <Badge key={f} variant="outline" className="text-[9px] px-1 py-0 font-normal">
+                                    {f}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex items-center gap-1 flex-wrap text-[11px] text-muted-foreground">
                               <Clock className="w-3 h-3" />
                               {c.prazo_entrega ? format(new Date(c.prazo_entrega + "T12:00:00"), "dd/MM/yyyy") : "Sem prazo"}
