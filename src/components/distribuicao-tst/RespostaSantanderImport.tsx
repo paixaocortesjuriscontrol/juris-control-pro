@@ -396,6 +396,18 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       // REGRA 4: NÃO deduplicar — mantém todas as linhas da planilha.
       const rows = all;
 
+      // REGRA 5: marcar duplicatas com ic_duplicado=true (tag "dup").
+      // Considera duplicata quando o par processo_digits + dossie aparece >1x.
+      const dupCount = new Map<string, number>();
+      for (const r of rows) {
+        const key = `${r.processo_digits}|${(r.payload.__dossie || "").trim()}`;
+        dupCount.set(key, (dupCount.get(key) || 0) + 1);
+      }
+      for (const r of rows) {
+        const key = `${r.processo_digits}|${(r.payload.__dossie || "").trim()}`;
+        r.payload.ic_duplicado = (dupCount.get(key) || 0) > 1;
+      }
+
       setStatusText(`Buscando processos existentes (${rows.length})…`);
 
       // Busca todos pelos dígitos (compara via regexp_replace).
