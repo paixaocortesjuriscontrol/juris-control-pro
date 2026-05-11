@@ -247,6 +247,16 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      // PAUTA: trecho relevante é o cabeçalho, não o final.
+      if (isPautaDeJulgamento(conteudoBruto)) {
+        const trechoPauta = extrairTrechoPauta(conteudoBruto);
+        if (trechoPauta) {
+          return new Response(
+            JSON.stringify({ id: pub.id, trecho: trechoPauta }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
       const tailLength = 6000;
       const trechoTail = conteudo.length > tailLength ? '…' + conteudo.substring(conteudo.length - tailLength) : conteudo;
