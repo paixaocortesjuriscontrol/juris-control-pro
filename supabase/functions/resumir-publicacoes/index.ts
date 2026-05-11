@@ -438,7 +438,7 @@ Para cada processo que mencione prazo, liste:
 ## ⚠️ ALERTAS
 - Liste qualquer situação que demande atenção imediata
 
-Seja preciso ao extrair números de processos e prazos. Use formatação markdown.`
+Seja preciso ao extrair números de processos e prazos. Use texto plano sem formatação especial. Não use negrito, itálico, bullets nem markdown.`
           },
           {
             role: 'user',
