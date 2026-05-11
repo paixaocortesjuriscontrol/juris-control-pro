@@ -1012,8 +1012,8 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             <Textarea
               value={form.analise_quarteirizado || ""}
               onChange={e => set("analise_quarteirizado", e.target.value)}
-              rows={5}
-              className="min-h-[120px] resize-y"
+              rows={12}
+              className="min-h-[280px] resize-y"
               placeholder="Descreva a análise do quarteirizado (pode conter várias linhas)..."
             />
           </div>
