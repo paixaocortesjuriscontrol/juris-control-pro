@@ -1100,6 +1100,11 @@ const AnaliseDjen = () => {
   // `resumir-publicacoes` (lê do final para o começo, preserva quebras de linha).
   const extractTrechoFinal = (conteudo?: string | null): string => {
     if (!conteudo) return "";
+    // CASO ESPECIAL — PAUTA DE JULGAMENTO
+    // Para pautas, o trecho relevante está no INÍCIO (cabeçalho com data da sessão
+    // virtual/presencial), não no final. Detecta e retorna o cabeçalho.
+    const pauta = extractTrechoPauta(conteudo);
+    if (pauta) return pauta;
     // 1) Normaliza HTML/whitespace e devolve a lista de parágrafos.
     const semHtml = String(conteudo)
       .replace(/<br\s*\/?>(?=)/gi, "\n")
