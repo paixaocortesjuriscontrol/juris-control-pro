@@ -15,6 +15,7 @@ import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
+import { CertidaoPdfImport } from "@/components/distribuicao-tst/CertidaoPdfImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
@@ -995,6 +996,7 @@ export default function DistribuicaoTst() {
                   ? `Relatório PDF Partes (${selectedIds.size})`
                   : "Relatório PDF Partes"}
             </Button>
+            <CertidaoPdfImport onImported={handleRefresh} />
             <DistribuicaoTstImport onImported={handleRefresh} />
             <DossieUpdateImport onUpdated={handleRefresh} />
             <Link to="/dados-benner">
