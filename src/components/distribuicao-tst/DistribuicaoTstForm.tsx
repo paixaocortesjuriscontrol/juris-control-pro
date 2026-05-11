@@ -630,7 +630,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               value={form.observacao_advogado || ""}
               onChange={e => set("observacao_advogado", e.target.value || null)}
               placeholder="Anotações livres do advogado responsável..."
-              rows={3}
+              rows={10}
+              className="min-h-[240px] resize-y"
             />
           </div>
         </div>
