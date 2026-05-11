@@ -475,6 +475,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             user_id: user.id,
             coordenacao_id: "3e47fc83-3539-4fa7-9fcf-33825120e1b7", // Sempre Coordenação Dra. Renata Santander
             data_distribuicao_real: dataPlanilha,
+            fontes_importacao: ["Planilha Distribuição"],
           };
         });
 
@@ -569,6 +570,16 @@ export function DistribuicaoTstImport({ onImported }: Props) {
       };
       await updateJuditDup(juditIdsDup, true);
       await updateJuditDup(juditIdsNotDup, false);
+
+      // Marca a fonte "Planilha Distribuição" também nas linhas judit preservadas,
+      // sem sobrescrever outras tags já existentes.
+      const juditPreservedIds = [...juditIdsDup, ...juditIdsNotDup];
+      for (const id of juditPreservedIds) {
+        await (supabase as any).rpc("add_fonte_importacao", {
+          p_id: id,
+          p_fonte: "Planilha Distribuição",
+        });
+      }
 
       // Inserir todas as linhas da planilha
       for (let i = 0; i < recordsToInsert.length; i += BATCH_SIZE) {
