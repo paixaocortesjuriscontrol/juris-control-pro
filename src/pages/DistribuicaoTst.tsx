@@ -166,6 +166,7 @@ export default function DistribuicaoTst() {
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
+  const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   // Filtro por Centralizador. Default: Paixão Cortes (escritório principal)
   const PAIXAO_CORTES_DEFAULT = "Paixao Cortes Madeira e Adv Associados S/C - Centralizador";
   const [filtroCentralizador, setFiltroCentralizador] = useState<string>(PAIXAO_CORTES_DEFAULT);
@@ -199,10 +200,11 @@ export default function DistribuicaoTst() {
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
         duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
         centralizador: filtroCentralizador !== "todos" ? filtroCentralizador : undefined,
+        fonteImportacao: filtroFonteImportacao !== "todas" ? filtroFonteImportacao : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroCentralizador]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroCentralizador, filtroFonteImportacao]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
