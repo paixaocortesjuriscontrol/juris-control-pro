@@ -365,7 +365,7 @@ serve(async (req) => {
         assinatura: dadosTrecho.assinatura ?? null,
         intimados: dadosTrecho.intimados ?? null,
       };
-      const resumo = formatarResumoMarkdown(JSON.stringify(merged));
+      const resumo = formatarResumoTextoPlano(JSON.stringify(merged));
 
       return new Response(
         JSON.stringify({ id: pub.id, resumo }),
