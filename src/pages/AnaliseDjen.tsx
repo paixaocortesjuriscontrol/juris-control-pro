@@ -1363,7 +1363,12 @@ const AnaliseDjen = () => {
     // Pautas: extração determinística, sem IA, para não repetir o início nem trazer a pauta completa.
     const ehPauta = isPautaDeJulgamento(original);
     const heur = ehPauta ? extractTrechoPauta(original, pub?.processo_numero) : extractTrechoFinal(original);
-    if (ehPauta && heur) return heur;
+    // Pautas: SEMPRE retornamos o resultado determinístico, sem fallback IA nem
+    // "trecho final" — isso evita que a publicação inteira da pauta (com dezenas
+    // de processos) seja despejada no Resumo Rápido.
+    if (ehPauta) {
+      return heur || (original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1500));
+    }
     const tamanhoOriginal = original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
     const tamanhoHeur = heur.length;
     const ratio = tamanhoOriginal > 0 ? tamanhoHeur / tamanhoOriginal : 0;
