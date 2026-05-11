@@ -158,6 +158,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   // Aplica sugestões da IA — preenche apenas campos vazios e os marca em azul.
   useEffect(() => {
     if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    console.log("[DadosBennerForm] iaSugestao recebido:", {
+      keys: Object.keys(iaSugestao),
+      analise_quarteirizado_len: ((iaSugestao as any)?.analise_quarteirizado || "").length,
+      analise_quarteirizado_preview: ((iaSugestao as any)?.analise_quarteirizado || "").slice(0, 100),
+    });
     setForm((prev) => {
       const next: any = { ...prev };
       const filled = new Set(camposIa);
