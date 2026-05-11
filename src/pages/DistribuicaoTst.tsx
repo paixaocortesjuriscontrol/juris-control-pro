@@ -166,6 +166,7 @@ export default function DistribuicaoTst() {
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
+  const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   // Filtro por Centralizador. Default: Paixão Cortes (escritório principal)
   const PAIXAO_CORTES_DEFAULT = "Paixao Cortes Madeira e Adv Associados S/C - Centralizador";
   const [filtroCentralizador, setFiltroCentralizador] = useState<string>(PAIXAO_CORTES_DEFAULT);
@@ -199,10 +200,11 @@ export default function DistribuicaoTst() {
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
         duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
         centralizador: filtroCentralizador !== "todos" ? filtroCentralizador : undefined,
+        fonteImportacao: filtroFonteImportacao !== "todas" ? filtroFonteImportacao : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroCentralizador]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroCentralizador, filtroFonteImportacao]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
@@ -279,7 +281,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroCentralizador !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroCentralizador !== "todos" || filtroFonteImportacao !== "todas";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -293,6 +295,7 @@ export default function DistribuicaoTst() {
     setFiltroStatus("todos");
     setFiltroEmAnalise("todos");
     setFiltroDuplicado("todos");
+    setFiltroFonteImportacao("todas");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -1278,6 +1281,17 @@ export default function DistribuicaoTst() {
                 <SelectItem value="todos">Duplicados: Todos</SelectItem>
                 <SelectItem value="sim">Apenas duplicados</SelectItem>
                 <SelectItem value="nao">Apenas não duplicados</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroFonteImportacao} onValueChange={setFiltroFonteImportacao}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Origem importação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Origem: Todas</SelectItem>
+                <SelectItem value="Resposta Santander">Resposta Santander</SelectItem>
+                <SelectItem value="Certidão TST">Certidão TST (PDF)</SelectItem>
+                <SelectItem value="Planilha Distribuição">Planilha Distribuição</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>

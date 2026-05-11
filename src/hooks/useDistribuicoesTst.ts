@@ -89,6 +89,7 @@ export interface DistribuicaoTstFilters {
   problemaJudit?: "todos" | "sim" | "nao";
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;
+  fonteImportacao?: string;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -335,6 +336,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
     if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
+    if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
+      query = query.contains("fontes_importacao", [filters.fonteImportacao]);
+    }
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
