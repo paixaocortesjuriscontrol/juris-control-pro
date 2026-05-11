@@ -104,6 +104,45 @@ function extrairUltimosBlocos(textoBruto: string, _n = 3): string {
   return extrairTrechoFinal(textoBruto);
 }
 
+// ============================================================
+// PAUTA DE JULGAMENTO — extração do CABEÇALHO (não do final)
+// Para pautas, o trecho juridicamente relevante está no início:
+// identifica o tipo de sessão e a data de início/encerramento.
+// ============================================================
+function isPautaDeJulgamento(conteudo: string): boolean {
+  if (!conteudo) return false;
+  const txt = conteudo.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  return /Pauta\s+de\s+Julgamento/i.test(txt) ||
+    (/\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
+      /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
+}
+
+function extrairTrechoPauta(conteudo: string): string {
+  if (!conteudo || !isPautaDeJulgamento(conteudo)) return "";
+  const semHtml = conteudo
+    .replace(/<br\s*\/?>(?=)/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\r\n?/g, "\n");
+  const txt = semHtml.split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean).join("\n");
+  const m = txt.match(/Pauta\s+de\s+Julgamento/i);
+  const start = m ? m.index! : 0;
+  const body = txt.slice(start);
+  const fim = body.match(/encerramento[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
+  if (fim) {
+    const end = (fim.index ?? 0) + fim[0].length;
+    return body.slice(0, end).trim();
+  }
+  const ini = body.match(/in[ií]cio[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
+  if (ini) {
+    const end = (ini.index ?? 0) + ini[0].length;
+    return body.slice(0, end).trim();
+  }
+  const cut = body.slice(0, 1500);
+  const lastDot = cut.lastIndexOf(".");
+  return (lastDot > 200 ? cut.slice(0, lastDot + 1) : cut).trim();
+}
+
 // Converte o JSON do agente DJEN em texto plano legível para exibição na UI.
 function formatarResumoTextoPlano(jsonStr: string): string {
   let data: any;
