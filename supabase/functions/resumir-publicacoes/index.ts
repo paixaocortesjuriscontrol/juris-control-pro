@@ -117,30 +117,52 @@ function isPautaDeJulgamento(conteudo: string): boolean {
       /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
 }
 
-function extrairTrechoPauta(conteudo: string): string {
+function extrairTrechoPauta(conteudo: string, processo?: string): string {
   if (!conteudo || !isPautaDeJulgamento(conteudo)) return "";
-  const semHtml = conteudo
+  const linhas = conteudo
     .replace(/<br\s*\/?>(?=)/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<[^>]+>/g, "")
-    .replace(/\r\n?/g, "\n");
-  const txt = semHtml.split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean).join("\n");
-  const m = txt.match(/Pauta\s+de\s+Julgamento/i);
-  const start = m ? m.index! : 0;
-  const body = txt.slice(start);
-  const fim = body.match(/encerramento[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
-  if (fim) {
-    const end = (fim.index ?? 0) + fim[0].length;
-    return body.slice(0, end).trim();
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(l => l.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean);
+
+  const limparLinha = (l: string) => !/^C[oó]digo para aferir autenticidade/i.test(l)
+    && !/^Data da Disponibiliza[cç][aã]o:/i.test(l)
+    && !/^\d+\/\d+\s+Tribunal Regional do Trabalho/i.test(l);
+  const cnjRe = /\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\b\d{20}\b/;
+  const digitsProc = String(processo || "").replace(/\D/g, "");
+  const isProcessStart = (linha: string) => /^Processo\s+N[ºo]/i.test(linha) || cnjRe.test(linha);
+  const firstProcessIdx = linhas.findIndex(isProcessStart);
+
+  let headerLines = (firstProcessIdx > 0 ? linhas.slice(0, firstProcessIdx) : linhas.slice(0, 12)).filter(limparLinha);
+  const obsIdx = headerLines.findIndex(l => /^OBS\.:/i.test(l) || /^As inscri[cç][oõ]es/i.test(l) || /^Para os processos/i.test(l));
+  if (obsIdx > -1) headerLines = headerLines.slice(0, obsIdx);
+  const header = headerLines.join("\n").trim();
+
+  let start = -1;
+  if (digitsProc.length >= 15) {
+    start = linhas.findIndex(l => l.replace(/\D/g, "").includes(digitsProc));
   }
-  const ini = body.match(/in[ií]cio[\s\S]{0,120}?\d{2}\/\d{2}\/\d{4}\s*\.?/i);
-  if (ini) {
-    const end = (ini.index ?? 0) + ini[0].length;
-    return body.slice(0, end).trim();
+  if (start < 0) start = firstProcessIdx;
+  if (start > 0 && /^Processo\s+N[ºo]/i.test(linhas[start - 1]) && !cnjRe.test(linhas[start - 1])) start--;
+
+  let bloco = "";
+  if (start >= 0) {
+    let end = linhas.length;
+    for (let i = start + 1; i < linhas.length; i++) {
+      const lineDigits = linhas[i].replace(/\D/g, "");
+      const sameProcess = digitsProc.length >= 15 && lineDigits.includes(digitsProc);
+      if (/^Processo\s+N[ºo]/i.test(linhas[i]) || (cnjRe.test(linhas[i]) && !sameProcess)) {
+        end = i;
+        break;
+      }
+    }
+    bloco = linhas.slice(start, end).filter(limparLinha).join("\n").trim();
   }
-  const cut = body.slice(0, 1500);
-  const lastDot = cut.lastIndexOf(".");
-  return (lastDot > 200 ? cut.slice(0, lastDot + 1) : cut).trim();
+
+  return [header, bloco].filter(Boolean).join("\n\n").trim();
 }
 
 // Converte o JSON do agente DJEN em texto plano legível para exibição na UI.
@@ -247,13 +269,19 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // PAUTA: prepende cabeçalho (data da sessão) e segue para extração do trecho final via IA.
-      const trechoPautaPrefix = isPautaDeJulgamento(conteudoBruto) ? extrairTrechoPauta(conteudoBruto) : '';
+      const processo = pub.processo || pub.numeroProcesso || 'N/A';
+      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
+      // PAUTA: retorna somente cabeçalho da sessão + bloco do processo, sem IA para não repetir início nem trazer a pauta inteira.
+      const trechoPautaPrefix = isPautaDeJulgamento(conteudoBruto) ? extrairTrechoPauta(conteudoBruto, processo) : '';
+      if (trechoPautaPrefix) {
+        return new Response(
+          JSON.stringify({ id: pub.id, trecho: trechoPautaPrefix }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
       const tailLength = 6000;
       const trechoTail = conteudo.length > tailLength ? '…' + conteudo.substring(conteudo.length - tailLength) : conteudo;
-      const processo = pub.processo || pub.numeroProcesso || 'N/A';
-      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
       const userMsg = `PUBLICAÇÃO ÚNICA — extraia trecho_preservado e assinatura SOMENTE deste texto, lendo do FINAL para o começo. Ignore qualquer contexto anterior.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- PORÇÃO FINAL DO TEXTO (leia de trás para frente) ---\n${trechoTail}\n--- FIM ---\n\nRetorne APENAS o JSON da Fase 2 com os campos trecho_preservado e assinatura.`;
       try {
         let respText = '';
@@ -284,7 +312,6 @@ serve(async (req) => {
           try { dados = JSON.parse(limpo); } catch { dados = {}; }
         }
         const partes: string[] = [];
-        if (trechoPautaPrefix) { partes.push(trechoPautaPrefix); partes.push(''); }
         if (dados.trecho_preservado) partes.push(String(dados.trecho_preservado).trim());
         if (dados.assinatura) { partes.push(''); partes.push(String(dados.assinatura).trim()); }
         if (dados.intimados) { partes.push(''); partes.push(String(dados.intimados).trim()); }
@@ -381,30 +408,29 @@ serve(async (req) => {
       let dadosResumo: any = {};
       let dadosTrecho: any = {};
 
-      // PAUTA: para pautas de julgamento, o trecho relevante é o cabeçalho
-      // (data da sessão virtual/presencial), não o final. Pré-extrai localmente
-      // e pula a Fase 2 da IA.
+      // PAUTA: para pautas de julgamento, usa extração local determinística
+      // (cabeçalho da sessão + bloco do processo). Não chama a IA para trecho,
+      // evitando repetição do início ou retorno da pauta completa.
       const ehPauta = isPautaDeJulgamento(conteudoBruto);
-      const trechoPautaLocal = ehPauta ? extrairTrechoPauta(conteudoBruto) : '';
+      const trechoPautaLocal = ehPauta ? extrairTrechoPauta(conteudoBruto, processo) : '';
 
       try {
         const tarefas: Promise<string>[] = [callOpenAI(SYSTEM_PROMPT_FASE_RESUMO, userMsgFase1, 1500)];
-        tarefas.push(callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000));
+        if (!trechoPautaLocal) tarefas.push(callOpenAI(SYSTEM_PROMPT_FASE_TRECHO, userMsgFase2, 2000));
         const respostas = await Promise.all(tarefas);
         const respFase1 = respostas[0];
-        const respFase2 = respostas[1];
         try { dadosResumo = JSON.parse(respFase1); } catch {
           const limpo = respFase1.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
           try { dadosResumo = JSON.parse(limpo); } catch { dadosResumo = { resumo: respFase1 }; }
         }
-        try { dadosTrecho = JSON.parse(respFase2); } catch {
-          const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-          try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
-        }
         if (trechoPautaLocal) {
-          // Prepende o cabeçalho da pauta ao trecho_preservado retornado pela IA.
-          const orig = (dadosTrecho.trecho_preservado || '').toString().trim();
-          dadosTrecho.trecho_preservado = orig ? `${trechoPautaLocal}\n\n${orig}` : trechoPautaLocal;
+          dadosTrecho = { trecho_preservado: trechoPautaLocal, assinatura: null, intimados: null };
+        } else {
+          const respFase2 = respostas[1];
+          try { dadosTrecho = JSON.parse(respFase2); } catch {
+            const limpo = respFase2.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+            try { dadosTrecho = JSON.parse(limpo); } catch { dadosTrecho = {}; }
+          }
         }
       } catch (e) {
         console.error(`Erro ao resumir pub ${pub.id}:`, e);
