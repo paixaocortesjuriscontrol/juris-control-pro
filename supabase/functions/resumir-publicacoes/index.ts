@@ -115,24 +115,23 @@ function formatarResumoTextoPlano(jsonStr: string): string {
   }
 
   const linhas: string[] = [];
+  // Remove qualquer marcador markdown (**bold**, *italic*) que a IA insira por engano
+  const stripMd = (v: any) => {
+    if (v === null || v === undefined) return v;
+    return String(v).replace(/\*\*/g, '').replace(/(^|\s)\*(\S[^*]*\S)\*(?=\s|$)/g, '$1$2').trim();
+  };
   const push = (label: string, val: any) => {
     if (val === null || val === undefined || val === '') return;
-    linhas.push(`${label}: ${val}`);
+    linhas.push(`${label}: ${stripMd(val)}`);
   };
 
-  push('Tipo de ato', data.tipo_ato);
-  push('Processo', data.numero_processo);
-  push('Órgão', data.orgao);
-  if (data.partes && (data.partes.ativa || data.partes.passiva)) {
-    const partes = [data.partes.ativa, data.partes.passiva].filter(Boolean).join(' x ');
-    push('Partes', partes);
-  }
+  // Tipo de ato, Processo, Órgão, Partes e Data já constam no cabeçalho do documento.
+  // Não duplicar aqui — começamos direto pelo Relator.
   push('Relator(a)', data.magistrado_relator);
-  push('Data', data.data_publicacao);
 
   if (data.resumo) {
     linhas.push('');
-    linhas.push(`Resumo: ${data.resumo}`);
+    linhas.push(`Resumo: ${stripMd(data.resumo)}`);
   }
 
   if (data.prazo && data.prazo.existe) {
@@ -144,31 +143,34 @@ function formatarResumoTextoPlano(jsonStr: string): string {
 
   if (Array.isArray(data.providencias) && data.providencias.length > 0) {
     linhas.push('');
-    linhas.push('Providencias:');
-    data.providencias.forEach((p: string) => linhas.push(`  ${p}`));
+    linhas.push('Providências:');
+    data.providencias.forEach((p: string) => linhas.push(`- ${stripMd(p)}`));
   }
 
   if (Array.isArray(data.alertas) && data.alertas.length > 0) {
     linhas.push('');
     linhas.push('Alertas:');
-    data.alertas.forEach((a: string) => linhas.push(`  ${a}`));
+    data.alertas.forEach((a: string) => linhas.push(`- ${stripMd(a)}`));
   }
 
   if (data.trecho_preservado) {
     linhas.push('');
-    linhas.push('--- TRECHO FINAL DA PUBLICACAO (original, sem resumir) ---');
-    linhas.push(data.trecho_preservado);
+    linhas.push('TRECHO FINAL DA PUBLICAÇÃO (original, sem resumir)');
+    linhas.push(stripMd(data.trecho_preservado));
   }
 
   if (data.assinatura) {
     linhas.push('');
     linhas.push('Assinatura:');
-    linhas.push(data.assinatura);
+    linhas.push(stripMd(data.assinatura));
   }
 
   if (data.intimados) {
     linhas.push('');
-    linhas.push(data.intimados);
+    const txt = stripMd(data.intimados);
+    // Garante o rótulo "Intimado(s) / Citado(s):" caso a IA já tenha incluído ou não
+    if (/^Intimado/i.test(txt)) linhas.push(txt);
+    else linhas.push(`Intimado(s) / Citado(s): ${txt}`);
   }
 
   return linhas.join('\n').trim();
