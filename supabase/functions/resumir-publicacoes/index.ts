@@ -269,13 +269,19 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // PAUTA: prepende cabeçalho (data da sessão) e segue para extração do trecho final via IA.
-      const trechoPautaPrefix = isPautaDeJulgamento(conteudoBruto) ? extrairTrechoPauta(conteudoBruto) : '';
+      const processo = pub.processo || pub.numeroProcesso || 'N/A';
+      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
+      // PAUTA: retorna somente cabeçalho da sessão + bloco do processo, sem IA para não repetir início nem trazer a pauta inteira.
+      const trechoPautaPrefix = isPautaDeJulgamento(conteudoBruto) ? extrairTrechoPauta(conteudoBruto, processo) : '';
+      if (trechoPautaPrefix) {
+        return new Response(
+          JSON.stringify({ id: pub.id, trecho: trechoPautaPrefix }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
       const tailLength = 6000;
       const trechoTail = conteudo.length > tailLength ? '…' + conteudo.substring(conteudo.length - tailLength) : conteudo;
-      const processo = pub.processo || pub.numeroProcesso || 'N/A';
-      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
       const userMsg = `PUBLICAÇÃO ÚNICA — extraia trecho_preservado e assinatura SOMENTE deste texto, lendo do FINAL para o começo. Ignore qualquer contexto anterior.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- PORÇÃO FINAL DO TEXTO (leia de trás para frente) ---\n${trechoTail}\n--- FIM ---\n\nRetorne APENAS o JSON da Fase 2 com os campos trecho_preservado e assinatura.`;
       try {
         let respText = '';
@@ -306,7 +312,6 @@ serve(async (req) => {
           try { dados = JSON.parse(limpo); } catch { dados = {}; }
         }
         const partes: string[] = [];
-        if (trechoPautaPrefix) { partes.push(trechoPautaPrefix); partes.push(''); }
         if (dados.trecho_preservado) partes.push(String(dados.trecho_preservado).trim());
         if (dados.assinatura) { partes.push(''); partes.push(String(dados.assinatura).trim()); }
         if (dados.intimados) { partes.push(''); partes.push(String(dados.intimados).trim()); }
