@@ -1531,10 +1531,14 @@ export type Database = {
           analise_quarteirizado: string | null
           aparelhamento_banco: string | null
           aparelhamento_reclamante: string | null
+          assunto: string | null
           benner_atualizado: boolean | null
+          categoria: string | null
+          centralizador: string | null
           chance_exito: string | null
           chance_exito_banco: string | null
           chance_exito_reclamante: string | null
+          comarca: string | null
           confianca_transito: number | null
           coordenacao_id: string | null
           created_at: string
@@ -1564,11 +1568,13 @@ export type Database = {
           judit_preenchido: boolean | null
           judit_preenchido_em: string | null
           judit_preenchido_por: string | null
+          juizo: string | null
           materia_honra: string | null
           materias_recurso_banco: string | null
           materias_recurso_reclamante: string | null
           midia_negativa: string | null
           notas: string | null
+          objeto_padrao: string | null
           observacao_advogado: string | null
           observacao_distribuicao: string | null
           observacoes: string | null
@@ -1602,6 +1608,7 @@ export type Database = {
           situacao_processo: string | null
           status: string
           status_distribuicao: string | null
+          subcategoria: string | null
           sustentacao_oral: string | null
           tem_data_julgamento: string | null
           tema: string | null
@@ -1613,6 +1620,7 @@ export type Database = {
           transito_julgado: boolean | null
           tribunal: string | null
           turma: string | null
+          uf: string | null
           updated_at: string
           user_id: string | null
         }
@@ -1621,10 +1629,14 @@ export type Database = {
           analise_quarteirizado?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
+          assunto?: string | null
           benner_atualizado?: boolean | null
+          categoria?: string | null
+          centralizador?: string | null
           chance_exito?: string | null
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
+          comarca?: string | null
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
@@ -1654,11 +1666,13 @@ export type Database = {
           judit_preenchido?: boolean | null
           judit_preenchido_em?: string | null
           judit_preenchido_por?: string | null
+          juizo?: string | null
           materia_honra?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
           midia_negativa?: string | null
           notas?: string | null
+          objeto_padrao?: string | null
           observacao_advogado?: string | null
           observacao_distribuicao?: string | null
           observacoes?: string | null
@@ -1692,6 +1706,7 @@ export type Database = {
           situacao_processo?: string | null
           status?: string
           status_distribuicao?: string | null
+          subcategoria?: string | null
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
           tema?: string | null
@@ -1703,6 +1718,7 @@ export type Database = {
           transito_julgado?: boolean | null
           tribunal?: string | null
           turma?: string | null
+          uf?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1711,10 +1727,14 @@ export type Database = {
           analise_quarteirizado?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
+          assunto?: string | null
           benner_atualizado?: boolean | null
+          categoria?: string | null
+          centralizador?: string | null
           chance_exito?: string | null
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
+          comarca?: string | null
           confianca_transito?: number | null
           coordenacao_id?: string | null
           created_at?: string
@@ -1744,11 +1764,13 @@ export type Database = {
           judit_preenchido?: boolean | null
           judit_preenchido_em?: string | null
           judit_preenchido_por?: string | null
+          juizo?: string | null
           materia_honra?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
           midia_negativa?: string | null
           notas?: string | null
+          objeto_padrao?: string | null
           observacao_advogado?: string | null
           observacao_distribuicao?: string | null
           observacoes?: string | null
@@ -1782,6 +1804,7 @@ export type Database = {
           situacao_processo?: string | null
           status?: string
           status_distribuicao?: string | null
+          subcategoria?: string | null
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
           tema?: string | null
@@ -1793,6 +1816,7 @@ export type Database = {
           transito_julgado?: boolean | null
           tribunal?: string | null
           turma?: string | null
+          uf?: string | null
           updated_at?: string
           user_id?: string | null
         }
