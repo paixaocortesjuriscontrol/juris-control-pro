@@ -1302,12 +1302,10 @@ const AnaliseDjen = () => {
   // visivelmente ruim (muito longo, muito curto ou cobre quase todo o texto).
   const extractTrechoHibrido = async (pub: any): Promise<string> => {
     const original = String(pub?.conteudo || "");
-    // Pautas: heurística sempre vence (cabeçalho com data da sessão).
-    if (isPautaDeJulgamento(original)) {
-      const t = extractTrechoPauta(original);
-      if (t) return t;
-    }
+    // Pautas: combina cabeçalho (data da sessão) + trecho final.
+    const ehPauta = isPautaDeJulgamento(original);
     const heur = extractTrechoFinal(original);
+    if (ehPauta && heur) return heur;
     const tamanhoOriginal = original.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
     const tamanhoHeur = heur.length;
     const ratio = tamanhoOriginal > 0 ? tamanhoHeur / tamanhoOriginal : 0;
