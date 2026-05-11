@@ -311,7 +311,8 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
         } else {
           for (const ex of existentes) {
             const updatePayload: any = { ...attrs, benner_atualizado: true };
-            if (__dossie && !ex.dossie) updatePayload.dossie = __dossie;
+            // O que vale é a planilha — se a planilha trouxer dossiê, sobrescreve.
+            if (__dossie) updatePayload.dossie = __dossie;
             const { error: upErr } = await (supabase.from("dados_benner") as any)
               .update(updatePayload)
               .eq("id", ex.id);
