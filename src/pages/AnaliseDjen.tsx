@@ -1095,30 +1095,77 @@ const AnaliseDjen = () => {
   // ===== PDF "Gerar PDF Resumo" - formato DOC do advogado (estilo Comunica PJE) =====
   const [gerandoResumo, setGerandoResumo] = useState(false);
 
-  // Extrai o trecho final ORIGINAL da publicação contendo assinatura + intimados.
-  // Sem chamada à IA — apenas recorte heurístico do conteúdo original.
+  // Extrai o trecho final ORIGINAL da publicação contendo o dispositivo/acórdão,
+  // assinatura do relator e intimados. Mesma lógica usada pelo edge function
+  // `resumir-publicacoes` (lê do final para o começo, preserva quebras de linha).
   const extractTrechoFinal = (conteudo?: string | null): string => {
     if (!conteudo) return "";
-    const text = String(conteudo).replace(/\r\n/g, "\n").trim();
-    if (!text) return "";
-    // Procura a ÚLTIMA ocorrência de "Intimado(s)" / "Citado(s)" / "Notificado(s)"
-    const re = /(intimad[oa]s?|citad[oa]s?|notificad[oa]s?)(\s*\(s\))?\s*[:\-]/gi;
-    let lastIdx = -1;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) lastIdx = m.index;
-    let start: number;
-    if (lastIdx >= 0) {
-      // Recua até ~600 chars antes para capturar a assinatura do magistrado
-      start = Math.max(0, lastIdx - 600);
-      // Tenta alinhar em uma quebra de parágrafo
-      const nlBefore = text.lastIndexOf("\n", lastIdx);
-      if (nlBefore > start) start = nlBefore + 1;
-    } else {
-      start = Math.max(0, text.length - 1500);
-      const nlBefore = text.indexOf("\n", start);
-      if (nlBefore > -1 && nlBefore - start < 300) start = nlBefore + 1;
+    // 1) Normaliza HTML/whitespace e devolve a lista de parágrafos.
+    const semHtml = String(conteudo)
+      .replace(/<br\s*\/?>(?=)/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\r\n?/g, "\n");
+    const normalizado = semHtml
+      .split("\n")
+      .map((l) => l.replace(/[ \t]+/g, " ").trim())
+      .join("\n");
+    let paragrafos = normalizado.split(/\n\s*\n+/).map((b) => b.trim()).filter((b) => b.length > 0);
+    if (paragrafos.length <= 1) {
+      paragrafos = normalizado.split(/\n+/).map((b) => b.trim()).filter((b) => b.length > 0);
     }
-    return text.slice(start).trim();
+    if (paragrafos.length === 0) return "";
+
+    // 2) Detecta assinatura do relator (parágrafo curto com termos típicos).
+    const ehAssinaturaRelator = (p: string): boolean => {
+      if (!p || p.length > 220) return false;
+      return /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente)\b/i.test(p);
+    };
+
+    let idxAssinatura = -1;
+    for (let i = paragrafos.length - 1; i >= Math.max(0, paragrafos.length - 5); i--) {
+      if (ehAssinaturaRelator(paragrafos[i])) { idxAssinatura = i; break; }
+    }
+    const assinatura = idxAssinatura >= 0 ? paragrafos[idxAssinatura] : "";
+    const limiteFim = idxAssinatura >= 0 ? idxAssinatura : paragrafos.length;
+
+    // 3) Procura marcador de ACÓRDÃO.
+    const reAcordaoLinha = /^\s*(A\s*C\s*Ó\s*R\s*D\s*Ã\s*O|AC[ÓO]RD[ÃA]O)\s*$/i;
+    const reAcordaoInicio = /^(A\s*C\s*Ó\s*R\s*D\s*Ã\s*O|AC[ÓO]RD[ÃA]O)\b/i;
+    let idxAcordao = -1;
+    for (let i = 0; i < limiteFim; i++) {
+      if (reAcordaoLinha.test(paragrafos[i]) || reAcordaoLinha.test((paragrafos[i].split("\n")[0] || ""))) {
+        idxAcordao = i; break;
+      }
+    }
+    if (idxAcordao < 0) {
+      for (let i = 0; i < limiteFim; i++) {
+        if (reAcordaoInicio.test(paragrafos[i])) { idxAcordao = i; break; }
+      }
+    }
+
+    const reFimEmenta = /^(\s*)(Vistos,?\s+relatados|V\s*O\s*T\s*O\b|RELAT[ÓO]RIO\b)/i;
+
+    let selecionados: string[] = [];
+    if (idxAcordao >= 0) {
+      let idxFim = limiteFim;
+      for (let i = idxAcordao + 1; i < limiteFim; i++) {
+        if (reFimEmenta.test(paragrafos[i])) { idxFim = i; break; }
+      }
+      selecionados = paragrafos.slice(idxAcordao, idxFim);
+    } else {
+      selecionados = paragrafos.slice(0, limiteFim);
+    }
+
+    // 4) Salvaguarda: garantir ao menos 2 parágrafos substantivos.
+    const substantivos = selecionados.filter((p) => p.length >= 30 && !ehAssinaturaRelator(p));
+    if (substantivos.length < 2) {
+      const candidatos = paragrafos.slice(0, limiteFim).filter((p) => p.length >= 30 && !ehAssinaturaRelator(p));
+      selecionados = candidatos.slice(-2);
+    }
+
+    if (assinatura) selecionados = [...selecionados, assinatura];
+    return selecionados.join("\n\n").trim();
   };
 
   const [gerandoResumoRapido, setGerandoResumoRapido] = useState(false);
