@@ -248,7 +248,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         turma_favorabilidade: b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null,
       });
 
-      if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
+      if (hasPreFilteredData) {
+        // Usa dados já filtrados pela tela (respeita 100% dos filtros aplicados)
+        allDist.push(...distribuicoes!.map(mapBennerToDist));
+      } else if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
         for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
           const batch = selectedProcessNumbers.slice(i, i + 100);
           const { data, error } = await supabase
