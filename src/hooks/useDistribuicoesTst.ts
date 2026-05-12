@@ -90,6 +90,7 @@ export interface DistribuicaoTstFilters {
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;
   fonteImportacao?: string;
+  provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -302,6 +303,9 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
     }
+    if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
+    else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
+    else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
 
     query = query.range(from, from + PAGE - 1);
     const { data, error } = await query;
@@ -445,6 +449,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
     }
+    if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
+    else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
+    else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
