@@ -430,7 +430,17 @@ serve(async (req) => {
       }
 
       const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
-      const conteudo = conteudoBruto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const processoTmp = pub.processo || pub.numeroProcesso || '';
+      let conteudoMd: string = (pub.conteudoMd && String(pub.conteudoMd).trim())
+        || htmlParaMarkdown(conteudoBruto);
+      let blocosDetectados = 1;
+      if (isPautaDeJulgamentoMd(conteudoMd)) {
+        const blocos = segmentarPauta(conteudoMd);
+        blocosDetectados = blocos.length;
+        conteudoMd = selecionarBlocoPorProcesso(conteudoMd, processoTmp);
+      }
+      const conteudo = conteudoMd;
+      console.info(`[resumir-publicacoes] pub=${pub.id} bruto=${conteudoBruto.length} md=${conteudoMd.length} blocos=${blocosDetectados}`);
       if (!conteudo || conteudo.length < 20) {
         return new Response(
           JSON.stringify({ id: pub.id, resumo: 'Publicação sem conteúdo suficiente para resumir.' }),
