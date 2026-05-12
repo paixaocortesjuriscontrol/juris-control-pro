@@ -1202,6 +1202,18 @@ const AnaliseDjen = () => {
     if (partes.length) saida.push(`Partes: ${partes.join("; ")}.`);
     if (advogados.length) saida.push(`Advogados: ${advogados.join("; ")}.`);
     if (intimados) saida.push(`Intimado(s)/Citado(s): ${intimados}.`);
+    // Sempre anexa o bloco original da pauta (cabeçalho da sessão + bloco do
+    // processo). Em formatos como "Aditamento à Pauta" do TST as pautas não
+    // trazem rótulos como "Data e hora de início...", e o resumo estruturado
+    // ficaria reduzido a 1-2 linhas, descartando relator/partes/advogados em
+    // texto livre. Mantemos o conteúdo bruto abaixo do resumo para não
+    // perder nada que estiver no bloco.
+    const trechoBruto = String(trecho).trim();
+    if (trechoBruto) {
+      saida.push("");
+      saida.push("Detalhes da pauta:");
+      saida.push(trechoBruto);
+    }
     return saida.join("\n");
   };
 
