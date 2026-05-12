@@ -1,55 +1,40 @@
 ## Problema
 
-O Vite já gera arquivos JS/CSS com hash (ex: `index-ab12cd.js`), então em teoria o navegador sempre baixa a versão nova. O que prende o usuário legado é normalmente:
+No fluxo "Gerar PDF Resumo" e "Gerar Doc Resumo" (Análise DJEN), algumas publicações chegam ao arquivo final sem o bloco "Conteúdo Integral" (apenas cabeçalho/partes/advogados — o usuário enxerga isso como "publicação cortada"), e as **pautas de julgamento** ficam reduzidas a praticamente uma linha (ex.: `Resumo: Pauta de julgamento.\nProcesso em pauta: …` ou `Resumo: Aditamento à Pauta de Julgamento … (sessão virtual)..\nProcesso em pauta: …`).
 
-1. **`index.html` cacheado** pelo navegador/CDN — ele continua apontando para os bundles antigos.
-2. **Aba aberta há horas/dias** — o usuário não recarrega, então nem chega a pedir um `index.html` novo.
-3. **Service worker antigo** (não é o caso aqui — não temos SW registrado).
+Causas identificadas em `src/pages/AnaliseDjen.tsx` (handlers `handleGerarPdfResumo` e `handleGerarDocResumo`) e na edge function `supabase/functions/resumir-publicacoes/index.ts`:
 
-Hoje o projeto tem `APP_VERSION` em `src/constants/version.ts` (1.0.8), mas é usado apenas como label visual no Sidebar — não força atualização.
+1. **Pautas** — `resumirTrechoPauta()` (linhas ~1174‑1206) tenta achar campos rótulados ("Data e hora de início da sessão Virtual", "Relator", "AGRAVANTE", etc.). Quando a pauta vem em outro formato (ex.: "Aditamento à Pauta de Julgamento" do TST, pautas sem esses rótulos exatos), nenhum dos campos é encontrado e a saída fica reduzida a `Resumo: <título>.` + `Processo em pauta: …`. O bloco do processo (que tem relator, partes, advogados, intimados em texto livre) é descartado.
+2. **Publicações "cortadas"** — no `for` que chama `resumir-publicacoes`, qualquer falha (rate‑limit/timeout/JSON inválido vindo do modelo) cai no `catch`, incrementa `erros` e a publicação **não entra** em `resumosMap`. Na renderização (`if (resumoIA) { … }`) o bloco "Conteúdo Integral" é simplesmente omitido — a publicação aparece sem corpo. Não há fallback determinístico.
 
-## Plano: detector de nova versão + recarga automática
+Os botões "Resumo Rápido" (PDF e DOC) **não serão alterados**.
 
-### 1. Endpoint de versão estático
+## Mudanças
 
-Criar `public/version.json` (servido sem hash) com o conteúdo:
-```json
-{ "version": "1.0.9", "buildTime": "2026-05-12T..." }
-```
+### 1. `src/pages/AnaliseDjen.tsx`
 
-Esse arquivo é gerado automaticamente no build via plugin Vite (lê `APP_VERSION` + timestamp). Como está em `public/`, fica acessível em `/version.json`.
+- **Pautas — preservar o bloco do processo**:
+  - Reescrever `resumirTrechoPauta` para que, quando os campos rotulados não forem encontrados, devolva o cabeçalho da sessão + o bloco do processo extraído por `extractTrechoPauta` na íntegra (com quebras de linha), em vez de uma única frase. Garantir mínimo: título da pauta, data/sessão (se houver), processo, e o texto literal do bloco do processo (relator, partes, advogados, intimados em texto livre).
+  - Quando os rótulos forem encontrados (caso atual TRT15), continuar emitindo o resumo estruturado, mas **acrescentar abaixo** o bloco do processo original como "Detalhes da pauta" para não perder informação.
 
-### 2. Headers de cache corretos
+- **Fallback para falhas da IA** (`handleGerarPdfResumo` e `handleGerarDocResumo`):
+  - Quando `aiError` é lançado ou `aiData?.resumo` vier vazio, não apenas incrementar `erros`: também salvar em `resumosMap` um resumo determinístico local construído a partir do conteúdo da publicação (reaproveitar `extractTrechoFinal` já presente no arquivo, ou um texto curto como "Resumo automático indisponível — trecho final da publicação:" + trecho extraído). Isso garante que a publicação **sempre** apareça com algum conteúdo.
+  - Aumentar levemente o backoff em caso de 429/timeout (ex.: tentar uma 2ª chamada após 1500 ms antes de desistir) para reduzir falhas transitórias.
 
-Garantir que `index.html` e `version.json` **não** sejam cacheados (ou cache muito curto), enquanto os assets com hash continuam com cache longo. Na hospedagem Lovable isso já é o padrão para `index.html`; só precisamos confirmar o mesmo para `version.json` (adicionar `<meta http-equiv="Cache-Control" content="no-store">` não funciona em JSON, então o ideal é o servidor — se a Lovable cachear, alternativa é versão como query: `/version.json?t=${Date.now()}`).
+### 2. `supabase/functions/resumir-publicacoes/index.ts`
 
-### 3. Hook `useVersionCheck`
+- Em `resumirPautaDeterministico` (espelho server‑side da função da página), aplicar o mesmo princípio: se nenhum dos campos rotulados foi capturado, devolver o `extrairTrechoPauta(...)` (cabeçalho + bloco do processo) na íntegra em vez de só `título + processo`.
+- No modo `resumoIndividual`, quando ambas as fases falharem, retornar um `resumo` baseado em `extrairTrechoFinal(conteudo)` (já implementado no arquivo) com prefixo "Conteúdo extraído automaticamente:". Hoje a função devolve `'Erro ao gerar resumo desta publicação.'`, o que combinado ao `catch` do front‑end faz a publicação sumir do PDF.
 
-Novo hook que:
-- A cada **5 minutos** (e ao voltar o foco da aba via `visibilitychange`), faz `fetch("/version.json?t=" + Date.now())`.
-- Compara com o `APP_VERSION` atual em memória.
-- Se diferente, mostra um **toast persistente** "Nova versão disponível" com botão **Atualizar agora** que executa `window.location.reload()`.
-- Opcional: após X minutos sem clicar, recarrega automaticamente quando a aba estiver ociosa (sem formulários abertos).
+## Detalhes técnicos
 
-### 4. Atualização do versionamento
+- Não tocar em `handleGerarPdfResumoRapido` nem `handleGerarDocResumoRapido` (linhas 2034‑2289).
+- Reusar funções já existentes no próprio arquivo (`extractTrechoPauta`, `extractTrechoFinal`) — nenhum prompt da IA precisa mudar.
+- Manter a chamada à edge function inalterada na assinatura; só ampliar a lógica de extração e fallback.
+- O `resumosMap` passa a ter sempre uma entrada por publicação, garantindo que o loop de renderização (`if (resumoIA)`) sempre emita "Conteúdo Integral".
 
-- A cada deploy relevante, subir `APP_VERSION` em `src/constants/version.ts` (já é a convenção do projeto).
-- O plugin Vite copia esse valor para `version.json` no build — não precisa lembrar de atualizar dois lugares.
+## Validação
 
-### 5. (Opcional) Botão manual "Verificar atualização"
-
-Adicionar no menu do usuário/Sidebar um item que dispara o check imediatamente e força reload se houver versão nova — útil para suporte ("peça pro usuário clicar aqui").
-
-## Arquivos afetados
-
-- `vite.config.ts` — plugin que escreve `dist/version.json` no build.
-- `src/constants/version.ts` — bump da versão a cada release (já existe).
-- `src/hooks/useVersionCheck.ts` — novo.
-- `src/App.tsx` — montar o hook na raiz.
-- `src/components/layout/Sidebar.tsx` (opcional) — botão "Verificar atualização".
-
-## Pontos a confirmar antes de implementar
-
-1. **Recarga automática vs. apenas avisar?** Recomendo apenas avisar com toast + botão (usuário pode estar no meio de um formulário). Auto-reload só se aba estiver ociosa há X minutos.
-2. **Frequência do check** — 5 min é razoável; pode ser 2 min se quiser mais agressivo.
-3. **Bump manual da versão** está ok, ou prefere automático (timestamp do build como versão)?
+- Regerar o PDF Resumo a partir da mesma data; conferir que (a) processos em pauta passam a exibir relator/partes/advogados/intimados além do número, e (b) nenhuma publicação aparece sem o bloco "Conteúdo Integral".
+- Conferir o mesmo no DOCX gerado por "Gerar Doc Resumo".
+- Resumo Rápido (PDF e DOC) deve permanecer idêntico ao atual.

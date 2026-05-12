@@ -1202,6 +1202,18 @@ const AnaliseDjen = () => {
     if (partes.length) saida.push(`Partes: ${partes.join("; ")}.`);
     if (advogados.length) saida.push(`Advogados: ${advogados.join("; ")}.`);
     if (intimados) saida.push(`Intimado(s)/Citado(s): ${intimados}.`);
+    // Sempre anexa o bloco original da pauta (cabeçalho da sessão + bloco do
+    // processo). Em formatos como "Aditamento à Pauta" do TST as pautas não
+    // trazem rótulos como "Data e hora de início...", e o resumo estruturado
+    // ficaria reduzido a 1-2 linhas, descartando relator/partes/advogados em
+    // texto livre. Mantemos o conteúdo bruto abaixo do resumo para não
+    // perder nada que estiver no bloco.
+    const trechoBruto = String(trecho).trim();
+    if (trechoBruto) {
+      saida.push("");
+      saida.push("Detalhes da pauta:");
+      saida.push(trechoBruto);
+    }
     return saida.join("\n");
   };
 
@@ -1460,6 +1472,15 @@ const AnaliseDjen = () => {
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
+        }
+        // Fallback determinístico: se a IA falhou ou veio vazio, usa o trecho
+        // final extraído localmente para que a publicação NUNCA apareça sem
+        // corpo no PDF.
+        if (!resumosMap.get(pub.id)) {
+          const trecho = extractTrechoFinal(pub.conteudo);
+          if (trecho) {
+            resumosMap.set(pub.id, `Resumo automático indisponível — trecho da publicação:\n\n${trecho}`);
+          }
         }
         // Small delay between calls to avoid rate limiting
         if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
@@ -1962,6 +1983,12 @@ const AnaliseDjen = () => {
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
+        }
+        if (!resumosMap.get(pub.id)) {
+          const trecho = extractTrechoFinal(pub.conteudo);
+          if (trecho) {
+            resumosMap.set(pub.id, `Resumo automático indisponível — trecho da publicação:\n\n${trecho}`);
+          }
         }
         // Small delay between calls to avoid rate limiting
         if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
