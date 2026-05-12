@@ -60,6 +60,7 @@ import { toast } from "sonner";
 import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
+import { prepararConteudoParaIA } from "@/lib/publicacao-markdown";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
@@ -1402,12 +1403,14 @@ const AnaliseDjen = () => {
     if (!precisaIA) return heur;
 
     try {
+      const { conteudoMd } = prepararConteudoParaIA(original, pub.processo_numero);
       const { data, error } = await supabase.functions.invoke("resumir-publicacoes", {
         body: {
           apenasTrecho: true,
           publicacao: {
             id: pub.id,
             conteudo: original,
+            conteudoMd,
             processo: pub.processo_numero,
             data: pub.data_disponibilizacao,
           },
@@ -1453,12 +1456,14 @@ const AnaliseDjen = () => {
             resumosMap.set(pub.id, resumoPauta);
             continue;
           }
+          const prep1 = prepararConteudoParaIA(pub.conteudo, pub.processo_numero);
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
               resumoIndividual: true,
               publicacao: {
                 id: pub.id,
                 conteudo: pub.conteudo,
+                conteudoMd: prep1.conteudoMd,
                 processo: pub.processo_numero,
                 dataDisponibilizacao: pub.data_disponibilizacao,
               },
@@ -1966,12 +1971,14 @@ const AnaliseDjen = () => {
             resumosMap.set(pub.id, resumoPauta);
             continue;
           }
+          const prep2 = prepararConteudoParaIA(pub.conteudo, pub.processo_numero);
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
               resumoIndividual: true,
               publicacao: {
                 id: pub.id,
                 conteudo: pub.conteudo,
+                conteudoMd: prep2.conteudoMd,
                 processo: pub.processo_numero,
                 dataDisponibilizacao: pub.data_disponibilizacao,
               },

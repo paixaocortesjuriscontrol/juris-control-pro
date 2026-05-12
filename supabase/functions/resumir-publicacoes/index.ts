@@ -6,6 +6,7 @@ import {
   SYSTEM_PROMPT_FASE_RESUMO,
   SYSTEM_PROMPT_FASE_TRECHO,
 } from './prompt-agente.ts';
+import { htmlParaMarkdown, isPautaDeJulgamentoMd, segmentarPauta, selecionarBlocoPorProcesso } from './markdown.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -343,7 +344,15 @@ serve(async (req) => {
         );
       }
       const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
-      const conteudo = conteudoBruto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Markdown estruturado: usa o que o cliente enviou ou gera localmente.
+      // Para pautas, recorta apenas o bloco do processo de interesse.
+      const processoTmp = pub.processo || pub.numeroProcesso || '';
+      let conteudoMd: string = (pub.conteudoMd && String(pub.conteudoMd).trim())
+        || htmlParaMarkdown(conteudoBruto);
+      if (isPautaDeJulgamentoMd(conteudoMd)) {
+        conteudoMd = selecionarBlocoPorProcesso(conteudoMd, processoTmp);
+      }
+      const conteudo = conteudoMd; // mantém variável usada abaixo
       if (!conteudo || conteudo.length < 20) {
         return new Response(
           JSON.stringify({ id: pub.id, trecho: '' }),
@@ -421,7 +430,17 @@ serve(async (req) => {
       }
 
       const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
-      const conteudo = conteudoBruto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const processoTmp = pub.processo || pub.numeroProcesso || '';
+      let conteudoMd: string = (pub.conteudoMd && String(pub.conteudoMd).trim())
+        || htmlParaMarkdown(conteudoBruto);
+      let blocosDetectados = 1;
+      if (isPautaDeJulgamentoMd(conteudoMd)) {
+        const blocos = segmentarPauta(conteudoMd);
+        blocosDetectados = blocos.length;
+        conteudoMd = selecionarBlocoPorProcesso(conteudoMd, processoTmp);
+      }
+      const conteudo = conteudoMd;
+      console.info(`[resumir-publicacoes] pub=${pub.id} bruto=${conteudoBruto.length} md=${conteudoMd.length} blocos=${blocosDetectados}`);
       if (!conteudo || conteudo.length < 20) {
         return new Response(
           JSON.stringify({ id: pub.id, resumo: 'Publicação sem conteúdo suficiente para resumir.' }),
