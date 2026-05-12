@@ -11,7 +11,7 @@ import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/Distrib
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
@@ -105,6 +105,8 @@ export default function DistribuicaoTst() {
   const [delegarOpen, setDelegarOpen] = useState(false);
   const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
+  const [cargaDistribuicoes, setCargaDistribuicoes] = useState<any[] | null>(null);
+  const [cargaLoading, setCargaLoading] = useState(false);
   
   // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
   const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
@@ -569,6 +571,42 @@ export default function DistribuicaoTst() {
     }
   };
 
+  // Gerar carga Benner respeitando os filtros aplicados na lista
+  const handleGerarCarga = async () => {
+    setCargaLoading(true);
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando distribuições filtradas...");
+        ids = await fetchAllDistribuicaoTstIds(debouncedFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
+        return;
+      }
+      toast.info(`Carregando ${ids.length} distribuição(ões)...`);
+      const allData: any[] = [];
+      const pageSize = 1000;
+      for (let i = 0; i < ids.length; i += pageSize) {
+        const batch = ids.slice(i, i + pageSize);
+        const { data, error } = await supabase
+          .from("dados_benner" as any)
+          .select("*")
+          .in("id", batch);
+        if (error) throw error;
+        if (data) allData.push(...(data as any[]));
+      }
+      setCargaDistribuicoes(allData);
+      setShowCarga(true);
+    } catch (err: any) {
+      toast.error("Erro ao carregar dados para carga: " + (err?.message || String(err)));
+    } finally {
+      setCargaLoading(false);
+    }
+  };
+
   const handleBulkJudit = async () => {
     bulkAbortRef.current = false;
     setBulkJuditRunning(true);
@@ -932,10 +970,11 @@ export default function DistribuicaoTst() {
               <FileSpreadsheet className="w-6 h-6 text-primary" />
               Carga Benner (Dados do Supabase)
             </h1>
-            <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
+            <Button variant="outline" onClick={() => { setShowCarga(false); setCargaDistribuicoes(null); }}>Voltar à Lista</Button>
           </div>
           <CargaBennerFromDb 
             selectedProcessNumbers={selectedIds.size > 0 ? dados.filter(d => selectedIds.has(d.id)).map(d => d.processo_numero) : undefined}
+            distribuicoes={cargaDistribuicoes || undefined}
             filters={{
             aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
             benner: filtroBenner as any,
@@ -1063,9 +1102,13 @@ export default function DistribuicaoTst() {
             </Button>
           </Link>
           <BennerSimImport onUpdated={handleRefresh} />
-          <Button variant="secondary" onClick={() => setShowCarga(true)}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
+          <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
+            {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+            {cargaLoading
+              ? "Carregando..."
+              : selectedIds.size > 0
+                ? `Carga Benner (${selectedIds.size})`
+                : "Gerar Carga Benner"}
           </Button>
         </div>
 

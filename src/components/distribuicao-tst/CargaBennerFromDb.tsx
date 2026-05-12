@@ -208,9 +208,10 @@ interface Props {
   onClose?: () => void;
   filters?: CargaFilters;
   selectedProcessNumbers?: string[];
+  distribuicoes?: any[];
 }
 
-export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes }: Props) {
   const [processing, setProcessing] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
@@ -219,6 +220,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
+  const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
 
   const processData = async () => {
     setProcessing(true);
@@ -246,7 +248,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         turma_favorabilidade: b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null,
       });
 
-      if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
+      if (hasPreFilteredData) {
+        // Usa dados já filtrados pela tela (respeita 100% dos filtros aplicados)
+        allDist.push(...distribuicoes!.map(mapBennerToDist));
+      } else if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
         for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
           const batch = selectedProcessNumbers.slice(i, i + 100);
           const { data, error } = await supabase
