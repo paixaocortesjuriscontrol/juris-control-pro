@@ -1442,8 +1442,10 @@ const AnaliseDjen = () => {
     if (!conteudo) return "";
 
     const limparHtml = (s: string) => s
-      .replace(/<br\s*\/?>(?=)/gi, "\n")
-      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\s*br\s*\/?>/gi, "\n")
+      .replace(/<\/\s*p\s*>/gi, "\n\n")
+      .replace(/<\/\s*div\s*>/gi, "\n\n")
+      .replace(/<\/\s*li\s*>/gi, "\n")
       .replace(/<[^>]+>/g, "")
       .replace(/\r\n?/g, "\n")
       .split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).join("\n")
@@ -1455,10 +1457,53 @@ const AnaliseDjen = () => {
     }
 
     const normalizado = limparHtml(conteudo);
+
+    // ===== INDEXAÇÃO =====
+    // 1) Quebra inicial por blocos
     let paragrafos = normalizado.split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
     if (paragrafos.length <= 1) {
       paragrafos = normalizado.split(/\n+/).map(p => p.trim()).filter(Boolean);
     }
+
+    // 2) Marcadores estruturais comuns em decisões/despachos — força quebra antes deles
+    const marcadores = /(?=(?:^|\s)(?:VISTOS|Vistos|Trata-se|Cuida-se|RELAT[ÓO]RIO|Relat[óo]rio|FUNDAMENTA[ÇC][ÃA]O|Fundamenta[çc][ãa]o|DECIS[ÃA]O|Decis[ãa]o|DISPOSITIVO|Dispositivo|Decido|DECIDO|Posto isso|Ante o exposto|Diante do exposto|Isso posto|Isto posto|Por tais raz[õo]es|Em face do exposto|Pelo exposto|Defiro|Indefiro|Conhe[çc]o|N[ãa]o conhe[çc]o|D[ÊE]-SE|Intime-se|Cite-se|Publique-se|Notifique-se|Cumpra-se|Encaminhe-se|Arquive-se|Conclus[ãa]o|Senten[çc]a|Ac[óo]rd[ãa]o)\b)/g;
+    const reindexar = (lista: string[]): string[] => {
+      const out: string[] = [];
+      for (const p of lista) {
+        if (p.length < 400) { out.push(p); continue; }
+        const partes = p.split(marcadores).map(x => x.trim()).filter(Boolean);
+        if (partes.length > 1) out.push(...partes);
+        else out.push(p);
+      }
+      return out;
+    };
+    paragrafos = reindexar(paragrafos);
+
+    // 3) Se ainda houver parágrafos muito longos (>800 chars), quebra por sentenças
+    //    agrupando sentenças em blocos ~3-4 frases para virar "parágrafos lógicos".
+    const splitSentencas = (texto: string): string[] => {
+      const frases = texto
+        .split(/(?<=[\.\?!])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ"“(\[])/g)
+        .map(s => s.trim()).filter(Boolean);
+      if (frases.length <= 1) return [texto];
+      const blocos: string[] = [];
+      const tamanhoAlvo = 350;
+      let buf = "";
+      for (const f of frases) {
+        if (!buf) { buf = f; continue; }
+        if ((buf + " " + f).length > tamanhoAlvo) { blocos.push(buf); buf = f; }
+        else buf = buf + " " + f;
+      }
+      if (buf) blocos.push(buf);
+      return blocos;
+    };
+    const finos: string[] = [];
+    for (const p of paragrafos) {
+      if (p.length > 800) finos.push(...splitSentencas(p));
+      else finos.push(p);
+    }
+    paragrafos = finos.map(p => p.trim()).filter(Boolean);
+
     if (paragrafos.length === 0) return "";
 
     const ehAssinatura = (p: string) => !!p && p.length <= 240
