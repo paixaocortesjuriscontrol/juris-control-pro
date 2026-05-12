@@ -1427,6 +1427,79 @@ const AnaliseDjen = () => {
 
   const [gerandoResumoRapido, setGerandoResumoRapido] = useState(false);
   const [gerandoDocResumoRapido, setGerandoDocResumoRapido] = useState(false);
+  const [gerandoResumoSemIA, setGerandoResumoSemIA] = useState(false);
+  const [gerandoDocResumoSemIA, setGerandoDocResumoSemIA] = useState(false);
+
+  // ===== Extrator "Resumo sem IA" =====
+  // - Pauta de Julgamento: retorna o conteúdo na íntegra (apenas limpa HTML).
+  // - Demais publicações: lê do fim para o começo, separa o bloco final
+  //   (assinatura do relator + intimados/citados) — que é SEMPRE preservado
+  //   e exibido — e devolve os ÚLTIMOS 2 parágrafos substantivos antes desse
+  //   bloco. Se a soma desses 2 parágrafos tiver < 300 caracteres, inclui o
+  //   3º parágrafo anterior.
+  const extractResumoSemIA = (pub: any): string => {
+    const conteudo = String(pub?.conteudo || "");
+    if (!conteudo) return "";
+
+    const limparHtml = (s: string) => s
+      .replace(/<br\s*\/?>(?=)/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\r\n?/g, "\n")
+      .split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).join("\n")
+      .replace(/\n{3,}/g, "\n\n").trim();
+
+    // Pauta: íntegra
+    if (isPautaDeJulgamento(conteudo)) {
+      return limparHtml(conteudo);
+    }
+
+    const normalizado = limparHtml(conteudo);
+    let paragrafos = normalizado.split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
+    if (paragrafos.length <= 1) {
+      paragrafos = normalizado.split(/\n+/).map(p => p.trim()).filter(Boolean);
+    }
+    if (paragrafos.length === 0) return "";
+
+    const ehAssinatura = (p: string) => !!p && p.length <= 240
+      && /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente|Secret[áa]ri[ao])\b/i.test(p);
+    const ehHeaderIntimados = (p: string) => /Intimad[oa]\(s\)\s*\/\s*Citad[oa]\(s\)/i.test(p)
+      || /^Intimad[oa]s?\s*[:\-]/i.test(p)
+      || /^Citad[oa]s?\s*[:\-]/i.test(p);
+    const ehItemLista = (p: string) => /^[-•]\s*\S/.test(p)
+      || (p.length < 200 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9][A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9 \-\.&'/()]*$/.test(p));
+
+    // Caminha do fim para o começo, separando o bloco final (assinatura + intimados).
+    const trailing: string[] = [];
+    let i = paragrafos.length - 1;
+    let viuIntim = false;
+    let viuAssin = false;
+    while (i >= 0) {
+      const p = paragrafos[i];
+      if (ehAssinatura(p)) { trailing.unshift(p); viuAssin = true; i--; continue; }
+      if (ehHeaderIntimados(p)) { trailing.unshift(p); viuIntim = true; i--; continue; }
+      if (viuIntim && ehItemLista(p)) { trailing.unshift(p); i--; continue; }
+      if (!viuAssin && !viuIntim && trailing.length === 0 && ehItemLista(p) && p.length < 120) {
+        // Itens curtos no fim (lista de intimados sem header explícito)
+        trailing.unshift(p); i--; continue;
+      }
+      break;
+    }
+
+    const principais = paragrafos.slice(0, i + 1);
+    if (principais.length === 0) {
+      // Sem parágrafos "substantivos" — devolve só o bloco final preservado
+      return trailing.join("\n\n").trim();
+    }
+
+    let ultimos = principais.slice(-2);
+    if (ultimos.join("\n\n").length < 300 && principais.length >= 3) {
+      ultimos = principais.slice(-3);
+    }
+
+    return [...ultimos, ...trailing].join("\n\n").trim();
+  };
+
 
   const handleGerarPdfResumo = async () => {
     const allPublicacoes = getPubsParaGerar();
