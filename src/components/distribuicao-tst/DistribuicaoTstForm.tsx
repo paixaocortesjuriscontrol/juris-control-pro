@@ -655,9 +655,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
               <Label className="flex items-center">Relator (+ ou -) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
-              <Select value={form.relator_favorabilidade || ""} onValueChange={v => set("relator_favorabilidade", v)}>
+              <Select value={form.relator_favorabilidade || "__none__"} onValueChange={v => set("relator_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="POSITIVO">POSITIVO</SelectItem>
                   <SelectItem value="NEGATIVO">NEGATIVO</SelectItem>
                 </SelectContent>
@@ -671,9 +672,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
               <Label className="flex items-center">Turma (+ ou -) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
-              <Select value={form.turma_favorabilidade || ""} onValueChange={v => set("turma_favorabilidade", v)}>
+              <Select value={form.turma_favorabilidade || "__none__"} onValueChange={v => set("turma_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="POSITIVA">POSITIVA</SelectItem>
                   <SelectItem value="NEGATIVA">NEGATIVA</SelectItem>
                 </SelectContent>
@@ -705,9 +707,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className="space-y-2">
               <Label>Aparelhamento</Label>
-              <Select value={form.aparelhamento_reclamante || ""} onValueChange={v => set("aparelhamento_reclamante", v)}>
+              <Select value={form.aparelhamento_reclamante || "__none__"} onValueChange={v => set("aparelhamento_reclamante", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="BEM APARELHADO">BEM APARELHADO</SelectItem>
                   <SelectItem value="MAL APARELHADO">MAL APARELHADO</SelectItem>
                 </SelectContent>
@@ -723,9 +726,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="space-y-2">
             <Label>Chance de Êxito</Label>
-            <Select value={form.chance_exito_reclamante || ""} onValueChange={v => set("chance_exito_reclamante", v)}>
+            <Select value={form.chance_exito_reclamante || "__none__"} onValueChange={v => set("chance_exito_reclamante", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
                 <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
                 <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
                 <SelectItem value="REMOTA">REMOTA</SelectItem>
@@ -753,9 +757,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className="space-y-2">
               <Label>Aparelhamento</Label>
-              <Select value={form.aparelhamento_banco || ""} onValueChange={v => set("aparelhamento_banco", v)}>
+              <Select value={form.aparelhamento_banco || "__none__"} onValueChange={v => set("aparelhamento_banco", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="BEM APARELHADO">BEM APARELHADO</SelectItem>
                   <SelectItem value="MAL APARELHADO">MAL APARELHADO</SelectItem>
                 </SelectContent>
@@ -771,9 +776,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="space-y-2">
             <Label>Chance de Êxito</Label>
-            <Select value={form.chance_exito_banco || ""} onValueChange={v => set("chance_exito_banco", v)}>
+            <Select value={form.chance_exito_banco || "__none__"} onValueChange={v => set("chance_exito_banco", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
                 <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
                 <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
                 <SelectItem value="REMOTA">REMOTA</SelectItem>
@@ -790,9 +796,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Honra</Label>
-              <Select value={form.honra || ""} onValueChange={v => set("honra", v)}>
+              <Select value={form.honra || "__none__"} onValueChange={v => set("honra", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="SIM">SIM</SelectItem>
                   <SelectItem value="NÃO">NÃO</SelectItem>
                 </SelectContent>
@@ -804,9 +811,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className="space-y-2">
               <Label>Execução</Label>
-              <Select value={form.execucao || ""} onValueChange={v => set("execucao", v)}>
+              <Select value={form.execucao || "__none__"} onValueChange={v => set("execucao", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="SIM">SIM</SelectItem>
                   <SelectItem value="NÃO">NÃO</SelectItem>
                 </SelectContent>
@@ -816,9 +824,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Mídia Negativa</Label>
-              <Select value={form.midia_negativa || ""} onValueChange={v => set("midia_negativa", v)}>
+              <Select value={form.midia_negativa || "__none__"} onValueChange={v => set("midia_negativa", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="SIM">SIM</SelectItem>
                   <SelectItem value="NÃO">NÃO</SelectItem>
                 </SelectContent>
@@ -826,9 +835,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className="space-y-2">
               <Label>Recurso de Terceiros</Label>
-              <Select value={form.recurso_terceiros || ""} onValueChange={v => set("recurso_terceiros", v)}>
+              <Select value={form.recurso_terceiros || "__none__"} onValueChange={v => set("recurso_terceiros", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="SIM">SIM</SelectItem>
                   <SelectItem value="NÃO">NÃO</SelectItem>
                 </SelectContent>
