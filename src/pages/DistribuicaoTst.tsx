@@ -11,7 +11,7 @@ import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/Distrib
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
