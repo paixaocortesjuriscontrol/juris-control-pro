@@ -1,71 +1,85 @@
 ## Objetivo
 
-Pré-indexar as publicações em **Markdown estruturado** antes de enviá-las à IA, eliminando o "muro de texto" que hoje causa truncamento de pautas e respostas curtas demais. Sem alterar Resumo Rápido, sem migração de banco, sem mudança no provedor (continua OpenAI direto).
+Corrigir resumos de **PAUTA** truncados nos botões "Gerar PDF Resumo" e "Gerar DOC Resumo" da tela Análise DJEN, sem alterar o "Resumo Rápido". A causa raiz é o curto-circuito determinístico (`resumirPautaDeterministico`) que opera sobre HTML colapsado e devolve 1 linha quando o regex não casa o layout daquela pauta. A indexação Markdown atual é construída mas ignorada nesse caminho.
 
-## Escopo
+Estratégia escolhida: **Híbrido** — mantém o caminho determinístico rápido/barato, mas faz fallback automático para a IA (gpt-4o, OpenAI direta) com o **bloco do processo já em Markdown segmentado** quando o resultado vier insuficiente.
 
-- `src/pages/AnaliseDjen.tsx` — formatador HTML→Markdown e segmentação de pautas no front (usado pelos botões "Gerar PDF Resumo" e "Gerar DOC Resumo").
-- `supabase/functions/resumir-publicacoes/index.ts` — mesmo formatador no backend, antes da chamada à IA.
-- Resumo Rápido (PDF/DOC) **não é alterado**.
+## Mudanças
 
-## O que será construído
+### 1. `supabase/functions/resumir-publicacoes/index.ts` — fluxo `resumoIndividual` (linhas ~432-466)
 
-### 1. Formatador determinístico `htmlParaMarkdown(conteudo)`
+**Adicionar heurística de qualidade** após `resumirPautaDeterministico`:
 
-Converte o HTML/texto bruto da publicação em Markdown legível pela IA, preservando estrutura:
+- Considera "insuficiente" quando o resumo determinístico:
+  - Tem menos de 250 caracteres, **ou**
+  - Não contém pelo menos 2 dos marcadores essenciais: `Relator`, `AGRAVANTE|RECORRENTE|RECLAMANTE`, `ADVOGADO`, `Intimado`, `Sessão`/`Pauta`, **ou**
+  - Não contém o número do processo de interesse.
 
-- `<br>`, `<br/>`, `</p>`, `</div>` → quebra de linha real (`\n`).
-- `<p>`, `<div>` de abertura → linha em branco antes do bloco.
-- `<strong>`, `<b>` → `**texto**`.
-- `<em>`, `<i>` → `*texto*`.
-- `<ul>/<ol>/<li>` → lista Markdown (`- item`).
-- Decodificação de entidades (`&nbsp;`, `&amp;`, `&lt;`, etc.).
-- Remove tags restantes (`<[^>]+>`).
-- Normaliza espaços **sem colapsar quebras de linha** (preserva `\n`, colapsa apenas espaços/tabs repetidos).
-- Limita no máximo 2 quebras consecutivas.
+- Quando insuficiente **E** `isPautaDeJulgamentoMd(conteudoMd)` for verdadeiro:
+  - Recorta o bloco do processo via `selecionarBlocoPorProcesso(conteudoMd, processo)` (já existe).
+  - Envia esse bloco em Markdown para a IA usando o mesmo `callOpenAI` já presente no fluxo, com **um novo system prompt específico para pauta** (`SYSTEM_PROMPT_PAUTA`):
+    - Persona: advogado sênior contencioso (mesma do PDF).
+    - Instrução: produzir resumo fluido (sem markdown, sem bullets), com obrigatoriedade de citar quando presentes — Sessão/data, Relator(a), Turma/Órgão, Partes (ativa/passiva), Advogado(s), Intimados, Complemento/observações da pauta.
+    - Restrição: usar SOMENTE o bloco fornecido; nunca inventar dados.
+  - `max_tokens: 1200`, `temperature: 0.1`, `response_format: json_object` com schema `{ resumo: string, orgao?: string }`.
+  - Retry/backoff já existente (`callOpenAI`).
 
-### 2. Segmentador de pautas `segmentarPauta(markdown)`
+- Se a IA falhar (após retries) **ou** vier vazia, devolve o resumo determinístico original como fallback final (não regredir).
 
-Para publicações de pauta (TST/TRT), divide o documento em blocos por processo:
+- Logging: `[resumir-publicacoes] pauta-fallback pub=… det_len=… ai_len=… motivo=…` para auditoria.
 
-- Detecta cabeçalhos como `Processo Nº`, `AIRR-`, `RR-`, `AgInt-`, `ED-`, números CNJ, "Aditamento à Pauta", "Pauta de Julgamento".
-- Retorna array de blocos `{ titulo, conteudoMd }`.
-- Quando o usuário pediu o resumo de uma publicação, a IA recebe **apenas o bloco do processo relevante** (ou o bloco inteiro, caso curto), não o documento todo.
-- Se não houver segmentação clara, usa o Markdown inteiro (fallback).
+### 2. `supabase/functions/resumir-publicacoes/index.ts` — fluxo `apenasTrecho` (linhas ~365-371)
 
-### 3. Integração no front (`AnaliseDjen.tsx`)
+**Não alterar.** Resumo Rápido continua usando `extrairTrechoPauta` determinístico, conforme pedido do usuário.
 
-- Antes de enviar `conteudo` para `supabase.functions.invoke('resumir-publicacoes', ...)`, aplicar `htmlParaMarkdown` + (quando pauta) `segmentarPauta`, e mandar o Markdown estruturado em um novo campo `conteudoMd` (mantendo `conteudo` original por compatibilidade).
-- Os fallbacks já implementados (`extractTrechoFinal` quando IA falha, `Detalhes da pauta` no `resumirTrechoPauta`) permanecem como rede de segurança.
+### 3. Front-end (`src/pages/AnaliseDjen.tsx`)
 
-### 4. Integração no backend (`resumir-publicacoes/index.ts`)
+**Não alterar.** O `conteudoMd` já é enviado na chamada do `resumoIndividual` (PDF/DOC) graças à indexação anterior. A nova lógica de fallback consome o `conteudoMd` do payload no backend.
 
-- Replicar `htmlParaMarkdown` e `segmentarPauta` em Deno.
-- Se a request trouxer `conteudoMd`, usar direto. Se não, gerar a partir de `conteudo` (compatibilidade com chamadores antigos).
-- Atualizar o prompt da IA para indicar que o input é Markdown estruturado por seções, instruindo-a a preservar relator, partes, advogados, intimados e despacho/decisão na resposta.
-- `resumirPautaDeterministico` passa a operar sobre Markdown (campos vêm em linhas separadas, não no muro de texto), aumentando a taxa de match.
+### 4. Memória do projeto
 
-### 5. Resumo Rápido
-
-Sem mudanças. As funções `extractTrechoPauta` / `extractTrechoFinal` continuam idênticas.
+Atualizar `mem://features/monitoring/djen-analysis-pdf-summary-ia` registrando o fluxo híbrido: pauta usa determinístico → fallback IA quando insuficiente; Resumo Rápido permanece 100% determinístico.
 
 ## Detalhes técnicos
 
-- Formatador implementado como função pura, sem dependências novas (regex + replace). Mesmo código TS no front e Deno no backend (copy-paste consciente, com testes manuais nos dois lados).
-- Segmentação: regex multiline para encontrar âncoras de processo; corta o Markdown nessas âncoras e associa cada slice ao número detectado.
-- Tamanho máximo enviado à IA por chamada: bloco do processo + 500 caracteres de contexto antes/depois (evita explodir tokens em pautas com 200 processos).
-- Logs: manter `console.info` no edge para amostrar tamanho original vs. tamanho Markdown vs. nº de blocos detectados nas primeiras 10 execuções.
+**Heurística "insuficiente" (pseudo)**:
+```text
+const det = resumirPautaDeterministico(htmlBruto, processo);
+const camposEssenciais = [/Relator/i, /(AGRAVANTE|RECORRENTE|RECLAMANTE|RECLAMADO|AGRAVADO|RECORRIDO)/i,
+                          /ADVOGAD[OA]/i, /Intimad/i, /(Sess[aã]o|Pauta)/i];
+const acertos = camposEssenciais.filter(re => re.test(det)).length;
+const temProc = String(processo).replace(/\D/g,'').length>=15
+              && det.replace(/\D/g,'').includes(String(processo).replace(/\D/g,''));
+const insuficiente = !det || det.length < 250 || acertos < 2 || !temProc;
+```
+
+**Chamada de IA no fallback**:
+```text
+bloco = selecionarBlocoPorProcesso(conteudoMd, processo)  // já existe, devolve MD do processo
+userMsg = `Pauta de Julgamento — Markdown estruturado do bloco do processo.
+Processo: ${processo}\nData: ${dataPub}\n\n--- BLOCO ---\n${bloco}\n--- FIM ---\n
+Retorne JSON {"resumo":"…","orgao":"…"} com texto fluido sem markdown.`;
+respJson = await callOpenAI(SYSTEM_PROMPT_PAUTA, userMsg, 1200);
+```
+
+**Fallback final**:
+```text
+return resumo: respJson?.resumo?.trim() || det || 'Publicação sem conteúdo suficiente para resumir.'
+```
 
 ## Validação
 
-1. Rodar "Gerar PDF Resumo" no caso real de "Aditamento à Pauta TST" que motivou o ticket — confirmar que o resumo passa de 1 linha para o bloco completo (relator, partes, advogados, intimados).
-2. Rodar em uma publicação comum (despacho/decisão) — confirmar que o resumo continua coerente e não regrediu.
-3. Rodar "Gerar DOC Resumo Rápido" — confirmar que está idêntico ao comportamento atual (não foi tocado).
-4. Conferir logs do edge para garantir que o Markdown está sendo recebido e que o número de blocos detectados em pautas é > 1.
+1. Deploy `resumir-publicacoes`.
+2. Em Análise DJEN, selecionar uma pauta TST que hoje vira 1 linha (ex.: "Aditamento à Pauta") e clicar "Gerar PDF Resumo".
+3. Confirmar que o PDF traz: relator, partes, advogados, intimados e complemento — texto fluido.
+4. Selecionar uma decisão comum (não-pauta) e confirmar que o comportamento atual permanece (sem regressão).
+5. Selecionar uma pauta com layout "bem-comportado" (Quinta Turma típica) e confirmar que o caminho determinístico ainda é usado (logs sem `pauta-fallback`).
+6. Conferir Edge Function logs: `pauta-fallback pub=… det_len=… ai_len=…`.
+7. Resumo Rápido: testar mesma pauta, confirmar texto inalterado (caminho determinístico).
 
-## Fora do escopo
+## Fora de escopo
 
-- Persistência do Markdown no Postgres (Opção B) — não será feito agora.
-- Vetorização / pgvector (Opção C) — não será feito.
-- Mudança de modelo ou provider de IA.
-- Alteração visual nas telas.
+- Mudar provider/modelo de IA (segue OpenAI gpt-4o direto).
+- Alterar Resumo Rápido (`apenasTrecho`).
+- Persistir resumos em Postgres / pgvector.
+- Mudanças de UI.
