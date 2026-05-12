@@ -1007,6 +1007,7 @@ const AnaliseDjen = () => {
         };
 
         if (pub.tribunal) printMeta("Órgão", pub.tribunal);
+        if (pub.orgao && pub.orgao !== pub.tribunal) printMeta("Turma", pub.orgao);
         if (pub.data_disponibilizacao) printMeta("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
         printMeta("Tipo de comunicação", "Intimação");
         if (pub.fonte) printMeta("Fonte", pub.fonte);
@@ -1516,7 +1517,8 @@ const AnaliseDjen = () => {
         };
 
         addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
-        addRow("Órgão", (pub.orgao || pub.tribunal) || "—");
+        addRow("Órgão", pub.tribunal || pub.orgao || "—");
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", pub.orgao);
         addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
@@ -1722,10 +1724,15 @@ const AnaliseDjen = () => {
     }));
 
     const metaItems: TextRun[] = [];
-    const orgaoCombo = [pub.tribunal, orgaoExtra].filter(Boolean).join(' - ');
-    if (orgaoCombo) {
+    const turma = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const orgaoLabel = pub.tribunal || pub.orgao;
+    if (orgaoLabel) {
       metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
-      metaItems.push(new TextRun({ text: sanitizeForXml(orgaoCombo) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(orgaoLabel) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    if (turma) {
+      metaItems.push(new TextRun({ text: "Turma: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(turma) + "   ", size: docFontSize, font: docFont, color: "555555" }));
     }
     if (pub.data_disponibilizacao) {
       metaItems.push(new TextRun({ text: "Data: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
@@ -2091,7 +2098,8 @@ const AnaliseDjen = () => {
         };
 
         addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
-        addRow("Órgão", (pub.orgao || pub.tribunal) || "—");
+        addRow("Órgão", pub.tribunal || pub.orgao || "—");
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", pub.orgao);
         addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
