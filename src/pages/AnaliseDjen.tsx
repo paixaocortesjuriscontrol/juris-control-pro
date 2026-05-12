@@ -1506,8 +1506,19 @@ const AnaliseDjen = () => {
 
     if (paragrafos.length === 0) return "";
 
-    const ehAssinatura = (p: string) => !!p && p.length <= 240
+    const ehAssinaturaForte = (p: string) => !!p && p.length <= 240
       && /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente|Secret[áa]ri[ao])\b/i.test(p);
+    // "Fraco": linhas típicas do bloco de assinatura — só contam quando já vimos uma assinatura forte logo depois.
+    const ehAssinaturaFraco = (p: string) => {
+      if (!p || p.length > 200) return false;
+      if (/^Bras[íi]lia\s*,?\s*\d/i.test(p)) return true; // "Brasília, 7 de maio de 2026."
+      if (/Firmado por assinatura digital/i.test(p)) return true;
+      if (/MP\s*2\.?200-?2\s*\/\s*2001/i.test(p)) return true;
+      // Linha em CAIXA-ALTA (nome do assinante)
+      if (p.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(p)) return true;
+      return false;
+    };
+    const ehAssinatura = (p: string) => ehAssinaturaForte(p) || ehAssinaturaFraco(p);
     const ehHeaderIntimados = (p: string) => /Intimad[oa]\(s\)\s*\/\s*Citad[oa]\(s\)/i.test(p)
       || /^Intimad[oa]s?\s*[:\-]/i.test(p)
       || /^Citad[oa]s?\s*[:\-]/i.test(p);
@@ -1521,7 +1532,8 @@ const AnaliseDjen = () => {
     let viuAssin = false;
     while (i >= 0) {
       const p = paragrafos[i];
-      if (ehAssinatura(p)) { trailing.unshift(p); viuAssin = true; i--; continue; }
+      if (ehAssinaturaForte(p)) { trailing.unshift(p); viuAssin = true; i--; continue; }
+      if (ehAssinaturaFraco(p)) { trailing.unshift(p); i--; continue; }
       if (ehHeaderIntimados(p)) { trailing.unshift(p); viuIntim = true; i--; continue; }
       if (viuIntim && ehItemLista(p)) { trailing.unshift(p); i--; continue; }
       if (!viuAssin && !viuIntim && trailing.length === 0 && ehItemLista(p) && p.length < 120) {
@@ -1537,9 +1549,18 @@ const AnaliseDjen = () => {
       return trailing.join("\n\n").trim();
     }
 
-    let ultimos = principais.slice(-2);
-    if (ultimos.join("\n\n").length < 300 && principais.length >= 3) {
-      ultimos = principais.slice(-3);
+    // Garante mínimo de caracteres reais no resumo (excluindo assinatura/intimados).
+    // Vai expandindo o número de parágrafos até atingir 300 chars (ou esgotar).
+    let n = Math.min(2, principais.length);
+    let ultimos = principais.slice(-n);
+    while (ultimos.join("\n\n").length < 300 && n < principais.length) {
+      n++;
+      ultimos = principais.slice(-n);
+    }
+    // Se mesmo somando todos os principais ficou muito curto (<150) e ainda há
+    // texto, devolve tudo que sobrou — evita resumos com 2 frases triviais.
+    if (ultimos.join("\n\n").length < 150 && principais.length > 0) {
+      ultimos = principais.slice();
     }
 
     return [...ultimos, ...trailing].join("\n\n").trim();
