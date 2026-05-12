@@ -142,7 +142,8 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     em_analise_em: b.em_analise_em ?? null,
     created_at: b.created_at,
     updated_at: b.updated_at,
-  };
+    subida_em_massa: !!b.subida_em_massa,
+  } as any;
 }
 
 export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<string, any> {
