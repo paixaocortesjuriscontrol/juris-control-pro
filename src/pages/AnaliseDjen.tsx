@@ -1456,12 +1456,14 @@ const AnaliseDjen = () => {
             resumosMap.set(pub.id, resumoPauta);
             continue;
           }
+          const prep1 = prepararConteudoParaIA(pub.conteudo, pub.processo_numero);
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
               resumoIndividual: true,
               publicacao: {
                 id: pub.id,
                 conteudo: pub.conteudo,
+                conteudoMd: prep1.conteudoMd,
                 processo: pub.processo_numero,
                 dataDisponibilizacao: pub.data_disponibilizacao,
               },
@@ -1969,12 +1971,14 @@ const AnaliseDjen = () => {
             resumosMap.set(pub.id, resumoPauta);
             continue;
           }
+          const prep2 = prepararConteudoParaIA(pub.conteudo, pub.processo_numero);
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
               resumoIndividual: true,
               publicacao: {
                 id: pub.id,
                 conteudo: pub.conteudo,
+                conteudoMd: prep2.conteudoMd,
                 processo: pub.processo_numero,
                 dataDisponibilizacao: pub.data_disponibilizacao,
               },
