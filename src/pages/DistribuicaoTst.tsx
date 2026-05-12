@@ -1556,6 +1556,16 @@ export default function DistribuicaoTst() {
                                   Dup.
                                 </Badge>
                               )}
+                              {isPronto && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
+                                  Pronto
+                                </Badge>
+                              )}
+                              {hasProvasDigitais && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
+                                  Provas Digitais
+                                </Badge>
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1573,6 +1583,16 @@ export default function DistribuicaoTst() {
                           {(d as any).ic_duplicado && (
                             <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
                               Dup.
+                            </Badge>
+                          )}
+                          {isPronto && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
+                              Pronto
+                            </Badge>
+                          )}
+                          {hasProvasDigitais && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
+                              Provas Digitais
                             </Badge>
                           )}
                         </div>
@@ -1605,7 +1625,16 @@ export default function DistribuicaoTst() {
                       </button>
                     )}
                   </TableCell>
-                  <TableCell className={cn("text-xs align-middle", relatorClass)}>{d.relator || "—"}</TableCell>
+                  <TableCell className={cn("text-xs align-middle", relatorClass)}>
+                    <div className="inline-flex items-center gap-1 flex-wrap">
+                      <span>{d.relator || "—"}</span>
+                      {isSubidaMassa && (
+                        <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
+                          Subida em Massa
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className={cn("text-xs align-middle", turmaClass)}>
                     <div className="flex items-center gap-1 flex-wrap">
                       <span>{d.turma || "—"}</span>
