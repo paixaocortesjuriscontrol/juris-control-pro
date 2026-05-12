@@ -1724,10 +1724,15 @@ const AnaliseDjen = () => {
     }));
 
     const metaItems: TextRun[] = [];
-    const orgaoCombo = [pub.tribunal, orgaoExtra].filter(Boolean).join(' - ');
-    if (orgaoCombo) {
+    const turma = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const orgaoLabel = pub.tribunal || pub.orgao;
+    if (orgaoLabel) {
       metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
-      metaItems.push(new TextRun({ text: sanitizeForXml(orgaoCombo) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(orgaoLabel) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    if (turma) {
+      metaItems.push(new TextRun({ text: "Turma: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(turma) + "   ", size: docFontSize, font: docFont, color: "555555" }));
     }
     if (pub.data_disponibilizacao) {
       metaItems.push(new TextRun({ text: "Data: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
