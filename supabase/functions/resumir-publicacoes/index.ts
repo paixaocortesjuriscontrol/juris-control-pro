@@ -455,16 +455,6 @@ serve(async (req) => {
       const processo = pub.processo || pub.numeroProcesso || 'N/A';
       const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
 
-      const resumoPautaLocal = isPautaDeJulgamento(conteudoBruto)
-        ? resumirPautaDeterministico(conteudoBruto, processo)
-        : '';
-      if (resumoPautaLocal) {
-        return new Response(
-          JSON.stringify({ id: pub.id, resumo: resumoPautaLocal, orgao: null }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
       // Helper: 1 chamada à OpenAI com retry/backoff
       async function callOpenAI(systemPrompt: string, userMsg: string, maxTokens: number): Promise<string> {
         let lastErr: unknown = null;
@@ -501,6 +491,63 @@ serve(async (req) => {
           }
         }
         throw lastErr || new Error('Falha após retries');
+      }
+
+      // ── PAUTA: estratégia híbrida ──
+      // 1) tenta resumo determinístico (rápido/barato)
+      // 2) se vier insuficiente, faz fallback para IA com o bloco do processo
+      //    em Markdown estruturado (segmentado por selecionarBlocoPorProcesso)
+      const resumoPautaLocal = isPautaDeJulgamento(conteudoBruto)
+        ? resumirPautaDeterministico(conteudoBruto, processo)
+        : '';
+      if (resumoPautaLocal) {
+        const camposEssenciais = [
+          /Relator/i,
+          /(AGRAVANTE|RECORRENTE|RECLAMANTE|RECLAMADO|AGRAVADO|RECORRIDO)/i,
+          /ADVOGAD[OA]/i,
+          /Intimad/i,
+          /(Sess[aã]o|Pauta)/i,
+        ];
+        const acertos = camposEssenciais.filter((re) => re.test(resumoPautaLocal)).length;
+        const procDigits = String(processo).replace(/\D/g, '');
+        const temProc = procDigits.length >= 15
+          && resumoPautaLocal.replace(/\D/g, '').includes(procDigits);
+        const insuficiente = resumoPautaLocal.length < 250 || acertos < 2 || !temProc;
+
+        if (!insuficiente || !isPautaDeJulgamentoMd(conteudoMd)) {
+          return new Response(
+            JSON.stringify({ id: pub.id, resumo: resumoPautaLocal, orgao: null }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Fallback IA: envia o bloco do processo em Markdown
+        const bloco = selecionarBlocoPorProcesso(conteudoMd, processo);
+        const SYSTEM_PROMPT_PAUTA = `Você é um advogado sênior de contencioso trabalhista. Receberá o bloco em Markdown estruturado de UMA pauta de julgamento referente a UM processo. Produza um resumo em texto corrido e fluido (português jurídico, SEM markdown, SEM bullets, SEM títulos), começando direto pelo conteúdo. Cite obrigatoriamente, quando presentes no bloco: tipo/data da sessão (virtual/presencial, com início e encerramento), Relator(a) e Turma/Órgão, partes (ativa e passiva, com qualificação tipo AGRAVANTE/RECORRENTE/RECLAMANTE/etc.), advogado(s) com OAB quando houver, intimados/citados, e qualquer Complemento ou observação relevante da pauta. NÃO invente dados que não estejam no bloco. Retorne APENAS JSON válido: {"resumo":"texto fluido aqui","orgao":"nome do órgão se identificado, senão null"}.`;
+        const userMsgPauta = `Pauta de Julgamento — Markdown estruturado do bloco do processo.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- BLOCO ---\n${bloco}\n--- FIM ---\n\nRetorne APENAS o JSON conforme instruído.`;
+        try {
+          const respText = await callOpenAI(SYSTEM_PROMPT_PAUTA, userMsgPauta, 1200);
+          let dadosPauta: any = {};
+          try { dadosPauta = JSON.parse(respText); } catch {
+            const limpo = respText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+            try { dadosPauta = JSON.parse(limpo); } catch { dadosPauta = {}; }
+          }
+          const resumoIa = String(dadosPauta?.resumo || '').trim();
+          console.info(`[resumir-publicacoes] pauta-fallback pub=${pub.id} det_len=${resumoPautaLocal.length} ai_len=${resumoIa.length} acertos=${acertos} temProc=${temProc}`);
+          if (resumoIa && resumoIa.length >= 120) {
+            return new Response(
+              JSON.stringify({ id: pub.id, resumo: resumoIa, orgao: dadosPauta?.orgao ?? null }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } catch (e) {
+          console.error(`[resumir-publicacoes] pauta-fallback ERROR pub ${pub.id}:`, e);
+        }
+        // Fallback final: devolve o determinístico mesmo curto (não regredir)
+        return new Response(
+          JSON.stringify({ id: pub.id, resumo: resumoPautaLocal, orgao: null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       // ── FASE 1: RESUMO (sem trecho_preservado / assinatura) ──
