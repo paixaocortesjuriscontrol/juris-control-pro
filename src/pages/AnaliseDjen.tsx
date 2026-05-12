@@ -1459,7 +1459,7 @@ const AnaliseDjen = () => {
           const prep1 = prepararConteudoParaIA(pub.conteudo, pub.processo_numero);
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
-              resumoIndividual: true,
+              blocoEstruturado: true,
               publicacao: {
                 id: pub.id,
                 conteudo: pub.conteudo,
@@ -1471,9 +1471,8 @@ const AnaliseDjen = () => {
           });
 
           if (aiError) throw aiError;
-          if (aiData?.resumo) {
-            resumosMap.set(pub.id, aiData.resumo);
-          }
+          const texto = aiData?.conteudo_integral || aiData?.resumo;
+          if (texto) resumosMap.set(pub.id, texto);
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
