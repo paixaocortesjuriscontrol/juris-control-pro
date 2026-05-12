@@ -68,6 +68,7 @@ import PautasTst from "./pages/PautasTst";
 import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
 import ClassificacaoTst from "./pages/ClassificacaoTst";
+import { useVersionCheck } from "@/hooks/useVersionCheck";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -81,6 +82,7 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  useVersionCheck();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
