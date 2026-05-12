@@ -90,6 +90,7 @@ export interface DistribuicaoTstFilters {
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;
   fonteImportacao?: string;
+  provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
