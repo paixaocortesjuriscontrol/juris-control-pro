@@ -1015,8 +1015,7 @@ export default function DistribuicaoTst() {
     <MainLayout title="Distribuição TST">
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h1 className="text-2xl font-bold text-foreground">Distribuição TST</h1>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap ml-auto">
             <Button
               variant="outline"
               onClick={handleGerarRelatorioPdf}
@@ -1043,18 +1042,16 @@ export default function DistribuicaoTst() {
                 <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
               </Button>
             </Link>
-            {isAdminOrCoordinator && (
-              <Button
-                variant="outline"
-                onClick={() => setAutoDistOpen(true)}
-                disabled={totalCount === 0}
-                title="Divide automaticamente todos os processos do filtro atual entre os advogados selecionados (round-robin)."
-              >
-                <Shuffle className="w-4 h-4 mr-2" /> Distribuir automaticamente
-                {totalCount > 0 ? ` (${totalCount})` : ""}
-              </Button>
-            )}
           </div>
+        </div>
+
+        {/* Ações rápidas acima dos totalizadores */}
+        <div className="flex gap-2 flex-wrap justify-end">
+          <BennerSimImport onUpdated={handleRefresh} />
+          <Button variant="secondary" size="sm" className="h-9" onClick={() => setShowCarga(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
+          </Button>
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
@@ -1094,6 +1091,18 @@ export default function DistribuicaoTst() {
             >
               <Plus className="w-3 h-3 mr-1" /> Nova Distribuição
             </Button>
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                onClick={() => setAutoDistOpen(true)}
+                disabled={totalCount === 0}
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                title="Divide automaticamente todos os processos do filtro atual entre os advogados selecionados (round-robin)."
+              >
+                <Shuffle className="w-3 h-3 mr-1" /> Distribuir automaticamente
+                {totalCount > 0 ? ` (${totalCount})` : ""}
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={handleBulkJudit}
@@ -1153,7 +1162,6 @@ export default function DistribuicaoTst() {
             >
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
-            <BennerSimImport onUpdated={handleRefresh} />
             <RespostaSantanderImport onUpdated={handleRefresh} />
           </div>
         )}
