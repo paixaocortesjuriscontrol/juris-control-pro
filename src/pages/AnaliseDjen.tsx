@@ -2397,6 +2397,236 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Gerar PDF Resumo sem IA" — pauta na íntegra; demais: últimos 2 (ou 3) parágrafos + assinatura/intimados =====
+  const handleGerarPdfResumoSemIA = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoResumoSemIA(true);
+    const toastId = toast.loading("Gerando PDF Resumo sem IA...");
+    try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const mL = 15;
+      const mR = 15;
+      const maxW = pageW - mL - mR;
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      drawPdfHeader(doc, pageW, `Resumo sem IA de Publicações ${origemLabel}`);
+      let y = 34;
+      const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+
+      const dataDisp = allPublicacoes[0]?.data_disponibilizacao;
+      if (dataDisp) {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Data de disponibilização: ${formatDateOnlyFull(dataDisp)}`, mL, y);
+        y += 10;
+      }
+
+      allPublicacoes.forEach((pub, idx) => {
+        if (idx > 0) {
+          checkPage(14);
+          y += 4;
+          doc.setDrawColor(30, 58, 95);
+          doc.setLineWidth(0.8);
+          doc.line(mL, y, pageW - mR, y);
+          y += 10;
+        }
+
+        checkPage(60);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
+        y += 8;
+
+        doc.setFontSize(10);
+        const labelW = 52;
+        const tableX = mL;
+        const tableW = pageW - mR - mL;
+        const rowH = 6;
+        const addRow = (label: string, value: string) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(label, tableX, y);
+          doc.setFont("helvetica", "normal");
+          const valLines = doc.splitTextToSize(value, tableW - labelW - 4);
+          valLines.forEach((l: string, i: number) => {
+            doc.text(l, tableX + labelW, y + i * 5);
+          });
+          y += Math.max(rowH, valLines.length * 5);
+        };
+
+        addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
+        addRow("Órgão", pub.tribunal || pub.orgao || "—");
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", shortenTurma(pub.orgao));
+        addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
+        addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
+
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Parte(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (partes.length > 0) {
+          checkPage(10 + partes.length * 5);
+          partes.forEach(p => {
+            checkPage(5);
+            const iconColor = getParteIconColor(p);
+            const nome = cleanParteName(p);
+            drawPersonIcon(doc, mL, y, iconColor);
+            const linhas = doc.splitTextToSize(nome, maxW - 8);
+            linhas.forEach((l: string) => { doc.text(l, mL + 6, y); y += 5; });
+          });
+        } else {
+          doc.text("—", mL, y); y += 5;
+        }
+        y += 2;
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Advogado(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (advogados.length > 0) {
+          checkPage(10 + advogados.length * 5);
+          advogados.forEach(a => {
+            checkPage(5);
+            drawPersonIcon(doc, mL, y, 'black');
+            const linhas = doc.splitTextToSize(a, maxW - 8);
+            linhas.forEach((l: string) => { doc.text(l, mL + 6, y); y += 5; });
+          });
+        } else {
+          doc.text("—", mL, y); y += 5;
+        }
+        y += 2;
+
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        if (trecho) {
+          y += 4;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text(ehPauta ? "Pauta de julgamento (íntegra):" : "Resumo (últimos parágrafos + assinatura/intimados):", mL, y);
+          y += 6;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const paragrafos = trecho.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+          paragrafos.forEach((bloco) => {
+            doc.splitTextToSize(bloco, maxW).forEach((line: string) => {
+              checkPage(5);
+              doc.text(line, mL, y);
+              y += 5;
+            });
+            y += 2;
+          });
+          y += 2;
+        }
+
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          y += 2;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          checkPage(8);
+          doc.text(`Comentários da coordenação (${coms.length}):`, mL, y);
+          y += 6;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(5); doc.text(l, mL + 4, y); y += 5; });
+            y += 2;
+          });
+        }
+
+        y += 6;
+      });
+
+      const total = doc.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
+        doc.text(`Juris Control – Página ${i}/${total}`, pageW / 2, 292, { align: "center" });
+      }
+
+      doc.save(`resumo_sem_ia_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success("PDF Resumo sem IA gerado!", { id: toastId });
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF Resumo sem IA:", error);
+      toast.error(`Erro ao gerar PDF Resumo sem IA: ${error?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoResumoSemIA(false);
+    }
+  };
+
+  // ===== "Gerar Doc Resumo sem IA" =====
+  const handleGerarDocResumoSemIA = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoDocResumoSemIA(true);
+    const toastId = toast.loading("Gerando Doc Resumo sem IA...");
+    try {
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Resumo sem IA de Publicações ${origemLabel}`, allPublicacoes.length)];
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+
+      allPublicacoes.forEach((pub, idx) => {
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        children.push(...buildConteudoParagraphs(
+          trecho || "Sem conteúdo disponível",
+          ehPauta ? "PAUTA DE JULGAMENTO (ÍNTEGRA)" : "RESUMO (ÚLTIMOS PARÁGRAFOS + ASSINATURA/INTIMADOS)"
+        ));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
+      });
+
+      const doc = new Document({
+        styles: { default: { document: { run: { font: docFont, size: docFontSize } } } },
+        sections: [{
+          properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } },
+          children,
+        }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resumo_sem_ia_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Doc Resumo sem IA gerado!", { id: toastId });
+    } catch (err: any) {
+      console.error("Erro ao gerar Doc Resumo sem IA:", err);
+      toast.error(`Erro ao gerar Doc Resumo sem IA: ${err?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoDocResumoSemIA(false);
+    }
+  };
+
   // ===== "Gerar Docs TST" - Classifica publicações por palavras-chave (sem IA) e gera até 5 documentos Word
   //  (TEMAS_IRR, PAUTA, CEJUSC, DISTRIBUIÇÕES, PRAZOS).
   //  Regras (case-insensitive, primeira que casar vence):
