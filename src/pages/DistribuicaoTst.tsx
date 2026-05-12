@@ -1101,9 +1101,13 @@ export default function DistribuicaoTst() {
             </Button>
           </Link>
           <BennerSimImport onUpdated={handleRefresh} />
-          <Button variant="secondary" onClick={() => setShowCarga(true)}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
+          <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
+            {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+            {cargaLoading
+              ? "Carregando..."
+              : selectedIds.size > 0
+                ? `Carga Benner (${selectedIds.size})`
+                : "Gerar Carga Benner"}
           </Button>
         </div>
 
