@@ -208,9 +208,10 @@ interface Props {
   onClose?: () => void;
   filters?: CargaFilters;
   selectedProcessNumbers?: string[];
+  distribuicoes?: any[];
 }
 
-export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes }: Props) {
   const [processing, setProcessing] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
@@ -219,6 +220,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
+  const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
 
   const processData = async () => {
     setProcessing(true);
