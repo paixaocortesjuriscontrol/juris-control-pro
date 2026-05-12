@@ -87,11 +87,32 @@ function TurmaRow({ turma }: { turma: TurmaTst }) {
   );
 }
 
-function RelatorRow({ relator }: { relator: RelatorTst }) {
+function TurmaSelect({
+  value, onChange, turmas, disabled,
+}: { value: string | null; onChange: (v: string | null) => void; turmas: TurmaTst[]; disabled?: boolean }) {
+  return (
+    <Select
+      value={value ?? "__none__"}
+      onValueChange={(v) => onChange(v === "__none__" ? null : v)}
+      disabled={disabled}
+    >
+      <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="—" /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— Sem turma —</SelectItem>
+        {turmas.map(t => (
+          <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function RelatorRow({ relator, turmas }: { relator: RelatorTst; turmas: TurmaTst[] }) {
   const [nome, setNome] = useState(relator.nome);
   const [cargo, setCargo] = useState(relator.cargo ?? "");
   const [classificacao, setClassificacao] = useState<ClassificacaoTst>(relator.classificacao);
   const [obs, setObs] = useState(relator.observacao ?? "");
+  const [turmaId, setTurmaId] = useState<string | null>(relator.turma_id ?? null);
   const upsert = useUpsertRelatorTst();
   const del = useDeleteRelatorTst();
 
@@ -99,18 +120,26 @@ function RelatorRow({ relator }: { relator: RelatorTst }) {
     nome.trim() !== relator.nome ||
     (cargo || "") !== (relator.cargo ?? "") ||
     classificacao !== relator.classificacao ||
-    (obs || "") !== (relator.observacao ?? "");
+    (obs || "") !== (relator.observacao ?? "") ||
+    (turmaId ?? null) !== (relator.turma_id ?? null);
 
   const salvar = () => {
     if (!nome.trim()) return;
-    upsert.mutate({ id: relator.id, nome, cargo: cargo || null, classificacao, observacao: obs || null });
+    upsert.mutate({ id: relator.id, nome, cargo: cargo || null, classificacao, observacao: obs || null, turma_id: turmaId });
   };
 
   return (
     <TableRow>
       <TableCell><Input value={nome} onChange={(e) => setNome(e.target.value)} onBlur={() => dirty && salvar()} className="h-9" /></TableCell>
       <TableCell><Input value={cargo} onChange={(e) => setCargo(e.target.value)} onBlur={() => dirty && salvar()} placeholder="—" className="h-9" /></TableCell>
-      <TableCell><ClassifSelect value={classificacao} onChange={(v) => { setClassificacao(v); upsert.mutate({ id: relator.id, nome, cargo: cargo || null, classificacao: v, observacao: obs || null }); }} /></TableCell>
+      <TableCell>
+        <TurmaSelect
+          value={turmaId}
+          turmas={turmas}
+          onChange={(v) => { setTurmaId(v); upsert.mutate({ id: relator.id, nome, cargo: cargo || null, classificacao, observacao: obs || null, turma_id: v }); }}
+        />
+      </TableCell>
+      <TableCell><ClassifSelect value={classificacao} onChange={(v) => { setClassificacao(v); upsert.mutate({ id: relator.id, nome, cargo: cargo || null, classificacao: v, observacao: obs || null, turma_id: turmaId }); }} /></TableCell>
       <TableCell><Input value={obs} onChange={(e) => setObs(e.target.value)} onBlur={() => dirty && salvar()} placeholder="—" className="h-9" /></TableCell>
       <TableCell className="w-12">
         <AlertDialog>
@@ -161,18 +190,19 @@ function NovaTurmaInline() {
   );
 }
 
-function NovoRelatorInline() {
+function NovoRelatorInline({ turmas }: { turmas: TurmaTst[] }) {
   const [nome, setNome] = useState("");
   const [cargo, setCargo] = useState("");
   const [classificacao, setClassificacao] = useState<ClassificacaoTst>("POSITIVO");
   const [obs, setObs] = useState("");
+  const [turmaId, setTurmaId] = useState<string | null>(null);
   const upsert = useUpsertRelatorTst();
 
   const adicionar = () => {
     if (!nome.trim()) return;
     upsert.mutate(
-      { nome, cargo: cargo || null, classificacao, observacao: obs || null },
-      { onSuccess: () => { setNome(""); setCargo(""); setObs(""); setClassificacao("POSITIVO"); } },
+      { nome, cargo: cargo || null, classificacao, observacao: obs || null, turma_id: turmaId },
+      { onSuccess: () => { setNome(""); setCargo(""); setObs(""); setClassificacao("POSITIVO"); setTurmaId(null); } },
     );
   };
 
@@ -180,6 +210,7 @@ function NovoRelatorInline() {
     <TableRow className="bg-muted/30">
       <TableCell><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Novo ministro / relator" className="h-9" /></TableCell>
       <TableCell><Input value={cargo} onChange={(e) => setCargo(e.target.value)} placeholder="Cargo (opcional)" className="h-9" /></TableCell>
+      <TableCell><TurmaSelect value={turmaId} onChange={setTurmaId} turmas={turmas} /></TableCell>
       <TableCell><ClassifSelect value={classificacao} onChange={setClassificacao} /></TableCell>
       <TableCell><Input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)" className="h-9" /></TableCell>
       <TableCell>
@@ -204,13 +235,15 @@ export default function ClassificacaoTst() {
 
   const relatoresFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return relatores;
-    return relatores.filter(r =>
+    const lista = relatores;
+    if (!q) return lista;
+    return lista.filter(r =>
       r.nome.toLowerCase().includes(q) ||
       (r.cargo || "").toLowerCase().includes(q) ||
-      r.classificacao.toLowerCase().includes(q),
+      r.classificacao.toLowerCase().includes(q) ||
+      (turmas.find(t => t.id === r.turma_id)?.nome || "").toLowerCase().includes(q),
     );
-  }, [relatores, busca]);
+  }, [relatores, busca, turmas]);
 
   const totaisR = useMemo(() => {
     const t = { positivo: 0, negativo: 0, impedida: 0 };
@@ -300,19 +333,20 @@ export default function ClassificacaoTst() {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>Cargo</TableHead>
+                        <TableHead className="w-[220px]">Turma</TableHead>
                         <TableHead className="w-[180px]">Classificação</TableHead>
                         <TableHead>Observação</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <NovoRelatorInline />
+                      <NovoRelatorInline turmas={turmas} />
                       {loadingR && (
-                        <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Carregando...</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />Carregando...</TableCell></TableRow>
                       )}
-                      {!loadingR && relatoresFiltrados.map(r => <RelatorRow key={r.id} relator={r} />)}
+                      {!loadingR && relatoresFiltrados.map(r => <RelatorRow key={r.id} relator={r} turmas={turmas} />)}
                       {!loadingR && relatoresFiltrados.length === 0 && (
-                        <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Nenhum relator encontrado.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">Nenhum relator encontrado.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>

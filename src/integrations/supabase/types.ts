@@ -851,6 +851,7 @@ export type Database = {
           id: string
           nome: string
           observacao: string | null
+          turma_id: string | null
           updated_at: string
         }
         Insert: {
@@ -860,6 +861,7 @@ export type Database = {
           id?: string
           nome: string
           observacao?: string | null
+          turma_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -869,9 +871,18 @@ export type Database = {
           id?: string
           nome?: string
           observacao?: string | null
+          turma_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "classificacao_relatores_tst_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "classificacao_turmas_tst"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       classificacao_turmas_tst: {
         Row: {

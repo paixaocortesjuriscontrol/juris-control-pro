@@ -17,6 +17,7 @@ export interface RelatorTst {
   cargo: string | null;
   classificacao: ClassificacaoTst;
   observacao: string | null;
+  turma_id: string | null;
 }
 
 function normalizar(t: string): string {
@@ -102,7 +103,7 @@ export function useRelatoresTst() {
     queryFn: async (): Promise<RelatorTst[]> => {
       const { data, error } = await supabase
         .from("classificacao_relatores_tst" as any)
-        .select("id, nome, cargo, classificacao, observacao")
+        .select("id, nome, cargo, classificacao, observacao, turma_id")
         .order("nome");
       if (error) throw error;
       return (data ?? []) as any;
@@ -163,6 +164,7 @@ export function useUpsertRelatorTst() {
         cargo: input.cargo ?? null,
         classificacao: input.classificacao,
         observacao: input.observacao ?? null,
+        turma_id: input.turma_id ?? null,
       };
       if (input.id) {
         const { error } = await supabase
