@@ -85,6 +85,14 @@ type FiltroDiaDjen = 'hoje' | 'todos';
 
 const formatToUTC = (date: Date) => date.toISOString();
 
+// Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
+// Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
+const shortenTurma = (value: string | null | undefined): string => {
+  if (!value) return "";
+  const m = value.match(/^\s*(\d+)\s*[ºªoa]?\s*Turma\b/i);
+  return m ? `${m[1]}ª Turma` : value;
+};
+
 const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   const [year, month, day] = dateStr.split('-').map(Number);
   if (isEnd) {
@@ -1007,7 +1015,7 @@ const AnaliseDjen = () => {
         };
 
         if (pub.tribunal) printMeta("Órgão", pub.tribunal);
-        if (pub.orgao && pub.orgao !== pub.tribunal) printMeta("Turma", pub.orgao);
+        if (pub.orgao && pub.orgao !== pub.tribunal) printMeta("Turma", shortenTurma(pub.orgao));
         if (pub.data_disponibilizacao) printMeta("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
         printMeta("Tipo de comunicação", "Intimação");
         if (pub.fonte) printMeta("Fonte", pub.fonte);
@@ -1518,7 +1526,7 @@ const AnaliseDjen = () => {
 
         addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
         addRow("Órgão", pub.tribunal || pub.orgao || "—");
-        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", pub.orgao);
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", shortenTurma(pub.orgao));
         addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
@@ -1724,7 +1732,8 @@ const AnaliseDjen = () => {
     }));
 
     const metaItems: TextRun[] = [];
-    const turma = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const turmaRaw = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const turma = turmaRaw ? shortenTurma(turmaRaw) : null;
     const orgaoLabel = pub.tribunal || pub.orgao;
     if (orgaoLabel) {
       metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
@@ -2099,7 +2108,7 @@ const AnaliseDjen = () => {
 
         addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
         addRow("Órgão", pub.tribunal || pub.orgao || "—");
-        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", pub.orgao);
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", shortenTurma(pub.orgao));
         addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
