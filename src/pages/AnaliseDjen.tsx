@@ -1473,6 +1473,15 @@ const AnaliseDjen = () => {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
         }
+        // Fallback determinístico: se a IA falhou ou veio vazio, usa o trecho
+        // final extraído localmente para que a publicação NUNCA apareça sem
+        // corpo no PDF.
+        if (!resumosMap.get(pub.id)) {
+          const trecho = extractTrechoFinal(pub.conteudo);
+          if (trecho) {
+            resumosMap.set(pub.id, `Resumo automático indisponível — trecho da publicação:\n\n${trecho}`);
+          }
+        }
         // Small delay between calls to avoid rate limiting
         if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
       }
@@ -1974,6 +1983,12 @@ const AnaliseDjen = () => {
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
           erros++;
+        }
+        if (!resumosMap.get(pub.id)) {
+          const trecho = extractTrechoFinal(pub.conteudo);
+          if (trecho) {
+            resumosMap.set(pub.id, `Resumo automático indisponível — trecho da publicação:\n\n${trecho}`);
+          }
         }
         // Small delay between calls to avoid rate limiting
         if (i < totalPubs - 1) await new Promise(r => setTimeout(r, 800));
