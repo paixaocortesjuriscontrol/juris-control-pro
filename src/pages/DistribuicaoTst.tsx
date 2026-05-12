@@ -970,10 +970,11 @@ export default function DistribuicaoTst() {
               <FileSpreadsheet className="w-6 h-6 text-primary" />
               Carga Benner (Dados do Supabase)
             </h1>
-            <Button variant="outline" onClick={() => setShowCarga(false)}>Voltar à Lista</Button>
+            <Button variant="outline" onClick={() => { setShowCarga(false); setCargaDistribuicoes(null); }}>Voltar à Lista</Button>
           </div>
           <CargaBennerFromDb 
             selectedProcessNumbers={selectedIds.size > 0 ? dados.filter(d => selectedIds.has(d.id)).map(d => d.processo_numero) : undefined}
+            distribuicoes={cargaDistribuicoes || undefined}
             filters={{
             aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
             benner: filtroBenner as any,
