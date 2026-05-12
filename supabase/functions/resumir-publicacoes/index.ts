@@ -332,7 +332,102 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { publicacoes, publicacao, monitoramentoId, resumoIndividual, apenasTrecho } = body;
+    const { publicacoes, publicacao, monitoramentoId, resumoIndividual, apenasTrecho, blocoEstruturado } = body;
+
+    // ── Modo BLOCO ESTRUTURADO: devolve apenas o "Conteúdo Integral" cirúrgico
+    //    (dispositivo + ACÓRDÃO + assinatura, despacho de intimação, ou
+    //    cabeçalho da sessão para pautas) — padrão do advogado anterior.
+    //    O front renderiza esse texto sob o rótulo "Conteúdo Integral:" do
+    //    bloco "COMUNICAÇÃO PJE #...". Reaproveita o pipeline do
+    //    resumoIndividual (Markdown + segmentação por processo). NÃO altera
+    //    Resumo Rápido (apenasTrecho).
+    if (blocoEstruturado) {
+      const pub = publicacao || (publicacoes && publicacoes[0]);
+      if (!pub) {
+        return new Response(
+          JSON.stringify({ id: null, conteudo_integral: '', orgao: null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
+      const processo = pub.processo || pub.numeroProcesso || 'N/A';
+      const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
+      let conteudoMd: string = (pub.conteudoMd && String(pub.conteudoMd).trim())
+        || htmlParaMarkdown(conteudoBruto);
+      if (isPautaDeJulgamentoMd(conteudoMd)) {
+        conteudoMd = selecionarBlocoPorProcesso(conteudoMd, processo);
+      }
+      if (!conteudoMd || conteudoMd.length < 20) {
+        return new Response(
+          JSON.stringify({ id: pub.id, conteudo_integral: '', orgao: null, resumo: '' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+      const SYSTEM_PROMPT_BLOCO = `Você é um advogado sênior de contencioso trabalhista. Receberá UMA publicação DJEN/DJET (em Markdown) referente a UM processo. Sua tarefa é EXTRAIR o "Conteúdo Integral" no padrão de um relatório interno de escritório — texto enxuto e cirúrgico em português jurídico, SEM markdown, SEM bullets, SEM títulos, começando direto pelo conteúdo. Regras de extração por tipo de ato:\n\n1) ACÓRDÃO/DECISÃO: comece no marcador "A C Ó R D Ã O" (ou no parágrafo dispositivo: "DOU PROVIMENTO", "Nego provimento", "DENEGO seguimento", "ACORDAM os Ministros…", "ISTO POSTO", etc.) e vá ATÉ a assinatura do Relator (linha tipo "Brasília, DD de mês de AAAA. Fulano, Ministro Relator"). DESCARTE relatório, voto integral, ementa longa e ID interno.\n\n2) DESPACHO/EDITAL/INTIMAÇÃO PARA CONTRARRAZÕES: traga o parágrafo do despacho propriamente dito (ex.: "fica(m) intimado(s) o(s) agravado(s) para…") e a assinatura do secretário/servidor. Pode incluir o fundamento legal citado no despacho, mas nada do histórico processual.\n\n3) PAUTA DE JULGAMENTO: traga o cabeçalho da sessão (data, modalidade — virtual ou presencial — com início e encerramento se houver), Relator(a)/Turma e quaisquer Complementos/observações da pauta referentes ao processo. Sem repetir partes/advogados (que já vão em campos próprios).\n\nNUNCA invente. Se um campo não constar do bloco, devolva null/[] para ele. Deduplique partes/advogados/intimados (case-insensitive). Mantenha a OAB junto ao nome do advogado quando houver.\n\nRetorne APENAS JSON válido neste formato exato:\n{\n  "orgao": "Turma/Órgão se identificado, senão null",\n  "partes": ["NOME UM", "NOME DOIS"],\n  "advogados": ["NOME UM - OAB UF12345", "..."],\n  "intimados": ["..."],\n  "conteudo_integral": "texto corrido cirúrgico aqui"\n}`;
+      const userMsgBloco = `Publicação DJEN/DJET — Markdown estruturado do bloco do processo.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- BLOCO ---\n${conteudoMd}\n--- FIM ---\n\nRetorne APENAS o JSON conforme instruído.`;
+
+      let respText = '';
+      try {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${openAIApiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: summaryModel,
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT_BLOCO },
+                { role: 'user', content: userMsgBloco },
+              ],
+              max_tokens: 1500,
+              temperature: 0.1,
+              response_format: { type: 'json_object' },
+            }),
+          });
+          if (resp.status === 429) { await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt), 10000))); continue; }
+          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+          const aiResp = await resp.json();
+          respText = aiResp.choices?.[0]?.message?.content?.trim() || '';
+          break;
+        }
+      } catch (e) {
+        console.error(`[resumir-publicacoes] bloco-estruturado ERROR pub ${pub.id}:`, e);
+      }
+
+      let dados: any = {};
+      try { dados = JSON.parse(respText); } catch {
+        const limpo = respText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+        try { dados = JSON.parse(limpo); } catch { dados = {}; }
+      }
+      const conteudo_integral = String(dados?.conteudo_integral || '').trim();
+      // Fallback determinístico se IA falhar — pauta usa extrairTrechoPauta,
+      // demais usam trecho final tradicional via extrairTrechoFinal.
+      let fallback = '';
+      if (!conteudo_integral) {
+        try {
+          fallback = isPautaDeJulgamento(conteudoBruto)
+            ? extrairTrechoPauta(conteudoBruto, processo)
+            : extrairTrechoFinal(conteudoBruto);
+        } catch { fallback = ''; }
+      }
+      const finalTexto = conteudo_integral || fallback || 'Conteúdo Integral indisponível.';
+      console.info(`[resumir-publicacoes] bloco-estruturado pub=${pub.id} ai_len=${conteudo_integral.length} partes=${(dados?.partes||[]).length} advs=${(dados?.advogados||[]).length} intims=${(dados?.intimados||[]).length} fallback=${!conteudo_integral}`);
+
+      return new Response(
+        JSON.stringify({
+          id: pub.id,
+          conteudo_integral: finalTexto,
+          // alias `resumo` para compatibilidade com renderização atual do front
+          resumo: finalTexto,
+          orgao: dados?.orgao ?? null,
+          partes: Array.isArray(dados?.partes) ? dados.partes : [],
+          advogados: Array.isArray(dados?.advogados) ? dados.advogados : [],
+          intimados: Array.isArray(dados?.intimados) ? dados.intimados : [],
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ── Modo APENAS TRECHO: roda só a Fase 2 e devolve trecho_preservado + assinatura + intimados (texto puro) ──
     if (apenasTrecho) {
