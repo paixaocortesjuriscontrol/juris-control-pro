@@ -19,6 +19,8 @@ export interface DistribuicaoTstStats {
   outrosSituacao: number;
   semTurma: number;
   problemaJudit: number;
+  ate2025: number;
+  de2026: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -38,6 +40,8 @@ const ZERO: DistribuicaoTstStats = {
   outrosSituacao: 0,
   semTurma: 0,
   problemaJudit: 0,
+  ate2025: 0,
+  de2026: 0,
 };
 
 // Mesma regra usada na coluna "Dossiê" (filtro válido/inválido)
@@ -109,8 +113,8 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
 function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
   const hasResponsavelFilter = realRespIds.length > 0;
   const selectClause = hasResponsavelFilter
-    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit, dados_benner_responsaveis!inner(usuario_id)"
-    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit";
+    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit, data_distribuicao_planilha, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit, data_distribuicao_planilha";
   let q = supabase
     .from("dados_benner" as any)
     .select(selectClause)
@@ -191,6 +195,12 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           const turma = String(r.turma || "").trim();
           if (!turma) acc.semTurma++;
           if (r.problema_judit) acc.problemaJudit++;
+          // Faixa por ano de distribuição
+          const dd = String(r.data_distribuicao_planilha || "").slice(0, 10);
+          if (dd) {
+            if (dd <= "2025-12-31") acc.ate2025++;
+            else if (dd >= "2026-01-01") acc.de2026++;
+          }
         }
         if (rows.length < FETCH_SIZE) break;
         offset += FETCH_SIZE;
