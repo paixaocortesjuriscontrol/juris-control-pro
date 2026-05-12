@@ -1132,10 +1132,6 @@ export default function DistribuicaoTst() {
                 <X className="w-3 h-3 mr-1" /> Cancelar
               </Button>
             )}
-            <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={() => setShowCarga(true)}>
-              <FileSpreadsheet className="w-3 h-3 mr-1" />
-              {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
-            </Button>
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
               <CheckCircle className="w-3 h-3 mr-1" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
