@@ -329,6 +329,8 @@ export default function DistribuicaoTst() {
     if (filtroSituacaoProcesso === "outros" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "outrosSituacao" as const;
     if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
     if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
+    if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
+    if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") return "de2026" as const;
     return null;
   })();
 
@@ -344,6 +346,12 @@ export default function DistribuicaoTst() {
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
     setSelectedIds(new Set());
+    // Reseta filtros de data ao alternar cards
+    if (key === "ate2025" || key === "de2026" || isActive) {
+      setFiltroDataInicio("");
+      setFiltroDataFim("");
+      setFiltroMesAno("todos");
+    }
     if (isActive || key === "total") return;
     switch (key) {
       case "processosValidos": setFiltroProcessoStatus("valido"); break;
@@ -359,6 +367,16 @@ export default function DistribuicaoTst() {
       case "outrosSituacao": setFiltroSituacaoProcesso("outros"); break;
       case "semTurma": setFiltroSemTurma(true); break;
       case "problemaJudit": setFiltroProblemaJudit("sim"); break;
+      case "ate2025":
+        setFiltroDataInicio("");
+        setFiltroDataFim("2025-12-31");
+        setFiltroMesAno("todos");
+        break;
+      case "de2026":
+        setFiltroDataInicio("2026-01-01");
+        setFiltroDataFim("");
+        setFiltroMesAno("todos");
+        break;
     }
   };
 

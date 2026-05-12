@@ -18,7 +18,9 @@ export type StatsCardKey =
   | "transitoJulgado"
   | "outrosSituacao"
   | "semTurma"
-  | "problemaJudit";
+  | "problemaJudit"
+  | "ate2025"
+  | "de2026";
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -52,6 +54,8 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "outrosSituacao", label: "Outros", value: stats.outrosSituacao, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-200 dark:border-zinc-800", textClass: "text-zinc-600 dark:text-zinc-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
+    { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
+    { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
   ];
 
   return (
