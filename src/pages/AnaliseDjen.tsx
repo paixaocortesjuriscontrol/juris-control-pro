@@ -1427,6 +1427,79 @@ const AnaliseDjen = () => {
 
   const [gerandoResumoRapido, setGerandoResumoRapido] = useState(false);
   const [gerandoDocResumoRapido, setGerandoDocResumoRapido] = useState(false);
+  const [gerandoResumoSemIA, setGerandoResumoSemIA] = useState(false);
+  const [gerandoDocResumoSemIA, setGerandoDocResumoSemIA] = useState(false);
+
+  // ===== Extrator "Resumo sem IA" =====
+  // - Pauta de Julgamento: retorna o conteúdo na íntegra (apenas limpa HTML).
+  // - Demais publicações: lê do fim para o começo, separa o bloco final
+  //   (assinatura do relator + intimados/citados) — que é SEMPRE preservado
+  //   e exibido — e devolve os ÚLTIMOS 2 parágrafos substantivos antes desse
+  //   bloco. Se a soma desses 2 parágrafos tiver < 300 caracteres, inclui o
+  //   3º parágrafo anterior.
+  const extractResumoSemIA = (pub: any): string => {
+    const conteudo = String(pub?.conteudo || "");
+    if (!conteudo) return "";
+
+    const limparHtml = (s: string) => s
+      .replace(/<br\s*\/?>(?=)/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\r\n?/g, "\n")
+      .split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).join("\n")
+      .replace(/\n{3,}/g, "\n\n").trim();
+
+    // Pauta: íntegra
+    if (isPautaDeJulgamento(conteudo)) {
+      return limparHtml(conteudo);
+    }
+
+    const normalizado = limparHtml(conteudo);
+    let paragrafos = normalizado.split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
+    if (paragrafos.length <= 1) {
+      paragrafos = normalizado.split(/\n+/).map(p => p.trim()).filter(Boolean);
+    }
+    if (paragrafos.length === 0) return "";
+
+    const ehAssinatura = (p: string) => !!p && p.length <= 240
+      && /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente|Secret[áa]ri[ao])\b/i.test(p);
+    const ehHeaderIntimados = (p: string) => /Intimad[oa]\(s\)\s*\/\s*Citad[oa]\(s\)/i.test(p)
+      || /^Intimad[oa]s?\s*[:\-]/i.test(p)
+      || /^Citad[oa]s?\s*[:\-]/i.test(p);
+    const ehItemLista = (p: string) => /^[-•]\s*\S/.test(p)
+      || (p.length < 200 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9][A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9 \-\.&'/()]*$/.test(p));
+
+    // Caminha do fim para o começo, separando o bloco final (assinatura + intimados).
+    const trailing: string[] = [];
+    let i = paragrafos.length - 1;
+    let viuIntim = false;
+    let viuAssin = false;
+    while (i >= 0) {
+      const p = paragrafos[i];
+      if (ehAssinatura(p)) { trailing.unshift(p); viuAssin = true; i--; continue; }
+      if (ehHeaderIntimados(p)) { trailing.unshift(p); viuIntim = true; i--; continue; }
+      if (viuIntim && ehItemLista(p)) { trailing.unshift(p); i--; continue; }
+      if (!viuAssin && !viuIntim && trailing.length === 0 && ehItemLista(p) && p.length < 120) {
+        // Itens curtos no fim (lista de intimados sem header explícito)
+        trailing.unshift(p); i--; continue;
+      }
+      break;
+    }
+
+    const principais = paragrafos.slice(0, i + 1);
+    if (principais.length === 0) {
+      // Sem parágrafos "substantivos" — devolve só o bloco final preservado
+      return trailing.join("\n\n").trim();
+    }
+
+    let ultimos = principais.slice(-2);
+    if (ultimos.join("\n\n").length < 300 && principais.length >= 3) {
+      ultimos = principais.slice(-3);
+    }
+
+    return [...ultimos, ...trailing].join("\n\n").trim();
+  };
+
 
   const handleGerarPdfResumo = async () => {
     const allPublicacoes = getPubsParaGerar();
@@ -2324,6 +2397,236 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Gerar PDF Resumo sem IA" — pauta na íntegra; demais: últimos 2 (ou 3) parágrafos + assinatura/intimados =====
+  const handleGerarPdfResumoSemIA = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoResumoSemIA(true);
+    const toastId = toast.loading("Gerando PDF Resumo sem IA...");
+    try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const mL = 15;
+      const mR = 15;
+      const maxW = pageW - mL - mR;
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      drawPdfHeader(doc, pageW, `Resumo sem IA de Publicações ${origemLabel}`);
+      let y = 34;
+      const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+
+      const dataDisp = allPublicacoes[0]?.data_disponibilizacao;
+      if (dataDisp) {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Data de disponibilização: ${formatDateOnlyFull(dataDisp)}`, mL, y);
+        y += 10;
+      }
+
+      allPublicacoes.forEach((pub, idx) => {
+        if (idx > 0) {
+          checkPage(14);
+          y += 4;
+          doc.setDrawColor(30, 58, 95);
+          doc.setLineWidth(0.8);
+          doc.line(mL, y, pageW - mR, y);
+          y += 10;
+        }
+
+        checkPage(60);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
+        y += 8;
+
+        doc.setFontSize(10);
+        const labelW = 52;
+        const tableX = mL;
+        const tableW = pageW - mR - mL;
+        const rowH = 6;
+        const addRow = (label: string, value: string) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(label, tableX, y);
+          doc.setFont("helvetica", "normal");
+          const valLines = doc.splitTextToSize(value, tableW - labelW - 4);
+          valLines.forEach((l: string, i: number) => {
+            doc.text(l, tableX + labelW, y + i * 5);
+          });
+          y += Math.max(rowH, valLines.length * 5);
+        };
+
+        addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
+        addRow("Órgão", pub.tribunal || pub.orgao || "—");
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", shortenTurma(pub.orgao));
+        addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
+        addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
+
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Parte(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (partes.length > 0) {
+          checkPage(10 + partes.length * 5);
+          partes.forEach(p => {
+            checkPage(5);
+            const iconColor = getParteIconColor(p);
+            const nome = cleanParteName(p);
+            drawPersonIcon(doc, mL, y, iconColor);
+            const linhas = doc.splitTextToSize(nome, maxW - 8);
+            linhas.forEach((l: string) => { doc.text(l, mL + 6, y); y += 5; });
+          });
+        } else {
+          doc.text("—", mL, y); y += 5;
+        }
+        y += 2;
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Advogado(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (advogados.length > 0) {
+          checkPage(10 + advogados.length * 5);
+          advogados.forEach(a => {
+            checkPage(5);
+            drawPersonIcon(doc, mL, y, 'black');
+            const linhas = doc.splitTextToSize(a, maxW - 8);
+            linhas.forEach((l: string) => { doc.text(l, mL + 6, y); y += 5; });
+          });
+        } else {
+          doc.text("—", mL, y); y += 5;
+        }
+        y += 2;
+
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        if (trecho) {
+          y += 4;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text(ehPauta ? "Pauta de julgamento (íntegra):" : "Resumo (últimos parágrafos + assinatura/intimados):", mL, y);
+          y += 6;
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const paragrafos = trecho.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+          paragrafos.forEach((bloco) => {
+            doc.splitTextToSize(bloco, maxW).forEach((line: string) => {
+              checkPage(5);
+              doc.text(line, mL, y);
+              y += 5;
+            });
+            y += 2;
+          });
+          y += 2;
+        }
+
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          y += 2;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          checkPage(8);
+          doc.text(`Comentários da coordenação (${coms.length}):`, mL, y);
+          y += 6;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(5); doc.text(l, mL + 4, y); y += 5; });
+            y += 2;
+          });
+        }
+
+        y += 6;
+      });
+
+      const total = doc.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
+        doc.text(`Juris Control – Página ${i}/${total}`, pageW / 2, 292, { align: "center" });
+      }
+
+      doc.save(`resumo_sem_ia_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success("PDF Resumo sem IA gerado!", { id: toastId });
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF Resumo sem IA:", error);
+      toast.error(`Erro ao gerar PDF Resumo sem IA: ${error?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoResumoSemIA(false);
+    }
+  };
+
+  // ===== "Gerar Doc Resumo sem IA" =====
+  const handleGerarDocResumoSemIA = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoDocResumoSemIA(true);
+    const toastId = toast.loading("Gerando Doc Resumo sem IA...");
+    try {
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Resumo sem IA de Publicações ${origemLabel}`, allPublicacoes.length)];
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+
+      allPublicacoes.forEach((pub, idx) => {
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        children.push(...buildConteudoParagraphs(
+          trecho || "Sem conteúdo disponível",
+          ehPauta ? "PAUTA DE JULGAMENTO (ÍNTEGRA)" : "RESUMO (ÚLTIMOS PARÁGRAFOS + ASSINATURA/INTIMADOS)"
+        ));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
+      });
+
+      const doc = new Document({
+        styles: { default: { document: { run: { font: docFont, size: docFontSize } } } },
+        sections: [{
+          properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } },
+          children,
+        }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resumo_sem_ia_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Doc Resumo sem IA gerado!", { id: toastId });
+    } catch (err: any) {
+      console.error("Erro ao gerar Doc Resumo sem IA:", err);
+      toast.error(`Erro ao gerar Doc Resumo sem IA: ${err?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoDocResumoSemIA(false);
+    }
+  };
+
   // ===== "Gerar Docs TST" - Classifica publicações por palavras-chave (sem IA) e gera até 5 documentos Word
   //  (TEMAS_IRR, PAUTA, CEJUSC, DISTRIBUIÇÕES, PRAZOS).
   //  Regras (case-insensitive, primeira que casar vence):
@@ -2912,6 +3215,38 @@ const AnaliseDjen = () => {
             )}
             <span className="hidden sm:inline">{gerandoDocResumoRapido ? "Gerando..." : "Gerar Doc Resumo Rápido"}</span>
             <span className="sm:hidden">{gerandoDocResumoRapido ? "..." : "Doc Rápido"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarPdfResumoSemIA}
+            disabled={allPublicacoes.length === 0 || gerandoResumoSemIA}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
+          >
+            {gerandoResumoSemIA ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoResumoSemIA ? "Gerando..." : "Gerar PDF Resumo sem IA"}</span>
+            <span className="sm:hidden">{gerandoResumoSemIA ? "..." : "PDF s/IA"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarDocResumoSemIA}
+            disabled={allPublicacoes.length === 0 || gerandoDocResumoSemIA}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
+          >
+            {gerandoDocResumoSemIA ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoDocResumoSemIA ? "Gerando..." : "Gerar Doc Resumo sem IA"}</span>
+            <span className="sm:hidden">{gerandoDocResumoSemIA ? "..." : "Doc s/IA"}</span>
           </Button>
 
           <Button
