@@ -571,6 +571,42 @@ export default function DistribuicaoTst() {
     }
   };
 
+  // Gerar carga Benner respeitando os filtros aplicados na lista
+  const handleGerarCarga = async () => {
+    setCargaLoading(true);
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando distribuições filtradas...");
+        ids = await fetchAllDistribuicaoTstIds(debouncedFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
+        return;
+      }
+      toast.info(`Carregando ${ids.length} distribuição(ões)...`);
+      const allData: any[] = [];
+      const pageSize = 1000;
+      for (let i = 0; i < ids.length; i += pageSize) {
+        const batch = ids.slice(i, i + pageSize);
+        const { data, error } = await supabase
+          .from("dados_benner" as any)
+          .select("*")
+          .in("id", batch);
+        if (error) throw error;
+        if (data) allData.push(...(data as any[]));
+      }
+      setCargaDistribuicoes(allData);
+      setShowCarga(true);
+    } catch (err: any) {
+      toast.error("Erro ao carregar dados para carga: " + (err?.message || String(err)));
+    } finally {
+      setCargaLoading(false);
+    }
+  };
+
   const handleBulkJudit = async () => {
     bulkAbortRef.current = false;
     setBulkJuditRunning(true);
