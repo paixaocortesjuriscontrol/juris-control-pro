@@ -1504,6 +1504,9 @@ export default function DistribuicaoTst() {
                 const isPronto = ((d as any).status || "") === "pronto_envio";
                 const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
                 const isSubidaMassa = /subida\s+em\s+massa/i.test(d.relator || "");
+                const relatorDisplay = isSubidaMassa
+                  ? (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim()
+                  : (d.relator || "");
                 return (
                 <TableRow
                   key={d.id}
