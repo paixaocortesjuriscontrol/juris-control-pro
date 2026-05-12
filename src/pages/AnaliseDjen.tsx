@@ -1973,7 +1973,7 @@ const AnaliseDjen = () => {
           const prep2 = prepararConteudoParaIA(pub.conteudo, pub.processo_numero);
           const { data: aiData, error: aiError } = await supabase.functions.invoke('resumir-publicacoes', {
             body: {
-              resumoIndividual: true,
+              blocoEstruturado: true,
               publicacao: {
                 id: pub.id,
                 conteudo: pub.conteudo,
@@ -1984,7 +1984,8 @@ const AnaliseDjen = () => {
             },
           });
           if (aiError) throw aiError;
-          if (aiData?.resumo) resumosMap.set(pub.id, aiData.resumo);
+          const textoBloco = aiData?.conteudo_integral || aiData?.resumo;
+          if (textoBloco) resumosMap.set(pub.id, textoBloco);
           if (aiData?.orgao) orgaosMap.set(pub.id, String(aiData.orgao));
         } catch (e) {
           console.error(`Erro ao resumir publicação ${pub.id}:`, e);
