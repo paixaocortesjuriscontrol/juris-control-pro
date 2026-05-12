@@ -105,6 +105,8 @@ export default function DistribuicaoTst() {
   const [delegarOpen, setDelegarOpen] = useState(false);
   const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
+  const [cargaDistribuicoes, setCargaDistribuicoes] = useState<any[] | null>(null);
+  const [cargaLoading, setCargaLoading] = useState(false);
   
   // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
   const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
