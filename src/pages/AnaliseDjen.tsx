@@ -3220,6 +3220,38 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleGerarPdfResumoSemIA}
+            disabled={allPublicacoes.length === 0 || gerandoResumoSemIA}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
+          >
+            {gerandoResumoSemIA ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoResumoSemIA ? "Gerando..." : "Gerar PDF Resumo sem IA"}</span>
+            <span className="sm:hidden">{gerandoResumoSemIA ? "..." : "PDF s/IA"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarDocResumoSemIA}
+            disabled={allPublicacoes.length === 0 || gerandoDocResumoSemIA}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
+          >
+            {gerandoDocResumoSemIA ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoDocResumoSemIA ? "Gerando..." : "Gerar Doc Resumo sem IA"}</span>
+            <span className="sm:hidden">{gerandoDocResumoSemIA ? "..." : "Doc s/IA"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleGerarDocsTST}
             disabled={allPublicacoes.length === 0 || gerandoDocsTST}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
