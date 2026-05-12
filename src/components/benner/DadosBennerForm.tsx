@@ -936,9 +936,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("situacao_processo"))}>
               <JuditLabel field="situacao_processo"><Label>Situação do Processo</Label></JuditLabel>
-              <Select value={form.situacao_processo || ""} onValueChange={v => set("situacao_processo", v)}>
+              <Select value={form.situacao_processo || "__none__"} onValueChange={v => set("situacao_processo", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione a situação" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="Ativo">Ativo</SelectItem>
                   <SelectItem value="Trânsito em Julgado">Trânsito em Julgado</SelectItem>
                   <SelectItem value="Arquivado">Arquivado</SelectItem>
@@ -952,9 +953,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tribunal"))}>
               <JuditLabel field="tribunal"><Label>Tribunal (B)</Label></JuditLabel>
-              <Select value={form.tribunal || ""} onValueChange={v => set("tribunal", v)}>
+              <Select value={form.tribunal || "__none__"} onValueChange={v => set("tribunal", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="TST">TST</SelectItem>
                   <SelectItem value="STF">STF</SelectItem>
                   <SelectItem value="STJ">STJ</SelectItem>
@@ -1026,9 +1028,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Risco Mídia Negativa (H)</Label>
-              <Select value={form.risco_midia || ""} onValueChange={v => set("risco_midia", v)}>
+              <Select value={form.risco_midia || "__none__"} onValueChange={v => set("risco_midia", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                 </SelectContent>
@@ -1040,9 +1043,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             </div>
             <div className="space-y-2">
               <Label>Provas Digitais (J)</Label>
-              <Select value={form.provas_digitais || ""} onValueChange={v => set("provas_digitais", v)}>
+              <Select value={form.provas_digitais || "__none__"} onValueChange={v => set("provas_digitais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                 </SelectContent>
@@ -1053,9 +1057,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tem_data_julgamento"))}>
               <JuditLabel field="tem_data_julgamento"><Label>Data Julgamento? (K)</Label></JuditLabel>
-              <Select value={form.tem_data_julgamento || ""} onValueChange={v => set("tem_data_julgamento", v)}>
+              <Select value={form.tem_data_julgamento || "__none__"} onValueChange={v => set("tem_data_julgamento", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                 </SelectContent>
@@ -1071,9 +1076,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tipo_julgamento"))}>
               <JuditLabel field="tipo_julgamento"><Label>Tipo Julgamento (N)</Label></JuditLabel>
-              <Select value={form.tipo_julgamento || ""} onValueChange={v => set("tipo_julgamento", v)}>
+              <Select value={form.tipo_julgamento || "__none__"} onValueChange={v => set("tipo_julgamento", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="Virtual">Virtual</SelectItem>
                   <SelectItem value="Telepresencial">Telepresencial</SelectItem>
                   <SelectItem value="Híbrido">Híbrido</SelectItem>
@@ -1086,9 +1092,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Matéria de Honra (O)</Label>
-              <Select value={form.materia_honra || ""} onValueChange={v => set("materia_honra", v)}>
+              <Select value={form.materia_honra || "__none__"} onValueChange={v => set("materia_honra", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                 </SelectContent>
@@ -1096,9 +1103,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             </div>
             <div className="space-y-2">
               <Label>Entrega Memoriais (P)</Label>
-              <Select value={form.entrega_memoriais || ""} onValueChange={v => set("entrega_memoriais", v)}>
+              <Select value={form.entrega_memoriais || "__none__"} onValueChange={v => set("entrega_memoriais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                 </SelectContent>
@@ -1106,9 +1114,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             </div>
             <div className="space-y-2">
               <Label>Sustentação Oral (Q)</Label>
-              <Select value={form.sustentacao_oral || ""} onValueChange={v => set("sustentacao_oral", v)}>
+              <Select value={form.sustentacao_oral || "__none__"} onValueChange={v => set("sustentacao_oral", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                   <SelectItem value="Não cabe">Não cabe</SelectItem>
@@ -1166,9 +1175,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("processo_baixado"))}>
               <JuditLabel field="processo_baixado"><Label>Processo Baixado (Z)</Label></JuditLabel>
-              <Select value={form.processo_baixado || ""} onValueChange={v => set("processo_baixado", v)}>
+              <Select value={form.processo_baixado || "__none__"} onValueChange={v => set("processo_baixado", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
                   <SelectItem value="S">S</SelectItem>
                   <SelectItem value="N">N</SelectItem>
                 </SelectContent>
@@ -1238,9 +1248,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           </div>
           <div className="space-y-2">
             <Label>Chance de Êxito (AH)</Label>
-            <Select value={form.chance_exito || ""} onValueChange={v => set("chance_exito", v)}>
+            <Select value={form.chance_exito || "__none__"} onValueChange={v => set("chance_exito", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
                 <SelectItem value="Possível">Possível</SelectItem>
                 <SelectItem value="Provável">Provável</SelectItem>
                 <SelectItem value="Remota">Remota</SelectItem>
