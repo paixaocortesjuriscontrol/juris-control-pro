@@ -2014,7 +2014,7 @@ const AnaliseDjen = () => {
         if (resumo) {
           children.push(new Paragraph({
             spacing: { before: 160, after: 80 },
-            children: [new TextRun({ text: "RESUMO", bold: true, size: 20, font: docFont, color: mediumBlue })],
+            children: [new TextRun({ text: "Conteúdo Integral:", bold: true, size: 20, font: docFont, color: mediumBlue })],
             border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
           }));
 
