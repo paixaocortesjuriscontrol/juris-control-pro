@@ -6,6 +6,7 @@ import {
   SYSTEM_PROMPT_FASE_RESUMO,
   SYSTEM_PROMPT_FASE_TRECHO,
 } from './prompt-agente.ts';
+import { htmlParaMarkdown, isPautaDeJulgamentoMd, segmentarPauta, selecionarBlocoPorProcesso } from './markdown.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
