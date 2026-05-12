@@ -1640,7 +1640,7 @@ export default function DistribuicaoTst() {
                   </TableCell>
                   <TableCell className={cn("text-xs align-middle", relatorClass)}>
                     <div className="inline-flex items-center gap-1 flex-wrap">
-                      <span>{d.relator || "—"}</span>
+                      <span>{relatorDisplay || "—"}</span>
                       {isSubidaMassa && (
                         <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
                           Subida em Massa
