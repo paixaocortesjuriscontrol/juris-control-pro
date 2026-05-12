@@ -85,6 +85,14 @@ type FiltroDiaDjen = 'hoje' | 'todos';
 
 const formatToUTC = (date: Date) => date.toISOString();
 
+// Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
+// Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
+const shortenTurma = (value: string | null | undefined): string => {
+  if (!value) return "";
+  const m = value.match(/^\s*(\d+)\s*[ºªoa]?\s*Turma\b/i);
+  return m ? `${m[1]}ª Turma` : value;
+};
+
 const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   const [year, month, day] = dateStr.split('-').map(Number);
   if (isEnd) {
