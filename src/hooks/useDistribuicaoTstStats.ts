@@ -107,6 +107,9 @@ function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResp
   if ((filters as any).fonteImportacao && (filters as any).fonteImportacao !== "todas") {
     query = query.contains("fontes_importacao", [(filters as any).fonteImportacao]);
   }
+  if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
+  else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
+  else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
   return query;
 }
 
