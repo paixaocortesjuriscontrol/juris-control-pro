@@ -1032,41 +1032,35 @@ export default function DistribuicaoTst() {
   return (
     <MainLayout title="Distribuição TST">
       <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex gap-2 flex-wrap ml-auto">
-            <Button
-              variant="outline"
-              onClick={handleGerarRelatorioPdf}
-              disabled={pdfRunning}
-              title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
-            >
-              {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-              {pdfRunning
-                ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
-                : selectedIds.size > 0
-                  ? `Relatório PDF Partes (${selectedIds.size})`
-                  : "Relatório PDF Partes"}
+        <div className="flex gap-2 flex-wrap justify-end items-center">
+          <Button
+            variant="outline"
+            onClick={handleGerarRelatorioPdf}
+            disabled={pdfRunning}
+            title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
+          >
+            {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+            {pdfRunning
+              ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+              : selectedIds.size > 0
+                ? `Relatório PDF Partes (${selectedIds.size})`
+                : "Relatório PDF Partes"}
+          </Button>
+          <CertidaoPdfImport onImported={handleRefresh} />
+          <DistribuicaoTstImport onImported={handleRefresh} />
+          <DossieUpdateImport onUpdated={handleRefresh} />
+          <Link to="/dados-benner">
+            <Button variant="outline">
+              <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
             </Button>
-            <CertidaoPdfImport onImported={handleRefresh} />
-            <DistribuicaoTstImport onImported={handleRefresh} />
-            <DossieUpdateImport onUpdated={handleRefresh} />
-            <Link to="/dados-benner">
-              <Button variant="outline">
-                <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
-              </Button>
-            </Link>
-            <Link to="/distribuicao-tst/kanban">
-              <Button variant="outline">
-                <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Ações rápidas acima dos totalizadores */}
-        <div className="flex gap-2 flex-wrap justify-end">
+          </Link>
+          <Link to="/distribuicao-tst/kanban">
+            <Button variant="outline">
+              <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+            </Button>
+          </Link>
           <BennerSimImport onUpdated={handleRefresh} />
-          <Button variant="secondary" size="sm" className="h-9" onClick={() => setShowCarga(true)}>
+          <Button variant="secondary" onClick={() => setShowCarga(true)}>
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             {selectedIds.size > 0 ? `Carga Benner (${selectedIds.size})` : "Gerar Carga Benner"}
           </Button>
