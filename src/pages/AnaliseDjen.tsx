@@ -1007,6 +1007,7 @@ const AnaliseDjen = () => {
         };
 
         if (pub.tribunal) printMeta("Órgão", pub.tribunal);
+        if (pub.orgao && pub.orgao !== pub.tribunal) printMeta("Turma", pub.orgao);
         if (pub.data_disponibilizacao) printMeta("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
         printMeta("Tipo de comunicação", "Intimação");
         if (pub.fonte) printMeta("Fonte", pub.fonte);
@@ -1516,7 +1517,8 @@ const AnaliseDjen = () => {
         };
 
         addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
-        addRow("Órgão", (pub.orgao || pub.tribunal) || "—");
+        addRow("Órgão", pub.tribunal || pub.orgao || "—");
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", pub.orgao);
         addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
         addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
 
