@@ -1566,6 +1566,11 @@ export default function DistribuicaoTst() {
                                   Provas Digitais
                                 </Badge>
                               )}
+                              {isTransito && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
+                                  Trans. Julgado
+                                </Badge>
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1593,6 +1598,11 @@ export default function DistribuicaoTst() {
                           {hasProvasDigitais && (
                             <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
                               Provas Digitais
+                            </Badge>
+                          )}
+                          {isTransito && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
+                              Trans. Julgado
                             </Badge>
                           )}
                         </div>
