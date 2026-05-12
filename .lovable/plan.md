@@ -1,63 +1,55 @@
-## Objetivo
+## Problema
 
-Substituir a classificação por IA (Claude) do botão **"Docs TST (IA)"** por **regras determinísticas por palavra-chave**, e expandir de 3 para **5 categorias** de documentos. Mais rápido, mais barato, mais previsível — e elimina a única exceção do projeto que ainda usava Anthropic.
+O Vite já gera arquivos JS/CSS com hash (ex: `index-ab12cd.js`), então em teoria o navegador sempre baixa a versão nova. O que prende o usuário legado é normalmente:
 
-O botão será renomeado para **"Docs TST"** (sem o "(IA)").
+1. **`index.html` cacheado** pelo navegador/CDN — ele continua apontando para os bundles antigos.
+2. **Aba aberta há horas/dias** — o usuário não recarrega, então nem chega a pedir um `index.html` novo.
+3. **Service worker antigo** (não é o caso aqui — não temos SW registrado).
 
-## Categorias e regras (case-insensitive, sem acentos)
+Hoje o projeto tem `APP_VERSION` em `src/constants/version.ts` (1.0.8), mas é usado apenas como label visual no Sidebar — não força atualização.
 
-Aplicadas **na ordem abaixo** — a primeira que casar vence.
+## Plano: detector de nova versão + recarga automática
 
-| # | Categoria | Regra de match | Conteúdo no Word |
-|---|---|---|---|
-| 1 | **TEMAS_IRR** | Texto contém (`sobrestamento` OU `sobrestar`) **E** (`tema` seguido de número OU `tema vinculante` OU `IncJulgRREmbRep`) | Conteúdo integral + badge amarela com `Tema XX` quando identificável |
-| 2 | **PAUTA** | Texto contém `pauta de julgamento` | Conteúdo integral |
-| 3 | **CEJUSC** *(novo)* | Texto contém `plataforma zoom` | Conteúdo integral |
-| 4 | **DISTRIBUIÇÕES** *(novo)* | Texto contém `lista de distribuição` | Conteúdo integral |
-| 5 | **PRAZOS** *(default)* | Tudo que sobrar | Apenas as **últimas 20 linhas** do conteúdo (linhas vazias colapsadas, mantendo formatação básica) |
+### 1. Endpoint de versão estático
 
-## Arquivos gerados
+Criar `public/version.json` (servido sem hash) com o conteúdo:
+```json
+{ "version": "1.0.9", "buildTime": "2026-05-12T..." }
+```
 
-Até 5 arquivos `.docx`, um por categoria que tenha pelo menos 1 publicação:
+Esse arquivo é gerado automaticamente no build via plugin Vite (lê `APP_VERSION` + timestamp). Como está em `public/`, fica acessível em `/version.json`.
 
-- `TEMAS_IRR_<dd.MM.yy>.docx`
-- `PAUTA_<dd.MM.yy>.docx`
-- `CEJUSC_<dd.MM.yy>.docx`
-- `DISTRIBUICOES_<dd.MM.yy>.docx`
-- `PRAZOS_<dd.MM.yy>.docx`
+### 2. Headers de cache corretos
 
-Mantemos a estrutura visual atual (cabeçalho azul COMUNICAÇÃO PJE, metadados, link Inteiro Teor para o PJe Comunica, partes/advogados, comentários).
+Garantir que `index.html` e `version.json` **não** sejam cacheados (ou cache muito curto), enquanto os assets com hash continuam com cache longo. Na hospedagem Lovable isso já é o padrão para `index.html`; só precisamos confirmar o mesmo para `version.json` (adicionar `<meta http-equiv="Cache-Control" content="no-store">` não funciona em JSON, então o ideal é o servidor — se a Lovable cachear, alternativa é versão como query: `/version.json?t=${Date.now()}`).
 
-## Mudanças técnicas
+### 3. Hook `useVersionCheck`
 
-### 1. Frontend — `src/pages/AnaliseDjen.tsx` (`handleGerarDocsTST`)
-- Remover o loop que chama `supabase.functions.invoke('classificar-publicacoes-tst')`.
-- Implementar `classificarLocal(pub)` puramente client-side com as 5 regras acima.
-- Para PRAZOS: aplicar helper `pegarUltimasNLinhas(conteudo, 20)` antes de chamar `buildConteudoParagraphs(...)`.
-- Adicionar 2 buckets novos (CEJUSC, DISTRIBUIÇÕES) e 2 chamadas a `dl(mkDoc(...))`.
-- Atualizar toast de progresso/sucesso para listar as 5 contagens.
-- Renomear o label do botão para `"Docs TST"` (linha 2852).
+Novo hook que:
+- A cada **5 minutos** (e ao voltar o foco da aba via `visibilitychange`), faz `fetch("/version.json?t=" + Date.now())`.
+- Compara com o `APP_VERSION` atual em memória.
+- Se diferente, mostra um **toast persistente** "Nova versão disponível" com botão **Atualizar agora** que executa `window.location.reload()`.
+- Opcional: após X minutos sem clicar, recarrega automaticamente quando a aba estiver ociosa (sem formulários abertos).
 
-### 2. Edge Function — `supabase/functions/classificar-publicacoes-tst/`
-- **Marcar como deprecada** (manter o arquivo por compatibilidade caso seja chamada de outro lugar, mas não é mais usada). Sem deploy/delete imediato.
-- Após validação, podemos removê-la em uma limpeza futura — não há outras chamadas no código (verificado: só o `AnaliseDjen.tsx` invoca).
+### 4. Atualização do versionamento
 
-### 3. Memória do projeto
-- Atualizar `mem://features/analise-djen/tst-ai-automated-docs` para refletir: regras determinísticas, 5 categorias, sem IA, sem Anthropic.
+- A cada deploy relevante, subir `APP_VERSION` em `src/constants/version.ts` (já é a convenção do projeto).
+- O plugin Vite copia esse valor para `version.json` no build — não precisa lembrar de atualizar dois lugares.
 
-## Pontos confirmados pela advogada
-- **Sem keyword → PRAZOS** (default).
-- **Ordem de prioridade**: TEMAS IRR > PAUTA > CEJUSC > DISTRIBUIÇÕES > PRAZOS.
-- **TEMAS IRR**: precisa de `sobrestamento`/`sobrestar` **E** menção a `Tema`.
+### 5. (Opcional) Botão manual "Verificar atualização"
 
-## Detalhes do recorte das últimas 20 linhas (PRAZOS)
-- Limpar HTML (`<br>` → quebra, strip de tags).
-- Quebrar por `\n`, remover linhas em branco redundantes.
-- Pegar as últimas 20 linhas não-vazias.
-- Se a publicação tiver menos de 20 linhas, usa tudo.
-- Renderizar com o mesmo estilo de `buildConteudoParagraphs("Trecho final da decisão (últimas 20 linhas)")`.
+Adicionar no menu do usuário/Sidebar um item que dispara o check imediatamente e força reload se houver versão nova — útil para suporte ("peça pro usuário clicar aqui").
 
-## Riscos / observações
-- Publicações com texto único sem quebras de linha (tudo em um parágrafo) terão "1 linha" → todo o conteúdo entra. Aceitável para um corte determinístico.
-- Se aparecerem novas variações de keywords no futuro (ex.: `"PLATAFORMA Zoom"` com Z maiúsculo no meio), o match já é case-insensitive, então cobre. Mas variações como "Sala virtual Zoom" sem "plataforma" não casam — precisaria revisão.
-- Sem IA, não há mais geração de "resumo analítico" para PRAZOS — agora é literalmente o trecho final do texto.
+## Arquivos afetados
+
+- `vite.config.ts` — plugin que escreve `dist/version.json` no build.
+- `src/constants/version.ts` — bump da versão a cada release (já existe).
+- `src/hooks/useVersionCheck.ts` — novo.
+- `src/App.tsx` — montar o hook na raiz.
+- `src/components/layout/Sidebar.tsx` (opcional) — botão "Verificar atualização".
+
+## Pontos a confirmar antes de implementar
+
+1. **Recarga automática vs. apenas avisar?** Recomendo apenas avisar com toast + botão (usuário pode estar no meio de um formulário). Auto-reload só se aba estiver ociosa há X minutos.
+2. **Frequência do check** — 5 min é razoável; pode ser 2 min se quiser mais agressivo.
+3. **Bump manual da versão** está ok, ou prefere automático (timestamp do build como versão)?
