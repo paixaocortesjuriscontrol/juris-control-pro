@@ -517,7 +517,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       } else {
         const { data: newProc, error } = await supabase
           .from("processos")
-          .insert({ numero: form.processo_numero.trim(), status: "ativo", area: "trabalhista" })
+          .insert({
+            numero: form.processo_numero.trim(),
+            status: "ativo",
+            area: "trabalhista",
+            // RLS: precisa de advogado_responsavel_id = auth.uid() para que o
+            // RETURNING enxergue a linha recém-criada (caso contrário 403).
+            advogado_responsavel_id: sessionData.session.user.id,
+          })
           .select("id")
           .single();
         if (error) {
