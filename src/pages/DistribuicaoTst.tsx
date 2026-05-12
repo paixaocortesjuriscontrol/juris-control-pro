@@ -1501,6 +1501,9 @@ export default function DistribuicaoTst() {
                       ? "text-destructive font-semibold"
                       : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
+                const isPronto = ((d as any).status || "") === "pronto_envio";
+                const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
+                const isSubidaMassa = /subida\s+em\s+massa/i.test(d.relator || "");
                 return (
                 <TableRow
                   key={d.id}
