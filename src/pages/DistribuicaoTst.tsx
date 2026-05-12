@@ -1503,10 +1503,8 @@ export default function DistribuicaoTst() {
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 const isPronto = ((d as any).status || "") === "pronto_envio";
                 const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
-                const isSubidaMassa = /subida\s+em\s+massa/i.test(d.relator || "");
-                const relatorDisplay = isSubidaMassa
-                  ? (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim()
-                  : (d.relator || "");
+                const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
+                const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
                 <TableRow
                   key={d.id}
