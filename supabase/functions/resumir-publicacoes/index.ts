@@ -344,7 +344,15 @@ serve(async (req) => {
         );
       }
       const conteudoBruto = pub.conteudo || pub.texto || pub.teor || '';
-      const conteudo = conteudoBruto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Markdown estruturado: usa o que o cliente enviou ou gera localmente.
+      // Para pautas, recorta apenas o bloco do processo de interesse.
+      const processoTmp = pub.processo || pub.numeroProcesso || '';
+      let conteudoMd: string = (pub.conteudoMd && String(pub.conteudoMd).trim())
+        || htmlParaMarkdown(conteudoBruto);
+      if (isPautaDeJulgamentoMd(conteudoMd)) {
+        conteudoMd = selecionarBlocoPorProcesso(conteudoMd, processoTmp);
+      }
+      const conteudo = conteudoMd; // mantém variável usada abaixo
       if (!conteudo || conteudo.length < 20) {
         return new Response(
           JSON.stringify({ id: pub.id, trecho: '' }),
