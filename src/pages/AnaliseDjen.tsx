@@ -1732,7 +1732,8 @@ const AnaliseDjen = () => {
     }));
 
     const metaItems: TextRun[] = [];
-    const turma = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const turmaRaw = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const turma = turmaRaw ? shortenTurma(turmaRaw) : null;
     const orgaoLabel = pub.tribunal || pub.orgao;
     if (orgaoLabel) {
       metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
