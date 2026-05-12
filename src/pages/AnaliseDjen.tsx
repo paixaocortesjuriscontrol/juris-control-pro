@@ -1015,7 +1015,7 @@ const AnaliseDjen = () => {
         };
 
         if (pub.tribunal) printMeta("Órgão", pub.tribunal);
-        if (pub.orgao && pub.orgao !== pub.tribunal) printMeta("Turma", pub.orgao);
+        if (pub.orgao && pub.orgao !== pub.tribunal) printMeta("Turma", shortenTurma(pub.orgao));
         if (pub.data_disponibilizacao) printMeta("Data de disponibilização", formatDateOnlyFull(pub.data_disponibilizacao));
         printMeta("Tipo de comunicação", "Intimação");
         if (pub.fonte) printMeta("Fonte", pub.fonte);
