@@ -1621,6 +1621,7 @@ export type Database = {
           status: string
           status_distribuicao: string | null
           subcategoria: string | null
+          subida_em_massa: boolean
           sustentacao_oral: string | null
           tem_data_julgamento: string | null
           tema: string | null
@@ -1720,6 +1721,7 @@ export type Database = {
           status?: string
           status_distribuicao?: string | null
           subcategoria?: string | null
+          subida_em_massa?: boolean
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
           tema?: string | null
@@ -1819,6 +1821,7 @@ export type Database = {
           status?: string
           status_distribuicao?: string | null
           subcategoria?: string | null
+          subida_em_massa?: boolean
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
           tema?: string | null
