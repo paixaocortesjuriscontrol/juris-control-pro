@@ -1485,16 +1485,21 @@ export default function DistribuicaoTst() {
               ) : dados.length === 0 ? (
                 <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => {
-                const relatorClass = d.relator_favorabilidade?.toLowerCase().includes("positiv")
-                  ? "text-emerald-600 dark:text-emerald-400 font-semibold"
-                  : d.relator_favorabilidade?.toLowerCase().includes("negativ")
-                    ? "text-destructive font-semibold"
-                    : "";
-                const turmaClass = d.turma_favorabilidade?.toLowerCase().includes("positiv")
-                  ? "text-emerald-600 dark:text-emerald-400 font-semibold"
-                  : d.turma_favorabilidade?.toLowerCase().includes("negativ")
-                    ? "text-destructive font-semibold"
-                    : "";
+                const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
+                const relatorClass = isPresidencia
+                  ? ""
+                  : d.relator_favorabilidade?.toLowerCase().includes("positiv")
+                    ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                    : d.relator_favorabilidade?.toLowerCase().includes("negativ")
+                      ? "text-destructive font-semibold"
+                      : "";
+                const turmaClass = isPresidencia
+                  ? ""
+                  : d.turma_favorabilidade?.toLowerCase().includes("positiv")
+                    ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                    : d.turma_favorabilidade?.toLowerCase().includes("negativ")
+                      ? "text-destructive font-semibold"
+                      : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
                 return (
                 <TableRow
