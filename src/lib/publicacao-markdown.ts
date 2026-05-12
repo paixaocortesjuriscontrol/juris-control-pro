@@ -25,7 +25,7 @@ const ENTIDADES: Record<string, string> = {
 function decodeEntidades(s: string): string {
   let out = s;
   for (const [k, v] of Object.entries(ENTIDADES)) {
-    out = out.replaceAll(k, v);
+    out = out.split(k).join(v);
   }
   // Numéricas &#NNN; e &#xHH;
   out = out.replace(/&#(\d+);/g, (_m, d) => {
