@@ -82,6 +82,25 @@ function normalizarParteRecorrente(
   return "Terceiro";
 }
 
+/** Aplica a normalização correta para os campos cujo dropdown tem lista fixa
+ *  (Tipo de Recurso, Parte Recorrente). Para os demais campos, devolve o valor
+ *  original. Usado tanto pelo preenchimento da Judit quanto pelo da IA. */
+function normalizarValorPorCampo(
+  campo: string,
+  valor: any,
+  reclamante: string,
+  reclamada: string,
+): any {
+  if (valor === null || valor === undefined) return valor;
+  if (campo === "tipo_recurso" || campo === "tipo_recurso_reclamante" || campo === "tipo_recurso_banco") {
+    return normalizarTipoRecurso(valor);
+  }
+  if (campo === "parte_recorrente") {
+    return normalizarParteRecorrente(valor, reclamante, reclamada);
+  }
+  return valor;
+}
+
 import { Badge } from "@/components/ui/badge";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
@@ -231,7 +250,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {
-          next[k] = v;
+          const vNorm = normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
+          if (vNorm === null || vNorm === undefined) continue;
+          next[k] = vNorm;
           filled.add(k);
         }
       }
@@ -274,7 +295,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           }
           const cur = base[k];
           const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-          if (curEmpty) { base[k] = v; filled.add(k); }
+          if (curEmpty) {
+            const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+            if (vNorm === null || vNorm === undefined) continue;
+            base[k] = vNorm; filled.add(k);
+          }
         }
         if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
       }
@@ -294,7 +319,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (ALWAYS_JUDIT.has(k)) continue;
-          base[k] = v; filled.add(k);
+          const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+          if (vNorm === null || vNorm === undefined) continue;
+          base[k] = vNorm; filled.add(k);
         }
         if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
       }
