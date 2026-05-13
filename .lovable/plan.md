@@ -1,95 +1,62 @@
-## Objetivo
+## Diagnóstico
 
-Reescrever o "Gerar DOC Resumo" e "Gerar PDF Resumo" da Análise DJEN para emitir o **mesmo padrão estruturado por processo** que o advogado anterior produzia, mantendo `gpt-4o` (sem trocar modelo) e **sem alterar o Resumo Rápido**.
+Hoje a coluna **AA (Recorrente)** da planilha Carga Benner é gravada com `dados_benner.recorrente`. Esse campo é populado automaticamente por Judit/IA com o nome livre do recorrente (ex.: "BANCO SANTANDER (BRASIL) S.A.") sempre que o registro é importado/atualizado, mesmo quando o advogado **não** seleciona nada na combo "Parte Recorrente" da aba **Distribuição TST**.
 
-## Padrão alvo (igual ao `resumo_TST_SANTANDER_29.04.26_1.docx`)
-
-Para cada publicação, um bloco:
+Confirmei no banco para o dossiê `07.02.033.0004058416/24`:
 
 ```
-COMUNICAÇÃO PJE #<numero>
-Processo: <numero>
-Órgão: <órgão/turma>
-Data de disponibilização: <DD/MM/AAAA>
-Tipo de Comunicação: <Edital/Intimação/Pauta/...>
-Meio: <D/E>
-Inteiro teor: Clique aqui   (hyperlink p/ o link da publicação)
-
-Parte(s):
-- ...
-
-Advogado(s):
-- ...
-
-Conteúdo Integral:
-<EXTRATO CIRÚRGICO — não o texto bruto>
-
-Intimado(s) / Citado(s):
-- ...
+recorrente: "BANCO SANTANDER (BRASIL) S.A."
+parte_recorrente_origem: NULL
 ```
 
-Regra do "Conteúdo Integral":
-- **Decisão / acórdão**: do marcador `A C Ó R D Ã O` (ou último parágrafo dispositivo do tipo "DOU PROVIMENTO… / Nego provimento… / DENEGO seguimento…") até a assinatura do Relator (ex.: "Brasília, 27 de abril de 2026. Lelio Bentes Corrêa, Ministro Relator"), descartando relatório e voto.
-- **Pauta de julgamento**: bloco da sessão (data, modalidade virtual/presencial, início/encerramento, complementos/observações).
-- **Edital / Intimação para contrarrazões**: o parágrafo do despacho ("fica intimado o agravado para…") + assinatura do secretário.
-- Sem markdown, sem bullets, sem títulos dentro do "Conteúdo Integral" — texto corrido como no original.
+A combo do form ("Parte Recorrente") tem apenas 4 opções fechadas: **Reclamante, Reclamada, Reclamante e Reclamada, Terceiro**. Hoje ela escreve no MESMO campo `recorrente` (ver `useDistribuicoesTst.ts` linhas 118 e 166: `parte_recorrente: b.recorrente` / `recorrente: d.parte_recorrente`), então o que veio da Judit "polui" a seleção do advogado e nunca há como saber se o usuário escolheu de fato.
 
 ## Mudanças
 
-### 1. `supabase/functions/resumir-publicacoes/index.ts`
+**1. Migration** (novo arquivo em `supabase/migrations/`)
 
-Adicionar novo modo no body: `modo: "blocoEstruturado"` (mantendo `resumoIndividual`/`apenasTrecho` intactos). Resposta JSON estrita:
-
-```json
-{
-  "processo": "...",
-  "orgao": "...",
-  "tipo_comunicacao": "...",
-  "meio": "D|E",
-  "data_disponibilizacao": "DD/MM/AAAA",
-  "partes": ["..."],
-  "advogados": ["..."],
-  "intimados": ["..."],
-  "conteudo_integral": "texto corrido cirúrgico"
-}
+```sql
+ALTER TABLE public.dados_benner
+  ADD COLUMN IF NOT EXISTS parte_recorrente text;
 ```
 
-- Modelo: continua `gpt-4o` (`OPENAI_SUMMARY_MODEL`).
-- `temperature: 0.1`, `max_tokens: 1500`, `response_format: json_object`, backoff 429.
-- Input: `conteudoMd` segmentado por `selecionarBlocoPorProcesso` + metadados conhecidos (processo, link).
-- Novo `SYSTEM_PROMPT_BLOCO`: persona advogado sênior, regras estritas de extração (nunca inventar, deduplicar partes/advogados, normalizar OAB), regra do "Conteúdo Integral" descrita acima.
-- Pauta usa o mesmo modo (a IA decide o que é o "extrato" da pauta) — mantém o curto‑circuito determinístico apenas como fallback se a IA falhar/devolver < 80 chars no `conteudo_integral`.
+Coluna nova, dedicada **exclusivamente** à seleção do advogado. Não tocar em `recorrente` (mantém a string Judit/IA para outros usos).
 
-### 2. `src/pages/AnaliseDjen.tsx` — só `gerarDocResumo` e `gerarPdfResumo`
+**2. `src/hooks/useDistribuicoesTst.ts`**
 
-- Para cada publicação selecionada, chamar `resumir-publicacoes` com `modo: "blocoEstruturado"` (em vez do texto corrido atual). Manter o throttle de 800ms e o toast de progresso.
-- Nova renderização do DOCX (`docx-js`) reproduzindo o layout do original:
-  - Heading "COMUNICAÇÃO PJE #..." (negrito, tamanho ~14).
-  - Linhas `Label: valor` com label em negrito.
-  - "Inteiro teor: Clique aqui" usando `ExternalHyperlink` (link da publicação `link_consulta` / `hashHandler` quando disponível, senão omite o "Clique aqui").
-  - Listas com `LevelFormat.BULLET` (sem unicode •) para Parte(s), Advogado(s) e Intimado(s)/Citado(s).
-  - "Conteúdo Integral:" seguido de parágrafos do `conteudo_integral` da IA.
-  - `PageBreak` entre processos (igual ao original que quebra por bloco).
-- PDF: replicar o mesmo bloco no gerador atual (`jsPDF`/`html2canvas` — manter biblioteca já usada por `gerarPdfResumo`).
+- Linha 118 (load Benner → form): trocar `parte_recorrente: b.recorrente ?? null` por `parte_recorrente: b.parte_recorrente ?? null`.
+- Linha 166 (save form → Benner): remover `recorrente: d.parte_recorrente` e gravar `parte_recorrente: d.parte_recorrente` em vez disso. Não sobrescrever `recorrente`.
+- Adicionar `parte_recorrente: string | null` ao tipo de mapeamento, se necessário.
 
-### 3. `src/lib/publicacao-markdown.ts`
+**3. `src/components/distribuicao-tst/CargaBennerFromDb.tsx` (linha 356)**
 
-Sem mudança de assinatura. Reaproveita `prepararConteudoParaIA` para enviar Markdown segmentado.
+Trocar:
+```ts
+outRow[LAYOUT_COLS[26]] = String(d.recorrente ?? "").trim();
+```
+por:
+```ts
+outRow[LAYOUT_COLS[26]] = String((d as any).parte_recorrente ?? "").trim();
+```
+Sem fallback para `d.recorrente` ou qualquer outro campo. Vazio quando o advogado não selecionou.
 
-### 4. Resumo Rápido — INTOCADO
+**4. `src/utils/gerarPlanilhaBenner.ts` (linha 153)**
 
-`gerarPdfResumoRapido` / `gerarDocResumoRapido` e o modo `apenasTrecho` continuam exatamente como hoje (determinístico).
+Trocar:
+```ts
+cleanDadoBennerValue(d.recorrente),
+```
+por:
+```ts
+cleanDadoBennerValue((d as any).parte_recorrente),
+```
 
-## Validação
+**5. Memória**
 
-1. Selecionar as mesmas publicações do `publicacoes_djen_2026-05-12_1554.docx` (Santander/TST 29/04/26) e gerar o DOC Resumo: comparar visualmente com `resumo_TST_SANTANDER_29.04.26_1.docx` — cabeçalho, ordem dos campos, "Conteúdo Integral" cirúrgico, lista de Intimados.
-2. Testar com pauta TST: confirmar que o "Conteúdo Integral" traz a sessão (data/modalidade/horário) e não o texto corrido inteiro.
-3. Testar Resumo Rápido: confirmar que segue idêntico ao comportamento atual (sem regressão).
-4. Logs do edge: `[resumir-publicacoes] bloco-estruturado pub=… ai_len=… campos=…`.
+Atualizar/criar memória registrando que **coluna AA da Carga Benner = `dados_benner.parte_recorrente` (seleção da combo Distribuição TST), sem fallback**, e que `recorrente` é apenas o nome livre vindo de Judit/IA.
 
-## Fora de escopo
+## Resultado esperado
 
-- Troca do modelo OpenAI (continua `gpt-4o`).
-- Resumo Rápido (Doc e PDF).
-- Mudanças em `gerarDocPublicacoes` (relatório bruto).
-- Persistência/pgvector.
+- Dossiês cuja combo "Parte Recorrente" não foi selecionada saem com **AA em branco** (incluindo `07.02.033.0004058416/24`).
+- Dossiês com seleção saem com exatamente o valor escolhido (Reclamante / Reclamada / Reclamante e Reclamada / Terceiro). "Banco" deixa de aparecer (não é opção da combo).
+- Dados antigos: como `parte_recorrente` é coluna nova, todos os registros começam com NULL → coluna AA vazia até que o advogado revise. (Aceitável conforme pedido "exclusivamente da seleção, sem fallback".)
