@@ -14,6 +14,74 @@ import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
+const OPCOES_RECURSO_NORM = [
+  "Agravo de Instrumento em Recurso de Revista",
+  "Recurso de Revista",
+  "Recurso Ordinário",
+  "Embargos de Declaração",
+  "Embargos em Execução",
+  "Embargos",
+  "Agravo Regimental",
+  "Agravo Interno",
+  "Agravo de Petição",
+  "Agravo de Instrumento",
+  "Agravo",
+  "Recurso Extraordinário",
+  "Recurso Especial",
+];
+
+/** Normaliza string vinda da Judit (ex.: "AGRAVO DE INSTRUMENTO EM RECURSO DE REVISTA",
+ *  "RECURSO DE REVISTA + EMBARGOS") para os rótulos exatos do dropdown
+ *  MultiTipoRecurso. Mantém valores não reconhecidos como "Outro…" (texto livre). */
+function normalizarTipoRecurso(raw: any): string | null {
+  if (raw == null) return null;
+  const txt = String(raw).trim();
+  if (!txt) return null;
+  const partes = txt.split(/\s*\+\s*/).map((s) => s.trim()).filter(Boolean);
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const mapped = partes.map((p) => {
+    const alvo = norm(p);
+    const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
+    return hit || p; // mantém original se não bater (renderiza como "Outro…")
+  });
+  return mapped.join(" + ");
+}
+
+/** Mapeia o valor `recorrente` da Judit (nome(s) das partes) para uma das
+ *  opções fixas do dropdown: Reclamante / Reclamada / Reclamante e Reclamada / Terceiro. */
+function normalizarParteRecorrente(
+  recorrenteRaw: any,
+  reclamante: string,
+  reclamada: string,
+): string | null {
+  if (recorrenteRaw == null) return null;
+  const txt = String(recorrenteRaw).trim();
+  if (!txt) return null;
+  // Já vem rotulado?
+  const baixo = txt.toLowerCase();
+  if (baixo === "reclamante") return "Reclamante";
+  if (baixo === "reclamada" || baixo === "reclamado") return "Reclamada";
+  if (/reclamante\s+e\s+reclamad/.test(baixo)) return "Reclamante e Reclamada";
+  if (baixo === "terceiro") return "Terceiro";
+
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const tokens = (s: string) => norm(s).split(/[\s,/]+/).filter((t) => t.length >= 3);
+  const recList = txt.split(/\s*[,/]\s*/).map((s) => s.trim()).filter(Boolean);
+  const recTokens = recList.flatMap(tokens);
+  const reclTokens = new Set(tokens(reclamante || ""));
+  const readTokens = new Set(tokens(reclamada || ""));
+  let bateRecl = false;
+  let bateRead = false;
+  for (const t of recTokens) {
+    if (reclTokens.has(t)) bateRecl = true;
+    if (readTokens.has(t)) bateRead = true;
+  }
+  if (bateRecl && bateRead) return "Reclamante e Reclamada";
+  if (bateRecl) return "Reclamante";
+  if (bateRead) return "Reclamada";
+  return "Terceiro";
+}
+
 import { Badge } from "@/components/ui/badge";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
@@ -416,13 +484,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         }
         apply("reclamante", reclamanteJudit);
         apply("reclamada", reclamadaJudit);
-        apply("parte_recorrente", data.recorrente);
+        apply(
+          "parte_recorrente",
+          normalizarParteRecorrente(data.recorrente, reclamanteJudit, reclamadaJudit),
+        );
         // Tipo de recurso: vem direto da CLASSE da capa (ex.: "Recurso de Revista").
         // Sem heurística por movimentos. Se a Judit não trouxer, não preenche
         // nem apaga — usuário escolhe manualmente.
-        apply("tipo_recurso", data.tipo_recurso);
-        apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
-        apply("tipo_recurso_banco", data.tipo_recurso_banco);
+        apply("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
+        apply("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
+        apply("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
