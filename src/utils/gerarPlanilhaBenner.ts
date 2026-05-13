@@ -110,8 +110,14 @@ function cleanDadoBennerValue(val: unknown): string {
 
 function getValuesFromDado(d: DadoBenner): string[] {
   // IMPORTANTE: Todos os valores devem vir EXCLUSIVAMENTE do formulário
-  // da aba "Dados Benner". Nunca usar fallback para outras abas/fontes.
-  const tipoRecurso = cleanDadoBennerValue(d.tipo_recurso);
+  // da aba "Dados Benner" / "Distribuição TST". Nunca usar fallback.
+  const splitRec = (v: any) => String(v ?? "")
+    .split(/\s*[+,;]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const reclList = splitRec((d as any).tipo_recurso_reclamante);
+  const bancoList = splitRec((d as any).tipo_recurso_banco);
+  const tipoRecurso = [...reclList, ...bancoList].join(", ");
   const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
   const riscoDesc = cleanDadoBennerValue(d.risco_descricao);
   const bemAparelhado = !!d.recurso_bem_aparelhado;
