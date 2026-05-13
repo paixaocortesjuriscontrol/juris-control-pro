@@ -103,41 +103,17 @@ function toSN(val: unknown): string {
   return String(val ?? "");
 }
 
-const SIGLA_TO_FULL: Record<string, string> = {
-  RR: "Recurso de Revista", AIRR: "Agravo de Instrumento", RRAG: "Recurso de Revista",
-  ROT: "Recurso Ordinário", RCL: "Reclamação", AG: "Agravo", AR: "Agravo Regimental",
-  EMB: "Embargos de Declaração", "AGRAVO INTERNO": "Agravo Interno",
-  "EMB-AG-RRAG": "Embargos SDI", AIAP: "Agravo de Instrumento", AIR: "Agravo de Instrumento",
-  ATORD: "Recurso Ordinário",
-};
-
-function expandSigla(val: string): string {
-  if (!val || !val.trim()) return "";
-  if (/^n[aã]o\s+tem$/i.test(val.trim())) return "";
-  if (/^[_\s\-–—]+$/.test(val)) return "";
-  const upper = val.trim().toUpperCase().replace(/[-–]/g, "-");
-  if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
-  if (upper.includes("-")) {
-    const parts = upper.split("-").map(p => SIGLA_TO_FULL[p] || p.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
-    return [...new Set(parts.filter(Boolean))].join(" - ");
-  }
-  return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-}
-
-function pickFirst(...vals: any[]): string {
-  for (const v of vals) {
-    const s = String(v ?? "").trim();
-    if (s && !/^[-–—_\s]+$/.test(s)) return s;
-  }
-  return "";
+function cleanDadoBennerValue(val: unknown): string {
+  const s = String(val ?? "").trim();
+  return s && !/^[-–—_\s]+$/.test(s) ? s : "";
 }
 
 function getValuesFromDado(d: DadoBenner): string[] {
   // IMPORTANTE: Todos os valores devem vir EXCLUSIVAMENTE do formulário
   // da aba "Dados Benner". Nunca usar fallback para outras abas/fontes.
-  const tipoRecurso = pickFirst(d.tipo_recurso);
+  const tipoRecurso = cleanDadoBennerValue(d.tipo_recurso);
   const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
-  const riscoDesc = pickFirst(d.risco_descricao);
+  const riscoDesc = cleanDadoBennerValue(d.risco_descricao);
   const bemAparelhado = !!d.recurso_bem_aparelhado;
   const malAparelhado = !!d.recurso_mal_aparelhado;
 
@@ -148,7 +124,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     formatDateForSpreadsheet(d.data_distribuicao),
     d.turma || "",
     d.relator || "",
-    pickFirst(d.analise_quarteirizado),
+    cleanDadoBennerValue(d.analise_quarteirizado),
     midiaSN,
     riscoDesc,
     d.provas_digitais ? toSN(d.provas_digitais) : "",
@@ -168,14 +144,14 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.ganhamos ? "X" : "",
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
-    pickFirst(d.recorrente),
+    cleanDadoBennerValue(d.recorrente),
     d.posicao_turma_favoravel ? "X" : "",
     d.posicao_turma_desfavoravel ? "X" : "",
     d.posicao_relator_favoravel ? "X" : "",
     d.posicao_relator_desfavoravel ? "X" : "",
     bemAparelhado ? "X" : "",
     malAparelhado ? "X" : "",
-    pickFirst(d.chance_exito),
+    cleanDadoBennerValue(d.chance_exito),
   ];
 }
 
