@@ -742,7 +742,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   const handleSave = async () => {
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
-    const toSave = { ...form, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : statusFinal };
+    const situacaoProcesso = prontoEnviar && (!form.situacao_processo || String(form.situacao_processo).trim() === "")
+      ? "ativo"
+      : form.situacao_processo;
+    const toSave = { ...form, situacao_processo: situacaoProcesso, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : statusFinal };
     const result = await onSave(toSave, dado?.id);
     
     // Persist parties if we have them and got a valid ID back
