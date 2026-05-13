@@ -599,7 +599,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className="space-y-2">
               <Label>Equipe</Label>
-              <Input value={form.equipe || ""} onChange={e => set("equipe", e.target.value)} />
+              <Select value={form.equipe || "__none__"} onValueChange={v => set("equipe", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="Núcleo Complementação de Aposentadoria">Núcleo Complementação de Aposentadoria</SelectItem>
+                  <SelectItem value="Núcleo Execução">Núcleo Execução</SelectItem>
+                  <SelectItem value="Núcleo Noroeste Sul">Núcleo Noroeste Sul</SelectItem>
+                  <SelectItem value="Núcleo Sudeste">Núcleo Sudeste</SelectItem>
+                  <SelectItem value="Núcleo de Terceiros">Núcleo de Terceiros</SelectItem>
+                  <SelectItem value="Ações Especiais">Ações Especiais</SelectItem>
+                  <SelectItem value="Ações Corporativas">Ações Corporativas</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -683,7 +695,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("parte_recorrente", form.parte_recorrente))}>
               <Label className="flex items-center">Parte Recorrente <JuditBadge show={isJuditFilled(form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
-              <Input value={form.parte_recorrente || ""} onChange={e => set("parte_recorrente", e.target.value)} />
+              <Select value={form.parte_recorrente || "__none__"} onValueChange={v => set("parte_recorrente", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="Reclamante">Reclamante</SelectItem>
+                  <SelectItem value="Reclamada">Reclamada</SelectItem>
+                  <SelectItem value="Reclamante e Reclamada">Reclamante e Reclamada</SelectItem>
+                  <SelectItem value="Terceiro">Terceiro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
