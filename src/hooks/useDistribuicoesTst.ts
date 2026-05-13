@@ -46,6 +46,8 @@ export interface DistribuicaoTst {
   recurso_terceiros: string | null;
   transito_julgado: boolean | null;
   benner_atualizado: boolean | null;
+  status?: string | null;
+  provas_digitais?: string | null;
   judit_preenchido: boolean;
   judit_preenchido_em: string | null;
   judit_preenchido_por: string | null;
@@ -57,6 +59,7 @@ export interface DistribuicaoTst {
   em_analise?: boolean;
   em_analise_por?: string | null;
   em_analise_em?: string | null;
+  subida_em_massa?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -130,6 +133,8 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     recurso_terceiros: b.recurso_terceiros ?? null,
     transito_julgado: b.transito_julgado ?? null,
     benner_atualizado: b.benner_atualizado ?? null,
+    status: b.status ?? null,
+    provas_digitais: b.provas_digitais ?? null,
     judit_preenchido: !!b.judit_preenchido,
     judit_preenchido_em: b.judit_preenchido_em ?? null,
     judit_preenchido_por: b.judit_preenchido_por ?? null,
