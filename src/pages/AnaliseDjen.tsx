@@ -1128,6 +1128,12 @@ const AnaliseDjen = () => {
       .map(l => l.replace(/[ \t]+/g, " ").trim())
       .filter(Boolean);
 
+    // CEJUSC: devolve a publicação na íntegra (texto limpo), sem segmentar por processo.
+    const txtPlano = linhas.join(" ");
+    if (/\bCEJUSC\b/i.test(txtPlano)) {
+      return linhas.join("\n").trim();
+    }
+
     const limparLinha = (l: string) => !/^C[oó]digo para aferir autenticidade/i.test(l)
       && !/^Data da Disponibiliza[cç][aã]o:/i.test(l)
       && !/^\d+\/\d+\s+Tribunal Regional do Trabalho/i.test(l);
