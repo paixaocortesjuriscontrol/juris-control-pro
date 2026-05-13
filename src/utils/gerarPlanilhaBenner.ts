@@ -133,37 +133,13 @@ function pickFirst(...vals: any[]): string {
 }
 
 function getValuesFromDado(d: DadoBenner): string[] {
-  const anyD = d as any;
-
-  // Tipo de recurso: fallback para tipo_recurso_reclamante/banco com expansão de sigla
-  let tipoRecurso = pickFirst(d.tipo_recurso);
-  if (!tipoRecurso) {
-    const parts = [anyD.tipo_recurso_reclamante, anyD.tipo_recurso_banco]
-      .map(v => expandSigla(String(v ?? "")))
-      .filter(Boolean);
-    tipoRecurso = [...new Set(parts)].join(" - ");
-  }
-
-  // Mídia negativa: separar S/N de descrição do risco
-  const midiaRaw = pickFirst(anyD.midia_negativa);
-  const midiaNorm = normalizeText(midiaRaw);
-  let midiaSN = pickFirst(d.risco_midia);
-  let riscoDesc = pickFirst(d.risco_descricao);
-  if (!midiaSN && midiaRaw) {
-    if (midiaNorm.startsWith("sim")) {
-      midiaSN = "S";
-      if (!riscoDesc) riscoDesc = midiaRaw.replace(/^[Ss][Ii][Mm]\s*[-–—,.:;]*\s*/, "").trim();
-    } else {
-      midiaSN = "N";
-    }
-  } else if (midiaSN) {
-    midiaSN = toSN(midiaSN);
-  }
-
-  // Aparelhamento (AF/AG): derivar de aparelhamento_banco quando flags booleanas vazias
-  const aparNorm = normalizeText(anyD.aparelhamento_banco);
-  const bemAparelhado = d.recurso_bem_aparelhado || aparNorm.includes("bem") || aparNorm === "sim";
-  const malAparelhado = d.recurso_mal_aparelhado || aparNorm.includes("mal") || aparNorm === "nao" || aparNorm === "não";
+  // IMPORTANTE: Todos os valores devem vir EXCLUSIVAMENTE do formulário
+  // da aba "Dados Benner". Nunca usar fallback para outras abas/fontes.
+  const tipoRecurso = pickFirst(d.tipo_recurso);
+  const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
+  const riscoDesc = pickFirst(d.risco_descricao);
+  const bemAparelhado = !!d.recurso_bem_aparelhado;
+  const malAparelhado = !!d.recurso_mal_aparelhado;
 
   return [
     d.dossie || "",
@@ -172,7 +148,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     formatDateForSpreadsheet(d.data_distribuicao),
     d.turma || "",
     d.relator || "",
-    pickFirst(d.analise_quarteirizado, anyD.decisao_quarteirizado),
+    pickFirst(d.analise_quarteirizado),
     midiaSN,
     riscoDesc,
     d.provas_digitais ? toSN(d.provas_digitais) : "",
@@ -180,7 +156,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.data_julgamento || "",
     d.horario_julgamento || "",
     d.tipo_julgamento || "",
-    pickFirst(d.materia_honra, anyD.honra) ? toSN(pickFirst(d.materia_honra, anyD.honra)) : "",
+    d.materia_honra ? toSN(d.materia_honra) : "",
     d.entrega_memoriais ? toSN(d.entrega_memoriais) : "",
     d.sustentacao_oral ? toSN(d.sustentacao_oral) : "",
     d.resultado_sem_transcendencia ? "X" : "",
@@ -192,14 +168,14 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.ganhamos ? "X" : "",
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
-    pickFirst(d.recorrente, anyD.parte_recorrente),
+    pickFirst(d.recorrente),
     d.posicao_turma_favoravel ? "X" : "",
     d.posicao_turma_desfavoravel ? "X" : "",
     d.posicao_relator_favoravel ? "X" : "",
     d.posicao_relator_desfavoravel ? "X" : "",
     bemAparelhado ? "X" : "",
     malAparelhado ? "X" : "",
-    pickFirst(d.chance_exito, anyD.chance_exito_banco),
+    pickFirst(d.chance_exito),
   ];
 }
 
