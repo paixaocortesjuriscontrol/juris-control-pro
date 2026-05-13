@@ -283,7 +283,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroCentralizador !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -310,7 +310,6 @@ export default function DistribuicaoTst() {
     setFiltroResponsavelIds([]);
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
-    setFiltroCentralizador("todos");
     setSelectedIds(new Set());
   };
 
@@ -1287,18 +1286,6 @@ export default function DistribuicaoTst() {
                 <SelectItem value="todas">Aba: Todas</SelectItem>
                 {abas.map(({ aba, count }) => (
                   <SelectItem key={aba} value={aba}>{aba} ({count})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filtroCentralizador} onValueChange={setFiltroCentralizador}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Centralizador" />
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                <SelectItem value="todos">Centralizador: Todos</SelectItem>
-                <SelectItem value="__sem__">Sem centralizador</SelectItem>
-                {centralizadores.map(({ nome, count }) => (
-                  <SelectItem key={nome} value={nome}>{nome} ({count})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
