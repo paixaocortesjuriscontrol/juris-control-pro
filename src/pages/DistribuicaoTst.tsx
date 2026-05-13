@@ -331,6 +331,7 @@ export default function DistribuicaoTst() {
     if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
     if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") return "de2026" as const;
+    if (filtroStatus === "pronto_envio" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
     return null;
   })();
 
@@ -345,6 +346,8 @@ export default function DistribuicaoTst() {
     setFiltroSituacaoProcesso("todos");
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
+    // Reseta filtro de status (Pronto para Enviar) ao alternar cards
+    if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     setSelectedIds(new Set());
     // Reseta filtros de data ao alternar cards
     if (key === "ate2025" || key === "de2026" || isActive) {
@@ -377,6 +380,7 @@ export default function DistribuicaoTst() {
         setFiltroDataFim("");
         setFiltroMesAno("todos");
         break;
+      case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
     }
   };
 
