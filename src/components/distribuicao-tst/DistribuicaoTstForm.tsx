@@ -82,6 +82,25 @@ function normalizarParteRecorrente(
   return "Terceiro";
 }
 
+/** Aplica a normalização correta para os campos cujo dropdown tem lista fixa
+ *  (Tipo de Recurso, Parte Recorrente). Para os demais campos, devolve o valor
+ *  original. Usado tanto pelo preenchimento da Judit quanto pelo da IA. */
+function normalizarValorPorCampo(
+  campo: string,
+  valor: any,
+  reclamante: string,
+  reclamada: string,
+): any {
+  if (valor === null || valor === undefined) return valor;
+  if (campo === "tipo_recurso" || campo === "tipo_recurso_reclamante" || campo === "tipo_recurso_banco") {
+    return normalizarTipoRecurso(valor);
+  }
+  if (campo === "parte_recorrente") {
+    return normalizarParteRecorrente(valor, reclamante, reclamada);
+  }
+  return valor;
+}
+
 import { Badge } from "@/components/ui/badge";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
