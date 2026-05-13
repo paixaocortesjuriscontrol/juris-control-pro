@@ -91,25 +91,98 @@ function formatDateForSpreadsheet(value: string | null | undefined): string {
   return raw;
 }
 
+function normalizeText(val: unknown): string {
+  return String(val ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function toSN(val: unknown): string {
+  const n = normalizeText(val);
+  if (!n) return "";
+  if (n === "sim" || n === "s" || n.startsWith("sim")) return "S";
+  if (n === "nao" || n === "n" || n === "não") return "N";
+  return String(val ?? "");
+}
+
+const SIGLA_TO_FULL: Record<string, string> = {
+  RR: "Recurso de Revista", AIRR: "Agravo de Instrumento", RRAG: "Recurso de Revista",
+  ROT: "Recurso Ordinário", RCL: "Reclamação", AG: "Agravo", AR: "Agravo Regimental",
+  EMB: "Embargos de Declaração", "AGRAVO INTERNO": "Agravo Interno",
+  "EMB-AG-RRAG": "Embargos SDI", AIAP: "Agravo de Instrumento", AIR: "Agravo de Instrumento",
+  ATORD: "Recurso Ordinário",
+};
+
+function expandSigla(val: string): string {
+  if (!val || !val.trim()) return "";
+  if (/^n[aã]o\s+tem$/i.test(val.trim())) return "";
+  if (/^[_\s\-–—]+$/.test(val)) return "";
+  const upper = val.trim().toUpperCase().replace(/[-–]/g, "-");
+  if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
+  if (upper.includes("-")) {
+    const parts = upper.split("-").map(p => SIGLA_TO_FULL[p] || p.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
+    return [...new Set(parts.filter(Boolean))].join(" - ");
+  }
+  return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function pickFirst(...vals: any[]): string {
+  for (const v of vals) {
+    const s = String(v ?? "").trim();
+    if (s && !/^[-–—_\s]+$/.test(s)) return s;
+  }
+  return "";
+}
+
 function getValuesFromDado(d: DadoBenner): string[] {
+  const anyD = d as any;
+
+  // Tipo de recurso: fallback para tipo_recurso_reclamante/banco com expansão de sigla
+  let tipoRecurso = pickFirst(d.tipo_recurso);
+  if (!tipoRecurso) {
+    const parts = [anyD.tipo_recurso_reclamante, anyD.tipo_recurso_banco]
+      .map(v => expandSigla(String(v ?? "")))
+      .filter(Boolean);
+    tipoRecurso = [...new Set(parts)].join(" - ");
+  }
+
+  // Mídia negativa: separar S/N de descrição do risco
+  const midiaRaw = pickFirst(anyD.midia_negativa);
+  const midiaNorm = normalizeText(midiaRaw);
+  let midiaSN = pickFirst(d.risco_midia);
+  let riscoDesc = pickFirst(d.risco_descricao);
+  if (!midiaSN && midiaRaw) {
+    if (midiaNorm.startsWith("sim")) {
+      midiaSN = "S";
+      if (!riscoDesc) riscoDesc = midiaRaw.replace(/^[Ss][Ii][Mm]\s*[-–—,.:;]*\s*/, "").trim();
+    } else {
+      midiaSN = "N";
+    }
+  } else if (midiaSN) {
+    midiaSN = toSN(midiaSN);
+  }
+
+  // Aparelhamento (AF/AG): derivar de aparelhamento_banco quando flags booleanas vazias
+  const aparNorm = normalizeText(anyD.aparelhamento_banco);
+  const bemAparelhado = d.recurso_bem_aparelhado || aparNorm.includes("bem") || aparNorm === "sim";
+  const malAparelhado = d.recurso_mal_aparelhado || aparNorm.includes("mal") || aparNorm === "nao" || aparNorm === "não";
+
   return [
     d.dossie || "",
     d.tribunal || "",
-    d.tipo_recurso || "",
+    tipoRecurso,
     formatDateForSpreadsheet(d.data_distribuicao),
     d.turma || "",
     d.relator || "",
-    d.analise_quarteirizado || "",
-    d.risco_midia || "",
-    d.risco_descricao || "",
-    d.provas_digitais || "",
+    pickFirst(d.analise_quarteirizado, anyD.decisao_quarteirizado),
+    midiaSN,
+    riscoDesc,
+    d.provas_digitais ? toSN(d.provas_digitais) : "",
     d.tem_data_julgamento || "",
     d.data_julgamento || "",
     d.horario_julgamento || "",
     d.tipo_julgamento || "",
-    d.materia_honra || "",
-    d.entrega_memoriais || "",
-    d.sustentacao_oral || "",
+    pickFirst(d.materia_honra, anyD.honra) ? toSN(pickFirst(d.materia_honra, anyD.honra)) : "",
+    d.entrega_memoriais ? toSN(d.entrega_memoriais) : "",
+    d.sustentacao_oral ? toSN(d.sustentacao_oral) : "",
     d.resultado_sem_transcendencia ? "X" : "",
     d.resultado_nao_conhecido ? "X" : "",
     d.resultado_conhecido_provido ? "X" : "",
@@ -118,15 +191,15 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.observacoes || "",
     d.ganhamos ? "X" : "",
     d.perdemos ? "X" : "",
-    d.processo_baixado || "",
-    d.recorrente || "",
+    d.processo_baixado ? toSN(d.processo_baixado) : "",
+    pickFirst(d.recorrente, anyD.parte_recorrente),
     d.posicao_turma_favoravel ? "X" : "",
     d.posicao_turma_desfavoravel ? "X" : "",
     d.posicao_relator_favoravel ? "X" : "",
     d.posicao_relator_desfavoravel ? "X" : "",
-    d.recurso_bem_aparelhado ? "X" : "",
-    d.recurso_mal_aparelhado ? "X" : "",
-    d.chance_exito || "",
+    bemAparelhado ? "X" : "",
+    malAparelhado ? "X" : "",
+    pickFirst(d.chance_exito, anyD.chance_exito_banco),
   ];
 }
 
