@@ -76,11 +76,6 @@ function unescXml(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-function normalizeCNJ(raw: string): string {
-  const digits = String(raw ?? "").replace(/\D/g, "");
-  return digits.length >= 15 ? digits.padStart(20, "0") : digits;
-}
-
 function isCnjLike(val: string): boolean {
   const s = String(val ?? "").trim();
   const digits = s.replace(/\D/g, "");
@@ -117,53 +112,6 @@ function toSN(val: string): string {
   if (n === "nao" || n === "não" || n === "n") return "N";
   return val;
 }
-
-function deriveFavoravel(val: string | null): string {
-  if (!val) return "";
-  const n = normalizeText(val);
-  if (n.includes("positiv")) return "Favorável";
-  if (n.includes("negativ")) return "Desfavorável";
-  return "";
-}
-
-function deriveAparelhamento(val: string | null): string {
-  if (!val) return "";
-  const n = normalizeText(val);
-  if (n.includes("bem") || n.includes("sim")) return "Bem aparelhado";
-  if (n.includes("mal") || n.includes("nao") || n.includes("não")) return "Mal aparelhado";
-  return val;
-}
-
-const SIGLA_TO_FULL: Record<string, string> = {
-  "RR": "Recurso de Revista", "AIRR": "Agravo de Instrumento", "RRAG": "Recurso de Revista",
-  "ROT": "Recurso Ordinário", "RCL": "Reclamação", "AG": "Agravo", "AR": "Agravo Regimental",
-  "EMB": "Embargos de Declaração", "AGRAVO INTERNO": "Agravo Interno", "EMB-AG-RRAG": "Embargos SDI",
-  "AIAP": "Agravo de Instrumento", "AIR": "Agravo de Instrumento",
-};
-
-function expandSigla(val: string): string {
-  if (!val.trim()) return "";
-  if (/^n[aã]o\s+tem$/i.test(val.trim())) return "";
-  if (/^[_\s]+$/.test(val)) return "";
-  const upper = val.trim().toUpperCase().replace(/[-–]/g, "-");
-  if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
-  if (upper.includes("-")) {
-    const parts = upper.split("-").map(p => SIGLA_TO_FULL[p] || p.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
-    return [...new Set(parts.filter(Boolean))].join(" - ");
-  }
-  return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-}
-
-const MINISTRO_TURMA: Record<string, string> = {
-  "scheuermann": "1ª Turma", "dezena": "1ª Turma", "amaury": "1ª Turma",
-  "delaide": "2ª Turma", "delaíde": "2ª Turma", "liana chaib": "2ª Turma", "silvestrin": "2ª Turma",
-  "lelio": "3ª Turma", "lélio": "3ª Turma", "godinho delgado": "3ª Turma", "balazeiro": "3ª Turma",
-  "ives gandra": "4ª Turma", "peduzzi": "4ª Turma", "alexandre luiz ramos": "4ª Turma",
-  "douglas alencar": "5ª Turma", "breno medeiros": "5ª Turma", "morgana": "5ª Turma",
-  "katia magalhaes": "6ª Turma", "kátia magalhães": "6ª Turma", "augusto cesar": "6ª Turma", "augusto césar": "6ª Turma", "fabricio de matos": "6ª Turma", "fabrício de matos": "6ª Turma",
-  "agra belmonte": "7ª Turma", "mascarenhas brandao": "7ª Turma", "mascarenhas brandão": "7ª Turma", "camargo rodrigues": "7ª Turma",
-  "mallmann": "8ª Turma", "valadao": "8ª Turma", "valadão": "8ª Turma", "sergio pinto": "8ª Turma", "sérgio pinto": "8ª Turma",
-};
 
 function getTimestamp() {
   const n = new Date();
