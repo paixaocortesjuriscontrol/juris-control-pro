@@ -174,7 +174,19 @@ export default function DistribuicaoTst() {
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   // Filtro por Centralizador. Default: Paixão Cortes (escritório principal)
   const PAIXAO_CORTES_DEFAULT = "Paixao Cortes Madeira e Adv Associados S/C - Centralizador";
-  const [filtroCentralizador, setFiltroCentralizador] = useState<string>(PAIXAO_CORTES_DEFAULT);
+  // Persistido em sessionStorage para sobreviver a remontagens da página
+  // (algum fluxo de re-render estava resetando o filtro para o default).
+  const CENTRALIZADOR_STORAGE_KEY = "dist-tst-filtro-centralizador";
+  const [filtroCentralizador, setFiltroCentralizador] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(CENTRALIZADOR_STORAGE_KEY) ?? PAIXAO_CORTES_DEFAULT;
+    } catch {
+      return PAIXAO_CORTES_DEFAULT;
+    }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(CENTRALIZADOR_STORAGE_KEY, filtroCentralizador); } catch {}
+  }, [filtroCentralizador]);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
