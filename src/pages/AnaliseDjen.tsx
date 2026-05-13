@@ -1110,6 +1110,7 @@ const AnaliseDjen = () => {
     if (!conteudo) return false;
     const txt = String(conteudo).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     return /Pauta\s+de\s+Julgamento/i.test(txt) ||
+      /\bCEJUSC\b/i.test(txt) ||
       (/\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
         /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
   };
