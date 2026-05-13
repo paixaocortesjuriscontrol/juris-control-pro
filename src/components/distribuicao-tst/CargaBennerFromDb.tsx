@@ -321,7 +321,15 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie;
         outRow[LAYOUT_COLS[1]] = String(d.tribunal ?? "").trim();
-        outRow[LAYOUT_COLS[2]] = String(d.tipo_recurso ?? "").trim();
+        {
+          const splitRec = (v: any) => String(v ?? "")
+            .split(/\s*[+,;]\s*/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const recl = splitRec((d as any).tipo_recurso_reclamante);
+          const banco = splitRec((d as any).tipo_recurso_banco);
+          outRow[LAYOUT_COLS[2]] = [...recl, ...banco].join(", ");
+        }
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
         outRow[LAYOUT_COLS[4]] = turmaRaw;
         outRow[LAYOUT_COLS[5]] = String(d.relator ?? "").trim();
