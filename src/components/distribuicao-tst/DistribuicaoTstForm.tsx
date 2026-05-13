@@ -484,13 +484,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         }
         apply("reclamante", reclamanteJudit);
         apply("reclamada", reclamadaJudit);
-        apply("parte_recorrente", data.recorrente);
+        apply(
+          "parte_recorrente",
+          normalizarParteRecorrente(data.recorrente, reclamanteJudit, reclamadaJudit),
+        );
         // Tipo de recurso: vem direto da CLASSE da capa (ex.: "Recurso de Revista").
         // Sem heurística por movimentos. Se a Judit não trouxer, não preenche
         // nem apaga — usuário escolhe manualmente.
-        apply("tipo_recurso", data.tipo_recurso);
-        apply("tipo_recurso_reclamante", data.tipo_recurso_reclamante);
-        apply("tipo_recurso_banco", data.tipo_recurso_banco);
+        apply("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
+        apply("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
+        apply("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
