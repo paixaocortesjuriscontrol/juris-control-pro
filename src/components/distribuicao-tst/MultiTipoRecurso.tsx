@@ -10,40 +10,34 @@ interface Props {
 }
 
 const OPCOES_RECURSO = [
-  // TST
+  "Agravo",
+  "Agravo de Instrumento",
   "Agravo de Instrumento em Recurso de Revista",
-  "Recurso de Revista com Agravo",
-  "Recurso de Revista",
-  "Embargos à SDI",
-  "Embargos em Recurso de Revista",
-  // TRT
-  "Recurso Ordinário",
-  "Recurso Ordinário em Procedimento Sumaríssimo",
-  "Recurso Ordinário em Mandado de Segurança",
-  "Recurso Ordinário em Ação Rescisória",
-  "Recurso Ordinário Trabalhista",
   "Agravo de Petição",
-  // Embargos
+  "Agravo em Recurso Especial",
+  "Agravo em Recurso Extraordinário",
+  "Agravo Interno",
+  "Agravo Regimental",
+  "Embargos",
+  "Embargos à SDI",
   "Embargos de Declaração",
   "Embargos em Execução",
+  "Embargos em Recurso de Revista",
   "Embargos Infringentes",
-  "Embargos",
-  // Agravos
-  "Agravo Regimental",
-  "Agravo Interno",
-  "Agravo de Instrumento",
-  "Agravo",
-  // Cortes Superiores
-  "Recurso Extraordinário",
-  "Agravo em Recurso Extraordinário",
-  "Recurso Especial",
-  "Agravo em Recurso Especial",
-  // Outros
-  "Recurso Adesivo",
-  "Reclamação",
-  "Mandado de Segurança",
   "Habeas Corpus",
-];
+  "Mandado de Segurança",
+  "Reclamação",
+  "Recurso Adesivo",
+  "Recurso de Revista",
+  "Recurso de Revista com Agravo",
+  "Recurso Especial",
+  "Recurso Extraordinário",
+  "Recurso Ordinário",
+  "Recurso Ordinário em Ação Rescisória",
+  "Recurso Ordinário em Mandado de Segurança",
+  "Recurso Ordinário em Procedimento Sumaríssimo",
+  "Recurso Ordinário Trabalhista",
+].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
 const SEPARADOR = " + ";
 
