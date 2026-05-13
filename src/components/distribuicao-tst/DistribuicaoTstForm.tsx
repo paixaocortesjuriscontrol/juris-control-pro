@@ -16,6 +16,7 @@ import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMulti
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 const OPCOES_RECURSO_NORM = [
   "Agravo de Instrumento em Recurso de Revista",
+  "Recurso de Revista com Agravo",
   "Recurso de Revista",
   "Recurso Ordinário",
   "Embargos de Declaração",
@@ -39,8 +40,24 @@ function normalizarTipoRecurso(raw: any): string | null {
   if (!txt) return null;
   const partes = txt.split(/\s*\+\s*/).map((s) => s.trim()).filter(Boolean);
   const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Mapa de siglas comuns vindas de classes/códigos da Judit/CNJ.
+  const SIGLAS: Record<string, string> = {
+    "rrag": "Recurso de Revista com Agravo",
+    "ararr": "Recurso de Revista com Agravo",
+    "airr": "Agravo de Instrumento em Recurso de Revista",
+    "rr": "Recurso de Revista",
+    "ro": "Recurso Ordinário",
+    "ed": "Embargos de Declaração",
+    "agr": "Agravo Regimental",
+    "ai": "Agravo de Instrumento",
+    "ap": "Agravo de Petição",
+    "re": "Recurso Extraordinário",
+    "resp": "Recurso Especial",
+  };
   const mapped = partes.map((p) => {
     const alvo = norm(p);
+    const sigla = SIGLAS[alvo];
+    if (sigla) return sigla;
     const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
     return hit || p; // mantém original se não bater (renderiza como "Outro…")
   });
