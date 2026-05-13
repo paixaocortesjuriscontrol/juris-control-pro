@@ -76,11 +76,6 @@ function unescXml(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-function normalizeCNJ(raw: string): string {
-  const digits = String(raw ?? "").replace(/\D/g, "");
-  return digits.length >= 15 ? digits.padStart(20, "0") : digits;
-}
-
 function isCnjLike(val: string): boolean {
   const s = String(val ?? "").trim();
   const digits = s.replace(/\D/g, "");
@@ -117,53 +112,6 @@ function toSN(val: string): string {
   if (n === "nao" || n === "não" || n === "n") return "N";
   return val;
 }
-
-function deriveFavoravel(val: string | null): string {
-  if (!val) return "";
-  const n = normalizeText(val);
-  if (n.includes("positiv")) return "Favorável";
-  if (n.includes("negativ")) return "Desfavorável";
-  return "";
-}
-
-function deriveAparelhamento(val: string | null): string {
-  if (!val) return "";
-  const n = normalizeText(val);
-  if (n.includes("bem") || n.includes("sim")) return "Bem aparelhado";
-  if (n.includes("mal") || n.includes("nao") || n.includes("não")) return "Mal aparelhado";
-  return val;
-}
-
-const SIGLA_TO_FULL: Record<string, string> = {
-  "RR": "Recurso de Revista", "AIRR": "Agravo de Instrumento", "RRAG": "Recurso de Revista",
-  "ROT": "Recurso Ordinário", "RCL": "Reclamação", "AG": "Agravo", "AR": "Agravo Regimental",
-  "EMB": "Embargos de Declaração", "AGRAVO INTERNO": "Agravo Interno", "EMB-AG-RRAG": "Embargos SDI",
-  "AIAP": "Agravo de Instrumento", "AIR": "Agravo de Instrumento",
-};
-
-function expandSigla(val: string): string {
-  if (!val.trim()) return "";
-  if (/^n[aã]o\s+tem$/i.test(val.trim())) return "";
-  if (/^[_\s]+$/.test(val)) return "";
-  const upper = val.trim().toUpperCase().replace(/[-–]/g, "-");
-  if (SIGLA_TO_FULL[upper]) return SIGLA_TO_FULL[upper];
-  if (upper.includes("-")) {
-    const parts = upper.split("-").map(p => SIGLA_TO_FULL[p] || p.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
-    return [...new Set(parts.filter(Boolean))].join(" - ");
-  }
-  return val.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-}
-
-const MINISTRO_TURMA: Record<string, string> = {
-  "scheuermann": "1ª Turma", "dezena": "1ª Turma", "amaury": "1ª Turma",
-  "delaide": "2ª Turma", "delaíde": "2ª Turma", "liana chaib": "2ª Turma", "silvestrin": "2ª Turma",
-  "lelio": "3ª Turma", "lélio": "3ª Turma", "godinho delgado": "3ª Turma", "balazeiro": "3ª Turma",
-  "ives gandra": "4ª Turma", "peduzzi": "4ª Turma", "alexandre luiz ramos": "4ª Turma",
-  "douglas alencar": "5ª Turma", "breno medeiros": "5ª Turma", "morgana": "5ª Turma",
-  "katia magalhaes": "6ª Turma", "kátia magalhães": "6ª Turma", "augusto cesar": "6ª Turma", "augusto césar": "6ª Turma", "fabricio de matos": "6ª Turma", "fabrício de matos": "6ª Turma",
-  "agra belmonte": "7ª Turma", "mascarenhas brandao": "7ª Turma", "mascarenhas brandão": "7ª Turma", "camargo rodrigues": "7ª Turma",
-  "mallmann": "8ª Turma", "valadao": "8ª Turma", "valadão": "8ª Turma", "sergio pinto": "8ª Turma", "sérgio pinto": "8ª Turma",
-};
 
 function getTimestamp() {
   const n = new Date();
@@ -238,14 +186,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       let page = 0;
       const pageSize = 1000;
 
-      // Lê de dados_benner filtrando aba_origem (escopo distribuições TST). Mapeia campos para o
-      // formato esperado adiante (parte_recorrente <- recorrente; favorabilidade textual derivada).
+      // Lê de dados_benner filtrando aba_origem (escopo distribuições TST).
+      // O Layout Carga deve usar exclusivamente os campos da aba/tabela Dados Benner.
       const mapBennerToDist = (b: any) => ({
         ...b,
         processo_numero: b.processo,
-        parte_recorrente: b.recorrente ?? null,
-        relator_favorabilidade: b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null,
-        turma_favorabilidade: b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null,
       });
 
       if (hasPreFilteredData) {
@@ -322,37 +267,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       if (allDist.length === 0) throw new Error("Nenhuma distribuição encontrada no banco");
 
-      setProgress(30);
-      setPhase("Carregando dados Benner para cruzamento...");
-
-      // Phase 2: Fetch dados_benner for pauta matching
-      const allBenner: any[] = [];
-      page = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from("dados_benner")
-          .select("processo, dossie, data_julgamento, horario_julgamento, tipo_julgamento, sustentacao_oral, entrega_memoriais, provas_digitais, processo_baixado, observacoes, ganhamos, perdemos, resultado_sem_transcendencia, resultado_nao_conhecido, resultado_conhecido_provido, resultado_conhecido_nao_provido, resultado_outra, chance_exito, recurso_bem_aparelhado, recurso_mal_aparelhado, posicao_turma_favoravel, posicao_turma_desfavoravel, posicao_relator_favoravel, posicao_relator_desfavoravel, recorrente, risco_midia, risco_descricao, materia_honra, analise_quarteirizado")
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allBenner.push(...data);
-        if (data.length < pageSize) break;
-        page++;
-      }
-
-      // Build lookup by processo number
-      const bennerByProcesso = new Map<string, any>();
-      const bennerByDossie = new Map<string, any>();
-      for (const b of allBenner) {
-        if (b.processo) {
-          const key = normalizeCNJ(b.processo);
-          if (key.length >= 10) bennerByProcesso.set(key, b);
-        }
-        if (b.dossie) bennerByDossie.set(String(b.dossie).toLowerCase().trim(), b);
-      }
-
       setProgress(50);
-      setPhase("Gerando Layout Carga...");
+      setPhase("Gerando Layout Carga exclusivamente com Dados Benner...");
 
       // Phase 3: Process each distribuicao
       const output: Record<string, any>[] = [];
@@ -366,20 +282,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       for (let i = 0; i < allDist.length; i++) {
         const d = allDist[i];
-        const numProcesso = d.processo_numero || "";
+        const numProcesso = String(d.processo ?? d.processo_numero ?? "").trim();
         const dossie = String(d.dossie ?? "").trim();
-        const cnj = normalizeCNJ(numProcesso);
         const aba = d.aba_origem || "Sem aba";
         abaCount.set(aba, (abaCount.get(aba) || 0) + 1);
 
-        // Resolve turma from relator
-        const relatorNorm = normalizeText(d.relator || "");
-        let turmaFromRelator = "";
-        for (const [frag, turma] of Object.entries(MINISTRO_TURMA)) {
-          if (relatorNorm.includes(frag)) { turmaFromRelator = turma; break; }
-        }
-
-        let turmaRaw = turmaFromRelator || String(d.turma ?? "").trim();
+        let turmaRaw = String(d.turma ?? "").trim();
         if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
 
         // Validate
@@ -407,82 +315,44 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           }
         }
 
-        // Match with dados_benner
-        let benner: any = undefined;
-        if (cnj.length >= 10) benner = bennerByProcesso.get(cnj);
-        if (!benner && dossie) benner = bennerByDossie.get(dossie.toLowerCase());
-
-        const hasJulg = !!benner?.data_julgamento;
+        const hasJulg = !!String(d.data_julgamento ?? "").trim();
         if (hasJulg) matched++;
-
-        // Build tipo recurso from distribuicao fields
-        const tipoRecursoParts = [d.tipo_recurso_reclamante, d.tipo_recurso_banco]
-          .filter(v => v && !/^[-–—\s]+$/.test(v))
-          .map(v => expandSigla(v!));
-        const tipoRecursoDedup = [...new Set(tipoRecursoParts.filter(Boolean))];
-
-        // Turma formatting
-        let turmaVal = turmaRaw;
-        const turmaLower = normalizeText(turmaVal);
-        if (turmaLower.includes("presidencia") || turmaLower.includes("presidência")) {
-          turmaVal = "Presidência";
-        } else if (turmaVal && !turmaLower.includes("turma") && !turmaLower.includes("pleno")) {
-          turmaVal = turmaVal + " Turma";
-        }
-
-        // Midia negativa
-        const midiaRaw = String(d.midia_negativa ?? "").trim();
-        const midiaNorm = normalizeText(midiaRaw);
-        let midiaH = "", risco = "";
-        if (midiaNorm.startsWith("sim")) {
-          midiaH = "S";
-          risco = midiaRaw.replace(/^[Ss][Ii][Mm]\s*[-–—,.:;]*\s*/, "").trim();
-        } else if (midiaNorm === "nao" || midiaNorm === "n" || midiaNorm === "não" || midiaNorm === "") {
-          midiaH = midiaRaw ? "N" : "";
-        } else {
-          midiaH = "N";
-        }
-
-        // Favorabilidade from distribuicao fields
-        const turmaFav = deriveFavoravel(d.turma_favorabilidade);
-        const relatorFav = deriveFavoravel(d.relator_favorabilidade);
-        const aparelhamento = deriveAparelhamento(d.aparelhamento_banco);
 
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie;
-        outRow[LAYOUT_COLS[1]] = "TST";
-        outRow[LAYOUT_COLS[2]] = tipoRecursoDedup.join(" - ");
+        outRow[LAYOUT_COLS[1]] = String(d.tribunal ?? "").trim();
+        outRow[LAYOUT_COLS[2]] = String(d.tipo_recurso ?? "").trim();
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
-        outRow[LAYOUT_COLS[4]] = turmaVal;
+        outRow[LAYOUT_COLS[4]] = turmaRaw;
         outRow[LAYOUT_COLS[5]] = String(d.relator ?? "").trim();
-        outRow[LAYOUT_COLS[6]] = String(benner?.analise_quarteirizado ?? d.decisao_quarteirizado ?? "");
-        outRow[LAYOUT_COLS[7]] = midiaH || (benner?.risco_midia ? toSN(benner.risco_midia) : "");
-        outRow[LAYOUT_COLS[8]] = risco || String(benner?.risco_descricao ?? "");
-        outRow[LAYOUT_COLS[9]] = benner?.provas_digitais ? toSN(benner.provas_digitais) : "N";
-        outRow[LAYOUT_COLS[10]] = hasJulg ? "S" : "N";
-        outRow[LAYOUT_COLS[11]] = hasJulg ? formatDateDDMMYYYY(benner.data_julgamento) : "";
-        outRow[LAYOUT_COLS[12]] = hasJulg ? String(benner?.horario_julgamento ?? "") : "";
-        outRow[LAYOUT_COLS[13]] = hasJulg ? String(benner?.tipo_julgamento ?? "") : "";
-        outRow[LAYOUT_COLS[14]] = d.honra ? toSN(d.honra) : (benner?.materia_honra ? toSN(benner.materia_honra) : "");
-        outRow[LAYOUT_COLS[15]] = benner?.entrega_memoriais ? toSN(benner.entrega_memoriais) : "";
-        outRow[LAYOUT_COLS[16]] = benner?.sustentacao_oral ? toSN(benner.sustentacao_oral) : "";
-        outRow[LAYOUT_COLS[17]] = benner?.resultado_sem_transcendencia ? "X" : "";
-        outRow[LAYOUT_COLS[18]] = benner?.resultado_nao_conhecido ? "X" : "";
-        outRow[LAYOUT_COLS[19]] = benner?.resultado_conhecido_provido ? "X" : "";
-        outRow[LAYOUT_COLS[20]] = benner?.resultado_conhecido_nao_provido ? "X" : "";
-        outRow[LAYOUT_COLS[21]] = benner?.resultado_outra || "";
-        outRow[LAYOUT_COLS[22]] = benner?.observacoes || "";
-        outRow[LAYOUT_COLS[23]] = benner?.ganhamos ? "X" : "";
-        outRow[LAYOUT_COLS[24]] = benner?.perdemos ? "X" : "";
-        outRow[LAYOUT_COLS[25]] = benner?.processo_baixado ? toSN(benner.processo_baixado) : (d.execucao && normalizeText(d.execucao).includes("sim") ? "S" : "");
-        outRow[LAYOUT_COLS[26]] = d.parte_recorrente || benner?.recorrente || "";
-        outRow[LAYOUT_COLS[27]] = turmaFav === "Favorável" ? "X" : (benner?.posicao_turma_favoravel ? "X" : "");
-        outRow[LAYOUT_COLS[28]] = turmaFav === "Desfavorável" ? "X" : (benner?.posicao_turma_desfavoravel ? "X" : "");
-        outRow[LAYOUT_COLS[29]] = relatorFav === "Favorável" ? "X" : (benner?.posicao_relator_favoravel ? "X" : "");
-        outRow[LAYOUT_COLS[30]] = relatorFav === "Desfavorável" ? "X" : (benner?.posicao_relator_desfavoravel ? "X" : "");
-        outRow[LAYOUT_COLS[31]] = aparelhamento === "Bem aparelhado" ? "X" : (benner?.recurso_bem_aparelhado ? "X" : "");
-        outRow[LAYOUT_COLS[32]] = aparelhamento === "Mal aparelhado" ? "X" : (benner?.recurso_mal_aparelhado ? "X" : "");
-        outRow[LAYOUT_COLS[33]] = d.chance_exito_banco || benner?.chance_exito || "";
+        outRow[LAYOUT_COLS[6]] = String(d.analise_quarteirizado ?? "").trim();
+        outRow[LAYOUT_COLS[7]] = d.risco_midia ? toSN(String(d.risco_midia)) : "";
+        outRow[LAYOUT_COLS[8]] = String(d.risco_descricao ?? "").trim();
+        outRow[LAYOUT_COLS[9]] = d.provas_digitais ? toSN(String(d.provas_digitais)) : "";
+        outRow[LAYOUT_COLS[10]] = d.tem_data_julgamento ? toSN(String(d.tem_data_julgamento)) : "";
+        outRow[LAYOUT_COLS[11]] = formatDateDDMMYYYY(d.data_julgamento);
+        outRow[LAYOUT_COLS[12]] = String(d.horario_julgamento ?? "").trim();
+        outRow[LAYOUT_COLS[13]] = String(d.tipo_julgamento ?? "").trim();
+        outRow[LAYOUT_COLS[14]] = d.materia_honra ? toSN(String(d.materia_honra)) : "";
+        outRow[LAYOUT_COLS[15]] = d.entrega_memoriais ? toSN(String(d.entrega_memoriais)) : "";
+        outRow[LAYOUT_COLS[16]] = d.sustentacao_oral ? toSN(String(d.sustentacao_oral)) : "";
+        outRow[LAYOUT_COLS[17]] = d.resultado_sem_transcendencia ? "X" : "";
+        outRow[LAYOUT_COLS[18]] = d.resultado_nao_conhecido ? "X" : "";
+        outRow[LAYOUT_COLS[19]] = d.resultado_conhecido_provido ? "X" : "";
+        outRow[LAYOUT_COLS[20]] = d.resultado_conhecido_nao_provido ? "X" : "";
+        outRow[LAYOUT_COLS[21]] = String(d.resultado_outra ?? "").trim();
+        outRow[LAYOUT_COLS[22]] = String(d.observacoes ?? "").trim();
+        outRow[LAYOUT_COLS[23]] = d.ganhamos ? "X" : "";
+        outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
+        outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
+        outRow[LAYOUT_COLS[26]] = String(d.recorrente ?? "").trim();
+        outRow[LAYOUT_COLS[27]] = d.posicao_turma_favoravel ? "X" : "";
+        outRow[LAYOUT_COLS[28]] = d.posicao_turma_desfavoravel ? "X" : "";
+        outRow[LAYOUT_COLS[29]] = d.posicao_relator_favoravel ? "X" : "";
+        outRow[LAYOUT_COLS[30]] = d.posicao_relator_desfavoravel ? "X" : "";
+        outRow[LAYOUT_COLS[31]] = d.recurso_bem_aparelhado ? "X" : "";
+        outRow[LAYOUT_COLS[32]] = d.recurso_mal_aparelhado ? "X" : "";
+        outRow[LAYOUT_COLS[33]] = String(d.chance_exito ?? "").trim();
         outRow["__numProcesso"] = numProcesso;
 
         // Sanitize dash-only values
