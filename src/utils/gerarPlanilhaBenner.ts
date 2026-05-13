@@ -150,7 +150,12 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.ganhamos ? "X" : "",
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
-    cleanDadoBennerValue(d.recorrente),
+    (() => {
+      // Coluna AA = exclusivamente a seleção da combo "Parte Recorrente" (Distribuição TST).
+      const VALIDOS = new Set(["Reclamante", "Reclamada", "Reclamante e Reclamada", "Terceiro"]);
+      const v = String(d.recorrente ?? "").trim();
+      return VALIDOS.has(v) ? v : "";
+    })(),
     d.posicao_turma_favoravel ? "X" : "",
     d.posicao_turma_desfavoravel ? "X" : "",
     d.posicao_relator_favoravel ? "X" : "",

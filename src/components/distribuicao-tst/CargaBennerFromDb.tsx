@@ -353,7 +353,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[23]] = d.ganhamos ? "X" : "";
         outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
         outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
-        outRow[LAYOUT_COLS[26]] = String(d.recorrente ?? "").trim();
+        {
+          // Coluna AA = exclusivamente a seleção da combo "Parte Recorrente" da aba Distribuição TST.
+          // Aceita apenas os valores fechados da combo; qualquer outra string (nome livre vindo de Judit/IA) é descartada.
+          const VALIDOS = new Set(["Reclamante", "Reclamada", "Reclamante e Reclamada", "Terceiro"]);
+          const v = String(d.recorrente ?? "").trim();
+          outRow[LAYOUT_COLS[26]] = VALIDOS.has(v) ? v : "";
+        }
         outRow[LAYOUT_COLS[27]] = d.posicao_turma_favoravel ? "X" : "";
         outRow[LAYOUT_COLS[28]] = d.posicao_turma_desfavoravel ? "X" : "";
         outRow[LAYOUT_COLS[29]] = d.posicao_relator_favoravel ? "X" : "";
