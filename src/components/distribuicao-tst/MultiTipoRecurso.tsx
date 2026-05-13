@@ -10,19 +10,19 @@ interface Props {
 }
 
 const OPCOES_RECURSO = [
-  "AIRR",
-  "RR",
-  "RO",
-  "ED",
-  "EE",
-  "E",
-  "AgR",
-  "AgInt",
-  "AP",
-  "AI",
-  "Ag",
-  "RE",
-  "REsp",
+  "Agravo de Instrumento em Recurso de Revista",
+  "Recurso de Revista",
+  "Recurso Ordinário",
+  "Embargos de Declaração",
+  "Embargos em Execução",
+  "Embargos",
+  "Agravo Regimental",
+  "Agravo Interno",
+  "Agravo de Petição",
+  "Agravo de Instrumento",
+  "Agravo",
+  "Recurso Extraordinário",
+  "Recurso Especial",
 ];
 
 const SEPARADOR = " + ";
