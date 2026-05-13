@@ -250,7 +250,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {
-          next[k] = v;
+          const vNorm = normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
+          if (vNorm === null || vNorm === undefined) continue;
+          next[k] = vNorm;
           filled.add(k);
         }
       }
@@ -293,7 +295,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           }
           const cur = base[k];
           const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-          if (curEmpty) { base[k] = v; filled.add(k); }
+          if (curEmpty) {
+            const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+            if (vNorm === null || vNorm === undefined) continue;
+            base[k] = vNorm; filled.add(k);
+          }
         }
         if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
       }
@@ -313,7 +319,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (ALWAYS_JUDIT.has(k)) continue;
-          base[k] = v; filled.add(k);
+          const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+          if (vNorm === null || vNorm === undefined) continue;
+          base[k] = vNorm; filled.add(k);
         }
         if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
       }
