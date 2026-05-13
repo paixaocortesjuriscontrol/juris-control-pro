@@ -350,7 +350,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 disabled={buscandoJudit}
               />
               Com anexos
-              <span className="text-[10px] text-amber-600 dark:text-amber-400">(caro)</span>
             </label>
             <Button
               variant="outline"
