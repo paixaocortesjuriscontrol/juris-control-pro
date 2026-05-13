@@ -1110,6 +1110,7 @@ const AnaliseDjen = () => {
     if (!conteudo) return false;
     const txt = String(conteudo).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     return /Pauta\s+de\s+Julgamento/i.test(txt) ||
+      /\bCEJUSC\b/i.test(txt) ||
       (/\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
         /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
   };
@@ -1126,6 +1127,12 @@ const AnaliseDjen = () => {
       .split("\n")
       .map(l => l.replace(/[ \t]+/g, " ").trim())
       .filter(Boolean);
+
+    // CEJUSC: devolve a publicação na íntegra (texto limpo), sem segmentar por processo.
+    const txtPlano = linhas.join(" ");
+    if (/\bCEJUSC\b/i.test(txtPlano)) {
+      return linhas.join("\n").trim();
+    }
 
     const limparLinha = (l: string) => !/^C[oó]digo para aferir autenticidade/i.test(l)
       && !/^Data da Disponibiliza[cç][aã]o:/i.test(l)
