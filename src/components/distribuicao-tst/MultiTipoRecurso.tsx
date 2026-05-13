@@ -11,6 +11,7 @@ interface Props {
 
 const OPCOES_RECURSO = [
   "Agravo de Instrumento em Recurso de Revista",
+  "Recurso de Revista com Agravo",
   "Recurso de Revista",
   "Recurso Ordinário",
   "Embargos de Declaração",
