@@ -18,18 +18,74 @@ const OPCOES_RECURSO_NORM = [
   "Agravo de Instrumento em Recurso de Revista",
   "Recurso de Revista com Agravo",
   "Recurso de Revista",
+  "Embargos à SDI",
+  "Embargos em Recurso de Revista",
   "Recurso Ordinário",
+  "Recurso Ordinário em Procedimento Sumaríssimo",
+  "Recurso Ordinário em Mandado de Segurança",
+  "Recurso Ordinário em Ação Rescisória",
+  "Recurso Ordinário Trabalhista",
+  "Agravo de Petição",
   "Embargos de Declaração",
   "Embargos em Execução",
+  "Embargos Infringentes",
   "Embargos",
   "Agravo Regimental",
   "Agravo Interno",
-  "Agravo de Petição",
   "Agravo de Instrumento",
   "Agravo",
   "Recurso Extraordinário",
+  "Agravo em Recurso Extraordinário",
   "Recurso Especial",
+  "Agravo em Recurso Especial",
+  "Recurso Adesivo",
+  "Reclamação",
+  "Mandado de Segurança",
+  "Habeas Corpus",
 ];
+
+// Mapa de siglas comuns vindas de classes/códigos da Judit/CNJ/TST.
+// Mantido fora da função para reuso e evitar realocação.
+const SIGLAS_RECURSO: Record<string, string> = {
+  // TST
+  "rr": "Recurso de Revista",
+  "rrag": "Recurso de Revista com Agravo",
+  "arr": "Recurso de Revista com Agravo",
+  "ararr": "Recurso de Revista com Agravo",
+  "airr": "Agravo de Instrumento em Recurso de Revista",
+  "aiarr": "Agravo de Instrumento em Recurso de Revista",
+  "e": "Embargos à SDI",
+  "err": "Embargos em Recurso de Revista",
+  // TRT
+  "ro": "Recurso Ordinário",
+  "rot": "Recurso Ordinário Trabalhista",
+  "rotsum": "Recurso Ordinário em Procedimento Sumaríssimo",
+  "rops": "Recurso Ordinário em Procedimento Sumaríssimo",
+  "roms": "Recurso Ordinário em Mandado de Segurança",
+  "roar": "Recurso Ordinário em Ação Rescisória",
+  "ap": "Agravo de Petição",
+  // Embargos
+  "ed": "Embargos de Declaração",
+  "edcl": "Embargos de Declaração",
+  "ee": "Embargos em Execução",
+  "ei": "Embargos Infringentes",
+  // Agravos
+  "ag": "Agravo",
+  "agr": "Agravo Regimental",
+  "agint": "Agravo Interno",
+  "agi": "Agravo Interno",
+  "ai": "Agravo de Instrumento",
+  // Cortes superiores
+  "re": "Recurso Extraordinário",
+  "are": "Agravo em Recurso Extraordinário",
+  "resp": "Recurso Especial",
+  "aresp": "Agravo em Recurso Especial",
+  // Outros
+  "ms": "Mandado de Segurança",
+  "hc": "Habeas Corpus",
+  "rcl": "Reclamação",
+  "radesivo": "Recurso Adesivo",
+};
 
 /** Normaliza string vinda da Judit (ex.: "AGRAVO DE INSTRUMENTO EM RECURSO DE REVISTA",
  *  "RECURSO DE REVISTA + EMBARGOS") para os rótulos exatos do dropdown
@@ -38,30 +94,40 @@ function normalizarTipoRecurso(raw: any): string | null {
   if (raw == null) return null;
   const txt = String(raw).trim();
   if (!txt) return null;
-  const partes = txt.split(/\s*\+\s*/).map((s) => s.trim()).filter(Boolean);
-  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  // Mapa de siglas comuns vindas de classes/códigos da Judit/CNJ.
-  const SIGLAS: Record<string, string> = {
-    "rrag": "Recurso de Revista com Agravo",
-    "ararr": "Recurso de Revista com Agravo",
-    "airr": "Agravo de Instrumento em Recurso de Revista",
-    "rr": "Recurso de Revista",
-    "ro": "Recurso Ordinário",
-    "ed": "Embargos de Declaração",
-    "agr": "Agravo Regimental",
-    "ai": "Agravo de Instrumento",
-    "ap": "Agravo de Petição",
-    "re": "Recurso Extraordinário",
-    "resp": "Recurso Especial",
-  };
-  const mapped = partes.map((p) => {
+  const norm = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  // Quebra em pedaços por "+" (composições já formatadas) e por "-" (siglas
+  // compostas como "ED-RR" → "Embargos de Declaração + Recurso de Revista").
+  const partes: string[] = [];
+  for (const bloco of txt.split(/\s*\+\s*/)) {
+    const b = bloco.trim();
+    if (!b) continue;
+    // Só quebra por "-" se TODOS os pedaços forem siglas conhecidas;
+    // evita destruir nomes legítimos com hífen.
+    const subs = b.split(/\s*-\s*/).map((s) => s.trim()).filter(Boolean);
+    if (subs.length > 1 && subs.every((s) => SIGLAS_RECURSO[norm(s)])) {
+      partes.push(...subs);
+    } else {
+      partes.push(b);
+    }
+  }
+
+  const mapped: string[] = [];
+  const vistos = new Set<string>();
+  for (const p of partes) {
     const alvo = norm(p);
-    const sigla = SIGLAS[alvo];
-    if (sigla) return sigla;
-    const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
-    return hit || p; // mantém original se não bater (renderiza como "Outro…")
-  });
-  return mapped.join(" + ");
+    let nome = SIGLAS_RECURSO[alvo];
+    if (!nome) {
+      const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
+      nome = hit || p;
+    }
+    const k = norm(nome);
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    mapped.push(nome);
+  }
+  return mapped.length ? mapped.join(" + ") : null;
 }
 
 /** Mapeia o valor `recorrente` da Judit (nome(s) das partes) para uma das
