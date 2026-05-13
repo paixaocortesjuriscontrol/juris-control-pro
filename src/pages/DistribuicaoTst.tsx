@@ -1070,41 +1070,45 @@ export default function DistribuicaoTst() {
     <MainLayout title="Distribuição TST">
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap justify-end items-center">
-          <Button
-            variant="outline"
-            onClick={handleGerarRelatorioPdf}
-            disabled={pdfRunning}
-            title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
-          >
-            {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-            {pdfRunning
-              ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
-              : selectedIds.size > 0
-                ? `Relatório PDF Partes (${selectedIds.size})`
-                : "Relatório PDF Partes"}
-          </Button>
-          <CertidaoPdfImport onImported={handleRefresh} />
-          <DistribuicaoTstImport onImported={handleRefresh} />
-          <DossieUpdateImport onUpdated={handleRefresh} />
-          <Link to="/dados-benner">
-            <Button variant="outline">
-              <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
-            </Button>
-          </Link>
-          <Link to="/distribuicao-tst/kanban">
-            <Button variant="outline">
-              <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
-            </Button>
-          </Link>
-          <BennerSimImport onUpdated={handleRefresh} />
-          <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
-            {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-            {cargaLoading
-              ? "Carregando..."
-              : selectedIds.size > 0
-                ? `Carga Benner (${selectedIds.size})`
-                : "Gerar Carga Benner"}
-          </Button>
+          {isAdminOrCoordinator && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleGerarRelatorioPdf}
+                disabled={pdfRunning}
+                title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
+              >
+                {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                {pdfRunning
+                  ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                  : selectedIds.size > 0
+                    ? `Relatório PDF Partes (${selectedIds.size})`
+                    : "Relatório PDF Partes"}
+              </Button>
+              <CertidaoPdfImport onImported={handleRefresh} />
+              <DistribuicaoTstImport onImported={handleRefresh} />
+              <DossieUpdateImport onUpdated={handleRefresh} />
+              <Link to="/dados-benner">
+                <Button variant="outline">
+                  <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
+                </Button>
+              </Link>
+              <Link to="/distribuicao-tst/kanban">
+                <Button variant="outline">
+                  <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+                </Button>
+              </Link>
+              <BennerSimImport onUpdated={handleRefresh} />
+              <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
+                {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+                {cargaLoading
+                  ? "Carregando..."
+                  : selectedIds.size > 0
+                    ? `Carga Benner (${selectedIds.size})`
+                    : "Gerar Carga Benner"}
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
