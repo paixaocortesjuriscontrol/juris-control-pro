@@ -95,7 +95,7 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                 }
               }}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-[320px]">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
