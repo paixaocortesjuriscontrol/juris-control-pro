@@ -10,20 +10,39 @@ interface Props {
 }
 
 const OPCOES_RECURSO = [
+  // TST
   "Agravo de Instrumento em Recurso de Revista",
   "Recurso de Revista com Agravo",
   "Recurso de Revista",
+  "Embargos à SDI",
+  "Embargos em Recurso de Revista",
+  // TRT
   "Recurso Ordinário",
+  "Recurso Ordinário em Procedimento Sumaríssimo",
+  "Recurso Ordinário em Mandado de Segurança",
+  "Recurso Ordinário em Ação Rescisória",
+  "Recurso Ordinário Trabalhista",
+  "Agravo de Petição",
+  // Embargos
   "Embargos de Declaração",
   "Embargos em Execução",
+  "Embargos Infringentes",
   "Embargos",
+  // Agravos
   "Agravo Regimental",
   "Agravo Interno",
-  "Agravo de Petição",
   "Agravo de Instrumento",
   "Agravo",
+  // Cortes Superiores
   "Recurso Extraordinário",
+  "Agravo em Recurso Extraordinário",
   "Recurso Especial",
+  "Agravo em Recurso Especial",
+  // Outros
+  "Recurso Adesivo",
+  "Reclamação",
+  "Mandado de Segurança",
+  "Habeas Corpus",
 ];
 
 const SEPARADOR = " + ";
