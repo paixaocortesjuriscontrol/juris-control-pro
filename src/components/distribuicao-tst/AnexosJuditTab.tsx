@@ -71,6 +71,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
+  const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [stage, setStage] = useState<string>("");
   const uniqueAttachments = useMemo(() => dedupeJuditAttachments(attachments), [JSON.stringify(attachments)]);
   // Mantém todos os "irmãos" (mesmo documento lógico em outra instância/cnj)
