@@ -71,6 +71,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
+  const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [stage, setStage] = useState<string>("");
   const uniqueAttachments = useMemo(() => dedupeJuditAttachments(attachments), [JSON.stringify(attachments)]);
   // Mantém todos os "irmãos" (mesmo documento lógico em outra instância/cnj)
@@ -502,6 +503,79 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     }
   };
 
+  const handleDownloadSelecionados = async () => {
+    if (selected.size === 0) {
+      toast.warning("Selecione ao menos um anexo.");
+      return;
+    }
+    const lista = uniqueAttachments.filter((a) => selected.has(a.step_id));
+    setDownloadingSelected(true);
+    let ok = 0;
+    let fail = 0;
+    try {
+      for (let i = 0; i < lista.length; i++) {
+        const att = lista[i];
+        setStage(`Baixando ${i + 1}/${lista.length}…`);
+        try {
+          let data: any = null;
+          let lastErr = "";
+          const key = getJuditAttachmentDedupKey(att as any);
+          const siblings = siblingsByKey.get(key) || [att];
+          const ordered = [att, ...siblings.filter((s) => s.step_id !== att.step_id)];
+          // Reaproveita storage quando disponível
+          if (att.storage_path) {
+            const { data: signed } = await supabase.storage
+              .from("documentos_processos")
+              .createSignedUrl(att.storage_path, 600);
+            if (signed?.signedUrl) {
+              data = { signed_url: signed.signedUrl, filename: att.attachment_name || `documento_${att.step_id}` };
+            }
+          }
+          if (!data?.signed_url) {
+            for (const cand of ordered) {
+              const { data: d, error } = await supabase.functions.invoke("download-anexo-judit", {
+                body: {
+                  cnj: cand.cnj || processoNumero,
+                  instance: cand.instance || null,
+                  attachment_id: cand.attachment_id || cand.step_id,
+                  attachment_name: cand.attachment_name || null,
+                  attachment_date: cand.attachment_date || null,
+                  extension: cand.extension || null,
+                  filename: cand.attachment_name || `documento_${cand.step_id}${cand.extension ? `.${cand.extension}` : ""}`,
+                },
+              });
+              if (!error && d?.signed_url && !d?.error) { data = d; break; }
+              lastErr = error?.message || d?.error || "desconhecido";
+            }
+          }
+          if (!data?.signed_url) throw new Error(lastErr || "sem URL");
+          const fileRes = await fetch(data.signed_url);
+          if (!fileRes.ok) throw new Error("HTTP " + fileRes.status);
+          const blob = await fileRes.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = objectUrl;
+          a.download = data.filename || att.attachment_name || `documento_${att.step_id}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(objectUrl);
+          ok++;
+          // Pequeno respiro para o browser não bloquear múltiplos downloads
+          await new Promise((r) => setTimeout(r, 300));
+        } catch (e: any) {
+          console.warn("Falha ao baixar anexo", att.step_id, e);
+          fail++;
+        }
+      }
+      if (ok > 0) toast.success(`${ok} anexo(s) baixado(s).`);
+      if (fail > 0) toast.warning(`${fail} anexo(s) falharam.`);
+    } finally {
+      setDownloadingSelected(false);
+      setStage("");
+    }
+  };
+
   if (!uniqueAttachments.length) {
     return (
       <Card><CardContent className="py-12 text-center text-muted-foreground">
@@ -519,18 +593,32 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
             {selected.size > 0 ? `${selected.size} selecionado(s)` : "Selecionar todos"}
           </span>
         </label>
-        <Button
-          size="sm"
-          onClick={processarComIA}
-          disabled={processing || selected.size === 0}
-          className="bg-sky-600 hover:bg-sky-700 text-white"
-        >
-          {processing ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {stage || "Processando…"}</>
-          ) : (
-            <><Sparkles className="w-4 h-4 mr-2" /> Ler com IA &amp; preencher</>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDownloadSelecionados}
+            disabled={processing || downloadingSelected || selected.size === 0}
+          >
+            {downloadingSelected ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {stage || "Baixando…"}</>
+            ) : (
+              <><Download className="w-4 h-4 mr-2" /> Baixar selecionados</>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            onClick={processarComIA}
+            disabled={processing || downloadingSelected || selected.size === 0}
+            className="bg-sky-600 hover:bg-sky-700 text-white"
+          >
+            {processing ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {stage || "Processando…"}</>
+            ) : (
+              <><Sparkles className="w-4 h-4 mr-2" /> Ler com IA &amp; preencher</>
+            )}
+          </Button>
+        </div>
       </div>
       {uniqueAttachments.map((att) => (
         <div key={att.step_id} className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-muted/50">
