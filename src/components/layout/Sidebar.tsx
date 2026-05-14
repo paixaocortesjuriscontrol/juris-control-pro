@@ -124,7 +124,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
-        {[...visiblePublicos, ...menuItemsAdmin].map((item) => (
+        {[...visiblePublicos, ...(isAdminOrCoordinator ? menuItemsAdmin : [])].map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
