@@ -3222,21 +3222,23 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">PDF</span>
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGerarPdfResumo}
-            disabled={allPublicacoes.length === 0 || gerandoResumo}
-            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
-          >
-            {gerandoResumo ? (
-              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
-            ) : (
-              <Sparkles className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            )}
-            <span className="hidden sm:inline">{gerandoResumo ? "Gerando Resumo..." : "Gerar PDF Resumo"}</span>
-            <span className="sm:hidden">{gerandoResumo ? "..." : "Resumo"}</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGerarPdfResumo}
+              disabled={allPublicacoes.length === 0 || gerandoResumo}
+              className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+            >
+              {gerandoResumo ? (
+                <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              )}
+              <span className="hidden sm:inline">{gerandoResumo ? "Gerando Resumo..." : "Gerar PDF Resumo"}</span>
+              <span className="sm:hidden">{gerandoResumo ? "..." : "Resumo"}</span>
+            </Button>
+          )}
 
           <Button
             variant="outline"
@@ -3250,53 +3252,59 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">Doc</span>
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGerarDocResumo}
-            disabled={allPublicacoes.length === 0 || gerandoDocResumo}
-            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
-          >
-            {gerandoDocResumo ? (
-              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
-            ) : (
-              <Sparkles className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            )}
-            <span className="hidden sm:inline">{gerandoDocResumo ? "Gerando..." : "Gerar Doc Resumo"}</span>
-            <span className="sm:hidden">{gerandoDocResumo ? "..." : "Doc IA"}</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGerarDocResumo}
+              disabled={allPublicacoes.length === 0 || gerandoDocResumo}
+              className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+            >
+              {gerandoDocResumo ? (
+                <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              )}
+              <span className="hidden sm:inline">{gerandoDocResumo ? "Gerando..." : "Gerar Doc Resumo"}</span>
+              <span className="sm:hidden">{gerandoDocResumo ? "..." : "Doc IA"}</span>
+            </Button>
+          )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGerarPdfResumoRapido}
-            disabled={allPublicacoes.length === 0 || gerandoResumoRapido}
-            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-          >
-            {gerandoResumoRapido ? (
-              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
-            ) : (
-              <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            )}
-            <span className="hidden sm:inline">{gerandoResumoRapido ? "Gerando..." : "Gerar PDF Resumo Rápido"}</span>
-            <span className="sm:hidden">{gerandoResumoRapido ? "..." : "PDF Rápido"}</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGerarPdfResumoRapido}
+              disabled={allPublicacoes.length === 0 || gerandoResumoRapido}
+              className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            >
+              {gerandoResumoRapido ? (
+                <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+              ) : (
+                <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              )}
+              <span className="hidden sm:inline">{gerandoResumoRapido ? "Gerando..." : "Gerar PDF Resumo Rápido"}</span>
+              <span className="sm:hidden">{gerandoResumoRapido ? "..." : "PDF Rápido"}</span>
+            </Button>
+          )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGerarDocResumoRapido}
-            disabled={allPublicacoes.length === 0 || gerandoDocResumoRapido}
-            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-          >
-            {gerandoDocResumoRapido ? (
-              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
-            ) : (
-              <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            )}
-            <span className="hidden sm:inline">{gerandoDocResumoRapido ? "Gerando..." : "Gerar Doc Resumo Rápido"}</span>
-            <span className="sm:hidden">{gerandoDocResumoRapido ? "..." : "Doc Rápido"}</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGerarDocResumoRapido}
+              disabled={allPublicacoes.length === 0 || gerandoDocResumoRapido}
+              className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            >
+              {gerandoDocResumoRapido ? (
+                <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+              ) : (
+                <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              )}
+              <span className="hidden sm:inline">{gerandoDocResumoRapido ? "Gerando..." : "Gerar Doc Resumo Rápido"}</span>
+              <span className="sm:hidden">{gerandoDocResumoRapido ? "..." : "Doc Rápido"}</span>
+            </Button>
+          )}
 
           <Button
             variant="outline"
