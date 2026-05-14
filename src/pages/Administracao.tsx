@@ -51,7 +51,7 @@ const roleLabels: Record<AppRole, string> = {
   admin: "Administrador",
   coordenador: "Advogado Coordenador",
   advogado: "Advogado",
-  advogado_temporario: "Advogado Temporário",
+  advogado_temporario: "Advogado DJEN Conferência",
   estagiario: "Estagiário",
   assistente: "Assistente",
   secretaria: "Secretária",
@@ -641,7 +641,7 @@ const Administracao = () => {
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
                         <SelectItem value="advogado">Advogado</SelectItem>
-                        <SelectItem value="advogado_temporario">Advogado Temporário</SelectItem>
+                        <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
                         <SelectItem value="estagiario">Estagiário</SelectItem>
                         <SelectItem value="assistente">Assistente</SelectItem>
                         <SelectItem value="secretaria">Secretária</SelectItem>
@@ -993,7 +993,7 @@ const Administracao = () => {
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
                       <SelectItem value="advogado">Advogado</SelectItem>
-                      <SelectItem value="advogado_temporario">Advogado Temporário</SelectItem>
+                      <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
                       <SelectItem value="estagiario">Estagiário</SelectItem>
                       <SelectItem value="assistente">Assistente</SelectItem>
                       <SelectItem value="secretaria">Secretária</SelectItem>
