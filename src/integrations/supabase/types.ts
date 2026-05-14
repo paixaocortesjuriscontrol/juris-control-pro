@@ -5333,6 +5333,62 @@ export type Database = {
           },
         ]
       }
+      processos_partes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          documento: string | null
+          fonte: string
+          id: string
+          is_advogado: boolean
+          lado_efetivo: string | null
+          nome: string
+          polo: string | null
+          processo_id: string
+          raw: Json | null
+          tipo_pessoa: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          documento?: string | null
+          fonte?: string
+          id?: string
+          is_advogado?: boolean
+          lado_efetivo?: string | null
+          nome: string
+          polo?: string | null
+          processo_id: string
+          raw?: Json | null
+          tipo_pessoa?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          documento?: string | null
+          fonte?: string
+          id?: string
+          is_advogado?: boolean
+          lado_efetivo?: string | null
+          nome?: string
+          polo?: string | null
+          processo_id?: string
+          raw?: Json | null
+          tipo_pessoa?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_partes_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processos_responsaveis: {
         Row: {
           ativo: boolean | null
