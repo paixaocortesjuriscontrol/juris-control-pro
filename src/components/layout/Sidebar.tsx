@@ -97,12 +97,17 @@ const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];
 export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAdminOrCoordinator } = useUserRole();
+  const { isAdminOrCoordinator, role } = useUserRole();
+  const isAdvogadoTemporario = role === "advogado_temporario";
 
-  // Itens "em branco" (sem highlight e sem color) são restritos a admin/coordenador
-  const visiblePublicos = menuItemsPublicos.filter(
-    (item) => item.highlight || item.color || isAdminOrCoordinator
-  );
+  // Advogado Temporário só vê Análise DJEN e Termos DJEN
+  const allowedForTemporario = new Set(["/analise-djen", "/termos-djen"]);
+
+  const visiblePublicos = isAdvogadoTemporario
+    ? menuItemsPublicos.filter((item) => allowedForTemporario.has(item.path))
+    : menuItemsPublicos.filter(
+        (item) => item.highlight || item.color || isAdminOrCoordinator
+      );
 
   const SidebarContent = () => (
     <>
@@ -124,7 +129,10 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
-        {[...visiblePublicos, ...(isAdminOrCoordinator ? menuItemsAdmin : [])].map((item) => (
+        {[
+          ...visiblePublicos,
+          ...(isAdminOrCoordinator && !isAdvogadoTemporario ? menuItemsAdmin : []),
+        ].map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -144,7 +152,7 @@ export function Sidebar() {
         ))}
 
         {/* Menu Importar Dados - restrito a admin/coordenador */}
-        {isAdminOrCoordinator && (
+        {isAdminOrCoordinator && !isAdvogadoTemporario && (
           <NavLink
             to="/importar"
             onClick={() => setMobileOpen(false)}
