@@ -51,6 +51,7 @@ const roleLabels: Record<AppRole, string> = {
   admin: "Administrador",
   coordenador: "Advogado Coordenador",
   advogado: "Advogado",
+  advogado_temporario: "Advogado Temporário",
   estagiario: "Estagiário",
   assistente: "Assistente",
   secretaria: "Secretária",
@@ -61,6 +62,7 @@ const roleBadgeColors: Record<AppRole, string> = {
   admin: "bg-destructive text-destructive-foreground",
   coordenador: "bg-[hsl(var(--area-empresarial))] text-white",
   advogado: "bg-primary text-primary-foreground",
+  advogado_temporario: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
   estagiario: "bg-[hsl(var(--area-civil))] text-white",
   assistente: "bg-[hsl(var(--area-trabalhista))] text-white",
   secretaria: "bg-accent text-accent-foreground",
@@ -639,6 +641,7 @@ const Administracao = () => {
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
                         <SelectItem value="advogado">Advogado</SelectItem>
+                        <SelectItem value="advogado_temporario">Advogado Temporário</SelectItem>
                         <SelectItem value="estagiario">Estagiário</SelectItem>
                         <SelectItem value="assistente">Assistente</SelectItem>
                         <SelectItem value="secretaria">Secretária</SelectItem>
@@ -990,6 +993,7 @@ const Administracao = () => {
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
                       <SelectItem value="advogado">Advogado</SelectItem>
+                      <SelectItem value="advogado_temporario">Advogado Temporário</SelectItem>
                       <SelectItem value="estagiario">Estagiário</SelectItem>
                       <SelectItem value="assistente">Assistente</SelectItem>
                       <SelectItem value="secretaria">Secretária</SelectItem>
