@@ -275,7 +275,7 @@ function selecionarTst(pageData: any[]): { rd: any; foiTst: boolean } | null {
     const src = String(rd?.crawler?.source_name || "").toUpperCase();
     if (/\bTST\b/.test(src)) return true;
     const court = String(rd?.courts?.[0]?.name || "").toLowerCase();
-    if (court.startsWith("gabinete do ministro")) return true;
+    if (/^gabinete\s+d[ao]\s+ministr[ao]\b/.test(court)) return true;
     const clsCode = String(rd?.classifications?.[0]?.code || "").toUpperCase();
     if (TST_CLASSES.has(clsCode)) return true;
     return false;
@@ -354,7 +354,7 @@ function extrairOrgaoERelator(rd: any): { orgao: string | null; relator: string 
 
   // No TST o nome do órgão costuma ser "Gabinete do Ministro Fulano" — extrai relator daí.
   if (!relator && orgao) {
-    const mGab = orgao.match(/^Gabinete\s+do\s+Ministro\s+(.+)$/i);
+    const mGab = orgao.match(/^Gabinete\s+d[ao]\s+Ministr[ao]\s+(.+)$/i);
     if (mGab) relator = mGab[1].trim();
   }
 
