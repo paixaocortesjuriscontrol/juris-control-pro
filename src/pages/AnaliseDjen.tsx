@@ -3318,8 +3318,8 @@ const AnaliseDjen = () => {
             ) : (
               <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             )}
-            <span className="hidden sm:inline">{gerandoResumoSemIA ? "Gerando..." : "Gerar PDF Resumo sem IA"}</span>
-            <span className="sm:hidden">{gerandoResumoSemIA ? "..." : "PDF s/IA"}</span>
+            <span className="hidden sm:inline">{gerandoResumoSemIA ? "Gerando..." : "Gerar PDF Resumo"}</span>
+            <span className="sm:hidden">{gerandoResumoSemIA ? "..." : "PDF Resumo"}</span>
           </Button>
 
           <Button
@@ -3334,8 +3334,8 @@ const AnaliseDjen = () => {
             ) : (
               <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             )}
-            <span className="hidden sm:inline">{gerandoDocResumoSemIA ? "Gerando..." : "Gerar Doc Resumo sem IA"}</span>
-            <span className="sm:hidden">{gerandoDocResumoSemIA ? "..." : "Doc s/IA"}</span>
+            <span className="hidden sm:inline">{gerandoDocResumoSemIA ? "Gerando..." : "Gerar Doc Resumo"}</span>
+            <span className="sm:hidden">{gerandoDocResumoSemIA ? "..." : "Doc Resumo"}</span>
           </Button>
 
           <Button
