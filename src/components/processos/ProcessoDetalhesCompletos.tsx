@@ -2229,6 +2229,16 @@ export function ProcessoDetalhesCompletos({
                 <ProcessoJuditTab processoId={processo.id} processoNumero={processo?.numero} />
               )}
 
+              {/* Análise Judit (mesmo painel da Distribuição TST) */}
+              {activeSection === "analise-judit" && processo?.numero && (
+                <AnaliseJuditTab processoNumero={processo.numero} />
+              )}
+
+              {/* Anexos Judit (mesmo painel da Distribuição TST) */}
+              {activeSection === "anexos-judit" && processo?.numero && (
+                <ProcessoAnexosJuditTab processoNumero={processo.numero} />
+              )}
+
               {/* Comentários Section */}
               {activeSection === "comentarios" && (
                 <div className="space-y-3">
