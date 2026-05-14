@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
+import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -752,6 +753,7 @@ export function ProcessoDetalhesCompletos({
     { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
     { id: "tst", label: "TST", icon: Gavel },
     { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
+    { id: "judit", label: "Detalhe Judit", icon: Sparkles },
     { id: "prazo", label: "Prazo", icon: Clock },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
@@ -2216,6 +2218,11 @@ export function ProcessoDetalhesCompletos({
               {/* Cobrança Section */}
               {activeSection === "cobranca" && (
                 <CobrancaSection processo={processo} formatDate={formatDate} />
+              )}
+
+              {/* Detalhe Judit */}
+              {activeSection === "judit" && processo?.id && (
+                <ProcessoJuditTab processoId={processo.id} processoNumero={processo?.numero} />
               )}
 
               {/* Comentários Section */}
