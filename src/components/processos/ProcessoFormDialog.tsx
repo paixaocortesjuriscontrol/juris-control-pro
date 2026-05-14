@@ -1090,6 +1090,23 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                       "Buscar Dados"
                     )}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-8 gap-1"
+                    onClick={handleFetchJudit}
+                    disabled={fetchingJudit}
+                    title="Buscar dados completos do processo via Judit (preenche campos e partes)"
+                  >
+                    {fetchingJudit ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Judit
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
