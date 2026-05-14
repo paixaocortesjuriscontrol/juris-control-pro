@@ -885,6 +885,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           await uploadDocuments(newProcesso.id);
         }
 
+        // Persiste partes/payload da Judit coletados antes de salvar
+        if (juditPartesPendentes.length > 0) {
+          await persistirPartesJudit(newProcesso.id, juditPartesPendentes);
+        }
+        if (juditPayloadPendente) {
+          await persistirConsultaJudit(newProcesso.id, juditPayloadPendente);
+        }
+
         // Fetch and insert movements from API
         try {
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
