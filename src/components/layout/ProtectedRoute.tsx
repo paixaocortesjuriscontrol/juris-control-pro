@@ -1,16 +1,25 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
+const ADVOGADO_TEMPORARIO_ALLOWED = new Set([
+  "/analise-djen",
+  "/termos-djen",
+  "/notificacoes",
+]);
+
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
+  const { pathname } = useLocation();
 
-  if (loading) {
+  if (loading || roleLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -23,6 +32,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (role === "advogado_temporario" && !ADVOGADO_TEMPORARIO_ALLOWED.has(pathname)) {
+    return <Navigate to="/analise-djen" replace />;
   }
 
   return <>{children}</>;
