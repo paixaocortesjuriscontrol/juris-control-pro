@@ -37,6 +37,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { usePastas } from "@/hooks/usePastas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
+import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast as sonnerToast } from "sonner";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
@@ -1091,7 +1093,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-8">
                 <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
                 <TabsTrigger value="tribunal">Tribunal</TabsTrigger>
                 <TabsTrigger value="partes">Partes</TabsTrigger>
@@ -1100,6 +1102,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                 </TabsTrigger>
                 <TabsTrigger value="contingencial">Contingencial</TabsTrigger>
                 <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                <TabsTrigger value="analise-judit">Análise Judit</TabsTrigger>
+                <TabsTrigger value="anexos-judit">Anexos Judit</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basico" className="space-y-4 mt-4">
