@@ -1570,6 +1570,14 @@ const AnaliseDjen = () => {
       ultimos = principais.slice();
     }
 
+    // Regra ACORDAM: se algum dos parágrafos selecionados contiver "ACORDAM",
+    // incluir mais um parágrafo anterior (geralmente é o "ISTO POSTO/ANTE O EXPOSTO"
+    // que precede o dispositivo do acórdão).
+    if (/\bACORDAM\b/i.test(ultimos.join("\n")) && ultimos.length < principais.length) {
+      n = Math.min(n + 1, principais.length);
+      ultimos = principais.slice(-n);
+    }
+
     return [...ultimos, ...trailing].join("\n\n").trim();
   };
 
