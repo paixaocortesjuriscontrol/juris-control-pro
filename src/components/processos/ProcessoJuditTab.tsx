@@ -1,0 +1,234 @@
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Loader2, RefreshCw, Sparkles, Users } from "lucide-react";
+import { toast } from "sonner";
+
+interface Props {
+  processoId: string;
+  processoNumero?: string | null;
+}
+
+interface ParteRow {
+  id: string;
+  nome: string;
+  documento: string | null;
+  tipo_pessoa: string | null;
+  polo: string | null;
+  lado_efetivo: string | null;
+  is_advogado: boolean;
+  fonte: string;
+  raw: any;
+  created_at: string;
+}
+
+export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const { data: partes = [], isLoading: loadingPartes } = useQuery({
+    queryKey: ["processos_partes", processoId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("processos_partes" as any)
+        .select("*")
+        .eq("processo_id", processoId)
+        .order("is_advogado", { ascending: true })
+        .order("nome", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as ParteRow[];
+    },
+  });
+
+  const { data: ultimaConsulta } = useQuery({
+    queryKey: ["consultas_judit", processoId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("consultas_judit")
+        .select("*")
+        .eq("processo_id", processoId)
+        .order("requisitada_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleRefresh = async () => {
+    if (!processoNumero) {
+      toast.warning("Processo sem número CNJ cadastrado.");
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+        body: { numero_processo: processoNumero, com_anexos: false, force_refresh: true },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      const partesNovas = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData?.user?.id || null;
+      // Substitui partes vindas da Judit
+      await supabase
+        .from("processos_partes" as any)
+        .delete()
+        .eq("processo_id", processoId)
+        .eq("fonte", "judit");
+      if (partesNovas.length > 0) {
+        const rows = partesNovas
+          .map((p: any) => ({
+            processo_id: processoId,
+            nome: String(p?.nome || "").trim(),
+            documento: p?.documento || null,
+            tipo_pessoa: p?.tipo_pessoa || null,
+            polo: p?.polo || null,
+            lado_efetivo: p?.lado_efetivo || null,
+            is_advogado: !!p?.is_advogado,
+            fonte: "judit",
+            raw: p,
+            created_by: uid,
+          }))
+          .filter((r) => r.nome);
+        if (rows.length > 0) {
+          await supabase.from("processos_partes" as any).insert(rows);
+        }
+      }
+      await supabase.from("consultas_judit").insert({
+        processo_id: processoId,
+        requisitada_em: new Date().toISOString(),
+        status_http: 200,
+        payload_resposta: data,
+        erro: null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["processos_partes", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["consultas_judit", processoId] });
+      toast.success(`Judit atualizada — ${partesNovas.length} parte(s).`);
+    } catch (e: any) {
+      toast.error("Erro ao consultar Judit: " + (e?.message || "desconhecido"));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const payload: any = ultimaConsulta?.payload_resposta || null;
+  const partesNaoAdv = partes.filter((p) => !p.is_advogado);
+  const advogados = partes.filter((p) => p.is_advogado);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-emerald-600" />
+          Detalhe Judit
+        </h3>
+        <Button size="sm" variant="outline" onClick={handleRefresh} disabled={refreshing} className="gap-1">
+          {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          Atualizar
+        </Button>
+      </div>
+
+      {/* Resumo de capa */}
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm">Capa</CardTitle>
+        </CardHeader>
+        <CardContent className="py-3 px-4 grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+          <Field label="Tribunal" value={payload?.tribunal || payload?.tribunal_acronimo} />
+          <Field label="Órgão julgador" value={payload?.orgao_julgador} />
+          <Field label="Classe" value={payload?.classe_capa || payload?.tipo_recurso} />
+          <Field label="Distribuição" value={payload?.data_distribuicao_br || payload?.data_distribuicao} />
+          <Field label="Relator" value={payload?.relator} />
+          <Field label="Turma" value={payload?.turma} />
+          <Field label="Situação" value={payload?.situacao_processo} />
+          <Field label="Reclamante" value={payload?.reclamante} />
+          <Field label="Reclamada" value={payload?.reclamada} />
+        </CardContent>
+      </Card>
+
+      {/* Partes */}
+      <Card>
+        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Users className="w-4 h-4" /> Partes ({partesNaoAdv.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="py-2 px-4">
+          {loadingPartes ? (
+            <p className="text-xs text-muted-foreground">Carregando…</p>
+          ) : partesNaoAdv.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma parte registrada pela Judit.</p>
+          ) : (
+            <div className="divide-y">
+              {partesNaoAdv.map((p) => (
+                <div key={p.id} className="py-2 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{p.nome}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {p.tipo_pessoa || "—"} {p.documento ? `· ${p.documento}` : ""}
+                    </p>
+                  </div>
+                  {p.lado_efetivo && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        p.lado_efetivo === "ACTIVE"
+                          ? "text-emerald-700 border-emerald-300"
+                          : "text-rose-700 border-rose-300"
+                      }
+                    >
+                      {p.lado_efetivo === "ACTIVE" ? "Ativo" : "Passivo"}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Advogados */}
+      {advogados.length > 0 && (
+        <Card>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm">Advogados ({advogados.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="py-2 px-4">
+            <div className="divide-y">
+              {advogados.map((p) => (
+                <div key={p.id} className="py-2">
+                  <p className="text-sm">{p.nome}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {p.documento || ""} {p.polo ? `· ${p.polo}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {ultimaConsulta?.requisitada_em && (
+        <p className="text-[11px] text-muted-foreground text-right">
+          Última consulta: {new Date(ultimaConsulta.requisitada_em).toLocaleString("pt-BR")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase text-muted-foreground tracking-wide">{label}</p>
+      <p className="text-xs font-medium break-words">{value || "—"}</p>
+    </div>
+  );
+}

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus } from "lucide-react";
+import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -123,6 +123,11 @@ const formatCNJ = (value: string): string => {
 export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
+  const [fetchingJudit, setFetchingJudit] = useState(false);
+  // Partes coletadas pela Judit a serem persistidas em processos_partes
+  // após o INSERT do processo. Para edição, gravamos imediatamente.
+  const [juditPartesPendentes, setJuditPartesPendentes] = useState<any[]>([]);
+  const [juditPayloadPendente, setJuditPayloadPendente] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState("basico");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -226,6 +231,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       setNewProcessoId(null);
       setCriarNovaPasta(false);
       setNovaPastaNome("");
+      setJuditPartesPendentes([]);
+      setJuditPayloadPendente(null);
       // Só resetar responsáveis se for novo processo (não edição)
       // Para edição, o SelecionarResponsaveisProcesso carrega os dados existentes
       if (!processo) {
@@ -533,6 +540,119 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     }
   };
 
+  // Helpers compartilhados pela busca Judit
+  const persistirPartesJudit = async (processoId: string, partes: any[]) => {
+    if (!partes || partes.length === 0 || !user) return;
+    try {
+      // Substitui as partes existentes vindas da Judit deste processo
+      await supabase
+        .from("processos_partes" as any)
+        .delete()
+        .eq("processo_id", processoId)
+        .eq("fonte", "judit");
+      const rows = partes
+        .map((p: any) => ({
+          processo_id: processoId,
+          nome: String(p?.nome || "").trim(),
+          documento: p?.documento || null,
+          tipo_pessoa: p?.tipo_pessoa || null,
+          polo: p?.polo || null,
+          lado_efetivo: p?.lado_efetivo || null,
+          is_advogado: !!p?.is_advogado,
+          fonte: "judit",
+          raw: p,
+          created_by: user.id,
+        }))
+        .filter((r) => r.nome);
+      if (rows.length > 0) {
+        await supabase.from("processos_partes" as any).insert(rows);
+      }
+    } catch (e) {
+      console.warn("Falha ao persistir processos_partes:", e);
+    }
+  };
+
+  const persistirConsultaJudit = async (processoId: string, payload: any) => {
+    try {
+      await supabase.from("consultas_judit").insert({
+        processo_id: processoId,
+        requisitada_em: new Date().toISOString(),
+        status_http: 200,
+        payload_resposta: payload,
+        erro: null,
+      });
+    } catch (e) {
+      console.warn("Falha ao gravar consultas_judit:", e);
+    }
+  };
+
+  const handleFetchJudit = async () => {
+    const numeroRaw = (form.getValues("numero") || "").trim();
+    if (!numeroRaw || numeroRaw.length < 5) {
+      toast({
+        title: "Número inválido",
+        description: "Digite um número de processo válido para buscar na Judit.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setFetchingJudit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+        body: { numero_processo: numeroRaw, com_anexos: false },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast({ title: "Judit", description: data.error, variant: "destructive" });
+        return;
+      }
+
+      // Preenche campos do form quando a Judit retornar valor.
+      const setIf = (field: any, value: any) => {
+        if (value !== null && value !== undefined && String(value).trim() !== "") {
+          form.setValue(field, String(value));
+        }
+      };
+      setIf("tribunal", data?.tribunal || data?.tribunal_acronimo);
+      setIf("vara", data?.orgao_julgador);
+      setIf("classe", data?.classe_capa || data?.tipo_recurso);
+      setIf("data_distribuicao", data?.data_distribuicao);
+      setIf("polo_ativo", data?.reclamante);
+      setIf("polo_passivo", data?.reclamada || data?.polo_passivo);
+      // Área inferida pelo tribunal
+      const trib = String(data?.tribunal || data?.tribunal_acronimo || "").toLowerCase();
+      if (trib.includes("trt") || trib.includes("tst") || trib.includes("trabalho")) {
+        form.setValue("area", "trabalhista");
+      }
+
+      const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+
+      if (isEditing && processo?.id) {
+        await persistirPartesJudit(processo.id, partes);
+        await persistirConsultaJudit(processo.id, data);
+        queryClient.invalidateQueries({ queryKey: ["processos_partes", processo.id] });
+        queryClient.invalidateQueries({ queryKey: ["consultas_judit", processo.id] });
+      } else {
+        // Stash até gravar o processo
+        setJuditPartesPendentes(partes);
+        setJuditPayloadPendente(data);
+      }
+
+      toast({
+        title: "Judit",
+        description: `Dados carregados${partes.length ? ` — ${partes.length} parte(s)` : ""}.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erro na Judit",
+        description: e?.message || "Falha ao consultar a Judit.",
+        variant: "destructive",
+      });
+    } finally {
+      setFetchingJudit(false);
+    }
+  };
+
   // File handling functions
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -767,6 +887,14 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           await uploadDocuments(newProcesso.id);
         }
 
+        // Persiste partes/payload da Judit coletados antes de salvar
+        if (juditPartesPendentes.length > 0) {
+          await persistirPartesJudit(newProcesso.id, juditPartesPendentes);
+        }
+        if (juditPayloadPendente) {
+          await persistirConsultaJudit(newProcesso.id, juditPayloadPendente);
+        }
+
         // Fetch and insert movements from API
         try {
           const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
@@ -970,6 +1098,23 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       "Buscar Dados"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-8 gap-1"
+                    onClick={handleFetchJudit}
+                    disabled={fetchingJudit}
+                    title="Buscar dados completos do processo via Judit (preenche campos e partes)"
+                  >
+                    {fetchingJudit ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Judit
+                      </>
                     )}
                   </Button>
                 </div>
