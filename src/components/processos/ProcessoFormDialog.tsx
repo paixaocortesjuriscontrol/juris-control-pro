@@ -231,6 +231,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       setNewProcessoId(null);
       setCriarNovaPasta(false);
       setNovaPastaNome("");
+      setJuditPartesPendentes([]);
+      setJuditPayloadPendente(null);
       // Só resetar responsáveis se for novo processo (não edição)
       // Para edição, o SelecionarResponsaveisProcesso carrega os dados existentes
       if (!processo) {
