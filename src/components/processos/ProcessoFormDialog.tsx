@@ -589,7 +589,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
   const handleFetchJudit = async () => {
     const numeroRaw = (form.getValues("numero") || "").trim();
-    if (!numeroRaw || numeroRaw.length < 5) {
+    const numero = aplicarMascaraCnj(numeroRaw) || numeroRaw;
+    if (!numero || numero.length < 5) {
       toast({
         title: "Número inválido",
         description: "Digite um número de processo válido para buscar na Judit.",
@@ -597,12 +598,60 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       });
       return;
     }
+    if (numero !== numeroRaw) {
+      form.setValue("numero", numero);
+    }
     setFetchingJudit(true);
     try {
+      // Detecta tribunal trabalhista a partir do CNJ (J=5 = Justiça do Trabalho)
+      // — em TR=00 indica TST; demais TRs (01-24) indicam regiões.
+      const digits = numero.replace(/\D/g, "");
+      const isTrabalhista = digits.length === 20 && digits[13] === "5";
+      const trReg = digits.length === 20 ? digits.slice(14, 16) : "";
+      const tribunalHint = isTrabalhista
+        ? (trReg === "00" ? "TST" : `TRT${parseInt(trReg, 10)}`)
+        : null;
+
+      const requestPayload: Record<string, unknown> = {
+        numero_processo: numero,
+        com_anexos: false,
+        force_refresh: false,
+      };
+      if (tribunalHint) requestPayload.tribunal = tribunalHint;
+
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: { numero_processo: numeroRaw, com_anexos: false },
+        body: requestPayload,
       });
-      if (error) throw error;
+
+      // Log da consulta (mesmo padrão da Distribuição TST)
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        await supabase.from("judit_logs" as any).insert({
+          processo_numero: numero,
+          tribunal: tribunalHint,
+          request_payload: { ...requestPayload, numero_processo_original: numeroRaw },
+          raw_response: data ?? null,
+          status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
+          error_message: error?.message || data?.error || null,
+          created_by: userData?.user?.id || null,
+        });
+      } catch (logErr) {
+        console.warn("Falha ao gravar judit_logs:", logErr);
+      }
+
+      if (error) {
+        const msg = (error.message || "").toLowerCase();
+        if (msg.includes("timeout") || msg.includes("aborted") || msg.includes("network") || msg.includes("failed to fetch")) {
+          toast({
+            title: "Judit demorou",
+            description: "A Judit demorou mais que o normal. Tente novamente em alguns segundos — o resultado pode estar em cache.",
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Erro na Judit", description: error.message || "desconhecido", variant: "destructive" });
+        }
+        return;
+      }
       if (data?.error) {
         toast({ title: "Judit", description: data.error, variant: "destructive" });
         return;
