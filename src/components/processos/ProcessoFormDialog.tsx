@@ -614,7 +614,9 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
       const requestPayload: Record<string, unknown> = {
         numero_processo: numero,
-        com_anexos: false,
+        // Buscar com anexos para que a aba "Anexos Judit" tenha conteúdo
+        // (mesmo padrão da Distribuição TST).
+        com_anexos: true,
         force_refresh: false,
       };
       if (tribunalHint) requestPayload.tribunal = tribunalHint;
@@ -663,19 +665,99 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
           form.setValue(field, String(value));
         }
       };
+      const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+
+      // Reclamante / Reclamada — prioriza o campo já desambiguado pelo backend;
+      // cai para parties_detail (lado_efetivo / tipo_pessoa) quando ausente.
+      const nomesPorRegex = (re: RegExp) =>
+        [...new Set(
+          partes
+            .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
+            .map((p: any) => String(p?.nome || "").trim())
+            .filter(Boolean)
+        )].join(", ");
+      const nomesPorLado = (lado: "ACTIVE" | "PASSIVE") =>
+        [...new Set(
+          partes
+            .filter((p: any) => !p?.is_advogado && String(p?.lado_efetivo || "").toUpperCase() === lado)
+            .map((p: any) => String(p?.nome || "").trim())
+            .filter(Boolean)
+        )].join(", ");
+      const reclamante = (data?.reclamante && String(data.reclamante).trim())
+        || nomesPorRegex(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i)
+        || nomesPorLado("ACTIVE");
+      const reclamada = (data?.reclamada && String(data.reclamada).trim())
+        || nomesPorRegex(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i)
+        || nomesPorLado("PASSIVE");
+
       setIf("tribunal", data?.tribunal || data?.tribunal_acronimo);
       setIf("vara", data?.orgao_julgador);
       setIf("classe", data?.classe_capa || data?.tipo_recurso);
+      setIf("assunto", data?.assunto || data?.classe_capa);
       setIf("data_distribuicao", data?.data_distribuicao);
-      setIf("polo_ativo", data?.reclamante);
-      setIf("polo_passivo", data?.reclamada || data?.polo_passivo);
-      // Área inferida pelo tribunal
+      setIf("polo_ativo", reclamante);
+      setIf("polo_passivo", reclamada || data?.polo_passivo);
+      setIf("reclamante", reclamante);
+      setIf("reclamados", reclamada);
+      // Instância (1ª/2ª/Superior) a partir do _judit_meta quando disponível
+      const instance = data?._judit_meta?.instance_selecionada
+        ?? data?._judit_meta?.instance
+        ?? null;
+      if (instance) setIf("instancia", String(instance));
+      // Valor da causa, se Judit retornar
+      if (data?.valor_causa) setIf("valor_causa", String(data.valor_causa));
+      // Situação → status do processo (best-effort)
+      const situacao = String(data?.situacao_processo || "").toLowerCase();
+      const baixado = String(data?.processo_baixado || "").toUpperCase();
+      if (baixado === "S" || /arquivad|baixad|tr[âa]nsito/.test(situacao)) {
+        form.setValue("status", "encerrado");
+      } else if (/ativ|active|em\s*curso|em\s*tramita|andamento/.test(situacao)) {
+        form.setValue("status", "ativo");
+      }
+      // Área / justiça inferida pelo tribunal
       const trib = String(data?.tribunal || data?.tribunal_acronimo || "").toLowerCase();
       if (trib.includes("trt") || trib.includes("tst") || trib.includes("trabalho")) {
         form.setValue("area", "trabalhista");
+        form.setValue("justica", "Trabalho");
       }
 
-      const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+      // Persiste anexos da Judit (mesmo padrão da Distribuição TST) para a aba "Anexos Judit"
+      const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
+      if (atts.length > 0) {
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          const seen = new Set<string>();
+          const rows = atts
+            .map((a: any) => ({
+              processo_numero: numero,
+              cnj: a?.cnj || numero,
+              instance: a?.instance != null ? String(a.instance) : null,
+              attachment_id: String(a?.step_id || a?.attachment_id || ""),
+              step_id: a?.step_id ? String(a.step_id) : null,
+              attachment_name: a?.attachment_name || null,
+              attachment_date: a?.attachment_date || null,
+              extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
+              raw_attachment: a,
+              created_by: userData?.user?.id || null,
+            }))
+            .filter((r: any) => r.attachment_id)
+            .filter((r: any) => {
+              const key = `${r.attachment_name}::${r.attachment_date}::${r.extension}`.toLowerCase();
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+          if (rows.length > 0) {
+            await supabase.from("judit_anexos" as any).delete().eq("processo_numero", numero);
+            await supabase.from("judit_anexos" as any).insert(rows);
+            queryClient.invalidateQueries({ queryKey: ["judit_anexos", numero] });
+          }
+        } catch (e) {
+          console.warn("Falha ao persistir judit_anexos:", e);
+        }
+      }
 
       if (isEditing && processo?.id) {
         await persistirPartesJudit(processo.id, partes);

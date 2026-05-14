@@ -3,6 +3,8 @@ import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
+import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
+import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -754,6 +756,8 @@ export function ProcessoDetalhesCompletos({
     { id: "tst", label: "TST", icon: Gavel },
     { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
     { id: "judit", label: "Detalhe Judit", icon: Sparkles },
+    { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
+    { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
     { id: "prazo", label: "Prazo", icon: Clock },
     { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
     { id: "pedidos", label: "Pedidos", icon: ListPlus },
@@ -2223,6 +2227,16 @@ export function ProcessoDetalhesCompletos({
               {/* Detalhe Judit */}
               {activeSection === "judit" && processo?.id && (
                 <ProcessoJuditTab processoId={processo.id} processoNumero={processo?.numero} />
+              )}
+
+              {/* Análise Judit (mesmo painel da Distribuição TST) */}
+              {activeSection === "analise-judit" && processo?.numero && (
+                <AnaliseJuditTab processoNumero={processo.numero} />
+              )}
+
+              {/* Anexos Judit (mesmo painel da Distribuição TST) */}
+              {activeSection === "anexos-judit" && processo?.numero && (
+                <ProcessoAnexosJuditTab processoNumero={processo.numero} />
               )}
 
               {/* Comentários Section */}
