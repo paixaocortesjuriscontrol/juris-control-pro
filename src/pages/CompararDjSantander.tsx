@@ -670,6 +670,32 @@ export default function CompararDjSantander() {
         console.warn("erro descartadas", e);
       }
 
+      // Verifica se a publicação foi capturada na base do DJEN
+      // (por esta ou por outras coordenações)
+      try {
+        const { data: capturadas } = await supabase
+          .from("publicacoes_djen")
+          .select("coordenacao_id, monitoramento_id, tribunal, orgao, tipo_comunicacao, coordenacoes:coordenacao_id(nome)")
+          .eq("dedup_processo_digits", digits)
+          .gte("data_disponibilizacao", `${inicio}T00:00:00.000Z`)
+          .lte("data_disponibilizacao", `${fim}T23:59:59.999Z`);
+        if (capturadas && capturadas.length > 0) {
+          const naSelecionada = capturadas.filter((c: any) => monIds.includes(c.monitoramento_id));
+          if (naSelecionada.length > 0) {
+            const trib = [...new Set(naSelecionada.map((c: any) => c.tribunal).filter(Boolean))].join(", ");
+            motivos.push(`Capturado pela coordenação selecionada (${trib || "DJEN"}). Verifique se está marcado como lido/arquivado, ou se a base do PDF normalizou o número de forma diferente.`);
+            return motivos;
+          }
+          const outras = [...new Set(capturadas.map((c: any) => c.coordenacoes?.nome).filter(Boolean))];
+          if (outras.length > 0) {
+            motivos.push(`Encontrado no DJEN, mas capturado por outra(s) coordenação(ões): ${outras.join(", ")}. Os termos da coordenação selecionada não casaram com esta publicação.`);
+            return motivos;
+          }
+        }
+      } catch (e) {
+        console.warn("erro publicacoes_djen", e);
+      }
+
       try {
         const { data, error } = await supabase.functions.invoke("buscar-pje", {
           body: {
@@ -681,12 +707,13 @@ export default function CompararDjSantander() {
           },
         });
         if (error) {
-          motivos.push(`Erro ao consultar PJE Comunica: ${error.message}`);
+          motivos.push(`Não localizado em nossa base DJEN. Erro ao consultar PJE Comunica ao vivo: ${error.message}`);
           return motivos;
         }
         const items: any[] = data?.items || data?.publicacoes || data?.comunicacoes || [];
         if (!items.length) {
-          motivos.push("Não encontrado na PJE Comunica para o período");
+          const fonte = (data as any)?.fonte ? ` (fonte: ${(data as any).fonte})` : "";
+          motivos.push(`Não localizado em nossa base DJEN nem na consulta ao vivo${fonte}. Confirme manualmente no portal do PJE Comunica.`);
           return motivos;
         }
         for (const pub of items) {
