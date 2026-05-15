@@ -363,6 +363,36 @@ export default function CompararDjSantander() {
     load();
   }, []);
 
+  // Carrega config de monitoramentos sempre que a coordenação muda
+  // (necessário para o botão "Analisar Motivos" funcionar em qualquer modo)
+  useEffect(() => {
+    if (!selectedCoordenacao) {
+      setMonitoramentosConfig([]);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("monitoramentos_djen")
+        .select("id, tipo, oab, uf, termo_busca, termos_or, exclusoes, tribunais, buscar_parte, ativo")
+        .eq("coordenacao_id", selectedCoordenacao);
+      setMonitoramentosConfig(
+        (data || [])
+          .filter((m: any) => m.ativo !== false)
+          .map((m: any) => ({
+            id: m.id,
+            tipo: m.tipo,
+            oab: m.oab,
+            uf: m.uf,
+            termo_busca: m.termo_busca,
+            termos_or: m.termos_or,
+            exclusoes: m.exclusoes,
+            tribunais: m.tribunais,
+            buscar_parte: m.buscar_parte,
+          }))
+      );
+    })();
+  }, [selectedCoordenacao]);
+
   const handleDocUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
