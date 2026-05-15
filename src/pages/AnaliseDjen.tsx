@@ -188,7 +188,7 @@ const AnaliseDjen = () => {
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     setExpandedPublicacoes(new Set());
     setExpandirGeralAtivo(false);
-  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
+  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, tribunalFiltro, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
@@ -3120,6 +3120,22 @@ const AnaliseDjen = () => {
                       <option key={m.id} value={m.id}>
                         {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
                       </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {coordenacaoFiltroEfetivo && tribunaisDisponiveis.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs md:text-sm">Tribunal</Label>
+                  <select
+                    className="w-full h-9 md:h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    value={tribunalFiltro}
+                    onChange={(e) => setTribunalFiltro(e.target.value)}
+                  >
+                    <option value="">Todos os tribunais</option>
+                    {tribunaisDisponiveis.map((t) => (
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
                 </div>
