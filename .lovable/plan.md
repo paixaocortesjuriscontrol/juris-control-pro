@@ -1,63 +1,90 @@
-## Nova aba "PDF Diário" em Comparar DJ Santander
+## Nova rotina separada: **Buscar DJ Estadual**
 
-Hoje a tela tem 2 modos: **PDF Resumo** (DOC × PDF do advogado) e **DJEN** (DOC × base). Vou adicionar um terceiro modo **PDF Diário (DJ)** que compara um PDF de diário oficial (ex.: DJDF) contra as publicações DJEN da base, sem usar IA, extraindo processos apenas dos títulos.
+Em vez de tentar empurrar TJMG/TJSP/etc. dentro do fluxo DJEN (que vive amarrado à API do PJE Comunica), crio um módulo **independente**, espelhado em "Buscar DJ Santander" / "Termos DJEN", com pipeline próprio: PDF do diário oficial → texto → busca de termos → matches.
 
-### Fluxo da nova aba
-1. Usuário seleciona **Coordenação** + **Data de disponibilização** (mesmos selects do modo DJEN).
-2. Usuário faz upload de **um ou mais PDFs** do diário oficial.
-3. Frontend extrai texto do PDF via `pdfjs-dist` (já em uso) e identifica processos **só nos títulos**.
-4. Botão **Buscar publicações DJEN** carrega os processos da base (reusando a lógica atual do modo DJEN).
-5. Botão **Comparar** roda `compararListas(processosPdfDiario, processosDjen)` e mostra os 3 grupos: Em Comum / Somente no PDF Diário / Somente no DJEN. Exporta PDF como já faz hoje.
+O DJEN continua intocado para tudo que ele já cobre. Esta rotina cobre o que falta — começando por **TJMG**.
 
-### Regra de extração de títulos (sem IA)
+### Conceito
 
-Inspecionei o PDF enviado (DJDF_14.pdf) e os títulos aparecem em 2 formatos consistentes, sempre no início de uma linha curta, antes do bloco de texto da publicação:
-
-```text
-Processo 0730933-03.2024.8.07.0001
-Nº Processo: 5003480-51.2024.8.21.0016
+```
+[Buscar DJ Estadual]
+   ├─ Seleciona Tribunal (TJMG, TJSP, TJRS, ...)
+   ├─ Seleciona Data (ou intervalo)
+   ├─ Seleciona Caderno (Judicial 1ª/2ª, Administrativo)
+   ├─ Termos a buscar (advogado/parte/palavra)
+   └─ [Buscar]
+        ↓
+  baixar-dj-estadual  →  processar-dj-estadual  →  buscar-dj-estadual-termos
+   (PDF → Storage)        (Jina → texto + CNJs)        (matches por termo)
+        ↓
+  Resultados na tela + opção de salvar como monitoramento recorrente
 ```
 
-E há ocorrências inline (corpo) que **devem ser ignoradas**, ex.:
+### Estrutura
 
-```text
-VARA DE RELAÇÕES DE CONSUMO ... Processo: 0006...   (no meio de linha longa)
-TEXTO:Processo 4005145-90.2026.8.26.0152 distribuido...
-SINOP DECISÃO Processo: 1001481-79.2025.8.11.0015. AUTOR: ...
-```
+**Página nova**: `src/pages/BuscarDjEstadual.tsx`
+- Mesmo padrão visual de `TermosDjen.tsx` / `BuscarPJE.tsx`.
+- Filtros: tribunal, data (ou range curto), caderno, termos (chips).
+- Tabela de resultados: tribunal, data, caderno, página, processo CNJ (se detectado), trecho com termo destacado, link para abrir o PDF original (URL assinada do storage).
+- Botão "Salvar como monitoramento" → cria registro em `monitoramentos_dj_estadual`.
 
-Regex de título (linha inteira, ancorada em `^...$` após `normalizarLinha`):
+**Rota**: adicionada em `src/App.tsx` e item de menu em `MonitoracaoHub` ("Buscar DJ Estadual").
 
-```text
-^(N[ºo°]\s*)?Processo\s*[:#-]?\s*<CNJ>\s*$
-```
+### Backend (3 edge functions novas, isoladas)
 
-Onde `<CNJ>` é o padrão CNJ já definido em `CNJ_PATTERN` no arquivo. Uso a mesma estratégia de `extrairProcessos` (split por linhas + match por linha) já existente, **sem** ativar `permitirComunicacaoInline`. Isso descarta automaticamente os casos inline acima porque a linha contém texto extra antes/depois do número.
+1. **`baixar-dj-estadual`**
+   - Input: `{ tribunal, data, caderno? }`.
+   - Mapa `TRIBUNAIS_ESTADUAIS` em `_shared/djeEstaduaisTribunais.ts`:
+     - **TJMG** primeiro: `https://dje.tjmg.jus.br/...` (caderno Judicial 1/2 instância e Administrativo). GET direto, sem cookie.
+     - Stubs para TJSP, TJRS, TJPR, TJSC, TJBA, TJDFT, TJGO, TJES, TJPE, TJRJ — implementados sob demanda.
+   - Salva PDF em bucket `dj-estaduais-pdfs`, registra em tabela `dj_estaduais_pdfs` (status=`baixado`).
+   - Idempotente por `(tribunal, data, caderno)`.
 
-Como `pdfjs-dist` concatena `items` com espaço e `\n` entre páginas, vou também tratar o caso em que o título e o número CNJ ficam em "items" diferentes mas na mesma linha visual: já é coberto porque toda a linha após normalização vira algo como `Nº Processo: 5003480-51.2024.8.21.0016` e bate no regex.
+2. **`processar-dj-estadual`**
+   - Input: `{ pdf_id }` ou processa fila pendente.
+   - Mesmíssimo pipeline do `processar-dje-pdf` atual: Jina extrai texto → quebra em páginas → regex CNJ → grava em `dj_estaduais_conteudo`.
+   - Status do PDF vai para `processado`.
 
-### Mudanças de código (apenas frontend)
+3. **`buscar-dj-estadual-termos`**
+   - Input: `{ tribunal?, data?, dataInicio?, dataFim?, caderno?, termos: string[] }`.
+   - Varre `dj_estaduais_conteudo` por `ILIKE`/`websearch_to_tsquery` em cima dos termos, retorna matches paginados com contexto (~250 chars antes/depois).
+   - Sem dependência alguma do DJEN/PJE Comunica.
 
-Arquivo único: `src/pages/CompararDjSantander.tsx`
+### Schema novo (3 tabelas + 1 bucket)
 
-1. `mode` passa a ser `"pdf" | "djen" | "pdf-diario"`.
-2. `<TabsList>` ganha 3ª aba **PDF Diário (DJ)**.
-3. Nova função `extrairProcessosTitulosPdf(texto)`:
-   - reusa `normalizarLinha` + split por `\r?\n+`,
-   - aplica novo `PROCESSO_TITULO_DJ_REGEX` que aceita prefixo opcional `Nº` antes de `Processo`,
-   - retorna lista deduplicada e formatada via `formatarCNJ`.
-4. Estados novos: `pdfDiarioFiles: File[]`, `pdfDiarioProcessos: string[]`, handler `handlePdfDiarioUpload` que aceita múltiplos arquivos e concatena os processos extraídos.
-5. Reuso de `handleBuscarDjen` / `djenProcessos` / `selectedCoordenacao` / `selectedDate` (mesmos selects renderizados quando `mode === "pdf-diario"`).
-6. Em `handleComparar`, novo branch para `pdf-diario` chamando `compararListas(pdfDiarioProcessos, djenProcessos)`.
-7. `sourceLabel` / `sourceFileName` ganham caso para `pdf-diario` (ex.: `"PDF Diário - <coord> - <data>"`).
-8. Painel de resultados: rótulos das colunas viram **Somente no PDF Diário** / **Somente no DJEN** quando o modo for `pdf-diario`.
+- `dj_estaduais_pdfs` — `tribunal`, `data_publicacao`, `caderno`, `storage_path`, `status` (baixado/processando/processado/erro), `total_paginas`, `erro_mensagem`. Unique `(tribunal, data_publicacao, caderno)`.
+- `dj_estaduais_conteudo` — `pdf_id`, `pagina`, `conteudo_texto`, `processos_detectados text[]`. Unique `(pdf_id, pagina)`. Index GIN em `to_tsvector('portuguese', conteudo_texto)`.
+- `monitoramentos_dj_estadual` — `tribunais text[]`, `cadernos text[]`, `termos jsonb`, `coordenacao_id`, `ativo`, `ultima_execucao`. Para a varredura recorrente.
+- Bucket privado `dj-estaduais-pdfs` (não público; acesso via URL assinada).
 
-### Fora de escopo
-- Não altero a aba PDF Resumo nem a aba DJEN.
-- Não uso IA (sem chamar `comparar-dj-santander`).
-- Sem mudanças em backend, schema, edge functions ou rotas.
-- Sem persistência: a comparação roda em memória, igual aos modos atuais.
+RLS: leitura por usuários autenticados da coordenação dona do monitoramento; escrita só via service_role das edge functions.
 
-### Validação
-- Testar com `DJDF_14.pdf` enviado: deve extrair os títulos `Processo NNNN...` e `Nº Processo: NNNN...` e ignorar as ocorrências inline tipo `SINOP DECISÃO Processo: ...` e `TEXTO:Processo ...`.
-- Conferir contagem total batendo com `grep -E '^(Nº ?)?Processo[ :]' /tmp/DJDF_14.txt | wc -l` após extração.
+### Cron diário
+
+`cron.schedule('dj-estadual-diario', '0 10 * * *', ...)` (07:00 BRT) chama, em cascata:
+1. `baixar-dj-estadual` para cada `(tribunal, caderno)` ativo em `monitoramentos_dj_estadual` da data corrente.
+2. `processar-dj-estadual` para PDFs pendentes (limit 5 por chamada, paralelizando por tribunal).
+3. `buscar-dj-estadual-termos` para cada monitoramento ativo, gravando matches em `notificacoes` (mesma tabela já usada hoje pelos outros monitoramentos) com origem `"DJ Estadual"`.
+
+### O que **NÃO** muda
+
+- `monitorar-djen`, `monitorar-djen-processos`, `useDjenTermos*` continuam idênticos.
+- `dje_pdfs_diarios` / `dje_conteudo_indexado` (TRTs) seguem como estão — não misturo as duas rotinas para evitar regressão.
+- Nada de UI no diálogo DJEN; estaduais aparecem como rotina paralela.
+
+### Detalhes técnicos
+
+- **Custo Jina**: TJMG diário ~500–1500 páginas. Para conter custo, na primeira versão indexo só páginas que contenham CNJ (regex pré-OCR via `pdftotext` rápido no edge não é viável em Deno; alternativa: indexa tudo, e na busca filtra). Decisão prática: **indexar tudo** no MVP (TJMG só) e medir; se ficar caro, adiciono pré-filtro por CNJ baixando o PDF e usando `pdf-parse` em uma função Node externa.
+- **TJMG** publica em PDF baixável direto, sem CAPTCHA — confirmado.
+- **TJSP** exige sessão; ficará na fase 2 usando proxy `pje-proxy` já existente.
+- **Tipos**: `src/integrations/supabase/types.ts` é regenerado automaticamente após a migração.
+
+### Ordem de entrega
+
+1. Migração: tabelas + bucket + RLS.
+2. `_shared/djeEstaduaisTribunais.ts` com TJMG.
+3. Edge functions `baixar-dj-estadual`, `processar-dj-estadual`, `buscar-dj-estadual-termos`.
+4. Página `BuscarDjEstadual.tsx` + rota + item de menu.
+5. Smoke test manual: TJMG, data útil recente, termo "BRADESCO" → conferir matches.
+6. Cron diário + criação de monitoramento recorrente.
+7. Fase 2: TJSP, depois demais TJs sob demanda.
