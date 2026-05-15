@@ -345,6 +345,17 @@ export default function TermosDjen() {
                   <FileType className="h-4 w-4" />
                   Gerar Relatório DOC
                 </Button>
+                <Button
+                  onClick={handleGerarRelatorioPorTribunal}
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 w-full sm:w-auto"
+                  disabled={isLoading || monitoramentosFiltrados.length === 0}
+                  title="Gerar PDF agrupado por tribunal (respeita os filtros)"
+                >
+                  <Building2 className="h-4 w-4" />
+                  Gerar PDF por Tribunal
+                </Button>
                 <Button onClick={handleNovo} size="sm" className="gap-2 w-full sm:w-auto">
                   <Plus className="h-4 w-4" />
                   Novo Monitoramento
