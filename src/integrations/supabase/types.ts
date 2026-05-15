@@ -2374,6 +2374,86 @@ export type Database = {
           },
         ]
       }
+      dj_estaduais_conteudo: {
+        Row: {
+          conteudo_texto: string
+          created_at: string
+          id: string
+          pagina: number
+          pdf_id: string
+          processos_detectados: string[]
+        }
+        Insert: {
+          conteudo_texto: string
+          created_at?: string
+          id?: string
+          pagina: number
+          pdf_id: string
+          processos_detectados?: string[]
+        }
+        Update: {
+          conteudo_texto?: string
+          created_at?: string
+          id?: string
+          pagina?: number
+          pdf_id?: string
+          processos_detectados?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dj_estaduais_conteudo_pdf_id_fkey"
+            columns: ["pdf_id"]
+            isOneToOne: false
+            referencedRelation: "dj_estaduais_pdfs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dj_estaduais_pdfs: {
+        Row: {
+          baixado_em: string | null
+          caderno: string
+          created_at: string
+          data_publicacao: string
+          erro_mensagem: string | null
+          id: string
+          processado_em: string | null
+          status: string
+          storage_path: string | null
+          total_paginas: number | null
+          tribunal: string
+          updated_at: string
+        }
+        Insert: {
+          baixado_em?: string | null
+          caderno?: string
+          created_at?: string
+          data_publicacao: string
+          erro_mensagem?: string | null
+          id?: string
+          processado_em?: string | null
+          status?: string
+          storage_path?: string | null
+          total_paginas?: number | null
+          tribunal: string
+          updated_at?: string
+        }
+        Update: {
+          baixado_em?: string | null
+          caderno?: string
+          created_at?: string
+          data_publicacao?: string
+          erro_mensagem?: string | null
+          id?: string
+          processado_em?: string | null
+          status?: string
+          storage_path?: string | null
+          total_paginas?: number | null
+          tribunal?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dje_conteudo_indexado: {
         Row: {
           conteudo_texto: string
