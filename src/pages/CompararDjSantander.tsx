@@ -45,7 +45,9 @@ const CNJ_PATTERN = "(\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}|\\d{20})";
 const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
-const PROCESSO_DJ_TITULO_REGEX = new RegExp(`^\\s*(?:N[ºo°.]\\s*)?Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
+// Versão tolerante a espaços dentro do CNJ — pdfjs costuma quebrar tokens (ex.: "0730933 - 03.2024...")
+const CNJ_LOOSE_PATTERN = "(\\d{7}\\s*-\\s*\\d{2}\\s*\\.\\s*\\d{4}\\s*\\.\\s*\\d\\s*\\.\\s*\\d{2}\\s*\\.\\s*\\d{4}|\\d{20}|(?:\\d\\s*){20})";
+const PROCESSO_DJ_TITULO_REGEX = new RegExp(`^\\s*(?:N[ºo°.]\\s*)?Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_LOOSE_PATTERN}\\s*$`, "i");
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
@@ -153,7 +155,7 @@ function extrairProcessosTitulosPdfDiario(texto: string): string[] {
   for (const linha of linhas) {
     const limpa = normalizarLinha(linha);
     const m = limpa.match(PROCESSO_DJ_TITULO_REGEX);
-    if (m) matches.push(formatarCNJ(m[1]));
+    if (m) matches.push(formatarCNJ(m[1].replace(/\s+/g, "")));
   }
   return [...new Set(matches)];
 }
