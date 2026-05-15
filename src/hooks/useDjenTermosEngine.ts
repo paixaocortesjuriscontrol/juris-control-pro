@@ -1379,8 +1379,34 @@ async function processarTermo(
               oabMatch = true;
             }
           }
-          
-          if (!nomeMatch && !oabMatch) continue;
+
+          // Fallback: validar via METADADOS estruturados (destinatarios, advogados, polos)
+          // Isso resgata publicações onde o advogado/parte está apenas nos metadados da
+          // API e não no corpo da publicação (ex: Listas de distribuição do TST).
+          let metaMatch = false;
+          if (!nomeMatch && !oabMatch) {
+            const candTipo = String(cand.tipo || '').toLowerCase();
+            if (candTipo === 'advogado' || candTipo === 'nome') {
+              for (const nome of todosNomes) {
+                if (advogadoPresenteNosMetadados(pub, cand.oab, nome)) {
+                  metaMatch = true;
+                  break;
+                }
+              }
+              if (!metaMatch && cand.oab && advogadoPresenteNosMetadados(pub, cand.oab, undefined)) {
+                metaMatch = true;
+              }
+            } else if (candTipo === 'parte') {
+              for (const nome of todosNomes) {
+                if (partePresenteNosMetadados(pub, nome)) {
+                  metaMatch = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!nomeMatch && !oabMatch && !metaMatch) continue;
           
           // Verificar exclusões do candidato
           if (cand.exclusoes && cand.exclusoes.length > 0) {
