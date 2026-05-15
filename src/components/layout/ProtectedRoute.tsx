@@ -11,6 +11,7 @@ interface ProtectedRouteProps {
 const ADVOGADO_TEMPORARIO_ALLOWED = new Set([
   "/analise-djen",
   "/termos-djen",
+  "/comparar-dj-santander",
   "/notificacoes",
 ]);
 
