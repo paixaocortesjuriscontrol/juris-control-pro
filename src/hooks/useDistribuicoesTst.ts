@@ -343,9 +343,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     const realRespIds = respIds.filter(id => id !== UNASSIGNED);
     const hasResponsavelFilter = realRespIds.length > 0;
 
-    // Pré-busca dos IDs SEM responsável (lista pequena: ~256), via RPC.
-    // Antes usávamos a lista de COM responsável (~2500+) com .not.in.(...)
-    // o que gerava URL gigantesca e erro "Failed to fetch".
     let idsWithoutResponsavel: string[] | null = null;
     if (wantsUnassigned) {
       const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
@@ -355,38 +352,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         return;
       }
       idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
-    }
-
-    // Quando há filtro de responsáveis, usamos join inner com a tabela N:N
-    // para evitar URLs gigantes (centenas de IDs em .in()).
-    const selectClause = hasResponsavelFilter
-      ? "*, dados_benner_responsaveis!inner(usuario_id)"
-      : "*";
-
-    let query = supabase
-      .from("dados_benner" as any)
-      .select(selectClause, { count: "exact" })
-      .not("aba_origem", "is", null);
-
-    // Quando o filtro está em "Em análise: sim", ordena por em_analise_em
-    // (mais antigos primeiro) para que a lista fique estável durante o
-    // trabalho da advogada — registros editados não mudam de posição.
-    if (filters.duplicado === "sim") {
-      // Ordena por número do processo para que as linhas duplicadas
-      // (mesmo número) fiquem agrupadas e fáceis de comparar.
-      query = query.order("processo", { ascending: true, nullsFirst: false });
-    } else if (filters.emAnalise === "sim") {
-      query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
-    } else {
-      query = query.order("created_at", { ascending: false });
-    }
-
-    if (hasResponsavelFilter) {
-      query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
-    }
-    if (wantsUnassigned && idsWithoutResponsavel) {
       if (idsWithoutResponsavel.length === 0) {
-        // Nenhum sem responsável → resultado vazio
         setDados([]);
         setTotalCount(0);
         setLoading(false);
@@ -394,7 +360,31 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       }
     }
 
-    if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
+    const selectClause = hasResponsavelFilter
+      ? "*, dados_benner_responsaveis!inner(usuario_id)"
+      : "*";
+
+    // Build fresh query with all filters applied; optionally restricted to a chunk of IDs.
+    const buildQuery = (chunkIds: string[] | null, withCount: boolean) => {
+      let query: any = supabase
+        .from("dados_benner" as any)
+        .select(selectClause, withCount ? { count: "exact" } : undefined)
+        .not("aba_origem", "is", null);
+
+      if (filters.duplicado === "sim") {
+        query = query.order("processo", { ascending: true, nullsFirst: false });
+      } else if (filters.emAnalise === "sim") {
+        query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
+      } else {
+        query = query.order("created_at", { ascending: false });
+      }
+
+      if (hasResponsavelFilter) {
+        query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
+      }
+      if (chunkIds) query = query.in("id", chunkIds);
+
+      if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
     if (filters.centralizador && filters.centralizador !== "todos") {
       if (filters.centralizador === "__sem__") query = query.or("centralizador.is.null,centralizador.eq.");
       else query = query.eq("centralizador", filters.centralizador);
@@ -456,18 +446,56 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
     else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
     else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
+      return query;
+    };
 
-    const from = (page - 1) * PAGE_SIZE;
-    query = query.range(from, from + PAGE_SIZE - 1);
+    let rawRows: any[] = [];
+    let count = 0;
 
-    const { data, error, count } = await query;
-    if (error) {
-      toast.error("Erro ao carregar distribuições: " + error.message);
-      setLoading(false);
-      return;
+    if (wantsUnassigned && idsWithoutResponsavel) {
+      // URL com 6000+ UUIDs estoura → executa em chunks de 200, agrega client-side.
+      const CHUNK = 200;
+      const chunks: string[][] = [];
+      for (let i = 0; i < idsWithoutResponsavel.length; i += CHUNK) {
+        chunks.push(idsWithoutResponsavel.slice(i, i + CHUNK));
+      }
+      const results = await Promise.all(chunks.map((c) => buildQuery(c, false)));
+      const merged: any[] = [];
+      for (const res of results) {
+        if (res.error) {
+          toast.error("Erro ao carregar distribuições: " + res.error.message);
+          setLoading(false);
+          return;
+        }
+        for (const r of (res.data as any[]) || []) merged.push(r);
+      }
+      // Reordena conforme a ordem global escolhida
+      const sortKey = filters.duplicado === "sim" ? "processo" : filters.emAnalise === "sim" ? "em_analise_em" : "created_at";
+      const ascending = sortKey !== "created_at";
+      merged.sort((a, b) => {
+        const av = a[sortKey] ?? "";
+        const bv = b[sortKey] ?? "";
+        if (av === bv) return 0;
+        return ascending ? (av > bv ? 1 : -1) : (av > bv ? -1 : 1);
+      });
+      count = merged.length;
+      const from = (page - 1) * PAGE_SIZE;
+      rawRows = merged.slice(from, from + PAGE_SIZE);
+    } else {
+      const from = (page - 1) * PAGE_SIZE;
+      const query = buildQuery(null, true).range(from, from + PAGE_SIZE - 1);
+      const { data, error, count: c } = await query;
+      if (error) {
+        toast.error("Erro ao carregar distribuições: " + error.message);
+        setLoading(false);
+        return;
+      }
+      rawRows = (data as any[]) || [];
+      count = c || 0;
     }
-    let rows = ((data as any[]) || []).map(bennerToDistribuicao);
-    setTotalCount(count || 0);
+
+    let rows = rawRows.map(bennerToDistribuicao);
+    setTotalCount(count);
 
     // Se houver um registro recém-editado (sticky) que NÃO bate mais com
     // os filtros atuais, busca-o à parte e prepende na lista para que a
