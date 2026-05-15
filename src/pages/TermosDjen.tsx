@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff, Copy, FileText, FileType } from "lucide-react";
+import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff, Copy, FileText, FileType, Building2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,6 +16,7 @@ import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { gerarRelatorioTermosDjen } from "@/utils/gerarRelatorioTermosDjen";
 import { gerarRelatorioTermosDjenDocx } from "@/utils/gerarRelatorioTermosDjenDocx";
+import { gerarRelatorioTermosDjenPorTribunal } from "@/utils/gerarRelatorioTermosDjenPorTribunal";
 import { toast } from "sonner";
 
 // Hook para buscar coordenações do usuário logado (ou todas se admin)
