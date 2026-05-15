@@ -482,10 +482,10 @@ export default function CompararDjSantander() {
     : mode === "djen" ? docProcessos.length > 0 && djenProcessos.length > 0
     : pdfDiarioProcessos.length > 0 && djenProcessos.length > 0;
 
-  const leftLabel = mode === "pdf-diario" ? "PDF Diário" : "DOC Advogado";
+  const leftLabel = mode === "pdf-diario" ? "PDF Equipe DR. Thomás" : "DOC Advogado";
   const sourceLabel = mode === "pdf" ? "PDF" : "DJEN";
   const leftFileName = mode === "pdf-diario"
-    ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) do diário` : "PDF Diário")
+    ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) Equipe DR. Thomás` : "PDF Equipe DR. Thomás")
     : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
@@ -496,75 +496,7 @@ export default function CompararDjSantander() {
   return (
     <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo ou diretamente com as publicações DJEN">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Left card: DOC Advogado OR PDF Diário (depende do modo) */}
-        <Card>
-        {mode !== "pdf-diario" ? (
-          <>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
-              Documento do Advogado (DOC/DOCX)
-            </CardTitle>
-            <CardDescription>Arquivo da Coordenação Santander</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                {docFile ? (
-                  <>
-                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
-                    <p className="text-sm font-medium">{docFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{docProcessos.length} processos encontrados</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Clique para selecionar o arquivo DOC</p>
-                  </>
-                )}
-              </div>
-              <input type="file" className="hidden" accept=".doc,.docx" onChange={handleDocUpload} />
-            </label>
-          </CardContent>
-          </>
-        ) : (
-          <>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-500" />
-              PDF do Diário Oficial
-            </CardTitle>
-            <CardDescription>Selecione um ou mais PDFs (DJDF, DJSP, etc.). Apenas os títulos com "Processo:" são considerados.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                {loadingPdfDiario ? (
-                  <>
-                    <Loader2 className="w-8 h-8 mb-2 animate-spin text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Lendo PDF(s)...</p>
-                  </>
-                ) : pdfDiarioFiles.length > 0 ? (
-                  <>
-                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
-                    <p className="text-sm font-medium">{pdfDiarioFiles.length} arquivo(s) selecionado(s)</p>
-                    <p className="text-xs text-muted-foreground">{pdfDiarioProcessos.length} processos identificados nos títulos</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Clique para selecionar PDF(s) do diário</p>
-                  </>
-                )}
-              </div>
-              <input type="file" className="hidden" accept=".pdf" multiple onChange={handlePdfDiarioUpload} />
-            </label>
-          </CardContent>
-          </>
-        )}
-        </Card>
-
-        {/* Right side - tabs for PDF or DJEN */}
+        {/* Left card: Fonte de Comparação (tabs) */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Fonte de Comparação</CardTitle>
@@ -582,7 +514,7 @@ export default function CompararDjSantander() {
                 </TabsTrigger>
                 <TabsTrigger value="pdf-diario" className="flex-1 gap-2">
                   <FileText className="w-4 h-4" />
-                  PDF Diário × DJEN
+                  PDF Equipe DR. Thomás
                 </TabsTrigger>
               </TabsList>
 
@@ -683,7 +615,7 @@ export default function CompararDjSantander() {
               <TabsContent value="pdf-diario">
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Compara os processos extraídos dos títulos do PDF do diário oficial com as publicações DJEN da base.
+                    Compara os processos extraídos dos títulos do PDF da Equipe DR. Thomás com as publicações DJEN da base.
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
@@ -758,6 +690,74 @@ export default function CompararDjSantander() {
               </TabsContent>
             </Tabs>
           </CardContent>
+        </Card>
+
+        {/* Right card: DOC Advogado OR PDF Equipe DR. Thomás (depende do modo) */}
+        <Card>
+        {mode !== "pdf-diario" ? (
+          <>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-500" />
+              Documento do Advogado (DOC/DOCX)
+            </CardTitle>
+            <CardDescription>Arquivo da Coordenação Santander</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {docFile ? (
+                  <>
+                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                    <p className="text-sm font-medium">{docFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{docProcessos.length} processos encontrados</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar o arquivo DOC</p>
+                  </>
+                )}
+              </div>
+              <input type="file" className="hidden" accept=".doc,.docx" onChange={handleDocUpload} />
+            </label>
+          </CardContent>
+          </>
+        ) : (
+          <>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-500" />
+              PDF Equipe DR. Thomás
+            </CardTitle>
+            <CardDescription>Selecione um ou mais PDFs da Equipe DR. Thomás. Apenas os títulos com "Processo:" são considerados.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {loadingPdfDiario ? (
+                  <>
+                    <Loader2 className="w-8 h-8 mb-2 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Lendo PDF(s)...</p>
+                  </>
+                ) : pdfDiarioFiles.length > 0 ? (
+                  <>
+                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                    <p className="text-sm font-medium">{pdfDiarioFiles.length} arquivo(s) selecionado(s)</p>
+                    <p className="text-xs text-muted-foreground">{pdfDiarioProcessos.length} processos identificados nos títulos</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar PDF(s) da Equipe DR. Thomás</p>
+                  </>
+                )}
+              </div>
+              <input type="file" className="hidden" accept=".pdf" multiple onChange={handlePdfDiarioUpload} />
+            </label>
+          </CardContent>
+          </>
+        )}
         </Card>
       </div>
 
