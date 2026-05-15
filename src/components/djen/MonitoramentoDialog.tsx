@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Info } from "lucide-react";
+import { X, Plus, Info, SplitSquareHorizontal } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { normalizeTribunais } from "@/utils/djenTribunais";
@@ -113,7 +113,7 @@ interface MonitoramentoDialogProps {
 export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplicateFrom, coordenacoesOverride }: MonitoramentoDialogProps) {
   // Fonte para pré-preenchimento: edição usa monitoramento; duplicação usa duplicateFrom
   const fonte = monitoramento ?? duplicateFrom ?? null;
-  const { criarMonitoramento, atualizarMonitoramento } = useMonitoramentosDjen();
+  const { criarMonitoramento, criarMonitoramentosEmLote, atualizarMonitoramento } = useMonitoramentosDjen();
   const { data: coordenacoesAll = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
   
@@ -139,6 +139,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const [tribunaisSelecionados, setTribunaisSelecionados] = useState<string[]>(
     normalizeTribunais(fonte?.tribunais) ?? []
   );
+  const [criarTermosOrSeparados, setCriarTermosOrSeparados] = useState(false);
 
   useEffect(() => {
     const src = monitoramento ?? duplicateFrom ?? null;
@@ -156,6 +157,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       );
       setNovaCondicao('');
       setTermosOr(src.termos_or || []);
+      setCriarTermosOrSeparados(false);
       
       // Expandir IDs sintéticos ao carregar
       const tribunaisCarregados = normalizeTribunais(src.tribunais) ?? [];
@@ -194,6 +196,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setCondicoesConcomitantes([]);
       setNovaCondicao('');
       setTermosOr([]);
+      setCriarTermosOrSeparados(false);
       setTribunaisSelecionados([]);
       setSelectedUfs([]);
       setTodasRegioes(false);
