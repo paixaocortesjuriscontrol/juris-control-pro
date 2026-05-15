@@ -2865,8 +2865,18 @@ const AnaliseDjen = () => {
         return pubDate === dataDisponibilizacao;
       });
     }
+    if (tribunalFiltro) {
+      const alvo = tribunalFiltro.toUpperCase();
+      result = result.filter(pub => {
+        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
+        if (!t) return false;
+        // Match exato por sigla (TRT10 não casa com TRT1)
+        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
+        return re.test(t);
+      });
+    }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
