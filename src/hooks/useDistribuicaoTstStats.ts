@@ -22,6 +22,7 @@ export interface DistribuicaoTstStats {
   ate2025: number;
   de2026: number;
   prontoEnvio: number;
+  semResponsavel: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -44,6 +45,7 @@ const ZERO: DistribuicaoTstStats = {
   ate2025: 0,
   de2026: 0,
   prontoEnvio: 0,
+  semResponsavel: 0,
 };
 
 // Mesma regra usada na coluna "Dossiê" (filtro válido/inválido)
@@ -127,9 +129,9 @@ function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWi
   q = applyCommonFilters(q, filters, hasResponsavelFilter, realRespIds);
   if (idsWithoutResponsavel) {
     if (idsWithoutResponsavel.length === 0) {
-      // Forçar resultado vazio sem URL gigante
       q = q.eq("id", "00000000-0000-0000-0000-000000000000");
     } else {
+      // Caller já garante chunks ≤ 200 ids para não estourar URL
       q = q.in("id", idsWithoutResponsavel);
     }
   }
@@ -162,13 +164,30 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
 
       // Pagina todos os registros do escopo filtrado para calcular cada métrica.
       const FETCH_SIZE = 1000;
-      let offset = 0;
       const acc: DistribuicaoTstStats = { ...ZERO };
       const processosSet = new Set<string>();
-      while (true) {
-        const { data, error } = await baseQuery(filters, realRespIds, idsWithoutResponsavel).range(offset, offset + FETCH_SIZE - 1);
+
+      // Quando filtramos por "sem responsável" e a lista de IDs é grande,
+      // dividimos em chunks de 200 para não estourar a URL.
+      const idChunks: (string[] | null)[] = (() => {
+        if (!wantsUnassigned || !idsWithoutResponsavel) return [null];
+        if (idsWithoutResponsavel.length === 0) return [[]];
+        const CHUNK = 200;
+        const out: string[][] = [];
+        for (let i = 0; i < idsWithoutResponsavel.length; i += CHUNK) {
+          out.push(idsWithoutResponsavel.slice(i, i + CHUNK));
+        }
+        return out;
+      })();
+
+      let aborted = false;
+      for (const chunk of idChunks) {
+        if (aborted) break;
+        let offset = 0;
+        while (true) {
+          const { data, error } = await baseQuery(filters, realRespIds, chunk).range(offset, offset + FETCH_SIZE - 1);
         if (error) {
-          // Em caso de erro, mantém o que foi acumulado
+          aborted = true;
           break;
         }
         const rows = (data as any[]) || [];
@@ -211,8 +230,18 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         }
         if (rows.length < FETCH_SIZE) break;
         offset += FETCH_SIZE;
+        }
       }
       acc.processosUnicos = processosSet.size;
+
+      // Total geral de processos sem responsável (sempre, independente dos filtros).
+      try {
+        const { data: semRespData } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
+        acc.semResponsavel = ((semRespData as any[]) || []).length;
+      } catch {
+        // ignora
+      }
+
       setStats(acc);
     } finally {
       setLoading(false);
