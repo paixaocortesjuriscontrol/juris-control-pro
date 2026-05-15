@@ -481,8 +481,10 @@ export default function CompararDjSantander() {
   return (
     <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo ou diretamente com as publicações DJEN">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* DOC Upload - always visible */}
+        {/* Left card: DOC Advogado OR PDF Diário (depende do modo) */}
         <Card>
+        {mode !== "pdf-diario" ? (
+          <>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
@@ -509,6 +511,42 @@ export default function CompararDjSantander() {
               <input type="file" className="hidden" accept=".doc,.docx" onChange={handleDocUpload} />
             </label>
           </CardContent>
+          </>
+        ) : (
+          <>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-500" />
+              PDF do Diário Oficial
+            </CardTitle>
+            <CardDescription>Selecione um ou mais PDFs (DJDF, DJSP, etc.). Apenas os títulos com "Processo:" são considerados.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {loadingPdfDiario ? (
+                  <>
+                    <Loader2 className="w-8 h-8 mb-2 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Lendo PDF(s)...</p>
+                  </>
+                ) : pdfDiarioFiles.length > 0 ? (
+                  <>
+                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                    <p className="text-sm font-medium">{pdfDiarioFiles.length} arquivo(s) selecionado(s)</p>
+                    <p className="text-xs text-muted-foreground">{pdfDiarioProcessos.length} processos identificados nos títulos</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar PDF(s) do diário</p>
+                  </>
+                )}
+              </div>
+              <input type="file" className="hidden" accept=".pdf" multiple onChange={handlePdfDiarioUpload} />
+            </label>
+          </CardContent>
+          </>
+        )}
         </Card>
 
         {/* Right side - tabs for PDF or DJEN */}
@@ -517,7 +555,7 @@ export default function CompararDjSantander() {
             <CardTitle className="text-base">Fonte de Comparação</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "pdf" | "djen"); setResult(null); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "pdf" | "djen" | "pdf-diario"); setResult(null); }}>
               <TabsList className="w-full mb-4">
                 <TabsTrigger value="pdf" className="flex-1 gap-2">
                   <FileText className="w-4 h-4" />
@@ -526,6 +564,10 @@ export default function CompararDjSantander() {
                 <TabsTrigger value="djen" className="flex-1 gap-2">
                   <Database className="w-4 h-4" />
                   Publicações DJEN
+                </TabsTrigger>
+                <TabsTrigger value="pdf-diario" className="flex-1 gap-2">
+                  <FileText className="w-4 h-4" />
+                  PDF Diário × DJEN
                 </TabsTrigger>
               </TabsList>
 
@@ -602,6 +644,63 @@ export default function CompararDjSantander() {
                   )}
                 </div>
               </TabsContent>
+
+              <TabsContent value="pdf-diario">
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Compara os processos extraídos dos títulos do PDF do diário oficial com as publicações DJEN da base.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
+                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Data Disponibilização</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleBuscarDjen}
+                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    className="w-full gap-2"
+                  >
+                    {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                    {loadingDjen ? "Buscando..." : "Buscar Publicações"}
+                  </Button>
+                  {djenLoaded && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className="text-muted-foreground">{djenProcessos.length} processos encontrados nas publicações</span>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -622,7 +721,7 @@ export default function CompararDjSantander() {
           <Button
             size="lg"
             variant="outline"
-            onClick={() => exportarPdf(result, docFile?.name || "DOC", sourceFileName)}
+          onClick={() => exportarPdf(result, leftFileName, sourceFileName)}
             className="gap-2"
           >
             <Download className="w-5 h-5" />
@@ -638,7 +737,7 @@ export default function CompararDjSantander() {
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-blue-600">{result.processos_doc.length}</p>
-                <p className="text-xs text-muted-foreground">Processos no DOC</p>
+                <p className="text-xs text-muted-foreground">Processos no {leftLabel}</p>
               </CardContent>
             </Card>
             <Card>
@@ -656,7 +755,7 @@ export default function CompararDjSantander() {
             <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-amber-600">{result.somente_doc.length}</p>
-                <p className="text-xs text-muted-foreground">Somente no DOC</p>
+                <p className="text-xs text-muted-foreground">Somente no {leftLabel}</p>
               </CardContent>
             </Card>
             <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
@@ -696,7 +795,7 @@ export default function CompararDjSantander() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Somente no DOC Advogado ({result.somente_doc.length})
+                  Somente no {leftLabel} ({result.somente_doc.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
