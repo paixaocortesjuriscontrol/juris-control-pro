@@ -139,6 +139,7 @@ const AnaliseDjen = () => {
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
+  const [tribunalFiltro, setTribunalFiltro] = useState<string>("");
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
@@ -166,6 +167,7 @@ const AnaliseDjen = () => {
   // Limpar termo ao trocar coordenação
   useEffect(() => {
     setMonitoramentoId("");
+    setTribunalFiltro("");
   }, [coordenacaoId]);
   
   // States
@@ -186,7 +188,7 @@ const AnaliseDjen = () => {
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     setExpandedPublicacoes(new Set());
     setExpandirGeralAtivo(false);
-  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
+  }, [coordenacaoId, filtroDia, readStatus, tipoOrigem, monitoramentoId, tribunalFiltro, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced]);
 
   // Determinar o filtro efetivo de coordenação
   const coordenacaoFiltroEfetivo = coordenacaoId === null 
@@ -608,17 +610,37 @@ const AnaliseDjen = () => {
       if (!coordenacaoFiltroEfetivo) return [];
       const { data, error } = await supabase
         .from('monitoramentos_djen')
-        .select('id, termo_busca, descricao, tipo, oab, uf')
+        .select('id, termo_busca, descricao, tipo, oab, uf, tribunais')
         .eq('coordenacao_id', coordenacaoFiltroEfetivo)
         .eq('ativo', true);
       if (error) throw error;
-      const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
+      const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string; tribunais?: string[] | null }[];
       const getLabel = (m: typeof list[0]) =>
         m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
       return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
     },
     enabled: !!coordenacaoFiltroEfetivo,
   });
+
+  // Lista de tribunais disponíveis nos termos da coordenação selecionada
+  const tribunaisDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    (monitoramentos as any[]).forEach((m) => {
+      const tribs = Array.isArray(m.tribunais) ? m.tribunais : [];
+      tribs.forEach((t: string) => {
+        const v = (t || "").toString().trim().toUpperCase();
+        if (v) set.add(v);
+      });
+    });
+    return Array.from(set).sort((a, b) => {
+      const numA = a.match(/\d+/)?.[0];
+      const numB = b.match(/\d+/)?.[0];
+      if (a === 'TST') return -1;
+      if (b === 'TST') return 1;
+      if (numA && numB) return Number(numA) - Number(numB);
+      return a.localeCompare(b);
+    });
+  }, [monitoramentos]);
 
   const toggleSelect = (id: string, tipo: TipoOrigemPublicacao) => {
     const newSelected = new Map<string, TipoOrigemPublicacao>(selectedIds);
@@ -2843,8 +2865,18 @@ const AnaliseDjen = () => {
         return pubDate === dataDisponibilizacao;
       });
     }
+    if (tribunalFiltro) {
+      const alvo = tribunalFiltro.toUpperCase();
+      result = result.filter(pub => {
+        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
+        if (!t) return false;
+        // Match exato por sigla (TRT10 não casa com TRT1)
+        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
+        return re.test(t);
+      });
+    }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
@@ -3088,6 +3120,22 @@ const AnaliseDjen = () => {
                       <option key={m.id} value={m.id}>
                         {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
                       </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {coordenacaoFiltroEfetivo && tribunaisDisponiveis.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs md:text-sm">Tribunal</Label>
+                  <select
+                    className="w-full h-9 md:h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    value={tribunalFiltro}
+                    onChange={(e) => setTribunalFiltro(e.target.value)}
+                  >
+                    <option value="">Todos os tribunais</option>
+                    {tribunaisDisponiveis.map((t) => (
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
                 </div>
