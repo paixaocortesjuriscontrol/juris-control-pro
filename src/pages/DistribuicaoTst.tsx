@@ -386,6 +386,9 @@ export default function DistribuicaoTst() {
         setFiltroMesAno("todos");
         break;
       case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
+      case "semResponsavel":
+        setFiltroResponsavelIds(["__sem_responsavel__"]);
+        break;
     }
   };
 
