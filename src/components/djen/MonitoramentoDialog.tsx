@@ -157,7 +157,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       );
       setNovaCondicao('');
       setTermosOr(src.termos_or || []);
-      setCriarTermosOrSeparados(false);
+      setCriarTermosOrSeparados(Boolean(duplicateFrom && !monitoramento && src.tipo !== 'advogado' && src.termos_or?.length));
       
       // Expandir IDs sintéticos ao carregar
       const tribunaisCarregados = normalizeTribunais(src.tribunais) ?? [];
@@ -349,8 +349,8 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
 
     if (monitoramento) {
       await atualizarMonitoramento.mutateAsync({ id: monitoramento.id, ...dados });
-    } else if (criarTermosOrSeparados && tipo !== 'advogado' && termosOrFinal.length > 0) {
-      const termosSeparados = Array.from(new Set([termoBusca, ...termosOrFinal].map((t) => t.trim()).filter(Boolean)));
+    } else if (criarTermosOrSeparados && tipo !== 'advogado' && termosOr.length > 0) {
+      const termosSeparados = Array.from(new Set([termoBusca, ...termosOr].map((t) => t.trim()).filter(Boolean)));
       await criarMonitoramentosEmLote.mutateAsync(
         termosSeparados.map((termo) => ({
           ...dados,
