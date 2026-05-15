@@ -587,7 +587,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                   </div>
                 )}
 
-                {!monitoramento && tipo !== 'advogado' && termosOr.length > 0 && (
+                {tipo !== 'advogado' && termosOr.length > 0 && (
                   <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
                     <Checkbox
                       id="criar-termos-or-separados"
