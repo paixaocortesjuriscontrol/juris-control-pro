@@ -153,13 +153,21 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
       const realRespIds = respIds.filter(id => id !== UNASSIGNED);
 
       let idsWithoutResponsavel: string[] | null = null;
-      if (wantsUnassigned) {
+      // Sempre buscamos o conjunto global de IDs sem responsável para que
+      // (1) o filtro "sem responsável" funcione e (2) o totalizador respeite
+      // o escopo dos demais filtros aplicados.
+      let semRespSet: Set<string> = new Set();
+      try {
         const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
         if (!error) {
-          idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
-        } else {
+          const ids = ((data as any[]) || []).map((r: any) => String(r.id));
+          semRespSet = new Set(ids);
+          if (wantsUnassigned) idsWithoutResponsavel = ids;
+        } else if (wantsUnassigned) {
           idsWithoutResponsavel = [];
         }
+      } catch {
+        if (wantsUnassigned) idsWithoutResponsavel = [];
       }
 
       // Pagina todos os registros do escopo filtrado para calcular cada métrica.
@@ -221,6 +229,8 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
           if (r.problema_judit) acc.problemaJudit++;
           // Pronto para Enviar
           if (String(r.status || "") === "pronto_envio") acc.prontoEnvio++;
+          // Sem responsável (respeita filtros vigentes)
+          if (semRespSet.has(String(r.id))) acc.semResponsavel++;
           // Faixa por ano de distribuição
           const dd = String(r.data_distribuicao_planilha || "").slice(0, 10);
           if (dd) {
@@ -233,14 +243,6 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         }
       }
       acc.processosUnicos = processosSet.size;
-
-      // Total geral de processos sem responsável (sempre, independente dos filtros).
-      try {
-        const { data: semRespData } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
-        acc.semResponsavel = ((semRespData as any[]) || []).length;
-      } catch {
-        // ignora
-      }
 
       setStats(acc);
     } finally {
