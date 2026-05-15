@@ -27,6 +27,40 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 // API endpoint - same as DJEN (PJE Comunica)
 const PJE_API_BASE = "https://comunicaapi.pje.jus.br/api/v1";
 
+// Browser-like headers to avoid CloudFront blocks
+const browserHeaders = {
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'pt-BR,pt;q=0.9',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Origin': 'https://comunica.pje.jus.br',
+  'Referer': 'https://comunica.pje.jus.br/',
+};
+
+// Jina proxy fallback (when CloudFront blocks Supabase region)
+const JINA_API_KEY = Deno.env.get('JINA_API_KEY') || '';
+async function fetchJsonViaJina(url: string): Promise<any | null> {
+  if (!JINA_API_KEY) return null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const resp = await fetch(`https://r.jina.ai/${url}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${JINA_API_KEY}`,
+        'Accept': 'application/json, text/plain, */*',
+      },
+      signal: controller.signal,
+    });
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    try { return JSON.parse(text); } catch { return null; }
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Types of searches available
 type SearchType = "advogado" | "palavra-chave" | "processo" | "parte";
 
@@ -84,7 +118,9 @@ async function searchPJE(params: SearchParams): Promise<any> {
         throw new Error("Número do processo é obrigatório");
       }
       const cleanedNumber = numeroProcesso.replace(/\D/g, '');
-      url = `${PJE_API_BASE}/comunicacao/processo/${cleanedNumber}`;
+      // Use generic /comunicacao endpoint with numeroProcesso query param
+      // (the /comunicacao/processo/{n} path returns 404 in many cases)
+      url = `${PJE_API_BASE}/comunicacao`;
       break;
     
     case "parte":
@@ -121,6 +157,11 @@ async function searchPJE(params: SearchParams): Promise<any> {
   if (tipo === "parte" && nomeParte) {
     queryParams.append("nomeParte", nomeParte);
   }
+
+  // Adicionar numeroProcesso para busca tipo='processo'
+  if (tipo === "processo" && numeroProcesso) {
+    queryParams.append("numeroProcesso", numeroProcesso.replace(/\D/g, ''));
+  }
   
   const separator = url.includes("?") ? "&" : "?";
   const fullUrl = `${url}${separator}${queryParams.toString()}`;
@@ -129,12 +170,20 @@ async function searchPJE(params: SearchParams): Promise<any> {
   
   const response = await fetch(fullUrl, {
     method: "GET",
-    headers: {
-      "Accept": "application/json",
-    },
+    headers: browserHeaders,
   });
 
   console.log("PJE API response status:", response.status);
+  const contentType = response.headers.get('content-type') || '';
+
+  // Detect CloudFront block (HTML response or 403) and try Jina proxy
+  if (!response.ok || contentType.includes('text/html')) {
+    console.log('PJE blocked or non-JSON, trying Jina proxy fallback');
+    const proxied = await fetchJsonViaJina(fullUrl);
+    if (proxied) {
+      return proxied;
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
