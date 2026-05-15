@@ -592,6 +592,122 @@ export default function CompararDjSantander() {
 
 
 
+  const analisarMotivosSomenteDoc = async () => {
+    if (!result || result.somente_doc.length === 0) return;
+    if (!selectedCoordenacao || !selectedDate) {
+      toast.error("Selecione coordenação e data para analisar");
+      return;
+    }
+    setAnalisando(true);
+    const inicio = format(selectedDate, "yyyy-MM-dd");
+    const fim = format(selectedDateFim ?? selectedDate, "yyyy-MM-dd");
+    const monIds = monitoramentosConfig.map(m => m.id);
+
+    const inicial: Record<string, AnaliseProcesso> = {};
+    result.somente_doc.forEach(p => { inicial[p] = { loading: true, motivos: [] }; });
+    setAnalise(inicial);
+
+    const tribunaisMon = new Set<string>();
+    monitoramentosConfig.forEach(m => (m.tribunais || []).forEach(t => tribunaisMon.add(t.toUpperCase())));
+    const oabsMon = new Set<string>();
+    monitoramentosConfig.forEach(m => {
+      if (m.tipo === "advogado" && m.oab) oabsMon.add(m.oab.replace(/\D/g, ""));
+      (m.termos_or || []).forEach(t => {
+        const digits = (t.match(/\d{3,8}/) || [])[0];
+        if (digits) oabsMon.add(digits);
+      });
+    });
+    const exclusoesMon: string[] = [];
+    monitoramentosConfig.forEach(m => (m.exclusoes || []).forEach(e => e && exclusoesMon.push(e.toUpperCase())));
+
+    const analisarUm = async (processo: string): Promise<string[]> => {
+      const motivos: string[] = [];
+      const digits = processo.replace(/\D/g, "");
+      try {
+        const { data: descartadas } = await supabase
+          .from("publicacoes_djen_descartadas")
+          .select("motivo_descarte, tribunal")
+          .in("monitoramento_id", monIds)
+          .eq("dedup_processo_digits", digits)
+          .gte("data_disponibilizacao", `${inicio}T00:00:00.000Z`)
+          .lte("data_disponibilizacao", `${fim}T23:59:59.999Z`);
+        if (descartadas && descartadas.length > 0) {
+          const unicos = [...new Set(descartadas.map(d => d.motivo_descarte).filter(Boolean))];
+          unicos.forEach(m => motivos.push(`Descartado: ${m}`));
+          return motivos;
+        }
+      } catch (e) {
+        console.warn("erro descartadas", e);
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke("buscar-pje", {
+          body: {
+            tipo: "processo",
+            numeroProcesso: digits,
+            dataInicio: inicio,
+            dataFim: fim,
+            tamanhoPagina: 50,
+          },
+        });
+        if (error) {
+          motivos.push(`Erro ao consultar PJE Comunica: ${error.message}`);
+          return motivos;
+        }
+        const items: any[] = data?.items || data?.publicacoes || data?.comunicacoes || [];
+        if (!items.length) {
+          motivos.push("Não encontrado na PJE Comunica para o período");
+          return motivos;
+        }
+        for (const pub of items) {
+          const tribunal = String(pub.siglaTribunal || pub.tribunal || "").toUpperCase();
+          const advs: any[] = pub.destinatarioadvogados || pub.destinatarios_advogados || [];
+          const oabsPub = new Set<string>();
+          advs.forEach((a: any) => {
+            const oab = a?.advogado?.numero_oab || a?.numero_oab || a?.oab || "";
+            const d = String(oab).replace(/\D/g, "");
+            if (d) oabsPub.add(d);
+          });
+          const conteudo = String(pub.texto || pub.conteudo || "").toUpperCase();
+
+          const exclusao = exclusoesMon.find(e => conteudo.includes(e));
+          if (exclusao) {
+            motivos.push(`Pub. ${tribunal}: contém termo de exclusão "${exclusao}"`);
+            continue;
+          }
+          if (tribunal && tribunaisMon.size > 0 && !tribunaisMon.has(tribunal)) {
+            motivos.push(`Pub. ${tribunal}: tribunal fora do escopo monitorado`);
+            continue;
+          }
+          const oabMatch = [...oabsPub].some(o => oabsMon.has(o));
+          if (!oabMatch && oabsMon.size > 0) {
+            const lista = oabsPub.size > 0 ? [...oabsPub].join(", ") : "nenhum";
+            motivos.push(`Pub. ${tribunal}: destinatários (OAB ${lista}) não correspondem aos OABs monitorados`);
+            continue;
+          }
+          motivos.push(`Pub. ${tribunal}: encontrada na PJE mas não casou com termos (verificar tipo/parte)`);
+        }
+        return [...new Set(motivos)];
+      } catch (e: any) {
+        motivos.push(`Erro: ${e?.message || "falha ao consultar"}`);
+        return motivos;
+      }
+    };
+
+    const queue = [...result.somente_doc];
+    const workers = Array.from({ length: 3 }, async () => {
+      while (queue.length > 0) {
+        const p = queue.shift();
+        if (!p) break;
+        const motivos = await analisarUm(p);
+        setAnalise(prev => ({ ...prev, [p]: { loading: false, motivos } }));
+      }
+    });
+    await Promise.all(workers);
+    setAnalisando(false);
+    toast.success("Análise de motivos concluída");
+  };
+
   return (
     <MainLayout title="Comparar DJEN" subtitle="Compare o documento do advogado, PDF da Equipe DR. Thomás ou planilha do Projuris com as publicações DJEN">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
