@@ -1,49 +1,63 @@
-## Objetivo
+## Nova aba "PDF Diário" em Comparar DJ Santander
 
-Reformular o PDF "Gerar PDF por Tribunal" para ser uma **lista prática de termos por tribunal**, pensada para o advogado abrir o comunica.pje, escolher um tribunal (ex: TRT 10) e ver rapidamente quais termos pesquisar.
+Hoje a tela tem 2 modos: **PDF Resumo** (DOC × PDF do advogado) e **DJEN** (DOC × base). Vou adicionar um terceiro modo **PDF Diário (DJ)** que compara um PDF de diário oficial (ex.: DJDF) contra as publicações DJEN da base, sem usar IA, extraindo processos apenas dos títulos.
 
-## Mudanças em `src/utils/gerarRelatorioTermosDjenPorTribunal.ts`
+### Fluxo da nova aba
+1. Usuário seleciona **Coordenação** + **Data de disponibilização** (mesmos selects do modo DJEN).
+2. Usuário faz upload de **um ou mais PDFs** do diário oficial.
+3. Frontend extrai texto do PDF via `pdfjs-dist` (já em uso) e identifica processos **só nos títulos**.
+4. Botão **Buscar publicações DJEN** carrega os processos da base (reusando a lógica atual do modo DJEN).
+5. Botão **Comparar** roda `compararListas(processosPdfDiario, processosDjen)` e mostra os 3 grupos: Em Comum / Somente no PDF Diário / Somente no DJEN. Exporta PDF como já faz hoje.
 
-Reescrever o layout do PDF mantendo o agrupamento atual (um termo aparece em cada tribunal em que está configurado), mas com foco no que importa: **o termo a ser buscado**.
+### Regra de extração de títulos (sem IA)
 
-### Capa (simplificada)
-- Título: "Termos DJEN por Tribunal"
-- Coordenação + data
-- Filtros aplicados (mantém)
-- Pequeno índice clicável: lista das siglas de tribunais com a contagem de termos (TST — 12, TRT1 — 5, TRT10 — 8, …) em colunas compactas. Sem tabela "ativos/inativos" — informação de baixa relevância para o caso de uso.
+Inspecionei o PDF enviado (DJDF_14.pdf) e os títulos aparecem em 2 formatos consistentes, sempre no início de uma linha curta, antes do bloco de texto da publicação:
 
-### Uma seção por tribunal (foco no termo)
-Para cada tribunal (página nova, ou várias por página se couber):
+```text
+Processo 0730933-03.2024.8.07.0001
+Nº Processo: 5003480-51.2024.8.21.0016
+```
 
-- **Cabeçalho grande** com a sigla do tribunal (ex: `TRT 10`) e contagem de termos ativos.
-- **Tabela enxuta** com 4 colunas:
-  1. **Termo de busca** (coluna larga, em destaque/negrito) — é o que o advogado vai colar no comunica.pje
-  2. **Tipo** (Parte / Palavra-chave / Advogado / Processo)
-  3. **Descrição** (rótulo interno do monitoramento)
-  4. **Refinamentos** (uma única coluna combinando, em linhas curtas dentro da célula):
-     - `OR: termo1 | termo2`
-     - `Concomitante: ...`
-     - `Excluir: ...`
-     - `OAB: 12345/DF`
-     Só aparecem as linhas que tiverem conteúdo. Se nada existir, mostrar "—".
-- **Termos inativos**: por padrão **não entram** nessa lista (advogado não vai usar). Adicionar parâmetro opcional `incluirInativos` (default `false`) e, quando `true`, listá-los em uma sub-seção cinza no fim da página do tribunal com a marca "Inativo".
-- Ordenar por **Tipo** (Parte > Advogado > Palavra-chave > Processo) e depois pela própria string do termo, para o advogado escanear visualmente.
+E há ocorrências inline (corpo) que **devem ser ignoradas**, ex.:
 
-### Bucket "Sem tribunal definido"
-Mantém uma seção final, mesmo formato, com nota: "Estes termos são aplicados em todos os tribunais."
+```text
+VARA DE RELAÇÕES DE CONSUMO ... Processo: 0006...   (no meio de linha longa)
+TEXTO:Processo 4005145-90.2026.8.26.0152 distribuido...
+SINOP DECISÃO Processo: 1001481-79.2025.8.11.0015. AUTOR: ...
+```
 
-## Mudanças em `src/pages/TermosDjen.tsx`
+Regex de título (linha inteira, ancorada em `^...$` após `normalizarLinha`):
 
-- Manter o botão `Gerar PDF por Tribunal` como está.
-- Não passar `incluirInativos` (default `false`) — mantém o relatório enxuto. Caso a página tenha o filtro de status "Inativos" explicitamente selecionado, passar `incluirInativos = true` para respeitar a intenção do usuário.
+```text
+^(N[ºo°]\s*)?Processo\s*[:#-]?\s*<CNJ>\s*$
+```
 
-## Detalhes técnicos
-- Continuar usando `jsPDF` landscape A4 + `autoTable`.
-- Reaproveitar `asArray`, `ordenarTribunais`, `drawHeaderFooter`, `TIPO_LABEL`, paleta de cores.
-- Refinamentos como célula multi-linha: usar `\n` entre os rótulos (Or:, Concomitante:, Excluir:, OAB:) e `overflow: "linebreak"` (já configurado).
-- Nome do arquivo: manter padrão atual.
-- Sem mudanças em hooks, banco ou outros componentes.
+Onde `<CNJ>` é o padrão CNJ já definido em `CNJ_PATTERN` no arquivo. Uso a mesma estratégia de `extrairProcessos` (split por linhas + match por linha) já existente, **sem** ativar `permitirComunicacaoInline`. Isso descarta automaticamente os casos inline acima porque a linha contém texto extra antes/depois do número.
 
-## Fora de escopo
-- Lógica de busca DJEN/Pautas (já discutida em outras tarefas).
-- Edição/criação de monitoramentos.
+Como `pdfjs-dist` concatena `items` com espaço e `\n` entre páginas, vou também tratar o caso em que o título e o número CNJ ficam em "items" diferentes mas na mesma linha visual: já é coberto porque toda a linha após normalização vira algo como `Nº Processo: 5003480-51.2024.8.21.0016` e bate no regex.
+
+### Mudanças de código (apenas frontend)
+
+Arquivo único: `src/pages/CompararDjSantander.tsx`
+
+1. `mode` passa a ser `"pdf" | "djen" | "pdf-diario"`.
+2. `<TabsList>` ganha 3ª aba **PDF Diário (DJ)**.
+3. Nova função `extrairProcessosTitulosPdf(texto)`:
+   - reusa `normalizarLinha` + split por `\r?\n+`,
+   - aplica novo `PROCESSO_TITULO_DJ_REGEX` que aceita prefixo opcional `Nº` antes de `Processo`,
+   - retorna lista deduplicada e formatada via `formatarCNJ`.
+4. Estados novos: `pdfDiarioFiles: File[]`, `pdfDiarioProcessos: string[]`, handler `handlePdfDiarioUpload` que aceita múltiplos arquivos e concatena os processos extraídos.
+5. Reuso de `handleBuscarDjen` / `djenProcessos` / `selectedCoordenacao` / `selectedDate` (mesmos selects renderizados quando `mode === "pdf-diario"`).
+6. Em `handleComparar`, novo branch para `pdf-diario` chamando `compararListas(pdfDiarioProcessos, djenProcessos)`.
+7. `sourceLabel` / `sourceFileName` ganham caso para `pdf-diario` (ex.: `"PDF Diário - <coord> - <data>"`).
+8. Painel de resultados: rótulos das colunas viram **Somente no PDF Diário** / **Somente no DJEN** quando o modo for `pdf-diario`.
+
+### Fora de escopo
+- Não altero a aba PDF Resumo nem a aba DJEN.
+- Não uso IA (sem chamar `comparar-dj-santander`).
+- Sem mudanças em backend, schema, edge functions ou rotas.
+- Sem persistência: a comparação roda em memória, igual aos modos atuais.
+
+### Validação
+- Testar com `DJDF_14.pdf` enviado: deve extrair os títulos `Processo NNNN...` e `Nº Processo: NNNN...` e ignorar as ocorrências inline tipo `SINOP DECISÃO Processo: ...` e `TEXTO:Processo ...`.
+- Conferir contagem total batendo com `grep -E '^(Nº ?)?Processo[ :]' /tmp/DJDF_14.txt | wc -l` após extração.

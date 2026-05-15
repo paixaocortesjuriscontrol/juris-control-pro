@@ -45,6 +45,7 @@ const CNJ_PATTERN = "(\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}|\\d{20})";
 const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
+const PROCESSO_DJ_TITULO_REGEX = new RegExp(`^\\s*(?:N[ºo°.]\\s*)?Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
@@ -146,6 +147,38 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
   return [...new Set(matches)];
 }
 
+function extrairProcessosTitulosPdfDiario(texto: string): string[] {
+  const matches: string[] = [];
+  const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
+  for (const linha of linhas) {
+    const limpa = normalizarLinha(linha);
+    const m = limpa.match(PROCESSO_DJ_TITULO_REGEX);
+    if (m) matches.push(formatarCNJ(m[1]));
+  }
+  return [...new Set(matches)];
+}
+
+async function extrairTextoPdf(arrayBuffer: ArrayBuffer): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // Reconstruir linhas usando a posição Y dos itens
+    const lines = new Map<number, string[]>();
+    for (const item of content.items as any[]) {
+      const y = Math.round(item.transform?.[5] ?? 0);
+      if (!lines.has(y)) lines.set(y, []);
+      lines.get(y)!.push(item.str);
+    }
+    const sorted = [...lines.entries()].sort((a, b) => b[0] - a[0]);
+    text += sorted.map(([, parts]) => parts.join(" ")).join("\n") + "\n";
+  }
+  return text;
+}
+
 function compararListas(processosDoc: string[], processosPdf: string[]): ComparisonResult {
   const normalize = (p: string) => p.replace(/\D/g, "");
   const setDoc = new Set(processosDoc.map(normalize));
@@ -238,7 +271,7 @@ function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName:
 }
 
 export default function CompararDjSantander() {
-  const [mode, setMode] = useState<"pdf" | "djen">("pdf");
+  const [mode, setMode] = useState<"pdf" | "djen" | "pdf-diario">("pdf");
   const [docFile, setDocFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [docProcessos, setDocProcessos] = useState<string[]>([]);
@@ -252,6 +285,11 @@ export default function CompararDjSantander() {
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
+
+  // PDF Diário mode state
+  const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
+  const [pdfDiarioProcessos, setPdfDiarioProcessos] = useState<string[]>([]);
+  const [loadingPdfDiario, setLoadingPdfDiario] = useState(false);
 
   // Load coordenações
   useEffect(() => {
@@ -285,21 +323,38 @@ export default function CompararDjSantander() {
     setResult(null);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let text = "";
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        text += content.items.map((item: any) => item.str).join(" ") + "\n";
-      }
+      const text = await extrairTextoPdf(arrayBuffer);
       const processos = extrairProcessos(text, { permitirComunicacaoInline: true });
       setPdfProcessos(processos);
       toast.success(`PDF carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler PDF:", err);
       toast.error("Erro ao ler arquivo PDF");
+    }
+  }, []);
+
+  const handlePdfDiarioUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setPdfDiarioFiles(files);
+    setPdfDiarioProcessos([]);
+    setResult(null);
+    setLoadingPdfDiario(true);
+    try {
+      const all: string[] = [];
+      for (const file of files) {
+        const ab = await file.arrayBuffer();
+        const text = await extrairTextoPdf(ab);
+        all.push(...extrairProcessosTitulosPdfDiario(text));
+      }
+      const unique = [...new Set(all)];
+      setPdfDiarioProcessos(unique);
+      toast.success(`${files.length} PDF(s) processado(s): ${unique.length} processos identificados nos títulos`);
+    } catch (err) {
+      console.error("Erro ao ler PDFs do diário:", err);
+      toast.error("Erro ao ler arquivo(s) PDF do diário");
+    } finally {
+      setLoadingPdfDiario(false);
     }
   }, []);
 
@@ -389,31 +444,47 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(docProcessos, pdfProcessos);
       setResult(res);
-    } else {
+    } else if (mode === "djen") {
       if (docProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o DOC e busque as publicações antes de comparar");
         return;
       }
       const res = compararListas(docProcessos, djenProcessos);
       setResult(res);
+    } else {
+      if (pdfDiarioProcessos.length === 0 || djenProcessos.length === 0) {
+        toast.error("Carregue o(s) PDF(s) do diário e busque as publicações antes de comparar");
+        return;
+      }
+      const res = compararListas(pdfDiarioProcessos, djenProcessos);
+      setResult(res);
     }
     toast.success("Comparação concluída!");
   };
 
-  const canCompare = mode === "pdf"
-    ? docProcessos.length > 0 && pdfProcessos.length > 0
-    : docProcessos.length > 0 && djenProcessos.length > 0;
+  const canCompare =
+    mode === "pdf" ? docProcessos.length > 0 && pdfProcessos.length > 0
+    : mode === "djen" ? docProcessos.length > 0 && djenProcessos.length > 0
+    : pdfDiarioProcessos.length > 0 && djenProcessos.length > 0;
 
+  const leftLabel = mode === "pdf-diario" ? "PDF Diário" : "DOC Advogado";
   const sourceLabel = mode === "pdf" ? "PDF" : "DJEN";
+  const leftFileName = mode === "pdf-diario"
+    ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) do diário` : "PDF Diário")
+    : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
     : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}`;
 
+
+
   return (
     <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo ou diretamente com as publicações DJEN">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* DOC Upload - always visible */}
+        {/* Left card: DOC Advogado OR PDF Diário (depende do modo) */}
         <Card>
+        {mode !== "pdf-diario" ? (
+          <>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
@@ -440,6 +511,42 @@ export default function CompararDjSantander() {
               <input type="file" className="hidden" accept=".doc,.docx" onChange={handleDocUpload} />
             </label>
           </CardContent>
+          </>
+        ) : (
+          <>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-500" />
+              PDF do Diário Oficial
+            </CardTitle>
+            <CardDescription>Selecione um ou mais PDFs (DJDF, DJSP, etc.). Apenas os títulos com "Processo:" são considerados.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {loadingPdfDiario ? (
+                  <>
+                    <Loader2 className="w-8 h-8 mb-2 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Lendo PDF(s)...</p>
+                  </>
+                ) : pdfDiarioFiles.length > 0 ? (
+                  <>
+                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                    <p className="text-sm font-medium">{pdfDiarioFiles.length} arquivo(s) selecionado(s)</p>
+                    <p className="text-xs text-muted-foreground">{pdfDiarioProcessos.length} processos identificados nos títulos</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar PDF(s) do diário</p>
+                  </>
+                )}
+              </div>
+              <input type="file" className="hidden" accept=".pdf" multiple onChange={handlePdfDiarioUpload} />
+            </label>
+          </CardContent>
+          </>
+        )}
         </Card>
 
         {/* Right side - tabs for PDF or DJEN */}
@@ -448,7 +555,7 @@ export default function CompararDjSantander() {
             <CardTitle className="text-base">Fonte de Comparação</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "pdf" | "djen"); setResult(null); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "pdf" | "djen" | "pdf-diario"); setResult(null); }}>
               <TabsList className="w-full mb-4">
                 <TabsTrigger value="pdf" className="flex-1 gap-2">
                   <FileText className="w-4 h-4" />
@@ -457,6 +564,10 @@ export default function CompararDjSantander() {
                 <TabsTrigger value="djen" className="flex-1 gap-2">
                   <Database className="w-4 h-4" />
                   Publicações DJEN
+                </TabsTrigger>
+                <TabsTrigger value="pdf-diario" className="flex-1 gap-2">
+                  <FileText className="w-4 h-4" />
+                  PDF Diário × DJEN
                 </TabsTrigger>
               </TabsList>
 
@@ -533,6 +644,63 @@ export default function CompararDjSantander() {
                   )}
                 </div>
               </TabsContent>
+
+              <TabsContent value="pdf-diario">
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Compara os processos extraídos dos títulos do PDF do diário oficial com as publicações DJEN da base.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
+                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Data Disponibilização</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleBuscarDjen}
+                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    className="w-full gap-2"
+                  >
+                    {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                    {loadingDjen ? "Buscando..." : "Buscar Publicações"}
+                  </Button>
+                  {djenLoaded && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className="text-muted-foreground">{djenProcessos.length} processos encontrados nas publicações</span>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -553,7 +721,7 @@ export default function CompararDjSantander() {
           <Button
             size="lg"
             variant="outline"
-            onClick={() => exportarPdf(result, docFile?.name || "DOC", sourceFileName)}
+          onClick={() => exportarPdf(result, leftFileName, sourceFileName)}
             className="gap-2"
           >
             <Download className="w-5 h-5" />
@@ -569,7 +737,7 @@ export default function CompararDjSantander() {
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-blue-600">{result.processos_doc.length}</p>
-                <p className="text-xs text-muted-foreground">Processos no DOC</p>
+                <p className="text-xs text-muted-foreground">Processos no {leftLabel}</p>
               </CardContent>
             </Card>
             <Card>
@@ -587,7 +755,7 @@ export default function CompararDjSantander() {
             <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-amber-600">{result.somente_doc.length}</p>
-                <p className="text-xs text-muted-foreground">Somente no DOC</p>
+                <p className="text-xs text-muted-foreground">Somente no {leftLabel}</p>
               </CardContent>
             </Card>
             <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
@@ -627,7 +795,7 @@ export default function CompararDjSantander() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Somente no DOC Advogado ({result.somente_doc.length})
+                  Somente no {leftLabel} ({result.somente_doc.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
