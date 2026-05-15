@@ -392,8 +392,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         setLoading(false);
         return;
       }
-      // Lista é pequena (~256 itens), URL viável
-      query = query.in("id", idsWithoutResponsavel);
     }
 
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
