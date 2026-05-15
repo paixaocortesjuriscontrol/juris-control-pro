@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import JSZip from "jszip";
 import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ComparisonResult {
@@ -282,8 +283,30 @@ function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName:
   doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris";
+
+function extrairProcessosExcelProjuris(arrayBuffer: ArrayBuffer): string[] {
+  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  const encontrados: string[] = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+    if (!rows.length) continue;
+    const sample = rows[0];
+    const colProcesso = Object.keys(sample).find((k) => k.trim().toLowerCase() === "processo");
+    if (!colProcesso) continue;
+    for (const row of rows) {
+      const valor = String(row[colProcesso] ?? "").trim();
+      if (!valor) continue;
+      const digits = valor.replace(/\D/g, "");
+      if (digits.length === 20) encontrados.push(formatarCNJ(digits));
+    }
+  }
+  return [...new Set(encontrados)];
+}
+
 export default function CompararDjSantander() {
-  const [mode, setMode] = useState<"pdf" | "djen" | "pdf-diario">("pdf");
+  const [mode, setMode] = useState<CompareMode>("pdf");
   const [docFile, setDocFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [docProcessos, setDocProcessos] = useState<string[]>([]);
@@ -303,6 +326,11 @@ export default function CompararDjSantander() {
   const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
   const [pdfDiarioProcessos, setPdfDiarioProcessos] = useState<string[]>([]);
   const [loadingPdfDiario, setLoadingPdfDiario] = useState(false);
+
+  // Excel Projuris mode state
+  const [excelProjurisFile, setExcelProjurisFile] = useState<File | null>(null);
+  const [excelProjurisProcessos, setExcelProjurisProcessos] = useState<string[]>([]);
+  const [loadingExcelProjuris, setLoadingExcelProjuris] = useState(false);
 
   // Load coordenações
   useEffect(() => {
@@ -368,6 +396,26 @@ export default function CompararDjSantander() {
       toast.error("Erro ao ler arquivo(s) PDF do diário");
     } finally {
       setLoadingPdfDiario(false);
+    }
+  }, []);
+
+  const handleExcelProjurisUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelProjurisFile(file);
+    setExcelProjurisProcessos([]);
+    setResult(null);
+    setLoadingExcelProjuris(true);
+    try {
+      const ab = await file.arrayBuffer();
+      const processos = extrairProcessosExcelProjuris(ab);
+      setExcelProjurisProcessos(processos);
+      toast.success(`Planilha carregada: ${processos.length} processos encontrados na coluna "Processo"`);
+    } catch (err) {
+      console.error("Erro ao ler XLSX Projuris:", err);
+      toast.error("Erro ao ler a planilha do Projuris");
+    } finally {
+      setLoadingExcelProjuris(false);
     }
   }, []);
 
@@ -466,12 +514,19 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(docProcessos, djenProcessos);
       setResult(res);
-    } else {
+    } else if (mode === "pdf-diario") {
       if (pdfDiarioProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o(s) PDF(s) do diário e busque as publicações antes de comparar");
         return;
       }
       const res = compararListas(pdfDiarioProcessos, djenProcessos);
+      setResult(res);
+    } else {
+      if (excelProjurisProcessos.length === 0 || djenProcessos.length === 0) {
+        toast.error("Carregue a planilha do Projuris e busque as publicações antes de comparar");
+        return;
+      }
+      const res = compararListas(excelProjurisProcessos, djenProcessos);
       setResult(res);
     }
     toast.success("Comparação concluída!");
@@ -480,13 +535,20 @@ export default function CompararDjSantander() {
   const canCompare =
     mode === "pdf" ? docProcessos.length > 0 && pdfProcessos.length > 0
     : mode === "djen" ? docProcessos.length > 0 && djenProcessos.length > 0
-    : pdfDiarioProcessos.length > 0 && djenProcessos.length > 0;
+    : mode === "pdf-diario" ? pdfDiarioProcessos.length > 0 && djenProcessos.length > 0
+    : excelProjurisProcessos.length > 0 && djenProcessos.length > 0;
 
-  const leftLabel = mode === "pdf-diario" ? "PDF Equipe DR. Thomás" : "DOC Advogado";
+  const leftLabel =
+    mode === "pdf-diario" ? "PDF Equipe DR. Thomás"
+    : mode === "excel-projuris" ? "Excel Projuris"
+    : "DOC Advogado";
   const sourceLabel = mode === "pdf" ? "PDF" : "DJEN";
-  const leftFileName = mode === "pdf-diario"
-    ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) Equipe DR. Thomás` : "PDF Equipe DR. Thomás")
-    : (docFile?.name || "DOC");
+  const leftFileName =
+    mode === "pdf-diario"
+      ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) Equipe DR. Thomás` : "PDF Equipe DR. Thomás")
+      : mode === "excel-projuris"
+      ? (excelProjurisFile?.name || "Excel Projuris")
+      : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
     : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}${selectedDateFim && selectedDateFim.getTime() !== selectedDate?.getTime() ? ` a ${format(selectedDateFim, "dd/MM/yyyy")}` : ""}`;
@@ -494,7 +556,7 @@ export default function CompararDjSantander() {
 
 
   return (
-    <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo ou diretamente com as publicações DJEN">
+    <MainLayout title="Comparar DJEN" subtitle="Compare o documento do advogado, PDF da Equipe DR. Thomás ou planilha do Projuris com as publicações DJEN">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* Left card: Fonte de Comparação (tabs) */}
         <Card>
@@ -502,7 +564,7 @@ export default function CompararDjSantander() {
             <CardTitle className="text-base">Fonte de Comparação</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "pdf" | "djen" | "pdf-diario"); setResult(null); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as CompareMode); setResult(null); }}>
               <TabsList className="w-full mb-4">
                 <TabsTrigger value="pdf" className="flex-1 gap-2">
                   <FileText className="w-4 h-4" />
@@ -515,6 +577,10 @@ export default function CompararDjSantander() {
                 <TabsTrigger value="pdf-diario" className="flex-1 gap-2">
                   <FileText className="w-4 h-4" />
                   PDF Equipe DR. Thomás
+                </TabsTrigger>
+                <TabsTrigger value="excel-projuris" className="flex-1 gap-2">
+                  <Database className="w-4 h-4" />
+                  Excel Projuris
                 </TabsTrigger>
               </TabsList>
 
