@@ -84,7 +84,9 @@ async function searchPJE(params: SearchParams): Promise<any> {
         throw new Error("Número do processo é obrigatório");
       }
       const cleanedNumber = numeroProcesso.replace(/\D/g, '');
-      url = `${PJE_API_BASE}/comunicacao/processo/${cleanedNumber}`;
+      // Use generic /comunicacao endpoint with numeroProcesso query param
+      // (the /comunicacao/processo/{n} path returns 404 in many cases)
+      url = `${PJE_API_BASE}/comunicacao`;
       break;
     
     case "parte":
@@ -120,6 +122,11 @@ async function searchPJE(params: SearchParams): Promise<any> {
   // Adicionar nomeParte para busca tipo='parte'
   if (tipo === "parte" && nomeParte) {
     queryParams.append("nomeParte", nomeParte);
+  }
+
+  // Adicionar numeroProcesso para busca tipo='processo'
+  if (tipo === "processo" && numeroProcesso) {
+    queryParams.append("numeroProcesso", numeroProcesso.replace(/\D/g, ''));
   }
   
   const separator = url.includes("?") ? "&" : "?";
