@@ -476,7 +476,7 @@ export default function CompararDjSantander() {
     ? (pdfFile?.name || "PDF")
     : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}`;
 
-  void mode;
+
 
   return (
     <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo ou diretamente com as publicações DJEN">
