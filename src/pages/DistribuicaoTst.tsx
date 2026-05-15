@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
+import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -209,6 +210,10 @@ export default function DistribuicaoTst() {
   }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
+
+  // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
+  const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
+  const { counts: responsavelCounts } = useResponsaveisCounts(countsFilters);
 
   // Limpa o sticky se o usuário mexer em filtros, página ou recarregar.
   // (Mantemos o sticky apenas para o fluxo "salvou e voltou".)
@@ -1122,52 +1127,35 @@ export default function DistribuicaoTst() {
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
 
-        {/* Totais por responsável (página atual, apenas com mais de 1 processo) */}
-        {(() => {
-          const counts = new Map<string, { nome: string; count: number }>();
-          for (const d of dados) {
-            const resps = responsaveisMap.get(d.id) || [];
-            for (const r of resps) {
-              const cur = counts.get(r.id);
-              if (cur) cur.count += 1;
-              else counts.set(r.id, { nome: r.nome, count: 1 });
-            }
-          }
-          const list = Array.from(counts.entries())
-            .filter(([, v]) => v.count > 1)
-            .sort((a, b) => b[1].count - a[1].count);
-          if (list.length === 0) return null;
-          return (
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
-                Por responsável (página):
-              </span>
-              {list.map(([id, v]) => {
-                const active = filtroResponsavelIds.includes(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() =>
-                      setFiltroResponsavelIds(active ? [] : [id])
-                    }
-                    className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
-                      active
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-card text-foreground hover:bg-muted"
-                    }`}
-                    title={`Filtrar por ${v.nome}`}
-                  >
-                    <span className="truncate max-w-[160px]">{v.nome}</span>
-                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums">
-                      {v.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })()}
+        {/* Totais por responsável (todos os registros filtrados, > 1 processo) */}
+        {responsavelCounts.filter(c => c.count > 1).length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
+              Por responsável:
+            </span>
+            {responsavelCounts.filter(c => c.count > 1).map((c) => {
+              const active = filtroResponsavelIds.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setFiltroResponsavelIds(active ? [] : [c.id])}
+                  className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
+                    active
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-card text-foreground hover:bg-muted"
+                  }`}
+                  title={`Filtrar por ${c.nome}`}
+                >
+                  <span className="truncate max-w-[160px]">{c.nome}</span>
+                  <span className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums">
+                    {c.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Mês/Ano dropdown */}
         {mesesAnos.length > 0 && (
