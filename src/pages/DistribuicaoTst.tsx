@@ -315,10 +315,6 @@ export default function DistribuicaoTst() {
     setFiltroResponsavelIds([]);
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
-    // Reseta filtro "sem responsável" ao alternar cards
-    if (key === "semResponsavel" || isActive) {
-      setFiltroResponsavelIds([]);
-    }
     setSelectedIds(new Set());
   };
 
@@ -357,6 +353,8 @@ export default function DistribuicaoTst() {
     setFiltroProblemaJudit("todos");
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
+    // Reseta filtro "sem responsável" ao alternar cards
+    if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
     // Reseta filtros de data ao alternar cards
     if (key === "ate2025" || key === "de2026" || isActive) {
