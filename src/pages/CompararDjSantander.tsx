@@ -1113,7 +1113,7 @@ export default function CompararDjSantander() {
             Exportar PDF
           </Button>
         )}
-        {result && result.somente_doc.length > 0 && mode !== "pdf" && (
+        {result && result.somente_doc.length > 0 && (
           <Button
             size="lg"
             variant="outline"
