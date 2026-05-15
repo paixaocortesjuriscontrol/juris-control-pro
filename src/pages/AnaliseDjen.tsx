@@ -3276,7 +3276,7 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">PDF</span>
           </Button>
 
-          {isAdmin && (
+          {false && isAdmin && (
             <Button
               variant="outline"
               size="sm"
@@ -3306,7 +3306,7 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">Doc</span>
           </Button>
 
-          {isAdmin && (
+          {false && isAdmin && (
             <Button
               variant="outline"
               size="sm"
@@ -3324,7 +3324,7 @@ const AnaliseDjen = () => {
             </Button>
           )}
 
-          {isAdmin && (
+          {false && isAdmin && (
             <Button
               variant="outline"
               size="sm"
@@ -3342,7 +3342,7 @@ const AnaliseDjen = () => {
             </Button>
           )}
 
-          {isAdmin && (
+          {false && isAdmin && (
             <Button
               variant="outline"
               size="sm"
@@ -3392,21 +3392,23 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">{gerandoDocResumoSemIA ? "..." : "Doc Resumo"}</span>
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGerarDocsTST}
-            disabled={allPublicacoes.length === 0 || gerandoDocsTST}
-            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
-          >
-            {gerandoDocsTST ? (
-              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
-            ) : (
-              <Gavel className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            )}
-            <span className="hidden sm:inline">{gerandoDocsTST ? "Classificando..." : "Docs TST"}</span>
-            <span className="sm:hidden">{gerandoDocsTST ? "..." : "TST"}</span>
-          </Button>
+          {false && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGerarDocsTST}
+              disabled={allPublicacoes.length === 0 || gerandoDocsTST}
+              className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30"
+            >
+              {gerandoDocsTST ? (
+                <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+              ) : (
+                <Gavel className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              )}
+              <span className="hidden sm:inline">{gerandoDocsTST ? "Classificando..." : "Docs TST"}</span>
+              <span className="sm:hidden">{gerandoDocsTST ? "..." : "TST"}</span>
+            </Button>
+          )}
 
           <Button
             variant={expandedPublicacoes.size > 0 ? "default" : "outline"}
