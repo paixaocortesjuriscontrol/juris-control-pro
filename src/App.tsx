@@ -24,6 +24,7 @@ import Prazos from "./pages/Prazos";
 import Documentos from "./pages/Documentos";
 import BuscarDJEN from "./pages/BuscarDJEN";
 import BuscarPJE from "./pages/BuscarPJE";
+import BuscarDjEstadual from "./pages/BuscarDjEstadual";
 import NotFound from "./pages/NotFound";
 import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
@@ -131,6 +132,7 @@ function App() {
               <Route path="/analise-djen" element={<ProtectedRoute><AnaliseDjen /></ProtectedRoute>} />
               <Route path="/termos-djen" element={<ProtectedRoute><TermosDjen /></ProtectedRoute>} />
               <Route path="/buscar-pje" element={<ProtectedRoute><BuscarPJE /></ProtectedRoute>} />
+              <Route path="/buscar-dj-estadual" element={<ProtectedRoute><BuscarDjEstadual /></ProtectedRoute>} />
               <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
               <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
               <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
