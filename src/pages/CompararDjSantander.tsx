@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Upload, FileText, FileCheck, AlertTriangle, CheckCircle2, XCircle, ArrowRightLeft, Download, Database, CalendarIcon, Loader2 } from "lucide-react";
+import { Upload, FileText, FileCheck, AlertTriangle, CheckCircle2, XCircle, ArrowRightLeft, Download, Database, CalendarIcon, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,6 +28,23 @@ interface ComparisonResult {
 interface Coordenacao {
   id: string;
   nome: string;
+}
+
+interface MonitoramentoConfig {
+  id: string;
+  tipo: string;
+  oab: string | null;
+  uf: string | null;
+  termo_busca: string | null;
+  termos_or: string[] | null;
+  exclusoes: string[] | null;
+  tribunais: string[] | null;
+  buscar_parte: boolean | null;
+}
+
+interface AnaliseProcesso {
+  loading: boolean;
+  motivos: string[];
 }
 
 function formatarCNJ(numero: string): string {
@@ -332,6 +349,11 @@ export default function CompararDjSantander() {
   const [excelProjurisProcessos, setExcelProjurisProcessos] = useState<string[]>([]);
   const [loadingExcelProjuris, setLoadingExcelProjuris] = useState(false);
 
+  // Análise de motivos (porque um processo do "Somente no <leftLabel>" não foi capturado)
+  const [monitoramentosConfig, setMonitoramentosConfig] = useState<MonitoramentoConfig[]>([]);
+  const [analise, setAnalise] = useState<Record<string, AnaliseProcesso>>({});
+  const [analisando, setAnalisando] = useState(false);
+
   // Load coordenações
   useEffect(() => {
     const load = async () => {
@@ -439,7 +461,7 @@ export default function CompararDjSantander() {
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
         .from("monitoramentos_djen")
-        .select("id")
+        .select("id, tipo, oab, uf, termo_busca, termos_or, exclusoes, tribunais, buscar_parte, ativo")
         .eq("coordenacao_id", selectedCoordenacao);
 
       if (!monitoramentos || monitoramentos.length === 0) {
@@ -449,6 +471,21 @@ export default function CompararDjSantander() {
       }
 
       const monIds = monitoramentos.map(m => m.id);
+      setMonitoramentosConfig(
+        monitoramentos
+          .filter((m: any) => m.ativo !== false)
+          .map((m: any) => ({
+            id: m.id,
+            tipo: m.tipo,
+            oab: m.oab,
+            uf: m.uf,
+            termo_busca: m.termo_busca,
+            termos_or: m.termos_or,
+            exclusoes: m.exclusoes,
+            tribunais: m.tribunais,
+            buscar_parte: m.buscar_parte,
+          }))
+      );
 
       // Fetch all publications for those monitoramentos on the selected date
       // Use pagination to get all results
