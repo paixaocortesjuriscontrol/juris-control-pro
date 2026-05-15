@@ -519,7 +519,8 @@ export async function buscarPjeComunicaNoBrowser(
       const oab = String(params.oab || "").replace(/\D/g, "").trim();
       const ufRaw = params.uf ?? "";
       const uf = String(ufRaw).trim().toUpperCase();
-      const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
+      const ufUnica = uf && !uf.includes(",");
+      const ufValida = ufUnica && uf !== "TODAS" && uf !== "UNDEFINED";
       const nome = nomeAdvogado;
 
       // UF=TODAS já usa a URL oficial cross-UF por nomeAdvogado.
