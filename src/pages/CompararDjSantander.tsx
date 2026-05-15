@@ -45,6 +45,7 @@ const CNJ_PATTERN = "(\\d{7}-\\d{2}\\.\\d{4}\\.\\d\\.\\d{2}\\.\\d{4}|\\d{20})";
 const COMUNICACAO_PJE_TITULO_REGEX = new RegExp(`^\\s*COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const PROCESSO_TITULO_REGEX = new RegExp(`^\\s*Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
 const COMUNICACAO_PJE_INLINE_REGEX = new RegExp(`COMUNICA[CÇ][AÃ]O\\s+PJE\\s*#?\\s*${CNJ_PATTERN}`, "gi");
+const PROCESSO_DJ_TITULO_REGEX = new RegExp(`^\\s*(?:N[ºo°.]\\s*)?Processo\\s*(?:n[ºo°.]?\\s*)?[:#-]?\\s*${CNJ_PATTERN}\\s*$`, "i");
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
@@ -146,6 +147,38 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
   return [...new Set(matches)];
 }
 
+function extrairProcessosTitulosPdfDiario(texto: string): string[] {
+  const matches: string[] = [];
+  const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
+  for (const linha of linhas) {
+    const limpa = normalizarLinha(linha);
+    const m = limpa.match(PROCESSO_DJ_TITULO_REGEX);
+    if (m) matches.push(formatarCNJ(m[1]));
+  }
+  return [...new Set(matches)];
+}
+
+async function extrairTextoPdf(arrayBuffer: ArrayBuffer): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // Reconstruir linhas usando a posição Y dos itens
+    const lines = new Map<number, string[]>();
+    for (const item of content.items as any[]) {
+      const y = Math.round(item.transform?.[5] ?? 0);
+      if (!lines.has(y)) lines.set(y, []);
+      lines.get(y)!.push(item.str);
+    }
+    const sorted = [...lines.entries()].sort((a, b) => b[0] - a[0]);
+    text += sorted.map(([, parts]) => parts.join(" ")).join("\n") + "\n";
+  }
+  return text;
+}
+
 function compararListas(processosDoc: string[], processosPdf: string[]): ComparisonResult {
   const normalize = (p: string) => p.replace(/\D/g, "");
   const setDoc = new Set(processosDoc.map(normalize));
@@ -238,7 +271,7 @@ function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName:
 }
 
 export default function CompararDjSantander() {
-  const [mode, setMode] = useState<"pdf" | "djen">("pdf");
+  const [mode, setMode] = useState<"pdf" | "djen" | "pdf-diario">("pdf");
   const [docFile, setDocFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [docProcessos, setDocProcessos] = useState<string[]>([]);
@@ -252,6 +285,11 @@ export default function CompararDjSantander() {
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
+
+  // PDF Diário mode state
+  const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
+  const [pdfDiarioProcessos, setPdfDiarioProcessos] = useState<string[]>([]);
+  const [loadingPdfDiario, setLoadingPdfDiario] = useState(false);
 
   // Load coordenações
   useEffect(() => {
@@ -285,21 +323,38 @@ export default function CompararDjSantander() {
     setResult(null);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let text = "";
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        text += content.items.map((item: any) => item.str).join(" ") + "\n";
-      }
+      const text = await extrairTextoPdf(arrayBuffer);
       const processos = extrairProcessos(text, { permitirComunicacaoInline: true });
       setPdfProcessos(processos);
       toast.success(`PDF carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler PDF:", err);
       toast.error("Erro ao ler arquivo PDF");
+    }
+  }, []);
+
+  const handlePdfDiarioUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setPdfDiarioFiles(files);
+    setPdfDiarioProcessos([]);
+    setResult(null);
+    setLoadingPdfDiario(true);
+    try {
+      const all: string[] = [];
+      for (const file of files) {
+        const ab = await file.arrayBuffer();
+        const text = await extrairTextoPdf(ab);
+        all.push(...extrairProcessosTitulosPdfDiario(text));
+      }
+      const unique = [...new Set(all)];
+      setPdfDiarioProcessos(unique);
+      toast.success(`${files.length} PDF(s) processado(s): ${unique.length} processos identificados nos títulos`);
+    } catch (err) {
+      console.error("Erro ao ler PDFs do diário:", err);
+      toast.error("Erro ao ler arquivo(s) PDF do diário");
+    } finally {
+      setLoadingPdfDiario(false);
     }
   }, []);
 
@@ -389,25 +444,39 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(docProcessos, pdfProcessos);
       setResult(res);
-    } else {
+    } else if (mode === "djen") {
       if (docProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o DOC e busque as publicações antes de comparar");
         return;
       }
       const res = compararListas(docProcessos, djenProcessos);
       setResult(res);
+    } else {
+      if (pdfDiarioProcessos.length === 0 || djenProcessos.length === 0) {
+        toast.error("Carregue o(s) PDF(s) do diário e busque as publicações antes de comparar");
+        return;
+      }
+      const res = compararListas(pdfDiarioProcessos, djenProcessos);
+      setResult(res);
     }
     toast.success("Comparação concluída!");
   };
 
-  const canCompare = mode === "pdf"
-    ? docProcessos.length > 0 && pdfProcessos.length > 0
-    : docProcessos.length > 0 && djenProcessos.length > 0;
+  const canCompare =
+    mode === "pdf" ? docProcessos.length > 0 && pdfProcessos.length > 0
+    : mode === "djen" ? docProcessos.length > 0 && djenProcessos.length > 0
+    : pdfDiarioProcessos.length > 0 && djenProcessos.length > 0;
 
+  const leftLabel = mode === "pdf-diario" ? "PDF Diário" : "DOC Advogado";
   const sourceLabel = mode === "pdf" ? "PDF" : "DJEN";
+  const leftFileName = mode === "pdf-diario"
+    ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) do diário` : "PDF Diário")
+    : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
     : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}`;
+
+  const leftCount = mode === "pdf-diario" ? pdfDiarioProcessos.length : docProcessos.length;
 
   return (
     <MainLayout title="Comparar DJ Santander" subtitle="Compare o documento do advogado com o PDF Resumo ou diretamente com as publicações DJEN">
