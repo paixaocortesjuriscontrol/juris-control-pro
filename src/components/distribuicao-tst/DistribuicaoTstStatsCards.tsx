@@ -21,7 +21,8 @@ export type StatsCardKey =
   | "problemaJudit"
   | "ate2025"
   | "de2026"
-  | "prontoEnvio";
+  | "prontoEnvio"
+  | "semResponsavel";
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -58,6 +59,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
     { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
     { key: "prontoEnvio", label: "Prontos para Enviar", value: stats.prontoEnvio, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
+    { key: "semResponsavel", label: "Sem Responsável", value: stats.semResponsavel, className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800", textClass: "text-red-600 dark:text-red-400" },
   ];
 
   return (
