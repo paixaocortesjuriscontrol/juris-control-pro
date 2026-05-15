@@ -66,7 +66,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
   { icon: ShieldCheck, label: "Classificação TST", path: "/classificacao-tst", color: "text-sky-400" },
-  { icon: ArrowRightLeft, label: "Comparar DJ Santander", path: "/comparar-dj-santander", color: "text-sky-400" },
+  { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", color: "text-sky-400" },
   { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha", color: "text-sky-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
