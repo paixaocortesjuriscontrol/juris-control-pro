@@ -489,7 +489,7 @@ export default function CompararDjSantander() {
     : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
-    : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}`;
+    : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}${selectedDateFim && selectedDateFim.getTime() !== selectedDate?.getTime() ? ` a ${format(selectedDateFim, "dd/MM/yyyy")}` : ""}`;
 
 
 
