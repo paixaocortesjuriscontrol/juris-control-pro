@@ -768,7 +768,66 @@ export default function CompararDjSantander() {
               </TabsList>
 
               <TabsContent value="pdf">
-                <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Selecione a coordenação e o período: serão usados apenas para a análise dos motivos (PJE Comunica). A comparação em si usa o PDF.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
+                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setResult(null); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(d) => { setSelectedDate(d); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDateFim}
+                            onSelect={(d) => { setSelectedDateFim(d); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
                   <div className="flex flex-col items-center justify-center py-4">
                     {pdfFile ? (
                       <>
@@ -784,7 +843,8 @@ export default function CompararDjSantander() {
                     )}
                   </div>
                   <input type="file" className="hidden" accept=".pdf" onChange={handlePdfUpload} />
-                </label>
+                  </label>
+                </div>
               </TabsContent>
 
               <TabsContent value="djen">
