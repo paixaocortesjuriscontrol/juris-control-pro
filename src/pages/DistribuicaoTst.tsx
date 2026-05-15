@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1121,6 +1121,53 @@ export default function DistribuicaoTst() {
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
+
+        {/* Totais por responsável (página atual, apenas com mais de 1 processo) */}
+        {(() => {
+          const counts = new Map<string, { nome: string; count: number }>();
+          for (const d of dados) {
+            const resps = responsaveisMap.get(d.id) || [];
+            for (const r of resps) {
+              const cur = counts.get(r.id);
+              if (cur) cur.count += 1;
+              else counts.set(r.id, { nome: r.nome, count: 1 });
+            }
+          }
+          const list = Array.from(counts.entries())
+            .filter(([, v]) => v.count > 1)
+            .sort((a, b) => b[1].count - a[1].count);
+          if (list.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
+                Por responsável (página):
+              </span>
+              {list.map(([id, v]) => {
+                const active = filtroResponsavelIds.includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() =>
+                      setFiltroResponsavelIds(active ? [] : [id])
+                    }
+                    className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
+                      active
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-foreground hover:bg-muted"
+                    }`}
+                    title={`Filtrar por ${v.nome}`}
+                  >
+                    <span className="truncate max-w-[160px]">{v.nome}</span>
+                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums">
+                      {v.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Mês/Ano dropdown */}
         {mesesAnos.length > 0 && (
