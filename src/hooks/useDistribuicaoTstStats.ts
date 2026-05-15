@@ -48,96 +48,6 @@ const ZERO: DistribuicaoTstStats = {
   semResponsavel: 0,
 };
 
-// Mesma regra usada na coluna "Dossiê" (filtro válido/inválido)
-const DOSSIE_VALID_LIKE = "__.__.___.______%/__";
-
-// Regex do padrão CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos)
-const CNJ_REGEX = /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/;
-
-function applyCommonFilters(query: any, filters: DistribuicaoTstFilters, hasResponsavelFilter: boolean, realRespIds: string[]) {
-  if (hasResponsavelFilter) {
-    query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
-  }
-  if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
-  if (filters.centralizador && filters.centralizador !== "todos") {
-    if (filters.centralizador === "__sem__") query = query.or("centralizador.is.null,centralizador.eq.");
-    else query = query.eq("centralizador", filters.centralizador);
-  }
-  if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
-  else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
-  if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
-  else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
-  else if (filters.dossieStatus === "valido") query = query.like("dossie", DOSSIE_VALID_LIKE);
-  else if (filters.dossieStatus === "invalido") query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", DOSSIE_VALID_LIKE);
-  else if (filters.dossieStatus === "invalido_ou_nao_preenchido") query = query.or(`dossie.is.null,dossie.eq.,dossie.not.like.${DOSSIE_VALID_LIKE}`);
-  const CNJ_PG_REGEX = "^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]\\.[0-9]{2}\\.[0-9]{4}$";
-  if (filters.processoStatus === "valido") query = query.filter("processo", "match", CNJ_PG_REGEX);
-  else if (filters.processoStatus === "invalido") query = query.or(`processo.is.null,processo.eq.,processo.not.match."${CNJ_PG_REGEX}"`);
-  if (filters.judit === "sim") query = query.eq("judit_preenchido", true);
-  else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
-  if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
-  else if (filters.situacaoProcesso === "transito") {
-    query = query.or("transito_julgado.eq.true,situacao_processo.ilike.*trânsito em julgado*");
-  }
-  else if (filters.situacaoProcesso === "outros") {
-    query = query.or(
-      'situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.*trânsito em julgado*)'
-    );
-    query = query.or("transito_julgado.is.null,transito_julgado.eq.false");
-  }
-  if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
-  if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
-  if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
-  if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
-  if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
-  if (filters.nomeParte) {
-    const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
-    query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
-  }
-  if (filters.mesAno && filters.mesAno !== "todos") {
-    const start = `${filters.mesAno}-01`;
-    const [y, m] = filters.mesAno.split("-").map(Number);
-    const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-    query = query.gte("data_distribuicao_planilha", start).lt("data_distribuicao_planilha", nextMonth);
-  }
-  if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
-  if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
-  if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
-  if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
-  if ((filters as any).problemaJudit === "sim") query = query.eq("problema_judit", true);
-  else if ((filters as any).problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-  if ((filters as any).duplicado === "sim") query = query.eq("ic_duplicado", true);
-  else if ((filters as any).duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
-  if ((filters as any).fonteImportacao && (filters as any).fonteImportacao !== "todas") {
-    query = query.contains("fontes_importacao", [(filters as any).fonteImportacao]);
-  }
-  if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
-  else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
-  else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
-  return query;
-}
-
-function baseQuery(filters: DistribuicaoTstFilters, realRespIds: string[], idsWithoutResponsavel: string[] | null) {
-  const hasResponsavelFilter = realRespIds.length > 0;
-  const selectClause = hasResponsavelFilter
-    ? "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit, data_distribuicao_planilha, status, dados_benner_responsaveis!inner(usuario_id)"
-    : "id, processo, dossie, judit_preenchido, benner_atualizado, situacao_processo, transito_julgado, turma, problema_judit, data_distribuicao_planilha, status";
-  let q = supabase
-    .from("dados_benner" as any)
-    .select(selectClause)
-    .not("aba_origem", "is", null);
-  q = applyCommonFilters(q, filters, hasResponsavelFilter, realRespIds);
-  if (idsWithoutResponsavel) {
-    if (idsWithoutResponsavel.length === 0) {
-      q = q.eq("id", "00000000-0000-0000-0000-000000000000");
-    } else {
-      // Caller já garante chunks ≤ 200 ids para não estourar URL
-      q = q.in("id", idsWithoutResponsavel);
-    }
-  }
-  return q;
-}
-
 export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const [stats, setStats] = useState<DistribuicaoTstStats>(ZERO);
   const [loading, setLoading] = useState(false);
@@ -147,104 +57,41 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const UNASSIGNED = "__sem_responsavel__";
-      const respIds = filters.responsavelIds || [];
-      const wantsUnassigned = respIds.includes(UNASSIGNED);
-      const realRespIds = respIds.filter(id => id !== UNASSIGNED);
-
-      let idsWithoutResponsavel: string[] | null = null;
-      // Sempre buscamos o conjunto global de IDs sem responsável para que
-      // (1) o filtro "sem responsável" funcione e (2) o totalizador respeite
-      // o escopo dos demais filtros aplicados.
-      let semRespSet: Set<string> = new Set();
-      try {
-        const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
-        if (!error) {
-          const ids = ((data as any[]) || []).map((r: any) => String(r.id));
-          semRespSet = new Set(ids);
-          if (wantsUnassigned) idsWithoutResponsavel = ids;
-        } else if (wantsUnassigned) {
-          idsWithoutResponsavel = [];
-        }
-      } catch {
-        if (wantsUnassigned) idsWithoutResponsavel = [];
+      const { data, error } = await supabase.rpc(
+        "get_distribuicao_tst_stats" as any,
+        { filters: filters as any }
+      );
+      if (error) {
+        setStats(ZERO);
+        return;
       }
-
-      // Pagina todos os registros do escopo filtrado para calcular cada métrica.
-      const FETCH_SIZE = 1000;
-      const acc: DistribuicaoTstStats = { ...ZERO };
-      const processosSet = new Set<string>();
-
-      // Quando filtramos por "sem responsável" e a lista de IDs é grande,
-      // dividimos em chunks de 200 para não estourar a URL.
-      const idChunks: (string[] | null)[] = (() => {
-        if (!wantsUnassigned || !idsWithoutResponsavel) return [null];
-        if (idsWithoutResponsavel.length === 0) return [[]];
-        const CHUNK = 200;
-        const out: string[][] = [];
-        for (let i = 0; i < idsWithoutResponsavel.length; i += CHUNK) {
-          out.push(idsWithoutResponsavel.slice(i, i + CHUNK));
-        }
-        return out;
-      })();
-
-      let aborted = false;
-      for (const chunk of idChunks) {
-        if (aborted) break;
-        let offset = 0;
-        while (true) {
-          const { data, error } = await baseQuery(filters, realRespIds, chunk).range(offset, offset + FETCH_SIZE - 1);
-        if (error) {
-          aborted = true;
-          break;
-        }
-        const rows = (data as any[]) || [];
-        for (const r of rows) {
-          acc.total++;
-          // Processo válido / inválido (CNJ)
-          const proc = String(r.processo || "").trim();
-          if (proc) processosSet.add(proc.toLowerCase());
-          if (proc && CNJ_REGEX.test(proc)) acc.processosValidos++;
-          else acc.processosInvalidos++;
-          // Dossiê
-          const dos = String(r.dossie || "").trim();
-          if (!dos) acc.dossiesNaoPreenchidos++;
-          else if (/^\d{2}\.\d{2}\.\d{3}\.\d{7,}\/\d{2}$/.test(dos)) acc.dossiesValidos++;
-          else acc.dossiesInvalidos++;
-          // Judit
-          if (r.judit_preenchido) acc.juditPreenchido++;
-          else acc.juditNaoPreenchido++;
-          // Benner
-          if (r.benner_atualizado) acc.bennerSim++;
-          else acc.bennerNao++;
-          // Processos Ativos
-          const situacao = String(r.situacao_processo || "").trim().toLowerCase();
-          const isTransito = r.transito_julgado === true || situacao.includes("trânsito em julgado") || situacao.includes("transito em julgado");
-          if (isTransito) acc.transitoJulgado++;
-          else if (situacao === "ativo") acc.processosAtivos++;
-          else acc.outrosSituacao++;
-          // Sem Turma
-          const turma = String(r.turma || "").trim();
-          if (!turma) acc.semTurma++;
-          if (r.problema_judit) acc.problemaJudit++;
-          // Pronto para Enviar
-          if (String(r.status || "") === "pronto_envio") acc.prontoEnvio++;
-          // Sem responsável (respeita filtros vigentes)
-          if (semRespSet.has(String(r.id))) acc.semResponsavel++;
-          // Faixa por ano de distribuição
-          const dd = String(r.data_distribuicao_planilha || "").slice(0, 10);
-          if (dd) {
-            if (dd <= "2025-12-31") acc.ate2025++;
-            else if (dd >= "2026-01-01") acc.de2026++;
-          }
-        }
-        if (rows.length < FETCH_SIZE) break;
-        offset += FETCH_SIZE;
-        }
+      const row: any = Array.isArray(data) ? data[0] : data;
+      if (!row) {
+        setStats(ZERO);
+        return;
       }
-      acc.processosUnicos = processosSet.size;
-
-      setStats(acc);
+      setStats({
+        total: Number(row.total) || 0,
+        processosUnicos: Number(row.processos_unicos) || 0,
+        processosValidos: Number(row.processos_validos) || 0,
+        processosInvalidos: Number(row.processos_invalidos) || 0,
+        dossiesValidos: Number(row.dossies_validos) || 0,
+        dossiesInvalidos: Number(row.dossies_invalidos) || 0,
+        dossiesNaoPreenchidos: Number(row.dossies_nao_preenchidos) || 0,
+        juditPreenchido: Number(row.judit_preenchido) || 0,
+        juditNaoPreenchido: Number(row.judit_nao_preenchido) || 0,
+        bennerSim: Number(row.benner_sim) || 0,
+        bennerNao: Number(row.benner_nao) || 0,
+        processosAtivos: Number(row.processos_ativos) || 0,
+        transitoJulgado: Number(row.transito_julgado) || 0,
+        outrosSituacao: Number(row.outros_situacao) || 0,
+        semTurma: Number(row.sem_turma) || 0,
+        problemaJudit: Number(row.problema_judit) || 0,
+        ate2025: Number(row.ate_2025) || 0,
+        de2026: Number(row.de_2026) || 0,
+        prontoEnvio: Number(row.pronto_envio) || 0,
+        semResponsavel: Number(row.sem_responsavel) || 0,
+      });
     } finally {
       setLoading(false);
     }
