@@ -6,6 +6,7 @@ interface GerarRelatorioParams {
   monitoramentos: MonitoramentoDjen[];
   filtrosDescricao?: string[];
   tituloCoordenacao?: string;
+  incluirInativos?: boolean;
 }
 
 const NAVY: [number, number, number] = [26, 42, 71];
@@ -20,6 +21,13 @@ const TIPO_LABEL: Record<string, string> = {
   "palavra-chave": "Palavra-chave",
   advogado: "Advogado",
   processo: "Processo",
+};
+
+const TIPO_ORDEM: Record<string, number> = {
+  parte: 1,
+  advogado: 2,
+  "palavra-chave": 3,
+  processo: 4,
 };
 
 const SEM_TRIBUNAL = "__SEM_TRIBUNAL__";
@@ -58,15 +66,19 @@ export function gerarRelatorioTermosDjenPorTribunal({
   monitoramentos,
   filtrosDescricao = [],
   tituloCoordenacao,
+  incluirInativos = false,
 }: GerarRelatorioParams) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const agora = new Date();
 
+  // Filtra inativos quando não solicitados explicitamente
+  const fonte = incluirInativos ? monitoramentos : monitoramentos.filter((m) => m.ativo);
+
   // Agrupa por tribunal — um termo pode aparecer em vários tribunais
   const grupos = new Map<string, MonitoramentoDjen[]>();
-  for (const m of monitoramentos) {
+  for (const m of fonte) {
     const tribs = asArray(m.tribunais);
     if (tribs.length === 0) {
       const arr = grupos.get(SEM_TRIBUNAL) || [];
@@ -95,7 +107,7 @@ export function gerarRelatorioTermosDjenPorTribunal({
     doc.text("JURIS CONTROL", 15, 8);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text("Relatório de Termos DJEN — por Tribunal", 15, 14);
+    doc.text("Termos DJEN por Tribunal — referência para comunica.pje", 15, 14);
     doc.text(formatarData(agora), pageWidth - 15, 11, { align: "right" });
 
     doc.setDrawColor(...BORDER);
@@ -113,7 +125,7 @@ export function gerarRelatorioTermosDjenPorTribunal({
   doc.setTextColor(...NAVY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("Relatório de Termos DJEN por Tribunal", pageWidth / 2, cursorY, { align: "center" });
+  doc.text("Termos DJEN por Tribunal", pageWidth / 2, cursorY, { align: "center" });
   cursorY += 7;
   doc.setTextColor(...SLATE);
   doc.setFont("helvetica", "normal");
@@ -122,7 +134,17 @@ export function gerarRelatorioTermosDjenPorTribunal({
     ? `${tituloCoordenacao} • Emitido em ${formatarData(agora)}`
     : `Emitido em ${formatarData(agora)}`;
   doc.text(subtitulo, pageWidth / 2, cursorY, { align: "center" });
-  cursorY += 10;
+  cursorY += 5;
+  doc.setFontSize(8.5);
+  doc.text(
+    incluirInativos
+      ? "Inclui termos pausados (marcados como Inativo)."
+      : "Apenas termos ativos. Use a sigla do tribunal para localizar a seção.",
+    pageWidth / 2,
+    cursorY,
+    { align: "center" },
+  );
+  cursorY += 8;
 
   if (filtrosDescricao.length > 0) {
     doc.setFillColor(248, 250, 252);
@@ -141,136 +163,136 @@ export function gerarRelatorioTermosDjenPorTribunal({
     cursorY += 12 + filtrosDescricao.length * 4.5 + 4;
   }
 
-  // Resumo: termos por tribunal
+  // Índice compacto: sigla — N termos
   doc.setTextColor(...NAVY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Resumo por tribunal", 15, cursorY);
-  cursorY += 4;
+  doc.text("Índice de tribunais", 15, cursorY);
+  cursorY += 5;
 
-  autoTable(doc, {
-    startY: cursorY,
-    head: [["Tribunal", "Termos", "Ativos", "Inativos"]],
-    body: tribunaisOrdenados.map((t) => {
-      const lista = grupos.get(t) || [];
-      const ativos = lista.filter((m) => m.ativo).length;
-      const inativos = lista.length - ativos;
-      const label = t === SEM_TRIBUNAL ? "Sem tribunal definido (todos)" : t;
-      return [label, String(lista.length), String(ativos), String(inativos)];
-    }),
-    margin: { left: 15, right: 15, top: 22, bottom: 15 },
-    styles: {
-      font: "helvetica",
-      fontSize: 8.5,
-      cellPadding: 1.6,
-      textColor: TEXT_DARK,
-      lineColor: BORDER,
-      lineWidth: 0.2,
-    },
-    headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9, halign: "center" },
-    alternateRowStyles: { fillColor: ROW_ALT },
-    columnStyles: {
-      0: { cellWidth: 80, fontStyle: "bold" },
-      1: { cellWidth: 30, halign: "center" },
-      2: { cellWidth: 30, halign: "center" },
-      3: { cellWidth: 30, halign: "center" },
-    },
-    didDrawPage: () => drawHeaderFooter(doc.getNumberOfPages()),
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...TEXT_DARK);
+  const indiceItems = tribunaisOrdenados.map((t) => {
+    const lista = grupos.get(t) || [];
+    const label = t === SEM_TRIBUNAL ? "Sem tribunal (todos)" : t;
+    return `${label} — ${lista.length}`;
+  });
+  const colCount = 5;
+  const colWidth = (pageWidth - 30) / colCount;
+  const lineH = 5;
+  indiceItems.forEach((txt, i) => {
+    const col = i % colCount;
+    const row = Math.floor(i / colCount);
+    doc.text(txt, 15 + col * colWidth, cursorY + row * lineH);
   });
 
   // Uma seção por tribunal, cada uma em página nova
   for (const tribunal of tribunaisOrdenados) {
-    const lista = (grupos.get(tribunal) || []).slice().sort((a, b) => {
-      const da = (a.descricao || "").trim().toLowerCase();
-      const db = (b.descricao || "").trim().toLowerCase();
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return da.localeCompare(db, "pt-BR");
+    const todosDoTrib = (grupos.get(tribunal) || []).slice().sort((a, b) => {
+      const ta = TIPO_ORDEM[a.tipo || ""] || 99;
+      const tb = TIPO_ORDEM[b.tipo || ""] || 99;
+      if (ta !== tb) return ta - tb;
+      const va = (a.termo_busca || a.descricao || "").trim().toLowerCase();
+      const vb = (b.termo_busca || b.descricao || "").trim().toLowerCase();
+      return va.localeCompare(vb, "pt-BR");
     });
+    const ativos = todosDoTrib.filter((m) => m.ativo);
+    const inativos = todosDoTrib.filter((m) => !m.ativo);
 
     doc.addPage();
     drawHeaderFooter(doc.getNumberOfPages());
 
-    const titulo = tribunal === SEM_TRIBUNAL ? "Sem tribunal definido (aplica a todos)" : tribunal;
+    const titulo = tribunal === SEM_TRIBUNAL ? "Sem tribunal definido" : tribunal;
     let y = 28;
     doc.setTextColor(...NAVY);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(20);
     doc.text(titulo, 15, y);
+    if (tribunal !== SEM_TRIBUNAL) {
+      doc.setFontSize(9);
+      doc.setTextColor(...SLATE);
+      doc.setFont("helvetica", "normal");
+      doc.text("Use estes termos no comunica.pje filtrando por este tribunal", 15, y + 6);
+    } else {
+      doc.setFontSize(9);
+      doc.setTextColor(...SLATE);
+      doc.setFont("helvetica", "normal");
+      doc.text("Estes termos são aplicados a todos os tribunais.", 15, y + 6);
+    }
     doc.setTextColor(...SLATE);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    const ativos = lista.filter((m) => m.ativo).length;
-    doc.text(`${lista.length} termo(s) — ${ativos} ativo(s) / ${lista.length - ativos} inativo(s)`, 15, y + 5);
-    y += 10;
+    doc.text(
+      `${ativos.length} termo(s) ativo(s)${inativos.length && incluirInativos ? ` • ${inativos.length} inativo(s)` : ""}`,
+      15,
+      y + 11,
+    );
+    y += 16;
 
-    const body = lista.map((d) => {
-      const exclusoes = asArray(d.exclusoes);
-      const termosOr = asArray(d.termos_or);
-      const tipoLabel = TIPO_LABEL[d.tipo || ""] || d.tipo || "—";
-      const oabFmt = d.oab ? `${d.oab}${d.uf ? "/" + d.uf : ""}` : "—";
-      const concomitante = (d.condicao_concomitante || "").trim() || "—";
-      return [
-        (d.descricao || "—").trim(),
-        tipoLabel,
-        (d.termo_busca || "—").trim(),
-        termosOr.length ? termosOr.join(" | ") : "—",
-        concomitante,
-        exclusoes.length ? exclusoes.join(", ") : "—",
-        oabFmt,
-        d.ativo ? "Ativo" : "Inativo",
-      ];
-    });
+    const buildBody = (rows: MonitoramentoDjen[]) =>
+      rows.map((d) => {
+        const exclusoes = asArray(d.exclusoes);
+        const termosOr = asArray(d.termos_or);
+        const tipoLabel = TIPO_LABEL[d.tipo || ""] || d.tipo || "—";
+        const concomitante = (d.condicao_concomitante || "").trim();
+        const refLines: string[] = [];
+        if (termosOr.length) refLines.push(`OR: ${termosOr.join(" | ")}`);
+        if (concomitante) refLines.push(`Concomitante: ${concomitante}`);
+        if (exclusoes.length) refLines.push(`Excluir: ${exclusoes.join(", ")}`);
+        if (d.oab) refLines.push(`OAB: ${d.oab}${d.uf ? "/" + d.uf : ""}`);
+        return [
+          (d.termo_busca || "—").trim(),
+          tipoLabel,
+          (d.descricao || "—").trim(),
+          refLines.length ? refLines.join("\n") : "—",
+        ];
+      });
 
-    autoTable(doc, {
-      startY: y,
-      head: [[
-        "Descrição",
-        "Tipo",
-        "Termo de busca",
-        "Termos OR",
-        "Cond. concomitante",
-        "Exclusões",
-        "OAB/UF",
-        "Status",
-      ]],
-      body,
+    const tableOptions = {
       margin: { left: 10, right: 10, top: 22, bottom: 15 },
       styles: {
         font: "helvetica",
-        fontSize: 7.5,
-        cellPadding: 1.8,
+        fontSize: 9,
+        cellPadding: 2.2,
         textColor: TEXT_DARK,
         lineColor: BORDER,
         lineWidth: 0.2,
-        valign: "top",
-        overflow: "linebreak",
+        valign: "top" as const,
+        overflow: "linebreak" as const,
       },
-      headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8, halign: "center" },
+      headStyles: { fillColor: NAVY, textColor: [255, 255, 255] as [number, number, number], fontStyle: "bold" as const, fontSize: 9.5, halign: "center" as const },
       alternateRowStyles: { fillColor: ROW_ALT },
       columnStyles: {
-        0: { cellWidth: 55, fontStyle: "bold" },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 45 },
-        3: { cellWidth: 40 },
-        4: { cellWidth: 38 },
-        5: { cellWidth: 45 },
-        6: { cellWidth: 22 },
-        7: { cellWidth: "auto", halign: "center" },
-      },
-      didParseCell: (data) => {
-        if (data.section === "body") {
-          const row = lista[data.row.index];
-          if (row && !row.ativo) {
-            if (data.column.index === 0 || data.column.index === 2 || data.column.index === 7) {
-              data.cell.styles.textColor = [185, 28, 28];
-            }
-          }
-        }
+        0: { cellWidth: 95, fontStyle: "bold" as const, fontSize: 10 },
+        1: { cellWidth: 28, halign: "center" as const },
+        2: { cellWidth: 70 },
+        3: { cellWidth: "auto" as const, fontSize: 8 },
       },
       didDrawPage: () => drawHeaderFooter(doc.getNumberOfPages()),
+    };
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Termo de busca", "Tipo", "Descrição", "Refinamentos"]],
+      body: buildBody(ativos),
+      ...tableOptions,
     });
+
+    if (incluirInativos && inativos.length > 0) {
+      const lastY = (doc as any).lastAutoTable?.finalY || y;
+      doc.setTextColor(...SLATE);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("Termos pausados", 15, lastY + 8);
+      autoTable(doc, {
+        startY: lastY + 11,
+        head: [["Termo de busca", "Tipo", "Descrição", "Refinamentos"]],
+        body: buildBody(inativos),
+        ...tableOptions,
+        styles: { ...tableOptions.styles, textColor: [120, 120, 120] as [number, number, number] },
+      });
+    }
   }
 
   const fileName = `Termos_DJEN_PorTribunal_${(tituloCoordenacao || "Relatorio")

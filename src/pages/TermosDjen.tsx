@@ -294,6 +294,7 @@ export default function TermosDjen() {
         monitoramentos: monitoramentosFiltrados,
         filtrosDescricao: filtrosDesc,
         tituloCoordenacao: tituloCoord,
+        incluirInativos: statusFiltro !== "ativo",
       });
       toast.success("Relatório por tribunal gerado com sucesso");
     } catch (e: any) {
