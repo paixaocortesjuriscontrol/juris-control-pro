@@ -210,6 +210,10 @@ export default function DistribuicaoTst() {
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
+  // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
+  const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
+  const { counts: responsavelCounts } = useResponsaveisCounts(countsFilters);
+
   // Limpa o sticky se o usuário mexer em filtros, página ou recarregar.
   // (Mantemos o sticky apenas para o fluxo "salvou e voltou".)
   useEffect(() => {
