@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Info, SplitSquareHorizontal } from "lucide-react";
+import { X, Plus, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { normalizeTribunais } from "@/utils/djenTribunais";
@@ -596,7 +596,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                     />
                     <label htmlFor="criar-termos-or-separados" className="cursor-pointer space-y-1 text-sm leading-none">
                       <span className="flex items-center gap-2 font-medium">
-                        <SplitSquareHorizontal className="h-4 w-4" />
+                        <Plus className="h-4 w-4" />
                         Criar cada palavra-chave como novo termo por polo passivo ou ativo
                       </span>
                       <span className="block text-xs text-muted-foreground">
