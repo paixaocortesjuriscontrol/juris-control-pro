@@ -622,25 +622,29 @@ const AnaliseDjen = () => {
     enabled: !!coordenacaoFiltroEfetivo,
   });
 
-  // Lista de tribunais disponíveis nos termos da coordenação selecionada
+  // Lista de tribunais disponíveis: apenas os que realmente aparecem
+  // nas publicações da coordenação selecionada (extraídos do campo
+  // `tribunal` ou `fonte` de cada publicação carregada).
   const tribunaisDisponiveis = useMemo(() => {
     const set = new Set<string>();
-    (monitoramentos as any[]).forEach((m) => {
-      const tribs = Array.isArray(m.tribunais) ? m.tribunais : [];
-      tribs.forEach((t: string) => {
-        const v = (t || "").toString().trim().toUpperCase();
-        if (v) set.add(v);
-      });
+    const re = /\b(TST|STF|STJ|TRT\d{1,2}|TRF\d|TJ[A-Z]{2})\b/g;
+    (mergedPublicacoes as any[]).forEach((p) => {
+      const raw = `${p.tribunal || ""} ${p.fonte || ""}`.toUpperCase();
+      const matches = raw.match(re);
+      if (matches) matches.forEach((m) => set.add(m));
     });
     return Array.from(set).sort((a, b) => {
-      const numA = a.match(/\d+/)?.[0];
-      const numB = b.match(/\d+/)?.[0];
       if (a === 'TST') return -1;
       if (b === 'TST') return 1;
+      const numA = a.match(/\d+/)?.[0];
+      const numB = b.match(/\d+/)?.[0];
+      const prefixA = a.replace(/\d+/, '');
+      const prefixB = b.replace(/\d+/, '');
+      if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
       if (numA && numB) return Number(numA) - Number(numB);
       return a.localeCompare(b);
     });
-  }, [monitoramentos]);
+  }, [mergedPublicacoes]);
 
   const toggleSelect = (id: string, tipo: TipoOrigemPublicacao) => {
     const newSelected = new Map<string, TipoOrigemPublicacao>(selectedIds);
