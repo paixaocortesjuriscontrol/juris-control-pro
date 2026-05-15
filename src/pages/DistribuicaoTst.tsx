@@ -385,6 +385,10 @@ export default function DistribuicaoTst() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!isAdminOrCoordinator) {
+      toast.error("Apenas administradores ou coordenadores podem excluir processos. Fale com o coordenador ou administrador da coordenação.");
+      return;
+    }
     if (confirm("Excluir esta distribuição?")) {
       await deleteDado(id);
       fetchTabsData();
