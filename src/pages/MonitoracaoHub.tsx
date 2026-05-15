@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { Newspaper, Radar, RefreshCw, FileWarning, Globe } from "lucide-react";
+import { Newspaper, Radar, RefreshCw, FileWarning, Globe, FileSearch } from "lucide-react";
 
 const monitoracaoCards = [
   {
@@ -38,6 +38,13 @@ const monitoracaoCards = [
     icon: RefreshCw,
     path: "/redistribuicoes",
     color: "from-rose-500 to-rose-600",
+  },
+  {
+    title: "Buscar DJ Estadual",
+    description: "Indexe e pesquise diários de justiça estaduais (TJMG e outros) que não são cobertos pelo DJEN",
+    icon: FileSearch,
+    path: "/buscar-dj-estadual",
+    color: "from-amber-500 to-amber-600",
   },
 ];
 
