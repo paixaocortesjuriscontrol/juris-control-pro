@@ -349,6 +349,18 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
 
     if (monitoramento) {
       await atualizarMonitoramento.mutateAsync({ id: monitoramento.id, ...dados });
+    } else if (criarTermosOrSeparados && tipo !== 'advogado' && termosOrFinal.length > 0) {
+      const termosSeparados = Array.from(new Set([termoBusca, ...termosOrFinal].map((t) => t.trim()).filter(Boolean)));
+      await criarMonitoramentosEmLote.mutateAsync(
+        termosSeparados.map((termo) => ({
+          ...dados,
+          tipo: 'parte' as const,
+          termo_busca: termo,
+          descricao: descricao ? `${descricao} - ${termo}` : `PARTE - ${termo}`,
+          condicao_concomitante: undefined,
+          termos_or: undefined,
+        }))
+      );
     } else {
       await criarMonitoramento.mutateAsync(dados);
     }
@@ -367,7 +379,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {monitoramento
+              {monitoramento
               ? 'Editar Monitoramento'
               : duplicateFrom
                 ? 'Duplicar Monitoramento DJEN'
@@ -572,6 +584,25 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                         </button>
                       </Badge>
                     ))}
+                  </div>
+                )}
+
+                {!monitoramento && tipo !== 'advogado' && termosOr.length > 0 && (
+                  <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+                    <Checkbox
+                      id="criar-termos-or-separados"
+                      checked={criarTermosOrSeparados}
+                      onCheckedChange={(checked) => setCriarTermosOrSeparados(Boolean(checked))}
+                    />
+                    <label htmlFor="criar-termos-or-separados" className="cursor-pointer space-y-1 text-sm leading-none">
+                      <span className="flex items-center gap-2 font-medium">
+                        <SplitSquareHorizontal className="h-4 w-4" />
+                        Criar cada palavra-chave como novo termo por polo passivo ou ativo
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Gera um monitoramento separado do tipo parte para o termo principal e cada item acima.
+                      </span>
+                    </label>
                   </div>
                 )}
               </div>
