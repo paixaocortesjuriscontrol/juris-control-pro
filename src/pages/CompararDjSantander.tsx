@@ -294,6 +294,7 @@ export default function CompararDjSantander() {
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDateFim, setSelectedDateFim] = useState<Date | undefined>(undefined);
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
@@ -372,7 +373,7 @@ export default function CompararDjSantander() {
 
   const handleBuscarDjen = async () => {
     if (!selectedCoordenacao || !selectedDate) {
-      toast.error("Selecione a coordenação e a data");
+      toast.error("Selecione a coordenação e a data de início");
       return;
     }
     setLoadingDjen(true);
@@ -380,10 +381,12 @@ export default function CompararDjSantander() {
     setDjenProcessos([]);
     setResult(null);
     try {
-      // Format date for query - data_disponibilizacao is stored as timestamptz
-      const dateStr = format(selectedDate, "yyyy-MM-dd");
-      const startOfDay = `${dateStr}T00:00:00.000Z`;
-      const endOfDay = `${dateStr}T23:59:59.999Z`;
+      // Format date range for query - data_disponibilizacao is stored as timestamptz
+      const dataFim = selectedDateFim ?? selectedDate;
+      const inicioStr = format(selectedDate, "yyyy-MM-dd");
+      const fimStr = format(dataFim, "yyyy-MM-dd");
+      const startOfDay = `${inicioStr}T00:00:00.000Z`;
+      const endOfDay = `${fimStr}T23:59:59.999Z`;
 
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
@@ -486,7 +489,7 @@ export default function CompararDjSantander() {
     : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
-    : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}`;
+    : `DJEN - ${coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || ""} - ${selectedDate ? format(selectedDate, "dd/MM/yyyy") : ""}${selectedDateFim && selectedDateFim.getTime() !== selectedDate?.getTime() ? ` a ${format(selectedDateFim, "dd/MM/yyyy")}` : ""}`;
 
 
 
@@ -605,7 +608,7 @@ export default function CompararDjSantander() {
 
               <TabsContent value="djen">
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
                       <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
@@ -620,7 +623,7 @@ export default function CompararDjSantander() {
                       </Select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Data Disponibilização</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
@@ -633,6 +636,26 @@ export default function CompararDjSantander() {
                             mode="single"
                             selected={selectedDate}
                             onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDateFim}
+                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
                             locale={ptBR}
                             className="p-3 pointer-events-auto"
                           />
@@ -662,7 +685,7 @@ export default function CompararDjSantander() {
                   <p className="text-xs text-muted-foreground">
                     Compara os processos extraídos dos títulos do PDF do diário oficial com as publicações DJEN da base.
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
                       <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
@@ -677,7 +700,7 @@ export default function CompararDjSantander() {
                       </Select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Data Disponibilização</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
@@ -690,6 +713,26 @@ export default function CompararDjSantander() {
                             mode="single"
                             selected={selectedDate}
                             onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDateFim}
+                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
                             locale={ptBR}
                             className="p-3 pointer-events-auto"
                           />
