@@ -167,6 +167,35 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
     },
   });
 
+  const criarMonitoramentosEmLote = useMutation({
+    mutationFn: async (lista: Omit<MonitoramentoDjen, 'id' | 'criado_por' | 'created_at' | 'updated_at' | 'ativo'>[]) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      if (lista.length === 0) return [];
+
+      const payload = lista.map((dados) => ({
+        ...dados,
+        tribunais: normalizeTribunais(dados.tribunais) ?? null,
+        criado_por: user.id,
+        ativo: true,
+      }));
+
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .insert(payload)
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
+      toast.success(`${data?.length || 0} monitoramentos criados com sucesso!`);
+    },
+    onError: (error) => {
+      toast.error(`Erro ao criar monitoramentos: ${error.message}`);
+    },
+  });
+
   const atualizarMonitoramento = useMutation({
     mutationFn: async ({ id, ...dados }: Partial<MonitoramentoDjen> & { id: string }) => {
       const payload = {
@@ -300,6 +329,7 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
     loadingDescartadas,
     loadingContagens,
     criarMonitoramento,
+    criarMonitoramentosEmLote,
     atualizarMonitoramento,
     excluirMonitoramento,
     marcarPublicacaoLida,
