@@ -321,7 +321,11 @@ export async function buscarPjeComunicaNoBrowser(
     const oab = String(params.oab || "").replace(/\D/g, "").trim();
     const ufRaw = params.uf ?? "";
     const uf = String(ufRaw).trim().toUpperCase();
-    const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
+    // A API do PJE Comunica aceita UMA única UF em `ufOab`.
+    // Listas separadas por vírgula (ex: "DF,MT,RO,...") fazem a API ignorar/zerar
+    // o filtro. Tratamos esses casos como cross-UF (apenas nomeAdvogado).
+    const ufUnica = uf && !uf.includes(",");
+    const ufValida = ufUnica && uf !== "TODAS" && uf !== "UNDEFINED";
 
     if (ufValida && oab) {
       // UF específica: busca por OAB/UF + nomeAdvogado para cobertura máxima
@@ -334,7 +338,7 @@ export async function buscarPjeComunicaNoBrowser(
         console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${normalizeAccents(nomeAdvogado)}`);
       }
     } else if (oab && nomeAdvogado) {
-      // UF "TODAS" ou sem UF: enviar APENAS nomeAdvogado (sem numeroOab).
+      // UF "TODAS", lista de UFs ou sem UF: enviar APENAS nomeAdvogado (sem numeroOab).
       // CRÍTICO: Adicionar numeroOab junto com nomeAdvogado ALTERA os resultados da API,
       // fazendo publicações desaparecerem. A URL que funciona no portal oficial usa
       // APENAS nomeAdvogado (ex: ?nomeAdvogado=OSMAR+MENDES+PAIXAO+CORTES&siglaTribunal=TST)
@@ -515,7 +519,8 @@ export async function buscarPjeComunicaNoBrowser(
       const oab = String(params.oab || "").replace(/\D/g, "").trim();
       const ufRaw = params.uf ?? "";
       const uf = String(ufRaw).trim().toUpperCase();
-      const ufValida = uf && uf !== "TODAS" && uf !== "UNDEFINED";
+      const ufUnica = uf && !uf.includes(",");
+      const ufValida = ufUnica && uf !== "TODAS" && uf !== "UNDEFINED";
       const nome = nomeAdvogado;
 
       // UF=TODAS já usa a URL oficial cross-UF por nomeAdvogado.
