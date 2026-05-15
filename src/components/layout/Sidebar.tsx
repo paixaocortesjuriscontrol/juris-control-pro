@@ -52,6 +52,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true },
+  { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true },
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Clock, label: "Prazos Fatais", path: "/tst-prazos", highlight: true },
   { icon: Calendar, label: "Audiências", path: "/painel-audiencias", highlight: true },
@@ -66,7 +67,6 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
   { icon: ShieldCheck, label: "Classificação TST", path: "/classificacao-tst", color: "text-sky-400" },
-  { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", color: "text-sky-400" },
   { icon: FileText, label: "Corrigir Planilha", path: "/corrigir-planilha", color: "text-sky-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -100,8 +100,8 @@ export function Sidebar() {
   const { isAdminOrCoordinator, role } = useUserRole();
   const isAdvogadoTemporario = role === "advogado_temporario";
 
-  // Advogado Temporário só vê Análise DJEN e Termos DJEN
-  const allowedForTemporario = new Set(["/analise-djen", "/termos-djen"]);
+  // Advogado Temporário (perfil de conferência) vê Análise DJEN, Termos DJEN e Comparar DJEN
+  const allowedForTemporario = new Set(["/analise-djen", "/termos-djen", "/comparar-dj-santander"]);
 
   const visiblePublicos = isAdvogadoTemporario
     ? menuItemsPublicos.filter((item) => allowedForTemporario.has(item.path))
