@@ -6750,6 +6750,31 @@ export type Database = {
         }[]
       }
       get_dashboard_stats: { Args: never; Returns: Json }
+      get_distribuicao_tst_stats: {
+        Args: { filters?: Json }
+        Returns: {
+          ate_2025: number
+          benner_nao: number
+          benner_sim: number
+          de_2026: number
+          dossies_invalidos: number
+          dossies_nao_preenchidos: number
+          dossies_validos: number
+          judit_nao_preenchido: number
+          judit_preenchido: number
+          outros_situacao: number
+          problema_judit: number
+          processos_ativos: number
+          processos_invalidos: number
+          processos_unicos: number
+          processos_validos: number
+          pronto_envio: number
+          sem_responsavel: number
+          sem_turma: number
+          total: number
+          transito_julgado: number
+        }[]
+      }
       get_djen_publicacoes_unificadas: {
         Args: {
           p_apenas_nao_lidas?: boolean
