@@ -294,6 +294,7 @@ export default function CompararDjSantander() {
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDateFim, setSelectedDateFim] = useState<Date | undefined>(undefined);
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
@@ -372,7 +373,7 @@ export default function CompararDjSantander() {
 
   const handleBuscarDjen = async () => {
     if (!selectedCoordenacao || !selectedDate) {
-      toast.error("Selecione a coordenação e a data");
+      toast.error("Selecione a coordenação e a data de início");
       return;
     }
     setLoadingDjen(true);
@@ -380,10 +381,12 @@ export default function CompararDjSantander() {
     setDjenProcessos([]);
     setResult(null);
     try {
-      // Format date for query - data_disponibilizacao is stored as timestamptz
-      const dateStr = format(selectedDate, "yyyy-MM-dd");
-      const startOfDay = `${dateStr}T00:00:00.000Z`;
-      const endOfDay = `${dateStr}T23:59:59.999Z`;
+      // Format date range for query - data_disponibilizacao is stored as timestamptz
+      const dataFim = selectedDateFim ?? selectedDate;
+      const inicioStr = format(selectedDate, "yyyy-MM-dd");
+      const fimStr = format(dataFim, "yyyy-MM-dd");
+      const startOfDay = `${inicioStr}T00:00:00.000Z`;
+      const endOfDay = `${fimStr}T23:59:59.999Z`;
 
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
