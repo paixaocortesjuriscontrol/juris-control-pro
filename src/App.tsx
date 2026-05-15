@@ -24,6 +24,7 @@ import Prazos from "./pages/Prazos";
 import Documentos from "./pages/Documentos";
 import BuscarDJEN from "./pages/BuscarDJEN";
 import BuscarPJE from "./pages/BuscarPJE";
+import BuscarDjEstadual from "./pages/BuscarDjEstadual";
 import NotFound from "./pages/NotFound";
 import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
