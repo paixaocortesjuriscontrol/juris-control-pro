@@ -315,6 +315,10 @@ export default function DistribuicaoTst() {
     setFiltroResponsavelIds([]);
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
+    // Reseta filtro "sem responsável" ao alternar cards
+    if (key === "semResponsavel" || isActive) {
+      setFiltroResponsavelIds([]);
+    }
     setSelectedIds(new Set());
   };
 
