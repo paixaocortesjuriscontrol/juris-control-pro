@@ -1271,20 +1271,20 @@ async function _processarTermoFlashInterno(
   }
   const pubsUnicas = Array.from(hashMap.values());
   
-  // Verificar duplicatas no banco
-  const monitoramentoDestinoIds = Array.from(new Set(pubsUnicas.map((p: any) => p._rescuedToMonitoramentoId || mon.id)));
+  // Verificar duplicatas no banco (dedup por coordenacao_id + hash_conteudo)
+  const coordenacaoId = (mon as any).coordenacao_id || null;
   const hashes = pubsUnicas.map(p => p.hash_conteudo);
   let existentes = new Set<string>();
-  if (hashes.length > 0 && monitoramentoDestinoIds.length > 0) {
+  if (hashes.length > 0 && coordenacaoId) {
     const { data } = await supabase
       .from('publicacoes_djen')
-      .select('monitoramento_id, hash_conteudo')
-      .in('monitoramento_id', monitoramentoDestinoIds)
+      .select('hash_conteudo')
+      .eq('coordenacao_id', coordenacaoId)
       .in('hash_conteudo', hashes);
-    existentes = new Set((data || []).map(d => `${d.monitoramento_id}|${d.hash_conteudo}`));
+    existentes = new Set((data || []).map(d => d.hash_conteudo));
   }
-  
-  const novas = pubsUnicas.filter((p: any) => !existentes.has(`${p._rescuedToMonitoramentoId || mon.id}|${p.hash_conteudo}`));
+
+  const novas = pubsUnicas.filter((p: any) => !existentes.has(p.hash_conteudo));
   const duplicadasBanco = pubsUnicas.length - novas.length;
   
   const dedupHashLocal = pubsValidas.length - pubsUnicas.length;
@@ -1309,6 +1309,7 @@ async function _processarTermoFlashInterno(
       
       return {
         monitoramento_id: pub._rescuedToMonitoramentoId || mon.id,
+        coordenacao_id: coordenacaoId,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo || null,
         conteudo: conteudoFormatado,
@@ -1327,7 +1328,7 @@ async function _processarTermoFlashInterno(
     
     const { error: upsertError, data: upsertData } = await supabase
       .from('publicacoes_djen')
-      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
+      .upsert(payload, { onConflict: 'coordenacao_id,hash_conteudo', ignoreDuplicates: true })
       .select('id, processo_numero');
     if (upsertError) {
       console.error(`[DJEN Flash] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);

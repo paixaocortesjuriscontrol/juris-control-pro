@@ -1202,7 +1202,7 @@ async function processarTermoEmTribunal(
         for (const row of lote) {
           const { error: oneErr } = await supabase
             .from('publicacoes_djen')
-            .upsert(row, { onConflict: 'monitoramento_id,hash_conteudo' });
+            .upsert(row, { onConflict: 'coordenacao_id,hash_conteudo' });
           if (oneErr) console.error(`[DJEN Paralela][${tribunal}] upsert individual error:`, oneErr);
           else inseridosCount += 1;
         }
