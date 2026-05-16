@@ -526,9 +526,60 @@ serve(async (req) => {
     if (ativosOrigem.length === 0 && passivosOrigem.length === 0) {
       collectByPersonType(Array.isArray(rdSelecionada?.parties) ? rdSelecionada.parties : []);
     }
-    // Último fallback: usa polo ACTIVE/PASSIVE da instância selecionada
-    const reclamanteFinal = ativosOrigem.length ? ativosOrigem.join(" / ") : (poloAtivo || null);
-    const reclamadaFinal = passivosOrigem.length ? passivosOrigem.join(" / ") : (poloPassivo || null);
+
+    // ---------- Override Santander (cliente do escritório) ----------------
+    // O Banco Santander é SEMPRE reclamado. Se aparecer no polo "ativo" por
+    // falta de origem, removemos dali e movemos para passivo. Isso corrige o
+    // caso clássico onde o Banco recorre no TST (vira ACTIVE) e a origem não
+    // está disponível para desambiguar.
+    const todasPartes: any[] = Array.isArray(rdSelecionada?.parties) ? rdSelecionada.parties : [];
+    const santanderNomes: string[] = [];
+    for (const p of todasPartes) {
+      const tipo = String(p?.person_type || "").toUpperCase();
+      if (tipo === "ADVOGADO") continue;
+      const nome = String(p?.name || "").trim();
+      if (!nome) continue;
+      if (isSantanderCnpj(p?.main_document) || isSantanderNome(nome)) {
+        if (!santanderNomes.includes(nome)) santanderNomes.push(nome);
+      }
+    }
+    const removerSantander = (lista: string[]) =>
+      lista.filter((n) => !santanderNomes.some((s) => s.toUpperCase() === n.toUpperCase()));
+    const ativosLimpos = removerSantander(ativosOrigem);
+    const passivosComSantander = (() => {
+      const base = passivosOrigem.slice();
+      for (const s of santanderNomes) {
+        if (!base.some((n) => n.toUpperCase() === s.toUpperCase())) base.push(s);
+      }
+      return base;
+    })();
+    const poloAtivoLimpo = removerSantander(poloAtivo ? poloAtivo.split(/,\s*/) : []).join(", ");
+    const poloPassivoComSantander = (() => {
+      const arr = poloPassivo ? poloPassivo.split(/,\s*/).filter(Boolean) : [];
+      for (const s of santanderNomes) {
+        if (!arr.some((n) => n.toUpperCase() === s.toUpperCase())) arr.push(s);
+      }
+      return arr.join(", ");
+    })();
+
+    // Detecta cenário ambíguo: múltiplas partes ACTIVE no TST sem origem para
+    // desambiguar, OU origem ausente em geral. Marca para revisão humana.
+    const tstActiveCount = todasPartes.filter((p) => {
+      const pt = String(p?.person_type || "").toUpperCase();
+      const side = String(p?.side || "").toUpperCase();
+      return pt !== "ADVOGADO" && side === "ACTIVE";
+    }).length;
+    const origemAusente = origemPartiesArr.length === 0;
+    const litisconsorcio = tstActiveCount > 1;
+    const requerRevisaoPolo = origemAusente && (litisconsorcio || (foiTst && santanderNomes.length === 0));
+
+    // Último fallback: usa polo ACTIVE/PASSIVE da instância selecionada (já com Santander corrigido)
+    const reclamanteFinal = ativosLimpos.length
+      ? ativosLimpos.join(" / ")
+      : (poloAtivoLimpo || null);
+    const reclamadaFinal = passivosComSantander.length
+      ? passivosComSantander.join(" / ")
+      : (poloPassivoComSantander || null);
 
     // Data de distribuição = data em que o processo chegou no órgão atual (instância
     // selecionada). Quando temos a instância TST, isto corresponde à data em que o
