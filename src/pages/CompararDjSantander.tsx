@@ -677,10 +677,14 @@ export default function CompararDjSantander() {
     // Mapa id -> rótulo do termo (para exibir no detalhe)
     const monLabel = new Map<string, string>();
     monitoramentosConfig.forEach(m => {
-      const partes: string[] = [];
-      if (m.termo_busca) partes.push(m.termo_busca);
-      if (m.tipo === "advogado" && m.oab) partes.push(`OAB ${m.oab}${m.uf ? "/" + m.uf : ""}`);
-      monLabel.set(m.id, partes.join(" • ") || m.tipo);
+      const tipoUp = (m.tipo || "TERMO").toString().toUpperCase();
+      if (m.tipo === "advogado") {
+        const oabUf = [m.oab, m.uf].filter(Boolean).join("/");
+        const nome = m.termo_busca && m.termo_busca !== m.oab ? m.termo_busca : "";
+        monLabel.set(m.id, ["ADVOGADO", oabUf, nome].filter(Boolean).join(" + "));
+      } else {
+        monLabel.set(m.id, m.termo_busca ? `${tipoUp} + ${m.termo_busca}` : tipoUp);
+      }
     });
     const descreverCaptura = (rows: any[]): string => {
       const pares = new Map<string, Set<string>>(); // termo -> tribunais
