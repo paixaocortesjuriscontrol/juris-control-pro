@@ -535,9 +535,9 @@ async function resgatarPublicacoesParteJaConhecidas(
 
   if (error || !conhecidas?.length) return [];
 
-  const hashes = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
-  const processosDigits = Array.from(new Set(conhecidas.map((r: any) => String(r.dedup_processo_digits || r.processo_numero || '').replace(/\D/g, '')).filter(Boolean)));
-  const datasRef = Array.from(new Set(conhecidas.map((r: any) => String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10)).filter(Boolean)));
+  const hashes: string[] = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
+  const processosDigits: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_processo_digits || r.processo_numero || '').replace(/\D/g, '')).filter(Boolean)));
+  const datasRef: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10)).filter(Boolean)));
 
   let hashesExistentes = new Set<string>();
   if (hashes.length > 0) {
