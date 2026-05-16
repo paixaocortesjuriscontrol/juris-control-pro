@@ -1285,6 +1285,23 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       </div>
 
       {/* SEÇÃO PARTES - Teal */}
+      {juditRevisaoPolo && (
+        <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 rounded-lg px-4 py-3 flex items-start gap-3">
+          <span className="text-amber-700 dark:text-amber-300 text-lg leading-none">⚠</span>
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-amber-900 dark:text-amber-200">
+              Revisar polo Reclamante / Reclamada
+            </p>
+            <p className="text-amber-800 dark:text-amber-300 mt-0.5">{juditRevisaoPolo.motivo}</p>
+            {juditRevisaoPolo.santander.length > 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                Santander detectado (alocado como Reclamada):{" "}
+                <span className="font-medium">{juditRevisaoPolo.santander.join(", ")}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {partesJudit.length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden">
           <SectionHeader title={`Partes do Processo (${partesJudit.length})`} color="bg-teal-600 text-white" />
