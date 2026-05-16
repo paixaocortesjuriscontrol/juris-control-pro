@@ -394,7 +394,7 @@ async function processPublicationFromIndex(
     return;
   }
 
-  // Deduplicação por hash_conteudo + monitoramento_id (permite mesma pub em termos diferentes)
+  // Deduplicação por hash_conteudo + coordenacao_id (permite mesma pub em coordenações diferentes)
 
   const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
 
@@ -485,12 +485,14 @@ async function processPublicationFromIndex(
     return;
   }
 
-  const { data: existing } = await supabase
+  const coordenacaoId = (monitoramento as any).coordenacao_id ?? null;
+  const existingQuery = supabase
     .from('publicacoes_djen')
     .select('id')
-    .eq('hash_conteudo', hashConteudo)
-    .eq('monitoramento_id', monitoramento.id)
-    .maybeSingle();
+    .eq('hash_conteudo', hashConteudo);
+  const { data: existing } = coordenacaoId
+    ? await existingQuery.eq('coordenacao_id', coordenacaoId).maybeSingle()
+    : await existingQuery.eq('monitoramento_id', monitoramento.id).maybeSingle();
 
   if (existing) {
     stats.duplicatas++;
@@ -499,6 +501,7 @@ async function processPublicationFromIndex(
 
   const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
     monitoramento_id: monitoramento.id,
+    coordenacao_id: coordenacaoId,
     hash_conteudo: hashConteudo,
     conteudo,
     data_publicacao: dataPublicacao,
