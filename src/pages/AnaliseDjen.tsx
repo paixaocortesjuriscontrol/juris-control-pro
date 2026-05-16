@@ -156,6 +156,8 @@ const AnaliseDjen = () => {
   const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+  const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
+  const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -221,14 +223,14 @@ const AnaliseDjen = () => {
     totalProcessosHoje,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
-    // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
-    dataInicio: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataInicioDebounced || undefined),
-    dataFim: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataFimDebounced || undefined),
+    // Data Disponibilização filtra por data_disponibilizacao no client; não pode virar filtro de created_at/captura.
+    dataInicio: apenasHojeEfetivo ? undefined : (dataInicioDebounced || undefined),
+    dataFim: apenasHojeEfetivo ? undefined : (dataFimDebounced || undefined),
     termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
     readStatus,
-    apenasHoje,
+    apenasHoje: apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
