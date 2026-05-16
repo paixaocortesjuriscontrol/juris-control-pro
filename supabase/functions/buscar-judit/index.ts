@@ -627,6 +627,12 @@ serve(async (req) => {
         if (!/RECORRENTE|AGRAVANTE|EMBARGANTE/.test(pt)) continue;
         const doc = String(p?.main_document || "").replace(/\D/g, "");
         const origemPt = origemMap.get(doc) || "";
+        // Override Santander: se o recorrente é o Banco, é sempre tipo_recurso_banco,
+        // independente do que origem ou side digam.
+        if (isSantanderCnpj(p?.main_document) || isSantanderNome(p?.name)) {
+          tipoRecursoBanco = classe;
+          continue;
+        }
         if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classe;
         else if (/RECLAMAD|R[ÉE]U|EXECUTAD/.test(origemPt)) tipoRecursoBanco = classe;
         else {
