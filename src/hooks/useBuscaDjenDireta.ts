@@ -493,16 +493,16 @@ export function useBuscaDjenDireta() {
   // Verificar duplicatas
   const verificarDuplicatasBatch = async (
     hashes: string[], 
-    monitoramentoId: string
+    coordenacaoId: string | null
   ): Promise<Set<string>> => {
-    if (hashes.length === 0) return new Set();
-    
+    if (hashes.length === 0 || !coordenacaoId) return new Set();
+
     const { data } = await supabase
       .from('publicacoes_djen')
       .select('hash_conteudo')
-      .eq('monitoramento_id', monitoramentoId)
+      .eq('coordenacao_id', coordenacaoId)
       .in('hash_conteudo', hashes);
-    
+
     return new Set((data || []).map(d => d.hash_conteudo));
   };
 
@@ -1153,9 +1153,9 @@ export function useBuscaDjenDireta() {
     }
     const pubsUnicas = Array.from(uniqueMap.values());
 
-    // Verificar duplicatas no banco
+    // Verificar duplicatas no banco (por coordenação)
     const hashes = pubsUnicas.map(p => p.hash_conteudo);
-    const existentes = await verificarDuplicatasBatch(hashes, mon.id);
+    const existentes = await verificarDuplicatasBatch(hashes, (mon as any).coordenacao_id || null);
 
     const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
     const duplicadasBanco = pubsUnicas.length - novas.length;
@@ -1165,6 +1165,7 @@ export function useBuscaDjenDireta() {
     if (novas.length > 0) {
       const payload = novas.map(pub => ({
         monitoramento_id: mon.id,
+        coordenacao_id: (mon as any).coordenacao_id || null,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.processo_numero,
         conteudo: pub.conteudo,
@@ -1179,7 +1180,7 @@ export function useBuscaDjenDireta() {
       const { error: upsertError } = await supabase
         .from('publicacoes_djen')
         .upsert(payload, {
-          onConflict: 'monitoramento_id,hash_conteudo',
+          onConflict: 'coordenacao_id,hash_conteudo',
           ignoreDuplicates: true,
         });
 
