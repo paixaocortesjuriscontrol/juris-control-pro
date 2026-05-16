@@ -64,6 +64,27 @@ function isoToBR(iso: string | null | undefined): string | null {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
 }
 
+// ---------- Heurística Santander (cliente do escritório) -------------------
+// O Banco Santander é SEMPRE reclamada/passiva — independente do que a Judit
+// devolva em `side` ou `person_type`. Identificamos pela raiz do CNPJ
+// (90.400.888 = Santander Brasil S.A. e subsidiárias do grupo). Inclui também
+// variações conhecidas: Santander Leasing, Banco Santander (Brasil), Aymoré.
+const SANTANDER_CNPJ_ROOTS = new Set<string>([
+  "90400888", // Banco Santander (Brasil) S.A.
+  "47866934", // Aymoré Crédito, Financiamento e Investimento
+  "59274605", // Santander Leasing
+  "33009257", // Santander Brasil Tecnologia
+]);
+function isSantanderCnpj(doc: string | null | undefined): boolean {
+  const d = String(doc || "").replace(/\D/g, "");
+  if (d.length < 8) return false;
+  return SANTANDER_CNPJ_ROOTS.has(d.substring(0, 8));
+}
+function isSantanderNome(nome: string | null | undefined): boolean {
+  const n = String(nome || "").toUpperCase();
+  return /\bSANTANDER\b/.test(n) || /\bAYMOR[EÉ]\b/.test(n);
+}
+
 // ---------- Judit cache (lookup direto, instantâneo) -----------------------
 
 async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
