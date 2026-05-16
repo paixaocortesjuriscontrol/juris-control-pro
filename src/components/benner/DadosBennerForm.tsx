@@ -153,6 +153,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   // foram intencionalmente apagados (e não estão vazios por engano).
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState<boolean>(false);
   const [partesJudit, setPartesJudit] = useState<ParteJudit[]>([]);
+  const [juditRevisaoPolo, setJuditRevisaoPolo] = useState<{
+    motivo: string;
+    santander: string[];
+  } | null>(null);
   const [camposIa, setCamposIa] = useState<Set<string>>(new Set());
 
   // Aplica sugestões da IA — preenche apenas campos vazios e os marca em azul.
