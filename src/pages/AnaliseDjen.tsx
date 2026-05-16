@@ -156,6 +156,8 @@ const AnaliseDjen = () => {
   const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+  const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
+  const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -221,14 +223,14 @@ const AnaliseDjen = () => {
     totalProcessosHoje,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
-    // Quando dataDisponibilizacao está preenchido, usar como dataInicio/dataFim para filtrar no banco
-    dataInicio: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataInicioDebounced || undefined),
-    dataFim: apenasHoje ? undefined : (dataDisponibilizacaoDebounced || dataFimDebounced || undefined),
+    // Data Disponibilização filtra por data_disponibilizacao no client; não pode virar filtro de created_at/captura.
+    dataInicio: apenasHojeEfetivo ? undefined : (dataInicioDebounced || undefined),
+    dataFim: apenasHojeEfetivo ? undefined : (dataFimDebounced || undefined),
     termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     apenasNaoLidas,
     readStatus,
-    apenasHoje,
+    apenasHoje: apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
@@ -526,19 +528,6 @@ const AnaliseDjen = () => {
   });
 
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats || isLoadingDescartadasStats;
-  const totalGeralFiltrado = tipoOrigem === 'datajud'
-    ? totalDatajudHoje
-    : tipoOrigem === 'descartada'
-      ? totalDescartadasHoje
-      : totalHoje;
-  const naoLidasTotalFiltrado = tipoOrigem === 'datajud'
-    ? naoLidasDatajudHoje
-    : tipoOrigem === 'descartada'
-      ? 0
-      : naoLidasHoje;
-  const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
-  const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
-  const totalDescartadasFiltrado = tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
   const totalPautasDejt = pautasDejtStats.total;
   const periodoLabel = apenasHoje ? 'Hoje' : 'no Período';
 
@@ -2916,6 +2905,30 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
+  const usarContadoresDaLista = filtroDataDisponibilizacaoAtivo || !!tribunalFiltro;
+  const totalGeralFiltrado = usarContadoresDaLista
+    ? totalListaVisivel
+    : tipoOrigem === 'datajud'
+      ? totalDatajudHoje
+      : tipoOrigem === 'descartada'
+        ? totalDescartadasHoje
+        : totalHoje;
+  const naoLidasTotalFiltrado = usarContadoresDaLista
+    ? totalNaoLidasVisivel
+    : tipoOrigem === 'datajud'
+      ? naoLidasDatajudHoje
+      : tipoOrigem === 'descartada'
+        ? 0
+        : naoLidasHoje;
+  const totalTermosFiltrado = usarContadoresDaLista
+    ? totalTermosVisivel
+    : tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
+  const totalProcessosFiltrado = usarContadoresDaLista
+    ? totalProcessosVisivel
+    : tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
+  const totalDescartadasFiltrado = usarContadoresDaLista
+    ? totalDescartadasVisivel
+    : tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
   const temMaisResultados = totalFiltradoGeral > totalExibidoNaPagina;
