@@ -34,6 +34,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useStfTermosFlash } from '@/hooks/useStfTermosFlash';
 import { toast } from 'sonner';
+import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Clock; animate?: boolean }> = {
   idle: { label: 'Aguardando', color: 'text-muted-foreground', bg: 'bg-muted/50', icon: Clock },
@@ -74,7 +75,7 @@ export function StfTermosDashboardCard() {
       if (error) throw error;
       const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
       const getLabel = (m: typeof list[0]) =>
-        m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
+        formatMonitoramentoLabel(m);
       return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
     },
     enabled: !!filtroCoordenacaoId,
@@ -186,7 +187,7 @@ export function StfTermosDashboardCard() {
                   <option value="">Todos</option>
                   {monitoramentos.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
+                      {formatMonitoramentoLabel(m)}
                     </option>
                   ))}
                 </select>
