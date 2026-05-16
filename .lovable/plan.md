@@ -1,90 +1,97 @@
-## Nova rotina separada: **Buscar DJ Estadual**
+## Objetivo
 
-Em vez de tentar empurrar TJMG/TJSP/etc. dentro do fluxo DJEN (que vive amarrado à API do PJE Comunica), crio um módulo **independente**, espelhado em "Buscar DJ Santander" / "Termos DJEN", com pipeline próprio: PDF do diário oficial → texto → busca de termos → matches.
+Trocar o critério de deduplicação das publicações DJEN, hoje chaveado por `(monitoramento_id, hash_conteudo)`, para `(coordenacao_id, hash_conteudo)`. Assim, dentro da mesma coordenação não há duplicatas, mas a mesma publicação **pode** ser inserida em coordenações diferentes (ex.: "Renata Santander" e "Renata com termos do João").
 
-O DJEN continua intocado para tudo que ele já cobre. Esta rotina cobre o que falta — começando por **TJMG**.
+## Migração de banco
 
-### Conceito
+Arquivo de migração nova:
 
+```sql
+-- 1) Garantir que toda publicação tem coordenação derivada do monitoramento
+UPDATE public.publicacoes_djen p
+   SET coordenacao_id = m.coordenacao_id
+  FROM public.monitoramentos_djen m
+ WHERE p.monitoramento_id = m.id
+   AND p.coordenacao_id IS NULL
+   AND m.coordenacao_id IS NOT NULL;
+
+-- 2) Remover duplicatas legadas dentro da mesma (coord, hash) preservando a mais antiga
+DELETE FROM public.publicacoes_djen a
+ USING public.publicacoes_djen b
+ WHERE a.ctid > b.ctid
+   AND a.coordenacao_id IS NOT NULL
+   AND a.coordenacao_id = b.coordenacao_id
+   AND a.hash_conteudo  = b.hash_conteudo;
+
+-- 3) Trocar o índice único
+DROP INDEX IF EXISTS public.idx_publicacoes_djen_hash;
+CREATE UNIQUE INDEX idx_publicacoes_djen_coord_hash
+  ON public.publicacoes_djen (coordenacao_id, hash_conteudo)
+  WHERE coordenacao_id IS NOT NULL;
+
+-- 4) Mesmo tratamento para descartadas (mantém isolamento por coord)
+ALTER TABLE public.publicacoes_djen_descartadas
+  ADD COLUMN IF NOT EXISTS coordenacao_id uuid;
+
+UPDATE public.publicacoes_djen_descartadas d
+   SET coordenacao_id = m.coordenacao_id
+  FROM public.monitoramentos_djen m
+ WHERE d.monitoramento_id = m.id
+   AND d.coordenacao_id IS NULL;
+
+DELETE FROM public.publicacoes_djen_descartadas a
+ USING public.publicacoes_djen_descartadas b
+ WHERE a.ctid > b.ctid
+   AND a.coordenacao_id IS NOT NULL
+   AND a.coordenacao_id = b.coordenacao_id
+   AND a.hash_conteudo  = b.hash_conteudo;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_publicacoes_djen_desc_coord_hash
+  ON public.publicacoes_djen_descartadas (coordenacao_id, hash_conteudo)
+  WHERE coordenacao_id IS NOT NULL;
 ```
-[Buscar DJ Estadual]
-   ├─ Seleciona Tribunal (TJMG, TJSP, TJRS, ...)
-   ├─ Seleciona Data (ou intervalo)
-   ├─ Seleciona Caderno (Judicial 1ª/2ª, Administrativo)
-   ├─ Termos a buscar (advogado/parte/palavra)
-   └─ [Buscar]
-        ↓
-  baixar-dj-estadual  →  processar-dj-estadual  →  buscar-dj-estadual-termos
-   (PDF → Storage)        (Jina → texto + CNJs)        (matches por termo)
-        ↓
-  Resultados na tela + opção de salvar como monitoramento recorrente
-```
 
-### Estrutura
+## Mudanças nos engines (frontend)
 
-**Página nova**: `src/pages/BuscarDjEstadual.tsx`
-- Mesmo padrão visual de `TermosDjen.tsx` / `BuscarPJE.tsx`.
-- Filtros: tribunal, data (ou range curto), caderno, termos (chips).
-- Tabela de resultados: tribunal, data, caderno, página, processo CNJ (se detectado), trecho com termo destacado, link para abrir o PDF original (URL assinada do storage).
-- Botão "Salvar como monitoramento" → cria registro em `monitoramentos_dj_estadual`.
+Em todos os engines DJEN substituir o conflict target e o "já no banco":
 
-**Rota**: adicionada em `src/App.tsx` e item de menu em `MonitoracaoHub` ("Buscar DJ Estadual").
+### `src/hooks/useDjenTermosFlashEngine.ts`
+- `.select('monitoramento_id, hash_conteudo')` → `.select('coordenacao_id, hash_conteudo').eq('coordenacao_id', mon.coordenacao_id)`
+- Set passa a ser `${coordenacao_id}|${hash}`
+- `onConflict: 'monitoramento_id,hash_conteudo'` → `'coordenacao_id,hash_conteudo'` (tanto publicações quanto descartadas)
+- Garantir que o payload de upsert sempre carrega `coordenacao_id: mon.coordenacao_id`
 
-### Backend (3 edge functions novas, isoladas)
+### `src/hooks/useDjenTermosProEngine.ts`
+- Trocar a query `.eq('monitoramento_id', mon.id)` por `.eq('coordenacao_id', mon.coordenacao_id)`
+- `onConflict` em publicações e descartadas → `'coordenacao_id,hash_conteudo'`
+- Payload inclui `coordenacao_id`
 
-1. **`baixar-dj-estadual`**
-   - Input: `{ tribunal, data, caderno? }`.
-   - Mapa `TRIBUNAIS_ESTADUAIS` em `_shared/djeEstaduaisTribunais.ts`:
-     - **TJMG** primeiro: `https://dje.tjmg.jus.br/...` (caderno Judicial 1/2 instância e Administrativo). GET direto, sem cookie.
-     - Stubs para TJSP, TJRS, TJPR, TJSC, TJBA, TJDFT, TJGO, TJES, TJPE, TJRJ — implementados sob demanda.
-   - Salva PDF em bucket `dj-estaduais-pdfs`, registra em tabela `dj_estaduais_pdfs` (status=`baixado`).
-   - Idempotente por `(tribunal, data, caderno)`.
+### `src/hooks/useDjenTermosEngine.ts`
+- Mesma troca: dedup contra banco por `coordenacao_id`, `onConflict` por `(coordenacao_id, hash_conteudo)`, payload com `coordenacao_id`
 
-2. **`processar-dj-estadual`**
-   - Input: `{ pdf_id }` ou processa fila pendente.
-   - Mesmíssimo pipeline do `processar-dje-pdf` atual: Jina extrai texto → quebra em páginas → regex CNJ → grava em `dj_estaduais_conteudo`.
-   - Status do PDF vai para `processado`.
+### `src/hooks/useDjenTermosParalelaEngine.ts`
+- A lookup atual já é por `coordenacao_id + dedup_processo_digits + dedup_data_ref` — manter, mas trocar `onConflict: 'monitoramento_id,hash_conteudo'` para `'coordenacao_id,hash_conteudo'` (publicações e descartadas) e garantir `coordenacao_id` no payload.
 
-3. **`buscar-dj-estadual-termos`**
-   - Input: `{ tribunal?, data?, dataInicio?, dataFim?, caderno?, termos: string[] }`.
-   - Varre `dj_estaduais_conteudo` por `ILIKE`/`websearch_to_tsquery` em cima dos termos, retorna matches paginados com contexto (~250 chars antes/depois).
-   - Sem dependência alguma do DJEN/PJE Comunica.
+### `supabase/functions/monitorar-djen/processing.ts` e `index.ts`
+- Substituir `onConflict: 'monitoramento_id,hash_conteudo'` por `'coordenacao_id,hash_conteudo'` e injetar `coordenacao_id` no payload.
 
-### Schema novo (3 tabelas + 1 bucket)
+### Outras edge functions com upsert de DJEN
+- `backfill-djen`, `backfill-djen-job`, `backfill-djen-jina`, `monitorar-djen-processos`, `executar-djet-pautas-agendado`, `limpar-djen-hoje`: ajustar `onConflict` e payload onde gravam em `publicacoes_djen`/`_descartadas`.
 
-- `dj_estaduais_pdfs` — `tribunal`, `data_publicacao`, `caderno`, `storage_path`, `status` (baixado/processando/processado/erro), `total_paginas`, `erro_mensagem`. Unique `(tribunal, data_publicacao, caderno)`.
-- `dj_estaduais_conteudo` — `pdf_id`, `pagina`, `conteudo_texto`, `processos_detectados text[]`. Unique `(pdf_id, pagina)`. Index GIN em `to_tsvector('portuguese', conteudo_texto)`.
-- `monitoramentos_dj_estadual` — `tribunais text[]`, `cadernos text[]`, `termos jsonb`, `coordenacao_id`, `ativo`, `ultima_execucao`. Para a varredura recorrente.
-- Bucket privado `dj-estaduais-pdfs` (não público; acesso via URL assinada).
+## Comportamento esperado após a mudança
 
-RLS: leitura por usuários autenticados da coordenação dona do monitoramento; escrita só via service_role das edge functions.
+- A intimação de 14/05 do processo `0000574-25.2021.5.13.0026` poderá existir em ambas as coordenações da Dra. Renata:
+  - Coord. "Renata Santander" via termo `SANTANDER` (parte)
+  - Coord. "Renata com termos do João" via termo `SANTANDER` (palavra-chave) ou `Santander` (parte)
+- Dentro da mesma coordenação, monitoramentos diferentes que casarem com a mesma publicação continuam **não duplicando** (uma linha por coord+hash).
 
-### Cron diário
+## Risco e mitigação
 
-`cron.schedule('dj-estadual-diario', '0 10 * * *', ...)` (07:00 BRT) chama, em cascata:
-1. `baixar-dj-estadual` para cada `(tribunal, caderno)` ativo em `monitoramentos_dj_estadual` da data corrente.
-2. `processar-dj-estadual` para PDFs pendentes (limit 5 por chamada, paralelizando por tribunal).
-3. `buscar-dj-estadual-termos` para cada monitoramento ativo, gravando matches em `notificacoes` (mesma tabela já usada hoje pelos outros monitoramentos) com origem `"DJ Estadual"`.
+- Volume de linhas pode aumentar (uma publicação por coordenação). Aceitável dado isolamento por coordenação.
+- A unicidade por `monitoramento_id` deixa de existir; o `monitoramento_id` gravado passa a ser o **primeiro** que casou na coord. Caso isso impacte filtros por monitoramento em listagens, abrir tarefa de UI separada.
 
-### O que **NÃO** muda
+## Verificação
 
-- `monitorar-djen`, `monitorar-djen-processos`, `useDjenTermos*` continuam idênticos.
-- `dje_pdfs_diarios` / `dje_conteudo_indexado` (TRTs) seguem como estão — não misturo as duas rotinas para evitar regressão.
-- Nada de UI no diálogo DJEN; estaduais aparecem como rotina paralela.
-
-### Detalhes técnicos
-
-- **Custo Jina**: TJMG diário ~500–1500 páginas. Para conter custo, na primeira versão indexo só páginas que contenham CNJ (regex pré-OCR via `pdftotext` rápido no edge não é viável em Deno; alternativa: indexa tudo, e na busca filtra). Decisão prática: **indexar tudo** no MVP (TJMG só) e medir; se ficar caro, adiciono pré-filtro por CNJ baixando o PDF e usando `pdf-parse` em uma função Node externa.
-- **TJMG** publica em PDF baixável direto, sem CAPTCHA — confirmado.
-- **TJSP** exige sessão; ficará na fase 2 usando proxy `pje-proxy` já existente.
-- **Tipos**: `src/integrations/supabase/types.ts` é regenerado automaticamente após a migração.
-
-### Ordem de entrega
-
-1. Migração: tabelas + bucket + RLS.
-2. `_shared/djeEstaduaisTribunais.ts` com TJMG.
-3. Edge functions `baixar-dj-estadual`, `processar-dj-estadual`, `buscar-dj-estadual-termos`.
-4. Página `BuscarDjEstadual.tsx` + rota + item de menu.
-5. Smoke test manual: TJMG, data útil recente, termo "BRADESCO" → conferir matches.
-6. Cron diário + criação de monitoramento recorrente.
-7. Fase 2: TJSP, depois demais TJs sob demanda.
+1. Rodar migração.
+2. Reexecutar DJEN Termos/Pro/Flash para 14/05.
+3. Conferir no banco: `SELECT coordenacao_id, monitoramento_id FROM publicacoes_djen WHERE hash_conteudo='56c4645e61058501';` deve retornar 2 linhas (uma por coord da Dra. Renata).
