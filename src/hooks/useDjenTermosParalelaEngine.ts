@@ -602,6 +602,38 @@ async function resgatarPublicacoesParteJaConhecidas(
     }));
 }
 
+async function inserirPublicacoesResgatadas(
+  publicacoes: any[],
+  tribunal: string,
+): Promise<number> {
+  let inseridas = 0;
+  for (const lote of chunkArray(publicacoes, 25)) {
+    const { error: insertError } = await supabase
+      .from('publicacoes_djen')
+      .insert(lote);
+
+    if (!insertError) {
+      inseridas += lote.length;
+      continue;
+    }
+
+    const msg = String(insertError.message || '');
+    const isConflict = insertError.code === '23505' || msg.includes('duplicate key');
+    if (!isConflict) {
+      console.warn(`[DJEN Paralela][${tribunal}] resgate falhou:`, insertError.message);
+      continue;
+    }
+
+    for (const row of lote) {
+      const { error: oneErr } = await supabase
+        .from('publicacoes_djen')
+        .insert(row);
+      if (!oneErr) inseridas += 1;
+    }
+  }
+  return inseridas;
+}
+
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const r = new Date(dataBase);
   while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
