@@ -47,8 +47,27 @@ REGRA CRÍTICA — TRÂNSITO EM JULGADO
 CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
 
 ▸ Em "distribuicao_tst":
-  - materias_recurso_reclamante / materias_recurso_banco: termos curtos separados por vírgula.
-    Só preencha se identificar claramente a matéria do recurso de cada lado.
+  - materias_recurso_reclamante / materias_recurso_banco:
+    LISTA EXAUSTIVA de matérias (termos curtos separados por vírgula), uma por matéria
+    suscitada no recurso DAQUELE lado. Exemplos: "horas extras, intervalo intrajornada,
+    adicional de insalubridade, multa do art. 467 CLT".
+    REGRAS OBRIGATÓRIAS:
+      • Leia PREFERENCIALMENTE a petição de RECURSO DE REVISTA (ou de Embargos/Agravo) de
+        cada lado, NÃO só o acórdão. O acórdão pode mencionar matérias decididas que NÃO
+        foram objeto do recurso, e vice-versa. Quando houver "RAZÕES DE RECURSO" ou
+        "TÓPICOS DO RECURSO" ou "DA PRELIMINAR" / "DO MÉRITO" identifique cada tópico
+        como uma matéria.
+      • Separe explicitamente o que é do RECLAMANTE e o que é do BANCO/RECLAMADO.
+        Se ambos recorrerem (recurso bilateral) os dois campos devem ser preenchidos.
+      • Inclua o fundamento legal quando o documento citar (ex: "Suspensão da prescrição
+        (Lei 14.010/2020)", "Limitação aos valores da inicial (Art. 840, §1º CLT)").
+      • NÃO confunda matérias do recurso com matérias da reclamação original. Só vale
+        o que foi efetivamente DEVOLVIDO ao TST/TRT no recurso.
+      • Se o PDF do recurso não estiver disponível e só houver o acórdão, extraia as
+        matérias dos TÓPICOS DECIDIDOS do acórdão e adicione em "_alertas":
+        "matérias extraídas do acórdão por ausência do recurso — revisar".
+      • Se identificar uma matéria mas não tiver certeza de qual lado a suscitou,
+        adicione em "_alertas" "matéria X com lado indeterminado" e OMITA do campo.
   - tipo_recurso_reclamante / tipo_recurso_banco: literal Judit; omita se não tiver certeza.
   - honra: frase curta sobre matéria de honra (≤200 chars), só se houver "destaque", "matéria de honra",
     "destacado pelo relator" no documento.
