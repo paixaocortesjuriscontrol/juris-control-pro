@@ -46,6 +46,16 @@ function useCoordenacoesFiltradas(isAdmin: boolean, userId: string | undefined) 
         .map((m: any) => m.coordenacoes)
         .filter(Boolean);
 
+      // Inclui também coordenações onde o usuário é o coordenador
+      const { data: coordsAsCoordenador, error: coordError } = await supabase
+        .from("coordenacoes")
+        .select("id, nome, area")
+        .eq("coordenador_id", userId);
+
+      if (coordError) throw coordError;
+
+      coordenacoes.push(...(coordsAsCoordenador || []));
+
       const seen = new Set<string>();
       return coordenacoes.filter((c: any) => {
         if (seen.has(c.id)) return false;
