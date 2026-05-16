@@ -503,6 +503,105 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+function proximoDiaYmd(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + 1));
+  return dt.toISOString().slice(0, 10);
+}
+
+async function resgatarPublicacoesParteJaConhecidas(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+): Promise<any[]> {
+  if (mon.tipo !== 'parte' || !mon.coordenacao_id) return [];
+  const termo = String(mon.termo_busca || '').trim();
+  if (termo.length < 4) return [];
+
+  const { data: conhecidas, error } = await (supabase.from('publicacoes_djen') as any)
+    .select(`
+      hash_conteudo, processo_numero, conteudo, fonte, tribunal, orgao,
+      tipo_comunicacao, meio, advogados_json, partes_json, polo_ativo, polo_passivo,
+      data_disponibilizacao, data_publicacao,
+      dedup_processo_digits, dedup_data_ref, dedup_head_norm
+    `)
+    .eq('status', 'encontrada')
+    .neq('coordenacao_id', mon.coordenacao_id)
+    .eq('tribunal', tribunal)
+    .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+    .lt('data_disponibilizacao', `${proximoDiaYmd(diaYmd)}T00:00:00.000Z`)
+    .ilike('conteudo', `%${termo}%`)
+    .limit(1000);
+
+  if (error || !conhecidas?.length) return [];
+
+  const hashes = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
+  const processosDigits = Array.from(new Set(conhecidas.map((r: any) => String(r.dedup_processo_digits || r.processo_numero || '').replace(/\D/g, '')).filter(Boolean)));
+  const datasRef = Array.from(new Set(conhecidas.map((r: any) => String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10)).filter(Boolean)));
+
+  let hashesExistentes = new Set<string>();
+  if (hashes.length > 0) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('hash_conteudo')
+      .eq('coordenacao_id', mon.coordenacao_id)
+      .in('hash_conteudo', hashes);
+    hashesExistentes = new Set((data || []).map((r: any) => String(r.hash_conteudo || '')));
+  }
+
+  let chavesExistentes = new Set<string>();
+  if (processosDigits.length > 0 && datasRef.length > 0) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
+      .eq('coordenacao_id', mon.coordenacao_id)
+      .in('dedup_processo_digits', processosDigits)
+      .in('dedup_data_ref', datasRef);
+    chavesExistentes = new Set((data || []).map((r: any) => montarChaveEncontrada({
+      coordenacaoId: r.coordenacao_id,
+      processoNumero: r.processo_numero,
+      dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10),
+      conteudo: r.conteudo,
+      dedupProcessoDigits: r.dedup_processo_digits,
+      dedupHeadNorm: r.dedup_head_norm,
+    })));
+  }
+
+  return conhecidas
+    .filter((r: any) => {
+      const hash = String(r.hash_conteudo || '');
+      const chave = montarChaveEncontrada({
+        coordenacaoId: mon.coordenacao_id,
+        processoNumero: r.processo_numero,
+        dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || diaYmd).slice(0, 10),
+        conteudo: r.conteudo,
+        dedupProcessoDigits: r.dedup_processo_digits,
+        dedupHeadNorm: r.dedup_head_norm,
+      });
+      return hash && !hashesExistentes.has(hash) && !chavesExistentes.has(chave);
+    })
+    .map((r: any) => ({
+      monitoramento_id: mon.id,
+      hash_conteudo: r.hash_conteudo,
+      processo_numero: r.processo_numero,
+      conteudo: r.conteudo,
+      data_disponibilizacao: r.data_disponibilizacao,
+      data_publicacao: r.data_publicacao,
+      tribunal: r.tribunal,
+      fonte: r.fonte || 'DJEN-PARALELA-RESGATE',
+      lida: false,
+      status: 'encontrada' as const,
+      orgao: r.orgao,
+      tipo_comunicacao: r.tipo_comunicacao,
+      meio: r.meio,
+      advogados_json: r.advogados_json,
+      partes_json: r.partes_json,
+      polo_ativo: r.polo_ativo,
+      polo_passivo: r.polo_passivo,
+      coordenacao_id: mon.coordenacao_id,
+    }));
+}
+
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const r = new Date(dataBase);
   while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
