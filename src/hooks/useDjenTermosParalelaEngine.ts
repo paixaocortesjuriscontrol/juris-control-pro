@@ -602,6 +602,38 @@ async function resgatarPublicacoesParteJaConhecidas(
     }));
 }
 
+async function inserirPublicacoesResgatadas(
+  publicacoes: any[],
+  tribunal: string,
+): Promise<number> {
+  let inseridas = 0;
+  for (const lote of chunkArray(publicacoes, 25)) {
+    const { error: insertError } = await supabase
+      .from('publicacoes_djen')
+      .insert(lote);
+
+    if (!insertError) {
+      inseridas += lote.length;
+      continue;
+    }
+
+    const msg = String(insertError.message || '');
+    const isConflict = insertError.code === '23505' || msg.includes('duplicate key');
+    if (!isConflict) {
+      console.warn(`[DJEN Paralela][${tribunal}] resgate falhou:`, insertError.message);
+      continue;
+    }
+
+    for (const row of lote) {
+      const { error: oneErr } = await supabase
+        .from('publicacoes_djen')
+        .insert(row);
+      if (!oneErr) inseridas += 1;
+    }
+  }
+  return inseridas;
+}
+
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const r = new Date(dataBase);
   while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
@@ -1141,8 +1173,14 @@ async function processarTermoEmTribunal(
     }
   }
 
-  if (signal.aborted || resultados.length === 0) {
+  if (signal.aborted) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  if (resultados.length === 0) {
+    const resgatadas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
+    const inseridas = resgatadas.length > 0 ? await inserirPublicacoesResgatadas(resgatadas, tribunal) : 0;
+    return { novas: inseridas, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
   // Filtros declarados pelo monitoramento
@@ -1347,14 +1385,7 @@ async function processarTermoEmTribunal(
   const resgatadas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
   if (resgatadas.length > 0) {
     const hashesResgatados = resgatadas.map((p: any) => p.hash_conteudo).filter(Boolean);
-    for (const lote of chunkArray(resgatadas, 25)) {
-      const { error: rescueError } = await supabase
-        .from('publicacoes_djen')
-        .upsert(lote, { onConflict: 'coordenacao_id,hash_conteudo', ignoreDuplicates: true });
-      if (rescueError) {
-        console.warn(`[DJEN Paralela][${tribunal}] resgate coord=${mon.coordenacao_id} falhou:`, rescueError.message);
-      }
-    }
+    await inserirPublicacoesResgatadas(resgatadas, tribunal);
     const { count: rescueCount } = await supabase
       .from('publicacoes_djen')
       .select('id', { count: 'exact', head: true })
