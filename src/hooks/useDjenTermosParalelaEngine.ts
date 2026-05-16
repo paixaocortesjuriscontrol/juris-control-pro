@@ -1116,19 +1116,36 @@ async function processarTermoEmTribunal(
     });
   });
 
+  const hashesCandidatos = pubsUnicas.map((p) => String(p.hash_conteudo || '')).filter(Boolean);
+  let hashesEncontrados = new Set<string>();
+  if (hashesCandidatos.length > 0) {
+    let hashQuery = supabase
+      .from('publicacoes_djen')
+      .select('hash_conteudo')
+      .eq('status', 'encontrada')
+      .in('hash_conteudo', hashesCandidatos);
+    hashQuery = mon.coordenacao_id
+      ? hashQuery.eq('coordenacao_id', mon.coordenacao_id)
+      : hashQuery.is('coordenacao_id', null);
+    const { data: existentesPorHash } = await hashQuery;
+    hashesEncontrados = new Set((existentesPorHash || []).map((r: any) => String(r.hash_conteudo || '')));
+  }
+
   let chavesEncontradas = new Set<string>();
   if (chavesCandidatas.length > 0) {
     const processosDigits = Array.from(new Set(pubsUnicas.map((p) => String(p.numeroProcesso || p.numero_processo || p.processo || '').replace(/\D/g, '')).filter(Boolean)));
     const datasRef = Array.from(new Set(pubsUnicas.map((p) => p.data_disponibilizacao_ymd).filter(Boolean)));
     if (processosDigits.length > 0 && datasRef.length > 0) {
-      const { data: encontradas } = await supabase
+      let dedupQuery = supabase
         .from('publicacoes_djen')
         .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
-        .eq('coordenacao_id', mon.coordenacao_id)
-        .eq('monitoramento_id', mon.id)
         .eq('status', 'encontrada')
         .in('dedup_processo_digits', processosDigits)
         .in('dedup_data_ref', datasRef);
+      dedupQuery = mon.coordenacao_id
+        ? dedupQuery.eq('coordenacao_id', mon.coordenacao_id)
+        : dedupQuery.is('coordenacao_id', null);
+      const { data: encontradas } = await dedupQuery;
       chavesEncontradas = new Set((encontradas || []).map((r: any) => montarChaveEncontrada({
         coordenacaoId: r.coordenacao_id,
         processoNumero: r.processo_numero,
@@ -1140,7 +1157,10 @@ async function processarTermoEmTribunal(
     }
   }
 
-  const novas = pubsUnicas.filter((p, idx) => !chavesEncontradas.has(chavesCandidatas[idx]));
+  const novas = pubsUnicas.filter((p, idx) => {
+    const hash = String(p.hash_conteudo || '');
+    return !hashesEncontrados.has(hash) && !chavesEncontradas.has(chavesCandidatas[idx]);
+  });
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
   let novasInseridasEfetivas = 0;
