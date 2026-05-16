@@ -623,7 +623,8 @@ export default function CompararDjSantander() {
 
 
   const analisarMotivosSomenteDoc = async () => {
-    if (!result || result.somente_doc.length === 0) return;
+    if (!result) return;
+    if (result.somente_doc.length === 0 && result.somente_pdf.length === 0) return;
     if (!selectedCoordenacao || !selectedDate) {
       toast.error("Selecione coordenação e data para analisar");
       return;
@@ -633,8 +634,30 @@ export default function CompararDjSantander() {
     const fim = format(selectedDateFim ?? selectedDate, "yyyy-MM-dd");
     const monIds = monitoramentosConfig.map(m => m.id);
 
+    // Mapa id -> rótulo do termo (para exibir no detalhe)
+    const monLabel = new Map<string, string>();
+    monitoramentosConfig.forEach(m => {
+      const partes: string[] = [];
+      if (m.termo_busca) partes.push(m.termo_busca);
+      if (m.tipo === "advogado" && m.oab) partes.push(`OAB ${m.oab}${m.uf ? "/" + m.uf : ""}`);
+      monLabel.set(m.id, partes.join(" • ") || m.tipo);
+    });
+    const descreverCaptura = (rows: any[]): string => {
+      const pares = new Map<string, Set<string>>(); // termo -> tribunais
+      rows.forEach((r: any) => {
+        const termo = monLabel.get(r.monitoramento_id) || "monitoramento";
+        const trib = String(r.tribunal || r.orgao || "DJEN").toUpperCase();
+        if (!pares.has(termo)) pares.set(termo, new Set());
+        pares.get(termo)!.add(trib);
+      });
+      return [...pares.entries()]
+        .map(([t, tribs]) => `"${t}" em ${[...tribs].join(", ")}`)
+        .join("; ");
+    };
+
     const inicial: Record<string, AnaliseProcesso> = {};
     result.somente_doc.forEach(p => { inicial[p] = { loading: true, motivos: [] }; });
+    result.somente_pdf.forEach(p => { inicial[p] = { loading: true, motivos: [] }; });
     setAnalise(inicial);
 
     const tribunaisMon = new Set<string>();
@@ -682,13 +705,13 @@ export default function CompararDjSantander() {
         if (capturadas && capturadas.length > 0) {
           const naSelecionada = capturadas.filter((c: any) => monIds.includes(c.monitoramento_id));
           if (naSelecionada.length > 0) {
-            const trib = [...new Set(naSelecionada.map((c: any) => c.tribunal).filter(Boolean))].join(", ");
-            motivos.push(`Capturado pela coordenação selecionada (${trib || "DJEN"}). Verifique se está marcado como lido/arquivado, ou se a base do PDF normalizou o número de forma diferente.`);
+            motivos.push(`Capturado pela coordenação selecionada via ${descreverCaptura(naSelecionada)}. Verifique se está marcado como lido/arquivado, ou se a base do PDF normalizou o número de forma diferente.`);
             return motivos;
           }
           const outras = [...new Set(capturadas.map((c: any) => c.coordenacoes?.nome).filter(Boolean))];
           if (outras.length > 0) {
-            motivos.push(`Encontrado no DJEN, mas capturado por outra(s) coordenação(ões): ${outras.join(", ")}. Os termos da coordenação selecionada não casaram com esta publicação.`);
+            const tribs = [...new Set(capturadas.map((c: any) => String(c.tribunal || "").toUpperCase()).filter(Boolean))].join(", ");
+            motivos.push(`Encontrado no DJEN (${tribs || "tribunal não identificado"}), mas capturado por outra(s) coordenação(ões): ${outras.join(", ")}. Os termos da coordenação selecionada não casaram com esta publicação.`);
             return motivos;
           }
         }
@@ -751,13 +774,37 @@ export default function CompararDjSantander() {
       }
     };
 
-    const queue = [...result.somente_doc];
+    // Para a coluna "Somente no <fonte>": exibir em qual termo+tribunal cada processo
+    // foi capturado pela coordenação selecionada (a coluna da direita).
+    const analisarCapturado = async (processo: string): Promise<string[]> => {
+      const digits = processo.replace(/\D/g, "");
+      try {
+        const { data: capturadas } = await supabase
+          .from("publicacoes_djen")
+          .select("monitoramento_id, tribunal, orgao")
+          .in("monitoramento_id", monIds)
+          .eq("dedup_processo_digits", digits)
+          .gte("data_disponibilizacao", `${inicio}T00:00:00.000Z`)
+          .lte("data_disponibilizacao", `${fim}T23:59:59.999Z`);
+        if (capturadas && capturadas.length > 0) {
+          return [`Capturado via ${descreverCaptura(capturadas)}`];
+        }
+        return ["Não localizado na base DJEN da coordenação selecionada para o período."];
+      } catch (e: any) {
+        return [`Erro ao consultar base: ${e?.message || "falha"}`];
+      }
+    };
+
+    const tarefas: Array<{ processo: string; tipo: "doc" | "pdf" }> = [
+      ...result.somente_doc.map(p => ({ processo: p, tipo: "doc" as const })),
+      ...result.somente_pdf.map(p => ({ processo: p, tipo: "pdf" as const })),
+    ];
     const workers = Array.from({ length: 3 }, async () => {
-      while (queue.length > 0) {
-        const p = queue.shift();
-        if (!p) break;
-        const motivos = await analisarUm(p);
-        setAnalise(prev => ({ ...prev, [p]: { loading: false, motivos } }));
+      while (tarefas.length > 0) {
+        const t = tarefas.shift();
+        if (!t) break;
+        const motivos = t.tipo === "doc" ? await analisarUm(t.processo) : await analisarCapturado(t.processo);
+        setAnalise(prev => ({ ...prev, [t.processo]: { loading: false, motivos } }));
       }
     });
     await Promise.all(workers);
