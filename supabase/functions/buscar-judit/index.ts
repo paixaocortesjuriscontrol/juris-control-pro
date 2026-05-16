@@ -360,6 +360,79 @@ function extrairClasse(rd: any): string | null {
   return null;
 }
 
+// Mapa de siglas comuns (espelha SIGLAS_RECURSO do front, em
+// DistribuicaoTstForm.tsx). Garante que a Judit nunca devolva siglas
+// abreviadas como "AIRR", "RR", "AIR" — sempre o nome por extenso, que é o
+// que o MultiTipoRecurso reconhece como opção válida do dropdown.
+const SIGLAS_RECURSO_FULL: Record<string, string> = {
+  rr: "Recurso de Revista",
+  rrag: "Recurso de Revista com Agravo",
+  arr: "Recurso de Revista com Agravo",
+  ararr: "Recurso de Revista com Agravo",
+  airr: "Agravo de Instrumento em Recurso de Revista",
+  aiarr: "Agravo de Instrumento em Recurso de Revista",
+  air: "Agravo de Instrumento em Recurso de Revista",
+  e: "Embargos à SDI",
+  err: "Embargos em Recurso de Revista",
+  ro: "Recurso Ordinário",
+  rot: "Recurso Ordinário Trabalhista",
+  rotsum: "Recurso Ordinário em Procedimento Sumaríssimo",
+  rops: "Recurso Ordinário em Procedimento Sumaríssimo",
+  roms: "Recurso Ordinário em Mandado de Segurança",
+  roar: "Recurso Ordinário em Ação Rescisória",
+  ap: "Agravo de Petição",
+  ed: "Embargos de Declaração",
+  edcl: "Embargos de Declaração",
+  ee: "Embargos em Execução",
+  ei: "Embargos Infringentes",
+  ag: "Agravo",
+  agr: "Agravo Regimental",
+  agint: "Agravo Interno",
+  agi: "Agravo Interno",
+  ai: "Agravo de Instrumento",
+  re: "Recurso Extraordinário",
+  are: "Agravo em Recurso Extraordinário",
+  resp: "Recurso Especial",
+  aresp: "Agravo em Recurso Especial",
+  ms: "Mandado de Segurança",
+  hc: "Habeas Corpus",
+  rcl: "Reclamação",
+  radesivo: "Recurso Adesivo",
+};
+
+function expandirSiglaRecurso(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const txt = String(raw).trim();
+  if (!txt) return null;
+  const norm = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  // Quebra por "+" (composições já formatadas) e por "-" (siglas compostas
+  // como "ED-RR"). Só quebra por "-" quando TODOS os pedaços são siglas
+  // conhecidas, para não destruir nomes legítimos com hífen.
+  const partes: string[] = [];
+  for (const bloco of txt.split(/\s*\+\s*/)) {
+    const b = bloco.trim();
+    if (!b) continue;
+    const subs = b.split(/\s*-\s*/).map((s) => s.trim()).filter(Boolean);
+    if (subs.length > 1 && subs.every((s) => SIGLAS_RECURSO_FULL[norm(s)])) {
+      partes.push(...subs);
+    } else {
+      partes.push(b);
+    }
+  }
+  const mapped: string[] = [];
+  const vistos = new Set<string>();
+  for (const p of partes) {
+    const alvo = norm(p);
+    const nome = SIGLAS_RECURSO_FULL[alvo] || p;
+    const k = norm(nome);
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    mapped.push(nome);
+  }
+  return mapped.length ? mapped.join(" + ") : null;
+}
+
 function extrairOrgaoERelator(rd: any): { orgao: string | null; relator: string | null; turma: string | null } {
   // judge pode vir como string "NÃO INFORMADO", objeto {name}, ou ausente.
   let relator: string | null = null;
