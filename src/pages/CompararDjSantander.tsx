@@ -233,7 +233,12 @@ function compararListas(processosDoc: string[], processosPdf: string[]): Compari
   return { processos_doc: processosDoc, processos_pdf: processosPdf, comuns, somente_doc, somente_pdf };
 }
 
-function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName: string) {
+function exportarPdf(
+  result: ComparisonResult,
+  docFileName: string,
+  pdfFileName: string,
+  analise: Record<string, AnaliseProcesso> = {},
+) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 20;
@@ -265,37 +270,72 @@ function exportarPdf(result: ComparisonResult, docFileName: string, pdfFileName:
   doc.text(`Somente no DOC: ${result.somente_doc.length}`, 14, y); y += 5;
   doc.text(`Somente na Fonte: ${result.somente_pdf.length}`, 14, y); y += 12;
 
-  const columns = [
-    { title: "Em Comum", items: result.comuns },
-    { title: "Somente no DOC", items: result.somente_doc },
-    { title: "Somente na Fonte", items: result.somente_pdf },
-  ];
-  const colWidth = (pageWidth - 28) / 3;
-  const colX = [14, 14 + colWidth, 14 + colWidth * 2];
-  const maxRows = Math.max(...columns.map(c => c.items.length));
-
+  // Em Comum: lista simples em 3 colunas (sem detalhes)
   checkPage(12);
-  doc.setFontSize(10);
+  doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  columns.forEach((col, i) => {
-    doc.text(`${col.title} (${col.items.length})`, colX[i], y);
-  });
-  y += 6;
+  doc.text(`Em Comum (${result.comuns.length})`, 14, y); y += 6;
   doc.setDrawColor(180);
   doc.line(14, y, pageWidth - 14, y);
   y += 4;
-
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  for (let row = 0; row < maxRows; row++) {
+  const comunsCols = 3;
+  const comunsColW = (pageWidth - 28) / comunsCols;
+  const comunsRows = Math.ceil(result.comuns.length / comunsCols);
+  for (let row = 0; row < comunsRows; row++) {
     checkPage(5);
-    columns.forEach((col, i) => {
-      if (row < col.items.length) {
-        doc.text(col.items[row], colX[i], y);
+    for (let c = 0; c < comunsCols; c++) {
+      const idx = row * comunsCols + c;
+      if (idx < result.comuns.length) {
+        doc.text(result.comuns[idx], 14 + c * comunsColW, y);
       }
-    });
+    }
     y += 4.5;
   }
+  y += 6;
+
+  // Colunas com detalhes (análise por processo)
+  const renderDetalhes = (titulo: string, items: string[]) => {
+    checkPage(14);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${titulo} (${items.length})`, 14, y); y += 6;
+    doc.setDrawColor(180);
+    doc.line(14, y, pageWidth - 14, y);
+    y += 4;
+    if (items.length === 0) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.text("Nenhum processo.", 14, y);
+      y += 8;
+      return;
+    }
+    const maxTextWidth = pageWidth - 28 - 6;
+    items.forEach((p) => {
+      checkPage(6);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(p, 14, y);
+      y += 4.5;
+      const motivos = analise[p]?.motivos || [];
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      motivos.forEach((m) => {
+        const wrapped: string[] = doc.splitTextToSize(`• ${m}`, maxTextWidth);
+        wrapped.forEach((line: string) => {
+          checkPage(4.5);
+          doc.text(line, 20, y);
+          y += 4;
+        });
+      });
+      y += 1.5;
+    });
+    y += 4;
+  };
+
+  renderDetalhes("Somente no DOC", result.somente_doc);
+  renderDetalhes("Somente na Fonte", result.somente_pdf);
 
   doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
@@ -1270,7 +1310,7 @@ export default function CompararDjSantander() {
           <Button
             size="lg"
             variant="outline"
-          onClick={() => exportarPdf(result, leftFileName, sourceFileName)}
+          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise)}
             className="gap-2"
           >
             <Download className="w-5 h-5" />
