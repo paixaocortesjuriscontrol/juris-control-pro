@@ -1344,6 +1344,26 @@ async function processarTermoEmTribunal(
     }
   }
 
+  const resgatadas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
+  if (resgatadas.length > 0) {
+    const hashesResgatados = resgatadas.map((p: any) => p.hash_conteudo).filter(Boolean);
+    for (const lote of chunkArray(resgatadas, 25)) {
+      const { error: rescueError } = await supabase
+        .from('publicacoes_djen')
+        .upsert(lote, { onConflict: 'coordenacao_id,hash_conteudo', ignoreDuplicates: true });
+      if (rescueError) {
+        console.warn(`[DJEN Paralela][${tribunal}] resgate coord=${mon.coordenacao_id} falhou:`, rescueError.message);
+      }
+    }
+    const { count: rescueCount } = await supabase
+      .from('publicacoes_djen')
+      .select('id', { count: 'exact', head: true })
+      .eq('coordenacao_id', mon.coordenacao_id)
+      .eq('status', 'encontrada')
+      .in('hash_conteudo', hashesResgatados);
+    if (typeof rescueCount === 'number') novasInseridasEfetivas += rescueCount;
+  }
+
   // Persistir descartadas (limit 200)
   let descartadasEfetivas = 0;
   if (pubsDescartadas.length > 0) {
