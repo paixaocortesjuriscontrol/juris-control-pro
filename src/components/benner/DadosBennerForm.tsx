@@ -153,6 +153,10 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   // foram intencionalmente apagados (e não estão vazios por engano).
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState<boolean>(false);
   const [partesJudit, setPartesJudit] = useState<ParteJudit[]>([]);
+  const [juditRevisaoPolo, setJuditRevisaoPolo] = useState<{
+    motivo: string;
+    santander: string[];
+  } | null>(null);
   const [camposIa, setCamposIa] = useState<Set<string>>(new Set());
 
   // Aplica sugestões da IA — preenche apenas campos vazios e os marca em azul.
@@ -374,6 +378,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     setBuscandoJudit(true);
     setModoTeste(false);
     setTipoRecursoJuditVazio(false);
+    setJuditRevisaoPolo(null);
 
     try {
       // Respeita o tribunal informado no formulário; se vazio, usa TST como padrão
@@ -523,6 +528,21 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       const semRecurso =
         !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
       setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
+
+      // Sinaliza visualmente quando a Judit não conseguiu desambiguar o polo com
+      // segurança (litisconsórcio ativo no TST sem dados da instância de origem,
+      // ou TST sem nenhuma parte Santander identificada).
+      if ((data as any)?.requer_revisao_polo === true) {
+        const santander: string[] = Array.isArray(meta?.santander_detectado)
+          ? meta.santander_detectado
+          : [];
+        const motivo = meta?.litisconsorcio_ativo_tst
+          ? "Há múltiplas partes ativas no TST sem dados da 1ª instância — pode haver inversão entre Reclamante e Reclamada."
+          : "Não foi possível identificar o Banco Santander entre as partes — confira manualmente Reclamante/Reclamada.";
+        setJuditRevisaoPolo({ motivo, santander });
+      } else {
+        setJuditRevisaoPolo(null);
+      }
 
       // Capture parties_detail for display
       if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
@@ -1265,6 +1285,23 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       </div>
 
       {/* SEÇÃO PARTES - Teal */}
+      {juditRevisaoPolo && (
+        <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 rounded-lg px-4 py-3 flex items-start gap-3">
+          <span className="text-amber-700 dark:text-amber-300 text-lg leading-none">⚠</span>
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-amber-900 dark:text-amber-200">
+              Revisar polo Reclamante / Reclamada
+            </p>
+            <p className="text-amber-800 dark:text-amber-300 mt-0.5">{juditRevisaoPolo.motivo}</p>
+            {juditRevisaoPolo.santander.length > 0 && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                Santander detectado (alocado como Reclamada):{" "}
+                <span className="font-medium">{juditRevisaoPolo.santander.join(", ")}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {partesJudit.length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden">
           <SectionHeader title={`Partes do Processo (${partesJudit.length})`} color="bg-teal-600 text-white" />
