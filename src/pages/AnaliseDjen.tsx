@@ -528,19 +528,37 @@ const AnaliseDjen = () => {
   });
 
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats || isLoadingDescartadasStats;
-  const totalGeralFiltrado = tipoOrigem === 'datajud'
+  const totalListaVisivel = allPublicacoes.length;
+  const totalNaoLidasVisivel = allPublicacoes.filter(p => !p.lida).length;
+  const totalTermosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'termo').length;
+  const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
+  const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
+  const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
+  const usarContadoresDaLista = filtroDataDisponibilizacaoAtivo || !!tribunalFiltro;
+
+  const totalGeralFiltrado = usarContadoresDaLista
+    ? totalListaVisivel
+    : tipoOrigem === 'datajud'
     ? totalDatajudHoje
     : tipoOrigem === 'descartada'
       ? totalDescartadasHoje
       : totalHoje;
-  const naoLidasTotalFiltrado = tipoOrigem === 'datajud'
+  const naoLidasTotalFiltrado = usarContadoresDaLista
+    ? totalNaoLidasVisivel
+    : tipoOrigem === 'datajud'
     ? naoLidasDatajudHoje
     : tipoOrigem === 'descartada'
       ? 0
       : naoLidasHoje;
-  const totalTermosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
-  const totalProcessosFiltrado = tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
-  const totalDescartadasFiltrado = tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
+  const totalTermosFiltrado = usarContadoresDaLista
+    ? totalTermosVisivel
+    : tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalTermosHoje : 0;
+  const totalProcessosFiltrado = usarContadoresDaLista
+    ? totalProcessosVisivel
+    : tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
+  const totalDescartadasFiltrado = usarContadoresDaLista
+    ? totalDescartadasVisivel
+    : tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
   const totalPautasDejt = pautasDejtStats.total;
   const periodoLabel = apenasHoje ? 'Hoje' : 'no Período';
 
