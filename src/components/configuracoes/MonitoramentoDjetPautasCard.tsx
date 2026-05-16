@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDjetPautasParalela } from "@/hooks/useDjetPautasParalela";
 import { useDjetPautasParalelaScheduler } from "@/hooks/useDjetPautasParalelaScheduler";
+import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
 
 const TRACK_COLORS: Record<string, string> = {
   pendente: "bg-muted text-muted-foreground",
@@ -209,7 +210,7 @@ export function MonitoramentoDjetPautasCard() {
                 <option value="">Todos</option>
                 {monitoramentos.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.descricao || m.termo_busca || `${m.tipo || "Termo"} ${m.oab || ""} ${m.uf || ""}`.trim() || m.id.slice(0, 8)}
+                    {formatMonitoramentoLabel(m)}
                   </option>
                 ))}
               </select>
@@ -220,7 +221,7 @@ export function MonitoramentoDjetPautasCard() {
           <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
             Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? "Todas"}
             {filtroMonitoramentoId && (
-              <> • {monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.descricao || monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.termo_busca || "Termo"}</>
+              <> • {formatMonitoramentoLabel(monitoramentos.find((m) => m.id === filtroMonitoramentoId) || {})}</>
             )}
           </div>
         )}

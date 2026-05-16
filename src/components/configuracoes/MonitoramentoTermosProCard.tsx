@@ -42,6 +42,7 @@ import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
 import { getCheckpointFromExecutionDetails, persistCheckpointPro } from "@/hooks/useDjenTermosProEngine";
 import { toast } from "sonner";
 import { withTimeout } from "@/utils/withTimeout";
+import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
 
 interface Props {
   coordenacaoId: string;
@@ -250,7 +251,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
       if (error) throw error;
       const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string }[];
       const getLabel = (m: typeof list[0]) =>
-        m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8);
+        formatMonitoramentoLabel(m);
       return list.sort((a, b) => getLabel(a).localeCompare(getLabel(b), 'pt-BR', { sensitivity: 'base' }));
     },
     enabled: !!coordenacaoFiltroEfetivo,
@@ -501,7 +502,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
                   <option value="">Todos</option>
                   {monitoramentos.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.descricao || m.termo_busca || `${m.tipo || 'Termo'} ${m.oab || ''} ${m.uf || ''}`.trim() || m.id.slice(0, 8)}
+                      {formatMonitoramentoLabel(m)}
                     </option>
                   ))}
                 </select>
@@ -512,7 +513,7 @@ export function MonitoramentoTermosProCard({ coordenacaoId }: Props) {
             <div className="rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5 text-xs text-primary font-medium">
               Executando: {coordenacoes.find((c) => c.id === filtroCoordenacaoId)?.nome ?? 'Todas'}
               {filtroMonitoramentoId && (
-                <> • {monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.descricao || monitoramentos.find((m) => m.id === filtroMonitoramentoId)?.termo_busca || 'Termo'}</>
+                <> • {formatMonitoramentoLabel(monitoramentos.find((m) => m.id === filtroMonitoramentoId) || {})}</>
               )}
             </div>
           )}
