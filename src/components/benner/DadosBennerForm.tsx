@@ -529,6 +529,21 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
         !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
       setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
 
+      // Sinaliza visualmente quando a Judit não conseguiu desambiguar o polo com
+      // segurança (litisconsórcio ativo no TST sem dados da instância de origem,
+      // ou TST sem nenhuma parte Santander identificada).
+      if ((data as any)?.requer_revisao_polo === true) {
+        const santander: string[] = Array.isArray(meta?.santander_detectado)
+          ? meta.santander_detectado
+          : [];
+        const motivo = meta?.litisconsorcio_ativo_tst
+          ? "Há múltiplas partes ativas no TST sem dados da 1ª instância — pode haver inversão entre Reclamante e Reclamada."
+          : "Não foi possível identificar o Banco Santander entre as partes — confira manualmente Reclamante/Reclamada.";
+        setJuditRevisaoPolo({ motivo, santander });
+      } else {
+        setJuditRevisaoPolo(null);
+      }
+
       // Capture parties_detail for display
       if (Array.isArray(data.parties_detail) && data.parties_detail.length > 0) {
         setPartesJudit(data.parties_detail);
