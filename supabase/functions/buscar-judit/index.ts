@@ -555,7 +555,8 @@ serve(async (req) => {
 
     // ---------- Extração simples ----------
     const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
-    const classe = extrairClasse(rdSelecionada);
+    const classeRaw = extrairClasse(rdSelecionada);
+    const classe = expandirSiglaRecurso(classeRaw);
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     // Fallback: no TST a Judit costuma devolver "Gabinete do Ministro Fulano"
     // como nome do órgão, sem expor a Turma. Quando temos relator mas a turma
