@@ -1457,14 +1457,15 @@ async function processarTermo(
   });
   const duplicadasInternas = pubsValidas.length - pubsUnicas.length;
 
-  // Verificar duplicatas no banco
+  // Verificar duplicatas no banco (dedup por coordenacao_id + hash_conteudo)
+  const coordenacaoId = (mon as any).coordenacao_id || null;
   const hashes = pubsUnicas.map(p => p.hash_conteudo);
   let existentes = new Set<string>();
-  if (hashes.length > 0) {
+  if (hashes.length > 0 && coordenacaoId) {
     const { data } = await supabase
       .from('publicacoes_djen')
       .select('hash_conteudo')
-      .eq('monitoramento_id', mon.id)
+      .eq('coordenacao_id', coordenacaoId)
       .in('hash_conteudo', hashes);
     existentes = new Set((data || []).map(d => d.hash_conteudo));
   }
@@ -1535,6 +1536,7 @@ async function processarTermo(
 
       return {
         monitoramento_id: pub._rescuedToMonitoramentoId || mon.id,
+        coordenacao_id: coordenacaoId,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudoTexto,
@@ -1555,7 +1557,7 @@ async function processarTermo(
 
     await supabase
       .from('publicacoes_djen')
-      .upsert(payload, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true });
+      .upsert(payload, { onConflict: 'coordenacao_id,hash_conteudo', ignoreDuplicates: true });
   }
 
   // Persistir descartadas no banco (para auditoria e métricas)
