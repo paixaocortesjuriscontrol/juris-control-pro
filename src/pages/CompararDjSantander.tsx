@@ -1277,7 +1277,7 @@ export default function CompararDjSantander() {
             Exportar PDF
           </Button>
         )}
-        {result && result.somente_doc.length > 0 && (
+        {result && (result.somente_doc.length > 0 || result.somente_pdf.length > 0) && (
           <Button
             size="lg"
             variant="outline"
@@ -1401,10 +1401,22 @@ export default function CompararDjSantander() {
                     <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
                   ) : (
                     result.somente_pdf.map((p, i) => (
-                      <div key={i} className="flex items-center gap-2 py-1">
-                        <Badge variant="outline" className="text-xs font-mono bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400 border-orange-200">
-                          {p}
-                        </Badge>
+                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs font-mono bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400 border-orange-200">
+                            {p}
+                          </Badge>
+                          {analise[p]?.loading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                        </div>
+                        {analise[p] && !analise[p].loading && analise[p].motivos.length > 0 && (
+                          <ul className="mt-1 ml-1 space-y-0.5">
+                            {analise[p].motivos.map((m, j) => (
+                              <li key={j} className="text-[11px] text-muted-foreground leading-snug">
+                                • {m}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))
                   )}
