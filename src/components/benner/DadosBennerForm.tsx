@@ -378,6 +378,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     setBuscandoJudit(true);
     setModoTeste(false);
     setTipoRecursoJuditVazio(false);
+    setJuditRevisaoPolo(null);
 
     try {
       // Respeita o tribunal informado no formulário; se vazio, usa TST como padrão
