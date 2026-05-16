@@ -137,7 +137,7 @@ async function persistMatches(
     const slice = rows.slice(i, i + batchSize);
     const { data, error } = await supabase
       .from("publicacoes_djen")
-      .upsert(slice, { onConflict: "hash_conteudo", ignoreDuplicates: true })
+      .upsert(slice, { onConflict: "coordenacao_id,hash_conteudo", ignoreDuplicates: true })
       .select("id");
     if (error) {
       for (const r of slice) {
