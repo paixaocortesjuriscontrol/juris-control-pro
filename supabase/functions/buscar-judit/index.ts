@@ -696,7 +696,12 @@ serve(async (req) => {
         force_refresh: forceRefresh,
         cache_ttl_days: cacheTtlDays,
         elapsed_ms: Date.now() - t0,
+        santander_detectado: santanderNomes,
+        origem_disponivel: !origemAusente,
+        litisconsorcio_ativo_tst: litisconsorcio,
+        requer_revisao_polo: requerRevisaoPolo,
       },
+      requer_revisao_polo: requerRevisaoPolo,
       attachments: comAnexos
         ? coletarAttachments(rdSelecionada, rawCollector, cnj)
         : null,
