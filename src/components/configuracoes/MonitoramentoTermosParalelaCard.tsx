@@ -30,12 +30,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
   getDjenProxyPoolStats,
   isDjenProxyPoolEnabled,
   getDjenProxySlotsRuntime,
   syncDjenProxyPoolFromSupabase,
 } from "@/utils/djenProxyPool";
+import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   idle: { label: 'Aguardando', color: 'text-muted-foreground', bg: 'bg-muted/50' },
