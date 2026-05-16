@@ -5684,6 +5684,7 @@ export type Database = {
         Row: {
           advogados_json: Json | null
           conteudo: string | null
+          coordenacao_id: string | null
           created_at: string
           data_disponibilizacao: string | null
           data_publicacao: string | null
@@ -5706,6 +5707,7 @@ export type Database = {
         Insert: {
           advogados_json?: Json | null
           conteudo?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
@@ -5728,6 +5730,7 @@ export type Database = {
         Update: {
           advogados_json?: Json | null
           conteudo?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
