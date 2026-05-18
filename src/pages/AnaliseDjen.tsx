@@ -3586,17 +3586,7 @@ const AnaliseDjen = () => {
                                     <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       DESCARTADA
                                     </Badge>
-                                   ) : pub.tipo_origem === 'termo' ? (
-                                     <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[200px] md:max-w-none truncate">
-                                       <FileSearch className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
-                                       <span className="truncate">
-                                         {pub.monitoramento_tipo === 'advogado'
-                                           ? `ADVOGADO + OAB ${pub.monitoramento_oab || ''}${pub.monitoramento_uf ? '/' + pub.monitoramento_uf : ''}${pub.monitoramento_termo ? ' + ' + pub.monitoramento_termo : ''}`
-                                           : `${(pub.monitoramento_tipo || 'TERMO').toUpperCase()} + ${pub.monitoramento_termo || 'Termo'}`
-                                         }
-                                       </span>
-                                     </Badge>
-                                  ) : (
+                                   ) : pub.tipo_origem === 'termo' ? null : (
                                     <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       <Gavel className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
                                       <span className="hidden sm:inline">Processo Cadastrado</span>
