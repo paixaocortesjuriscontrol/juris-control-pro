@@ -2008,11 +2008,13 @@ const AnaliseDjen = () => {
   const buildConteudoParagraphs = (rawHtml: string, label: string): Paragraph[] => {
     const paragraphs: Paragraph[] = [];
 
-    paragraphs.push(new Paragraph({
-      spacing: { before: 160, after: 80 },
-      children: [new TextRun({ text: label, bold: true, size: 20, font: docFont, color: mediumBlue })],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
-    }));
+    if (label) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 80 },
+        children: [new TextRun({ text: label, bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+    }
 
     const cleanText = sanitizeForXml(formatConteudoParaExibicao(rawHtml, true));
     const lines = cleanText.split(/\n+/).filter(l => l.trim());
