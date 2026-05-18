@@ -2760,48 +2760,38 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações...`);
     try {
-      type Categoria = "TEMAS_IRR" | "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "PRAZOS";
+      type Categoria = "PAUTA" | "DISTRIBUICOES" | "PRAZOS";
       type ClassInfo = { id: string; categoria: Categoria; tema_irr?: string };
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: ClassInfo };
-      const TEMA_REGEX = /\btema\s+(?:vinculante\s+)?(?:n[º°]?\s*)?(\d{1,4})\b/i;
       const classificarLocal = (pub: typeof allPublicacoes[0]): ClassInfo => {
         const texto = (pub.conteudo || "").replace(/<[^>]*>/g, " ");
         const lower = texto.toLowerCase();
-        // 1. TEMAS_IRR
-        const temSobrest = lower.includes("sobrestamento") || lower.includes("sobrestar");
-        const temaMatch = TEMA_REGEX.exec(texto);
-        const temIrrSig = !!temaMatch || lower.includes("tema vinculante") || lower.includes("incjulgrrembrep");
-        if (temSobrest && temIrrSig) {
-          return { id: pub.id, categoria: "TEMAS_IRR", tema_irr: temaMatch ? `Tema ${temaMatch[1]}` : undefined };
-        }
-        // 2. PAUTA
-        if (lower.includes("pauta de julgamento")) return { id: pub.id, categoria: "PAUTA" };
-        // 3. CEJUSC
-        if (lower.includes("plataforma zoom")) return { id: pub.id, categoria: "CEJUSC" };
-        // 4. DISTRIBUIÇÕES
-        if (lower.includes("lista de distribuição") || lower.includes("lista de distribuicao")) {
+        const tipoCom = (pub.tipo_comunicacao || "").toLowerCase();
+        // b. Lista de distribuição (pelo tipo de comunicação)
+        if (tipoCom.includes("lista de distribui")) {
           return { id: pub.id, categoria: "DISTRIBUICOES" };
         }
-        // 5. PRAZOS (default)
+        // a. Pauta de Julgamento (frase exata, e não pode ser CEJUSC)
+        const ehCejusc = /\bcejusc\b/i.test(texto);
+        if (!ehCejusc && lower.includes("pauta de julgamento")) {
+          return { id: pub.id, categoria: "PAUTA" };
+        }
+        // c. Prazos gerais (default)
         return { id: pub.id, categoria: "PRAZOS" };
       };
-      const pubsTemasIRR: PubComClass[] = [];
       const pubsPauta: PubComClass[] = [];
-      const pubsCejusc: PubComClass[] = [];
       const pubsDistribuicoes: PubComClass[] = [];
       const pubsPrazos: PubComClass[] = [];
       allPublicacoes.forEach(pub => {
         const ci = classificarLocal(pub);
         const item = { pub, class_info: ci };
         switch (ci.categoria) {
-          case "TEMAS_IRR": pubsTemasIRR.push(item); break;
           case "PAUTA": pubsPauta.push(item); break;
-          case "CEJUSC": pubsCejusc.push(item); break;
           case "DISTRIBUICOES": pubsDistribuicoes.push(item); break;
           default: pubsPrazos.push(item);
         }
       });
-      toast.loading(`Gerando documentos... (IRR: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      toast.loading(`Gerando documentos... (Pauta: ${pubsPauta.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const buildTSTDocChildren = (pubs: PubComClass[], titulo: string): Paragraph[] => {
@@ -2829,12 +2819,10 @@ const AnaliseDjen = () => {
       const mkDoc = (ch: Paragraph[]) => new Document({ styles: { default: { document: { run: { font: docFont, size: docFontSize } } } }, sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children: ch }] });
       const dl = async (d: Document, fn: string) => { const b = await Packer.toBlob(d); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u); };
       let dg = 0;
-      if (pubsTemasIRR.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsTemasIRR, `Temas IRR - ${dataStr}`)), `TEMAS_IRR_${dataStr}.docx`); dg++; }
       if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`)), `PAUTA_${dataStr}.docx`); dg++; }
-      if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`)), `CEJUSC_${dataStr}.docx`); dg++; }
-      if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Distribuições - ${dataStr}`)), `DISTRIBUICOES_${dataStr}.docx`); dg++; }
-      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos e Decisões - ${dataStr}`)), `PRAZOS_${dataStr}.docx`); dg++; }
-      toast.success(`${dg} documento(s) gerado(s)! (IRR: ${pubsTemasIRR.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`)), `DISTRIBUICOES_${dataStr}.docx`); dg++; }
+      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`)), `PRAZOS_${dataStr}.docx`); dg++; }
+      toast.success(`${dg} documento(s) gerado(s)! (Pauta: ${pubsPauta.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
       toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
