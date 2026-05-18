@@ -186,6 +186,7 @@ export interface FiltrosUnificados {
   coordenacaoId?: string;
   dataInicio?: string;
   dataFim?: string;
+  dataDisponibilizacao?: string;
   termoBusca?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
@@ -277,6 +278,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
+        dataDisponibilizacao: filtros.dataDisponibilizacao ?? null,
         readStatus,
       },
     ],
@@ -294,6 +296,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
+      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        : null;
+      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        : null;
 
       try {
         let q = (supabase
@@ -305,6 +313,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
+        if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+        if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         // Per-user tracking: lida filter handled client-side
         if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
@@ -341,6 +351,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
+        dataDisponibilizacao: filtros.dataDisponibilizacao ?? null,
         tipoOrigem: filtros.tipoOrigem ?? null,
         termoBusca: filtros.termoBusca ?? null,
         monitoramentoId: filtros.monitoramentoId ?? null,
@@ -360,6 +371,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
+      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        : null;
+      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
       // do usuário autenticado (espelhando o mergeWithLeituras no client),
@@ -376,6 +393,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             .eq('tipo_publicacao', 'pauta');
           if (di) q = q.gte('created_at', di);
           if (df) q = q.lte('created_at', df);
+          if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+          if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
           if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
           const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
@@ -498,6 +517,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
+      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        : null;
+      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        : null;
 
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
@@ -507,7 +532,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
         const canUseRpc = filtros.tipoOrigem !== 'descartada'
-          && filtros.tipoOrigem !== 'djet-pautas';
+          && filtros.tipoOrigem !== 'djet-pautas'
+          && !filtros.dataDisponibilizacao;
       if (canUseRpc) {
         try {
         console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
@@ -658,6 +684,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           // Per-user tracking: lida filter handled client-side via mergeWithLeituras
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
+          if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+          if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
 
           const { data: descartadasData } = await queryDescartadas.limit(200).abortSignal(signal);
           return (descartadasData || []).map((pub: any) => ({
@@ -766,6 +794,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) queryTermos = queryTermos.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
+        if (dataDisponibilizacaoInicio) queryTermos = queryTermos.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+        if (dataDisponibilizacaoFim) queryTermos = queryTermos.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         // Per-user tracking: lida filter handled client-side via mergeWithLeituras
         
         // Filtrar por coordenação NO BANCO para performance
@@ -906,6 +936,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) queryProcessos = queryProcessos.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryProcessos = queryProcessos.lte('created_at', dataFimFiltro);
+        if (dataDisponibilizacaoInicio) queryProcessos = queryProcessos.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+        if (dataDisponibilizacaoFim) queryProcessos = queryProcessos.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         // Per-user tracking: lida filter handled client-side via mergeWithLeituras
         
         // Filtrar por coordenação NO BANCO para performance
@@ -998,6 +1030,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
+        if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+        if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
 
