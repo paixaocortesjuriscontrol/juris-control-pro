@@ -185,6 +185,14 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
           });
         }
       } else {
+        // nothing extra
+      }
+
+      if (usarJudit) {
+        // already processed above? replace block
+      }
+
+      if (!usarJudit) {
         unicos.forEach((r) =>
           rows.push({
             Processo: r.processo,
