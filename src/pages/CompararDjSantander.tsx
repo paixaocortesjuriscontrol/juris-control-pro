@@ -1729,7 +1729,7 @@ export default function CompararDjSantander() {
           <Button
             size="lg"
             variant="outline"
-          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise)}
+          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise, { leftLabel, sourceLabel, tiposEsq, tiposDir })}
             className="gap-2"
           >
             <Download className="w-5 h-5" />
