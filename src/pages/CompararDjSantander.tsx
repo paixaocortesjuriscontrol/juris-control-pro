@@ -340,7 +340,7 @@ function exportarPdf(
   doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris";
+type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris" | "excel-astrea";
 
 function extrairProcessosExcelProjuris(arrayBuffer: ArrayBuffer): string[] {
   const wb = XLSX.read(arrayBuffer, { type: "array" });
@@ -351,6 +351,29 @@ function extrairProcessosExcelProjuris(arrayBuffer: ArrayBuffer): string[] {
     if (!rows.length) continue;
     const sample = rows[0];
     const colProcesso = Object.keys(sample).find((k) => k.trim().toLowerCase() === "processo");
+    if (!colProcesso) continue;
+    for (const row of rows) {
+      const valor = String(row[colProcesso] ?? "").trim();
+      if (!valor) continue;
+      const digits = valor.replace(/\D/g, "");
+      if (digits.length === 20) encontrados.push(formatarCNJ(digits));
+    }
+  }
+  return [...new Set(encontrados)];
+}
+
+function extrairProcessosExcelAstrea(arrayBuffer: ArrayBuffer): string[] {
+  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  const encontrados: string[] = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+    if (!rows.length) continue;
+    const sample = rows[0];
+    const colProcesso = Object.keys(sample).find((k) => {
+      const lower = k.trim().toLowerCase();
+      return lower === "número do processo" || lower === "numero do processo" || lower === "nº do processo" || lower === "n° do processo";
+    });
     if (!colProcesso) continue;
     for (const row of rows) {
       const valor = String(row[colProcesso] ?? "").trim();
@@ -388,6 +411,11 @@ export default function CompararDjSantander() {
   const [excelProjurisFile, setExcelProjurisFile] = useState<File | null>(null);
   const [excelProjurisProcessos, setExcelProjurisProcessos] = useState<string[]>([]);
   const [loadingExcelProjuris, setLoadingExcelProjuris] = useState(false);
+
+  // Excel Astrea mode state
+  const [excelAstreaFile, setExcelAstreaFile] = useState<File | null>(null);
+  const [excelAstreaProcessos, setExcelAstreaProcessos] = useState<string[]>([]);
+  const [loadingExcelAstrea, setLoadingExcelAstrea] = useState(false);
 
   // Análise de motivos (porque um processo do "Somente no <leftLabel>" não foi capturado)
   const [monitoramentosConfig, setMonitoramentosConfig] = useState<MonitoramentoConfig[]>([]);
@@ -511,6 +539,26 @@ export default function CompararDjSantander() {
     }
   }, []);
 
+  const handleExcelAstreaUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelAstreaFile(file);
+    setExcelAstreaProcessos([]);
+    setResult(null);
+    setLoadingExcelAstrea(true);
+    try {
+      const ab = await file.arrayBuffer();
+      const processos = extrairProcessosExcelAstrea(ab);
+      setExcelAstreaProcessos(processos);
+      toast.success(`Planilha carregada: ${processos.length} processos encontrados na coluna "Número do processo"`);
+    } catch (err) {
+      console.error("Erro ao ler XLSX Astrea:", err);
+      toast.error("Erro ao ler a planilha do Astrea");
+    } finally {
+      setLoadingExcelAstrea(false);
+    }
+  }, []);
+
   const handleBuscarDjen = async () => {
     if (!selectedCoordenacao || !selectedDate) {
       toast.error("Selecione a coordenação e a data de início");
@@ -628,12 +676,19 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(pdfDiarioProcessos, djenProcessos);
       setResult(res);
-    } else {
+    } else if (mode === "excel-projuris") {
       if (excelProjurisProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Projuris e busque as publicações antes de comparar");
         return;
       }
       const res = compararListas(excelProjurisProcessos, djenProcessos);
+      setResult(res);
+    } else {
+      if (excelAstreaProcessos.length === 0 || djenProcessos.length === 0) {
+        toast.error("Carregue a planilha do Astrea e busque as publicações antes de comparar");
+        return;
+      }
+      const res = compararListas(excelAstreaProcessos, djenProcessos);
       setResult(res);
     }
     toast.success("Comparação concluída!");
@@ -643,11 +698,13 @@ export default function CompararDjSantander() {
     mode === "pdf" ? docProcessos.length > 0 && pdfProcessos.length > 0
     : mode === "djen" ? docProcessos.length > 0 && djenProcessos.length > 0
     : mode === "pdf-diario" ? pdfDiarioProcessos.length > 0 && djenProcessos.length > 0
-    : excelProjurisProcessos.length > 0 && djenProcessos.length > 0;
+    : mode === "excel-projuris" ? excelProjurisProcessos.length > 0 && djenProcessos.length > 0
+    : excelAstreaProcessos.length > 0 && djenProcessos.length > 0;
 
   const leftLabel =
     mode === "pdf-diario" ? "PDF Equipe DR. Thomás"
     : mode === "excel-projuris" ? "Excel Projuris"
+    : mode === "excel-astrea" ? "Excel Astrea"
     : "DOC Advogado";
   const sourceLabel = mode === "pdf" ? "PDF" : "DJEN";
   const leftFileName =
@@ -655,6 +712,8 @@ export default function CompararDjSantander() {
       ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) Equipe DR. Thomás` : "PDF Equipe DR. Thomás")
       : mode === "excel-projuris"
       ? (excelProjurisFile?.name || "Excel Projuris")
+      : mode === "excel-astrea"
+      ? (excelAstreaFile?.name || "Excel Astrea")
       : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
