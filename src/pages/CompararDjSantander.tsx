@@ -1401,7 +1401,7 @@ export default function CompararDjSantander() {
             </label>
           </CardContent>
           </>
-        ) : (
+        ) : mode === "excel-projuris" ? (
           <>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1432,6 +1432,40 @@ export default function CompararDjSantander() {
                 )}
               </div>
               <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleExcelProjurisUpload} />
+            </label>
+          </CardContent>
+          </>
+        ) : (
+          <>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-amber-500" />
+              Planilha Astrea (XLSX)
+            </CardTitle>
+            <CardDescription>Planilha exportada do Astrea. Os números de processo são lidos da coluna <strong>"Número do processo"</strong>.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {loadingExcelAstrea ? (
+                  <>
+                    <Loader2 className="w-8 h-8 mb-2 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Lendo planilha...</p>
+                  </>
+                ) : excelAstreaFile ? (
+                  <>
+                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                    <p className="text-sm font-medium">{excelAstreaFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{excelAstreaProcessos.length} processos encontrados</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar a planilha .xlsx</p>
+                  </>
+                )}
+              </div>
+              <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleExcelAstreaUpload} />
             </label>
           </CardContent>
           </>
