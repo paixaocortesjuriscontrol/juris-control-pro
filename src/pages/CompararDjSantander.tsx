@@ -63,18 +63,26 @@ interface TipoCounts {
 //   - CEJUSC-TST            → "CEJUSC"
 function classificarTiposPorTitulo(texto: string): TipoCounts {
   const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
-  const blocos: string[][] = [];
-  let atual: string[] | null = null;
+  // Detecta o tipo de cabeçalho que aparece no documento.
+  // Em PDF Resumo cada bloco começa com "COMUNICAÇÃO PJE #..." e tem
+  // uma linha interna "Processo NNNN" da tabela — não podemos contar
+  // as duas como início de bloco.
+  let hasComunicacao = false;
+  let hasProcessoDj = false;
+  for (const linha of linhas) {
+    const limpa = normalizarLinha(linha);
+    if (COMUNICACAO_PJE_TITULO_REGEX.test(limpa)) { hasComunicacao = true; break; }
+    if (PROCESSO_DJ_TITULO_REGEX.test(colarCnjNaLinha(limpa))) hasProcessoDj = true;
+  }
 
   const isHeader = (limpa: string) => {
-    const colada = colarCnjNaLinha(limpa);
-    return (
-      COMUNICACAO_PJE_TITULO_REGEX.test(limpa) ||
-      PROCESSO_TITULO_REGEX.test(limpa) ||
-      PROCESSO_DJ_TITULO_REGEX.test(colada)
-    );
+    if (hasComunicacao) return COMUNICACAO_PJE_TITULO_REGEX.test(limpa);
+    if (hasProcessoDj) return PROCESSO_DJ_TITULO_REGEX.test(colarCnjNaLinha(limpa));
+    return PROCESSO_TITULO_REGEX.test(limpa);
   };
 
+  const blocos: string[][] = [];
+  let atual: string[] | null = null;
   for (const linha of linhas) {
     const limpa = normalizarLinha(linha);
     if (isHeader(limpa)) {
@@ -88,12 +96,13 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
 
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
   for (const bloco of blocos) {
-    // Considera apenas a "área de título" do bloco: cabeçalho + ~6 linhas seguintes
-    // (rótulos/etiquetas tipo "Pauta de julgamento (íntegra):", "CEJUSC-TST", etc.)
-    const tituloArea = bloco.slice(0, 7).join("\n");
-    if (/CEJUSC/i.test(tituloArea)) cejusc++;
-    else if (/Pauta\s+de\s+Julgamento/i.test(tituloArea)) pauta++;
-    else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(tituloArea)) distribuicao++;
+    // Varre o bloco INTEIRO buscando marcadores de tipo.
+    // No DOC do advogado, "Pauta de julgamento" pode aparecer só no
+    // corpo da publicação (não no cabeçalho).
+    const corpo = bloco.join("\n");
+    if (/\bCEJUSC\b/i.test(corpo)) cejusc++;
+    else if (/Pauta\s+de\s+Julgamento/i.test(corpo)) pauta++;
+    else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpo)) distribuicao++;
     else outros++;
   }
 
