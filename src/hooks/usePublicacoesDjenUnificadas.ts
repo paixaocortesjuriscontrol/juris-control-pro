@@ -186,6 +186,7 @@ export interface FiltrosUnificados {
   coordenacaoId?: string;
   dataInicio?: string;
   dataFim?: string;
+  dataDisponibilizacao?: string;
   termoBusca?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
@@ -277,6 +278,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
+        dataDisponibilizacao: filtros.dataDisponibilizacao ?? null,
         readStatus,
       },
     ],
@@ -294,6 +296,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
+      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        : null;
+      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        : null;
 
       try {
         let q = (supabase
@@ -305,6 +313,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
+        if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+        if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         // Per-user tracking: lida filter handled client-side
         if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
