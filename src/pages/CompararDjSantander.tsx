@@ -459,6 +459,13 @@ export default function CompararDjSantander() {
   const [pdfProcessos, setPdfProcessos] = useState<string[]>([]);
   const [result, setResult] = useState<ComparisonResult | null>(null);
 
+  // Texto bruto dos documentos carregados (para classificar por título)
+  const [docTexto, setDocTexto] = useState<string>("");
+  const [pdfTexto, setPdfTexto] = useState<string>("");
+  const [pdfDiarioTexto, setPdfDiarioTexto] = useState<string>("");
+  const [tiposEsq, setTiposEsq] = useState<TipoCounts | null>(null);
+  const [tiposDir, setTiposDir] = useState<TipoCounts | null>(null);
+
   // DJEN mode state
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
@@ -536,6 +543,13 @@ export default function CompararDjSantander() {
       const arrayBuffer = await file.arrayBuffer();
       const processos = await extrairProcessosDocxTitulosNegrito(arrayBuffer);
       setDocProcessos(processos);
+      try {
+        const texto = await extrairTextoDocx(arrayBuffer.slice(0));
+        setDocTexto(texto);
+      } catch (e) {
+        console.warn("Falha ao extrair texto do DOCX:", e);
+        setDocTexto("");
+      }
       toast.success(`DOC carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler DOC:", err);
@@ -553,6 +567,7 @@ export default function CompararDjSantander() {
       const text = await extrairTextoPdf(arrayBuffer);
       const processos = extrairProcessos(text, { permitirComunicacaoInline: true });
       setPdfProcessos(processos);
+      setPdfTexto(text);
       toast.success(`PDF carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler PDF:", err);
@@ -569,13 +584,16 @@ export default function CompararDjSantander() {
     setLoadingPdfDiario(true);
     try {
       const all: string[] = [];
+      const textosConcat: string[] = [];
       for (const file of files) {
         const ab = await file.arrayBuffer();
         const text = await extrairTextoPdf(ab);
         all.push(...extrairProcessosTitulosPdfDiario(text));
+        textosConcat.push(text);
       }
       const unique = [...new Set(all)];
       setPdfDiarioProcessos(unique);
+      setPdfDiarioTexto(textosConcat.join("\n"));
       toast.success(`${files.length} PDF(s) processado(s): ${unique.length} processos identificados nos títulos`);
     } catch (err) {
       console.error("Erro ao ler PDFs do diário:", err);
