@@ -52,6 +52,7 @@ interface TipoCounts {
   distribuicao: number;
   cejusc: number;
   outros: number;
+  repetidos: number;
   total: number;
 }
 
@@ -95,7 +96,17 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   if (atual) blocos.push(atual);
 
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
+  const cnjsVistos = new Set<string>();
+  let repetidos = 0;
   for (const bloco of blocos) {
+    // Conta repetidos pelo CNJ do cabeçalho
+    const header = colarCnjNaLinha(bloco[0] || "");
+    const m = header.match(/(\d{20}|\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+    if (m) {
+      const key = m[1].replace(/\D/g, "");
+      if (cnjsVistos.has(key)) repetidos++;
+      else cnjsVistos.add(key);
+    }
     // Varre o bloco INTEIRO buscando marcadores de tipo.
     // No DOC do advogado, "Pauta de julgamento" pode aparecer só no
     // corpo da publicação (não no cabeçalho).
@@ -106,7 +117,7 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     else outros++;
   }
 
-  return { pauta, distribuicao, cejusc, outros, total: blocos.length };
+  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length };
 }
 
 // Extrai o texto plano de um DOCX preservando quebras de parágrafo,
