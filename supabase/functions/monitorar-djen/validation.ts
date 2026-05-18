@@ -2,6 +2,7 @@
 // VALIDATION FUNCTIONS for monitorar-djen
 // 100% STRICT phrase matching - no partial matches
 // ============================================================================
+import { extrairDadosLadoEsquerdo, conteudoAteLadoEsquerdo } from "./utils.ts";
 
 export interface Monitoramento {
   id: string;
@@ -208,7 +209,27 @@ export function conteudoContemTermoOuOr(
   // estruturados (partes/polos) e NÃO necessariamente no corpo do texto.
   // Confiar no filtro da API e pular validação de conteúdo.
   if (monitoramento.tipo === 'parte') {
-    return true;
+    // Anti-falso-positivo: a API DJEN às vezes retorna publicações em que o
+    // nome buscado aparece apenas no CORPO do texto (ex.: "Banco Santander"
+    // mencionado em fundamentação) e não nas partes reais do processo.
+    // Validamos contra os metadados estruturados (Parte(s)/Advogado(s)/polos).
+    try {
+      const leftOnly = conteudoAteLadoEsquerdo(conteudo);
+      const lado = extrairDadosLadoEsquerdo(leftOnly);
+      const alvos: string[] = [
+        ...(lado.partes || []),
+        ...(lado.advogados || []),
+      ];
+      if (alvos.length === 0) {
+        // Sem metadados parseáveis: confiar no filtro da API.
+        return true;
+      }
+      const termoNorm = normalizar(termoPuro);
+      if (!termoNorm) return true;
+      return alvos.some((nome) => contemFraseExata(normalizar(nome), termoNorm));
+    } catch {
+      return true;
+    }
   }
   
   if (monitoramento.tipo !== 'advogado') {
