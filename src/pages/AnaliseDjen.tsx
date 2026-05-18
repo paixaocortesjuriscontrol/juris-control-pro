@@ -2008,11 +2008,13 @@ const AnaliseDjen = () => {
   const buildConteudoParagraphs = (rawHtml: string, label: string): Paragraph[] => {
     const paragraphs: Paragraph[] = [];
 
-    paragraphs.push(new Paragraph({
-      spacing: { before: 160, after: 80 },
-      children: [new TextRun({ text: label, bold: true, size: 20, font: docFont, color: mediumBlue })],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
-    }));
+    if (label) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 80 },
+        children: [new TextRun({ text: label, bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+    }
 
     const cleanText = sanitizeForXml(formatConteudoParaExibicao(rawHtml, true));
     const lines = cleanText.split(/\n+/).filter(l => l.trim());
@@ -2617,16 +2619,19 @@ const AnaliseDjen = () => {
           doc.setFontSize(12);
           doc.setFont("helvetica", "bold");
           const ehCejusc = /\bCEJUSC\b/i.test(String(pub.conteudo || "").replace(/<[^>]+>/g, " "));
-          doc.text(
-            ehCejusc
-              ? "CEJUSC (texto integral):"
-              : ehPauta
+          if (ehCejusc) {
+            // CEJUSC: sem cabeçalho, apenas a publicação na íntegra
+            y -= 4;
+          } else {
+            doc.text(
+              ehPauta
                 ? "Pauta de julgamento (íntegra):"
                 : "Resumo (últimos parágrafos + assinatura/intimados):",
-            mL,
-            y,
-          );
-          y += 6;
+              mL,
+              y,
+            );
+            y += 6;
+          }
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(0, 0, 0);
@@ -2709,7 +2714,7 @@ const AnaliseDjen = () => {
         children.push(...buildConteudoParagraphs(
           trecho || "Sem conteúdo disponível",
           ehCejusc
-            ? "CEJUSC (TEXTO INTEGRAL)"
+            ? ""
             : ehPauta
               ? "PAUTA DE JULGAMENTO (ÍNTEGRA)"
               : "RESUMO (ÚLTIMOS PARÁGRAFOS + ASSINATURA/INTIMADOS)"
