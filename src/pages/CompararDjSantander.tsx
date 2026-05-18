@@ -434,8 +434,8 @@ function exportarPdf(
     y += 5;
     doc.setTextColor(0, 0, 0);
 
-    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Total (blocos)"];
-    const colWs = [44, 32, 34, 24, 22, contentW - (44 + 32 + 34 + 24 + 22)];
+    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Repetidos", "Total (blocos)"];
+    const colWs = [40, 30, 32, 22, 20, 22, contentW - (40 + 30 + 32 + 22 + 20 + 22)];
     const rowH = 8;
     // Header row
     doc.setFillColor(30, 58, 95);
@@ -459,7 +459,7 @@ function exportarPdf(
         doc.setFillColor(248, 250, 252);
         doc.rect(mL, y, contentW, rowH, "F");
       }
-      const vals = [label, String(t.pauta), String(t.distribuicao), String(t.cejusc), String(t.outros), String(t.total)];
+      const vals = [label, String(t.pauta), String(t.distribuicao), String(t.cejusc), String(t.outros), String(t.repetidos), String(t.total)];
       let xc = mL;
       vals.forEach((v, i) => {
         const align = i === 0 ? "left" : "right";
@@ -549,9 +549,9 @@ function exportarPdf(
     y += 6;
   };
 
-  renderSecao("Em Comum", result.comuns, [22, 163, 74], false);
   renderSecao(`Somente no ${leftLabel}`, result.somente_doc, [217, 119, 6], true);
   renderSecao(`Somente no ${sourceLabel}`, result.somente_pdf, [234, 88, 12], true);
+  renderSecao("Em Comum", result.comuns, [22, 163, 74], false);
 
   // ----- Rodapé -----
   const total = doc.getNumberOfPages();
