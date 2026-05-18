@@ -47,6 +47,72 @@ interface AnaliseProcesso {
   motivos: string[];
 }
 
+interface TipoCounts {
+  pauta: number;
+  distribuicao: number;
+  cejusc: number;
+  outros: number;
+  total: number;
+}
+
+// Classifica cada bloco de publicação OLHANDO SÓ NO TÍTULO/CABEÇALHO
+// (primeiras linhas após o cabeçalho do processo), nunca no conteúdo do corpo.
+// Tipos:
+//   - Pauta de Julgamento  → "Pauta de Julgamento"
+//   - Lista de Distribuição → "Lista de Distribuição"
+//   - CEJUSC-TST            → "CEJUSC"
+function classificarTiposPorTitulo(texto: string): TipoCounts {
+  const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
+  const blocos: string[][] = [];
+  let atual: string[] | null = null;
+
+  const isHeader = (limpa: string) => {
+    const colada = colarCnjNaLinha(limpa);
+    return (
+      COMUNICACAO_PJE_TITULO_REGEX.test(limpa) ||
+      PROCESSO_TITULO_REGEX.test(limpa) ||
+      PROCESSO_DJ_TITULO_REGEX.test(colada)
+    );
+  };
+
+  for (const linha of linhas) {
+    const limpa = normalizarLinha(linha);
+    if (isHeader(limpa)) {
+      if (atual) blocos.push(atual);
+      atual = [limpa];
+    } else if (atual) {
+      atual.push(linha);
+    }
+  }
+  if (atual) blocos.push(atual);
+
+  let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
+  for (const bloco of blocos) {
+    // Considera apenas a "área de título" do bloco: cabeçalho + ~6 linhas seguintes
+    // (rótulos/etiquetas tipo "Pauta de julgamento (íntegra):", "CEJUSC-TST", etc.)
+    const tituloArea = bloco.slice(0, 7).join("\n");
+    if (/CEJUSC/i.test(tituloArea)) cejusc++;
+    else if (/Pauta\s+de\s+Julgamento/i.test(tituloArea)) pauta++;
+    else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(tituloArea)) distribuicao++;
+    else outros++;
+  }
+
+  return { pauta, distribuicao, cejusc, outros, total: blocos.length };
+}
+
+// Extrai o texto plano de um DOCX preservando quebras de parágrafo,
+// para podermos analisar os títulos linha-a-linha.
+async function extrairTextoDocx(arrayBuffer: ArrayBuffer): Promise<string> {
+  const zip = await JSZip.loadAsync(arrayBuffer.slice(0));
+  const xml = await zip.file("word/document.xml")?.async("string");
+  if (!xml) return "";
+  const parsed = new DOMParser().parseFromString(xml, "application/xml");
+  const paragrafos = Array.from(parsed.getElementsByTagNameNS(WORD_NS, "p"));
+  return paragrafos
+    .map((p) => descendentesPorNome(p, "t").map((t) => t.textContent || "").join(""))
+    .join("\n");
+}
+
 function formatarCNJ(numero: string): string {
   const digits = numero.replace(/\D/g, "");
   if (digits.length === 20) {
@@ -393,6 +459,13 @@ export default function CompararDjSantander() {
   const [pdfProcessos, setPdfProcessos] = useState<string[]>([]);
   const [result, setResult] = useState<ComparisonResult | null>(null);
 
+  // Texto bruto dos documentos carregados (para classificar por título)
+  const [docTexto, setDocTexto] = useState<string>("");
+  const [pdfTexto, setPdfTexto] = useState<string>("");
+  const [pdfDiarioTexto, setPdfDiarioTexto] = useState<string>("");
+  const [tiposEsq, setTiposEsq] = useState<TipoCounts | null>(null);
+  const [tiposDir, setTiposDir] = useState<TipoCounts | null>(null);
+
   // DJEN mode state
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
@@ -470,6 +543,13 @@ export default function CompararDjSantander() {
       const arrayBuffer = await file.arrayBuffer();
       const processos = await extrairProcessosDocxTitulosNegrito(arrayBuffer);
       setDocProcessos(processos);
+      try {
+        const texto = await extrairTextoDocx(arrayBuffer.slice(0));
+        setDocTexto(texto);
+      } catch (e) {
+        console.warn("Falha ao extrair texto do DOCX:", e);
+        setDocTexto("");
+      }
       toast.success(`DOC carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler DOC:", err);
@@ -487,6 +567,7 @@ export default function CompararDjSantander() {
       const text = await extrairTextoPdf(arrayBuffer);
       const processos = extrairProcessos(text, { permitirComunicacaoInline: true });
       setPdfProcessos(processos);
+      setPdfTexto(text);
       toast.success(`PDF carregado: ${processos.length} processos encontrados`);
     } catch (err) {
       console.error("Erro ao ler PDF:", err);
@@ -503,13 +584,16 @@ export default function CompararDjSantander() {
     setLoadingPdfDiario(true);
     try {
       const all: string[] = [];
+      const textosConcat: string[] = [];
       for (const file of files) {
         const ab = await file.arrayBuffer();
         const text = await extrairTextoPdf(ab);
         all.push(...extrairProcessosTitulosPdfDiario(text));
+        textosConcat.push(text);
       }
       const unique = [...new Set(all)];
       setPdfDiarioProcessos(unique);
+      setPdfDiarioTexto(textosConcat.join("\n"));
       toast.success(`${files.length} PDF(s) processado(s): ${unique.length} processos identificados nos títulos`);
     } catch (err) {
       console.error("Erro ao ler PDFs do diário:", err);
@@ -655,6 +739,10 @@ export default function CompararDjSantander() {
   };
 
   const handleComparar = () => {
+    const calc = (txt: string): TipoCounts | null =>
+      txt ? classificarTiposPorTitulo(txt) : null;
+    let esq: TipoCounts | null = null;
+    let dir: TipoCounts | null = null;
     if (mode === "pdf") {
       if (docProcessos.length === 0 || pdfProcessos.length === 0) {
         toast.error("Carregue ambos os arquivos antes de comparar");
@@ -662,6 +750,8 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(docProcessos, pdfProcessos);
       setResult(res);
+      esq = calc(docTexto);
+      dir = calc(pdfTexto);
     } else if (mode === "djen") {
       if (docProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o DOC e busque as publicações antes de comparar");
@@ -669,6 +759,7 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(docProcessos, djenProcessos);
       setResult(res);
+      esq = calc(docTexto);
     } else if (mode === "pdf-diario") {
       if (pdfDiarioProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o(s) PDF(s) do diário e busque as publicações antes de comparar");
@@ -676,6 +767,7 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(pdfDiarioProcessos, djenProcessos);
       setResult(res);
+      esq = calc(pdfDiarioTexto);
     } else if (mode === "excel-projuris") {
       if (excelProjurisProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Projuris e busque as publicações antes de comparar");
@@ -691,6 +783,8 @@ export default function CompararDjSantander() {
       const res = compararListas(excelAstreaProcessos, djenProcessos);
       setResult(res);
     }
+    setTiposEsq(esq);
+    setTiposDir(dir);
     toast.success("Comparação concluída!");
   };
 
@@ -1544,6 +1638,55 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
           </div>
+
+          {(tiposEsq || tiposDir) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Classificação por título</CardTitle>
+                <CardDescription>
+                  Contagem baseada exclusivamente no título/cabeçalho de cada publicação (não analisa o corpo).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-2 font-medium">Documento</th>
+                        <th className="text-right py-2 px-2 font-medium">Pauta de Julgamento</th>
+                        <th className="text-right py-2 px-2 font-medium">Lista de Distribuição</th>
+                        <th className="text-right py-2 px-2 font-medium">CEJUSC-TST</th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Outros</th>
+                        <th className="text-right py-2 px-2 font-medium">Total (blocos)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tiposEsq && (
+                        <tr className="border-b">
+                          <td className="py-2 px-2">{leftLabel}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.pauta}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.distribuicao}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.cejusc}</td>
+                          <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposEsq.outros}</td>
+                          <td className="py-2 px-2 text-right font-mono font-semibold">{tiposEsq.total}</td>
+                        </tr>
+                      )}
+                      {tiposDir && (
+                        <tr>
+                          <td className="py-2 px-2">{sourceLabel}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposDir.pauta}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposDir.distribuicao}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposDir.cejusc}</td>
+                          <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposDir.outros}</td>
+                          <td className="py-2 px-2 text-right font-mono font-semibold">{tiposDir.total}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
