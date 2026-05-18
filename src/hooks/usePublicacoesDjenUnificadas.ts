@@ -517,6 +517,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
+      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        : null;
+      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        : null;
 
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
