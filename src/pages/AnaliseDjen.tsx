@@ -237,8 +237,9 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    // Quando há coordenação selecionada, carrega tudo de uma vez (sem paginação visual)
-    pageSize: coordenacaoFiltroEfetivo ? 100000 : listLimit,
+    // Quando há coordenação selecionada OU filtro por Data Disponibilização ativo,
+    // carrega tudo de uma vez (filtro de data é client-side e precisa do dataset completo).
+    pageSize: (coordenacaoFiltroEfetivo || filtroDataDisponibilizacaoAtivo) ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
