@@ -459,8 +459,6 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         p_coordenacao_id: filtros.coordenacaoId ?? null,
         p_inicio: di,
         p_fim: df,
-        p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
-        p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
         p_tipo_origem: filtros.tipoOrigem && filtros.tipoOrigem !== 'descartada' && filtros.tipoOrigem !== 'todos'
           ? filtros.tipoOrigem
           : null,
