@@ -482,8 +482,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       }
 
       let dataRowsXml = "";
-      for (let i = 0; i < outputData.length; i++) {
-        const row = outputData[i];
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
         const rowNum = i + 3;
         let cellsXml = "";
         for (let c = 0; c < maxCol; c++) {
@@ -641,7 +641,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
       }
 
-      const lastRow = outputData.length + 2;
+      const lastRow = data.length + 2;
       sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${colToLetter(totalCols - 1)}${lastRow}"/>`);
       sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
       sheetXml = setWorksheetColumnWidth(sheetXml, 28, 60);
