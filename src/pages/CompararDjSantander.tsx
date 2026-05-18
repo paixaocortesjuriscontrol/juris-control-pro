@@ -52,6 +52,7 @@ interface TipoCounts {
   distribuicao: number;
   cejusc: number;
   outros: number;
+  repetidos: number;
   total: number;
 }
 
@@ -95,7 +96,17 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   if (atual) blocos.push(atual);
 
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
+  const cnjsVistos = new Set<string>();
+  let repetidos = 0;
   for (const bloco of blocos) {
+    // Conta repetidos pelo CNJ do cabeçalho
+    const header = colarCnjNaLinha(bloco[0] || "");
+    const m = header.match(/(\d{20}|\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+    if (m) {
+      const key = m[1].replace(/\D/g, "");
+      if (cnjsVistos.has(key)) repetidos++;
+      else cnjsVistos.add(key);
+    }
     // Varre o bloco INTEIRO buscando marcadores de tipo.
     // No DOC do advogado, "Pauta de julgamento" pode aparecer só no
     // corpo da publicação (não no cabeçalho).
@@ -106,7 +117,7 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     else outros++;
   }
 
-  return { pauta, distribuicao, cejusc, outros, total: blocos.length };
+  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length };
 }
 
 // Extrai o texto plano de um DOCX preservando quebras de parágrafo,
@@ -423,8 +434,8 @@ function exportarPdf(
     y += 5;
     doc.setTextColor(0, 0, 0);
 
-    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Total (blocos)"];
-    const colWs = [44, 32, 34, 24, 22, contentW - (44 + 32 + 34 + 24 + 22)];
+    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Repetidos", "Total (blocos)"];
+    const colWs = [40, 30, 32, 22, 20, 22, contentW - (40 + 30 + 32 + 22 + 20 + 22)];
     const rowH = 8;
     // Header row
     doc.setFillColor(30, 58, 95);
@@ -448,7 +459,7 @@ function exportarPdf(
         doc.setFillColor(248, 250, 252);
         doc.rect(mL, y, contentW, rowH, "F");
       }
-      const vals = [label, String(t.pauta), String(t.distribuicao), String(t.cejusc), String(t.outros), String(t.total)];
+      const vals = [label, String(t.pauta), String(t.distribuicao), String(t.cejusc), String(t.outros), String(t.repetidos), String(t.total)];
       let xc = mL;
       vals.forEach((v, i) => {
         const align = i === 0 ? "left" : "right";
@@ -538,9 +549,9 @@ function exportarPdf(
     y += 6;
   };
 
-  renderSecao("Em Comum", result.comuns, [22, 163, 74], false);
   renderSecao(`Somente no ${leftLabel}`, result.somente_doc, [217, 119, 6], true);
   renderSecao(`Somente no ${sourceLabel}`, result.somente_pdf, [234, 88, 12], true);
+  renderSecao("Em Comum", result.comuns, [22, 163, 74], false);
 
   // ----- Rodapé -----
   const total = doc.getNumberOfPages();
@@ -1804,6 +1815,7 @@ export default function CompararDjSantander() {
                         <th className="text-right py-2 px-2 font-medium">Lista de Distribuição</th>
                         <th className="text-right py-2 px-2 font-medium">CEJUSC-TST</th>
                         <th className="text-right py-2 px-2 font-medium text-muted-foreground">Outros</th>
+                        <th className="text-right py-2 px-2 font-medium">Repetidos</th>
                         <th className="text-right py-2 px-2 font-medium">Total (blocos)</th>
                       </tr>
                     </thead>
@@ -1815,6 +1827,7 @@ export default function CompararDjSantander() {
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.distribuicao}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposEsq.outros}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.repetidos}</td>
                           <td className="py-2 px-2 text-right font-mono font-semibold">{tiposEsq.total}</td>
                         </tr>
                       )}
@@ -1825,6 +1838,7 @@ export default function CompararDjSantander() {
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.distribuicao}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposDir.outros}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposDir.repetidos}</td>
                           <td className="py-2 px-2 text-right font-mono font-semibold">{tiposDir.total}</td>
                         </tr>
                       )}
