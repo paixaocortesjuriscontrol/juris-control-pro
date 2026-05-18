@@ -942,6 +942,10 @@ export default function CompararDjSantander() {
                   <Database className="w-4 h-4" />
                   Excel Projuris
                 </TabsTrigger>
+                <TabsTrigger value="excel-astrea" className="flex-1 gap-2">
+                  <Database className="w-4 h-4" />
+                  Excel Astrea
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="pdf">
