@@ -1255,6 +1255,83 @@ export default function CompararDjSantander() {
                   )}
                 </div>
               </TabsContent>
+
+              <TabsContent value="excel-astrea">
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Compara os processos da coluna <strong>"Número do processo"</strong> da planilha do Astrea com as publicações DJEN da base.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
+                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDateFim}
+                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleBuscarDjen}
+                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    className="w-full gap-2"
+                  >
+                    {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                    {loadingDjen ? "Buscando..." : "Buscar Publicações"}
+                  </Button>
+                  {djenLoaded && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className="text-muted-foreground">{djenProcessos.length} processos encontrados nas publicações</span>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
