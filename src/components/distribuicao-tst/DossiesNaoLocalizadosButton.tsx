@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useDistribuicoesTst";
 import { isDossieInvalido } from "@/utils/gerarPlanilhaBenner";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 
 interface Props {
   filters: DistribuicaoTstFilters;
@@ -34,6 +35,29 @@ function formatDoc(doc: string | null | undefined): string {
   if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
   return String(doc || "");
 }
+
+const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
+  const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
+  const nonLawyers = parties.filter((p: any) => p?.nome && !p?.is_advogado);
+  const ativos = [...new Set(nonLawyers
+    .filter((p: any) => String(p?.polo || "").toUpperCase() === "ACTIVE")
+    .map((p: any) => String(p.nome).trim()).filter(Boolean))];
+  const passivos = [...new Set(nonLawyers
+    .filter((p: any) => String(p?.polo || "").toUpperCase() === "PASSIVE")
+    .map((p: any) => String(p.nome).trim()).filter(Boolean))];
+  const partes: string[] = [];
+  if (ativos.length > 0) partes.push(`Ativo: ${ativos.join(", ")}`);
+  if (passivos.length > 0) partes.push(`Passivo: ${passivos.join(", ")}`);
+  if (partes.length > 0) return partes.join("\n");
+  const r = String(juditData?.recorrente ?? "").trim();
+  return r || fallback || "";
+};
+
+const isTurmaOficialTst = (t: string | null | undefined): boolean => {
+  if (!t) return false;
+  const norm = String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return /^[1-8][ªa]?\s*turma$/.test(norm);
+};
 
 function extrairReclamanteJudit(juditData: any): { nome: string; doc: string } {
   const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
@@ -126,7 +150,7 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
             const requestPayload = {
               numero_processo: aplicarMascaraCnj(r.processo),
               tribunal: "TST",
-              com_anexos: false,
+              com_anexos: true,
             };
             const { data: juditData, error: juditError } =
               await supabase.functions.invoke("buscar-judit", { body: requestPayload });
@@ -149,6 +173,171 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
               const r2 = extrairReclamanteJudit(juditData);
               nome = r2.nome;
               doc = r2.doc;
+
+              // ===== Persistência completa (igual ao botão Judit em lote) =====
+              const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
+              const recorrenteJudit = getJuditPartesResumo(juditData, null);
+              const nomesPorPolo = (poloUpper: string) =>
+                [...new Set(
+                  partiesDetail
+                    .filter((p: any) => (p?.polo || "").toString().toUpperCase() === poloUpper && !p?.is_advogado)
+                    .map((p: any) => String(p?.nome || "").trim())
+                    .filter(Boolean)
+                )].join(" / ");
+              const reclamanteJudit = nomesPorPolo("ACTIVE");
+              const reclamadaJudit = nomesPorPolo("PASSIVE");
+              const situacaoStr = (juditData.situacao_processo || "").toString();
+              const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
+              const ehTransito = /tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S";
+              const tribunaisAceitos = ["TST", "STF", "STJ"];
+              const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
+              const turmaFinal = juditData.turma || "";
+              const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
+
+              // Anexos
+              const atts = Array.isArray((juditData as any)?.attachments) ? (juditData as any).attachments : [];
+              if (atts.length > 0) {
+                try {
+                  const numeroMasc = aplicarMascaraCnj(r.processo);
+                  const rowsRaw = atts.map((a: any) => ({
+                    processo_numero: r.processo,
+                    cnj: a?.cnj || numeroMasc,
+                    instance: a?.instance != null ? String(a.instance) : null,
+                    attachment_id: String(a?.step_id || a?.attachment_id || ""),
+                    step_id: a?.step_id ? String(a.step_id) : null,
+                    attachment_name: a?.attachment_name || null,
+                    attachment_date: a?.attachment_date || null,
+                    extension: a?.extension || null,
+                    status: a?.status || "done",
+                    corrupted: a?.corrupted ?? false,
+                    raw_attachment: a,
+                    created_by: userId,
+                  })).filter((rr: any) => rr.attachment_id);
+                  const seenA = new Set<string>();
+                  const rowsA = rowsRaw.filter((rr: any) => {
+                    const key = getJuditAttachmentDedupKey(rr);
+                    if (seenA.has(key)) return false;
+                    seenA.add(key);
+                    return true;
+                  });
+                  if (rowsA.length > 0) {
+                    await supabase.from("judit_anexos" as any).delete().eq("processo_numero", r.processo);
+                    await supabase.from("judit_anexos" as any).insert(rowsA);
+                  }
+                } catch (e) {
+                  console.warn("[dossies-nao-loc] anexos fail", e);
+                }
+              }
+
+              // Upsert dados_benner
+              const { data: existingBenner } = await supabase
+                .from("dados_benner" as any)
+                .select("id")
+                .eq("processo", r.processo)
+                .limit(1);
+
+              let bennerId: string | null = null;
+              if (existingBenner && (existingBenner as any[]).length > 0) {
+                bennerId = (existingBenner as any[])[0].id;
+                const updateFields: any = {
+                  tipo_recurso: juditData.tipo_recurso ?? null,
+                  tipo_recurso_reclamante: juditData.tipo_recurso_reclamante ?? null,
+                  tipo_recurso_banco: juditData.tipo_recurso_banco ?? null,
+                  erro_judit: erroJuditFlag,
+                };
+                if (juditData.relator) updateFields.relator = juditData.relator;
+                if (juditData.turma) updateFields.turma = juditData.turma;
+                if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
+                if (recorrenteJudit) updateFields.recorrente = recorrenteJudit;
+                if (reclamanteJudit) updateFields.reclamante = reclamanteJudit;
+                if (reclamadaJudit) updateFields.reclamada = reclamadaJudit;
+                if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
+                if (ehTransito) updateFields.transito_julgado = true;
+                if (juditData.data_distribuicao) {
+                  updateFields.data_distribuicao_real = juditData.data_distribuicao;
+                  updateFields.data_distribuicao = juditData.data_distribuicao;
+                }
+                if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
+                if (juditData.data_julgamento) updateFields.data_julgamento = juditData.data_julgamento;
+                if (juditData.horario_julgamento) updateFields.horario_julgamento = juditData.horario_julgamento;
+                if (juditData.tipo_julgamento) updateFields.tipo_julgamento = juditData.tipo_julgamento;
+                if (juditData.resultado_sem_transcendencia) updateFields.resultado_sem_transcendencia = true;
+                if (juditData.resultado_nao_conhecido) updateFields.resultado_nao_conhecido = true;
+                if (juditData.resultado_conhecido_provido) updateFields.resultado_conhecido_provido = true;
+                if (juditData.resultado_conhecido_nao_provido) updateFields.resultado_conhecido_nao_provido = true;
+                if (juditData.resultado_outra) updateFields.resultado_outra = juditData.resultado_outra;
+                if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
+                await supabase
+                  .from("dados_benner" as any)
+                  .update(updateFields)
+                  .eq("processo", r.processo);
+              } else {
+                const dadoToSave: any = {
+                  processo: r.processo,
+                  dossie: juditData.dossie || "",
+                  turma: turmaFinal,
+                  relator: juditData.relator || "",
+                  data_distribuicao_real: juditData.data_distribuicao || null,
+                  data_distribuicao: juditData.data_distribuicao || null,
+                  recorrente: recorrenteJudit,
+                  reclamante: reclamanteJudit || null,
+                  reclamada: reclamadaJudit || null,
+                  tribunal: tribunalMapeado || "TST",
+                  tipo_recurso: juditData.tipo_recurso || null,
+                  tipo_recurso_reclamante: juditData.tipo_recurso_reclamante || null,
+                  tipo_recurso_banco: juditData.tipo_recurso_banco || null,
+                  situacao_processo: juditData.situacao_processo || null,
+                  transito_julgado: ehTransito || null,
+                  tem_data_julgamento: juditData.tem_data_julgamento || null,
+                  data_julgamento: juditData.data_julgamento || null,
+                  horario_julgamento: juditData.horario_julgamento || null,
+                  tipo_julgamento: juditData.tipo_julgamento || null,
+                  resultado_sem_transcendencia: juditData.resultado_sem_transcendencia || false,
+                  resultado_nao_conhecido: juditData.resultado_nao_conhecido || false,
+                  resultado_conhecido_provido: juditData.resultado_conhecido_provido || false,
+                  resultado_conhecido_nao_provido: juditData.resultado_conhecido_nao_provido || false,
+                  resultado_outra: juditData.resultado_outra || null,
+                  processo_baixado: juditData.processo_baixado || null,
+                  erro_judit: erroJuditFlag,
+                  status: "rascunho",
+                  user_id: userId,
+                };
+                const { data: inserted } = await supabase
+                  .from("dados_benner" as any)
+                  .insert(dadoToSave)
+                  .select("id")
+                  .single();
+                bennerId = (inserted as any)?.id || null;
+              }
+
+              // Partes
+              if (bennerId && partiesDetail.length > 0) {
+                await supabase
+                  .from("partes_processo_benner")
+                  .delete()
+                  .eq("dados_benner_id", bennerId)
+                  .eq("origem", "judit");
+                const partesRows = partiesDetail.map((p: any) => ({
+                  dados_benner_id: bennerId,
+                  nome: p.nome || "Sem nome",
+                  documento: p.documento || null,
+                  tipo_pessoa: p.tipo_pessoa || null,
+                  polo: p.polo || null,
+                  is_advogado: !!p.is_advogado,
+                  origem: "judit",
+                }));
+                await supabase.from("partes_processo_benner").insert(partesRows);
+              }
+
+              // Marca como judit_preenchido
+              await supabase
+                .from("dados_benner" as any)
+                .update({
+                  judit_preenchido: true,
+                  judit_preenchido_em: new Date().toISOString(),
+                  judit_preenchido_por: userId,
+                } as any)
+                .eq("processo", r.processo);
             }
           } catch (e) {
             console.warn("[dossies-nao-loc] judit fail", r.processo, e);
@@ -159,6 +348,8 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
             "CPF/CNPJ": doc,
             Dossiê: "Não localizado",
           });
+          // throttle anti rate-limit (igual ao bulk)
+          await new Promise((res) => setTimeout(res, 800));
         }
       } else {
         unicos.forEach((r) =>
@@ -240,11 +431,13 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
               />
               <div className="space-y-1">
                 <Label htmlFor="usar-judit-dossies" className="text-sm font-medium cursor-pointer">
-                  Consultar Judit para preencher Reclamante e CPF/CNPJ
+                  Consultar Judit e preencher Dados Benner (igual ao botão Judit em lote)
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Quando ativado, cada processo será consultado na Judit (sem anexos) para
-                  obter o nome do reclamante e o CPF/CNPJ. Pode demorar.
+                  Quando ativado, cada processo é consultado na Judit COM anexos e
+                  todos os campos são gravados em Dados Benner, Partes, Anexos e
+                  o registro é marcado como judit_preenchido — exatamente como o
+                  botão "Preenchimento Judit em lote". Pode demorar.
                 </p>
               </div>
             </div>
