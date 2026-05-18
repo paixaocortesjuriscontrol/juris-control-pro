@@ -1815,6 +1815,7 @@ export default function CompararDjSantander() {
                         <th className="text-right py-2 px-2 font-medium">Lista de Distribuição</th>
                         <th className="text-right py-2 px-2 font-medium">CEJUSC-TST</th>
                         <th className="text-right py-2 px-2 font-medium text-muted-foreground">Outros</th>
+                        <th className="text-right py-2 px-2 font-medium">Repetidos</th>
                         <th className="text-right py-2 px-2 font-medium">Total (blocos)</th>
                       </tr>
                     </thead>
@@ -1826,6 +1827,7 @@ export default function CompararDjSantander() {
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.distribuicao}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposEsq.outros}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.repetidos}</td>
                           <td className="py-2 px-2 text-right font-mono font-semibold">{tiposEsq.total}</td>
                         </tr>
                       )}
@@ -1836,6 +1838,7 @@ export default function CompararDjSantander() {
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.distribuicao}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposDir.outros}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposDir.repetidos}</td>
                           <td className="py-2 px-2 text-right font-mono font-semibold">{tiposDir.total}</td>
                         </tr>
                       )}
