@@ -399,7 +399,7 @@ function exportarPdf(
   ];
   const cardGap = 3;
   const cardW = (contentW - cardGap * (cards.length - 1)) / cards.length;
-  const cardH = 22;
+  const cardH = 28;
   cards.forEach((c, i) => {
     const x = mL + i * (cardW + cardGap);
     doc.setFillColor(...c.fill);
@@ -408,13 +408,15 @@ function exportarPdf(
     doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD");
     doc.setTextColor(...c.text);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.text(String(c.value), x + cardW / 2, y + 11, { align: "center" });
     doc.setTextColor(80, 80, 80);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    const lab = doc.splitTextToSize(c.label, cardW - 4);
-    doc.text(lab.slice(0, 2), x + cardW / 2, y + 16, { align: "center" });
+    const lab = doc.splitTextToSize(c.label, cardW - 4).slice(0, 2);
+    lab.forEach((line: string, idx: number) => {
+      doc.text(line, x + cardW / 2, y + 18 + idx * 3.2, { align: "center" });
+    });
   });
   doc.setTextColor(0, 0, 0);
   y += cardH + 8;
@@ -434,23 +436,28 @@ function exportarPdf(
     y += 5;
     doc.setTextColor(0, 0, 0);
 
-    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Repetidos", "Total (blocos)"];
-    const colWs = [40, 30, 32, 22, 20, 22, contentW - (40 + 30 + 32 + 22 + 20 + 22)];
+    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Repetidos", "Total"];
+    const colWs = [38, 30, 32, 22, 20, 22, contentW - (38 + 30 + 32 + 22 + 20 + 22)];
     const rowH = 8;
+    const headerH = 12;
     // Header row
     doc.setFillColor(30, 58, 95);
-    doc.rect(mL, y, contentW, rowH, "F");
+    doc.rect(mL, y, contentW, headerH, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     let cx = mL;
     headers.forEach((h, i) => {
       const align = i === 0 ? "left" : "right";
       const xText = i === 0 ? cx + 2 : cx + colWs[i] - 2;
-      doc.text(h, xText, y + 5.5, { align: align as any });
+      const lines = doc.splitTextToSize(h, colWs[i] - 3).slice(0, 2);
+      const startY = y + (lines.length === 1 ? 7.5 : 5);
+      lines.forEach((ln: string, idx: number) => {
+        doc.text(ln, xText, startY + idx * 3.2, { align: align as any });
+      });
       cx += colWs[i];
     });
-    y += rowH;
+    y += headerH;
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
 
