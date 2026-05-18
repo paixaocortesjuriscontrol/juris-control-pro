@@ -220,33 +220,37 @@ async function extrairProcessosDocxTitulosNegrito(arrayBuffer: ArrayBuffer): Pro
 }
 
 function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: boolean } = {}): string[] {
-  const matches: string[] = [];
+  const comunicacoes: string[] = [];
+  const processos: string[] = [];
   const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
 
   for (const linha of linhas) {
     const limpa = normalizarLinha(linha);
     const comunicacao = limpa.match(COMUNICACAO_PJE_TITULO_REGEX);
     if (comunicacao) {
-      matches.push(formatarCNJ(comunicacao[1]));
+      comunicacoes.push(formatarCNJ(comunicacao[1]));
       continue;
     }
     const processo = limpa.match(PROCESSO_TITULO_REGEX);
-    if (processo) matches.push(formatarCNJ(processo[1]));
+    if (processo) processos.push(formatarCNJ(processo[1]));
   }
 
-  // Fallback inline: só ativa se o passe por linha não achou nada
-  // (PDFs sem quebra de linha real). Evita contar o mesmo título
-  // duas vezes (linha + inline).
-  if (options.permitirComunicacaoInline && matches.length === 0) {
+  // Prioriza títulos "COMUNICAÇÃO PJE #..." (1 por bloco no PDF Resumo).
+  // Se não houver nenhum, cai para linhas "Processo NNN" (formato antigo).
+  if (comunicacoes.length > 0) return comunicacoes;
+  if (processos.length > 0) return processos;
+
+  // Fallback inline: PDFs sem quebra de linha real entre títulos.
+  if (options.permitirComunicacaoInline) {
+    const inline: string[] = [];
     COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
     let m: RegExpExecArray | null;
-    while ((m = COMUNICACAO_PJE_INLINE_REGEX.exec(texto)) !== null) matches.push(formatarCNJ(m[1]));
+    while ((m = COMUNICACAO_PJE_INLINE_REGEX.exec(texto)) !== null) inline.push(formatarCNJ(m[1]));
     COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
+    return inline;
   }
 
-  // Não deduplica: contagem reflete blocos reais do documento.
-  // compararListas já normaliza via Set internamente.
-  return matches;
+  return [];
 }
 
 function extrairProcessosTitulosPdfDiario(texto: string): string[] {
