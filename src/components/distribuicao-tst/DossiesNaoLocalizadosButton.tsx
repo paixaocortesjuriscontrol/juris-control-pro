@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useDistribuicoesTst";
 import { isDossieInvalido } from "@/utils/gerarPlanilhaBenner";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 
 interface Props {
   filters: DistribuicaoTstFilters;
@@ -34,6 +35,29 @@ function formatDoc(doc: string | null | undefined): string {
   if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
   return String(doc || "");
 }
+
+const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
+  const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
+  const nonLawyers = parties.filter((p: any) => p?.nome && !p?.is_advogado);
+  const ativos = [...new Set(nonLawyers
+    .filter((p: any) => String(p?.polo || "").toUpperCase() === "ACTIVE")
+    .map((p: any) => String(p.nome).trim()).filter(Boolean))];
+  const passivos = [...new Set(nonLawyers
+    .filter((p: any) => String(p?.polo || "").toUpperCase() === "PASSIVE")
+    .map((p: any) => String(p.nome).trim()).filter(Boolean))];
+  const partes: string[] = [];
+  if (ativos.length > 0) partes.push(`Ativo: ${ativos.join(", ")}`);
+  if (passivos.length > 0) partes.push(`Passivo: ${passivos.join(", ")}`);
+  if (partes.length > 0) return partes.join("\n");
+  const r = String(juditData?.recorrente ?? "").trim();
+  return r || fallback || "";
+};
+
+const isTurmaOficialTst = (t: string | null | undefined): boolean => {
+  if (!t) return false;
+  const norm = String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return /^[1-8][ªa]?\s*turma$/.test(norm);
+};
 
 function extrairReclamanteJudit(juditData: any): { nome: string; doc: string } {
   const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
