@@ -234,16 +234,18 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
     if (processo) matches.push(formatarCNJ(processo[1]));
   }
 
-  if (options.permitirComunicacaoInline) {
+  // Fallback inline: só ativa se o passe por linha não achou nada
+  // (PDFs sem quebra de linha real). Evita contar o mesmo título
+  // duas vezes (linha + inline).
+  if (options.permitirComunicacaoInline && matches.length === 0) {
     COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = COMUNICACAO_PJE_INLINE_REGEX.exec(texto)) !== null) matches.push(formatarCNJ(m[1]));
     COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
   }
 
-  // Não deduplica: retorna a lista bruta para que a contagem reflita
-  // a quantidade real de blocos/publicações no documento. A comparação
-  // (compararListas) já normaliza via Set internamente.
+  // Não deduplica: contagem reflete blocos reais do documento.
+  // compararListas já normaliza via Set internamente.
   return matches;
 }
 
