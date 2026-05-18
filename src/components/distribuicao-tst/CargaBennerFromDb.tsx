@@ -166,6 +166,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [stats, setStats] = useState<Stats | null>(null);
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
+  const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
@@ -176,6 +177,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
     setStats(null);
     setOutputData(null);
     setRejectedData([]);
+    setConferenciaData(null);
 
     try {
       // Phase 1: Fetch distribuicoes_tst
@@ -273,6 +275,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       // Phase 3: Process each distribuicao
       const output: Record<string, any>[] = [];
       const rejected: RejeicaoRow[] = [];
+      const conferenciaOutput: Record<string, any>[] = [];
       let matched = 0;
       const warningsByType: Record<string, number> = {};
       let warningsTotal = 0;
@@ -293,6 +296,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         // Validate
         let motivo = getMotivoRejeicaoDossie(dossie, numProcesso);
         if (!motivo && !turmaRaw) motivo = "Turma não preenchida";
+        let isRejected = false;
         if (motivo) {
           // Em modo "seleção manual" o usuário escolheu cada linha conscientemente:
           // não descartamos a linha; apenas registramos um aviso e seguimos preenchendo
@@ -311,7 +315,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
               "Relator": d.relator || "",
               "Motivo": motivo,
             });
-            continue;
+            isRejected = true;
+            // Não usar "continue": precisamos construir a linha para a
+            // Planilha de Conferência mesmo quando a linha é rejeitada
+            // (dossiê vazio, turma ausente etc.).
           }
         }
 
@@ -375,7 +382,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
             outRow[key] = "";
           }
         }
-        output.push(outRow);
+        // Conferência inclui todas as linhas (inclusive dossiê vazio /
+        // turma ausente). Layout Carga oficial só recebe não-rejeitadas.
+        conferenciaOutput.push(outRow);
+        if (!isRejected) output.push(outRow);
 
         if (i % 500 === 0) {
           setProgress(50 + Math.floor((i / allDist.length) * 40));
@@ -405,6 +415,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       setOutputData(outputFinal);
       setRejectedData(rejected);
+      setConferenciaData(conferenciaOutput);
       setStats({
         totalDistribuicoes: allDist.length,
         matched,
@@ -530,7 +541,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   };
 
   const downloadConferenciaXlsx = async () => {
-    if (!outputData) return;
+    const data = conferenciaData ?? outputData;
+    if (!data || data.length === 0) {
+      toast.error("Nenhum dado para gerar a conferência.");
+      return;
+    }
     try {
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
       if (!resp.ok) throw new Error("Template não encontrado");
@@ -607,8 +622,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       }
 
       let dataRowsXml = "";
-      for (let i = 0; i < outputData.length; i++) {
-        const row = outputData[i];
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
         const rowNum = i + 3;
         let cellsXml = "";
         const dossieVal = String(row[LAYOUT_COLS[0]] ?? "");
@@ -626,7 +641,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
       }
 
-      const lastRow = outputData.length + 2;
+      const lastRow = data.length + 2;
       sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${colToLetter(totalCols - 1)}${lastRow}"/>`);
       sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
       sheetXml = setWorksheetColumnWidth(sheetXml, 28, 60);
