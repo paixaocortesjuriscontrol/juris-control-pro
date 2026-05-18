@@ -21,6 +21,7 @@ import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateIm
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
 import { RespostaSantanderImport } from "@/components/distribuicao-tst/RespostaSantanderImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
+import { DossiesNaoLocalizadosButton } from "@/components/distribuicao-tst/DossiesNaoLocalizadosButton";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -1117,6 +1118,7 @@ export default function DistribuicaoTst() {
                 </Button>
               </Link>
               <BennerSimImport onUpdated={handleRefresh} />
+              <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
               <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
                 {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
                 {cargaLoading
