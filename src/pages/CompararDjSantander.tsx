@@ -340,7 +340,7 @@ function exportarPdf(
   doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris";
+type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris" | "excel-astrea";
 
 function extrairProcessosExcelProjuris(arrayBuffer: ArrayBuffer): string[] {
   const wb = XLSX.read(arrayBuffer, { type: "array" });
@@ -351,6 +351,29 @@ function extrairProcessosExcelProjuris(arrayBuffer: ArrayBuffer): string[] {
     if (!rows.length) continue;
     const sample = rows[0];
     const colProcesso = Object.keys(sample).find((k) => k.trim().toLowerCase() === "processo");
+    if (!colProcesso) continue;
+    for (const row of rows) {
+      const valor = String(row[colProcesso] ?? "").trim();
+      if (!valor) continue;
+      const digits = valor.replace(/\D/g, "");
+      if (digits.length === 20) encontrados.push(formatarCNJ(digits));
+    }
+  }
+  return [...new Set(encontrados)];
+}
+
+function extrairProcessosExcelAstrea(arrayBuffer: ArrayBuffer): string[] {
+  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  const encontrados: string[] = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+    if (!rows.length) continue;
+    const sample = rows[0];
+    const colProcesso = Object.keys(sample).find((k) => {
+      const lower = k.trim().toLowerCase();
+      return lower === "número do processo" || lower === "numero do processo" || lower === "nº do processo" || lower === "n° do processo";
+    });
     if (!colProcesso) continue;
     for (const row of rows) {
       const valor = String(row[colProcesso] ?? "").trim();
@@ -388,6 +411,11 @@ export default function CompararDjSantander() {
   const [excelProjurisFile, setExcelProjurisFile] = useState<File | null>(null);
   const [excelProjurisProcessos, setExcelProjurisProcessos] = useState<string[]>([]);
   const [loadingExcelProjuris, setLoadingExcelProjuris] = useState(false);
+
+  // Excel Astrea mode state
+  const [excelAstreaFile, setExcelAstreaFile] = useState<File | null>(null);
+  const [excelAstreaProcessos, setExcelAstreaProcessos] = useState<string[]>([]);
+  const [loadingExcelAstrea, setLoadingExcelAstrea] = useState(false);
 
   // Análise de motivos (porque um processo do "Somente no <leftLabel>" não foi capturado)
   const [monitoramentosConfig, setMonitoramentosConfig] = useState<MonitoramentoConfig[]>([]);
@@ -511,6 +539,26 @@ export default function CompararDjSantander() {
     }
   }, []);
 
+  const handleExcelAstreaUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelAstreaFile(file);
+    setExcelAstreaProcessos([]);
+    setResult(null);
+    setLoadingExcelAstrea(true);
+    try {
+      const ab = await file.arrayBuffer();
+      const processos = extrairProcessosExcelAstrea(ab);
+      setExcelAstreaProcessos(processos);
+      toast.success(`Planilha carregada: ${processos.length} processos encontrados na coluna "Número do processo"`);
+    } catch (err) {
+      console.error("Erro ao ler XLSX Astrea:", err);
+      toast.error("Erro ao ler a planilha do Astrea");
+    } finally {
+      setLoadingExcelAstrea(false);
+    }
+  }, []);
+
   const handleBuscarDjen = async () => {
     if (!selectedCoordenacao || !selectedDate) {
       toast.error("Selecione a coordenação e a data de início");
@@ -628,12 +676,19 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(pdfDiarioProcessos, djenProcessos);
       setResult(res);
-    } else {
+    } else if (mode === "excel-projuris") {
       if (excelProjurisProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Projuris e busque as publicações antes de comparar");
         return;
       }
       const res = compararListas(excelProjurisProcessos, djenProcessos);
+      setResult(res);
+    } else {
+      if (excelAstreaProcessos.length === 0 || djenProcessos.length === 0) {
+        toast.error("Carregue a planilha do Astrea e busque as publicações antes de comparar");
+        return;
+      }
+      const res = compararListas(excelAstreaProcessos, djenProcessos);
       setResult(res);
     }
     toast.success("Comparação concluída!");
@@ -643,11 +698,13 @@ export default function CompararDjSantander() {
     mode === "pdf" ? docProcessos.length > 0 && pdfProcessos.length > 0
     : mode === "djen" ? docProcessos.length > 0 && djenProcessos.length > 0
     : mode === "pdf-diario" ? pdfDiarioProcessos.length > 0 && djenProcessos.length > 0
-    : excelProjurisProcessos.length > 0 && djenProcessos.length > 0;
+    : mode === "excel-projuris" ? excelProjurisProcessos.length > 0 && djenProcessos.length > 0
+    : excelAstreaProcessos.length > 0 && djenProcessos.length > 0;
 
   const leftLabel =
     mode === "pdf-diario" ? "PDF Equipe DR. Thomás"
     : mode === "excel-projuris" ? "Excel Projuris"
+    : mode === "excel-astrea" ? "Excel Astrea"
     : "DOC Advogado";
   const sourceLabel = mode === "pdf" ? "PDF" : "DJEN";
   const leftFileName =
@@ -655,6 +712,8 @@ export default function CompararDjSantander() {
       ? (pdfDiarioFiles.length > 0 ? `${pdfDiarioFiles.length} PDF(s) Equipe DR. Thomás` : "PDF Equipe DR. Thomás")
       : mode === "excel-projuris"
       ? (excelProjurisFile?.name || "Excel Projuris")
+      : mode === "excel-astrea"
+      ? (excelAstreaFile?.name || "Excel Astrea")
       : (docFile?.name || "DOC");
   const sourceFileName = mode === "pdf"
     ? (pdfFile?.name || "PDF")
@@ -882,6 +941,10 @@ export default function CompararDjSantander() {
                 <TabsTrigger value="excel-projuris" className="flex-1 gap-2">
                   <Database className="w-4 h-4" />
                   Excel Projuris
+                </TabsTrigger>
+                <TabsTrigger value="excel-astrea" className="flex-1 gap-2">
+                  <Database className="w-4 h-4" />
+                  Excel Astrea
                 </TabsTrigger>
               </TabsList>
 
@@ -1192,6 +1255,83 @@ export default function CompararDjSantander() {
                   )}
                 </div>
               </TabsContent>
+
+              <TabsContent value="excel-astrea">
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Compara os processos da coluna <strong>"Número do processo"</strong> da planilha do Astrea com as publicações DJEN da base.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
+                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDateFim}
+                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
+                            locale={ptBR}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleBuscarDjen}
+                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    className="w-full gap-2"
+                  >
+                    {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                    {loadingDjen ? "Buscando..." : "Buscar Publicações"}
+                  </Button>
+                  {djenLoaded && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className="text-muted-foreground">{djenProcessos.length} processos encontrados nas publicações</span>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -1261,7 +1401,7 @@ export default function CompararDjSantander() {
             </label>
           </CardContent>
           </>
-        ) : (
+        ) : mode === "excel-projuris" ? (
           <>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -1292,6 +1432,40 @@ export default function CompararDjSantander() {
                 )}
               </div>
               <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleExcelProjurisUpload} />
+            </label>
+          </CardContent>
+          </>
+        ) : (
+          <>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-5 h-5 text-amber-500" />
+              Planilha Astrea (XLSX)
+            </CardTitle>
+            <CardDescription>Planilha exportada do Astrea. Os números de processo são lidos da coluna <strong>"Número do processo"</strong>.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {loadingExcelAstrea ? (
+                  <>
+                    <Loader2 className="w-8 h-8 mb-2 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Lendo planilha...</p>
+                  </>
+                ) : excelAstreaFile ? (
+                  <>
+                    <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                    <p className="text-sm font-medium">{excelAstreaFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{excelAstreaProcessos.length} processos encontrados</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar a planilha .xlsx</p>
+                  </>
+                )}
+              </div>
+              <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleExcelAstreaUpload} />
             </label>
           </CardContent>
           </>
