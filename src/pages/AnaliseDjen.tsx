@@ -157,6 +157,7 @@ const AnaliseDjen = () => {
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
   const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
+  const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo;
   const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
 
   // Quando carregar a coordenação do usuário, definir como padrão
@@ -237,9 +238,9 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    // Quando há coordenação selecionada OU filtro por Data Disponibilização ativo,
-    // carrega tudo de uma vez (filtro de data é client-side e precisa do dataset completo).
-    pageSize: (coordenacaoFiltroEfetivo || filtroDataDisponibilizacaoAtivo) ? 100000 : listLimit,
+    // Quando há coordenação selecionada OU qualquer filtro de data ativo,
+    // carrega tudo de uma vez para não ocultar publicações da data selecionada.
+    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
