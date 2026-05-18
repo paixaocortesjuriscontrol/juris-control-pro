@@ -208,7 +208,8 @@ function extrairProcessosDocxTitulosNegritoXml(xml: string): string[] {
     if (negrito === texto) matches.push(formatarCNJ((comunicacao ?? processo)![1]));
   }
 
-  return [...new Set(matches)];
+  // Não deduplica: contagem reflete blocos reais no documento.
+  return matches;
 }
 
 async function extrairProcessosDocxTitulosNegrito(arrayBuffer: ArrayBuffer): Promise<string[]> {
@@ -254,7 +255,7 @@ function extrairProcessosTitulosPdfDiario(texto: string): string[] {
     const m = limpa.match(PROCESSO_DJ_TITULO_REGEX);
     if (m) matches.push(formatarCNJ(m[1]));
   }
-  return [...new Set(matches)];
+  return matches;
 }
 
 async function extrairTextoPdf(arrayBuffer: ArrayBuffer): Promise<string> {
