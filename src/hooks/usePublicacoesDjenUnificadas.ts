@@ -351,6 +351,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         apenasHoje: filtros.apenasHoje ?? null,
         dataInicio: filtros.dataInicio ?? null,
         dataFim: filtros.dataFim ?? null,
+        dataDisponibilizacao: filtros.dataDisponibilizacao ?? null,
         tipoOrigem: filtros.tipoOrigem ?? null,
         termoBusca: filtros.termoBusca ?? null,
         monitoramentoId: filtros.monitoramentoId ?? null,
@@ -370,6 +371,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
+      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        : null;
+      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
       // do usuário autenticado (espelhando o mergeWithLeituras no client),
@@ -386,6 +393,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             .eq('tipo_publicacao', 'pauta');
           if (di) q = q.gte('created_at', di);
           if (df) q = q.lte('created_at', df);
+          if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+          if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
           if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
           const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
@@ -450,6 +459,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         p_coordenacao_id: filtros.coordenacaoId ?? null,
         p_inicio: di,
         p_fim: df,
+        p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
+        p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
         p_tipo_origem: filtros.tipoOrigem && filtros.tipoOrigem !== 'descartada' && filtros.tipoOrigem !== 'todos'
           ? filtros.tipoOrigem
           : null,
