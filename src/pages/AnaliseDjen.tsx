@@ -238,7 +238,7 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    pageSize: coordenacaoFiltroEfetivo ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
