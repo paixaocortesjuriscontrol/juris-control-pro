@@ -541,7 +541,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   };
 
   const downloadConferenciaXlsx = async () => {
-    if (!outputData) return;
+    const data = conferenciaData ?? outputData;
+    if (!data || data.length === 0) {
+      toast.error("Nenhum dado para gerar a conferência.");
+      return;
+    }
     try {
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
       if (!resp.ok) throw new Error("Template não encontrado");
