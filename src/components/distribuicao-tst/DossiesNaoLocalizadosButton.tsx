@@ -431,11 +431,13 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
               />
               <div className="space-y-1">
                 <Label htmlFor="usar-judit-dossies" className="text-sm font-medium cursor-pointer">
-                  Consultar Judit para preencher Reclamante e CPF/CNPJ
+                  Consultar Judit e preencher Dados Benner (igual ao botão Judit em lote)
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Quando ativado, cada processo será consultado na Judit (sem anexos) para
-                  obter o nome do reclamante e o CPF/CNPJ. Pode demorar.
+                  Quando ativado, cada processo é consultado na Judit COM anexos e
+                  todos os campos são gravados em Dados Benner, Partes, Anexos e
+                  o registro é marcado como judit_preenchido — exatamente como o
+                  botão "Preenchimento Judit em lote". Pode demorar.
                 </p>
               </div>
             </div>
