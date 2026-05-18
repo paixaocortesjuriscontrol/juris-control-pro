@@ -157,7 +157,8 @@ const AnaliseDjen = () => {
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
   const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
-  const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo;
+  // Início/Fim já são filtrados server-side por created_at (índice idx_pub_djen_created_desc),
+  // então NÃO inflamos o pageSize por causa deles. Só dataDisponibilizacao é client-side.
   const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
 
   // Quando carregar a coordenação do usuário, definir como padrão
@@ -238,9 +239,10 @@ const AnaliseDjen = () => {
     // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
     incluirDescartadas: tipoOrigem === 'descartada',
     page: 1,
-    // Quando há coordenação selecionada OU qualquer filtro de data ativo,
-    // carrega tudo de uma vez para não ocultar publicações da data selecionada.
-    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    // Carrega tudo apenas quando há coordenação selecionada (filtro server-side estreito)
+    // ou quando o filtro de Data Disponibilização está ativo (client-side, precisa do dataset completo).
+    // Início/Fim já filtram no servidor por created_at, então usam paginação normal.
+    pageSize: (coordenacaoFiltroEfetivo || filtroDataDisponibilizacaoAtivo) ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
