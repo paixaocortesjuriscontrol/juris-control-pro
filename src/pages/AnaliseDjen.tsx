@@ -146,8 +146,8 @@ const AnaliseDjen = () => {
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
   // Evita travar a tela renderizando milhares de cards de uma vez.
-  const INITIAL_LIST_LIMIT = 300;
-  const LOAD_MORE_INCREMENT = 300;
+  const INITIAL_LIST_LIMIT = 500;
+  const LOAD_MORE_INCREMENT = 500;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
