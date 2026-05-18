@@ -482,8 +482,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       }
 
       let dataRowsXml = "";
-      for (let i = 0; i < data.length; i++) {
-        const row = data[i];
+      for (let i = 0; i < outputData.length; i++) {
+        const row = outputData[i];
         const rowNum = i + 3;
         let cellsXml = "";
         for (let c = 0; c < maxCol; c++) {
@@ -622,8 +622,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       }
 
       let dataRowsXml = "";
-      for (let i = 0; i < outputData.length; i++) {
-        const row = outputData[i];
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
         const rowNum = i + 3;
         let cellsXml = "";
         const dossieVal = String(row[LAYOUT_COLS[0]] ?? "");
