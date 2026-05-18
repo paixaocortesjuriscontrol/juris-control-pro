@@ -323,106 +323,235 @@ function exportarPdf(
   docFileName: string,
   pdfFileName: string,
   analise: Record<string, AnaliseProcesso> = {},
+  opts: {
+    leftLabel?: string;
+    sourceLabel?: string;
+    tiposEsq?: TipoCounts | null;
+    tiposDir?: TipoCounts | null;
+  } = {},
 ) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  let y = 20;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const mL = 14;
+  const mR = 14;
+  const contentW = pageWidth - mL - mR;
+  let y = 0;
+
+  const leftLabel = opts.leftLabel || "DOC";
+  const sourceLabel = opts.sourceLabel || "Fonte";
+  const tiposEsq = opts.tiposEsq || null;
+  const tiposDir = opts.tiposDir || null;
 
   const checkPage = (needed: number) => {
-    if (y + needed > 280) { doc.addPage(); y = 20; }
+    if (y + needed > pageHeight - 15) { doc.addPage(); y = 20; }
   };
 
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.text("Relatório - Comparar DJ Santander", pageWidth / 2, y, { align: "center" });
-  y += 10;
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Data: ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR")}`, pageWidth / 2, y, { align: "center" });
-  y += 6;
-  doc.text(`DOC: ${docFileName}  |  Fonte: ${pdfFileName}`, pageWidth / 2, y, { align: "center" });
-  y += 12;
-
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("Resumo", 14, y); y += 7;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`Processos no DOC: ${result.processos_doc.length}`, 14, y); y += 5;
-  doc.text(`Processos na Fonte: ${result.processos_pdf.length}`, 14, y); y += 5;
-  doc.text(`Em Comum: ${result.comuns.length}`, 14, y); y += 5;
-  doc.text(`Somente no DOC: ${result.somente_doc.length}`, 14, y); y += 5;
-  doc.text(`Somente na Fonte: ${result.somente_pdf.length}`, 14, y); y += 12;
-
-  // Em Comum: lista simples em 3 colunas (sem detalhes)
-  checkPage(12);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text(`Em Comum (${result.comuns.length})`, 14, y); y += 6;
-  doc.setDrawColor(180);
-  doc.line(14, y, pageWidth - 14, y);
-  y += 4;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  const comunsCols = 3;
-  const comunsColW = (pageWidth - 28) / comunsCols;
-  const comunsRows = Math.ceil(result.comuns.length / comunsCols);
-  for (let row = 0; row < comunsRows; row++) {
-    checkPage(5);
-    for (let c = 0; c < comunsCols; c++) {
-      const idx = row * comunsCols + c;
-      if (idx < result.comuns.length) {
-        doc.text(result.comuns[idx], 14 + c * comunsColW, y);
-      }
-    }
-    y += 4.5;
-  }
-  y += 6;
-
-  // Colunas com detalhes (análise por processo)
-  const renderDetalhes = (titulo: string, items: string[]) => {
-    checkPage(14);
-    doc.setFontSize(11);
+  // ----- Header colorido -----
+  const drawHeader = () => {
+    doc.setFillColor(30, 58, 95); // azul-marinho
+    doc.rect(0, 0, pageWidth, 26, "F");
+    doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.text(`${titulo} (${items.length})`, 14, y); y += 6;
-    doc.setDrawColor(180);
-    doc.line(14, y, pageWidth - 14, y);
-    y += 4;
+    doc.setFontSize(16);
+    doc.text("Relatório • Comparar DJEN", pageWidth / 2, 12, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const dataStr = `${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR")}`;
+    doc.text(dataStr, pageWidth / 2, 19, { align: "center" });
+    doc.setTextColor(0, 0, 0);
+    y = 32;
+  };
+  drawHeader();
+
+  // ----- Box com nomes dos arquivos -----
+  doc.setFillColor(245, 247, 250);
+  doc.setDrawColor(220);
+  doc.roundedRect(mL, y, contentW, 14, 2, 2, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(`${leftLabel}:`, mL + 3, y + 5.5);
+  doc.text(`${sourceLabel}:`, mL + 3, y + 11);
+  doc.setFont("helvetica", "normal");
+  doc.text(doc.splitTextToSize(docFileName, contentW - 30)[0] || "—", mL + 24, y + 5.5);
+  doc.text(doc.splitTextToSize(pdfFileName, contentW - 30)[0] || "—", mL + 24, y + 11);
+  y += 20;
+
+  // ----- Cards de totalizadores (5 colunas) -----
+  type CardSpec = { label: string; value: number; fill: [number, number, number]; border: [number, number, number]; text: [number, number, number] };
+  const cards: CardSpec[] = [
+    { label: `Processos no ${leftLabel}`, value: result.processos_doc.length, fill: [239, 246, 255], border: [191, 219, 254], text: [37, 99, 235] },
+    { label: `Processos no ${sourceLabel}`, value: result.processos_pdf.length, fill: [254, 242, 242], border: [254, 202, 202], text: [220, 38, 38] },
+    { label: "Em Comum", value: result.comuns.length, fill: [240, 253, 244], border: [187, 247, 208], text: [22, 163, 74] },
+    { label: `Somente no ${leftLabel}`, value: result.somente_doc.length, fill: [255, 251, 235], border: [253, 230, 138], text: [217, 119, 6] },
+    { label: `Somente no ${sourceLabel}`, value: result.somente_pdf.length, fill: [255, 247, 237], border: [254, 215, 170], text: [234, 88, 12] },
+  ];
+  const cardGap = 3;
+  const cardW = (contentW - cardGap * (cards.length - 1)) / cards.length;
+  const cardH = 22;
+  cards.forEach((c, i) => {
+    const x = mL + i * (cardW + cardGap);
+    doc.setFillColor(...c.fill);
+    doc.setDrawColor(...c.border);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD");
+    doc.setTextColor(...c.text);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(String(c.value), x + cardW / 2, y + 11, { align: "center" });
+    doc.setTextColor(80, 80, 80);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    const lab = doc.splitTextToSize(c.label, cardW - 4);
+    doc.text(lab.slice(0, 2), x + cardW / 2, y + 16, { align: "center" });
+  });
+  doc.setTextColor(0, 0, 0);
+  y += cardH + 8;
+
+  // ----- Classificação por título -----
+  if (tiposEsq || tiposDir) {
+    checkPage(40);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(30, 58, 95);
+    doc.text("Classificação por título", mL, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(110);
+    doc.text("Contagem baseada exclusivamente no título/cabeçalho de cada publicação (não analisa o corpo).", mL, y);
+    y += 5;
+    doc.setTextColor(0, 0, 0);
+
+    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Total (blocos)"];
+    const colWs = [44, 32, 34, 24, 22, contentW - (44 + 32 + 34 + 24 + 22)];
+    const rowH = 8;
+    // Header row
+    doc.setFillColor(30, 58, 95);
+    doc.rect(mL, y, contentW, rowH, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    let cx = mL;
+    headers.forEach((h, i) => {
+      const align = i === 0 ? "left" : "right";
+      const xText = i === 0 ? cx + 2 : cx + colWs[i] - 2;
+      doc.text(h, xText, y + 5.5, { align: align as any });
+      cx += colWs[i];
+    });
+    y += rowH;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+
+    const renderTipoRow = (label: string, t: TipoCounts, alt: boolean) => {
+      if (alt) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(mL, y, contentW, rowH, "F");
+      }
+      const vals = [label, String(t.pauta), String(t.distribuicao), String(t.cejusc), String(t.outros), String(t.total)];
+      let xc = mL;
+      vals.forEach((v, i) => {
+        const align = i === 0 ? "left" : "right";
+        const xText = i === 0 ? xc + 2 : xc + colWs[i] - 2;
+        if (i === vals.length - 1) doc.setFont("helvetica", "bold");
+        else doc.setFont("helvetica", "normal");
+        doc.text(v, xText, y + 5.5, { align: align as any });
+        xc += colWs[i];
+      });
+      doc.setDrawColor(220);
+      doc.line(mL, y + rowH, mL + contentW, y + rowH);
+      y += rowH;
+    };
+    if (tiposEsq) renderTipoRow(leftLabel, tiposEsq, false);
+    if (tiposDir) renderTipoRow(sourceLabel, tiposDir, true);
+    y += 8;
+  }
+
+  // ----- Lista helper colorida -----
+  const renderSecao = (
+    titulo: string,
+    items: string[],
+    color: [number, number, number],
+    showMotivos: boolean,
+  ) => {
+    checkPage(20);
+    // Faixa colorida com título
+    doc.setFillColor(...color);
+    doc.rect(mL, y, contentW, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(`${titulo} (${items.length})`, mL + 3, y + 5.5);
+    doc.setTextColor(0, 0, 0);
+    y += 11;
+
     if (items.length === 0) {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(9);
-      doc.text("Nenhum processo.", 14, y);
+      doc.setTextColor(140);
+      doc.text("Nenhum processo.", mL, y);
+      doc.setTextColor(0, 0, 0);
       y += 8;
       return;
     }
-    const maxTextWidth = pageWidth - 28 - 6;
-    items.forEach((p) => {
-      checkPage(6);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text(p, 14, y);
-      y += 4.5;
-      const motivos = analise[p]?.motivos || [];
+
+    if (showMotivos) {
+      // Lista detalhada com motivos
+      const maxTextWidth = contentW - 6;
+      items.forEach((p) => {
+        checkPage(7);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 58, 95);
+        doc.text(p, mL, y);
+        y += 4.5;
+        doc.setTextColor(0, 0, 0);
+        const motivos = analise[p]?.motivos || [];
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        motivos.forEach((m) => {
+          const wrapped: string[] = doc.splitTextToSize(`• ${m}`, maxTextWidth);
+          wrapped.forEach((line: string) => {
+            checkPage(4.5);
+            doc.text(line, mL + 4, y);
+            y += 4;
+          });
+        });
+        y += 1.5;
+      });
+    } else {
+      // Lista simples em 3 colunas
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      motivos.forEach((m) => {
-        const wrapped: string[] = doc.splitTextToSize(`• ${m}`, maxTextWidth);
-        wrapped.forEach((line: string) => {
-          checkPage(4.5);
-          doc.text(line, 20, y);
-          y += 4;
-        });
-      });
-      y += 1.5;
-    });
-    y += 4;
+      const cols = 3;
+      const colW = contentW / cols;
+      const rows = Math.ceil(items.length / cols);
+      for (let r = 0; r < rows; r++) {
+        checkPage(5);
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          if (idx < items.length) doc.text(items[idx], mL + c * colW, y);
+        }
+        y += 4.5;
+      }
+    }
+    y += 6;
   };
 
-  renderDetalhes("Somente no DOC", result.somente_doc);
-  renderDetalhes("Somente na Fonte", result.somente_pdf);
+  renderSecao("Em Comum", result.comuns, [22, 163, 74], false);
+  renderSecao(`Somente no ${leftLabel}`, result.somente_doc, [217, 119, 6], true);
+  renderSecao(`Somente no ${sourceLabel}`, result.somente_pdf, [234, 88, 12], true);
 
-  doc.save(`comparacao_dj_santander_${new Date().toISOString().slice(0, 10)}.pdf`);
+  // ----- Rodapé -----
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(150);
+    doc.text(`Juris Control – Comparar DJEN – Página ${i}/${total}`, pageWidth / 2, pageHeight - 6, { align: "center" });
+  }
+
+  doc.save(`comparacao_djen_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris" | "excel-astrea";
