@@ -302,12 +302,6 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
         ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
         : null;
-      const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
-        : null;
-      const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
-        : null;
 
       try {
         let q = (supabase
