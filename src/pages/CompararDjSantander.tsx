@@ -208,7 +208,8 @@ function extrairProcessosDocxTitulosNegritoXml(xml: string): string[] {
     if (negrito === texto) matches.push(formatarCNJ((comunicacao ?? processo)![1]));
   }
 
-  return [...new Set(matches)];
+  // Não deduplica: contagem reflete blocos reais no documento.
+  return matches;
 }
 
 async function extrairProcessosDocxTitulosNegrito(arrayBuffer: ArrayBuffer): Promise<string[]> {
@@ -240,7 +241,10 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
     COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
   }
 
-  return [...new Set(matches)];
+  // Não deduplica: retorna a lista bruta para que a contagem reflita
+  // a quantidade real de blocos/publicações no documento. A comparação
+  // (compararListas) já normaliza via Set internamente.
+  return matches;
 }
 
 function extrairProcessosTitulosPdfDiario(texto: string): string[] {
@@ -251,7 +255,7 @@ function extrairProcessosTitulosPdfDiario(texto: string): string[] {
     const m = limpa.match(PROCESSO_DJ_TITULO_REGEX);
     if (m) matches.push(formatarCNJ(m[1]));
   }
-  return [...new Set(matches)];
+  return matches;
 }
 
 async function extrairTextoPdf(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -591,10 +595,9 @@ export default function CompararDjSantander() {
         all.push(...extrairProcessosTitulosPdfDiario(text));
         textosConcat.push(text);
       }
-      const unique = [...new Set(all)];
-      setPdfDiarioProcessos(unique);
+      setPdfDiarioProcessos(all);
       setPdfDiarioTexto(textosConcat.join("\n"));
-      toast.success(`${files.length} PDF(s) processado(s): ${unique.length} processos identificados nos títulos`);
+      toast.success(`${files.length} PDF(s) processado(s): ${all.length} processos identificados nos títulos`);
     } catch (err) {
       console.error("Erro ao ler PDFs do diário:", err);
       toast.error("Erro ao ler arquivo(s) PDF do diário");
