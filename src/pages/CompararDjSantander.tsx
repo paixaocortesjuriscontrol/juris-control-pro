@@ -595,10 +595,9 @@ export default function CompararDjSantander() {
         all.push(...extrairProcessosTitulosPdfDiario(text));
         textosConcat.push(text);
       }
-      const unique = [...new Set(all)];
-      setPdfDiarioProcessos(unique);
+      setPdfDiarioProcessos(all);
       setPdfDiarioTexto(textosConcat.join("\n"));
-      toast.success(`${files.length} PDF(s) processado(s): ${unique.length} processos identificados nos títulos`);
+      toast.success(`${files.length} PDF(s) processado(s): ${all.length} processos identificados nos títulos`);
     } catch (err) {
       console.error("Erro ao ler PDFs do diário:", err);
       toast.error("Erro ao ler arquivo(s) PDF do diário");
