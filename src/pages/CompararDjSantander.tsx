@@ -240,7 +240,10 @@ function extrairProcessos(texto: string, options: { permitirComunicacaoInline?: 
     COMUNICACAO_PJE_INLINE_REGEX.lastIndex = 0;
   }
 
-  return [...new Set(matches)];
+  // Não deduplica: retorna a lista bruta para que a contagem reflita
+  // a quantidade real de blocos/publicações no documento. A comparação
+  // (compararListas) já normaliza via Set internamente.
+  return matches;
 }
 
 function extrairProcessosTitulosPdfDiario(texto: string): string[] {
