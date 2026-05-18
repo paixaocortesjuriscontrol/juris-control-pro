@@ -382,17 +382,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
             outRow[key] = "";
           }
         }
-        output.push(outRow);
-
         // Conferência inclui todas as linhas (inclusive dossiê vazio /
-        // turma ausente). Linhas rejeitadas entram aqui mas NÃO entram
-        // em "output" (Layout Carga oficial).
+        // turma ausente). Layout Carga oficial só recebe não-rejeitadas.
         conferenciaOutput.push(outRow);
-        if (isRejected) {
-          // Remove a última inserção em output: rejeitadas não entram
-          // no Layout Carga oficial.
-          output.pop();
-        }
+        if (!isRejected) output.push(outRow);
 
         if (i % 500 === 0) {
           setProgress(50 + Math.floor((i / allDist.length) * 40));
