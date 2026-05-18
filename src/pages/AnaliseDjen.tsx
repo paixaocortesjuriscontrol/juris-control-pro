@@ -3405,8 +3405,7 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">{gerandoDocResumoSemIA ? "..." : "Doc Resumo"}</span>
           </Button>
 
-          {false && (
-            <Button
+          <Button
               variant="outline"
               size="sm"
               onClick={handleGerarDocsTST}
@@ -3420,8 +3419,7 @@ const AnaliseDjen = () => {
               )}
               <span className="hidden sm:inline">{gerandoDocsTST ? "Classificando..." : "Docs TST"}</span>
               <span className="sm:hidden">{gerandoDocsTST ? "..." : "TST"}</span>
-            </Button>
-          )}
+          </Button>
 
           <Button
             variant={expandedPublicacoes.size > 0 ? "default" : "outline"}
