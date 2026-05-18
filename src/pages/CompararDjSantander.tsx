@@ -47,6 +47,72 @@ interface AnaliseProcesso {
   motivos: string[];
 }
 
+interface TipoCounts {
+  pauta: number;
+  distribuicao: number;
+  cejusc: number;
+  outros: number;
+  total: number;
+}
+
+// Classifica cada bloco de publicação OLHANDO SÓ NO TÍTULO/CABEÇALHO
+// (primeiras linhas após o cabeçalho do processo), nunca no conteúdo do corpo.
+// Tipos:
+//   - Pauta de Julgamento  → "Pauta de Julgamento"
+//   - Lista de Distribuição → "Lista de Distribuição"
+//   - CEJUSC-TST            → "CEJUSC"
+function classificarTiposPorTitulo(texto: string): TipoCounts {
+  const linhas = texto.replace(/\u00a0/g, " ").split(/\r?\n+/);
+  const blocos: string[][] = [];
+  let atual: string[] | null = null;
+
+  const isHeader = (limpa: string) => {
+    const colada = colarCnjNaLinha(limpa);
+    return (
+      COMUNICACAO_PJE_TITULO_REGEX.test(limpa) ||
+      PROCESSO_TITULO_REGEX.test(limpa) ||
+      PROCESSO_DJ_TITULO_REGEX.test(colada)
+    );
+  };
+
+  for (const linha of linhas) {
+    const limpa = normalizarLinha(linha);
+    if (isHeader(limpa)) {
+      if (atual) blocos.push(atual);
+      atual = [limpa];
+    } else if (atual) {
+      atual.push(linha);
+    }
+  }
+  if (atual) blocos.push(atual);
+
+  let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
+  for (const bloco of blocos) {
+    // Considera apenas a "área de título" do bloco: cabeçalho + ~6 linhas seguintes
+    // (rótulos/etiquetas tipo "Pauta de julgamento (íntegra):", "CEJUSC-TST", etc.)
+    const tituloArea = bloco.slice(0, 7).join("\n");
+    if (/CEJUSC/i.test(tituloArea)) cejusc++;
+    else if (/Pauta\s+de\s+Julgamento/i.test(tituloArea)) pauta++;
+    else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(tituloArea)) distribuicao++;
+    else outros++;
+  }
+
+  return { pauta, distribuicao, cejusc, outros, total: blocos.length };
+}
+
+// Extrai o texto plano de um DOCX preservando quebras de parágrafo,
+// para podermos analisar os títulos linha-a-linha.
+async function extrairTextoDocx(arrayBuffer: ArrayBuffer): Promise<string> {
+  const zip = await JSZip.loadAsync(arrayBuffer.slice(0));
+  const xml = await zip.file("word/document.xml")?.async("string");
+  if (!xml) return "";
+  const parsed = new DOMParser().parseFromString(xml, "application/xml");
+  const paragrafos = Array.from(parsed.getElementsByTagNameNS(WORD_NS, "p"));
+  return paragrafos
+    .map((p) => descendentesPorNome(p, "t").map((t) => t.textContent || "").join(""))
+    .join("\n");
+}
+
 function formatarCNJ(numero: string): string {
   const digits = numero.replace(/\D/g, "");
   if (digits.length === 20) {
