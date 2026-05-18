@@ -166,6 +166,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [stats, setStats] = useState<Stats | null>(null);
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
+  const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
@@ -176,6 +177,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
     setStats(null);
     setOutputData(null);
     setRejectedData([]);
+    setConferenciaData(null);
 
     try {
       // Phase 1: Fetch distribuicoes_tst
@@ -273,6 +275,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       // Phase 3: Process each distribuicao
       const output: Record<string, any>[] = [];
       const rejected: RejeicaoRow[] = [];
+      const conferenciaOutput: Record<string, any>[] = [];
       let matched = 0;
       const warningsByType: Record<string, number> = {};
       let warningsTotal = 0;
@@ -293,6 +296,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         // Validate
         let motivo = getMotivoRejeicaoDossie(dossie, numProcesso);
         if (!motivo && !turmaRaw) motivo = "Turma não preenchida";
+        let isRejected = false;
         if (motivo) {
           // Em modo "seleção manual" o usuário escolheu cada linha conscientemente:
           // não descartamos a linha; apenas registramos um aviso e seguimos preenchendo
@@ -311,7 +315,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
               "Relator": d.relator || "",
               "Motivo": motivo,
             });
-            continue;
+            isRejected = true;
+            // Não usar "continue": precisamos construir a linha para a
+            // Planilha de Conferência mesmo quando a linha é rejeitada
+            // (dossiê vazio, turma ausente etc.).
           }
         }
 
@@ -377,6 +384,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         }
         output.push(outRow);
 
+        // Conferência inclui todas as linhas (inclusive dossiê vazio /
+        // turma ausente). Linhas rejeitadas entram aqui mas NÃO entram
+        // em "output" (Layout Carga oficial).
+        conferenciaOutput.push(outRow);
+        if (isRejected) {
+          // Remove a última inserção em output: rejeitadas não entram
+          // no Layout Carga oficial.
+          output.pop();
+        }
+
         if (i % 500 === 0) {
           setProgress(50 + Math.floor((i / allDist.length) * 40));
           await new Promise(r => setTimeout(r, 0));
@@ -405,6 +422,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       setOutputData(outputFinal);
       setRejectedData(rejected);
+      setConferenciaData(conferenciaOutput);
       setStats({
         totalDistribuicoes: allDist.length,
         matched,
