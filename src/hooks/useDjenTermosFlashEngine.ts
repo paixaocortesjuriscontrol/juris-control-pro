@@ -15,7 +15,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClientFlash";
-import { buildDjenLikeConteudo, partePresenteNosMetadados } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
