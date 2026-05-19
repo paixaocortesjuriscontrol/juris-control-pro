@@ -535,6 +535,21 @@ async function resgatarPublicacoesParteJaConhecidas(
 
   if (error || !conhecidas?.length) return [];
 
+  // ⚠️ SEGURANÇA: revalidar contra `partes_json` para evitar resgatar
+  // publicações onde o termo aparece apenas no corpo do texto (ILIKE) mas
+  // NÃO nas partes estruturadas. Sem este filtro, publicações que mencionam
+  // "SANTANDER" em uma citação jurisprudencial vazariam para a coordenação
+  // Santander mesmo sem o banco ser parte do processo.
+  const termosValidacao: string[] = [String(mon.termo_busca || '')]
+    .concat((mon.termos_or || []).map(t => {
+      const p = parsearTermoOr(String(t));
+      return p?.nome || String(t);
+    }))
+    .map(s => s.trim())
+    .filter(Boolean);
+  conhecidas = conhecidas.filter((r: any) => validarParteEmPartesJson(r.partes_json, termosValidacao));
+  if (conhecidas.length === 0) return [];
+
   const hashes: string[] = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
   const processosDigits: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_processo_digits || r.processo_numero || '').replace(/\D/g, '')).filter(Boolean)));
   const datasRef: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10)).filter(Boolean)));
