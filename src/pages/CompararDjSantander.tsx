@@ -890,11 +890,12 @@ export default function CompararDjSantander() {
         }
       }
 
-      // Deduplicate
-      const unique = [...new Set(allProcessos)].map(formatarCNJ);
-      setDjenProcessos(unique);
+      // Mantém uma entrada por publicação (sem dedupe) para bater com o PDF Resumo,
+      // que também lista um item por bloco "COMUNICAÇÃO PJE #...".
+      const todos = allProcessos.map(formatarCNJ);
+      setDjenProcessos(todos);
       setDjenLoaded(true);
-      toast.success(`${unique.length} processos encontrados nas publicações DJEN`);
+      toast.success(`${todos.length} publicações encontradas no DJEN`);
     } catch (err) {
       console.error("Erro ao buscar DJEN:", err);
       toast.error("Erro ao buscar publicações do DJEN");
