@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap, Briefcase } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -15,6 +15,7 @@ import { MonitoramentoTermosCard } from "@/components/configuracoes/Monitorament
 import { MonitoramentoTermosProCard } from "@/components/configuracoes/MonitoramentoTermosProCard";
 import { MonitoramentoTermosFlashCard } from "@/components/configuracoes/MonitoramentoTermosFlashCard";
 import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
+import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 import PoolProxyDjenCard from "@/components/configuracoes/PoolProxyDjenCard";
 import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
@@ -76,6 +77,10 @@ export default function Configuracoes() {
           <TabsTrigger value="djen-termos-paralela" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Paralela</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen-termos-kurier" className="flex items-center gap-2">
+            <Briefcase className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN Termos Kurier</span>
           </TabsTrigger>
           <TabsTrigger value="djet-pautas-paralela" className="flex items-center gap-2">
             <FileSearch className="h-4 w-4" />
