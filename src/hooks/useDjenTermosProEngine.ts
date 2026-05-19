@@ -470,6 +470,19 @@ function encurtarParaApi(termo: string): string {
   return palavras.slice(0, 2).join(' ');
 }
 
+function termosDeParte(mon: Monitoramento): string[] {
+  const seen = new Set<string>();
+  return [mon.termo_busca, ...(mon.termos_or || [])]
+    .map((termo) => String(termo || '').trim())
+    .filter((termo) => {
+      if (!termo) return false;
+      const key = normalizar(termo);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 /**
  * Valida advogado usando metadados estruturados da API.
  * Campos: destinatarioadvogados[].advogado.{nome, numero_oab, uf_oab}
@@ -957,9 +970,7 @@ async function _processarTermoProInterno(
     pageSize: 50,
   };
   
-  if (tipo === 'parte') {
-    baseParams.nomeParte = mon.termo_busca;
-  } else if (tipo === 'advogado') {
+  if (tipo === 'advogado') {
     baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
     // Normalizar acentos do nomeAdvogado — a API PJE Comunica aceita sem acentos
     // e o parâmetro nomeAdvogado é de BUSCA (não match exato no campo destinatarioadvogados)
@@ -994,47 +1005,59 @@ async function _processarTermoProInterno(
     if (signal.aborted) break;
 
     
-    const resp = await executarBusca(
-      { ...baseParams, siglaTribunal: trib, page: 1 },
-      trib,
-      `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
-    );
-    if (resp) {
-      console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+    if (tipo === 'parte') {
+      for (const termoParte of termosDeParte(mon)) {
+        const resp = await executarBusca(
+          { ...baseParams, nomeParte: termoParte, siglaTribunal: trib, page: 1 },
+          trib,
+          `busca por parte | ${termoParte} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
+          console.log(`[DJEN Pro] Busca por parte termo="${termoParte}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        }
+        if (signal.aborted) break;
+        await delay(adaptive(CONFIG.delay_between_tribunais));
+      }
+    } else {
+      const resp = await executarBusca(
+        { ...baseParams, siglaTribunal: trib, page: 1 },
+        trib,
+        `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
+      );
+      if (resp) {
+        console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+      }
     }
     
     if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
   }
   
-  // Busca complementar para tipo "parte": buscar também por palavraChave.
-  // A API PJE Comunica pode omitir publicações relevantes no filtro nomeParte mesmo
-  // quando já retornou outros resultados para o mesmo tribunal/termo.
+  // Busca complementar para tipo "parte": buscar o MESMO termo como texto amplo
+  // e depois validar localmente apenas contra a seção Parte(s).
   if (tipo === 'parte' && !signal.aborted) {
-    const termoTexto = mon.termo_busca
-      ?.normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
-    
-    if (termoTexto) {
-      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
+    const termosParteBusca = termosDeParte(mon);
+    if (termosParteBusca.length > 0) {
       for (const trib of tribLoop) {
         if (signal.aborted) break;
 
-        const resp = await executarBusca(
-          {
-            tipo: 'palavra-chave' as PjeSearchType,
-            palavraChave: termoTexto,
-            siglaTribunal: trib,
-            dataInicio: diaYmd,
-            dataFim: diaYmd,
-            pageSize: 50,
-            page: 1,
-          },
-          trib,
-          `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`
-        );
-        if (resp) {
-          console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+        for (const termoTexto of termosParteBusca) {
+          const resp = await executarBusca(
+            {
+              tipo: 'palavra-chave' as PjeSearchType,
+              palavraChave: termoTexto,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
+            },
+            trib,
+            `busca complementar seção Parte(s) | ${termoTexto} | ${trib ?? 'TODOS'}`
+          );
+          if (resp) {
+            console.log(`[DJEN Pro] Busca complementar Parte(s) termo="${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+          }
+          if (signal.aborted) break;
         }
         if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
       }
