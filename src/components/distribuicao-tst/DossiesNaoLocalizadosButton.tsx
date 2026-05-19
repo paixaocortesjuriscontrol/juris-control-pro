@@ -104,7 +104,8 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
 
       // Busca registros (processo + dossie) em lotes
       const registros: { processo: string; dossie: string | null }[] = [];
-      const PAGE = 1000;
+      // Lote pequeno para evitar URL muito longa (Bad Request 400) no .in("id", [...])
+      const PAGE = 200;
       for (let i = 0; i < ids.length; i += PAGE) {
         const batch = ids.slice(i, i + PAGE);
         const { data, error } = await supabase
