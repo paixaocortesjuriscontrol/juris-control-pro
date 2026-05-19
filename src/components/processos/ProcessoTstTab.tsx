@@ -11,6 +11,7 @@ import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
+import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 
 interface ProcessoTstTabProps {
   processo: any;
@@ -420,7 +421,13 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         <h4 className="text-sm font-semibold mb-3 text-foreground">Recurso do Reclamante</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InputField label="Tipo de Recurso" field="tipo_recurso_reclamante" />
-          <InputField label="Matérias" field="materias_recurso_reclamante" textarea />
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Matérias</Label>
+            <MateriasMultiSelect
+              value={form.materias_recurso_reclamante || null}
+              onChange={(v) => handleChange("materias_recurso_reclamante", v || "")}
+            />
+          </div>
           <InputField label="Aparelhamento" field="aparelhamento_reclamante" />
           <InputField label="Chance de Êxito" field="chance_exito_reclamante" />
         </div>
@@ -431,7 +438,13 @@ export function ProcessoTstTab({ processo }: ProcessoTstTabProps) {
         <h4 className="text-sm font-semibold mb-3 text-foreground">Recurso do Banco</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InputField label="Tipo de Recurso" field="tipo_recurso_banco" />
-          <InputField label="Matérias" field="materias_recurso_banco" textarea />
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Matérias</Label>
+            <MateriasMultiSelect
+              value={form.materias_recurso_banco || null}
+              onChange={(v) => handleChange("materias_recurso_banco", v || "")}
+            />
+          </div>
           <InputField label="Aparelhamento" field="aparelhamento_banco" />
           <InputField label="Chance de Êxito" field="chance_exito_banco" />
         </div>
