@@ -638,6 +638,7 @@ export default function CompararDjSantander() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedDateFim, setSelectedDateFim] = useState<Date | undefined>(undefined);
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
+  const [djenTexto, setDjenTexto] = useState<string>("");
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
 
