@@ -1032,35 +1032,32 @@ async function _processarTermoProInterno(
     if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
   }
   
-  // Busca complementar para tipo "parte": buscar também por palavraChave.
-  // A API PJE Comunica pode omitir publicações relevantes no filtro nomeParte mesmo
-  // quando já retornou outros resultados para o mesmo tribunal/termo.
+  // Busca complementar para tipo "parte": buscar o MESMO termo como texto amplo
+  // e depois validar localmente apenas contra a seção Parte(s).
   if (tipo === 'parte' && !signal.aborted) {
-    const termoTexto = mon.termo_busca
-      ?.normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
-    
-    if (termoTexto) {
-      console.log(`[DJEN Pro] Busca complementar parte por palavraChave: "${termoTexto}"`);
+    const termosParteBusca = termosDeParte(mon);
+    if (termosParteBusca.length > 0) {
       for (const trib of tribLoop) {
         if (signal.aborted) break;
 
-        const resp = await executarBusca(
-          {
-            tipo: 'palavra-chave' as PjeSearchType,
-            palavraChave: termoTexto,
-            siglaTribunal: trib,
-            dataInicio: diaYmd,
-            dataFim: diaYmd,
-            pageSize: 50,
-            page: 1,
-          },
-          trib,
-          `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`
-        );
-        if (resp) {
-          console.log(`[DJEN Pro] Busca complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+        for (const termoTexto of termosParteBusca) {
+          const resp = await executarBusca(
+            {
+              tipo: 'palavra-chave' as PjeSearchType,
+              palavraChave: termoTexto,
+              siglaTribunal: trib,
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              page: 1,
+            },
+            trib,
+            `busca complementar seção Parte(s) | ${termoTexto} | ${trib ?? 'TODOS'}`
+          );
+          if (resp) {
+            console.log(`[DJEN Pro] Busca complementar Parte(s) termo="${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
+          }
+          if (signal.aborted) break;
         }
         if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
       }
