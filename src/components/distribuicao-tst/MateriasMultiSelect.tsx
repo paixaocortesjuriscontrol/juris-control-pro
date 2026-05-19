@@ -21,6 +21,14 @@ import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
 const SEPARATOR = "; ";
 
+function normalize(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export function parseMateriasString(value: string | null | undefined): string[] {
   if (!value) return [];
   return value
@@ -48,7 +56,7 @@ export function MateriasMultiSelect({
   disabled,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const { dados, loading } = useMateriasBenner({ onlyAtivas: true });
+  const { dados, loading } = useMateriasBenner();
 
   const selected = useMemo(() => parseMateriasString(value), [value]);
   const selectedSet = useMemo(
@@ -92,7 +100,13 @@ export function MateriasMultiSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command shouldFilter>
+          <Command
+            shouldFilter
+            filter={(value, search) => {
+              if (!search) return 1;
+              return normalize(value).includes(normalize(search)) ? 1 : 0;
+            }}
+          >
             <CommandInput placeholder="Buscar matéria..." />
             <CommandList>
               {loading ? (
