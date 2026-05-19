@@ -15,7 +15,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { buscarPjeComunicaPaginado, type PjeSearchType } from "@/utils/pjeComunicaClientFlash";
-import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo, partePresenteNosMetadados } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // TIPOS
@@ -1211,8 +1211,20 @@ async function _processarTermoFlashInterno(
     // OTIMIZAÇÃO 6 (Flash): para "parte" e "advogado", a API já filtrou pelo
     // nomeParte/numeroOab/nomeAdvogado nativos — confiar no filtro nativo
     // reduz drasticamente o descarte por "termo_nao_encontrado".
-    const confiarFiltroNativo = (mon.tipo === 'parte' || mon.tipo === 'advogado');
-    if (!confiarFiltroNativo && !validarTermo(pub, mon)) {
+    // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
+    // A API DJEN retorna falsos positivos quando o termo aparece apenas no corpo
+    // (ex.: "SANTANDER" mencionado na fundamentação). Validar partes explicitamente.
+    if (mon.tipo === 'parte') {
+      const termoPuro = extrairPalavraChavePura(mon.termo_busca);
+      const candidatos = [termoPuro, ...((mon.termos_or || []).map((t) => extrairPalavraChavePura(String(t).trim())).filter(Boolean))];
+      const ok = candidatos.some((c) => c && partePresenteNosMetadados(pub, c));
+      if (!ok) {
+        descartadas++;
+        console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: parte não encontrada em metadados`);
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'parte_nao_encontrada_em_metadados' });
+        return false;
+      }
+    } else if (mon.tipo !== 'advogado' && !validarTermo(pub, mon)) {
       descartadas++;
       console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
