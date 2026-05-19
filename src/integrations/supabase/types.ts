@@ -3671,6 +3671,148 @@ export type Database = {
         }
         Relationships: []
       }
+      kurier_credenciais: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          login: string
+          observacao: string | null
+          prioridade: number
+          senha_encrypted: string | null
+          ultimo_status: string | null
+          ultimo_uso: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          login: string
+          observacao?: string | null
+          prioridade?: number
+          senha_encrypted?: string | null
+          ultimo_status?: string | null
+          ultimo_uso?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          login?: string
+          observacao?: string | null
+          prioridade?: number
+          senha_encrypted?: string | null
+          ultimo_status?: string | null
+          ultimo_uso?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kurier_execucoes: {
+        Row: {
+          credencial_id: string | null
+          erro: string | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          login_usado: string | null
+          lote: string
+          metadata: Json | null
+          total_confirmadas: number
+          total_descartadas: number
+          total_duplicadas: number
+          total_novas: number
+          total_recebidas: number
+        }
+        Insert: {
+          credencial_id?: string | null
+          erro?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          login_usado?: string | null
+          lote: string
+          metadata?: Json | null
+          total_confirmadas?: number
+          total_descartadas?: number
+          total_duplicadas?: number
+          total_novas?: number
+          total_recebidas?: number
+        }
+        Update: {
+          credencial_id?: string | null
+          erro?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          login_usado?: string | null
+          lote?: string
+          metadata?: Json | null
+          total_confirmadas?: number
+          total_descartadas?: number
+          total_duplicadas?: number
+          total_novas?: number
+          total_recebidas?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kurier_execucoes_credencial_id_fkey"
+            columns: ["credencial_id"]
+            isOneToOne: false
+            referencedRelation: "kurier_credenciais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kurier_publicacoes_raw: {
+        Row: {
+          confirmada: boolean
+          confirmada_em: string | null
+          created_at: string
+          credencial_id: string | null
+          id: string
+          id_kurier: string
+          login_usado: string | null
+          payload: Json
+          publicacao_djen_id: string | null
+          recebida_em: string
+        }
+        Insert: {
+          confirmada?: boolean
+          confirmada_em?: string | null
+          created_at?: string
+          credencial_id?: string | null
+          id?: string
+          id_kurier: string
+          login_usado?: string | null
+          payload: Json
+          publicacao_djen_id?: string | null
+          recebida_em?: string
+        }
+        Update: {
+          confirmada?: boolean
+          confirmada_em?: string | null
+          created_at?: string
+          credencial_id?: string | null
+          id?: string
+          id_kurier?: string
+          login_usado?: string | null
+          payload?: Json
+          publicacao_djen_id?: string | null
+          recebida_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kurier_publicacoes_raw_credencial_id_fkey"
+            columns: ["credencial_id"]
+            isOneToOne: false
+            referencedRelation: "kurier_credenciais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lembretes_audiencia: {
         Row: {
           audiencia_id: string
