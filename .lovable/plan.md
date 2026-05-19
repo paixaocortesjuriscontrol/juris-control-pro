@@ -1,97 +1,80 @@
-## Objetivo
+## DJEN Termos Kurier — Plano de Implementação
 
-Trocar o critério de deduplicação das publicações DJEN, hoje chaveado por `(monitoramento_id, hash_conteudo)`, para `(coordenacao_id, hash_conteudo)`. Assim, dentro da mesma coordenação não há duplicatas, mas a mesma publicação **pode** ser inserida em coordenações diferentes (ex.: "Renata Santander" e "Renata com termos do João").
+Migração de banco já aplicada (tabelas, RLS, seed dos 10 logins inativos, singleton em `configuracoes_monitoramento`, ajuste do CHECK de `execucoes_agendadas`). Resto da implementação abaixo.
 
-## Migração de banco
+### 1. Secret necessário
+- `KURIER_BASE_URL` (vou pedir via `add_secret` no início da execução). Valor sugerido: `https://wsk.kurier.com.br`. Se a URL real for outra, você cola na hora.
 
-Arquivo de migração nova:
+### 2. Edge Functions (todas com `verify_jwt = true`, CORS, validação Zod, decrypt local AES-GCM)
 
-```sql
--- 1) Garantir que toda publicação tem coordenação derivada do monitoramento
-UPDATE public.publicacoes_djen p
-   SET coordenacao_id = m.coordenacao_id
-  FROM public.monitoramentos_djen m
- WHERE p.monitoramento_id = m.id
-   AND p.coordenacao_id IS NULL
-   AND m.coordenacao_id IS NOT NULL;
+| Função | Método | O que faz |
+|---|---|---|
+| `kurier-testar-credencial` | POST `{login, senha}` | Faz uma chamada de baixo custo (`ConsultarQuantidadePublicacoesDisponiveis`) e devolve `{ok, total, erro}`. Não grava nada. |
+| `kurier-quantidade-disponivel` | POST `{credencial_id?}` | Para uma credencial (ou todas as ativas) retorna o total pendente. |
+| `kurier-consultar-publicacoes` | POST `{credencial_id}` | Loop de lotes de 50 chamando `GET /api/KJuridico/ConsultarPublicacoes`. Para cada lote: grava em `kurier_publicacoes_raw` (upsert por `id_kurier`), insere em `publicacoes_djen` (dedup pela mesma chave que a Paralela), e chama `ConfirmarPublicacoes` para tirar da fila Kurier. Atualiza `kurier_execucoes` e `ultimo_uso`/`ultimo_status` da credencial. |
+| `kurier-confirmar-publicacoes` | POST `{credencial_id, ids_kurier[]}` | Confirmação manual (caso a UI precise reconfirmar). |
+| `kurier-consultar-personalizado` | POST `{credencial_id, data, termo?, tribunal?, estado?}` | Wrapper de `ConsultarPublicacoesPersonalizado` para reconsultar histórico. Não confirma. |
 
--- 2) Remover duplicatas legadas dentro da mesma (coord, hash) preservando a mais antiga
-DELETE FROM public.publicacoes_djen a
- USING public.publicacoes_djen b
- WHERE a.ctid > b.ctid
-   AND a.coordenacao_id IS NOT NULL
-   AND a.coordenacao_id = b.coordenacao_id
-   AND a.hash_conteudo  = b.hash_conteudo;
+Autenticação Kurier: `?login=...&senha=...` no querystring (padrão Kurier público); se a Kurier exigir Basic Auth, ajusto em um único ponto (`buildKurierUrl`).
 
--- 3) Trocar o índice único
-DROP INDEX IF EXISTS public.idx_publicacoes_djen_hash;
-CREATE UNIQUE INDEX idx_publicacoes_djen_coord_hash
-  ON public.publicacoes_djen (coordenacao_id, hash_conteudo)
-  WHERE coordenacao_id IS NOT NULL;
+Padrões obrigatórios do projeto aplicados:
+- `import { createClient } from "npm:@supabase/supabase-js@2"`
+- AES-GCM local com `COFRE_ENCRYPTION_KEY` (mesmo cofre)
+- `verify_jwt = true`, valida `has_role(admin|coordenador)` antes de qualquer operação sensível
+- Logs em `kurier_execucoes` e `monitoramento_logs` (best-effort)
 
--- 4) Mesmo tratamento para descartadas (mantém isolamento por coord)
-ALTER TABLE public.publicacoes_djen_descartadas
-  ADD COLUMN IF NOT EXISTS coordenacao_id uuid;
+### 3. Frontend
 
-UPDATE public.publicacoes_djen_descartadas d
-   SET coordenacao_id = m.coordenacao_id
-  FROM public.monitoramentos_djen m
- WHERE d.monitoramento_id = m.id
-   AND d.coordenacao_id IS NULL;
+**Hooks:**
+- `useKurierCredenciais.ts` — CRUD inline com React Query. Inclui mutação `testar(credencialId)` que invoca `kurier-testar-credencial` (senha decriptada no backend) e mostra toast com o resultado.
+- `useDjenTermosKurierEngine.ts` — singleton com a mesma superfície da Paralela: `executar`, `cancelar`, `forceKill`, `resetTotal`, `subscribe`, `getProgress`, `hydrateFromBackend`, checkpoint em `localStorage` (`djen-termos-kurier-checkpoint-v1`). Diferença: cada **track = um login ativo** (não tribunal). Concorrência 3 logins simultâneos, com `delay_between_lotes: 800ms`.
+- `useDjenTermosKurier.ts` — wrapper React do singleton (espelha `useDjenTermosParalela.ts`), com `await invalidateQueries` antes de fechar status concluído.
+- `useDjenTermosKurierScheduler.ts` — checa `configuracoes_monitoramento` tipo `kurier` e dispara o engine respeitando `frequencia` e `horarios_execucao` (mesmo formato da Paralela).
 
-DELETE FROM public.publicacoes_djen_descartadas a
- USING public.publicacoes_djen_descartadas b
- WHERE a.ctid > b.ctid
-   AND a.coordenacao_id IS NOT NULL
-   AND a.coordenacao_id = b.coordenacao_id
-   AND a.hash_conteudo  = b.hash_conteudo;
+**Componentes:**
+- `KurierCredenciaisPanel.tsx` — tabela com colunas: Login (read-only), Senha (input password inline; salva criptografando via edge `kurier-testar-credencial` com flag `salvar=true` OU via mutação dedicada `kurier-salvar-senha`), Prioridade (numérico inline), Ativo (switch inline), Último uso, Último status, Ações (Testar, Excluir). Sem botão "Editar" — tudo inline conforme padrão do projeto.
+- `MonitoramentoTermosKurierCard.tsx` — estrutura visual idêntica ao `MonitoramentoTermosParalelaCard`: cabeçalho com Frequência/Ativo/Horários, botões Executar/Cancelar/Reset/Force Kill, barra de progresso geral, lista de tracks (uma por login), painel de credenciais embutido logo abaixo.
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_publicacoes_djen_desc_coord_hash
-  ON public.publicacoes_djen_descartadas (coordenacao_id, hash_conteudo)
-  WHERE coordenacao_id IS NOT NULL;
+**Aba em `Configuracoes.tsx`:**
+- Novo `TabsTrigger value="djen-termos-kurier"` (ícone `KeyRound` ou similar) e `TabsContent` com o card.
+
+### 4. Isolamento garantido
+- Nenhum arquivo existente da Paralela, Pro, Flash, PJE Comunica é tocado.
+- As publicações Kurier entram em `publicacoes_djen` com `origem='kurier'` (campo já existente) — para que apareçam na timeline normal — mas o pipeline é 100% paralelo ao DJEN/PJE.
+- Coordenação: como Kurier devolve publicações já filtradas pelos termos cadastrados no portal Kurier, o engine **não** aplica as regras de `monitoramentos` do nosso sistema. Apenas grava com `origem='kurier'` e `coordenacao_id=null` (visível a todas as coordenações). Se você quiser amarrar cada login a uma coordenação específica, adiciono coluna `coordenacao_id` em `kurier_credenciais` numa segunda migração.
+
+### 5. Ordem de execução
+1. `add_secret KURIER_BASE_URL` — aguarda você colar a URL.
+2. Criar 6 arquivos em `supabase/functions/` (5 functions + 1 shared).
+3. Criar 4 hooks em `src/hooks/`.
+4. Criar 2 componentes em `src/components/configuracoes/`.
+5. Adicionar aba em `src/pages/Configuracoes.tsx`.
+6. Aguardar deploy automático e validar que a aba abre e a tabela de credenciais carrega vazia (sem senhas) com os 10 logins listados.
+
+### Detalhes técnicos
+
+```text
+publicacoes_djen
+  ├── id (uuid)
+  ├── numero_processo
+  ├── conteudo (HTML)
+  ├── origem = 'kurier'   ← marca a fonte
+  ├── coordenacao_id = null
+  └── metadata = { kurier: { id_kurier, login_usado, data_disponibilizacao, ... } }
+
+kurier_publicacoes_raw  ← audit + idempotência
+  └── UNIQUE(id_kurier)   ← evita reprocessar mesma publicação entre logins
+
+kurier_credenciais
+  └── senha_encrypted: base64(IV ‖ AES-GCM ciphertext)
 ```
 
-## Mudanças nos engines (frontend)
-
-Em todos os engines DJEN substituir o conflict target e o "já no banco":
-
-### `src/hooks/useDjenTermosFlashEngine.ts`
-- `.select('monitoramento_id, hash_conteudo')` → `.select('coordenacao_id, hash_conteudo').eq('coordenacao_id', mon.coordenacao_id)`
-- Set passa a ser `${coordenacao_id}|${hash}`
-- `onConflict: 'monitoramento_id,hash_conteudo'` → `'coordenacao_id,hash_conteudo'` (tanto publicações quanto descartadas)
-- Garantir que o payload de upsert sempre carrega `coordenacao_id: mon.coordenacao_id`
-
-### `src/hooks/useDjenTermosProEngine.ts`
-- Trocar a query `.eq('monitoramento_id', mon.id)` por `.eq('coordenacao_id', mon.coordenacao_id)`
-- `onConflict` em publicações e descartadas → `'coordenacao_id,hash_conteudo'`
-- Payload inclui `coordenacao_id`
-
-### `src/hooks/useDjenTermosEngine.ts`
-- Mesma troca: dedup contra banco por `coordenacao_id`, `onConflict` por `(coordenacao_id, hash_conteudo)`, payload com `coordenacao_id`
-
-### `src/hooks/useDjenTermosParalelaEngine.ts`
-- A lookup atual já é por `coordenacao_id + dedup_processo_digits + dedup_data_ref` — manter, mas trocar `onConflict: 'monitoramento_id,hash_conteudo'` para `'coordenacao_id,hash_conteudo'` (publicações e descartadas) e garantir `coordenacao_id` no payload.
-
-### `supabase/functions/monitorar-djen/processing.ts` e `index.ts`
-- Substituir `onConflict: 'monitoramento_id,hash_conteudo'` por `'coordenacao_id,hash_conteudo'` e injetar `coordenacao_id` no payload.
-
-### Outras edge functions com upsert de DJEN
-- `backfill-djen`, `backfill-djen-job`, `backfill-djen-jina`, `monitorar-djen-processos`, `executar-djet-pautas-agendado`, `limpar-djen-hoje`: ajustar `onConflict` e payload onde gravam em `publicacoes_djen`/`_descartadas`.
-
-## Comportamento esperado após a mudança
-
-- A intimação de 14/05 do processo `0000574-25.2021.5.13.0026` poderá existir em ambas as coordenações da Dra. Renata:
-  - Coord. "Renata Santander" via termo `SANTANDER` (parte)
-  - Coord. "Renata com termos do João" via termo `SANTANDER` (palavra-chave) ou `Santander` (parte)
-- Dentro da mesma coordenação, monitoramentos diferentes que casarem com a mesma publicação continuam **não duplicando** (uma linha por coord+hash).
-
-## Risco e mitigação
-
-- Volume de linhas pode aumentar (uma publicação por coordenação). Aceitável dado isolamento por coordenação.
-- A unicidade por `monitoramento_id` deixa de existir; o `monitoramento_id` gravado passa a ser o **primeiro** que casou na coord. Caso isso impacte filtros por monitoramento em listagens, abrir tarefa de UI separada.
-
-## Verificação
-
-1. Rodar migração.
-2. Reexecutar DJEN Termos/Pro/Flash para 14/05.
-3. Conferir no banco: `SELECT coordenacao_id, monitoramento_id FROM publicacoes_djen WHERE hash_conteudo='56c4645e61058501';` deve retornar 2 linhas (uma por coord da Dra. Renata).
+Checkpoint engine (`localStorage`):
+```json
+{
+  "runKey": "uuid",
+  "credenciaisConcluidas": ["uuid", "..."],
+  "novas": 0, "duplicadas": 0, "descartadas": 0,
+  "tempoInicio": 0
+}
+```
