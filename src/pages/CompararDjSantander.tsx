@@ -952,6 +952,7 @@ export default function CompararDjSantander() {
       const res = compararListas(docProcessos, djenProcessos);
       setResult(res);
       esq = calc(docTexto);
+      dir = calc(djenTexto);
     } else if (mode === "pdf-diario") {
       if (pdfDiarioProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o(s) PDF(s) do diário e busque as publicações antes de comparar");
@@ -960,6 +961,7 @@ export default function CompararDjSantander() {
       const res = compararListas(pdfDiarioProcessos, djenProcessos);
       setResult(res);
       esq = calc(pdfDiarioTexto);
+      dir = calc(djenTexto);
     } else if (mode === "excel-projuris") {
       if (excelProjurisProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Projuris e busque as publicações antes de comparar");
@@ -967,6 +969,7 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(excelProjurisProcessos, djenProcessos);
       setResult(res);
+      dir = calc(djenTexto);
     } else {
       if (excelAstreaProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Astrea e busque as publicações antes de comparar");
@@ -974,6 +977,7 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(excelAstreaProcessos, djenProcessos);
       setResult(res);
+      dir = calc(djenTexto);
     }
     setTiposEsq(esq);
     setTiposDir(dir);
