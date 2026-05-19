@@ -1,0 +1,2 @@
+DELETE FROM public.publicacoes_djen_descartadas WHERE coordenacao_id='b0f690ad-68da-43d7-af5f-9adafeab3fd5' AND created_at >= CURRENT_DATE;
+DELETE FROM public.publicacoes_djen WHERE coordenacao_id='b0f690ad-68da-43d7-af5f-9adafeab3fd5' AND created_at >= CURRENT_DATE;
