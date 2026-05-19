@@ -518,7 +518,7 @@ async function resgatarPublicacoesParteJaConhecidas(
   const termo = String(mon.termo_busca || '').trim();
   if (termo.length < 4) return [];
 
-  const { data: conhecidas, error } = await (supabase.from('publicacoes_djen') as any)
+  const { data: conhecidasRaw, error } = await (supabase.from('publicacoes_djen') as any)
     .select(`
       hash_conteudo, processo_numero, conteudo, fonte, tribunal, orgao,
       tipo_comunicacao, meio, advogados_json, partes_json, polo_ativo, polo_passivo,
@@ -533,7 +533,22 @@ async function resgatarPublicacoesParteJaConhecidas(
     .ilike('conteudo', `%${termo}%`)
     .limit(1000);
 
-  if (error || !conhecidas?.length) return [];
+  if (error || !conhecidasRaw?.length) return [];
+
+  // ⚠️ SEGURANÇA: revalidar contra `partes_json` para evitar resgatar
+  // publicações onde o termo aparece apenas no corpo do texto (ILIKE) mas
+  // NÃO nas partes estruturadas. Sem este filtro, publicações que mencionam
+  // "SANTANDER" em uma citação jurisprudencial vazariam para a coordenação
+  // Santander mesmo sem o banco ser parte do processo.
+  const termosValidacao: string[] = [String(mon.termo_busca || '')]
+    .concat((mon.termos_or || []).map(t => {
+      const p = parsearTermoOr(String(t));
+      return p?.nome || String(t);
+    }))
+    .map(s => s.trim())
+    .filter(Boolean);
+  const conhecidas = (conhecidasRaw as any[]).filter((r: any) => validarParteEmPartesJson(r.partes_json, termosValidacao));
+  if (conhecidas.length === 0) return [];
 
   const hashes: string[] = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
   const processosDigits: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_processo_digits || r.processo_numero || '').replace(/\D/g, '')).filter(Boolean)));
@@ -698,6 +713,34 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
     if (!d?.nome) continue;
     const destNorm = normalizar(d.nome);
     if (destNorm.includes(nomeNorm) || nomeNorm.includes(destNorm)) return true;
+  }
+  return false;
+}
+
+/**
+ * Valida se algum dos nomes em `partes_json` (formato "[Polo] NOME" ou apenas "NOME")
+ * contém o termo. Usado para revalidar publicações resgatadas de outras
+ * coordenações, evitando inserir publicações onde o termo só aparece no
+ * corpo do texto (ex.: jurisprudência, endereço) e NÃO nas partes estruturadas.
+ */
+function validarParteEmPartesJson(partesJson: any, nomesParte: string[]): boolean {
+  let arr: any[] = [];
+  if (Array.isArray(partesJson)) arr = partesJson;
+  else if (typeof partesJson === 'string') {
+    try { arr = JSON.parse(partesJson); } catch { arr = []; }
+  }
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  const termosNorm = nomesParte.map(n => normalizar(String(n || ''))).filter(Boolean);
+  if (termosNorm.length === 0) return false;
+  for (const p of arr) {
+    const raw = typeof p === 'string' ? p : (p?.nome || '');
+    // remove prefixo "[Reclamante] " / "[Reclamado] " etc.
+    const semPolo = String(raw).replace(/^\s*\[[^\]]+\]\s*/, '').trim();
+    const partNorm = normalizar(semPolo);
+    if (!partNorm) continue;
+    for (const t of termosNorm) {
+      if (partNorm.includes(t) || t.includes(partNorm)) return true;
+    }
   }
   return false;
 }
