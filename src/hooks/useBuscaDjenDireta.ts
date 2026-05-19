@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { buscarPjeComunicaPaginado } from "@/utils/pjeComunicaClient";
 import { fetchDjenBackendResumeSnapshot } from "@/hooks/djen/djenBackendResume";
+import { partePresenteNosMetadados } from "@/utils/djenLikeConteudo";
 
 // ============================================================================
 // VERSÃO SIMPLIFICADA - Loop sequencial por monitoramento
@@ -690,8 +691,18 @@ export function useBuscaDjenDireta() {
     termo: string,
     termosOr: string[] | undefined,
     tipo: string,
-    oab?: string
+    oab?: string,
+    pub?: any
   ): boolean => {
+    // REGRA: tipo='parte' SÓ valida nos metadados estruturados (PARTE(S) — lado esquerdo).
+    // Nunca confiar no corpo da publicação, pois a API retorna falsos positivos
+    // (ex.: "SANTANDER" mencionado apenas na fundamentação).
+    if (tipo === 'parte') {
+      const termoPuro = extrairPalavraChavePura(termo);
+      const candidatos = [termoPuro, ...((termosOr || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean))];
+      return candidatos.some((c) => c && partePresenteNosMetadados(pub || {}, c));
+    }
+
     if (!conteudo) return false;
     
     // Se o termo tem "+" (AND implícito), exigir 100% (frase exata) de CADA parte
@@ -711,7 +722,7 @@ export function useBuscaDjenDireta() {
       return true;
     }
     
-    const termoPuro = (tipo === 'palavra-chave' || tipo === 'parte' || tipo === 'advogado' || tipo === 'nome')
+    const termoPuro = (tipo === 'palavra-chave' || tipo === 'advogado' || tipo === 'nome')
       ? extrairPalavraChavePura(termo)
       : termo;
     const orList = (termosOr || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean);
@@ -1082,7 +1093,7 @@ export function useBuscaDjenDireta() {
       }
       
       // Validar termo completo presente (ANTES da condição concomitante)
-      if (!conteudoContemTermoOuOr(pub.conteudo, mon.termo_busca, mon.termos_or, mon.tipo, mon.oab)) {
+      if (!conteudoContemTermoOuOr(pub.conteudo, mon.termo_busca, mon.termos_or, mon.tipo, mon.oab, pub)) {
         publicacoesIgnoradas++;
         descartadasParaPersistir.push({ pub, motivo: 'Termo/OR não encontrado integralmente' });
         return false;

@@ -1263,20 +1263,18 @@ async function processarTermo(
         }
       }
     } else if (tipo === 'parte') {
-      // Para tipo 'parte': validar via metadados estruturados da API (destinatarios[])
-      // E também via texto (fallback). A API já filtra por nomeParte, mas confirmamos
-      // usando os campos estruturados para maior confiabilidade.
+      // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
+      // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos
+      // (ex.: "SANTANDER" mencionado apenas na fundamentação do acórdão).
       const termoParaValidar = extrairPalavraChavePura(mon.termo_busca);
-      const validouNoConteudo = conteudo ? conteudoContemTermo(conteudo, termoParaValidar, mon.tipo) : false;
-      const validouNosMetadados = partePresenteNosMetadados(pub, termoParaValidar);
-
-      if (!validouNoConteudo && !validouNosMetadados) {
-        // A API filtrou por nomeParte, então se chegou aqui provavelmente é válido.
-        // Só descartar se realmente não tem conteúdo.
-        if (!conteudo && !metaAdvogado) {
-          pubsDescartadas.push({ ...pub, motivo_descarte: 'conteudo_vazio' });
-          return false;
-        }
+      const candidatos = [
+        termoParaValidar,
+        ...((mon.termos_or || []).map((t) => extrairPalavraChavePura(String(t).trim())).filter(Boolean)),
+      ];
+      const validouNosMetadados = candidatos.some((c) => c && partePresenteNosMetadados(pub, c));
+      if (!validouNosMetadados) {
+        pubsDescartadas.push({ ...pub, motivo_descarte: 'parte_nao_encontrada_em_metadados' });
+        return false;
       }
     } else {
       // Validar termo simples (sem AND)

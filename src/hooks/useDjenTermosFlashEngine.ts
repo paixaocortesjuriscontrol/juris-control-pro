@@ -426,13 +426,12 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   }
   
   if (tipo === 'parte') {
-    // 1. Validar via metadados estruturados
+    // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
+    // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
-    
-    // 2. Fallback: texto
-    const nomeNorm = normalizar(mon.termo_busca);
-    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
-    
+    for (const orTerm of (mon.termos_or || [])) {
+      if (validarParteMetadados(pub, String(orTerm))) return true;
+    }
     return false;
   }
   
@@ -1211,8 +1210,12 @@ async function _processarTermoFlashInterno(
     // OTIMIZAÇÃO 6 (Flash): para "parte" e "advogado", a API já filtrou pelo
     // nomeParte/numeroOab/nomeAdvogado nativos — confiar no filtro nativo
     // reduz drasticamente o descarte por "termo_nao_encontrado".
-    const confiarFiltroNativo = (mon.tipo === 'parte' || mon.tipo === 'advogado');
-    if (!confiarFiltroNativo && !validarTermo(pub, mon)) {
+    // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
+    // A API DJEN retorna falsos positivos quando o termo aparece apenas no corpo
+    // (ex.: "SANTANDER" mencionado na fundamentação). Validar partes explicitamente.
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados (validado dentro de validarTermo).
+    // Para advogado, continuamos confiando no filtro nativo da API.
+    if (mon.tipo !== 'advogado' && !validarTermo(pub, mon)) {
       descartadas++;
       console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
