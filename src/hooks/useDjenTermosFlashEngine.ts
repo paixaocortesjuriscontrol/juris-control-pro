@@ -426,13 +426,12 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   }
   
   if (tipo === 'parte') {
-    // 1. Validar via metadados estruturados
+    // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
+    // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
-    
-    // 2. Fallback: texto
-    const nomeNorm = normalizar(mon.termo_busca);
-    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
-    
+    for (const orTerm of (mon.termos_or || [])) {
+      if (validarParteMetadados(pub, String(orTerm))) return true;
+    }
     return false;
   }
   
@@ -1214,17 +1213,9 @@ async function _processarTermoFlashInterno(
     // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
     // A API DJEN retorna falsos positivos quando o termo aparece apenas no corpo
     // (ex.: "SANTANDER" mencionado na fundamentação). Validar partes explicitamente.
-    if (mon.tipo === 'parte') {
-      const termoPuro = n(mon.termo_busca);
-      const candidatos = [termoPuro, ...((mon.termos_or || []).map((t) => n(String(t).trim())).filter(Boolean))];
-      const ok = candidatos.some((c) => c && partePresenteNosMetadados(pub, c));
-      if (!ok) {
-        descartadas++;
-        console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: parte não encontrada em metadados`);
-        pubsDescartadas.push({ ...pub, motivo_descarte: 'parte_nao_encontrada_em_metadados' });
-        return false;
-      }
-    } else if (mon.tipo !== 'advogado' && !validarTermo(pub, mon)) {
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados (validado dentro de validarTermo).
+    // Para advogado, continuamos confiando no filtro nativo da API.
+    if (mon.tipo !== 'advogado' && !validarTermo(pub, mon)) {
       descartadas++;
       console.log(`[DJEN Flash]   ❌ [${idx}] proc=${procNum} descartado: termo não encontrado nos metadados`);
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
