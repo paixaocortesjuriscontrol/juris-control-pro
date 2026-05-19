@@ -1135,12 +1135,12 @@ export default function DistribuicaoTst() {
         <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
 
         {/* Totais por responsável (todos os registros filtrados, > 1 processo) */}
-        {responsavelCounts.filter(c => c.count > 1).length > 0 && (
+        {responsavelCounts.filter(c => c.count > 0).length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
               Por responsável:
             </span>
-            {responsavelCounts.filter(c => c.count > 1).map((c) => {
+            {responsavelCounts.filter(c => c.count > 0).map((c) => {
               const active = filtroResponsavelIds.includes(c.id);
               return (
                 <button
