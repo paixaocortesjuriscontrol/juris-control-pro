@@ -1,21 +1,14 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronsUpDown, X, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, X, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
@@ -56,6 +49,7 @@ export function MateriasMultiSelect({
   disabled,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [busca, setBusca] = useState("");
   const { dados, loading } = useMateriasBenner();
 
   const selected = useMemo(() => parseMateriasString(value), [value]);
@@ -79,6 +73,16 @@ export function MateriasMultiSelect({
     onChange(joinMaterias(next));
   };
 
+  const filtrados = useMemo(() => {
+    const q = normalize(busca);
+    if (!q) return dados;
+    return dados.filter(
+      (m) =>
+        normalize(m.nome).includes(q) ||
+        normalize(m.descricao || "").includes(q),
+    );
+  }, [dados, busca]);
+
   return (
     <div className="space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
@@ -100,51 +104,59 @@ export function MateriasMultiSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command
-            shouldFilter
-            filter={(value, search) => {
-              if (!search) return 1;
-              return normalize(value).includes(normalize(search)) ? 1 : 0;
-            }}
-          >
-            <CommandInput placeholder="Buscar matéria..." />
-            <CommandList>
-              {loading ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-                  Carregando...
+          <div className="flex flex-col">
+            <div className="relative border-b border-border">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar por nome ou descrição..."
+                className="pl-9 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+            </div>
+            {loading ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                Carregando...
+              </div>
+            ) : filtrados.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Nenhuma matéria encontrada.
+              </div>
+            ) : (
+              <ScrollArea className="h-72">
+                <div className="p-1">
+                  {filtrados.map((m) => {
+                    const isSelected = selectedSet.has(m.nome.toLowerCase());
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggle(m.nome)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground text-left"
+                      >
+                        <Check
+                          className={cn(
+                            "h-4 w-4 shrink-0",
+                            isSelected ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        <span className="truncate">{m.nome}</span>
+                        {!m.ativo && (
+                          <Badge variant="secondary" className="ml-auto text-[10px]">
+                            inativa
+                          </Badge>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : (
-                <>
-                  <CommandEmpty>Nenhuma matéria encontrada.</CommandEmpty>
-                  <CommandGroup>
-                    <ScrollArea className="h-72">
-                      {dados.map((m) => {
-                        const isSelected = selectedSet.has(
-                          m.nome.toLowerCase(),
-                        );
-                        return (
-                          <CommandItem
-                            key={m.id}
-                            value={m.nome}
-                            onSelect={() => toggle(m.nome)}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                isSelected ? "opacity-100" : "opacity-0",
-                              )}
-                            />
-                            <span className="truncate">{m.nome}</span>
-                          </CommandItem>
-                        );
-                      })}
-                    </ScrollArea>
-                  </CommandGroup>
-                </>
-              )}
-            </CommandList>
-          </Command>
+              </ScrollArea>
+            )}
+            <div className="px-3 py-2 border-t border-border text-xs text-muted-foreground">
+              {filtrados.length} de {dados.length}
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
 
