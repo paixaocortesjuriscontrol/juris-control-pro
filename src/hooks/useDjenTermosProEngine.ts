@@ -970,9 +970,7 @@ async function _processarTermoProInterno(
     pageSize: 50,
   };
   
-  if (tipo === 'parte') {
-    baseParams.nomeParte = mon.termo_busca;
-  } else if (tipo === 'advogado') {
+  if (tipo === 'advogado') {
     baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
     // Normalizar acentos do nomeAdvogado — a API PJE Comunica aceita sem acentos
     // e o parâmetro nomeAdvogado é de BUSCA (não match exato no campo destinatarioadvogados)
@@ -1007,13 +1005,28 @@ async function _processarTermoProInterno(
     if (signal.aborted) break;
 
     
-    const resp = await executarBusca(
-      { ...baseParams, siglaTribunal: trib, page: 1 },
-      trib,
-      `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
-    );
-    if (resp) {
-      console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+    if (tipo === 'parte') {
+      for (const termoParte of termosDeParte(mon)) {
+        const resp = await executarBusca(
+          { ...baseParams, nomeParte: termoParte, siglaTribunal: trib, page: 1 },
+          trib,
+          `busca por parte | ${termoParte} | ${trib ?? 'TODOS'}`
+        );
+        if (resp) {
+          console.log(`[DJEN Pro] Busca por parte termo="${termoParte}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        }
+        if (signal.aborted) break;
+        await delay(adaptive(CONFIG.delay_between_tribunais));
+      }
+    } else {
+      const resp = await executarBusca(
+        { ...baseParams, siglaTribunal: trib, page: 1 },
+        trib,
+        `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`
+      );
+      if (resp) {
+        console.log(`[DJEN Pro] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+      }
     }
     
     if (tribLoop.length > 1) await delay(adaptive(CONFIG.delay_between_tribunais));
