@@ -61,12 +61,28 @@ const isTurmaOficialTst = (t: string | null | undefined): boolean => {
 
 function extrairReclamanteJudit(juditData: any): { nome: string; doc: string } {
   const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
-  const ativos = parties.filter(
-    (p: any) =>
-      !p?.is_advogado &&
-      String(p?.polo || "").toUpperCase() === "ACTIVE" &&
-      String(p?.nome || "").trim()
-  );
+  // PRIORIDADE: usa reclamante já desambiguado pelo backend (cruzamento com
+  // person_type da instância de origem). Fallback por person_type (RECLAMANTE/
+  // AUTOR/EXEQUENTE/REQUERENTE). NUNCA usar polo ACTIVE/PASSIVE no TST porque
+  // lá significa recorrente/recorrido — banco recorrente vira "reclamante" errado.
+  const nomeBackend = String(juditData?.reclamante || "").trim();
+  let ativos: any[] = [];
+  if (nomeBackend) {
+    const nomesBackend = nomeBackend.split(/\s*\/\s*/).map((n) => n.trim()).filter(Boolean);
+    ativos = parties.filter(
+      (p: any) => !p?.is_advogado && nomesBackend.includes(String(p?.nome || "").trim())
+    );
+    if (ativos.length === 0) {
+      ativos = nomesBackend.map((n) => ({ nome: n, documento: null }));
+    }
+  } else {
+    ativos = parties.filter(
+      (p: any) =>
+        !p?.is_advogado &&
+        /RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i.test(String(p?.tipo_pessoa || "")) &&
+        String(p?.nome || "").trim()
+    );
+  }
   const nomes = [...new Set(ativos.map((p: any) => String(p.nome).trim()))];
   const docs = [
     ...new Set(
@@ -178,15 +194,23 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
               // ===== Persistência completa (igual ao botão Judit em lote) =====
               const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
               const recorrenteJudit = getJuditPartesResumo(juditData, null);
-              const nomesPorPolo = (poloUpper: string) =>
+              // No TST, polo ACTIVE/PASSIVE = recorrente/recorrido, NÃO reclamante/reclamada.
+              // Usa o que o backend já desambiguou via person_type; fallback por person_type.
+              const nomesPorPersonType = (re: RegExp) =>
                 [...new Set(
                   partiesDetail
-                    .filter((p: any) => (p?.polo || "").toString().toUpperCase() === poloUpper && !p?.is_advogado)
+                    .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
                     .map((p: any) => String(p?.nome || "").trim())
                     .filter(Boolean)
                 )].join(" / ");
-              const reclamanteJudit = nomesPorPolo("ACTIVE");
-              const reclamadaJudit = nomesPorPolo("PASSIVE");
+              const reclamanteJudit =
+                (juditData?.reclamante && String(juditData.reclamante).trim()) ||
+                nomesPorPersonType(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i) ||
+                "";
+              const reclamadaJudit =
+                (juditData?.reclamada && String(juditData.reclamada).trim()) ||
+                nomesPorPersonType(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i) ||
+                "";
               const situacaoStr = (juditData.situacao_processo || "").toString();
               const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
               const ehTransito = /tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S";
