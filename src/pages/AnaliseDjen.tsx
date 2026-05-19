@@ -2760,13 +2760,18 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações...`);
     try {
-      type Categoria = "PAUTA" | "DISTRIBUICOES" | "PRAZOS";
+      type Categoria = "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "PRAZOS";
       type ClassInfo = { id: string; categoria: Categoria; tema_irr?: string };
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: ClassInfo };
       const classificarLocal = (pub: typeof allPublicacoes[0]): ClassInfo => {
         const texto = (pub.conteudo || "").replace(/<[^>]*>/g, " ");
         const lower = texto.toLowerCase();
         const tipoCom = (pub.tipo_comunicacao || "").toLowerCase();
+        const orgaoTxt = (pub.orgao || "").toString();
+        // CEJUSC (pelo órgão) — vence antes dos demais para garantir documento próprio
+        if (/\bCEJUSC\b/i.test(orgaoTxt)) {
+          return { id: pub.id, categoria: "CEJUSC" };
+        }
         // b. Lista de distribuição (pelo tipo de comunicação)
         if (tipoCom.includes("lista de distribui")) {
           return { id: pub.id, categoria: "DISTRIBUICOES" };
@@ -2780,6 +2785,7 @@ const AnaliseDjen = () => {
         return { id: pub.id, categoria: "PRAZOS" };
       };
       const pubsPauta: PubComClass[] = [];
+      const pubsCejusc: PubComClass[] = [];
       const pubsDistribuicoes: PubComClass[] = [];
       const pubsPrazos: PubComClass[] = [];
       allPublicacoes.forEach(pub => {
@@ -2787,14 +2793,15 @@ const AnaliseDjen = () => {
         const item = { pub, class_info: ci };
         switch (ci.categoria) {
           case "PAUTA": pubsPauta.push(item); break;
+          case "CEJUSC": pubsCejusc.push(item); break;
           case "DISTRIBUICOES": pubsDistribuicoes.push(item); break;
           default: pubsPrazos.push(item);
         }
       });
-      toast.loading(`Gerando documentos... (Pauta: ${pubsPauta.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      toast.loading(`Gerando documentos... (Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
-      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string): Paragraph[] => {
+      const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, modo: "integral" | "resumo"): Paragraph[] => {
         const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
         pubs.forEach((item, idx) => {
           const { pub, class_info: ci } = item;
@@ -2811,7 +2818,12 @@ const AnaliseDjen = () => {
           }
           if (ci.tema_irr) ch.push(new Paragraph({ spacing: { before: 80, after: 80 }, shading: { type: ShadingType.SOLID, color: "FFF3CD", fill: "FFF3CD" }, children: [new TextRun({ text: `  Tema IRR: ${sanitizeForXml(ci.tema_irr)}`, bold: true, size: docFontSize, font: docFont, color: "856404" })] }));
           ch.push(...buildPartesAdvogados(pub));
-          ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
+          if (modo === "integral") {
+            ch.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "Conteúdo Integral"));
+          } else {
+            const trecho = extractResumoSemIA(pub);
+            ch.push(...buildConteudoParagraphs(trecho || "Sem conteúdo disponível", "RESUMO (ÚLTIMOS PARÁGRAFOS + ASSINATURA/INTIMADOS)"));
+          }
           ch.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
         });
         return ch;
@@ -2819,10 +2831,11 @@ const AnaliseDjen = () => {
       const mkDoc = (ch: Paragraph[]) => new Document({ styles: { default: { document: { run: { font: docFont, size: docFontSize } } } }, sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children: ch }] });
       const dl = async (d: Document, fn: string) => { const b = await Packer.toBlob(d); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u); };
       let dg = 0;
-      if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`)), `PAUTA_${dataStr}.docx`); dg++; }
-      if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`)), `DISTRIBUICOES_${dataStr}.docx`); dg++; }
-      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`)), `PRAZOS_${dataStr}.docx`); dg++; }
-      toast.success(`${dg} documento(s) gerado(s)! (Pauta: ${pubsPauta.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral")), `JURISCONTROL_PAUTA_${dataStr}.docx`); dg++; }
+      if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`, "integral")), `JURISCONTROL_CEJUSC_${dataStr}.docx`); dg++; }
+      if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo")), `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`); dg++; }
+      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo")), `JURISCONTROL_PRAZOS_${dataStr}.docx`); dg++; }
+      toast.success(`${dg} documento(s) gerado(s)! (Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
       toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
