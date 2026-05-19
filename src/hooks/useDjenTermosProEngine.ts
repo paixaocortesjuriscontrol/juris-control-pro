@@ -522,6 +522,31 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
 }
 
 /**
+ * Fallback seguro para tipo parte: valida somente o bloco "Parte(s)" do DJEN,
+ * nunca o inteiro teor/corpo da decisão.
+ */
+function validarParteSecaoPartes(pub: any, nomeParte: string): boolean {
+  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
+  const nomeNorm = normalizar(nomeParte);
+  if (!texto || !nomeNorm) return false;
+
+  const header = texto.match(/\bParte\(s\)\s*:?\s*/i);
+  if (!header || header.index === undefined) return false;
+
+  const afterHeader = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
+  const advogadosIndex = afterHeader.search(/(?:^|\n)\s*Advogado\(s\)\s*:?/i);
+  if (advogadosIndex < 0) return false;
+
+  const secaoPartes = afterHeader.slice(0, advogadosIndex);
+  const linhas = secaoPartes
+    .split(/\r?\n/)
+    .map((linha) => linha.trim())
+    .filter((linha) => linha.length >= 3 && linha.length <= 240);
+
+  return linhas.some((linha) => contemFrase(normalizar(linha), nomeNorm));
+}
+
+/**
  * Constrói texto completo para validação (conteúdo + metadados).
  */
 function buildTextoCompleto(pub: any): string {
@@ -618,11 +643,13 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   }
   
   if (tipo === 'parte') {
-    // REGRA: tipo='parte' SÓ casa em metadados estruturados (PARTE(S) — lado esquerdo).
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
     // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const orTerm of (mon.termos_or || [])) {
       if (validarParteMetadados(pub, String(orTerm))) return true;
+      if (validarParteSecaoPartes(pub, String(orTerm))) return true;
     }
     return false;
   }
