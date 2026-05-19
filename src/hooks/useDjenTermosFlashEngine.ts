@@ -1215,8 +1215,8 @@ async function _processarTermoFlashInterno(
     // A API DJEN retorna falsos positivos quando o termo aparece apenas no corpo
     // (ex.: "SANTANDER" mencionado na fundamentação). Validar partes explicitamente.
     if (mon.tipo === 'parte') {
-      const termoPuro = extrairPalavraChavePura(mon.termo_busca);
-      const candidatos = [termoPuro, ...((mon.termos_or || []).map((t) => extrairPalavraChavePura(String(t).trim())).filter(Boolean))];
+      const termoPuro = n(mon.termo_busca);
+      const candidatos = [termoPuro, ...((mon.termos_or || []).map((t) => n(String(t).trim())).filter(Boolean))];
       const ok = candidatos.some((c) => c && partePresenteNosMetadados(pub, c));
       if (!ok) {
         descartadas++;
