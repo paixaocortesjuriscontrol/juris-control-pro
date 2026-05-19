@@ -249,6 +249,18 @@ export default function Configuracoes() {
           <PoolProxyDjenCard />
         </TabsContent>
 
+        <TabsContent value="djen-termos-kurier" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">DJEN Termos Kurier</h2>
+            <p className="text-sm text-muted-foreground">
+              Integração com a API Kurier (KJuridico). Cadastre os logins do escritório,
+              ative os que devem ser consumidos e o sistema busca em paralelo a fila de
+              publicações de cada login, confirmando os lotes automaticamente.
+            </p>
+          </div>
+          <MonitoramentoTermosKurierCard />
+        </TabsContent>
+
         {/* Aba DJET Pautas Paralela */}
         <TabsContent value="djet-pautas-paralela" className="space-y-4">
           <div className="mb-4">
