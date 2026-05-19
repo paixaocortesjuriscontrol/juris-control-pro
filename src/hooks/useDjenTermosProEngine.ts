@@ -470,6 +470,19 @@ function encurtarParaApi(termo: string): string {
   return palavras.slice(0, 2).join(' ');
 }
 
+function termosDeParte(mon: Monitoramento): string[] {
+  const seen = new Set<string>();
+  return [mon.termo_busca, ...(mon.termos_or || [])]
+    .map((termo) => String(termo || '').trim())
+    .filter((termo) => {
+      if (!termo) return false;
+      const key = normalizar(termo);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 /**
  * Valida advogado usando metadados estruturados da API.
  * Campos: destinatarioadvogados[].advogado.{nome, numero_oab, uf_oab}
