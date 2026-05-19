@@ -1093,7 +1093,7 @@ export function useBuscaDjenDireta() {
       }
       
       // Validar termo completo presente (ANTES da condição concomitante)
-      if (!conteudoContemTermoOuOr(pub.conteudo, mon.termo_busca, mon.termos_or, mon.tipo, mon.oab)) {
+      if (!conteudoContemTermoOuOr(pub.conteudo, mon.termo_busca, mon.termos_or, mon.tipo, mon.oab, pub)) {
         publicacoesIgnoradas++;
         descartadasParaPersistir.push({ pub, motivo: 'Termo/OR não encontrado integralmente' });
         return false;
