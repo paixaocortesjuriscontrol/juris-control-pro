@@ -702,6 +702,34 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   return false;
 }
 
+/**
+ * Valida se algum dos nomes em `partes_json` (formato "[Polo] NOME" ou apenas "NOME")
+ * contém o termo. Usado para revalidar publicações resgatadas de outras
+ * coordenações, evitando inserir publicações onde o termo só aparece no
+ * corpo do texto (ex.: jurisprudência, endereço) e NÃO nas partes estruturadas.
+ */
+function validarParteEmPartesJson(partesJson: any, nomesParte: string[]): boolean {
+  let arr: any[] = [];
+  if (Array.isArray(partesJson)) arr = partesJson;
+  else if (typeof partesJson === 'string') {
+    try { arr = JSON.parse(partesJson); } catch { arr = []; }
+  }
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  const termosNorm = nomesParte.map(n => normalizar(String(n || ''))).filter(Boolean);
+  if (termosNorm.length === 0) return false;
+  for (const p of arr) {
+    const raw = typeof p === 'string' ? p : (p?.nome || '');
+    // remove prefixo "[Reclamante] " / "[Reclamado] " etc.
+    const semPolo = String(raw).replace(/^\s*\[[^\]]+\]\s*/, '').trim();
+    const partNorm = normalizar(semPolo);
+    if (!partNorm) continue;
+    for (const t of termosNorm) {
+      if (partNorm.includes(t) || t.includes(partNorm)) return true;
+    }
+  }
+  return false;
+}
+
 function buildTextoCompleto(pub: any): string {
   const partes: string[] = [];
   const texto = pub?.texto || pub?.conteudo || pub?.teor || '';
