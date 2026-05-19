@@ -763,9 +763,11 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
     return false;
   }
   if (tipo === 'parte') {
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados (PARTE(S) — lado esquerdo).
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
-    const nn = normalizar(mon.termo_busca);
-    if (nn && contemFrase(textoNorm, nn)) return true;
+    for (const t of (mon.termos_or || [])) {
+      if (validarParteMetadados(pub, String(t))) return true;
+    }
     return false;
   }
   if (tipo === 'processo') {
