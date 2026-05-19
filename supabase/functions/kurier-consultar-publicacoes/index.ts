@@ -1,3 +1,9 @@
+import { createHash } from "node:crypto";
+
+function sha256(s: string): string {
+  return createHash("sha256").update(s).digest("hex");
+}
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   buildKurierUrl,
@@ -162,56 +168,70 @@ Deno.serve(async (req: Request) => {
         const idK = pickId(p);
         if (!idK) { totalDescartadas++; continue; }
 
-        // Upsert RAW (idempotente)
-        const { error: rawErr } = await admin
+        // Idempotência: se já existe em raw, é duplicada (já foi processada antes).
+        const { data: existente } = await admin
           .from("kurier_publicacoes_raw")
-          .upsert({
-            id_kurier: idK,
-            credencial_id: cred.id,
-            login_usado: cred.login,
-            payload: p as any,
-            recebida_em: new Date().toISOString(),
-          }, { onConflict: "id_kurier" });
-        if (rawErr) {
-          totalDescartadas++;
+          .select("id, publicacao_djen_id")
+          .eq("id_kurier", idK)
+          .maybeSingle();
+
+        if (existente) {
+          totalDuplicadas++;
+          idsConfirmar.push(idK);
           continue;
         }
 
-        // Tenta inserir em publicacoes_djen com origem='kurier'
         const numero = normalizeProcesso(pickStr(p, "numero_processo", "NumeroProcesso", "processo", "Processo"));
         const conteudo = pickStr(p, "conteudo", "Conteudo", "texto", "Texto");
         const dataDisp = pickStr(p, "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao");
         const dataPub = pickStr(p, "data_publicacao", "DataPublicacao", "dataPublicacao");
         const tribunal = pickStr(p, "tribunal", "Tribunal", "siglaTribunal");
-        const diario = pickStr(p, "diario", "Diario", "caderno", "Caderno");
-        const termo = pickStr(p, "termo", "Termo", "termoBusca");
+
+        let publicacaoDjenId: string | null = null;
 
         if (numero && conteudo) {
+          const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
+          const digits = numero.replace(/\D/g, "");
+
           const payload: any = {
-            numero_processo: numero,
+            processo_numero: numero,
             conteudo,
-            origem: "kurier",
-            data_disponibilizacao: dataDisp,
-            data_publicacao: dataPub,
+            fonte: "kurier",
+            hash_conteudo: hashConteudo,
+            dedup_processo_digits: digits || null,
+            dedup_data_ref: (dataDisp ?? dataPub ?? "").slice(0, 10) || null,
             tribunal,
-            diario_oficial: diario,
-            termo_busca: termo,
-            id_externo: `kurier:${idK}`,
-            metadata: { kurier: { id_kurier: idK, login_usado: cred.login, ...p } },
+            data_disponibilizacao: dataDisp ?? null,
+            data_publicacao: dataPub ?? null,
           };
-          const { error: pubErr } = await admin
+
+          const { data: insPub, error: pubErr } = await admin
             .from("publicacoes_djen")
-            .insert(payload);
+            .insert(payload)
+            .select("id")
+            .maybeSingle();
+
           if (pubErr) {
-            // Provavelmente duplicada pela chave única (id_externo)
-            if (String(pubErr.message ?? "").toLowerCase().includes("duplicate")) totalDuplicadas++;
-            else totalDuplicadas++; // tratamos qualquer erro como dup p/ não travar
-          } else {
+            totalDuplicadas++;
+          } else if (insPub) {
+            publicacaoDjenId = insPub.id;
             totalNovas++;
           }
         } else {
           totalDescartadas++;
         }
+
+        // Grava raw após tentar inserir publicacoes_djen
+        await admin
+          .from("kurier_publicacoes_raw")
+          .insert({
+            id_kurier: idK,
+            credencial_id: cred.id,
+            login_usado: cred.login,
+            payload: p as any,
+            publicacao_djen_id: publicacaoDjenId,
+            recebida_em: new Date().toISOString(),
+          });
 
         idsConfirmar.push(idK);
       }
