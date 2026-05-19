@@ -638,6 +638,7 @@ export default function CompararDjSantander() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedDateFim, setSelectedDateFim] = useState<Date | undefined>(undefined);
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
+  const [djenTexto, setDjenTexto] = useState<string>("");
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
 
@@ -816,6 +817,7 @@ export default function CompararDjSantander() {
     setLoadingDjen(true);
     setDjenLoaded(false);
     setDjenProcessos([]);
+    setDjenTexto("");
     setResult(null);
     try {
       // Format date range for query - data_disponibilizacao is stored as timestamptz
@@ -857,6 +859,7 @@ export default function CompararDjSantander() {
       // Fetch all publications for those monitoramentos on the selected date
       // Use pagination to get all results
       let allProcessos: string[] = [];
+      const allPubs: Array<{ processo_numero: string | null; orgao: string | null; tipo_comunicacao: string | null; conteudo: string | null }> = [];
       const pageSize = 1000;
       let offset = 0;
       let hasMore = true;
@@ -864,7 +867,7 @@ export default function CompararDjSantander() {
       while (hasMore) {
         const { data: publicacoes, error } = await supabase
           .from("publicacoes_djen")
-          .select("processo_numero")
+          .select("processo_numero, orgao, tipo_comunicacao, conteudo")
           .in("monitoramento_id", monIds)
           .gte("data_disponibilizacao", startOfDay)
           .lte("data_disponibilizacao", endOfDay)
@@ -881,6 +884,14 @@ export default function CompararDjSantander() {
             .map(p => p.processo_numero)
             .filter((n): n is string => !!n);
           allProcessos = [...allProcessos, ...numeros];
+          for (const p of publicacoes) {
+            allPubs.push({
+              processo_numero: (p as any).processo_numero ?? null,
+              orgao: (p as any).orgao ?? null,
+              tipo_comunicacao: (p as any).tipo_comunicacao ?? null,
+              conteudo: (p as any).conteudo ?? null,
+            });
+          }
         }
 
         if (!publicacoes || publicacoes.length < pageSize) {
@@ -894,6 +905,21 @@ export default function CompararDjSantander() {
       // que também lista um item por bloco "COMUNICAÇÃO PJE #...".
       const todos = allProcessos.map(formatarCNJ);
       setDjenProcessos(todos);
+      // Monta um texto sintético no mesmo formato do PDF Resumo
+      // ("COMUNICAÇÃO PJE #<CNJ>" como cabeçalho + corpo) para que
+      // classificarTiposPorTitulo possa contar Pauta/Distribuição/CEJUSC/Outros.
+      const stripHtml = (s: string | null) => (s || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ");
+      const textoSintetico = allPubs
+        .map((p) => {
+          const cnj = formatarCNJ(p.processo_numero || "");
+          const header = `COMUNICAÇÃO PJE #${cnj}`;
+          const corpo = [p.orgao || "", p.tipo_comunicacao || "", stripHtml(p.conteudo)]
+            .filter(Boolean)
+            .join("\n");
+          return `${header}\n${corpo}`;
+        })
+        .join("\n");
+      setDjenTexto(textoSintetico);
       setDjenLoaded(true);
       toast.success(`${todos.length} publicações encontradas no DJEN`);
     } catch (err) {
@@ -926,6 +952,7 @@ export default function CompararDjSantander() {
       const res = compararListas(docProcessos, djenProcessos);
       setResult(res);
       esq = calc(docTexto);
+      dir = calc(djenTexto);
     } else if (mode === "pdf-diario") {
       if (pdfDiarioProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue o(s) PDF(s) do diário e busque as publicações antes de comparar");
@@ -934,6 +961,7 @@ export default function CompararDjSantander() {
       const res = compararListas(pdfDiarioProcessos, djenProcessos);
       setResult(res);
       esq = calc(pdfDiarioTexto);
+      dir = calc(djenTexto);
     } else if (mode === "excel-projuris") {
       if (excelProjurisProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Projuris e busque as publicações antes de comparar");
@@ -941,6 +969,7 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(excelProjurisProcessos, djenProcessos);
       setResult(res);
+      dir = calc(djenTexto);
     } else {
       if (excelAstreaProcessos.length === 0 || djenProcessos.length === 0) {
         toast.error("Carregue a planilha do Astrea e busque as publicações antes de comparar");
@@ -948,6 +977,7 @@ export default function CompararDjSantander() {
       }
       const res = compararListas(excelAstreaProcessos, djenProcessos);
       setResult(res);
+      dir = calc(djenTexto);
     }
     setTiposEsq(esq);
     setTiposDir(dir);
