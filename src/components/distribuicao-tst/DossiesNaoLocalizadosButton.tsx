@@ -22,76 +22,20 @@ import {
 } from "@/hooks/useDistribuicoesTst";
 import { isDossieInvalido } from "@/utils/gerarPlanilhaBenner";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
-import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
+import {
+  buildJuditPatch,
+  persistirJuditAnexos,
+  persistirPartesJudit,
+  gravarJuditLog,
+  extrairReclamanteReclamada,
+  extrairDocumentosReclamante,
+  formatDoc,
+} from "@/lib/juditDistribuicaoTst";
+import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
 
 interface Props {
   filters: DistribuicaoTstFilters;
   selectedIds?: Set<string>;
-}
-
-function formatDoc(doc: string | null | undefined): string {
-  const d = String(doc || "").replace(/\D/g, "");
-  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-  return String(doc || "");
-}
-
-const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
-  const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
-  const nonLawyers = parties.filter((p: any) => p?.nome && !p?.is_advogado);
-  const ativos = [...new Set(nonLawyers
-    .filter((p: any) => String(p?.polo || "").toUpperCase() === "ACTIVE")
-    .map((p: any) => String(p.nome).trim()).filter(Boolean))];
-  const passivos = [...new Set(nonLawyers
-    .filter((p: any) => String(p?.polo || "").toUpperCase() === "PASSIVE")
-    .map((p: any) => String(p.nome).trim()).filter(Boolean))];
-  const partes: string[] = [];
-  if (ativos.length > 0) partes.push(`Ativo: ${ativos.join(", ")}`);
-  if (passivos.length > 0) partes.push(`Passivo: ${passivos.join(", ")}`);
-  if (partes.length > 0) return partes.join("\n");
-  const r = String(juditData?.recorrente ?? "").trim();
-  return r || fallback || "";
-};
-
-const isTurmaOficialTst = (t: string | null | undefined): boolean => {
-  if (!t) return false;
-  const norm = String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
-  return /^[1-8][ªa]?\s*turma$/.test(norm);
-};
-
-function extrairReclamanteJudit(juditData: any): { nome: string; doc: string } {
-  const parties = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
-  // PRIORIDADE: usa reclamante já desambiguado pelo backend (cruzamento com
-  // person_type da instância de origem). Fallback por person_type (RECLAMANTE/
-  // AUTOR/EXEQUENTE/REQUERENTE). NUNCA usar polo ACTIVE/PASSIVE no TST porque
-  // lá significa recorrente/recorrido — banco recorrente vira "reclamante" errado.
-  const nomeBackend = String(juditData?.reclamante || "").trim();
-  let ativos: any[] = [];
-  if (nomeBackend) {
-    const nomesBackend = nomeBackend.split(/\s*\/\s*/).map((n) => n.trim()).filter(Boolean);
-    ativos = parties.filter(
-      (p: any) => !p?.is_advogado && nomesBackend.includes(String(p?.nome || "").trim())
-    );
-    if (ativos.length === 0) {
-      ativos = nomesBackend.map((n) => ({ nome: n, documento: null }));
-    }
-  } else {
-    ativos = parties.filter(
-      (p: any) =>
-        !p?.is_advogado &&
-        /RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i.test(String(p?.tipo_pessoa || "")) &&
-        String(p?.nome || "").trim()
-    );
-  }
-  const nomes = [...new Set(ativos.map((p: any) => String(p.nome).trim()))];
-  const docs = [
-    ...new Set(
-      ativos
-        .map((p: any) => formatDoc(p?.documento))
-        .filter((s: string) => !!s)
-    ),
-  ];
-  return { nome: nomes.join("; "), doc: docs.join("; ") };
 }
 
 export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
@@ -99,6 +43,8 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
   const [usarJudit, setUsarJudit] = useState(false);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const { data: turmasTst = [] } = useTurmasTst();
+  const { data: relatoresTst = [] } = useRelatoresTst();
 
   const total = selectedIds?.size || 0;
 
