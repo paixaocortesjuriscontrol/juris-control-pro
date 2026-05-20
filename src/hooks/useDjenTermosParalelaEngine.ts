@@ -681,11 +681,39 @@ function temExclusao(pub: any, exclusoes?: string[]): string | null {
   return null;
 }
 
+function textoPartesEstruturadas(pub: any): string {
+  return extrairPartesDeCamposEstruturados(pub).join('\n');
+}
+
+function temExclusaoEmPartes(pub: any, exclusoes?: string[]): string | null {
+  if (!exclusoes?.length) return null;
+  const textoNorm = normalizar(textoPartesEstruturadas(pub));
+  if (!textoNorm) return null;
+  for (const exc of exclusoes) {
+    const excNorm = normalizar(exc);
+    if (excNorm && textoNorm.includes(excNorm)) return exc;
+  }
+  return null;
+}
+
 function condicaoConcomitanteAtendida(pub: any, condicao?: string | null): boolean {
   if (!condicao) return true;
   const grupos = String(condicao).split('|').map(g => g.trim()).filter(Boolean);
   if (grupos.length === 0) return true;
   const textoNorm = normalizar(buildTextoCompleto(pub));
+  return grupos.some(g => {
+    const ts = g.split(',').map(t => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every(t => contemFrase(textoNorm, normalizar(t)));
+  });
+}
+
+function condicaoConcomitanteAtendidaEmPartes(pub: any, condicao?: string | null): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao).split('|').map(g => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  const textoNorm = normalizar(textoPartesEstruturadas(pub));
+  if (!textoNorm) return false;
   return grupos.some(g => {
     const ts = g.split(',').map(t => t.trim()).filter(Boolean);
     if (ts.length === 0) return true;
