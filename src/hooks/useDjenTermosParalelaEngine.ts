@@ -911,11 +911,15 @@ function extrairAdvogadosEstruturados(pub: any): string[] {
 }
 
 function extrairPartesEstruturadas(pub: any): string[] {
-  if (!Array.isArray(pub?.destinatarios)) return [];
-  return pub.destinatarios.filter((d: any) => d?.nome).map((d: any) => {
-    const polo = d.polo === 'A' ? 'Reclamante' : d.polo === 'P' ? 'Reclamado' : d.polo || '';
-    return polo ? `[${polo}] ${d.nome}` : d.nome;
-  });
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const parte of extrairPartesDeCamposEstruturados(pub)) {
+    const key = normalizar(parte);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(parte);
+  }
+  return result;
 }
 
 // ============================================================================
