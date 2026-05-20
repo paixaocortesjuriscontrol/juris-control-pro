@@ -705,14 +705,33 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
 }
 
 function validarParteMetadados(pub: any, nomeParte: string): boolean {
-  const dests = pub?.destinatarios;
-  if (!Array.isArray(dests) || dests.length === 0) return false;
   const nomeNorm = normalizar(nomeParte);
   if (!nomeNorm) return false;
-  for (const d of dests) {
-    if (!d?.nome) continue;
-    const destNorm = normalizar(d.nome);
-    if (destNorm.includes(nomeNorm) || nomeNorm.includes(destNorm)) return true;
+  // ESTRITO: só valida em campos ESTRUTURADOS de PARTE (lado esquerdo da publicação).
+  // NUNCA faz fallback em texto/conteúdo. Campos verificados:
+  //  - destinatarios[].nome (partes intimadas, qualquer polo)
+  //  - poloAtivo / poloPassivo (strings com nomes do polo, possivelmente com ', ')
+  //  - partes[] (lista estruturada — strings ou {nome})
+  const matches = (raw: any): boolean => {
+    if (!raw) return false;
+    const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
+    if (!s) return false;
+    // pode vir vários nomes separados por vírgula
+    const candidatos = String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean);
+    for (const c of candidatos) {
+      const cn = normalizar(c);
+      if (!cn) continue;
+      if (cn.includes(nomeNorm) || nomeNorm.includes(cn)) return true;
+    }
+    return false;
+  };
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) if (matches(d)) return true;
+  }
+  if (matches(pub?.poloAtivo) || matches(pub?.polo_ativo)) return true;
+  if (matches(pub?.poloPassivo) || matches(pub?.polo_passivo)) return true;
+  if (Array.isArray(pub?.partes)) {
+    for (const p of pub.partes) if (matches(p)) return true;
   }
   return false;
 }
