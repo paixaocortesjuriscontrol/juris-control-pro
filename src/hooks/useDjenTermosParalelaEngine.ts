@@ -708,10 +708,11 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   const nomeNorm = normalizar(nomeParte);
   if (!nomeNorm) return false;
   // ESTRITO: só valida em campos ESTRUTURADOS de PARTE (lado esquerdo da publicação).
-  // NUNCA faz fallback em texto/conteúdo. Campos verificados:
+  // NUNCA valida no teor geral. Campos verificados:
   //  - destinatarios[].nome (partes intimadas, qualquer polo)
   //  - poloAtivo / poloPassivo (strings com nomes do polo, possivelmente com ', ')
   //  - partes[] (lista estruturada — strings ou {nome})
+  //  - bloco visual delimitado "Parte(s):" quando a API só entrega essa barra lateral dentro do texto
   const matches = (raw: any): boolean => {
     if (!raw) return false;
     const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
@@ -733,7 +734,23 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   if (Array.isArray(pub?.partes)) {
     for (const p of pub.partes) if (matches(p)) return true;
   }
+  if (validarParteSecaoPartes(pub, nomeNorm)) return true;
   return false;
+}
+
+function validarParteSecaoPartes(pub: any, nomeNorm: string): boolean {
+  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
+  if (!texto || !nomeNorm) return false;
+  const bloco = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*([\s\S]*?)(?=\n\s*(?:Advogados?\s*\(|PODER\s+JUDICI[ÁA]RIO|INTIMA[ÇC][ÃA]O|ATO\s+ORDINAT[ÓO]RIO|DESPACHO|DECIS[ÃA]O|AC[ÓO]RD[ÃA]O)\b|$)/i)?.[1] || '';
+  if (!bloco.trim()) return false;
+  return bloco
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .some(linha => {
+      const ln = normalizar(linha.replace(/^[-•]\s*/, ''));
+      return !!ln && (ln.includes(nomeNorm) || nomeNorm.includes(ln));
+    });
 }
 
 /**
