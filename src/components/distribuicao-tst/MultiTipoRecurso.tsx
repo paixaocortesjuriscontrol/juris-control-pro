@@ -98,8 +98,9 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
       {tipos.map((t, idx) => {
         const isPredef = OPCOES_RECURSO.includes(t);
         return (
-          <div key={idx} className="flex items-center gap-2">
-            <Select
+          <div key={idx} className="space-y-2 rounded-md border border-border/60 p-2">
+            <div className="flex items-center gap-2">
+              <Select
               value={isPredef ? t : (t ? "__custom__" : "")}
               onValueChange={(v) => {
                 if (v === "__custom__") {
@@ -109,7 +110,7 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                 }
               }}
             >
-              <SelectTrigger className="w-[320px]">
+              <SelectTrigger className="flex-1 min-w-0">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -118,25 +119,26 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                 ))}
                 <SelectItem value="__custom__">Outro…</SelectItem>
               </SelectContent>
-            </Select>
+              </Select>
+              {tipos.length > 1 ? (
+                <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Remover">
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : (
+                t.trim() && (
+                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Limpar">
+                    <X className="h-4 w-4" />
+                  </Button>
+                )
+              )}
+            </div>
             {!isPredef && (
               <Input
-                className="flex-1"
+                className="w-full"
                 placeholder="Descreva o recurso"
                 value={t}
                 onChange={(e) => setAt(idx, e.target.value)}
               />
-            )}
-            {tipos.length > 1 ? (
-              <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Remover">
-                <X className="h-4 w-4" />
-              </Button>
-            ) : (
-              t.trim() && (
-                <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Limpar">
-                  <X className="h-4 w-4" />
-                </Button>
-              )
             )}
           </div>
         );
