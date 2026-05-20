@@ -1351,6 +1351,7 @@ async function processarTermoEmTribunal(
   const pubsUnicas = Array.from(hashMap.values());
   const pubsParaDedup = pubsUnicas.concat(resgatadasConhecidas.map((p: any) => ({
     ...p,
+    __resgatada: true,
     texto: p.texto || p.conteudo || p.teor || '',
     siglaTribunal: p.siglaTribunal || p.tribunal,
     numeroProcesso: p.numeroProcesso || p.numero_processo || p.processo_numero,
@@ -1430,11 +1431,13 @@ async function processarTermoEmTribunal(
   if (novas.length > 0) {
     const payload = novas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
-      const conteudoFormatado = buildDjenLikeConteudo({
-        pub, diaYmd,
-        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
-        conteudoOriginal,
-      });
+      const conteudoFormatado = pub.__resgatada
+        ? (pub.conteudo || conteudoOriginal)
+        : buildDjenLikeConteudo({
+            pub, diaYmd,
+            monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+            conteudoOriginal,
+          });
       const dataDisp = pub.data_disponibilizacao_ymd;
       const dataPub = calcularDataPublicacao(dataDisp);
       const advogados = extrairAdvogadosEstruturados(pub);
@@ -1447,14 +1450,14 @@ async function processarTermoEmTribunal(
         data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
         data_publicacao: `${dataPub}T12:00:00.000Z`,
         tribunal: getSiglaTribunal(pub),
-        fonte: pub.siglaTribunal || pub.tribunal || 'DJEN-PARALELA',
+        fonte: pub.fonte || pub.siglaTribunal || pub.tribunal || 'DJEN-PARALELA',
         lida: false,
         status: 'encontrada' as const,
-        orgao: pub.nomeOrgao || pub.nome_orgao || null,
-        tipo_comunicacao: pub.tipoComunicacao || null,
+        orgao: pub.orgao || pub.nomeOrgao || pub.nome_orgao || null,
+        tipo_comunicacao: pub.tipo_comunicacao || pub.tipoComunicacao || null,
         meio: pub.meio || pub.meiocompleto || null,
-        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
-        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
+        advogados_json: pub.__resgatada ? pub.advogados_json : (advogados.length > 0 ? JSON.stringify(advogados) : null),
+        partes_json: pub.__resgatada ? pub.partes_json : (partes.length > 0 ? JSON.stringify(partes) : null),
         coordenacao_id: mon.coordenacao_id ?? null,
       };
     });
