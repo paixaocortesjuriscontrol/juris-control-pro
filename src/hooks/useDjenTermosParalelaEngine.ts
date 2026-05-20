@@ -1286,9 +1286,10 @@ async function processarTermoEmTribunal(
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
+  const resgatadasConhecidas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
+
   if (resultados.length === 0) {
-    const resgatadas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
-    const inseridas = resgatadas.length > 0 ? await inserirPublicacoesResgatadas(resgatadas, tribunal) : 0;
+    const inseridas = resgatadasConhecidas.length > 0 ? await inserirPublicacoesResgatadas(resgatadasConhecidas, tribunal) : 0;
     return { novas: inseridas, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
@@ -1340,6 +1341,7 @@ async function processarTermoEmTribunal(
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
+  const pubsParaDedup = pubsUnicas.concat(resgatadasConhecidas.map((p: any) => ({ ...p, data_disponibilizacao_ymd: String(p.dedup_data_ref || p.data_disponibilizacao || p.data_publicacao || diaYmd).slice(0, 10) })));
 
   if (foraDoPeriodo > 0) {
     ultimoErro = `API devolveu ${foraDoPeriodo} resultado(s) fora de ${diaYmd}; ignorados.`;
