@@ -6975,6 +6975,14 @@ export type Database = {
         }[]
       }
       get_dashboard_stats: { Args: never; Returns: Json }
+      get_distribuicao_tst_responsaveis_counts: {
+        Args: { filters?: Json }
+        Returns: {
+          count: number
+          id: string
+          nome: string
+        }[]
+      }
       get_distribuicao_tst_stats: {
         Args: { filters?: Json }
         Returns: {
