@@ -1148,11 +1148,8 @@ async function processarTermoEmTribunal(
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
-  const resgatadasConhecidas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
-
   if (resultados.length === 0) {
-    const inseridas = resgatadasConhecidas.length > 0 ? await inserirPublicacoesResgatadas(resgatadasConhecidas, tribunal) : 0;
-    return { novas: inseridas, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
   // Filtros declarados pelo monitoramento
@@ -1203,14 +1200,7 @@ async function processarTermoEmTribunal(
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
-  const pubsParaDedup = pubsUnicas.concat(resgatadasConhecidas.map((p: any) => ({
-    ...p,
-    __resgatada: true,
-    texto: p.texto || p.conteudo || p.teor || '',
-    siglaTribunal: p.siglaTribunal || p.tribunal,
-    numeroProcesso: p.numeroProcesso || p.numero_processo || p.processo_numero,
-    data_disponibilizacao_ymd: String(p.dedup_data_ref || p.data_disponibilizacao || p.data_publicacao || diaYmd).slice(0, 10),
-  })));
+  const pubsParaDedup = pubsUnicas;
 
   if (foraDoPeriodo > 0) {
     ultimoErro = `API devolveu ${foraDoPeriodo} resultado(s) fora de ${diaYmd}; ignorados.`;
@@ -1285,13 +1275,11 @@ async function processarTermoEmTribunal(
   if (novas.length > 0) {
     const payload = novas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
-      const conteudoFormatado = pub.__resgatada
-        ? (pub.conteudo || conteudoOriginal)
-        : buildDjenLikeConteudo({
-            pub, diaYmd,
-            monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
-            conteudoOriginal,
-          });
+      const conteudoFormatado = buildDjenLikeConteudo({
+        pub, diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
       const dataDisp = pub.data_disponibilizacao_ymd;
       const dataPub = calcularDataPublicacao(dataDisp);
       const advogados = extrairAdvogadosEstruturados(pub);
@@ -1310,8 +1298,8 @@ async function processarTermoEmTribunal(
         orgao: pub.orgao || pub.nomeOrgao || pub.nome_orgao || null,
         tipo_comunicacao: pub.tipo_comunicacao || pub.tipoComunicacao || null,
         meio: pub.meio || pub.meiocompleto || null,
-        advogados_json: pub.__resgatada ? pub.advogados_json : (advogados.length > 0 ? JSON.stringify(advogados) : null),
-        partes_json: pub.__resgatada ? pub.partes_json : (partes.length > 0 ? JSON.stringify(partes) : null),
+        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
+        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
         coordenacao_id: mon.coordenacao_id ?? null,
       };
     });
