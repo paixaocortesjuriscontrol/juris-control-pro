@@ -1159,7 +1159,9 @@ async function processarTermoEmTribunal(
         return false;
       }
     }
-    const exc = temExclusao(pub, mon.exclusoes);
+    const exc = mon.tipo === 'parte'
+      ? temExclusaoEmPartes(pub, mon.exclusoes)
+      : temExclusao(pub, mon.exclusoes);
     if (exc) {
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${exc}` });
@@ -1170,7 +1172,10 @@ async function processarTermoEmTribunal(
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
-    if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
+    const concomitanteOk = mon.tipo === 'parte'
+      ? condicaoConcomitanteAtendidaEmPartes(pub, mon.condicao_concomitante)
+      : condicaoConcomitanteAtendida(pub, mon.condicao_concomitante);
+    if (!concomitanteOk) {
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
       return false;
