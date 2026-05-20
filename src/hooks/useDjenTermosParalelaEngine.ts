@@ -787,6 +787,28 @@ function validarParteEmPartesJson(partesJson: any, nomesParte: string[]): boolea
   return false;
 }
 
+function extrairPartesDeCamposEstruturados(pub: any): string[] {
+  const result: string[] = [];
+  const add = (raw: any, polo?: string) => {
+    if (!raw) return;
+    const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
+    if (!s) return;
+    for (const nome of String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean)) {
+      result.push(polo ? `[${polo}] ${nome}` : nome);
+    }
+  };
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) {
+      const polo = d?.polo === 'A' ? 'Reclamante' : d?.polo === 'P' ? 'Reclamado' : d?.polo || '';
+      add(d, polo);
+    }
+  }
+  add(pub?.poloAtivo || pub?.polo_ativo, 'Polo Ativo');
+  add(pub?.poloPassivo || pub?.polo_passivo, 'Polo Passivo');
+  if (Array.isArray(pub?.partes)) for (const p of pub.partes) add(p);
+  return result;
+}
+
 function buildTextoCompleto(pub: any): string {
   const partes: string[] = [];
   const texto = pub?.texto || pub?.conteudo || pub?.teor || '';
