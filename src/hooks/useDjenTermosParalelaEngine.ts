@@ -1079,35 +1079,34 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
   }
 
-  // Busca complementar para "parte"
+  // Busca complementar para "parte": varre tribunal/data sem termo textual e
+  // a validação posterior continua estrita em Parte(s)/polos estruturados.
+  // Não usa fallback por conteúdo/palavra-chave.
   if (tipo === 'parte' && !signal.aborted) {
-    const txt = mon.termo_busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    if (txt) {
-      try {
-        const resp = await buscarPjeComunicaPaginado({
-          tipo: 'palavra-chave' as PjeSearchType,
-          palavraChave: txt,
-          siglaTribunal: tribunal,
-          dataInicio: diaYmd,
-          dataFim: diaYmd,
-          pageSize: 50,
-          page: 1,
-        }, {
-          signal,
-          maxPages: null,
-          continueUntilEmpty: true,
-          delayMs: CONFIG.delay_between_pages,
-          maxRetries: CONFIG.max_retries,
-          retryBaseDelay: CONFIG.retry_base_delay,
-          onRateLimit: () => { rateLimitHits++; },
-          onPoolVia: (via) => registrarViaTrack(tribunal, via),
-          forceVia: viaId,
-          fallbackToDirect: viaId === DIRECT_SLOT_ID,
-        });
-        addResults(resp.items);
-      } catch (e: any) {
-        if (e?.name === 'AbortError') throw e;
-      }
+    try {
+      const resp = await buscarPjeComunicaPaginado({
+        tipo: 'palavra-chave' as PjeSearchType,
+        palavraChave: '*',
+        siglaTribunal: tribunal,
+        dataInicio: diaYmd,
+        dataFim: diaYmd,
+        pageSize: 50,
+        page: 1,
+      }, {
+        signal,
+        maxPages: null,
+        continueUntilEmpty: true,
+        delayMs: CONFIG.delay_between_pages,
+        maxRetries: CONFIG.max_retries,
+        retryBaseDelay: CONFIG.retry_base_delay,
+        onRateLimit: () => { rateLimitHits++; },
+        onPoolVia: (via) => registrarViaTrack(tribunal, via),
+        forceVia: viaId,
+        fallbackToDirect: viaId === DIRECT_SLOT_ID,
+      });
+      addResults(resp.items);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
     }
   }
 
