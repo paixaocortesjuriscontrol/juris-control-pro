@@ -1329,9 +1329,11 @@ async function processarTermoEmTribunal(
         for (const row of lote) {
           const { error: oneErr } = await supabase
             .from('publicacoes_djen')
-            .upsert(row, { onConflict: 'coordenacao_id,hash_conteudo' });
-          if (oneErr) console.error(`[DJEN Paralela][${tribunal}] upsert individual error:`, oneErr);
-          else inseridosCount += 1;
+            .insert(row);
+          const oneMsg = String(oneErr?.message || '');
+          const oneIsConflict = oneErr && (oneErr.code === '23505' || oneMsg.includes('duplicate key'));
+          if (!oneErr) inseridosCount += 1;
+          else if (!oneIsConflict) console.error(`[DJEN Paralela][${tribunal}] insert individual error:`, oneErr);
         }
       }
       // Releitura confirmatória: o trigger pode reclassificar uma linha como
