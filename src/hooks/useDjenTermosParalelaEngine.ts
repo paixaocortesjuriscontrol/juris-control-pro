@@ -571,8 +571,7 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   // NUNCA valida no teor geral. Campos verificados:
   //  - destinatarios[].nome (partes intimadas, qualquer polo)
   //  - poloAtivo / poloPassivo (strings com nomes do polo, possivelmente com ', ')
-  //  - partes[] (lista estruturada — strings ou {nome})
-  //  - bloco visual delimitado "Parte(s):" quando a API só entrega essa barra lateral dentro do texto
+  //  - partes[] / partes_json (lista estruturada — strings ou {nome})
   const matches = (raw: any): boolean => {
     if (!raw) return false;
     const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
@@ -594,23 +593,13 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   if (Array.isArray(pub?.partes)) {
     for (const p of pub.partes) if (matches(p)) return true;
   }
-  if (validarParteSecaoPartes(pub, nomeNorm)) return true;
+  const partesJson = typeof pub?.partes_json === 'string'
+    ? (() => { try { return JSON.parse(pub.partes_json); } catch { return []; } })()
+    : pub?.partes_json;
+  if (Array.isArray(partesJson)) {
+    for (const p of partesJson) if (matches(p)) return true;
+  }
   return false;
-}
-
-function validarParteSecaoPartes(pub: any, nomeNorm: string): boolean {
-  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
-  if (!texto || !nomeNorm) return false;
-  const bloco = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*([\s\S]*?)(?=\n\s*(?:Advogados?\s*\(|PODER\s+JUDICI[ÁA]RIO|INTIMA[ÇC][ÃA]O|ATO\s+ORDINAT[ÓO]RIO|DESPACHO|DECIS[ÃA]O|AC[ÓO]RD[ÃA]O)\b|$)/i)?.[1] || '';
-  if (!bloco.trim()) return false;
-  return bloco
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean)
-    .some(linha => {
-      const ln = normalizar(linha.replace(/^[-•]\s*/, ''));
-      return !!ln && (ln.includes(nomeNorm) || nomeNorm.includes(ln));
-    });
 }
 
 /**
@@ -706,6 +695,16 @@ function condicaoConcomitanteAtendida(pub: any, condicao?: string | null): boole
 
 function validarTermo(pub: any, mon: Monitoramento): boolean {
   const tipo = mon.tipo;
+  if (tipo === 'parte') {
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados de Parte(s)/polos.
+    // Não lê nem valida o teor/texto geral da publicação.
+    if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    for (const t of (mon.termos_or || [])) {
+      if (validarParteMetadados(pub, String(t))) return true;
+    }
+    return false;
+  }
+
   const textoNorm = normalizar(buildTextoCompleto(pub));
   if (tipo === 'advogado') {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
@@ -724,14 +723,6 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
         if (nn && contemFrase(textoNorm, nn)) return true;
         if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
       }
-    }
-    return false;
-  }
-  if (tipo === 'parte') {
-    // REGRA: tipo='parte' SÓ casa em metadados estruturados (PARTE(S) — lado esquerdo).
-    if (validarParteMetadados(pub, mon.termo_busca)) return true;
-    for (const t of (mon.termos_or || [])) {
-      if (validarParteMetadados(pub, String(t))) return true;
     }
     return false;
   }
