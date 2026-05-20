@@ -509,6 +509,18 @@ function proximoDiaYmd(ymd: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
+function termosParteValidacao(mon: Monitoramento): string[] {
+  return [String(mon.termo_busca || '')]
+    .concat((mon.termos_or || []).map(t => parsearTermoOr(String(t))?.nome || String(t)))
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function validarParteEmPublicacaoPersistida(pub: any, nomesParte: string[]): boolean {
+  return validarParteEmPartesJson(pub?.partes_json, nomesParte)
+    || nomesParte.some(nome => validarParteMetadados(pub, nome));
+}
+
 async function resgatarPublicacoesParteJaConhecidas(
   mon: Monitoramento,
   diaYmd: string,
@@ -540,14 +552,8 @@ async function resgatarPublicacoesParteJaConhecidas(
   // NÃO nas partes estruturadas. Sem este filtro, publicações que mencionam
   // "SANTANDER" em uma citação jurisprudencial vazariam para a coordenação
   // Santander mesmo sem o banco ser parte do processo.
-  const termosValidacao: string[] = [String(mon.termo_busca || '')]
-    .concat((mon.termos_or || []).map(t => {
-      const p = parsearTermoOr(String(t));
-      return p?.nome || String(t);
-    }))
-    .map(s => s.trim())
-    .filter(Boolean);
-  const conhecidas = (conhecidasRaw as any[]).filter((r: any) => validarParteEmPartesJson(r.partes_json, termosValidacao));
+  const termosValidacao = termosParteValidacao(mon);
+  const conhecidas = (conhecidasRaw as any[]).filter((r: any) => validarParteEmPublicacaoPersistida(r, termosValidacao));
   if (conhecidas.length === 0) return [];
 
   const hashes: string[] = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
