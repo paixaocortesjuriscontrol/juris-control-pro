@@ -509,152 +509,6 @@ function proximoDiaYmd(ymd: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
-function termosParteValidacao(mon: Monitoramento): string[] {
-  return [String(mon.termo_busca || '')]
-    .concat((mon.termos_or || []).map(t => parsearTermoOr(String(t))?.nome || String(t)))
-    .map(s => s.trim())
-    .filter(Boolean);
-}
-
-function validarParteEmPublicacaoPersistida(pub: any, nomesParte: string[]): boolean {
-  return validarParteEmPartesJson(pub?.partes_json, nomesParte)
-    || nomesParte.some(nome => validarParteMetadados(pub, nome));
-}
-
-async function resgatarPublicacoesParteJaConhecidas(
-  mon: Monitoramento,
-  diaYmd: string,
-  tribunal: string,
-): Promise<any[]> {
-  if (mon.tipo !== 'parte' || !mon.coordenacao_id) return [];
-  const termo = String(mon.termo_busca || '').trim();
-  if (termo.length < 4) return [];
-
-  const { data: conhecidasRaw, error } = await (supabase.from('publicacoes_djen') as any)
-    .select(`
-      hash_conteudo, processo_numero, conteudo, fonte, tribunal, orgao,
-      tipo_comunicacao, meio, advogados_json, partes_json, polo_ativo, polo_passivo,
-      data_disponibilizacao, data_publicacao,
-      dedup_processo_digits, dedup_data_ref, dedup_head_norm
-    `)
-    .eq('status', 'encontrada')
-    .neq('coordenacao_id', mon.coordenacao_id)
-    .eq('tribunal', tribunal)
-    .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
-    .lt('data_disponibilizacao', `${proximoDiaYmd(diaYmd)}T00:00:00.000Z`)
-    .ilike('conteudo', `%${termo}%`)
-    .limit(1000);
-
-  if (error || !conhecidasRaw?.length) return [];
-
-  // ⚠️ SEGURANÇA: revalidar contra `partes_json` para evitar resgatar
-  // publicações onde o termo aparece apenas no corpo do texto (ILIKE) mas
-  // NÃO nas partes estruturadas. Sem este filtro, publicações que mencionam
-  // "SANTANDER" em uma citação jurisprudencial vazariam para a coordenação
-  // Santander mesmo sem o banco ser parte do processo.
-  const termosValidacao = termosParteValidacao(mon);
-  const conhecidas = (conhecidasRaw as any[]).filter((r: any) => validarParteEmPublicacaoPersistida(r, termosValidacao));
-  if (conhecidas.length === 0) return [];
-
-  const hashes: string[] = conhecidas.map((r: any) => String(r.hash_conteudo || '')).filter(Boolean);
-  const processosDigits: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_processo_digits || r.processo_numero || '').replace(/\D/g, '')).filter(Boolean)));
-  const datasRef: string[] = Array.from(new Set<string>(conhecidas.map((r: any) => String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10)).filter(Boolean)));
-
-  let hashesExistentes = new Set<string>();
-  if (hashes.length > 0) {
-    const { data } = await supabase
-      .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('coordenacao_id', mon.coordenacao_id)
-      .in('hash_conteudo', hashes);
-    hashesExistentes = new Set((data || []).map((r: any) => String(r.hash_conteudo || '')));
-  }
-
-  let chavesExistentes = new Set<string>();
-  if (processosDigits.length > 0 && datasRef.length > 0) {
-    const { data } = await supabase
-      .from('publicacoes_djen')
-      .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
-      .eq('coordenacao_id', mon.coordenacao_id)
-      .in('dedup_processo_digits', processosDigits)
-      .in('dedup_data_ref', datasRef);
-    chavesExistentes = new Set((data || []).map((r: any) => montarChaveEncontrada({
-      coordenacaoId: r.coordenacao_id,
-      processoNumero: r.processo_numero,
-      dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10),
-      conteudo: r.conteudo,
-      dedupProcessoDigits: r.dedup_processo_digits,
-      dedupHeadNorm: r.dedup_head_norm,
-    })));
-  }
-
-  return conhecidas
-    .filter((r: any) => {
-      const hash = String(r.hash_conteudo || '');
-      const chave = montarChaveEncontrada({
-        coordenacaoId: mon.coordenacao_id,
-        processoNumero: r.processo_numero,
-        dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || diaYmd).slice(0, 10),
-        conteudo: r.conteudo,
-        dedupProcessoDigits: r.dedup_processo_digits,
-        dedupHeadNorm: r.dedup_head_norm,
-      });
-      return hash && !hashesExistentes.has(hash) && !chavesExistentes.has(chave);
-    })
-    .map((r: any) => ({
-      monitoramento_id: mon.id,
-      hash_conteudo: r.hash_conteudo,
-      processo_numero: r.processo_numero,
-      conteudo: r.conteudo,
-      data_disponibilizacao: r.data_disponibilizacao,
-      data_publicacao: r.data_publicacao,
-      tribunal: r.tribunal,
-      fonte: r.fonte || 'DJEN-PARALELA-RESGATE',
-      lida: false,
-      status: 'encontrada' as const,
-      orgao: r.orgao,
-      tipo_comunicacao: r.tipo_comunicacao,
-      meio: r.meio,
-      advogados_json: r.advogados_json,
-      partes_json: r.partes_json,
-      polo_ativo: r.polo_ativo,
-      polo_passivo: r.polo_passivo,
-      coordenacao_id: mon.coordenacao_id,
-    }));
-}
-
-async function inserirPublicacoesResgatadas(
-  publicacoes: any[],
-  tribunal: string,
-): Promise<number> {
-  let inseridas = 0;
-  for (const lote of chunkArray(publicacoes, 25)) {
-    const { error: insertError } = await supabase
-      .from('publicacoes_djen')
-      .insert(lote);
-
-    if (!insertError) {
-      inseridas += lote.length;
-      continue;
-    }
-
-    const msg = String(insertError.message || '');
-    const isConflict = insertError.code === '23505' || msg.includes('duplicate key');
-    if (!isConflict) {
-      console.warn(`[DJEN Paralela][${tribunal}] resgate falhou:`, insertError.message);
-      continue;
-    }
-
-    for (const row of lote) {
-      const { error: oneErr } = await supabase
-        .from('publicacoes_djen')
-        .insert(row);
-      if (!oneErr) inseridas += 1;
-    }
-  }
-  return inseridas;
-}
-
 function calcularProximoDiaUtil(dataBase: Date): Date {
   const r = new Date(dataBase);
   while (r.getDay() === 0 || r.getDay() === 6) r.setDate(r.getDate() + 1);
@@ -1294,11 +1148,8 @@ async function processarTermoEmTribunal(
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
-  const resgatadasConhecidas = await resgatarPublicacoesParteJaConhecidas(mon, diaYmd, tribunal);
-
   if (resultados.length === 0) {
-    const inseridas = resgatadasConhecidas.length > 0 ? await inserirPublicacoesResgatadas(resgatadasConhecidas, tribunal) : 0;
-    return { novas: inseridas, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
   // Filtros declarados pelo monitoramento
@@ -1349,14 +1200,7 @@ async function processarTermoEmTribunal(
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
-  const pubsParaDedup = pubsUnicas.concat(resgatadasConhecidas.map((p: any) => ({
-    ...p,
-    __resgatada: true,
-    texto: p.texto || p.conteudo || p.teor || '',
-    siglaTribunal: p.siglaTribunal || p.tribunal,
-    numeroProcesso: p.numeroProcesso || p.numero_processo || p.processo_numero,
-    data_disponibilizacao_ymd: String(p.dedup_data_ref || p.data_disponibilizacao || p.data_publicacao || diaYmd).slice(0, 10),
-  })));
+  const pubsParaDedup = pubsUnicas;
 
   if (foraDoPeriodo > 0) {
     ultimoErro = `API devolveu ${foraDoPeriodo} resultado(s) fora de ${diaYmd}; ignorados.`;
@@ -1431,13 +1275,11 @@ async function processarTermoEmTribunal(
   if (novas.length > 0) {
     const payload = novas.map(pub => {
       const conteudoOriginal = pub.texto || pub.conteudo || pub.teor || null;
-      const conteudoFormatado = pub.__resgatada
-        ? (pub.conteudo || conteudoOriginal)
-        : buildDjenLikeConteudo({
-            pub, diaYmd,
-            monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
-            conteudoOriginal,
-          });
+      const conteudoFormatado = buildDjenLikeConteudo({
+        pub, diaYmd,
+        monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
+        conteudoOriginal,
+      });
       const dataDisp = pub.data_disponibilizacao_ymd;
       const dataPub = calcularDataPublicacao(dataDisp);
       const advogados = extrairAdvogadosEstruturados(pub);
@@ -1456,8 +1298,8 @@ async function processarTermoEmTribunal(
         orgao: pub.orgao || pub.nomeOrgao || pub.nome_orgao || null,
         tipo_comunicacao: pub.tipo_comunicacao || pub.tipoComunicacao || null,
         meio: pub.meio || pub.meiocompleto || null,
-        advogados_json: pub.__resgatada ? pub.advogados_json : (advogados.length > 0 ? JSON.stringify(advogados) : null),
-        partes_json: pub.__resgatada ? pub.partes_json : (partes.length > 0 ? JSON.stringify(partes) : null),
+        advogados_json: advogados.length > 0 ? JSON.stringify(advogados) : null,
+        partes_json: partes.length > 0 ? JSON.stringify(partes) : null,
         coordenacao_id: mon.coordenacao_id ?? null,
       };
     });
