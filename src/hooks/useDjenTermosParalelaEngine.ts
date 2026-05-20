@@ -1349,7 +1349,13 @@ async function processarTermoEmTribunal(
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
-  const pubsParaDedup = pubsUnicas.concat(resgatadasConhecidas.map((p: any) => ({ ...p, data_disponibilizacao_ymd: String(p.dedup_data_ref || p.data_disponibilizacao || p.data_publicacao || diaYmd).slice(0, 10) })));
+  const pubsParaDedup = pubsUnicas.concat(resgatadasConhecidas.map((p: any) => ({
+    ...p,
+    texto: p.texto || p.conteudo || p.teor || '',
+    siglaTribunal: p.siglaTribunal || p.tribunal,
+    numeroProcesso: p.numeroProcesso || p.numero_processo || p.processo_numero,
+    data_disponibilizacao_ymd: String(p.dedup_data_ref || p.data_disponibilizacao || p.data_publicacao || diaYmd).slice(0, 10),
+  })));
 
   if (foraDoPeriodo > 0) {
     ultimoErro = `API devolveu ${foraDoPeriodo} resultado(s) fora de ${diaYmd}; ignorados.`;
