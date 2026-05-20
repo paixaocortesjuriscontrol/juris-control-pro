@@ -321,16 +321,13 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       ? (todasRegioes ? 'TODAS' : selectedUfs.join(','))
       : undefined;
 
-    // Mescla `Condição Concomitante (AND)` em `termos_or` — este é o campo
-    // efetivamente lido pelos engines (DJET Pautas, DJEN Termos etc.) como
-    // termos AND-obrigatórios. Sem isso, os chips digitados na UI não eram
-    // aplicados na busca (bug observado no monitoramento BRADESCO).
+    // IMPORTANTE: NÃO mesclar `condicoesConcomitantes` em `termos_or`.
+    // Os engines (DJEN Termos Paralela, DJET Pautas) já leem
+    // `condicao_concomitante` de forma independente. Mesclar fazia com que
+    // o chip da AND fosse gravado também na coluna OR no banco, e ao reabrir
+    // o diálogo o item removido da OR voltava (bug: remover chip não persiste).
     const termosOrFinal = Array.from(
-      new Set(
-        [...termosOr, ...condicoesConcomitantes]
-          .map((t) => (t || '').trim())
-          .filter(Boolean),
-      ),
+      new Set(termosOr.map((t) => (t || '').trim()).filter(Boolean)),
     );
 
     const dados = {
