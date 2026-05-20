@@ -571,8 +571,7 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   // NUNCA valida no teor geral. Campos verificados:
   //  - destinatarios[].nome (partes intimadas, qualquer polo)
   //  - poloAtivo / poloPassivo (strings com nomes do polo, possivelmente com ', ')
-  //  - partes[] (lista estruturada — strings ou {nome})
-  //  - bloco visual delimitado "Parte(s):" quando a API só entrega essa barra lateral dentro do texto
+  //  - partes[] / partes_json (lista estruturada — strings ou {nome})
   const matches = (raw: any): boolean => {
     if (!raw) return false;
     const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
@@ -594,49 +593,11 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   if (Array.isArray(pub?.partes)) {
     for (const p of pub.partes) if (matches(p)) return true;
   }
-  if (validarParteSecaoPartes(pub, nomeNorm)) return true;
-  return false;
-}
-
-function validarParteSecaoPartes(pub: any, nomeNorm: string): boolean {
-  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
-  if (!texto || !nomeNorm) return false;
-  const bloco = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*([\s\S]*?)(?=\n\s*(?:Advogados?\s*\(|PODER\s+JUDICI[ÁA]RIO|INTIMA[ÇC][ÃA]O|ATO\s+ORDINAT[ÓO]RIO|DESPACHO|DECIS[ÃA]O|AC[ÓO]RD[ÃA]O)\b|$)/i)?.[1] || '';
-  if (!bloco.trim()) return false;
-  return bloco
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean)
-    .some(linha => {
-      const ln = normalizar(linha.replace(/^[-•]\s*/, ''));
-      return !!ln && (ln.includes(nomeNorm) || nomeNorm.includes(ln));
-    });
-}
-
-/**
- * Valida se algum dos nomes em `partes_json` (formato "[Polo] NOME" ou apenas "NOME")
- * contém o termo. Usado para revalidar publicações resgatadas de outras
- * coordenações, evitando inserir publicações onde o termo só aparece no
- * corpo do texto (ex.: jurisprudência, endereço) e NÃO nas partes estruturadas.
- */
-function validarParteEmPartesJson(partesJson: any, nomesParte: string[]): boolean {
-  let arr: any[] = [];
-  if (Array.isArray(partesJson)) arr = partesJson;
-  else if (typeof partesJson === 'string') {
-    try { arr = JSON.parse(partesJson); } catch { arr = []; }
-  }
-  if (!Array.isArray(arr) || arr.length === 0) return false;
-  const termosNorm = nomesParte.map(n => normalizar(String(n || ''))).filter(Boolean);
-  if (termosNorm.length === 0) return false;
-  for (const p of arr) {
-    const raw = typeof p === 'string' ? p : (p?.nome || '');
-    // remove prefixo "[Reclamante] " / "[Reclamado] " etc.
-    const semPolo = String(raw).replace(/^\s*\[[^\]]+\]\s*/, '').trim();
-    const partNorm = normalizar(semPolo);
-    if (!partNorm) continue;
-    for (const t of termosNorm) {
-      if (partNorm.includes(t) || t.includes(partNorm)) return true;
-    }
+  const partesJson = typeof pub?.partes_json === 'string'
+    ? (() => { try { return JSON.parse(pub.partes_json); } catch { return []; } })()
+    : pub?.partes_json;
+  if (Array.isArray(partesJson)) {
+    for (const p of partesJson) if (matches(p)) return true;
   }
   return false;
 }
@@ -692,6 +653,21 @@ function temExclusao(pub: any, exclusoes?: string[]): string | null {
   return null;
 }
 
+function textoPartesEstruturadas(pub: any): string {
+  return extrairPartesDeCamposEstruturados(pub).join('\n');
+}
+
+function temExclusaoEmPartes(pub: any, exclusoes?: string[]): string | null {
+  if (!exclusoes?.length) return null;
+  const textoNorm = normalizar(textoPartesEstruturadas(pub));
+  if (!textoNorm) return null;
+  for (const exc of exclusoes) {
+    const excNorm = normalizar(exc);
+    if (excNorm && textoNorm.includes(excNorm)) return exc;
+  }
+  return null;
+}
+
 function condicaoConcomitanteAtendida(pub: any, condicao?: string | null): boolean {
   if (!condicao) return true;
   const grupos = String(condicao).split('|').map(g => g.trim()).filter(Boolean);
@@ -704,8 +680,31 @@ function condicaoConcomitanteAtendida(pub: any, condicao?: string | null): boole
   });
 }
 
+function condicaoConcomitanteAtendidaEmPartes(pub: any, condicao?: string | null): boolean {
+  if (!condicao) return true;
+  const grupos = String(condicao).split('|').map(g => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  const textoNorm = normalizar(textoPartesEstruturadas(pub));
+  if (!textoNorm) return false;
+  return grupos.some(g => {
+    const ts = g.split(',').map(t => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every(t => contemFrase(textoNorm, normalizar(t)));
+  });
+}
+
 function validarTermo(pub: any, mon: Monitoramento): boolean {
   const tipo = mon.tipo;
+  if (tipo === 'parte') {
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados de Parte(s)/polos.
+    // Não lê nem valida o teor/texto geral da publicação.
+    if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    for (const t of (mon.termos_or || [])) {
+      if (validarParteMetadados(pub, String(t))) return true;
+    }
+    return false;
+  }
+
   const textoNorm = normalizar(buildTextoCompleto(pub));
   if (tipo === 'advogado') {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
@@ -724,14 +723,6 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
         if (nn && contemFrase(textoNorm, nn)) return true;
         if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
       }
-    }
-    return false;
-  }
-  if (tipo === 'parte') {
-    // REGRA: tipo='parte' SÓ casa em metadados estruturados (PARTE(S) — lado esquerdo).
-    if (validarParteMetadados(pub, mon.termo_busca)) return true;
-    for (const t of (mon.termos_or || [])) {
-      if (validarParteMetadados(pub, String(t))) return true;
     }
     return false;
   }
@@ -1079,41 +1070,10 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
   }
 
-  // Busca complementar para "parte": varre tribunal/data sem termo textual e
-  // a validação posterior continua estrita em Parte(s)/polos estruturados.
-  // Não usa fallback por conteúdo/palavra-chave.
-  if (tipo === 'parte' && !signal.aborted) {
-    try {
-      const resp = await buscarPjeComunicaPaginado({
-        tipo: 'palavra-chave' as PjeSearchType,
-        palavraChave: '*',
-        siglaTribunal: tribunal,
-        dataInicio: diaYmd,
-        dataFim: diaYmd,
-        pageSize: 50,
-        page: 1,
-      }, {
-        signal,
-        maxPages: null,
-        continueUntilEmpty: true,
-        delayMs: CONFIG.delay_between_pages,
-        maxRetries: CONFIG.max_retries,
-        retryBaseDelay: CONFIG.retry_base_delay,
-        onRateLimit: () => { rateLimitHits++; },
-        onPoolVia: (via) => registrarViaTrack(tribunal, via),
-        forceVia: viaId,
-        fallbackToDirect: viaId === DIRECT_SLOT_ID,
-      });
-      addResults(resp.items);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') throw e;
-    }
-  }
-
   // Retry automático: a API do PJE Comunica ocasionalmente devolve listagem
   // vazia (sem 429/5xx) para um termo que tem publicações. Antes de desistir,
   // refazemos uma única tentativa após pequeno delay.
-  if (!signal.aborted && resultados.length === 0) {
+  if (tipo !== 'parte' && !signal.aborted && resultados.length === 0) {
     try {
       await abortableDelay(1500, signal);
       if (!signal.aborted) {
@@ -1171,7 +1131,9 @@ async function processarTermoEmTribunal(
         return false;
       }
     }
-    const exc = temExclusao(pub, mon.exclusoes);
+    const exc = mon.tipo === 'parte'
+      ? temExclusaoEmPartes(pub, mon.exclusoes)
+      : temExclusao(pub, mon.exclusoes);
     if (exc) {
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: `excluido: ${exc}` });
@@ -1182,7 +1144,10 @@ async function processarTermoEmTribunal(
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
-    if (!condicaoConcomitanteAtendida(pub, mon.condicao_concomitante)) {
+    const concomitanteOk = mon.tipo === 'parte'
+      ? condicaoConcomitanteAtendidaEmPartes(pub, mon.condicao_concomitante)
+      : condicaoConcomitanteAtendida(pub, mon.condicao_concomitante);
+    if (!concomitanteOk) {
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
       return false;
