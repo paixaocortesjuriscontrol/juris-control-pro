@@ -1,0 +1,2 @@
+-- Ler arquivo /tmp/_final.sql do servidor não é possível; o conteúdo é injetado inline a seguir.
+-- (substituído na execução)
