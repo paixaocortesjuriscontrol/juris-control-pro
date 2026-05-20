@@ -463,11 +463,10 @@ function contemFraseComAnd(textoNorm: string, termoRaw: string): boolean {
  */
 function encurtarParaApi(termo: string): string {
   if (!termo?.trim()) return termo;
-  const limpo = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const palavras = limpo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\.,]+$/.test(p));
-  if (palavras.length <= 2) return limpo;
-  // Usar as 2 primeiras palavras significativas para busca ampla
-  return palavras.slice(0, 2).join(' ');
+  // NUNCA fatiar o termo. A busca DJEN por palavra-chave precisa enviar
+  // a expressão INTEIRA configurada (ex.: "UNIÃO QUÍMICA" / "SEU ZÉ"),
+  // apenas normalizada sem acentos. A validação local confirma a frase exata.
+  return termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
 function termosDeParte(mon: Monitoramento): string[] {

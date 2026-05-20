@@ -427,10 +427,11 @@ function contemFraseComAnd(textoNorm: string, termoRaw: string): boolean {
 
 function encurtarParaApi(termo: string): string {
   if (!termo?.trim()) return termo;
-  const limpo = termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const palavras = limpo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\.,]+$/.test(p));
-  if (palavras.length <= 2) return limpo;
-  return palavras.slice(0, 2).join(' ');
+  // NUNCA fatiar o termo. A busca DJEN por palavra-chave precisa enviar
+  // a expressão INTEIRA configurada (ex.: "UNIÃO QUÍMICA" / "SEU ZÉ"),
+  // apenas normalizada sem acentos para casar com o índice da API.
+  // A validação local depois confirma a frase exata na ordem.
+  return termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
 function getSiglaTribunal(item: any): string | null {
