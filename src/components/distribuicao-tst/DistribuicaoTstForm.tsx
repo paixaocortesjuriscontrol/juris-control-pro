@@ -790,6 +790,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                   <SelectItem value="Núcleo de Terceiros">Núcleo de Terceiros</SelectItem>
                   <SelectItem value="Ações Especiais">Ações Especiais</SelectItem>
                   <SelectItem value="Ações Corporativas">Ações Corporativas</SelectItem>
+                  <SelectItem value="Acordo Extrajudicial">Acordo Extrajudicial</SelectItem>
                 </SelectContent>
               </Select>
             </div>
