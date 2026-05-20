@@ -581,7 +581,10 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
     for (const c of candidatos) {
       const cn = normalizar(c);
       if (!cn) continue;
-      if (cn.includes(nomeNorm) || nomeNorm.includes(cn)) return true;
+      // ESTRITO: a parte estruturada precisa CONTER o termo buscado como FRASE
+      // (com fronteira de palavra). Nunca aceitar o inverso, senão iniciais
+      // como "A.", "J.P." casam com qualquer termo que contenha essas letras.
+      if (contemFrase(cn, nomeNorm)) return true;
     }
     return false;
   };
