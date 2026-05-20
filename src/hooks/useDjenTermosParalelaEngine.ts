@@ -1344,7 +1344,7 @@ async function processarTermoEmTribunal(
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
-    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+    const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
     const hash = gerarHash(conteudo, dataDisp, procNum);
     if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
@@ -1366,7 +1366,7 @@ async function processarTermoEmTribunal(
     });
     return montarChaveEncontrada({
       coordenacaoId: mon.coordenacao_id,
-      processoNumero: p.numeroProcesso || p.numero_processo || p.processo || null,
+      processoNumero: p.numeroProcesso || p.numero_processo || p.processo_numero || p.processo || null,
       dataRefYmd: p.data_disponibilizacao_ymd,
       conteudo: conteudoFormatado,
     });
@@ -1389,7 +1389,7 @@ async function processarTermoEmTribunal(
 
   let chavesEncontradas = new Set<string>();
   if (chavesCandidatas.length > 0) {
-      const processosDigits = Array.from(new Set(pubsParaDedup.map((p) => String(p.numeroProcesso || p.numero_processo || p.processo || '').replace(/\D/g, '')).filter(Boolean)));
+      const processosDigits = Array.from(new Set(pubsParaDedup.map((p) => String(p.numeroProcesso || p.numero_processo || p.processo_numero || p.processo || '').replace(/\D/g, '')).filter(Boolean)));
       const datasRef = Array.from(new Set(pubsParaDedup.map((p) => p.data_disponibilizacao_ymd).filter(Boolean)));
     if (processosDigits.length > 0 && datasRef.length > 0) {
       let dedupQuery = supabase
@@ -1436,7 +1436,7 @@ async function processarTermoEmTribunal(
       return {
         monitoramento_id: mon.id,
         hash_conteudo: pub.hash_conteudo,
-        processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo || null,
+        processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || null,
         conteudo: conteudoFormatado,
         data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
         data_publicacao: `${dataPub}T12:00:00.000Z`,
