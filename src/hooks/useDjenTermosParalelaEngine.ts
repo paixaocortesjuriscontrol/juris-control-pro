@@ -806,6 +806,10 @@ function extrairPartesDeCamposEstruturados(pub: any): string[] {
   add(pub?.poloAtivo || pub?.polo_ativo, 'Polo Ativo');
   add(pub?.poloPassivo || pub?.polo_passivo, 'Polo Passivo');
   if (Array.isArray(pub?.partes)) for (const p of pub.partes) add(p);
+  const partesJson = typeof pub?.partes_json === 'string'
+    ? (() => { try { return JSON.parse(pub.partes_json); } catch { return []; } })()
+    : pub?.partes_json;
+  if (Array.isArray(partesJson)) for (const p of partesJson) add(p);
   return result;
 }
 
@@ -879,7 +883,7 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   }
   if (tipo === 'processo') {
     const nd = mon.termo_busca.replace(/\D/g, '');
-    const pn = String(pub?.numero_processo || pub?.numeroProcesso || pub?.processo || '').replace(/\D/g, '');
+    const pn = String(pub?.numero_processo || pub?.numeroProcesso || pub?.processo_numero || pub?.processo || '').replace(/\D/g, '');
     return pn.includes(nd);
   }
   if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
