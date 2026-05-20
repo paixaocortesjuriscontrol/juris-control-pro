@@ -274,7 +274,6 @@ export function buildJuditPatch(
 
   apply("dossie", juditData?.dossie);
   apply("data_distribuicao_real", juditData?.data_distribuicao);
-  apply("data_distribuicao_planilha", juditData?.data_distribuicao);
   apply("data_distribuicao", juditData?.data_distribuicao);
   apply("relator", juditData?.relator);
   apply("turma", juditData?.turma);
