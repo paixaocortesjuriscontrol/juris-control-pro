@@ -576,7 +576,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
-        apply("data_distribuicao_planilha", data.data_distribuicao);
         apply("relator", data.relator);
         apply("turma", data.turma);
         // Classificação automática (Turma / Relator) com base no cadastro TST
