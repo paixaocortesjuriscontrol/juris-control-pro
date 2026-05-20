@@ -1513,7 +1513,7 @@ async function processarTermoEmTribunal(
         conteudoOriginal,
       });
       const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
-      const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
+      const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
       const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
       if (descMap.has(hash)) continue;
       const advogados = extrairAdvogadosEstruturados(pub);
@@ -1521,7 +1521,7 @@ async function processarTermoEmTribunal(
       descMap.set(hash, {
         monitoramento_id: mon.id,
         hash_conteudo: hash,
-        processo_numero: pub.numeroProcesso || pub.numero_processo || null,
+        processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo_numero || null,
         conteudo: conteudoFormatado.slice(0, 100000),
         data_publicacao: `${calcularDataPublicacao(dataDisp)}T12:00:00.000Z`,
         data_disponibilizacao: `${dataDisp}T12:00:00.000Z`,
