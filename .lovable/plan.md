@@ -1,27 +1,30 @@
-## Excluir publicações DJEN de hoje das duas coordenações da Dra. Vanessa Gomes
+## Problema
 
-**Alvo identificado**
-- Coordenação Dra. Vanessa Gomes - TST → `b6a3a750-3109-4962-bea9-7b5116e3a4fd` → **141 publicações** hoje
-- Coordenação Dra. Vanessa Gomes - STF / STJ → `6324396e-487a-4b4b-8bae-aacb3bb161bc` → **13 publicações** hoje
-- **Total: 154 publicações** a excluir (data de hoje, BRT)
+Na tela **Distribuição TST**, o processo `0010079-69.2024.5.15.0126` aparece duplicado (mesmo `processo`, dossiês diferentes em `dados_benner`). Ao marcar um card como **Pronto para Enviar**, o efeito aparece no outro card.
 
-**Ação (via migration de DELETE)**
+## Causa
 
-```sql
-DELETE FROM publicacoes_djen
-WHERE created_at >= (CURRENT_DATE AT TIME ZONE 'America/Sao_Paulo')
-  AND monitoramento_id IN (
-    SELECT id FROM monitoramentos_djen
-    WHERE coordenacao_id IN (
-      'b6a3a750-3109-4962-bea9-7b5116e3a4fd',
-      '6324396e-487a-4b4b-8bae-aacb3bb161bc'
-    )
-  );
+Em `src/components/distribuicao-tst/DistribuicaoTstDetail.tsx`, `fetchBennerByProcesso` busca a linha de `dados_benner` por **processo** apenas:
+
+```ts
+.from("dados_benner").select("*").eq("processo", processoNumero).limit(1)
 ```
 
-**Escopo / fora de escopo**
-- Exclui apenas `publicacoes_djen` (não mexe em `publicacoes_djen_descartadas`, monitoramentos, notificações ou histórico).
-- Critério "hoje" = a partir das 00:00 BRT do dia atual.
-- Não altera o flag `buscar_parte` dos monitoramentos — você vai reexecutar a busca após a limpeza.
+Quando existem 2 linhas com o mesmo processo, qualquer card aberto carrega sempre a **primeira** linha. O switch "Pronto para Enviar" então salva no `id` dessa linha, e o usuário vê a mudança no card "errado".
 
-Confirma para eu executar a migration?
+Mesma falha no fallback de **Problema Judit** (`.eq("processo", processoNumero)` sem `id`), que pode atualizar todas as duplicatas de uma vez.
+
+`dado.id` já é o `dados_benner.id` (confirmado em `bennerToDistribuicao`), então a chave correta já está disponível no card aberto.
+
+## Correção
+
+1. **`fetchBennerByProcesso`** — buscar por `id` quando `dado?.id` existe; só cair para `processo` quando for registro novo (sem id).
+2. **`handleSaveTop` (Problema Judit)** — remover o fallback `eq("processo", processoNumero)`. Se não houver `id`, exigir reload antes de salvar (ou abortar com toast). Nunca atualizar por processo.
+3. **Lista (`DistribuicaoTst.tsx`)** — quando o mesmo `processo` aparece em mais de uma linha, exibir o **dossiê** no card de forma destacada para o usuário diferenciar visualmente as duplicatas.
+4. **Invalidar cache pelo id correto** após o save, garantindo que o card recarrega só sua própria linha.
+
+## Verificação
+
+- Abrir cada um dos dois cards do processo `0010079-69.2024.5.15.0126` e confirmar via console/logs que `bennerDado.id` é diferente em cada abertura.
+- Marcar Pronto em um → conferir no banco/lista que somente aquele `id` ficou `pronto_envio`.
+- Marcar Problema Judit em um → conferir que o outro permanece intacto.

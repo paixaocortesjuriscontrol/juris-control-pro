@@ -163,17 +163,22 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [iaResumo, setIaResumo] = useState<string | null>(null);
 
   const fetchBennerByProcesso = useCallback(async () => {
-    if (!processoNumero) {
+    if (!processoNumero && !dado?.id) {
       setBennerDado(null);
       setBennerLoaded(true);
       return;
     }
     setBennerLoading(true);
-    const { data, error } = await supabase
-      .from("dados_benner" as any)
-      .select("*")
-      .eq("processo", processoNumero)
-      .limit(1);
+    // CHAVE DE IDENTIFICAÇÃO: usar SEMPRE o id do registro quando disponível.
+    // Buscar por "processo" sozinho retorna a primeira linha duplicada e faz
+    // o switch "Pronto para Enviar" / "Problema Judit" salvar no dossiê errado
+    // quando o mesmo processo tem múltiplas linhas em dados_benner (dossiês
+    // diferentes). Só caímos para busca por processo quando ainda não há id
+    // (registro novo sendo criado).
+    const query = supabase.from("dados_benner" as any).select("*");
+    const { data, error } = dado?.id
+      ? await query.eq("id", dado.id).limit(1)
+      : await query.eq("processo", processoNumero).limit(1);
     if (error) {
       toast.error("Erro ao carregar Dados Benner: " + error.message);
     }
@@ -181,7 +186,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setBennerDado(row as DadoBenner | null);
     setBennerLoaded(true);
     setBennerLoading(false);
-  }, [processoNumero]);
+  }, [processoNumero, dado?.id]);
 
   // Carrega o registro Benner quando a aba Benner é aberta pela primeira vez.
   useEffect(() => {
@@ -278,14 +283,22 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           problema_judit_em: problemaJudit ? new Date().toISOString() : null,
           problema_judit_por: problemaJudit ? uid : null,
         } as any;
-        const targetId = (bennerDado as any)?.id;
-        const { error: updErr } = targetId
-          ? await supabase.from("dados_benner" as any).update(payload).eq("id", targetId)
-          : await supabase.from("dados_benner" as any).update(payload).eq("processo", processoNumero);
-        if (updErr) {
-          toast.error("Erro ao salvar Problema Judit: " + updErr.message);
+        // Sempre atualizar pelo ID exato do registro Benner. NUNCA cair para
+        // .eq("processo") porque isso atualiza todas as duplicatas do mesmo
+        // processo (dossiês diferentes).
+        const targetId = (bennerDado as any)?.id || dado?.id;
+        if (!targetId) {
+          toast.error("Não foi possível identificar o registro para salvar Problema Judit.");
         } else {
-          setBennerLoaded(false);
+          const { error: updErr } = await supabase
+            .from("dados_benner" as any)
+            .update(payload)
+            .eq("id", targetId);
+          if (updErr) {
+            toast.error("Erro ao salvar Problema Judit: " + updErr.message);
+          } else {
+            setBennerLoaded(false);
+          }
         }
       }
     } finally {
