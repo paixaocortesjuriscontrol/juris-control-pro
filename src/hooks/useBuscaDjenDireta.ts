@@ -1121,6 +1121,7 @@ export function useBuscaDjenDireta() {
           const hash = gerarHash(d.pub.conteudo || '', dataRef);
           return {
             monitoramento_id: mon.id,
+            coordenacao_id: (mon as any).coordenacao_id || null,
             hash_conteudo: hash,
             processo_numero: d.pub.processo_numero,
             conteudo: d.pub.conteudo,

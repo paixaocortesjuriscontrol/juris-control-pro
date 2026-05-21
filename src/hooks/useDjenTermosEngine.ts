@@ -1587,6 +1587,7 @@ async function processarTermo(
 
       return {
         monitoramento_id: mon.id,
+        coordenacao_id: coordenacaoId,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo.slice(0, 100000),
