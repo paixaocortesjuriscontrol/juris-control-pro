@@ -705,6 +705,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       if (proc) {
         form.processo_id = proc.id;
       } else {
+        // Fallback: o processo pode existir mas estar invisível por RLS
+        // (pertence a outro advogado/coordenação). Buscamos via RPC SECURITY
+        // DEFINER antes de tentar inserir — caso contrário a UNIQUE
+        // constraint em processos.numero quebra o save.
+        const { data: existingId } = await supabase.rpc(
+          "find_processo_id_by_numero" as any,
+          { _numero: form.processo_numero.trim() }
+        );
+        if (existingId) {
+          form.processo_id = existingId as string;
+        } else {
         const { data: newProc, error } = await supabase
           .from("processos")
           .insert({
@@ -726,6 +737,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           return;
         }
         form.processo_id = newProc.id;
+        }
       }
     }
 

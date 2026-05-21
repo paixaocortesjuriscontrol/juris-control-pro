@@ -6943,6 +6943,7 @@ export type Database = {
         Args: { p_coordenacao_id: string }
         Returns: number
       }
+      find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       get_cliente_ids_for_user: {
         Args: { _user_id: string }
         Returns: string[]
