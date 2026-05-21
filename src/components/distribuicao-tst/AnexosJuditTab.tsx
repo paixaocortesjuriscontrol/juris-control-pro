@@ -589,9 +589,15 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     <Card><CardContent className="p-4 space-y-2">
       <div className="flex items-center justify-between gap-3 pb-2 border-b border-border">
         <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(v === true)} disabled={processing} />
+          <Checkbox
+            checked={allChecked ? true : someChecked ? "indeterminate" : false}
+            onCheckedChange={() => toggleAll(!allChecked)}
+            disabled={processing}
+          />
           <span className="text-muted-foreground">
-            {selected.size > 0 ? `${selected.size} selecionado(s)` : "Selecionar todos"}
+            {selected.size > 0
+              ? `${selected.size} de ${uniqueAttachments.length} selecionado(s)`
+              : "Selecionar todos"}
           </span>
         </label>
         <div className="flex items-center gap-2">
