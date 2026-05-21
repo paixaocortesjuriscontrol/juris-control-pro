@@ -1260,6 +1260,21 @@ async function processarTermoEmTribunal(
   });
 
   const hashesCandidatos = pubsParaDedup.map((p) => String(p.hash_conteudo || '')).filter(Boolean);
+  const idsDjenCandidatos = pubsParaDedup.map((p) => extrairIdDjen(p)).filter(Boolean) as string[];
+  let idsDjenEncontrados = new Set<string>();
+  if (idsDjenCandidatos.length > 0) {
+    let idQuery = supabase
+      .from('publicacoes_djen')
+      .select('id_djen')
+      .eq('status', 'encontrada')
+      .in('id_djen', idsDjenCandidatos);
+    idQuery = mon.coordenacao_id
+      ? idQuery.eq('coordenacao_id', mon.coordenacao_id)
+      : idQuery.is('coordenacao_id', null);
+    const { data: existentesPorIdDjen } = await idQuery;
+    idsDjenEncontrados = new Set((existentesPorIdDjen || []).map((r: any) => String(r.id_djen || '')));
+  }
+
   let hashesEncontrados = new Set<string>();
   if (hashesCandidatos.length > 0) {
     let hashQuery = supabase
@@ -1301,6 +1316,8 @@ async function processarTermoEmTribunal(
   }
 
   const novas = pubsParaDedup.filter((p, idx) => {
+    const idDjen = extrairIdDjen(p);
+    if (idDjen) return !idsDjenEncontrados.has(idDjen);
     const hash = String(p.hash_conteudo || '');
     return !hashesEncontrados.has(hash) && !chavesEncontradas.has(chavesCandidatas[idx]);
   });
