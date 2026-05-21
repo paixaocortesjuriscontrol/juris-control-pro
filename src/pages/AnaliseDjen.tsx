@@ -74,7 +74,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
-import { DjenExecutionBannerPro } from "@/components/djen/DjenExecutionBannerPro";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { jsPDF } from "jspdf";
