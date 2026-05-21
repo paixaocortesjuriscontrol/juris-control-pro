@@ -752,19 +752,8 @@ function gerarVariantes(termo: string): string[] {
     }
   }
   
-  // Gerar variante curta (2 primeiras palavras significativas >= 2 caracteres)
-  // Filtrar &, /, etc. para encontrar palavras reais
-  const palavrasSignificativas = termo.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\]+$/.test(p));
-  if (palavrasSignificativas.length >= 3) {
-    const curta = palavrasSignificativas.slice(0, 2).join(' ');
-    variantes.add(curta);
-    
-    // Curta sem acentos também
-    const curtaSemAcento = curta.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (curtaSemAcento !== curta) {
-      variantes.add(curtaSemAcento);
-    }
-  }
+  // NUNCA fatiar termo em 2 palavras: regra "DJEN palavra-chave nunca fatia o termo".
+  // Apenas variantes de normalização (sem acento / sem &) são permitidas.
   
   return Array.from(variantes);
 }

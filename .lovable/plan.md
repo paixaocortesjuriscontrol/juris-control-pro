@@ -1,58 +1,35 @@
-## Objetivo
+## Contexto
 
-Liberar a publicação `0010074-58.2007.8.26.0038` (e quaisquer outras presas pelo mesmo motivo) para que, ao reexecutar o DJEN Paralela na janela 19/05/2026, o novo monitoramento `PALAVRA-CHAVE - UNIÃO QUÍMICA` (criado em 20/05) consiga capturá-la.
+Regra do projeto (`mem/constraints/djen-keyword-no-slicing.md`): a busca DJEN por palavra-chave deve enviar a **expressão inteira** configurada no termo, apenas normalizada sem acentos. NUNCA fatiar em 2 palavras nem usar só a palavra mais longa de um `+`.
 
-## Diagnóstico confirmado
+## Verificação
 
-- Coordenação Dr. Thomás: `b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f`
-- Descartadas dessa coordenação com `data_publicacao = 19/05/2026`: **7.485 registros**
-- A dedupe do engine usa `hash_conteudo` em descartadas → enquanto o hash existir lá, a publicação nunca será reavaliada por monitoramentos novos.
+Auditei os 6 motores que geram `palavraChave` para a API PJE Comunica:
 
-## Passos
+| Arquivo | Status |
+|---|---|
+| `useDjenTermosProEngine.ts` (`encurtarParaApi`) | OK — envia termo inteiro |
+| `useDjenTermosFlashEngine.ts` (`encurtarParaApi`) | OK — envia termo inteiro |
+| `useDjenTermosParalelaEngine.ts` (`encurtarParaApi`) | OK — envia termo inteiro |
+| `useDjenTermosEngine.ts` (`gerarVariantes`, linhas 755-767) | **Viola** — gera variante "curta" com `slice(0, 2)` |
+| `useSincronizarDjenBrowser.ts` (`gerarVariantes`, linhas 72-80) | **Viola** — gera "prefixo" com `slice(0, 2)` |
+| `useBuscaDjenDireta.ts` | a verificar — não usa o padrão de variantes curtas |
 
-### 1. Apagar descartadas alvo (via migration de DELETE filtrado)
+Esses dois motores ainda geram uma variante extra de 2 palavras quando o termo tem ≥3 palavras significativas, e essa variante é enviada como `palavraChave` em buscas adicionais. Resultado: termos como "OSMAR MENDES PAIXAO CORTES" disparam buscas extras só com "OSMAR MENDES" (fatiado), trazendo muito ruído e falsos positivos que dependem da validação local para serem filtrados — mas a regra é não fatiar na origem.
 
-Critério: somente descartadas vinculadas a monitoramentos da coordenação Dr. Thomás, com `data_publicacao = 2026-05-19`.
+## Alterações propostas
 
-```sql
-DELETE FROM publicacoes_djen_descartadas d
-USING monitoramentos_djen m
-WHERE d.monitoramento_id = m.id
-  AND m.coordenacao_id = 'b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f'
-  AND d.data_publicacao::date = '2026-05-19';
-```
+### 1. `src/hooks/useDjenTermosEngine.ts`
+Remover o bloco linhas 755-767 que gera a variante "curta" (`palavrasSignificativas.slice(0, 2)`). Manter apenas: termo original + variante sem `&` + variantes sem acentos.
 
-Escopo previsto: ~7.485 linhas. Não toca em outras coordenações, outras datas, nem na tabela `publicacoes_djen` (válidas).
+### 2. `src/hooks/useSincronizarDjenBrowser.ts`
+Remover o bloco linhas 72-80 que gera o "prefixo curto" (`palavras.slice(0, 2)`). Manter apenas: termo original + variante sem `&` + variantes sem acentos.
 
-### 2. Reexecutar o DJEN Termos Paralela
+### 3. Atualizar memória
+Acrescentar em `mem/constraints/djen-keyword-no-slicing.md` que a função `gerarVariantes` dos motores Engine/Sincronizar também NÃO pode produzir variante de 2 palavras — apenas variantes de normalização (sem acento, sem `&`).
 
-Após o DELETE, você executa manualmente em `MonitoramentoDjen`:
-- Coordenação: Dr. Thomás
-- Janela: **19/05/2026 a 19/05/2026**
-- Sem filtro de monitoramento (deixa todos ativos), assim o novo `UNIÃO QUÍMICA` participa do passe.
+## Fora de escopo
 
-### 3. Verificação
-
-Após a execução, conferir:
-
-```sql
-SELECT id, processo_numero, data_publicacao, monitoramento_id, created_at
-FROM publicacoes_djen
-WHERE processo_numero LIKE '%0010074-58.2007.8.26.0038%'
-ORDER BY created_at DESC;
-```
-
-Esperado: pelo menos um registro vinculado ao monitoramento `94c34b0e...` (UNIÃO QUÍMICA).
-
-## Riscos e ressalvas
-
-- **Reprocessamento**: o Paralela vai chamar a API DJEN novamente para o dia 19 da coordenação inteira → consome quota e tempo, mas é necessário.
-- **Monitoramentos antigos continuam descartando**: publicações que originalmente caíram por exclusão (ex.: `BRADESCO`) voltarão a ser descartadas pelos mesmos monitoramentos antigos — isso é esperado e correto. O ganho é que o monitoramento novo (`UNIÃO QUÍMICA`) agora também é avaliado e salva o que casar.
-- **Sem alteração de código**: este plano é apenas operacional (DELETE + reexecução manual). O resgate inline no engine Paralela continua sendo a solução definitiva para o futuro — pode ser feito num próximo passo separado.
-
-## Detalhes técnicos
-
-- Tabela: `publicacoes_djen_descartadas`
-- Join: `monitoramentos_djen.coordenacao_id`
-- Filtro de data: `data_publicacao` (não `created_at`), porque o critério é o dia da publicação no DJEN.
-- Migration tipo DELETE (não DDL) — será executada como migration porque é uma operação destrutiva controlada.
+- Não mexer em `useDjenTermosPro/Flash/Paralela` (já estão corretos).
+- Não alterar a validação local de frase exata (`contemFraseExata`) — segue como está.
+- Não alterar lógica de `tipo='parte'` nem condição concomitante.
