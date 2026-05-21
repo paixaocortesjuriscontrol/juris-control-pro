@@ -144,6 +144,7 @@ export interface LeituraUsuario {
 
 export interface PublicacaoUnificada {
   id: string;
+  id_djen?: string | null;
   tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
   processo_id: string | null;
   processo_numero: string | null;
@@ -769,6 +770,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .from('publicacoes_djen')
           .select(`
             id,
+            id_djen,
             monitoramento_id,
             processo_numero,
             conteudo,
@@ -879,6 +881,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
           resultados.push({
             id: pub.id,
+            id_djen: pub.id_djen ?? null,
             tipo_origem: 'termo',
             processo_id: processoId,
             processo_numero: pub.processo_numero,
