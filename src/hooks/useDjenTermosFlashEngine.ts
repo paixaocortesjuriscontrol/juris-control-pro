@@ -1362,6 +1362,7 @@ async function _processarTermoFlashInterno(
       
       descHashMap.set(hash, {
         monitoramento_id: mon.id,
+        coordenacao_id: coordenacaoId,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.numero_processo || null,
         conteudo: conteudoFormatado.slice(0, 100000),
