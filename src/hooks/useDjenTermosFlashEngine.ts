@@ -1266,33 +1266,48 @@ async function _processarTermoFlashInterno(
     return true;
   });
   
-  // Deduplicar por hash
-  const hashMap = new Map<string, any>();
+  // Deduplicar pela CHAVE OFICIAL `id_djen` (id retornado pela API CNJ).
+  // Fallback para hash de conteúdo apenas quando o item não trouxer id (não deve ocorrer na API CNJ).
+  const dedupMap = new Map<string, any>();
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
     const hash = gerarHash(conteudo, dataDisp, procNum);
-    if (!hashMap.has(hash)) {
-      hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
+    const idDjen = String(pub?.id ?? pub?.id_djen ?? pub?.numeroComunicacao ?? '').trim() || null;
+    const dedupKey = idDjen ? `id:${idDjen}` : `h:${hash}`;
+    if (!dedupMap.has(dedupKey)) {
+      dedupMap.set(dedupKey, { ...pub, hash_conteudo: hash, id_djen: idDjen, data_disponibilizacao_ymd: dataDisp });
     }
   }
-  const pubsUnicas = Array.from(hashMap.values());
-  
-  // Verificar duplicatas no banco (dedup por coordenacao_id + hash_conteudo)
+  const pubsUnicas = Array.from(dedupMap.values());
+
+  // Verificar duplicatas no banco — preferir `id_djen`; cair para `hash_conteudo` quando ausente.
   const coordenacaoId = (mon as any).coordenacao_id || null;
-  const hashes = pubsUnicas.map(p => p.hash_conteudo);
-  let existentes = new Set<string>();
-  if (hashes.length > 0 && coordenacaoId) {
+  const idsDjen = pubsUnicas.map((p: any) => p.id_djen).filter(Boolean) as string[];
+  const hashesSemId = pubsUnicas.filter((p: any) => !p.id_djen).map((p: any) => p.hash_conteudo);
+  const idsExistentes = new Set<string>();
+  const hashesExistentes = new Set<string>();
+  if (coordenacaoId && idsDjen.length > 0) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('id_djen')
+      .eq('coordenacao_id', coordenacaoId)
+      .in('id_djen', idsDjen);
+    (data || []).forEach((d: any) => { if (d.id_djen) idsExistentes.add(String(d.id_djen)); });
+  }
+  if (coordenacaoId && hashesSemId.length > 0) {
     const { data } = await supabase
       .from('publicacoes_djen')
       .select('hash_conteudo')
       .eq('coordenacao_id', coordenacaoId)
-      .in('hash_conteudo', hashes);
-    existentes = new Set((data || []).map(d => d.hash_conteudo));
+      .in('hash_conteudo', hashesSemId);
+    (data || []).forEach((d: any) => hashesExistentes.add(d.hash_conteudo));
   }
 
-  const novas = pubsUnicas.filter((p: any) => !existentes.has(p.hash_conteudo));
+  const novas = pubsUnicas.filter((p: any) =>
+    p.id_djen ? !idsExistentes.has(String(p.id_djen)) : !hashesExistentes.has(p.hash_conteudo)
+  );
   const duplicadasBanco = pubsUnicas.length - novas.length;
   
   const dedupHashLocal = pubsValidas.length - pubsUnicas.length;
@@ -1318,6 +1333,7 @@ async function _processarTermoFlashInterno(
       return {
         monitoramento_id: pub._rescuedToMonitoramentoId || mon.id,
         coordenacao_id: coordenacaoId,
+        id_djen: pub.id_djen || null,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo || null,
         conteudo: conteudoFormatado,
@@ -1334,16 +1350,29 @@ async function _processarTermoFlashInterno(
       };
     });
     
-    const { error: upsertError, data: upsertData } = await supabase
-      .from('publicacoes_djen')
-      .upsert(payload, { onConflict: 'coordenacao_id,hash_conteudo', ignoreDuplicates: true })
-      .select('id, processo_numero');
-    if (upsertError) {
-      console.error(`[DJEN Flash] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);
-    } else {
-      console.log(`[DJEN Flash] ✅ Salvas ${(upsertData || []).length} publicações para "${mon.termo_busca}"`, 
-        (upsertData || []).slice(0, 5).map((r: any) => r.processo_numero));
+    // Upsert por id_djen (chave oficial) para linhas com id; insert simples para o resto.
+    const payloadComId = payload.filter((p: any) => p.id_djen);
+    const payloadSemId = payload.filter((p: any) => !p.id_djen);
+    let savedCount = 0;
+    const savedRows: any[] = [];
+    if (payloadComId.length > 0) {
+      const { error, data } = await supabase
+        .from('publicacoes_djen')
+        .upsert(payloadComId as any, { onConflict: 'coordenacao_id,id_djen', ignoreDuplicates: true })
+        .select('id, processo_numero');
+      if (error) console.error(`[DJEN Flash] ❌ ERRO upsert id_djen "${mon.termo_busca}":`, error);
+      else { savedCount += (data || []).length; savedRows.push(...(data || [])); }
     }
+    if (payloadSemId.length > 0) {
+      const { error, data } = await supabase
+        .from('publicacoes_djen')
+        .insert(payloadSemId as any)
+        .select('id, processo_numero');
+      if (error) console.error(`[DJEN Flash] ❌ ERRO insert sem id_djen "${mon.termo_busca}":`, error);
+      else { savedCount += (data || []).length; savedRows.push(...(data || [])); }
+    }
+    console.log(`[DJEN Flash] ✅ Salvas ${savedCount} publicações para "${mon.termo_busca}"`,
+      savedRows.slice(0, 5).map((r: any) => r.processo_numero));
   }
   
   // Persistir descartadas (dedup por hash para contar corretamente)
