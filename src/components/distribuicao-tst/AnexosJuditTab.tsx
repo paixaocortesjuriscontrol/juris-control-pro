@@ -633,11 +633,11 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
         </div>
       </div>
       {uniqueAttachments.map((att) => (
-        <div key={att.step_id} className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-muted/50">
+        <div key={uidOf(att)} className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-muted/50">
           <div className="flex items-center gap-3 min-w-0">
             <Checkbox
-              checked={selected.has(att.step_id)}
-              onCheckedChange={(v) => toggle(att.step_id, v === true)}
+              checked={selected.has(uidOf(att))}
+              onCheckedChange={(v) => toggle(uidOf(att), v === true)}
               disabled={processing}
             />
             <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
