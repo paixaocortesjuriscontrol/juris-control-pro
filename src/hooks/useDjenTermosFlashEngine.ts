@@ -462,8 +462,10 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
     // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
     // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const orTerm of (mon.termos_or || [])) {
       if (validarParteMetadados(pub, String(orTerm))) return true;
+      if (validarParteSecaoPartes(pub, String(orTerm))) return true;
     }
     return false;
   }
