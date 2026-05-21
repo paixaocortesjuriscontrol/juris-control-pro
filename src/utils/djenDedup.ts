@@ -43,6 +43,14 @@ const extractDateKey = (dateStr: string | null | undefined): string => {
 const makeDedupKey = (pub: PublicacaoUnificada): string => {
   // Coordenação é parte fundamental da chave - mesma pub pode aparecer em coordenações diferentes
   const coordenacao = pub.coordenacao_id ?? "sem_coord";
+
+  // REGRA PRINCIPAL: quando o DJEN/PJE Comunica fornece o identificador oficial
+  // da comunicação, ele é a fonte da verdade. Duas comunicações diferentes do
+  // mesmo processo/data podem ter cabeçalho e conteúdo quase idênticos, mas
+  // id_djen distintos — nunca podem ser colapsadas pela deduplicação visual.
+  const idDjen = String(pub.id_djen ?? "").trim();
+  if (idDjen) return `${coordenacao}|id_djen|${idDjen}`;
+
   const processo = (pub.processo_numero ?? "").replace(/\D/g, ""); // só dígitos
   
   // Cascata de datas: disponibilização > publicação > created_at
