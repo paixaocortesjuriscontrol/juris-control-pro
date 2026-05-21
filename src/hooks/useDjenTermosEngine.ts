@@ -1563,9 +1563,18 @@ async function processarTermo(
       };
     });
 
-    await supabase
-      .from('publicacoes_djen')
-      .upsert(payload as any, { onConflict: 'coordenacao_id,id_djen', ignoreDuplicates: true });
+    const payloadComId = (payload as any[]).filter((p: any) => p.id_djen);
+    const payloadSemId = (payload as any[]).filter((p: any) => !p.id_djen);
+    if (payloadComId.length > 0) {
+      await supabase
+        .from('publicacoes_djen')
+        .upsert(payloadComId as any, { onConflict: 'coordenacao_id,id_djen', ignoreDuplicates: true });
+    }
+    if (payloadSemId.length > 0) {
+      await supabase
+        .from('publicacoes_djen')
+        .insert(payloadSemId as any);
+    }
   }
 
   // Persistir descartadas no banco (para auditoria e métricas)

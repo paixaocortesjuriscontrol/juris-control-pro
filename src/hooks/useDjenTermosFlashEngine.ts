@@ -1350,16 +1350,29 @@ async function _processarTermoFlashInterno(
       };
     });
     
-    const { error: upsertError, data: upsertData } = await supabase
-      .from('publicacoes_djen')
-      .upsert(payload as any, { onConflict: 'coordenacao_id,id_djen', ignoreDuplicates: true })
-      .select('id, processo_numero');
-    if (upsertError) {
-      console.error(`[DJEN Flash] ❌ ERRO ao salvar ${payload.length} publicações para "${mon.termo_busca}":`, upsertError);
-    } else {
-      console.log(`[DJEN Flash] ✅ Salvas ${(upsertData || []).length} publicações para "${mon.termo_busca}"`, 
-        (upsertData || []).slice(0, 5).map((r: any) => r.processo_numero));
+    // Upsert por id_djen (chave oficial) para linhas com id; insert simples para o resto.
+    const payloadComId = payload.filter((p: any) => p.id_djen);
+    const payloadSemId = payload.filter((p: any) => !p.id_djen);
+    let savedCount = 0;
+    const savedRows: any[] = [];
+    if (payloadComId.length > 0) {
+      const { error, data } = await supabase
+        .from('publicacoes_djen')
+        .upsert(payloadComId as any, { onConflict: 'coordenacao_id,id_djen', ignoreDuplicates: true })
+        .select('id, processo_numero');
+      if (error) console.error(`[DJEN Flash] ❌ ERRO upsert id_djen "${mon.termo_busca}":`, error);
+      else { savedCount += (data || []).length; savedRows.push(...(data || [])); }
     }
+    if (payloadSemId.length > 0) {
+      const { error, data } = await supabase
+        .from('publicacoes_djen')
+        .insert(payloadSemId as any)
+        .select('id, processo_numero');
+      if (error) console.error(`[DJEN Flash] ❌ ERRO insert sem id_djen "${mon.termo_busca}":`, error);
+      else { savedCount += (data || []).length; savedRows.push(...(data || [])); }
+    }
+    console.log(`[DJEN Flash] ✅ Salvas ${savedCount} publicações para "${mon.termo_busca}"`,
+      savedRows.slice(0, 5).map((r: any) => r.processo_numero));
   }
   
   // Persistir descartadas (dedup por hash para contar corretamente)
