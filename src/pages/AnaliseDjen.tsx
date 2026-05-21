@@ -2805,8 +2805,9 @@ const AnaliseDjen = () => {
         const ch: Paragraph[] = [...buildDocHeader(titulo, pubs.length)];
         pubs.forEach((item, idx) => {
           const { pub, class_info: ci } = item;
-          ch.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: idx > 0 ? 360 : 120, after: 120 }, shading: { type: ShadingType.SOLID, color: mediumBlue, fill: mediumBlue }, children: [new TextRun({ text: `  COMUNICAÇÃO PJE #${sanitizeForXml(pub.processo_numero || "N/A")}`, bold: true, size: 24, color: "FFFFFF", font: docFont })] }));
-          const ml = [["Processo", sanitizeForXml(pub.processo_numero || "N/A")], ["Órgão", sanitizeForXml(pub.orgao || pub.tribunal || "N/A")], ["Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "N/A"], ["Tipo de Comunicação", sanitizeForXml(pub.tipo_comunicacao || "Intimação")], ["Meio", "Diário de Justiça Eletrônico Nacional"]];
+          const procNumMasked = pub.processo_numero ? formatProcessoNumero(pub.processo_numero) : "N/A";
+          ch.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: idx > 0 ? 360 : 120, after: 120 }, shading: { type: ShadingType.SOLID, color: mediumBlue, fill: mediumBlue }, children: [new TextRun({ text: `  COMUNICAÇÃO PJE #${sanitizeForXml(procNumMasked)}`, bold: true, size: 24, color: "FFFFFF", font: docFont })] }));
+          const ml = [["Processo", sanitizeForXml(procNumMasked)], ["Órgão", sanitizeForXml(pub.orgao || pub.tribunal || "N/A")], ["Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "N/A"], ["Tipo de Comunicação", sanitizeForXml(pub.tipo_comunicacao || "Intimação")], ["Meio", "Diário de Justiça Eletrônico Nacional"]];
           ml.forEach(([l, v]) => { ch.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${l}: `, bold: true, size: docFontSize, font: docFont, color: "333333" }), new TextRun({ text: v as string, size: docFontSize, font: docFont, color: "555555" })] })); });
           if (pub.processo_numero) {
             const procNum = pub.processo_numero.replace(/\D/g, '');
