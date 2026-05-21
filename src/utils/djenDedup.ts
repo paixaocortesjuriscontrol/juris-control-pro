@@ -56,8 +56,12 @@ const makeDedupKey = (pub: PublicacaoUnificada): string => {
     dataPrimaria = extractDateKey(pub.created_at);
   }
   
-  // 300 chars para maior precisão (alinhado com backend)
-  const head = normalizeText(pub.conteudo ?? "").slice(0, 300);
+  // Usa o conteúdo inteiro normalizado como parte da chave.
+  // Os primeiros chars das publicações DJEN são quase sempre idênticos
+  // (cabeçalho: Órgão, Data, Partes, Advogados), então um head curto
+  // colapsava atos diferentes do mesmo processo/data (ex.: ATO ORDINATÓRIO
+  // e DESPACHO retornados no mesmo dia para o mesmo processo).
+  const head = normalizeText(pub.conteudo ?? "");
 
   // CHAVE UNIFICADA: coordenação + processo_digits + data + conteúdo
   // NÃO usa monitoramento_id — isso garante que publicações idênticas vindas de
