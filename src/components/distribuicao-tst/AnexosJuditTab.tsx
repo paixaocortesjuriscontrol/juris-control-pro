@@ -514,7 +514,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       toast.warning("Selecione ao menos um anexo.");
       return;
     }
-    const lista = uniqueAttachments.filter((a) => selected.has(a.step_id));
+    const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
     setDownloadingSelected(true);
     let ok = 0;
     let fail = 0;
