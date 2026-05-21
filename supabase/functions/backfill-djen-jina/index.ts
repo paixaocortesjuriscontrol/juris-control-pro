@@ -262,6 +262,8 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
 
     const processo = normalizeProcesso(p.item);
     const fonte = (p.item?.tribunal || p.item?.orgao || p.item?.fonte || "DJEN").toString();
+    const idDjenRaw = (p.item as any)?.id ?? (p.item as any)?.id_djen ?? (p.item as any)?.numeroComunicacao ?? null;
+    const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined) ? null : (String(idDjenRaw).trim() || null);
 
     const excl = shouldExclude(p.conteudo, mon.exclusoes);
     if (excl) {
@@ -269,6 +271,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
         monitoramento_id: mon.id,
         coordenacao_id: (mon as any).coordenacao_id ?? null,
         hash_conteudo: p.hashConteudo,
+        id_djen: idDjen,
         conteudo: p.conteudo,
         data_publicacao: p.dataPub,
         processo_numero: processo,
@@ -285,6 +288,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
         monitoramento_id: mon.id,
         coordenacao_id: (mon as any).coordenacao_id ?? null,
         hash_conteudo: p.hashConteudo,
+        id_djen: idDjen,
         conteudo: p.conteudo,
         data_publicacao: p.dataPub,
         processo_numero: processo,
@@ -311,6 +315,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
       monitoramento_id: mon.id,
       coordenacao_id: (mon as any).coordenacao_id ?? null,
       hash_conteudo: p.hashConteudo,
+      id_djen: idDjen,
       conteudo: p.conteudo,
       data_publicacao: p.dataPub,
       processo_numero: processo,
