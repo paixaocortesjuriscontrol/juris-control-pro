@@ -721,14 +721,29 @@ function condicaoConcomitanteAtendidaEmPartes(pub: any, condicao?: string | null
   });
 }
 
+function termosDeParte(mon: Monitoramento): string[] {
+  const seen = new Set<string>();
+  return [mon.termo_busca, ...(mon.termos_or || [])]
+    .map((termo) => String(termo || '').trim())
+    .filter((termo) => {
+      if (!termo) return false;
+      const key = normalizar(termo);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 function validarTermo(pub: any, mon: Monitoramento): boolean {
   const tipo = mon.tipo;
   if (tipo === 'parte') {
-    // REGRA: tipo='parte' SÓ casa em metadados estruturados de Parte(s)/polos.
-    // Não lê nem valida o teor/texto geral da publicação.
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
+    // Nunca valida no corpo/teor geral da publicação.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of (mon.termos_or || [])) {
       if (validarParteMetadados(pub, String(t))) return true;
+      if (validarParteSecaoPartes(pub, String(t))) return true;
     }
     return false;
   }
