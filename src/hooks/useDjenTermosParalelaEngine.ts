@@ -1339,6 +1339,7 @@ async function processarTermoEmTribunal(
       const partes = extrairPartesEstruturadas(pub);
       return {
         monitoramento_id: mon.id,
+        id_djen: extrairIdDjen(pub),
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || null,
         conteudo: conteudoFormatado,
@@ -1420,13 +1421,15 @@ async function processarTermoEmTribunal(
       });
       const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
       const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
-      const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
+      const idDjen = extrairIdDjen(pub);
+      const hash = gerarHashPublicacao(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum, idDjen);
       if (descMap.has(hash)) continue;
       const advogados = extrairAdvogadosEstruturados(pub);
       const partes = extrairPartesEstruturadas(pub);
       descMap.set(hash, {
         monitoramento_id: mon.id,
         coordenacao_id: mon.coordenacao_id ?? null,
+        id_djen: idDjen,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo_numero || null,
         conteudo: conteudoFormatado.slice(0, 100000),
