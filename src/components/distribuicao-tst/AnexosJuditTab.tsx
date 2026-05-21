@@ -90,6 +90,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     () => uniqueAttachments.length > 0 && selected.size === uniqueAttachments.length,
     [uniqueAttachments.length, selected.size]
   );
+  const someChecked = selected.size > 0 && !allChecked;
   const toggle = (id: string, v: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
