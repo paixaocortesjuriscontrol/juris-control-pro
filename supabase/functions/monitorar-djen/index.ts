@@ -449,6 +449,7 @@ async function processPublicationFromIndex(
     if (!rescuedId) {
       await supabase.from('publicacoes_djen_descartadas').insert({
         monitoramento_id: monitoramento.id,
+        coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
         hash_conteudo: hashConteudo,
         conteudo,
         data_publicacao: dataPublicacao,
@@ -471,6 +472,7 @@ async function processPublicationFromIndex(
   if (motivoExclusao) {
     await supabase.from('publicacoes_djen_descartadas').insert({
       monitoramento_id: monitoramento.id,
+      coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
       hash_conteudo: hashConteudo,
       conteudo,
       data_publicacao: dataPublicacao,
