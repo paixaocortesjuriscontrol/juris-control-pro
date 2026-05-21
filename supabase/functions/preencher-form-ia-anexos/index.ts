@@ -47,7 +47,7 @@ REGRA CRÍTICA — TRÂNSITO EM JULGADO
 CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
 
 ▸ Em "distribuicao_tst":
-  - materias_recurso_reclamante / materias_recurso_banco:
+  - materias_recurso_reclamante / materias_recurso_banco / materias_recurso_terceiro:
     LISTA EXAUSTIVA de matérias (termos curtos separados por vírgula), uma por matéria
     suscitada no recurso DAQUELE lado. Exemplos: "horas extras, intervalo intrajornada,
     adicional de insalubridade, multa do art. 467 CLT".
@@ -57,8 +57,19 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
         foram objeto do recurso, e vice-versa. Quando houver "RAZÕES DE RECURSO" ou
         "TÓPICOS DO RECURSO" ou "DA PRELIMINAR" / "DO MÉRITO" identifique cada tópico
         como uma matéria.
-      • Separe explicitamente o que é do RECLAMANTE e o que é do BANCO/RECLAMADO.
-        Se ambos recorrerem (recurso bilateral) os dois campos devem ser preenchidos.
+      • Separe explicitamente o que é do RECLAMANTE, do BANCO (reclamada principal —
+        normalmente o Banco Santander/Bradesco/etc. do escritório) e o que é de
+        OUTRO RECLAMADO OU TERCEIRO (ex.: empresa terceirizada, prestadora de serviço,
+        litisconsorte passivo que não é o banco, terceiro interessado, MPT, sindicato).
+        Se mais de um lado recorrer, preencha TODOS os campos correspondentes.
+      • IMPORTANTE — "Recurso de outro Reclamado ou de terceiro":
+        Quando o documento mencionar recurso interposto por parte do polo passivo que
+        NÃO é o banco principal do escritório (ex.: empresa terceirizada quando o banco
+        é o segundo réu, ou litisconsorte como SERVIBANCA, ATENTO, ALGAR, etc.),
+        preencha em `tipo_recurso_terceiro`, `materias_recurso_terceiro` e — se houver
+        evidência — `aparelhamento_terceiro`/`chance_exito_terceiro`.
+        NÃO confunda com o recurso do BANCO. Use o nome do recorrente literal da peça
+        para decidir e cite-o em "_evidencias.tipo_recurso_terceiro".
       • Inclua o fundamento legal quando o documento citar (ex: "Suspensão da prescrição
         (Lei 14.010/2020)", "Limitação aos valores da inicial (Art. 840, §1º CLT)").
       • NÃO confunda matérias do recurso com matérias da reclamação original. Só vale
@@ -68,7 +79,9 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
         "matérias extraídas do acórdão por ausência do recurso — revisar".
       • Se identificar uma matéria mas não tiver certeza de qual lado a suscitou,
         adicione em "_alertas" "matéria X com lado indeterminado" e OMITA do campo.
-  - tipo_recurso_reclamante / tipo_recurso_banco: literal Judit; omita se não tiver certeza.
+  - tipo_recurso_reclamante / tipo_recurso_banco / tipo_recurso_terceiro:
+    literal Judit/peça; omita se não tiver certeza. `tipo_recurso_terceiro` é o tipo de
+    recurso interposto por outro reclamado/terceiro (NÃO o banco principal).
   - honra: frase curta sobre matéria de honra (≤200 chars), só se houver "destaque", "matéria de honra",
     "destacado pelo relator" no documento.
   - tema: tema central do recurso em até 200 chars.
@@ -223,12 +236,16 @@ Deno.serve(async (req) => {
                 turma_favorabilidade: { type: "string", enum: ["POSITIVA", "NEGATIVA"] },
                 tipo_recurso_reclamante: { type: "string" },
                 tipo_recurso_banco: { type: "string" },
+                tipo_recurso_terceiro: { type: "string" },
                 materias_recurso_reclamante: { type: "string" },
                 materias_recurso_banco: { type: "string" },
+                materias_recurso_terceiro: { type: "string" },
                 aparelhamento_reclamante: { type: "string", enum: ["BEM APARELHADO", "MAL APARELHADO"] },
                 aparelhamento_banco: { type: "string", enum: ["BEM APARELHADO", "MAL APARELHADO"] },
+                aparelhamento_terceiro: { type: "string", enum: ["BEM APARELHADO", "MAL APARELHADO"] },
                 chance_exito_reclamante: { type: "string", enum: ["PROVÁVEL", "POSSÍVEL", "REMOTA"] },
                 chance_exito_banco: { type: "string", enum: ["PROVÁVEL", "POSSÍVEL", "REMOTA"] },
+                chance_exito_terceiro: { type: "string", enum: ["PROVÁVEL", "POSSÍVEL", "REMOTA"] },
                 honra: { type: "string" },
                 tema: { type: "string" },
                 execucao: { type: "string" },

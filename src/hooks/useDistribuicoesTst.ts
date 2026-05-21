@@ -37,6 +37,10 @@ export interface DistribuicaoTst {
   materias_recurso_banco: string | null;
   aparelhamento_banco: string | null;
   chance_exito_banco: string | null;
+  tipo_recurso_terceiro: string | null;
+  materias_recurso_terceiro: string | null;
+  aparelhamento_terceiro: string | null;
+  chance_exito_terceiro: string | null;
   tipo_recurso?: string | null;
   honra: string | null;
   tema: string | null;
@@ -124,6 +128,10 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     materias_recurso_banco: b.materias_recurso_banco ?? null,
     aparelhamento_banco: b.aparelhamento_banco ?? null,
     chance_exito_banco: b.chance_exito_banco ?? null,
+    tipo_recurso_terceiro: b.tipo_recurso_terceiro ?? null,
+    materias_recurso_terceiro: b.materias_recurso_terceiro ?? null,
+    aparelhamento_terceiro: b.aparelhamento_terceiro ?? null,
+    chance_exito_terceiro: b.chance_exito_terceiro ?? null,
     tipo_recurso: b.tipo_recurso ?? null,
     honra: b.honra ?? null,
     tema: b.tema ?? null,
@@ -172,6 +180,10 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     materias_recurso_banco: d.materias_recurso_banco,
     aparelhamento_banco: d.aparelhamento_banco,
     chance_exito_banco: d.chance_exito_banco,
+    tipo_recurso_terceiro: d.tipo_recurso_terceiro,
+    materias_recurso_terceiro: d.materias_recurso_terceiro,
+    aparelhamento_terceiro: d.aparelhamento_terceiro,
+    chance_exito_terceiro: d.chance_exito_terceiro,
     honra: d.honra,
     tema: d.tema,
     execucao: d.execucao,

@@ -1542,6 +1542,7 @@ export type Database = {
           analise_quarteirizado: string | null
           aparelhamento_banco: string | null
           aparelhamento_reclamante: string | null
+          aparelhamento_terceiro: string | null
           assunto: string | null
           benner_atualizado: boolean | null
           categoria: string | null
@@ -1549,6 +1550,7 @@ export type Database = {
           chance_exito: string | null
           chance_exito_banco: string | null
           chance_exito_reclamante: string | null
+          chance_exito_terceiro: string | null
           comarca: string | null
           confianca_transito: number | null
           coordenacao_id: string | null
@@ -1584,6 +1586,7 @@ export type Database = {
           materia_honra: string | null
           materias_recurso_banco: string | null
           materias_recurso_reclamante: string | null
+          materias_recurso_terceiro: string | null
           midia_negativa: string | null
           notas: string | null
           objeto_padrao: string | null
@@ -1630,6 +1633,7 @@ export type Database = {
           tipo_recurso_auto: boolean | null
           tipo_recurso_banco: string | null
           tipo_recurso_reclamante: string | null
+          tipo_recurso_terceiro: string | null
           transito_julgado: boolean | null
           tribunal: string | null
           turma: string | null
@@ -1642,6 +1646,7 @@ export type Database = {
           analise_quarteirizado?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
+          aparelhamento_terceiro?: string | null
           assunto?: string | null
           benner_atualizado?: boolean | null
           categoria?: string | null
@@ -1649,6 +1654,7 @@ export type Database = {
           chance_exito?: string | null
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
+          chance_exito_terceiro?: string | null
           comarca?: string | null
           confianca_transito?: number | null
           coordenacao_id?: string | null
@@ -1684,6 +1690,7 @@ export type Database = {
           materia_honra?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
+          materias_recurso_terceiro?: string | null
           midia_negativa?: string | null
           notas?: string | null
           objeto_padrao?: string | null
@@ -1730,6 +1737,7 @@ export type Database = {
           tipo_recurso_auto?: boolean | null
           tipo_recurso_banco?: string | null
           tipo_recurso_reclamante?: string | null
+          tipo_recurso_terceiro?: string | null
           transito_julgado?: boolean | null
           tribunal?: string | null
           turma?: string | null
@@ -1742,6 +1750,7 @@ export type Database = {
           analise_quarteirizado?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
+          aparelhamento_terceiro?: string | null
           assunto?: string | null
           benner_atualizado?: boolean | null
           categoria?: string | null
@@ -1749,6 +1758,7 @@ export type Database = {
           chance_exito?: string | null
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
+          chance_exito_terceiro?: string | null
           comarca?: string | null
           confianca_transito?: number | null
           coordenacao_id?: string | null
@@ -1784,6 +1794,7 @@ export type Database = {
           materia_honra?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
+          materias_recurso_terceiro?: string | null
           midia_negativa?: string | null
           notas?: string | null
           objeto_padrao?: string | null
@@ -1830,6 +1841,7 @@ export type Database = {
           tipo_recurso_auto?: boolean | null
           tipo_recurso_banco?: string | null
           tipo_recurso_reclamante?: string | null
+          tipo_recurso_terceiro?: string | null
           transito_julgado?: boolean | null
           tribunal?: string | null
           turma?: string | null
