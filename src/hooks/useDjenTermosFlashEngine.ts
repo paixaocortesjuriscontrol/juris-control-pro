@@ -988,16 +988,26 @@ async function _processarTermoFlashInterno(
       // ZERO PULO: cooldown via ensureCautious() em executarBusca
 
       const resultadosAntes = resultados.length;
-      const resp = await executarBusca(
-        { ...baseParams, siglaTribunal: trib, page: 1 },
-        trib,
-        `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`,
-      );
-      if (resp) {
-        console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
-        // Rastrear quais tribunais retornaram resultados (para complementar condicional)
-        if (trib && (resultados.length - resultadosAntes) > 0) {
-          tribuniaisComResultados.add(trib);
+      if (tipo === 'parte') {
+        for (const termoParte of termosDeParte(mon)) {
+          const resp = await executarBusca(
+            { ...baseParams, nomeParte: termoParte, siglaTribunal: trib, page: 1 },
+            trib,
+            `busca primária parte | ${termoParte} | ${trib ?? 'TODOS'}`,
+          );
+          if (resp) {
+            console.log(`[DJEN Flash] Busca primária parte termo="${termoParte}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+            if (trib && (resultados.length - resultadosAntes) > 0) tribuniaisComResultados.add(trib);
+          }
+        }
+      } else {
+        const resp = await executarBusca(
+          { ...baseParams, siglaTribunal: trib, page: 1 },
+          trib,
+          `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`,
+        );
+        if (resp) {
+          console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         }
       }
 
