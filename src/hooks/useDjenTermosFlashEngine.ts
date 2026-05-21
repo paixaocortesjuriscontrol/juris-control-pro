@@ -314,18 +314,52 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
  * Campos: destinatarios[].{nome, polo}
  */
 function validarParteMetadados(pub: any, nomeParte: string): boolean {
-  const dests = pub?.destinatarios;
-  if (!Array.isArray(dests) || dests.length === 0) return false;
-  
   const nomeNorm = normalizar(nomeParte);
   if (!nomeNorm) return false;
-  
-  for (const d of dests) {
-    if (!d?.nome) continue;
-    const destNorm = normalizar(d.nome);
-    if (destNorm.includes(nomeNorm) || nomeNorm.includes(destNorm)) return true;
+
+  const matches = (raw: any): boolean => {
+    if (!raw) return false;
+    const value = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || '');
+    if (!value) return false;
+    return String(value)
+      .split(/\s*,\s*|\s*;\s*/)
+      .map((v) => normalizar(v))
+      .some((parteNorm) => !!parteNorm && contemFrase(parteNorm, nomeNorm));
+  };
+
+  if (Array.isArray(pub?.destinatarios)) {
+    for (const d of pub.destinatarios) if (matches(d)) return true;
+  }
+  if (matches(pub?.poloAtivo) || matches(pub?.polo_ativo)) return true;
+  if (matches(pub?.poloPassivo) || matches(pub?.polo_passivo)) return true;
+  if (matches(pub?.destinatarioNome) || matches(pub?.destinatario_nome)) return true;
+  if (Array.isArray(pub?.partes)) {
+    for (const p of pub.partes) if (matches(p)) return true;
+  }
+  const partesJson = typeof pub?.partes_json === 'string'
+    ? (() => { try { return JSON.parse(pub.partes_json); } catch { return []; } })()
+    : pub?.partes_json;
+  if (Array.isArray(partesJson)) {
+    for (const p of partesJson) if (matches(p)) return true;
   }
   return false;
+}
+
+function validarParteSecaoPartes(pub: any, nomeParte: string): boolean {
+  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
+  const nomeNorm = normalizar(nomeParte);
+  if (!texto || !nomeNorm) return false;
+
+  const header = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*/i);
+  if (!header || header.index === undefined) return false;
+
+  const afterHeader = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
+  const advogadosIndex = afterHeader.search(/(?:^|\n)\s*Advogados?\s*(?:\(\s*s\s*\))?\s*:?/i);
+  const secaoPartes = (advogadosIndex >= 0 ? afterHeader.slice(0, advogadosIndex) : afterHeader);
+  return secaoPartes
+    .split(/\r?\n/)
+    .map((linha) => normalizar(linha.trim()))
+    .some((linhaNorm) => linhaNorm.length >= 3 && contemFrase(linhaNorm, nomeNorm));
 }
 
 /**
@@ -428,8 +462,10 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
     // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
     // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const orTerm of (mon.termos_or || [])) {
       if (validarParteMetadados(pub, String(orTerm))) return true;
+      if (validarParteSecaoPartes(pub, String(orTerm))) return true;
     }
     return false;
   }
@@ -581,6 +617,19 @@ function parsearTermoOr(raw: string): ParsedTermoOr | null {
   
   if (!clean) return null;
   return { nome: clean };
+}
+
+function termosDeParte(mon: Monitoramento): string[] {
+  const seen = new Set<string>();
+  return [mon.termo_busca, ...(mon.termos_or || [])]
+    .map((termo) => String(termo || '').trim())
+    .filter((termo) => {
+      if (!termo) return false;
+      const key = normalizar(termo);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 // ============================================================================
@@ -939,16 +988,26 @@ async function _processarTermoFlashInterno(
       // ZERO PULO: cooldown via ensureCautious() em executarBusca
 
       const resultadosAntes = resultados.length;
-      const resp = await executarBusca(
-        { ...baseParams, siglaTribunal: trib, page: 1 },
-        trib,
-        `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`,
-      );
-      if (resp) {
-        console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
-        // Rastrear quais tribunais retornaram resultados (para complementar condicional)
-        if (trib && (resultados.length - resultadosAntes) > 0) {
-          tribuniaisComResultados.add(trib);
+      if (tipo === 'parte') {
+        for (const termoParte of termosDeParte(mon)) {
+          const resp = await executarBusca(
+            { ...baseParams, nomeParte: termoParte, siglaTribunal: trib, page: 1 },
+            trib,
+            `busca primária parte | ${termoParte} | ${trib ?? 'TODOS'}`,
+          );
+          if (resp) {
+            console.log(`[DJEN Flash] Busca primária parte termo="${termoParte}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+            if (trib && (resultados.length - resultadosAntes) > 0) tribuniaisComResultados.add(trib);
+          }
+        }
+      } else {
+        const resp = await executarBusca(
+          { ...baseParams, siglaTribunal: trib, page: 1 },
+          trib,
+          `busca primária ${tipo} | ${mon.termo_busca} | ${trib ?? 'TODOS'}`,
+        );
+        if (resp) {
+          console.log(`[DJEN Flash] Busca primária tipo=${tipo} termo="${mon.termo_busca}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         }
       }
 
@@ -958,59 +1017,6 @@ async function _processarTermoFlashInterno(
 
   // (Soft-skip retry removido — modo cauteloso já garante zero pulo na 1ª passada)
   
-  // ===== OTIMIZAÇÃO 3: Complementar palavraChave para "parte" — CONDICIONAL =====
-  // Só roda nos tribunais onde a primária por nomeParte trouxe 0 resultados.
-  // Mantém cobertura SANTANDER/TST sem multiplicar chamadas por 2× quando primária OK.
-  if (tipo === 'parte' && !signal.aborted) {
-    const termoTexto = mon.termo_busca
-      ?.normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
-
-    if (termoTexto) {
-      const tribunaisParaComplementar = tribLoop.filter((trib) => {
-        // Sem filtro de tribunal → roda sempre (não temos como saber por tribunal)
-        if (!trib) return true;
-        // Se já encontrou primária → pula complementar
-        if (tribuniaisComResultados.has(trib)) {
-          telemetria.complementaresPuladas += 1;
-          return false;
-        }
-        return true;
-      });
-
-      if (tribunaisParaComplementar.length > 0) {
-        console.log(
-          `[DJEN Flash] Complementar parte por palavraChave: "${termoTexto}" em ` +
-          `${tribunaisParaComplementar.length} tribunais (puladas: ${telemetria.complementaresPuladas})`
-        );
-        for (const trib of tribunaisParaComplementar) {
-          if (signal.aborted) break;
-          // ZERO PULO: cooldown via ensureCautious() em executarBusca
-          const resp = await executarBusca(
-            {
-              tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: termoTexto,
-              siglaTribunal: trib,
-              dataInicio: diaYmd,
-              dataFim: diaYmd,
-              pageSize: 50,
-              page: 1,
-            },
-            trib,
-            `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`,
-          );
-          if (resp) {
-            console.log(`[DJEN Flash] Complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
-          }
-          if (tribunaisParaComplementar.length > 1) await delay(tribunalDelay());
-        }
-      } else {
-        console.log(`[DJEN Flash] Complementar parte pulada totalmente — primária OK em todos os ${tribLoop.length} tribunais`);
-      }
-    }
-  }
-
   // Busca complementar para tipo "palavra-chave": executar também cada termo_or
   // Isso garante que monitoramentos com grupos OR realmente disparem buscas individuais.
   if (tipo === 'palavra-chave' && !signal.aborted && mon.termos_or?.length) {
