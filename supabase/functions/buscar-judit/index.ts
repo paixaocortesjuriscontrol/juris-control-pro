@@ -683,25 +683,40 @@ serve(async (req) => {
     let tipoRecursoBanco: string | null = null;
     let tipoRecursoTerceiro: string | null = null;
     if (classe) {
-      // Mapa documento -> person_type original (instância 1, que está em rawCollector
-      // ou no cache_lookup). Usa o cache_lookup quando disponível, senão a primeira
-      // entrada do crawler que NÃO seja a instância TST.
-      const origemRd: any = rawCollector.cache_lookup
-        || (rawCollector.crawler?.page_data || [])
-            .map((it: any) => it?.response_data)
-            .find((rd: any) => rd && rd !== rdSelecionada);
+      // Mapa documento/nome -> person_type original. Preferimos uma instância
+      // que tenha RECLAMANTE/RECLAMADO explícito, porque cache/crawler podem
+      // devolver TST como ACTIVE/RECORRENTE para todas as partes.
+      const normalizePartyName = (name: any) => String(name || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^A-Z0-9]+/gi, " ")
+        .trim()
+        .toUpperCase();
+      const allRds = [
+        rawCollector.cache_lookup,
+        ...((rawCollector.crawler?.page_data || []).map((it: any) => it?.response_data)),
+      ].filter(Boolean);
+      const hasOrigemTypes = (rd: any) => (Array.isArray(rd?.parties) ? rd.parties : [])
+        .some((p: any) => /RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE|RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/.test(String(p?.person_type || "").toUpperCase()));
+      const origemRd: any = allRds.find((rd: any) => rd && rd !== rdSelecionada && hasOrigemTypes(rd))
+        || allRds.find((rd: any) => rd && hasOrigemTypes(rd))
+        || rawCollector.cache_lookup
+        || allRds.find((rd: any) => rd && rd !== rdSelecionada);
       const origemParties: any[] = Array.isArray(origemRd?.parties) ? origemRd.parties : [];
       const origemMap = new Map<string, string>(); // doc -> person_type
+      const origemNameMap = new Map<string, string>(); // nome normalizado -> person_type
       for (const p of origemParties) {
         const doc = String(p?.main_document || "").replace(/\D/g, "");
         const pt = String(p?.person_type || "").toUpperCase();
+        const nameKey = normalizePartyName(p?.name);
         if (doc && pt && pt !== "ADVOGADO") origemMap.set(doc, pt);
+        if (nameKey && pt && pt !== "ADVOGADO") origemNameMap.set(nameKey, pt);
       }
       for (const p of partiesArr) {
         const pt = String(p?.person_type || "").toUpperCase();
         if (!/RECORRENTE|AGRAVANTE|EMBARGANTE/.test(pt)) continue;
         const doc = String(p?.main_document || "").replace(/\D/g, "");
-        const origemPt = origemMap.get(doc) || "";
+        const origemPt = origemMap.get(doc) || origemNameMap.get(normalizePartyName(p?.name)) || "";
         // Override Santander: se o recorrente é o Banco, é sempre tipo_recurso_banco,
         // independente do que origem ou side digam.
         if (isSantanderCnpj(p?.main_document) || isSantanderNome(p?.name)) {
