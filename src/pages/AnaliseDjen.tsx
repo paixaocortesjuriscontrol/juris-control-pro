@@ -3008,7 +3008,6 @@ const AnaliseDjen = () => {
       <div className="space-y-6">
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
-        <DjenExecutionBannerPro />
 
         {/* Stats Cards - Mobile optimized */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">

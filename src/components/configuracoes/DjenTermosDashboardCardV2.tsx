@@ -46,7 +46,6 @@ import type { MonitoringStats } from "@/hooks/useMonitoringDashboard";
 import { toast } from "sonner";
 import { getDjenTermosExecutionProgress } from "@/utils/djenTermosExecutionProgress";
 import { useDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
-import { useDjenTermosProScheduler } from "@/hooks/useDjenTermosProScheduler";
 import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
 
 type Props = {
