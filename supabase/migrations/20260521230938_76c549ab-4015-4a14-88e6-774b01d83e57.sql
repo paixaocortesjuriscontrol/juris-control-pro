@@ -1,0 +1,1 @@
+DELETE FROM publicacoes_djen WHERE coordenacao_id = '9d4e11e2-e81f-45ef-a8d4-977ddf371e18' AND dedup_data_ref = CURRENT_DATE;
