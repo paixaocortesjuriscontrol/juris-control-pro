@@ -1017,59 +1017,6 @@ async function _processarTermoFlashInterno(
 
   // (Soft-skip retry removido — modo cauteloso já garante zero pulo na 1ª passada)
   
-  // ===== OTIMIZAÇÃO 3: Complementar palavraChave para "parte" — CONDICIONAL =====
-  // Só roda nos tribunais onde a primária por nomeParte trouxe 0 resultados.
-  // Mantém cobertura SANTANDER/TST sem multiplicar chamadas por 2× quando primária OK.
-  if (tipo === 'parte' && !signal.aborted) {
-    const termoTexto = mon.termo_busca
-      ?.normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
-
-    if (termoTexto) {
-      const tribunaisParaComplementar = tribLoop.filter((trib) => {
-        // Sem filtro de tribunal → roda sempre (não temos como saber por tribunal)
-        if (!trib) return true;
-        // Se já encontrou primária → pula complementar
-        if (tribuniaisComResultados.has(trib)) {
-          telemetria.complementaresPuladas += 1;
-          return false;
-        }
-        return true;
-      });
-
-      if (tribunaisParaComplementar.length > 0) {
-        console.log(
-          `[DJEN Flash] Complementar parte por palavraChave: "${termoTexto}" em ` +
-          `${tribunaisParaComplementar.length} tribunais (puladas: ${telemetria.complementaresPuladas})`
-        );
-        for (const trib of tribunaisParaComplementar) {
-          if (signal.aborted) break;
-          // ZERO PULO: cooldown via ensureCautious() em executarBusca
-          const resp = await executarBusca(
-            {
-              tipo: 'palavra-chave' as PjeSearchType,
-              palavraChave: termoTexto,
-              siglaTribunal: trib,
-              dataInicio: diaYmd,
-              dataFim: diaYmd,
-              pageSize: 50,
-              page: 1,
-            },
-            trib,
-            `busca complementar parte | ${termoTexto} | ${trib ?? 'TODOS'}`,
-          );
-          if (resp) {
-            console.log(`[DJEN Flash] Complementar parte "${termoTexto}" trib=${trib ?? 'TODOS'}: ${resp.items.length} resultados`);
-          }
-          if (tribunaisParaComplementar.length > 1) await delay(tribunalDelay());
-        }
-      } else {
-        console.log(`[DJEN Flash] Complementar parte pulada totalmente — primária OK em todos os ${tribLoop.length} tribunais`);
-      }
-    }
-  }
-
   // Busca complementar para tipo "palavra-chave": executar também cada termo_or
   // Isso garante que monitoramentos com grupos OR realmente disparem buscas individuais.
   if (tipo === 'palavra-chave' && !signal.aborted && mon.termos_or?.length) {
