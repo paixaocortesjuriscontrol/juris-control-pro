@@ -366,6 +366,16 @@ async function processPublicationFromIndex(
   const conteudo = String(pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
   const hashConteudo = generateHash(conteudo + (pub.data_disponibilizacao || pub.data_publicacao || pub.data || ''));
 
+  // id oficial da API CNJ — chave primária de deduplicação
+  const idDjen: string | null = (() => {
+    const raw = pub?.raw_json;
+    const fromRaw = raw && typeof raw === 'object' ? (raw as any).id : null;
+    const candidate = fromRaw ?? pub?.id_djen ?? pub?.numeroComunicacao ?? null;
+    if (candidate === null || candidate === undefined) return null;
+    const s = String(candidate).trim();
+    return s ? s : null;
+  })();
+
   let dataDisponibilizacao = pub.data_disponibilizacao || pub.dataDisponibilizacao || null;
   let dataPublicacao: string | null = null;
 
@@ -461,6 +471,7 @@ async function processPublicationFromIndex(
         monitoramento_id: monitoramento.id,
         coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
         hash_conteudo: hashConteudo,
+        id_djen: idDjen,
         conteudo,
         data_publicacao: dataPublicacao,
         data_disponibilizacao: dataDisponibilizacao,
@@ -484,6 +495,7 @@ async function processPublicationFromIndex(
       monitoramento_id: monitoramento.id,
       coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
       hash_conteudo: hashConteudo,
+      id_djen: idDjen,
       conteudo,
       data_publicacao: dataPublicacao,
       data_disponibilizacao: dataDisponibilizacao,
@@ -498,13 +510,28 @@ async function processPublicationFromIndex(
   }
 
   const coordenacaoId = (monitoramento as any).coordenacao_id ?? null;
-  const existingQuery = supabase
-    .from('publicacoes_djen')
-    .select('id')
-    .eq('hash_conteudo', hashConteudo);
-  const { data: existing } = coordenacaoId
-    ? await existingQuery.eq('coordenacao_id', coordenacaoId).maybeSingle()
-    : await existingQuery.eq('monitoramento_id', monitoramento.id).maybeSingle();
+
+  // Pré-checagem por id_djen quando disponível (caminho principal); cai para hash_conteudo no fallback.
+  let existing: { id: string } | null = null;
+  if (idDjen && coordenacaoId) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('id')
+      .eq('coordenacao_id', coordenacaoId)
+      .eq('id_djen', idDjen)
+      .maybeSingle();
+    existing = data ?? null;
+  }
+  if (!existing) {
+    const existingQuery = supabase
+      .from('publicacoes_djen')
+      .select('id')
+      .eq('hash_conteudo', hashConteudo);
+    const { data } = coordenacaoId
+      ? await existingQuery.eq('coordenacao_id', coordenacaoId).maybeSingle()
+      : await existingQuery.eq('monitoramento_id', monitoramento.id).maybeSingle();
+    existing = data ?? null;
+  }
 
   if (existing) {
     stats.duplicatas++;
@@ -515,6 +542,7 @@ async function processPublicationFromIndex(
     monitoramento_id: monitoramento.id,
     coordenacao_id: coordenacaoId,
     hash_conteudo: hashConteudo,
+    id_djen: idDjen,
     conteudo,
     data_publicacao: dataPublicacao,
     data_disponibilizacao: dataDisponibilizacao,
