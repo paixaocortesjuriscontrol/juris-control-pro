@@ -498,6 +498,27 @@ function gerarHash(conteudo: string, data: string, processoNumero?: string): str
   return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
 }
 
+function extrairIdDjen(item: any): string | null {
+  const raw = item?.id_djen
+    ?? item?.id
+    ?? item?.codigoComunicacao
+    ?? item?.codigo_comunicacao
+    ?? item?.numeroComunicacao
+    ?? item?.numero_comunicacao
+    ?? item?.idComunicacao
+    ?? item?.id_comunicacao
+    ?? item?.comunicacaoId
+    ?? item?.comunicacao_id
+    ?? item?.codigo
+    ?? null;
+  const id = raw != null ? String(raw).trim() : '';
+  return id || null;
+}
+
+function gerarHashPublicacao(conteudo: string, data: string, processoNumero?: string, idDjen?: string | null): string {
+  return gerarHash(idDjen ? `id_djen:${idDjen}` : conteudo, data, processoNumero);
+}
+
 function chunkArray<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
