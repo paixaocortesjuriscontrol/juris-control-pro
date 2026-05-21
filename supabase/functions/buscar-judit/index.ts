@@ -719,11 +719,12 @@ serve(async (req) => {
           tipoRecursoTerceiro = classe;
         }
         else {
-          // sem dados de origem: usa side (Active = recorrente original = Banco em
-          // recursos do Banco; Passive = Reclamante)
-          const side = String(p?.side || "").toUpperCase();
-          if (side === "ACTIVE") tipoRecursoBanco = classe;
-          else if (side === "PASSIVE") tipoRecursoReclamante = classe;
+          // Sem dados de origem e não é Santander: trata como terceiro
+          // (litisconsorte passivo / empresa terceirizada / outro réu).
+          // No TST todas as partes recorrentes são side=ACTIVE, então
+          // usar "side" como discriminador classificaria erradamente
+          // qualquer recorrente como Banco. Banco só via override Santander.
+          tipoRecursoTerceiro = classe;
         }
       }
       // Fallback: se nenhum dos dois preenchido mas há classe, marca o lado ativo.
