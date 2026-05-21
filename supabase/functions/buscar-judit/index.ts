@@ -681,6 +681,7 @@ serve(async (req) => {
     // Quem é RECORRENTE no TST e RECLAMADO na origem -> tipo_recurso_banco = classe.
     let tipoRecursoReclamante: string | null = null;
     let tipoRecursoBanco: string | null = null;
+    let tipoRecursoTerceiro: string | null = null;
     if (classe) {
       // Mapa documento -> person_type original (instância 1, que está em rawCollector
       // ou no cache_lookup). Usa o cache_lookup quando disponível, senão a primeira
@@ -708,7 +709,15 @@ serve(async (req) => {
           continue;
         }
         if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classe;
-        else if (/RECLAMAD|R[ÉE]U|EXECUTAD/.test(origemPt)) tipoRecursoBanco = classe;
+        else if (/RECLAMAD|R[ÉE]U|EXECUTAD/.test(origemPt)) {
+          // Recorrente é RECLAMADO na origem mas NÃO é o Banco Santander →
+          // trata-se de outro reclamado (litisconsorte passivo) recorrendo.
+          tipoRecursoTerceiro = classe;
+        }
+        else if (/MINIST[ÉE]RIO|MPT|SINDICATO|TERCEIRO|ASSISTENTE|AMICUS/.test(origemPt) ||
+                 /MINIST[ÉE]RIO|MPT|SINDICATO/i.test(String(p?.name || ""))) {
+          tipoRecursoTerceiro = classe;
+        }
         else {
           // sem dados de origem: usa side (Active = recorrente original = Banco em
           // recursos do Banco; Passive = Reclamante)
@@ -718,7 +727,7 @@ serve(async (req) => {
         }
       }
       // Fallback: se nenhum dos dois preenchido mas há classe, marca o lado ativo.
-      if (!tipoRecursoReclamante && !tipoRecursoBanco) {
+      if (!tipoRecursoReclamante && !tipoRecursoBanco && !tipoRecursoTerceiro) {
         tipoRecursoBanco = classe; // Banco é o cliente; assume que é ele recorrendo
       }
     }
@@ -744,6 +753,7 @@ serve(async (req) => {
       tipo_recurso: classe,
       tipo_recurso_reclamante: tipoRecursoReclamante,
       tipo_recurso_banco: tipoRecursoBanco,
+      tipo_recurso_terceiro: tipoRecursoTerceiro,
       // Campos de pauta/julgamento — não extraímos mais via heurística.
       tem_data_julgamento: "N",
       data_julgamento: null,
