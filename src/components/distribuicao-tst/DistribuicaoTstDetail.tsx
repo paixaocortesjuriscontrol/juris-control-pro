@@ -145,7 +145,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       documento_id: r.documento_id || null,
       storage_path: r.storage_path || null,
     }));
-    setAnexos(list);
+    setAnexos(dedupeJuditAttachments(list));
   }, [processoNumero]);
 
   // Carrega anexos persistidos ao abrir / trocar de processo.
