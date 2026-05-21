@@ -22,12 +22,6 @@ import {
   type DjenProcessosProgress,
 } from "@/hooks/useDjenProcessosEngine";
 import {
-  subscribeDjenTermosPro,
-  getDjenTermosProProgress,
-  isDjenTermosProRunning,
-  type DjenTermosProProgress,
-} from "@/hooks/useDjenTermosProEngine";
-import {
   subscribeDjenTermos,
   getDjenTermosProgress,
   isDjenTermosRunning,
@@ -64,7 +58,6 @@ function formatTempo(ms: number): string {
 }
 
 const DB_TYPE_MAP: Record<string, { localKey: string; label: string }> = {
-  djen_pro: { localKey: 'termos_pro', label: 'DJEN Termos Pro' },
   djen_processos: { localKey: 'processos', label: 'DJEN Processos' },
   djen_termos: { localKey: 'termos', label: 'DJEN Termos' },
 };
@@ -77,8 +70,6 @@ export function MonitoramentosFloatingIndicator() {
   // Local engine states (from in-tab subscribers)
   const [procProgress, setProcProgress] = useState<DjenProcessosProgress>(getDjenProcessosProgress);
   const [procRunning, setProcRunning] = useState(isDjenProcessosRunning);
-  const [termosProProgress, setTermosProProgress] = useState<DjenTermosProProgress>(getDjenTermosProProgress);
-  const [termosProRunning, setTermosProRunning] = useState(isDjenTermosProRunning);
   const [termosProgress, setTermosProgress] = useState(getDjenTermosProgress);
   const [termosRunning, setTermosRunning] = useState(isDjenTermosRunning);
 
@@ -91,15 +82,11 @@ export function MonitoramentosFloatingIndicator() {
       setProcProgress(p);
       setProcRunning(isDjenProcessosRunning());
     });
-    const unsub2 = subscribeDjenTermosPro((p) => {
-      setTermosProProgress(p);
-      setTermosProRunning(isDjenTermosProRunning());
-    });
     const unsub3 = subscribeDjenTermos((p: any) => {
       setTermosProgress(p);
       setTermosRunning(isDjenTermosRunning());
     });
-    return () => { unsub1(); unsub2(); unsub3(); };
+    return () => { unsub1(); unsub3(); };
   }, []);
 
   // Poll DB for actively RUNNING executions (not just scheduler enabled)
@@ -113,7 +100,7 @@ export function MonitoramentosFloatingIndicator() {
           .from('execucoes_agendadas')
           .select('id, tipo, status, detalhes, iniciado_em')
           .eq('status', 'executando')
-          .in('tipo', ['djen_pro', 'djen_processos', 'djen'])
+          .in('tipo', ['djen_processos', 'djen'])
           .is('finalizado_em', null);
 
         if (cancelled || !data) return;
@@ -121,7 +108,7 @@ export function MonitoramentosFloatingIndicator() {
         // Deduplicate by tipo — keep the most recent one per type
         const byTipo = new Map<string, typeof data[0]>();
         for (const row of data) {
-          const tipoKey = row.tipo === 'djen' ? 'djen_termos' : row.tipo === 'djen_pro' ? 'djen_pro' : 'djen_processos';
+          const tipoKey = row.tipo === 'djen' ? 'djen_termos' : 'djen_processos';
           const existing = byTipo.get(tipoKey);
           if (!existing || (row.iniciado_em && (!existing.iniciado_em || row.iniciado_em > existing.iniciado_em))) {
             byTipo.set(tipoKey, row);
@@ -175,19 +162,6 @@ export function MonitoramentosFloatingIndicator() {
       mensagem: procProgress.mensagem || `Grupo ${procProgress.currentGroup}/${procProgress.totalGroups}`,
       tempoDecorrido: procProgress.tempoDecorrido || 0,
       novas: procProgress.novas || 0,
-    });
-  }
-
-  if (termosProRunning || termosProProgress.status === 'executando') {
-    localActiveKeys.add('termos_pro');
-    engines.push({
-      id: 'termos_pro',
-      label: 'DJEN Termos Pro',
-      status: termosProProgress.status,
-      percentage: termosProProgress.percentage || 0,
-      mensagem: termosProProgress.mensagem || `Termo ${termosProProgress.termoAtualNoDia}/${termosProProgress.totalTermos}`,
-      tempoDecorrido: termosProProgress.tempoDecorrido || 0,
-      novas: termosProProgress.novas || 0,
     });
   }
 

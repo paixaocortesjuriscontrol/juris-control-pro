@@ -145,72 +145,6 @@ function SchedulerCard() {
   );
 }
 
-/**
- * Card de Agendamento Automático - Termos Pro
- */
-function SchedulerProCard() {
-  const { ativo, proximoHorario, start, stop } = useDjenTermosProScheduler();
-
-  return (
-    <Card className="mt-4">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Agendamento Pro Automático</CardTitle>
-          </div>
-          <Badge variant={ativo ? "default" : "secondary"}>
-            {ativo ? "Ativo" : "Inativo"}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Executa Termos Pro automaticamente todos os dias às <span className="font-semibold text-foreground">20:45 BRT</span>
-        </p>
-
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="djen-pro-scheduler" className="text-sm font-medium">
-              Agendamento Pro automático
-            </Label>
-          </div>
-          <Switch
-            id="djen-pro-scheduler"
-            checked={ativo}
-            onCheckedChange={(checked) => {
-              if (checked) {
-                start();
-                toast.success('Agendamento Pro ativado');
-              } else {
-                stop();
-                toast.info('Agendamento Pro desativado');
-              }
-            }}
-          />
-        </div>
-
-        {ativo && proximoHorario && (
-          <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3">
-            <Clock className="h-4 w-4 text-primary flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Próxima execução</p>
-              <p className="text-sm font-medium">{proximoHorario}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-start gap-2 rounded-md bg-muted/50 p-3 border border-muted">
-          <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-muted-foreground">
-            Mantenha esta aba aberta para que o agendamento automático funcione
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   const {
     progress,
@@ -1478,7 +1412,6 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
        {/* Card de Agendamento Automático */}
        <SchedulerCard />
-       <SchedulerProCard />
 
        {/* Card de Índice Diário */}
 
