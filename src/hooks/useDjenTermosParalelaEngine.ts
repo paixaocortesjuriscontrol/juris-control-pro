@@ -1072,9 +1072,7 @@ async function processarTermoEmTribunal(
     siglaTribunal: tribunal,
   };
 
-  if (tipo === 'parte') {
-    baseParams.nomeParte = mon.termo_busca;
-  } else if (tipo === 'advogado') {
+  if (tipo === 'advogado') {
     baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
     baseParams.nomeAdvogado = mon.termo_busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     baseParams.uf = mon.uf;
@@ -1090,8 +1088,8 @@ async function processarTermoEmTribunal(
     }
   }
 
-  try {
-    const resp = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
+  const executarBusca = async (params: any) => {
+    const resp = await buscarPjeComunicaPaginado({ ...params, page: 1 }, {
       signal,
       maxPages: null,
       continueUntilEmpty: true,
@@ -1108,6 +1106,20 @@ async function processarTermoEmTribunal(
     });
     addResults(resp.items);
     ultimoErro = resp.lastError ?? null;
+    return resp;
+  };
+
+  try {
+    if (tipo === 'parte') {
+      for (const termoParte of termosDeParte(mon)) {
+        if (signal.aborted) break;
+        const resp = await executarBusca({ ...baseParams, nomeParte: termoParte });
+        console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        await abortableDelay(CONFIG.delay_between_termos_or, signal);
+      }
+    } else {
+      await executarBusca(baseParams);
+    }
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
