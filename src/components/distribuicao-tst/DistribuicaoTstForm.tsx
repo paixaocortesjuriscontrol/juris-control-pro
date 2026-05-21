@@ -175,7 +175,12 @@ function normalizarValorPorCampo(
   reclamada: string,
 ): any {
   if (valor === null || valor === undefined) return valor;
-  if (campo === "tipo_recurso" || campo === "tipo_recurso_reclamante" || campo === "tipo_recurso_banco") {
+  if (
+    campo === "tipo_recurso" ||
+    campo === "tipo_recurso_reclamante" ||
+    campo === "tipo_recurso_banco" ||
+    campo === "tipo_recurso_terceiro"
+  ) {
     return normalizarTipoRecurso(valor);
   }
   if (campo === "parte_recorrente") {
@@ -241,6 +246,10 @@ const emptyForm: DistribuicaoTstInsert = {
   materias_recurso_banco: null,
   aparelhamento_banco: null,
   chance_exito_banco: null,
+  tipo_recurso_terceiro: null,
+  materias_recurso_terceiro: null,
+  aparelhamento_terceiro: null,
+  chance_exito_terceiro: null,
   honra: null,
   tema: null,
   execucao: null,
