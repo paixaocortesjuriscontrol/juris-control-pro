@@ -2768,8 +2768,9 @@ const AnaliseDjen = () => {
         const lower = texto.toLowerCase();
         const tipoCom = (pub.tipo_comunicacao || "").toLowerCase();
         const orgaoTxt = (pub.orgao || "").toString();
-        // CEJUSC (pelo órgão) — exige também a expressão "plataforma ZOOM" no conteúdo
-        if (/\bCEJUSC\b/i.test(orgaoTxt) && /plataforma\s+zoom/i.test(texto)) {
+        // CEJUSC — basta encontrar "CEJUSC" + "plataforma ZOOM" no órgão OU no texto da publicação
+        const temCejusc = /\bCEJUSC\b/i.test(orgaoTxt) || /\bCEJUSC\b/i.test(texto);
+        if (temCejusc && /plataforma\s+zoom/i.test(texto)) {
           return { id: pub.id, categoria: "CEJUSC" };
         }
         // b. Lista de distribuição (pelo tipo de comunicação)
