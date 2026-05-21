@@ -612,6 +612,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         apply("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
         apply("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
         apply("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
+        apply("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
