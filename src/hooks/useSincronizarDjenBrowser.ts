@@ -69,15 +69,8 @@ function gerarVariantesBusca(termo: string): string[] {
     }
   }
   
-  // Prefixo curto (2 primeiras palavras significativas) para termos empresariais
-  // Filtrar &, /, etc. para encontrar palavras reais
-  const palavras = semAcento.split(/\s+/).filter(p => p.length >= 2 && !/^[&\/\\]+$/.test(p));
-  if (palavras.length >= 3) {
-    const prefixo = palavras.slice(0, 2).join(' ').toUpperCase();
-    if (prefixo.length >= 6) {
-      variantes.add(prefixo);
-    }
-  }
+  // NUNCA fatiar termo em 2 palavras: regra "DJEN palavra-chave nunca fatia o termo".
+  // Apenas variantes de normalização (sem acento / sem &) são permitidas.
   
   return Array.from(variantes);
 }
