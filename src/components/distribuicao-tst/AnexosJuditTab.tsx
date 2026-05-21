@@ -77,8 +77,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
   // Chave estável e única para seleção. Não dá pra usar step_id porque a Judit
   // ocasionalmente retorna step_id repetido/nulo entre anexos distintos, o que
   // fazia o Set de seleção colapsar (ex.: 200 anexos -> 161 selecionáveis).
-  const uidOf = (a: Attachment) =>
-    `${a.attachment_id ?? ""}|${getJuditAttachmentDedupKey(a as any)}`;
+  const uidOf = (a: Attachment) => getJuditAttachmentDedupKey(a as any);
   // Mantém todos os "irmãos" (mesmo documento lógico em outra instância/cnj)
   // para fallback quando a Judit retornar ATTACHMENT_NOT_FOUND no escolhido.
   const siblingsByKey = useMemo(() => {

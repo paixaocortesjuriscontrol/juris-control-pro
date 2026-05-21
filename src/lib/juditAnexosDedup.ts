@@ -24,6 +24,11 @@ const normalizeAttachmentName = (value: unknown) =>
     .toUpperCase();
 
 export const getJuditAttachmentDedupKey = (att: JuditAttachmentLike) => {
+  // Preferimos step_id quando existir: é o identificador real do documento na
+  // Judit. Se a API retornar o mesmo step_id para várias entradas (cópias em
+  // instâncias diferentes), elas representam o mesmo arquivo e devem colapsar.
+  const stepId = String(att.step_id ?? "").trim();
+  if (stepId) return `sid::${stepId}`;
   const name = normalizeAttachmentName(att.attachment_name ?? att.name ?? att.title);
   const date = String(att.attachment_date ?? att.date ?? "").trim();
   const extension = String(att.extension ?? att.ext ?? "").trim().toLowerCase();
