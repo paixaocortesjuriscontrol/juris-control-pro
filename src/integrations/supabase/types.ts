@@ -2243,9 +2243,11 @@ export type Database = {
           aba_origem: string | null
           aparelhamento_banco: string | null
           aparelhamento_reclamante: string | null
+          aparelhamento_terceiro: string | null
           benner_atualizado: boolean | null
           chance_exito_banco: string | null
           chance_exito_reclamante: string | null
+          chance_exito_terceiro: string | null
           created_at: string
           data_distribuicao: string | null
           decisao_quarteirizado: string | null
@@ -2259,6 +2261,7 @@ export type Database = {
           judit_preenchido_por: string | null
           materias_recurso_banco: string | null
           materias_recurso_reclamante: string | null
+          materias_recurso_terceiro: string | null
           midia_negativa: string | null
           parte_recorrente: string | null
           processo_id: string
@@ -2271,6 +2274,7 @@ export type Database = {
           tema: string | null
           tipo_recurso_banco: string | null
           tipo_recurso_reclamante: string | null
+          tipo_recurso_terceiro: string | null
           transito_julgado: boolean | null
           turma: string | null
           turma_favorabilidade: string | null
@@ -2280,9 +2284,11 @@ export type Database = {
           aba_origem?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
+          aparelhamento_terceiro?: string | null
           benner_atualizado?: boolean | null
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
+          chance_exito_terceiro?: string | null
           created_at?: string
           data_distribuicao?: string | null
           decisao_quarteirizado?: string | null
@@ -2296,6 +2302,7 @@ export type Database = {
           judit_preenchido_por?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
+          materias_recurso_terceiro?: string | null
           midia_negativa?: string | null
           parte_recorrente?: string | null
           processo_id: string
@@ -2308,6 +2315,7 @@ export type Database = {
           tema?: string | null
           tipo_recurso_banco?: string | null
           tipo_recurso_reclamante?: string | null
+          tipo_recurso_terceiro?: string | null
           transito_julgado?: boolean | null
           turma?: string | null
           turma_favorabilidade?: string | null
@@ -2317,9 +2325,11 @@ export type Database = {
           aba_origem?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
+          aparelhamento_terceiro?: string | null
           benner_atualizado?: boolean | null
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
+          chance_exito_terceiro?: string | null
           created_at?: string
           data_distribuicao?: string | null
           decisao_quarteirizado?: string | null
@@ -2333,6 +2343,7 @@ export type Database = {
           judit_preenchido_por?: string | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
+          materias_recurso_terceiro?: string | null
           midia_negativa?: string | null
           parte_recorrente?: string | null
           processo_id?: string
@@ -2345,6 +2356,7 @@ export type Database = {
           tema?: string | null
           tipo_recurso_banco?: string | null
           tipo_recurso_reclamante?: string | null
+          tipo_recurso_terceiro?: string | null
           transito_julgado?: boolean | null
           turma?: string | null
           turma_favorabilidade?: string | null
