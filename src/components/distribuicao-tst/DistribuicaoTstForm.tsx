@@ -1000,6 +1000,62 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         </div>
       </div>
 
+      {/* SEÇÃO 4B - Recurso de outro Reclamado ou de terceiro */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <SectionHeader title="Recurso de outro Reclamado ou de terceiro" color="bg-[#A4C2F4] !text-black" />
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>
+              <Label className="flex items-center">
+                Tipo de Recurso (Terceiro)
+                <JuditBadge show={isJuditFilled((form as any).tipo_recurso_terceiro)} />
+                <IaBadge field="tipo_recurso_terceiro" value={(form as any).tipo_recurso_terceiro} />
+              </Label>
+              <MultiTipoRecurso
+                value={(form as any).tipo_recurso_terceiro}
+                onChange={(v) => set("tipo_recurso_terceiro", v)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Aparelhamento</Label>
+              <Select
+                value={(form as any).aparelhamento_terceiro || "__none__"}
+                onValueChange={(v) => set("aparelhamento_terceiro", v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="BEM APARELHADO">BEM APARELHADO</SelectItem>
+                  <SelectItem value="MAL APARELHADO">MAL APARELHADO</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Matérias Recurso (Terceiro)</Label>
+            <MateriasMultiSelect
+              value={(form as any).materias_recurso_terceiro || null}
+              onChange={(v) => set("materias_recurso_terceiro", v)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Chance de Êxito</Label>
+            <Select
+              value={(form as any).chance_exito_terceiro || "__none__"}
+              onValueChange={(v) => set("chance_exito_terceiro", v === "__none__" ? "" : v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
+                <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
+                <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
+                <SelectItem value="REMOTA">REMOTA</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {/* SEÇÃO 5 - Análise */}
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Análise" color="bg-[#1D69C8]" />
