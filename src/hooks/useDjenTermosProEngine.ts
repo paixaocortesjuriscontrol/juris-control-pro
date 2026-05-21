@@ -841,7 +841,6 @@ async function _processarTermoProInterno(
   // Buscar publicações da API
   const resultados: any[] = [];
   const seen = new Set<string>();
-  const seenContentHash = new Set<string>();
   let dedupByContentHash = 0;
   
   const addResults = (items: any[], tribunalOverride?: string) => {
@@ -850,16 +849,6 @@ async function _processarTermoProInterno(
       const key = id || JSON.stringify(item).slice(0, 400);
       if (seen.has(key)) continue;
       seen.add(key);
-      
-      // Dedup secundária por hash de conteúdo — captura mesma publicação com IDs diferentes
-      const conteudo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
-      const processo = String(item?.numeroProcesso ?? '').replace(/\D/g, '');
-      const contentKey = `${processo}|${conteudo.slice(0, 300).toLowerCase().trim()}`;
-      if (contentKey.length > 5 && seenContentHash.has(contentKey)) {
-        dedupByContentHash++;
-        continue;
-      }
-      if (contentKey.length > 5) seenContentHash.add(contentKey);
       
       const enriched = tribunalOverride
         ? { ...item, siglaTribunal: item?.siglaTribunal ?? tribunalOverride }
@@ -1148,7 +1137,7 @@ async function _processarTermoProInterno(
     const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
     const hash = gerarHash(conteudo, dataDisp, procNum);
-    const idDjen = String(pub?.id ?? pub?.id_djen ?? pub?.numeroComunicacao ?? '').trim() || null;
+    const idDjen = String(pub?.id ?? pub?.id_djen ?? pub?.codigoComunicacao ?? pub?.codigo_comunicacao ?? pub?.numeroComunicacao ?? pub?.numero_comunicacao ?? pub?.idComunicacao ?? pub?.id_comunicacao ?? pub?.comunicacaoId ?? pub?.comunicacao_id ?? pub?.codigo ?? '').trim() || null;
     const dedupKey = idDjen ? `id:${idDjen}` : `h:${hash}`;
     if (!dedupMap.has(dedupKey)) {
       dedupMap.set(dedupKey, { ...pub, hash_conteudo: hash, id_djen: idDjen, data_disponibilizacao_ymd: dataDisp });
