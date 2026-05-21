@@ -498,6 +498,27 @@ function gerarHash(conteudo: string, data: string, processoNumero?: string): str
   return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
 }
 
+function extrairIdDjen(item: any): string | null {
+  const raw = item?.id_djen
+    ?? item?.id
+    ?? item?.codigoComunicacao
+    ?? item?.codigo_comunicacao
+    ?? item?.numeroComunicacao
+    ?? item?.numero_comunicacao
+    ?? item?.idComunicacao
+    ?? item?.id_comunicacao
+    ?? item?.comunicacaoId
+    ?? item?.comunicacao_id
+    ?? item?.codigo
+    ?? null;
+  const id = raw != null ? String(raw).trim() : '';
+  return id || null;
+}
+
+function gerarHashPublicacao(conteudo: string, data: string, processoNumero?: string, idDjen?: string | null): string {
+  return gerarHash(idDjen ? `id_djen:${idDjen}` : conteudo, data, processoNumero);
+}
+
 function chunkArray<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
@@ -1045,22 +1066,16 @@ async function processarTermoEmTribunal(
       : mon.tipo;
   const resultados: any[] = [];
   const seen = new Set<string>();
-  const seenContent = new Set<string>();
   let rateLimitHits = 0;
   let ultimoErro: string | null = null;
 
   const addResults = (items: any[]) => {
     for (const item of items) {
-      const id = String(item?.id ?? '');
-      const k = id || JSON.stringify(item).slice(0, 400);
+      const idDjen = extrairIdDjen(item);
+      const k = idDjen ? `id_djen:${idDjen}` : JSON.stringify(item).slice(0, 400);
       if (seen.has(k)) continue;
       seen.add(k);
-      const conteudo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
-      const proc = String(item?.numeroProcesso ?? '').replace(/\D/g, '');
-      const ck = `${proc}|${conteudo.slice(0, 300).toLowerCase().trim()}`;
-      if (ck.length > 5 && seenContent.has(ck)) continue;
-      if (ck.length > 5) seenContent.add(ck);
-      resultados.push({ ...item, siglaTribunal: item?.siglaTribunal ?? tribunal });
+      resultados.push({ ...item, id_djen: idDjen, id: idDjen ?? item?.id, siglaTribunal: item?.siglaTribunal ?? tribunal });
     }
   };
 
@@ -1215,8 +1230,10 @@ async function processarTermoEmTribunal(
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
-    const hash = gerarHash(conteudo, dataDisp, procNum);
-    if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
+    const idDjen = extrairIdDjen(pub);
+    const uniqueKey = idDjen ? `id_djen:${idDjen}` : `hash:${gerarHash(conteudo, dataDisp, procNum)}`;
+    const hash = gerarHashPublicacao(conteudo, dataDisp, procNum, idDjen);
+    if (!hashMap.has(uniqueKey)) hashMap.set(uniqueKey, { ...pub, id_djen: idDjen, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
   const pubsParaDedup = pubsUnicas;
@@ -1243,6 +1260,21 @@ async function processarTermoEmTribunal(
   });
 
   const hashesCandidatos = pubsParaDedup.map((p) => String(p.hash_conteudo || '')).filter(Boolean);
+  const idsDjenCandidatos = pubsParaDedup.map((p) => extrairIdDjen(p)).filter(Boolean) as string[];
+  let idsDjenEncontrados = new Set<string>();
+  if (idsDjenCandidatos.length > 0) {
+    let idQuery = supabase
+      .from('publicacoes_djen')
+      .select('id_djen')
+      .eq('status', 'encontrada')
+      .in('id_djen', idsDjenCandidatos);
+    idQuery = mon.coordenacao_id
+      ? idQuery.eq('coordenacao_id', mon.coordenacao_id)
+      : idQuery.is('coordenacao_id', null);
+    const { data: existentesPorIdDjen } = await idQuery;
+    idsDjenEncontrados = new Set((existentesPorIdDjen || []).map((r: any) => String(r.id_djen || '')));
+  }
+
   let hashesEncontrados = new Set<string>();
   if (hashesCandidatos.length > 0) {
     let hashQuery = supabase
@@ -1284,6 +1316,8 @@ async function processarTermoEmTribunal(
   }
 
   const novas = pubsParaDedup.filter((p, idx) => {
+    const idDjen = extrairIdDjen(p);
+    if (idDjen) return !idsDjenEncontrados.has(idDjen);
     const hash = String(p.hash_conteudo || '');
     return !hashesEncontrados.has(hash) && !chavesEncontradas.has(chavesCandidatas[idx]);
   });
@@ -1305,6 +1339,7 @@ async function processarTermoEmTribunal(
       const partes = extrairPartesEstruturadas(pub);
       return {
         monitoramento_id: mon.id,
+        id_djen: extrairIdDjen(pub),
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || null,
         conteudo: conteudoFormatado,
@@ -1386,13 +1421,15 @@ async function processarTermoEmTribunal(
       });
       const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
       const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
-      const hash = gerarHash(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum);
+      const idDjen = extrairIdDjen(pub);
+      const hash = gerarHashPublicacao(conteudoFormatado + (pub.motivo_descarte || ''), dataDisp, procNum, idDjen);
       if (descMap.has(hash)) continue;
       const advogados = extrairAdvogadosEstruturados(pub);
       const partes = extrairPartesEstruturadas(pub);
       descMap.set(hash, {
         monitoramento_id: mon.id,
         coordenacao_id: mon.coordenacao_id ?? null,
+        id_djen: idDjen,
         hash_conteudo: hash,
         processo_numero: pub.numeroProcesso || pub.numero_processo || pub.processo_numero || null,
         conteudo: conteudoFormatado.slice(0, 100000),

@@ -789,8 +789,8 @@ export async function buscarPjeComunicaPaginado(
       let addedOnPage = 0;
 
       for (const item of resp.items) {
-        const id = String(item?.id ?? "");
-        const key = id || JSON.stringify(item).slice(0, 400);
+        const id = String(item?.id_djen ?? item?.id ?? "").trim();
+        const key = id ? `id_djen:${id}` : JSON.stringify(item).slice(0, 400);
         if (!seen.has(key)) {
           seen.add(key);
           all.push(item);
