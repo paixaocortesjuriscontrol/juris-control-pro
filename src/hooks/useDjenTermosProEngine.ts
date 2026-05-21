@@ -1137,7 +1137,7 @@ async function _processarTermoProInterno(
     const dataDisp = (pub.dataDisponibilizacao || pub.data_disponibilizacao || diaYmd).slice(0, 10);
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo || '';
     const hash = gerarHash(conteudo, dataDisp, procNum);
-    const idDjen = String(pub?.id ?? pub?.id_djen ?? pub?.numeroComunicacao ?? '').trim() || null;
+    const idDjen = String(pub?.id ?? pub?.id_djen ?? pub?.codigoComunicacao ?? pub?.codigo_comunicacao ?? pub?.numeroComunicacao ?? pub?.numero_comunicacao ?? pub?.idComunicacao ?? pub?.id_comunicacao ?? pub?.comunicacaoId ?? pub?.comunicacao_id ?? pub?.codigo ?? '').trim() || null;
     const dedupKey = idDjen ? `id:${idDjen}` : `h:${hash}`;
     if (!dedupMap.has(dedupKey)) {
       dedupMap.set(dedupKey, { ...pub, hash_conteudo: hash, id_djen: idDjen, data_disponibilizacao_ymd: dataDisp });
