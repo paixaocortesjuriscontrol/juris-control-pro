@@ -375,7 +375,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
     baseParams.append("nomeParte", nomeParteNormalizado);
     console.log(`[buscar-djen] Parte normalizada: "${nomeParte}" -> "${nomeParteNormalizado}"`);
   } else if (tipo === "processo" && numeroProcesso) {
-    baseParams.append("texto", numeroProcesso);
+    baseParams.append("numeroProcesso", numeroProcesso);
   }
 
   if (dataInicio) baseParams.append("dataDisponibilizacaoInicio", dataInicio);
