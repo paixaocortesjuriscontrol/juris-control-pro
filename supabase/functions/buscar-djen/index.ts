@@ -434,12 +434,27 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
   const optimizeItem = (item: any) => {
     // Skip null/undefined items
     if (!item) return null;
+    const idDjen =
+      item.id ??
+      item.id_djen ??
+      item.codigoComunicacao ??
+      item.codigo_comunicacao ??
+      item.numeroComunicacao ??
+      item.numero_comunicacao ??
+      item.idComunicacao ??
+      item.id_comunicacao ??
+      item.comunicacaoId ??
+      item.comunicacao_id ??
+      item.codigo ??
+      null;
     
     return {
-      id: item.id,
+      id: idDjen,
+      id_djen: idDjen != null ? String(idDjen) : item.id_djen,
       hash: item.hash,
       codigo: item.codigo,
-      codigoComunicacao: item.codigoComunicacao,
+      codigoComunicacao: item.codigoComunicacao ?? item.codigo_comunicacao ?? item.codigo,
+      numeroComunicacao: item.numeroComunicacao ?? item.numero_comunicacao,
       dataDisponibilizacao: item.dataDisponibilizacao,
       dataPublicacao: item.dataPublicacao,
       tipoComunicacao: item.tipoComunicacao,
