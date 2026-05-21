@@ -528,6 +528,32 @@ interface MatchOut {
   tribunal: string;
 }
 
+/**
+ * data_publicacao = próximo dia útil após data_disponibilizacao
+ * (mesma regra do DJEN; pula sábado/domingo e recesso forense 20/12–06/01).
+ */
+function calcularDataPublicacaoYmd(dataDispYmd: string): string {
+  const base = new Date(`${dataDispYmd}T12:00:00Z`);
+  base.setUTCDate(base.getUTCDate() + 1);
+  const estaNoRecesso = (d: Date) => {
+    const mes = d.getUTCMonth();
+    const dia = d.getUTCDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  while (base.getUTCDay() === 0 || base.getUTCDay() === 6) {
+    base.setUTCDate(base.getUTCDate() + 1);
+  }
+  if (estaNoRecesso(base)) {
+    if (base.getUTCMonth() === 11) base.setUTCFullYear(base.getUTCFullYear() + 1);
+    base.setUTCMonth(0);
+    base.setUTCDate(7);
+    while (base.getUTCDay() === 0 || base.getUTCDay() === 6) {
+      base.setUTCDate(base.getUTCDate() + 1);
+    }
+  }
+  return base.toISOString().slice(0, 10);
+}
+
 async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; duplicadas: number }> {
   if (matches.length === 0) return { novas: 0, duplicadas: 0 };
 
@@ -541,8 +567,8 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     monitoramento_id: m.monitoramentoId,
     coordenacao_id: m.coordenacaoId,
     hash_conteudo: m.hash,
-    data_publicacao: m.dataPublicacao,
     data_disponibilizacao: m.dataPublicacao,
+    data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
     processo_numero: m.processo,
     conteudo: m.conteudo,
     fonte: m.fonte,

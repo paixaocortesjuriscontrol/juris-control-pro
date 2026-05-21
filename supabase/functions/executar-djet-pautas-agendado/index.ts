@@ -94,6 +94,28 @@ function monitsForTribunal(monits: Monitoramento[], tribunal: string): Monitoram
   });
 }
 
+function calcularDataPublicacaoYmd(dataDispYmd: string): string {
+  const base = new Date(`${dataDispYmd}T12:00:00Z`);
+  base.setUTCDate(base.getUTCDate() + 1);
+  const estaNoRecesso = (d: Date) => {
+    const mes = d.getUTCMonth();
+    const dia = d.getUTCDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  while (base.getUTCDay() === 0 || base.getUTCDay() === 6) {
+    base.setUTCDate(base.getUTCDate() + 1);
+  }
+  if (estaNoRecesso(base)) {
+    if (base.getUTCMonth() === 11) base.setUTCFullYear(base.getUTCFullYear() + 1);
+    base.setUTCMonth(0);
+    base.setUTCDate(7);
+    while (base.getUTCDay() === 0 || base.getUTCDay() === 6) {
+      base.setUTCDate(base.getUTCDate() + 1);
+    }
+  }
+  return base.toISOString().slice(0, 10);
+}
+
 function monitToInput(m: Monitoramento) {
   const termos: string[] = [];
   if (m.termo_busca) termos.push(m.termo_busca);
@@ -122,7 +144,8 @@ async function persistMatches(
     monitoramento_id: m.monitoramentoId,
     coordenacao_id: monitCoordMap.get(m.monitoramentoId) ?? null,
     hash_conteudo: m.hash,
-    data_publicacao: m.dataPublicacao,
+    data_disponibilizacao: m.dataPublicacao,
+    data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
     processo_numero: m.processo,
     conteudo: m.conteudo,
     fonte: m.fonte,
