@@ -267,6 +267,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
     if (excl) {
       const { error } = await supabase.from("publicacoes_djen_descartadas").insert({
         monitoramento_id: mon.id,
+        coordenacao_id: (mon as any).coordenacao_id ?? null,
         hash_conteudo: p.hashConteudo,
         conteudo: p.conteudo,
         data_publicacao: p.dataPub,
@@ -282,6 +283,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
     if (!matchesCondicaoConcomitante(p.conteudo, mon.condicao_concomitante)) {
       const { error } = await supabase.from("publicacoes_djen_descartadas").insert({
         monitoramento_id: mon.id,
+        coordenacao_id: (mon as any).coordenacao_id ?? null,
         hash_conteudo: p.hashConteudo,
         conteudo: p.conteudo,
         data_publicacao: p.dataPub,

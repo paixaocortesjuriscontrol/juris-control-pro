@@ -195,6 +195,7 @@ async function processMonitoramento(
     if (motivoExclusao) {
       await supabase.from('publicacoes_djen_descartadas').insert({
         monitoramento_id: monitoramento.id,
+        coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
         hash_conteudo: hashConteudo,
         data_publicacao: dataPublicacao,
         processo_numero: pub.numeroProcesso || pub.processo || null,
