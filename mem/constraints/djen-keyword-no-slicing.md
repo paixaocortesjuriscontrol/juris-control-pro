@@ -12,3 +12,5 @@ Exemplos:
 A validação local continua exigindo frase exata na ordem com fronteira de palavra (`contemFrase`/`contemFraseExata`). Isso evita que `UNIÃO QUÍMICA` case com texto que tem só `QUÍMICA`.
 
 Função `encurtarParaApi` em useDjenTermos{Pro,Flash,Paralela}Engine.ts: apenas remove acentos e trim — NÃO trunca.
+
+Função `gerarVariantes` em `useDjenTermosEngine.ts` e `useSincronizarDjenBrowser.ts`: pode produzir apenas variantes de normalização (sem acento, sem `&`). É PROIBIDO gerar variante "curta"/"prefixo" com `slice(0, 2)` das palavras significativas — isso fatia o termo e contradiz a regra.
