@@ -575,7 +575,9 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   //  - partes[] / partes_json (lista estruturada — strings ou {nome})
   const matches = (raw: any): boolean => {
     if (!raw) return false;
-    const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
+    const s = typeof raw === 'string'
+      ? raw
+      : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || '');
     if (!s) return false;
     // pode vir vários nomes separados por vírgula
     const candidatos = String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean);
@@ -594,6 +596,7 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   }
   if (matches(pub?.poloAtivo) || matches(pub?.polo_ativo)) return true;
   if (matches(pub?.poloPassivo) || matches(pub?.polo_passivo)) return true;
+  if (matches(pub?.destinatarioNome) || matches(pub?.destinatario_nome) || matches(pub?.nomeDestinatario)) return true;
   if (Array.isArray(pub?.partes)) {
     for (const p of pub.partes) if (matches(p)) return true;
   }
@@ -606,11 +609,31 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   return false;
 }
 
+function validarParteSecaoPartes(pub: any, nomeParte: string): boolean {
+  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
+  const nomeNorm = normalizar(nomeParte);
+  if (!texto || !nomeNorm) return false;
+
+  const header = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*/i);
+  if (!header || header.index === undefined) return false;
+
+  const afterHeader = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
+  const advogadosIndex = afterHeader.search(/(?:^|\n)\s*Advogados?\s*(?:\(\s*s\s*\))?\s*:?/i);
+  const secaoPartes = advogadosIndex >= 0 ? afterHeader.slice(0, advogadosIndex) : afterHeader;
+
+  return secaoPartes
+    .split(/\r?\n/)
+    .map((linha) => normalizar(linha.trim()))
+    .some((linhaNorm) => linhaNorm.length >= 3 && contemFrase(linhaNorm, nomeNorm));
+}
+
 function extrairPartesDeCamposEstruturados(pub: any): string[] {
   const result: string[] = [];
   const add = (raw: any, polo?: string) => {
     if (!raw) return;
-    const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
+    const s = typeof raw === 'string'
+      ? raw
+      : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || '');
     if (!s) return;
     for (const nome of String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean)) {
       result.push(polo ? `[${polo}] ${nome}` : nome);
@@ -624,6 +647,7 @@ function extrairPartesDeCamposEstruturados(pub: any): string[] {
   }
   add(pub?.poloAtivo || pub?.polo_ativo, 'Polo Ativo');
   add(pub?.poloPassivo || pub?.polo_passivo, 'Polo Passivo');
+  add(pub?.destinatarioNome || pub?.destinatario_nome || pub?.nomeDestinatario, 'Destinatário');
   if (Array.isArray(pub?.partes)) for (const p of pub.partes) add(p);
   const partesJson = typeof pub?.partes_json === 'string'
     ? (() => { try { return JSON.parse(pub.partes_json); } catch { return []; } })()
@@ -697,14 +721,29 @@ function condicaoConcomitanteAtendidaEmPartes(pub: any, condicao?: string | null
   });
 }
 
+function termosDeParte(mon: Monitoramento): string[] {
+  const seen = new Set<string>();
+  return [mon.termo_busca, ...(mon.termos_or || [])]
+    .map((termo) => String(termo || '').trim())
+    .filter((termo) => {
+      if (!termo) return false;
+      const key = normalizar(termo);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 function validarTermo(pub: any, mon: Monitoramento): boolean {
   const tipo = mon.tipo;
   if (tipo === 'parte') {
-    // REGRA: tipo='parte' SÓ casa em metadados estruturados de Parte(s)/polos.
-    // Não lê nem valida o teor/texto geral da publicação.
+    // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
+    // Nunca valida no corpo/teor geral da publicação.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of (mon.termos_or || [])) {
       if (validarParteMetadados(pub, String(t))) return true;
+      if (validarParteSecaoPartes(pub, String(t))) return true;
     }
     return false;
   }
@@ -1033,9 +1072,7 @@ async function processarTermoEmTribunal(
     siglaTribunal: tribunal,
   };
 
-  if (tipo === 'parte') {
-    baseParams.nomeParte = mon.termo_busca;
-  } else if (tipo === 'advogado') {
+  if (tipo === 'advogado') {
     baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
     baseParams.nomeAdvogado = mon.termo_busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     baseParams.uf = mon.uf;
@@ -1051,8 +1088,8 @@ async function processarTermoEmTribunal(
     }
   }
 
-  try {
-    const resp = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
+  const executarBusca = async (params: any) => {
+    const resp = await buscarPjeComunicaPaginado({ ...params, page: 1 }, {
       signal,
       maxPages: null,
       continueUntilEmpty: true,
@@ -1069,6 +1106,20 @@ async function processarTermoEmTribunal(
     });
     addResults(resp.items);
     ultimoErro = resp.lastError ?? null;
+    return resp;
+  };
+
+  try {
+    if (tipo === 'parte') {
+      for (const termoParte of termosDeParte(mon)) {
+        if (signal.aborted) break;
+        const resp = await executarBusca({ ...baseParams, nomeParte: termoParte });
+        console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        await abortableDelay(CONFIG.delay_between_termos_or, signal);
+      }
+    } else {
+      await executarBusca(baseParams);
+    }
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
