@@ -794,7 +794,9 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
     
     setSaving(false);
-    if (result) onCancel();
+    if (result) {
+      toast.success("Salvo com sucesso!");
+    }
   };
 
   useImperativeHandle(ref, () => ({

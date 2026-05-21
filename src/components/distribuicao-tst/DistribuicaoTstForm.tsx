@@ -739,7 +739,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       : form;
     const ok = await onSave(payload, dado?.id);
     setSaving(false);
-    if (ok) onCancel();
+    if (ok) {
+      toast.success("Salvo com sucesso!");
+    }
   };
 
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (
