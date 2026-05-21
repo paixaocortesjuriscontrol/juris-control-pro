@@ -423,19 +423,29 @@ async function processPublicationFromIndex(
         const termoPuro = extrairPalavraChavePura(cand.termo_busca);
         const termosOrPuros = (cand.termos_or || []).map((t: string) => extrairPalavraChavePura(t.trim())).filter(Boolean);
         const todosNomes = [termoPuro, ...termosOrPuros].filter(Boolean);
-        
-        const nomeMatch = todosNomes.some(nome => {
-          const nomeNorm = normalizar(nome);
-          return nomeNorm ? conteudoNorm.includes(nomeNorm) : false;
-        });
-        
-        let oabMatch = false;
-        if (!nomeMatch && cand.oab) {
-          const oabDigits = String(cand.oab).replace(/\D/g, '');
-          if (oabDigits.length >= 3 && conteudo.includes(oabDigits)) oabMatch = true;
+        const candTipoLower = String((cand as any).tipo || '').toLowerCase();
+
+        // REGRA: tipo='parte' SÓ pode ser resgatado via metadados estruturados (PARTE(S)).
+        let candMatch = false;
+        if (candTipoLower === 'parte') {
+          const partes = metadataDescartada.partes_json || [];
+          const partesNorm = partes.map((p: string) => normalizar(String(p)));
+          candMatch = todosNomes.some(nome => {
+            const nomeNorm = normalizar(nome);
+            return !!nomeNorm && partesNorm.some(pn => pn.includes(nomeNorm));
+          });
+        } else {
+          candMatch = todosNomes.some(nome => {
+            const nomeNorm = normalizar(nome);
+            return nomeNorm ? conteudoNorm.includes(nomeNorm) : false;
+          });
+          if (!candMatch && cand.oab) {
+            const oabDigits = String(cand.oab).replace(/\D/g, '');
+            if (oabDigits.length >= 3 && conteudo.includes(oabDigits)) candMatch = true;
+          }
         }
-        
-        if (!nomeMatch && !oabMatch) continue;
+
+        if (!candMatch) continue;
         
         const excluido = shouldExclude(conteudo, cand.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
         if (excluido) continue;

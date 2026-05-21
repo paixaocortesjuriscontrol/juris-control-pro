@@ -1362,16 +1362,21 @@ async function processarTermo(
           const termoPuroCand = extrairPalavraChavePura(cand.termo_busca);
           const termosOrCand = (cand.termos_or || []).map((t: string) => extrairPalavraChavePura(t.trim())).filter(Boolean);
           const todosNomes = [termoPuroCand, ...termosOrCand].filter(Boolean);
-          
+          const candTipoLower = String(cand.tipo || '').toLowerCase();
+
+          // REGRA: tipo='parte' NUNCA pode resgatar via texto do corpo ou OAB.
+          // Só valida via metadados estruturados (PARTE(S) — lado esquerdo).
           const conteudoNormCheck = normalizar(conteudo);
-          const nomeMatch = todosNomes.some(nome => {
-            const nomeNorm = normalizar(nome);
-            return nomeNorm && contemFraseExata(conteudoNormCheck, nomeNorm);
-          });
-          
-          // Verificar OAB do candidato
+          const nomeMatch = candTipoLower === 'parte'
+            ? false
+            : todosNomes.some(nome => {
+                const nomeNorm = normalizar(nome);
+                return nomeNorm && contemFraseExata(conteudoNormCheck, nomeNorm);
+              });
+
+          // Verificar OAB do candidato (não aplicável para tipo='parte')
           let oabMatch = false;
-          if (!nomeMatch && cand.oab) {
+          if (!nomeMatch && cand.oab && candTipoLower !== 'parte') {
             const oabDigits = String(cand.oab).replace(/\D/g, '');
             if (oabDigits.length >= 3 && conteudo.includes(oabDigits)) {
               oabMatch = true;
@@ -1383,7 +1388,7 @@ async function processarTermo(
           // API e não no corpo da publicação (ex: Listas de distribuição do TST).
           let metaMatch = false;
           if (!nomeMatch && !oabMatch) {
-            const candTipo = String(cand.tipo || '').toLowerCase();
+            const candTipo = candTipoLower;
             if (candTipo === 'advogado' || candTipo === 'nome') {
               for (const nome of todosNomes) {
                 if (advogadoPresenteNosMetadados(pub, cand.oab, nome)) {
