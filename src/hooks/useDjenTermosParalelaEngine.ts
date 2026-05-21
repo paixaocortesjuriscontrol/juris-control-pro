@@ -1230,8 +1230,10 @@ async function processarTermoEmTribunal(
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
-    const hash = gerarHash(conteudo, dataDisp, procNum);
-    if (!hashMap.has(hash)) hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
+    const idDjen = extrairIdDjen(pub);
+    const uniqueKey = idDjen ? `id_djen:${idDjen}` : `hash:${gerarHash(conteudo, dataDisp, procNum)}`;
+    const hash = gerarHashPublicacao(conteudo, dataDisp, procNum, idDjen);
+    if (!hashMap.has(uniqueKey)) hashMap.set(uniqueKey, { ...pub, id_djen: idDjen, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
   const pubsUnicas = Array.from(hashMap.values());
   const pubsParaDedup = pubsUnicas;
