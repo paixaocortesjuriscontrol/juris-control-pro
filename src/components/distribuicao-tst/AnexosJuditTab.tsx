@@ -74,6 +74,11 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
   const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [stage, setStage] = useState<string>("");
   const uniqueAttachments = useMemo(() => dedupeJuditAttachments(attachments), [JSON.stringify(attachments)]);
+  // Chave estável e única para seleção. Não dá pra usar step_id porque a Judit
+  // ocasionalmente retorna step_id repetido/nulo entre anexos distintos, o que
+  // fazia o Set de seleção colapsar (ex.: 200 anexos -> 161 selecionáveis).
+  const uidOf = (a: Attachment) =>
+    `${a.attachment_id ?? ""}|${getJuditAttachmentDedupKey(a as any)}`;
   // Mantém todos os "irmãos" (mesmo documento lógico em outra instância/cnj)
   // para fallback quando a Judit retornar ATTACHMENT_NOT_FOUND no escolhido.
   const siblingsByKey = useMemo(() => {
@@ -99,7 +104,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     });
   };
   const toggleAll = (v: boolean) => {
-    setSelected(v ? new Set(uniqueAttachments.map((a) => a.step_id)) : new Set());
+    setSelected(v ? new Set(uniqueAttachments.map(uidOf)) : new Set());
   };
 
   const baixarAnexoParaIndexacao = async (att: Attachment) => {
@@ -169,7 +174,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       toast.warning("Selecione ao menos um anexo.");
       return;
     }
-    const lista = uniqueAttachments.filter((a) => selected.has(a.step_id));
+    const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
     setProcessing(true);
     try {
       // A extração pesada do PDF acontece no navegador; o Edge só grava o arquivo/texto no repositório de IA.
@@ -509,7 +514,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       toast.warning("Selecione ao menos um anexo.");
       return;
     }
-    const lista = uniqueAttachments.filter((a) => selected.has(a.step_id));
+    const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
     setDownloadingSelected(true);
     let ok = 0;
     let fail = 0;
@@ -628,11 +633,11 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
         </div>
       </div>
       {uniqueAttachments.map((att) => (
-        <div key={att.step_id} className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-muted/50">
+        <div key={uidOf(att)} className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-muted/50">
           <div className="flex items-center gap-3 min-w-0">
             <Checkbox
-              checked={selected.has(att.step_id)}
-              onCheckedChange={(v) => toggle(att.step_id, v === true)}
+              checked={selected.has(uidOf(att))}
+              onCheckedChange={(v) => toggle(uidOf(att), v === true)}
               disabled={processing}
             />
             <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
