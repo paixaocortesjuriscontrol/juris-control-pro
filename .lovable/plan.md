@@ -1,35 +1,27 @@
-## Contexto
+## Excluir publicações DJEN de hoje das duas coordenações da Dra. Vanessa Gomes
 
-Regra do projeto (`mem/constraints/djen-keyword-no-slicing.md`): a busca DJEN por palavra-chave deve enviar a **expressão inteira** configurada no termo, apenas normalizada sem acentos. NUNCA fatiar em 2 palavras nem usar só a palavra mais longa de um `+`.
+**Alvo identificado**
+- Coordenação Dra. Vanessa Gomes - TST → `b6a3a750-3109-4962-bea9-7b5116e3a4fd` → **141 publicações** hoje
+- Coordenação Dra. Vanessa Gomes - STF / STJ → `6324396e-487a-4b4b-8bae-aacb3bb161bc` → **13 publicações** hoje
+- **Total: 154 publicações** a excluir (data de hoje, BRT)
 
-## Verificação
+**Ação (via migration de DELETE)**
 
-Auditei os 6 motores que geram `palavraChave` para a API PJE Comunica:
+```sql
+DELETE FROM publicacoes_djen
+WHERE created_at >= (CURRENT_DATE AT TIME ZONE 'America/Sao_Paulo')
+  AND monitoramento_id IN (
+    SELECT id FROM monitoramentos_djen
+    WHERE coordenacao_id IN (
+      'b6a3a750-3109-4962-bea9-7b5116e3a4fd',
+      '6324396e-487a-4b4b-8bae-aacb3bb161bc'
+    )
+  );
+```
 
-| Arquivo | Status |
-|---|---|
-| `useDjenTermosProEngine.ts` (`encurtarParaApi`) | OK — envia termo inteiro |
-| `useDjenTermosFlashEngine.ts` (`encurtarParaApi`) | OK — envia termo inteiro |
-| `useDjenTermosParalelaEngine.ts` (`encurtarParaApi`) | OK — envia termo inteiro |
-| `useDjenTermosEngine.ts` (`gerarVariantes`, linhas 755-767) | **Viola** — gera variante "curta" com `slice(0, 2)` |
-| `useSincronizarDjenBrowser.ts` (`gerarVariantes`, linhas 72-80) | **Viola** — gera "prefixo" com `slice(0, 2)` |
-| `useBuscaDjenDireta.ts` | a verificar — não usa o padrão de variantes curtas |
+**Escopo / fora de escopo**
+- Exclui apenas `publicacoes_djen` (não mexe em `publicacoes_djen_descartadas`, monitoramentos, notificações ou histórico).
+- Critério "hoje" = a partir das 00:00 BRT do dia atual.
+- Não altera o flag `buscar_parte` dos monitoramentos — você vai reexecutar a busca após a limpeza.
 
-Esses dois motores ainda geram uma variante extra de 2 palavras quando o termo tem ≥3 palavras significativas, e essa variante é enviada como `palavraChave` em buscas adicionais. Resultado: termos como "OSMAR MENDES PAIXAO CORTES" disparam buscas extras só com "OSMAR MENDES" (fatiado), trazendo muito ruído e falsos positivos que dependem da validação local para serem filtrados — mas a regra é não fatiar na origem.
-
-## Alterações propostas
-
-### 1. `src/hooks/useDjenTermosEngine.ts`
-Remover o bloco linhas 755-767 que gera a variante "curta" (`palavrasSignificativas.slice(0, 2)`). Manter apenas: termo original + variante sem `&` + variantes sem acentos.
-
-### 2. `src/hooks/useSincronizarDjenBrowser.ts`
-Remover o bloco linhas 72-80 que gera o "prefixo curto" (`palavras.slice(0, 2)`). Manter apenas: termo original + variante sem `&` + variantes sem acentos.
-
-### 3. Atualizar memória
-Acrescentar em `mem/constraints/djen-keyword-no-slicing.md` que a função `gerarVariantes` dos motores Engine/Sincronizar também NÃO pode produzir variante de 2 palavras — apenas variantes de normalização (sem acento, sem `&`).
-
-## Fora de escopo
-
-- Não mexer em `useDjenTermosPro/Flash/Paralela` (já estão corretos).
-- Não alterar a validação local de frase exata (`contemFraseExata`) — segue como está.
-- Não alterar lógica de `tipo='parte'` nem condição concomitante.
+Confirma para eu executar a migration?
