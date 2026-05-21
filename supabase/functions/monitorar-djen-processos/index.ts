@@ -775,6 +775,13 @@ async function processProcessosBatch(
       if (!conteudo || typeof conteudo !== 'string') continue;
 
       const pubObj = pub.comunicacao || pub;
+
+      // id oficial CNJ — chave primária de deduplicação
+      const idDjenRaw = pub?.id ?? pubObj?.id ?? pub?.id_djen ?? pubObj?.id_djen
+        ?? pub?.numeroComunicacao ?? pubObj?.numeroComunicacao ?? null;
+      const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined)
+        ? null
+        : (String(idDjenRaw).trim() || null);
       
       const rawDataDisponibilizacao = 
         pub.dataDisponibilizacao || pubObj.dataDisponibilizacao ||
@@ -831,6 +838,7 @@ async function processProcessosBatch(
         processo_id: processo.id,
         processo_numero: processo.numero,
         hash_conteudo: hashConteudo,
+        id_djen: idDjen,
         data_publicacao: dataPublicacao,
         data_disponibilizacao: dataDisponibilizacao,
         conteudo: conteudo,

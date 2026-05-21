@@ -5760,6 +5760,7 @@ export type Database = {
           fonte: string | null
           hash_conteudo: string
           id: string
+          id_djen: string | null
           importada_de_descartada: boolean | null
           lida: boolean
           meio: string | null
@@ -5790,6 +5791,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo: string
           id?: string
+          id_djen?: string | null
           importada_de_descartada?: boolean | null
           lida?: boolean
           meio?: string | null
@@ -5820,6 +5822,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo?: string
           id?: string
+          id_djen?: string | null
           importada_de_descartada?: boolean | null
           lida?: boolean
           meio?: string | null
@@ -5860,6 +5863,7 @@ export type Database = {
           fonte: string | null
           hash_conteudo: string
           id: string
+          id_djen: string | null
           lida: boolean
           meio: string | null
           monitoramento_id: string
@@ -5883,6 +5887,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo: string
           id?: string
+          id_djen?: string | null
           lida?: boolean
           meio?: string | null
           monitoramento_id: string
@@ -5906,6 +5911,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo?: string
           id?: string
+          id_djen?: string | null
           lida?: boolean
           meio?: string | null
           monitoramento_id?: string
@@ -6008,6 +6014,7 @@ export type Database = {
           fonte: string | null
           hash_conteudo: string
           id: string
+          id_djen: string | null
           lida: boolean
           meio: string | null
           orgao: string | null
@@ -6033,6 +6040,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo: string
           id?: string
+          id_djen?: string | null
           lida?: boolean
           meio?: string | null
           orgao?: string | null
@@ -6058,6 +6066,7 @@ export type Database = {
           fonte?: string | null
           hash_conteudo?: string
           id?: string
+          id_djen?: string | null
           lida?: boolean
           meio?: string | null
           orgao?: string | null

@@ -168,6 +168,8 @@ async function processMonitoramento(
     const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || dataInicio;
     const hashConteudo = generateHash(conteudo + dataPublicacao);
     const globalHash = generateGlobalHash(conteudo, dataPublicacao);
+    const idDjenRaw = (pub as any)?.id ?? (pub as any)?.id_djen ?? (pub as any)?.numeroComunicacao ?? null;
+    const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined) ? null : (String(idDjenRaw).trim() || null);
 
     const { data: existingGlobal } = await supabase
       .from('publicacoes_djen_global_hash')
@@ -197,6 +199,7 @@ async function processMonitoramento(
         monitoramento_id: monitoramento.id,
         coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
         hash_conteudo: hashConteudo,
+        id_djen: idDjen,
         data_publicacao: dataPublicacao,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo,
@@ -218,6 +221,7 @@ async function processMonitoramento(
       .insert({
         monitoramento_id: monitoramento.id,
         hash_conteudo: hashConteudo,
+        id_djen: idDjen,
         data_publicacao: dataPublicacao,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo,
