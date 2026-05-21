@@ -1066,22 +1066,16 @@ async function processarTermoEmTribunal(
       : mon.tipo;
   const resultados: any[] = [];
   const seen = new Set<string>();
-  const seenContent = new Set<string>();
   let rateLimitHits = 0;
   let ultimoErro: string | null = null;
 
   const addResults = (items: any[]) => {
     for (const item of items) {
-      const id = String(item?.id ?? '');
-      const k = id || JSON.stringify(item).slice(0, 400);
+      const idDjen = extrairIdDjen(item);
+      const k = idDjen ? `id_djen:${idDjen}` : JSON.stringify(item).slice(0, 400);
       if (seen.has(k)) continue;
       seen.add(k);
-      const conteudo = String(item?.texto ?? item?.conteudo ?? item?.teor ?? '');
-      const proc = String(item?.numeroProcesso ?? '').replace(/\D/g, '');
-      const ck = `${proc}|${conteudo.slice(0, 300).toLowerCase().trim()}`;
-      if (ck.length > 5 && seenContent.has(ck)) continue;
-      if (ck.length > 5) seenContent.add(ck);
-      resultados.push({ ...item, siglaTribunal: item?.siglaTribunal ?? tribunal });
+      resultados.push({ ...item, id_djen: idDjen, id: idDjen ?? item?.id, siglaTribunal: item?.siglaTribunal ?? tribunal });
     }
   };
 
