@@ -297,6 +297,7 @@ export function buildJuditPatch(
   apply("tipo_recurso", normalizarTipoRecurso(juditData?.tipo_recurso));
   apply("tipo_recurso_reclamante", normalizarTipoRecurso(juditData?.tipo_recurso_reclamante));
   apply("tipo_recurso_banco", normalizarTipoRecurso(juditData?.tipo_recurso_banco));
+  apply("tipo_recurso_terceiro", normalizarTipoRecurso(juditData?.tipo_recurso_terceiro));
 
   const situacao = (juditData?.situacao_processo || "").toString();
   if (situacao) patch.situacao_processo = situacao;
