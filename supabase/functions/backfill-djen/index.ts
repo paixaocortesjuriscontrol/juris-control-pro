@@ -240,6 +240,8 @@ async function processMonitoramentoForDateRange(
     const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || pub.dataJornal || pub.data || dataInicio;
     const hashConteudo = generateHash(conteudo + dataPublicacao);
     const globalHash = generateGlobalHash(conteudo, dataPublicacao);
+    const idDjenRaw = (pub as any)?.id ?? (pub as any)?.id_djen ?? (pub as any)?.numeroComunicacao ?? null;
+    const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined) ? null : (String(idDjenRaw).trim() || null);
 
     // Check global deduplication
     const { data: existingGlobal } = await supabase
@@ -272,6 +274,7 @@ async function processMonitoramentoForDateRange(
       await supabase.from('publicacoes_djen_descartadas').insert({
         monitoramento_id: monitoramento.id,
         hash_conteudo: hashConteudo,
+        id_djen: idDjen,
         data_publicacao: dataPublicacao,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo,
@@ -294,6 +297,7 @@ async function processMonitoramentoForDateRange(
       .insert({
         monitoramento_id: monitoramento.id,
         hash_conteudo: hashConteudo,
+        id_djen: idDjen,
         data_publicacao: dataPublicacao,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudo,
