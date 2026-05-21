@@ -323,7 +323,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // Campos que SEMPRE são da Judit (reutilizados também no Dados Benner).
       // A IA nunca pode tocar nesses, mesmo quando ainda estão vazios — eles
       // dependem da consulta Judit/cadastro existente.
-      const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
+      const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
       const isJuditField = (k: string) => {
         if (ALWAYS_JUDIT.has(k)) return true;
         // Bloqueia a IA de tocar em qualquer campo cujo valor veio (ou virá ao recarregar)
@@ -376,7 +376,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           base.transito_julgado = false;
           base.data_transito_julgado = null;
         }
-        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
+        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
@@ -406,7 +406,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           base.transito_julgado = false;
           base.data_transito_julgado = null;
         }
-        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante"]);
+        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
@@ -612,6 +612,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         apply("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
         apply("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
         apply("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
+        apply("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
