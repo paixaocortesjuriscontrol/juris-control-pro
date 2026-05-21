@@ -575,7 +575,9 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   //  - partes[] / partes_json (lista estruturada — strings ou {nome})
   const matches = (raw: any): boolean => {
     if (!raw) return false;
-    const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
+    const s = typeof raw === 'string'
+      ? raw
+      : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || '');
     if (!s) return false;
     // pode vir vários nomes separados por vírgula
     const candidatos = String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean);
@@ -594,6 +596,7 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   }
   if (matches(pub?.poloAtivo) || matches(pub?.polo_ativo)) return true;
   if (matches(pub?.poloPassivo) || matches(pub?.polo_passivo)) return true;
+  if (matches(pub?.destinatarioNome) || matches(pub?.destinatario_nome) || matches(pub?.nomeDestinatario)) return true;
   if (Array.isArray(pub?.partes)) {
     for (const p of pub.partes) if (matches(p)) return true;
   }
@@ -606,11 +609,31 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
   return false;
 }
 
+function validarParteSecaoPartes(pub: any, nomeParte: string): boolean {
+  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
+  const nomeNorm = normalizar(nomeParte);
+  if (!texto || !nomeNorm) return false;
+
+  const header = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*/i);
+  if (!header || header.index === undefined) return false;
+
+  const afterHeader = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
+  const advogadosIndex = afterHeader.search(/(?:^|\n)\s*Advogados?\s*(?:\(\s*s\s*\))?\s*:?/i);
+  const secaoPartes = advogadosIndex >= 0 ? afterHeader.slice(0, advogadosIndex) : afterHeader;
+
+  return secaoPartes
+    .split(/\r?\n/)
+    .map((linha) => normalizar(linha.trim()))
+    .some((linhaNorm) => linhaNorm.length >= 3 && contemFrase(linhaNorm, nomeNorm));
+}
+
 function extrairPartesDeCamposEstruturados(pub: any): string[] {
   const result: string[] = [];
   const add = (raw: any, polo?: string) => {
     if (!raw) return;
-    const s = typeof raw === 'string' ? raw : (raw?.nome || raw?.nomeParte || raw?.parte || '');
+    const s = typeof raw === 'string'
+      ? raw
+      : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || '');
     if (!s) return;
     for (const nome of String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean)) {
       result.push(polo ? `[${polo}] ${nome}` : nome);
@@ -624,6 +647,7 @@ function extrairPartesDeCamposEstruturados(pub: any): string[] {
   }
   add(pub?.poloAtivo || pub?.polo_ativo, 'Polo Ativo');
   add(pub?.poloPassivo || pub?.polo_passivo, 'Polo Passivo');
+  add(pub?.destinatarioNome || pub?.destinatario_nome || pub?.nomeDestinatario, 'Destinatário');
   if (Array.isArray(pub?.partes)) for (const p of pub.partes) add(p);
   const partesJson = typeof pub?.partes_json === 'string'
     ? (() => { try { return JSON.parse(pub.partes_json); } catch { return []; } })()
