@@ -104,7 +104,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     });
   };
   const toggleAll = (v: boolean) => {
-    setSelected(v ? new Set(uniqueAttachments.map((a) => a.step_id)) : new Set());
+    setSelected(v ? new Set(uniqueAttachments.map(uidOf)) : new Set());
   };
 
   const baixarAnexoParaIndexacao = async (att: Attachment) => {
@@ -174,7 +174,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       toast.warning("Selecione ao menos um anexo.");
       return;
     }
-    const lista = uniqueAttachments.filter((a) => selected.has(a.step_id));
+    const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
     setProcessing(true);
     try {
       // A extração pesada do PDF acontece no navegador; o Edge só grava o arquivo/texto no repositório de IA.
