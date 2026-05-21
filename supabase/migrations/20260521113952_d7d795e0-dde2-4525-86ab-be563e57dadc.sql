@@ -1,0 +1,1 @@
+DELETE FROM publicacoes_djen WHERE id = '12ff69a6-26be-43df-972d-aa6635b50b32';
