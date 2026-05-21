@@ -1429,17 +1429,20 @@ async function processarTermo(
     return true;
   });
 
-  // Gerar hashes e deduplicar internamente
-  const hashMap = new Map<string, typeof pubsValidas[0]>();
+  // Dedup interna pela CHAVE OFICIAL `id_djen` (id da API CNJ).
+  // Fallback para hash quando o item não trouxer id (caso raro).
+  const dedupMap = new Map<string, typeof pubsValidas[0]>();
   for (const pub of pubsValidas) {
     const conteudo = pub.conteudo || pub.teor || pub.texto || '';
     const dataDisp = (pub.dataDisponibilizacao || pub.dataDJe || diaYmd).slice(0, 10);
     const hash = gerarHash(conteudo, dataDisp);
-    if (!hashMap.has(hash)) {
-      hashMap.set(hash, { ...pub, hash_conteudo: hash, data_disponibilizacao: dataDisp });
+    const idDjen = String((pub as any)?.id ?? (pub as any)?.id_djen ?? (pub as any)?.numeroComunicacao ?? '').trim() || null;
+    const dedupKey = idDjen ? `id:${idDjen}` : `h:${hash}`;
+    if (!dedupMap.has(dedupKey)) {
+      dedupMap.set(dedupKey, { ...pub, hash_conteudo: hash, id_djen: idDjen, data_disponibilizacao: dataDisp } as any);
     }
   }
-  const pubsUnicas = Array.from(hashMap.values()).map((pub) => {
+  const pubsUnicas = Array.from(dedupMap.values()).map((pub) => {
     const dataDisp = pub.data_disponibilizacao;
     const dataPub = dataDisp ? calcularDataPublicacaoYmd(dataDisp) : dataDisp;
     return {
@@ -1449,20 +1452,32 @@ async function processarTermo(
   });
   const duplicadasInternas = pubsValidas.length - pubsUnicas.length;
 
-  // Verificar duplicatas no banco (dedup por coordenacao_id + hash_conteudo)
+  // Verificar duplicatas no banco — preferir `id_djen`; fallback para hash.
   const coordenacaoId = (mon as any).coordenacao_id || null;
-  const hashes = pubsUnicas.map(p => p.hash_conteudo);
-  let existentes = new Set<string>();
-  if (hashes.length > 0 && coordenacaoId) {
+  const idsDjen = pubsUnicas.map((p: any) => p.id_djen).filter(Boolean) as string[];
+  const hashesSemId = pubsUnicas.filter((p: any) => !p.id_djen).map((p: any) => p.hash_conteudo);
+  const idsExistentes = new Set<string>();
+  const hashesExistentes = new Set<string>();
+  if (coordenacaoId && idsDjen.length > 0) {
+    const { data } = await supabase
+      .from('publicacoes_djen')
+      .select('id_djen')
+      .eq('coordenacao_id', coordenacaoId)
+      .in('id_djen', idsDjen);
+    (data || []).forEach((d: any) => { if (d.id_djen) idsExistentes.add(String(d.id_djen)); });
+  }
+  if (coordenacaoId && hashesSemId.length > 0) {
     const { data } = await supabase
       .from('publicacoes_djen')
       .select('hash_conteudo')
       .eq('coordenacao_id', coordenacaoId)
-      .in('hash_conteudo', hashes);
-    existentes = new Set((data || []).map(d => d.hash_conteudo));
+      .in('hash_conteudo', hashesSemId);
+    (data || []).forEach((d: any) => hashesExistentes.add(d.hash_conteudo));
   }
 
-  const novas = pubsUnicas.filter(p => !existentes.has(p.hash_conteudo));
+  const novas = pubsUnicas.filter((p: any) =>
+    p.id_djen ? !idsExistentes.has(String(p.id_djen)) : !hashesExistentes.has(p.hash_conteudo)
+  );
   const duplicadasBanco = pubsUnicas.length - novas.length;
 
   if (isAdvogadoComOab) {
@@ -1529,6 +1544,7 @@ async function processarTermo(
       return {
         monitoramento_id: pub._rescuedToMonitoramentoId || mon.id,
         coordenacao_id: coordenacaoId,
+        id_djen: (pub as any).id_djen || null,
         hash_conteudo: pub.hash_conteudo,
         processo_numero: pub.numeroProcesso || pub.processo || null,
         conteudo: conteudoTexto,
@@ -1549,7 +1565,7 @@ async function processarTermo(
 
     await supabase
       .from('publicacoes_djen')
-      .upsert(payload, { onConflict: 'coordenacao_id,hash_conteudo', ignoreDuplicates: true });
+      .upsert(payload as any, { onConflict: 'coordenacao_id,id_djen', ignoreDuplicates: true });
   }
 
   // Persistir descartadas no banco (para auditoria e métricas)
