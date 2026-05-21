@@ -653,6 +653,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               .eq("numero", payload.processo_numero.trim())
               .maybeSingle();
             if (proc) payload.processo_id = proc.id;
+            else {
+              const { data: existingId } = await supabase.rpc(
+                "find_processo_id_by_numero" as any,
+                { _numero: payload.processo_numero.trim() }
+              );
+              if (existingId) payload.processo_id = existingId as string;
+            }
           }
           const result = await onSave(payload, dado?.id);
           if (result) {
