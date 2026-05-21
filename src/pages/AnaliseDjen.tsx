@@ -74,7 +74,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
-import { DjenExecutionBannerPro } from "@/components/djen/DjenExecutionBannerPro";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { jsPDF } from "jspdf";
@@ -3009,7 +3008,6 @@ const AnaliseDjen = () => {
       <div className="space-y-6">
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
-        <DjenExecutionBannerPro />
 
         {/* Stats Cards - Mobile optimized */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">

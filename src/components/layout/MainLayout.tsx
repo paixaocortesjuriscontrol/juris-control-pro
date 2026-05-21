@@ -25,9 +25,6 @@ export function MainLayout({ children, title, subtitle, headerActions, className
     if (localStorage.getItem('djen-termos-scheduler-enabled') === 'true') {
       startDjenTermosScheduler();
     }
-    // Pro scheduler: apenas instancia — ele auto-inicia do DB se ativo
-    // Isso garante que a instância singleton seja criada
-    void import('@/hooks/useDjenTermosProScheduler').then(m => m.getDjenTermosProSchedulerStatus());
     // Processos scheduler: mesmo pattern — auto-inicia do DB se ativo
     void import('@/hooks/useDjenProcessosScheduler').then(m => m.getDjenProcessosSchedulerStatus());
     // Paralela scheduler: mesmo pattern — auto-inicia do DB se ativo
