@@ -161,9 +161,24 @@ function optimizeItem(item: any) {
   const texto = typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined;
   const teor = typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined;
 
+  const idDjen =
+    item?.id ??
+    item?.id_djen ??
+    item?.codigoComunicacao ??
+    item?.codigo_comunicacao ??
+    item?.numeroComunicacao ??
+    item?.numero_comunicacao ??
+    item?.idComunicacao ??
+    item?.id_comunicacao ??
+    item?.comunicacaoId ??
+    item?.comunicacao_id ??
+    item?.codigo ??
+    null;
+
   return {
     ...item,
-    id: item?.id,
+    id: idDjen,
+    id_djen: idDjen != null ? String(idDjen) : item?.id_djen,
 
     // A API pode retornar campos em snake_case (ex: data_disponibilizacao)
     // ou em outras variações; normalizamos aqui para o pipeline do DJEN.
@@ -175,6 +190,8 @@ function optimizeItem(item: any) {
       item?.dataPublicacao ??
       item?.data_publicacao ??
       item?.datapublicacao,
+    codigoComunicacao: item?.codigoComunicacao ?? item?.codigo_comunicacao ?? item?.codigo,
+    numeroComunicacao: item?.numeroComunicacao ?? item?.numero_comunicacao,
     tipoComunicacao: item?.tipoComunicacao,
     siglaTribunal:
       item?.siglaTribunal ??
