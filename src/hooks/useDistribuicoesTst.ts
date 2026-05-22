@@ -100,6 +100,7 @@ export interface DistribuicaoTstFilters {
   fonteImportacao?: string;
   provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
   situacaoEnvioCargaId?: string;
+  equipe?: "todos" | "sim" | "nao";
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
