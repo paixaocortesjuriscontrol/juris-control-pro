@@ -132,30 +132,6 @@ export default function DistribuicaoTst() {
   const [pdfRunning, setPdfRunning] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
 
-  // Dual horizontal scroll refs for the table
-  const topScrollRef = useRef<HTMLDivElement>(null);
-  const bottomScrollRef = useRef<HTMLDivElement>(null);
-  const tableWrapperRef = useRef<HTMLDivElement>(null);
-  const [tableScrollWidth, setTableScrollWidth] = useState(1);
-
-  useEffect(() => {
-    if (tableWrapperRef.current) {
-      setTableScrollWidth(tableWrapperRef.current.scrollWidth);
-    }
-  }, [dados, page, loading, totalCount]);
-
-  const onTopScroll = useCallback(() => {
-    if (bottomScrollRef.current && topScrollRef.current) {
-      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
-    }
-  }, []);
-
-  const onBottomScroll = useCallback(() => {
-    if (topScrollRef.current && bottomScrollRef.current) {
-      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
-    }
-  }, []);
-
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
