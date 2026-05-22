@@ -1286,32 +1286,40 @@ export default function DistribuicaoTst() {
 
         {/* Filters */}
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Search className="w-4 h-4" /> Filtros
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1 flex-1 min-w-[220px] max-w-xs">
+              <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Responsáveis</Label>
+              <ResponsaveisSelector
+                selectedIds={filtroResponsavelIds}
+                onChange={setFiltroResponsavelIds}
+                placeholder="Todos os responsáveis"
+                coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
+                includeUnassignedOption
+              />
             </div>
-            {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="w-3 h-3 mr-1" /> Limpar
-              </Button>
-            )}
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs font-bold text-muted-foreground">Filtrar por Responsáveis</Label>
-            <ResponsaveisSelector
-              selectedIds={filtroResponsavelIds}
-              onChange={setFiltroResponsavelIds}
-              placeholder="Todos os responsáveis"
-              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
-              includeUnassignedOption
-            />
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Data inicial</Label>
+              <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs w-[140px]" title="Data início" />
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Data final</Label>
+              <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs w-[140px]" title="Data fim" />
+            </div>
+            <div className="ml-auto">
+              {hasFilters && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-8 shadow-md hover:shadow-lg transition-all font-semibold"
+                >
+                  <X className="w-4 h-4 mr-1" /> Limpar Filtros
+                </Button>
+              )}
+            </div>
           </div>
           {/* Busca por texto livre */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <Search className="w-3 h-3" />
-              Busca por texto (digite para filtrar)
-            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               <div className="relative">
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -1328,14 +1336,6 @@ export default function DistribuicaoTst() {
               <div className="relative">
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder="Buscar por Nome da Parte (Reclamante/Reclamada)" value={filtroNomeParte} onChange={e => setFiltroNomeParte(e.target.value)} className="h-8 text-xs pl-7" />
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Data inicial</Label>
-                <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs" title="Data início" />
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Data final</Label>
-                <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs" title="Data fim" />
               </div>
             </div>
           </div>
