@@ -219,6 +219,30 @@ export default function DistribuicaoTst() {
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
+  // Dual horizontal scroll refs for the table
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(1);
+
+  useEffect(() => {
+    if (tableWrapperRef.current) {
+      setTableScrollWidth(tableWrapperRef.current.scrollWidth);
+    }
+  }, [dados, page, loading, totalCount]);
+
+  const onTopScroll = useCallback(() => {
+    if (bottomScrollRef.current && topScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  }, []);
+
+  const onBottomScroll = useCallback(() => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  }, []);
+
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts } = useResponsaveisCounts(countsFilters);
