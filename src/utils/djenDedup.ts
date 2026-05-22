@@ -10,7 +10,7 @@ import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
  * gerando conteúdos quase idênticos que diferem apenas no nome do destinatário.
  * Sem essa remoção, a dedup falha e o mesmo processo aparece N vezes.
  */
-const stripDestinatarios = (text: string): string => {
+export const stripDestinatarios = (text: string): string => {
   const idx = text.search(/Destinat[aá]rio\(s\)\s*:/i);
   return idx > 0 ? text.slice(0, idx) : text;
 };
