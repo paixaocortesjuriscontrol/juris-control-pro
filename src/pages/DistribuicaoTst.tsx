@@ -1605,7 +1605,7 @@ export default function DistribuicaoTst() {
           onScroll={onBottomScroll}
           className="border border-border border-t-0 rounded-b-lg overflow-x-auto"
         >
-          <div ref={tableWrapperRef}>
+          <div ref={tableWrapperRef} className="w-max min-w-full">
             <Table>
               <TableHeader>
                 <TableRow>
