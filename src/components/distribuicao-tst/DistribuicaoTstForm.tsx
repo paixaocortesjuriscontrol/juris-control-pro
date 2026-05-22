@@ -830,19 +830,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className="space-y-2">
               <Label>Equipe</Label>
-              <Select value={form.equipe || "__none__"} onValueChange={v => set("equipe", v === "__none__" ? null : v)}>
+              <Select value={String(form.equipe || "").trim() || "__none__"} onValueChange={v => set("equipe", v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="Acordo Extrajudicial">Acordo Extrajudicial</SelectItem>
-                  <SelectItem value="Ações Corporativas">Ações Corporativas</SelectItem>
-                  <SelectItem value="Ações Especiais">Ações Especiais</SelectItem>
-                  <SelectItem value="Adm e Coligadas">Adm e Coligadas</SelectItem>
-                  <SelectItem value="Núcleo Complementação de Aposentadoria">Núcleo Complementação de Aposentadoria</SelectItem>
-                  <SelectItem value="Núcleo de Terceiros">Núcleo de Terceiros</SelectItem>
-                  <SelectItem value="Núcleo Execução">Núcleo Execução</SelectItem>
-                  <SelectItem value="Núcleo Noroeste Sul">Núcleo Noroeste Sul</SelectItem>
-                  <SelectItem value="Núcleo Sudeste">Núcleo Sudeste</SelectItem>
+                  {getEquipeOptions(form.equipe).map((equipe) => (
+                    <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
