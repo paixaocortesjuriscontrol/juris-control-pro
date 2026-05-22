@@ -1302,7 +1302,7 @@ export default function DistribuicaoTst() {
               <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs w-[140px]" title="Data início" />
             </div>
             <div className="space-y-0.5">
-              <Label className="text-[10px] text-muted-foreground">Data final</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground">Data final</Label>
               <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs w-[140px]" title="Data fim" />
             </div>
             <div className="ml-auto">
