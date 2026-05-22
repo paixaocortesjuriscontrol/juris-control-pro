@@ -177,6 +177,7 @@ export default function DistribuicaoTst() {
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
+  const [filtroEquipe, setFiltroEquipe] = useState<string>("todos");
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
@@ -210,10 +211,11 @@ export default function DistribuicaoTst() {
         fonteImportacao: filtroFonteImportacao !== "todas" ? filtroFonteImportacao : undefined,
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
+        equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
