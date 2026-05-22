@@ -4245,7 +4245,7 @@ const AnaliseDjen = () => {
               {tipoOrigem === 'descartada' ? (
                 <>
                   Exibindo <strong>{publicacoesParaListagem.length}</strong> de{' '}
-                  <strong>{allPublicacoes.length}</strong> descartadas
+                  <strong>{descartadasTotalServidor}</strong> descartadas
                   {descartadasTotalPages > 1 && (
                     <> — página <strong>{descartadasPage}</strong> de <strong>{descartadasTotalPages}</strong></>
                   )}
