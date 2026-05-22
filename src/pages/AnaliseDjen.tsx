@@ -464,8 +464,121 @@ const AnaliseDjen = () => {
     staleTime: 30_000,
   });
 
-  // ===== Descartadas stats (independente, respeita filtros, igual aos demais cards) =====
-  const { data: descartadasStats = { total: 0 }, isLoading: isLoadingDescartadasStats } = useQuery({
+  // ===== Descartadas (RPC deduplicada com paginação no servidor) =====
+  // Substitui a antiga query que trazia 10.000 linhas e depois filtrava no
+  // cliente: agora a RPC `get_djen_descartadas_dedup` aplica filtros,
+  // deduplica via window function e devolve apenas a página solicitada,
+  // junto com o total deduplicado (via COUNT() OVER()).
+  const descartadasDedupEnabled = !!user?.id && tipoOrigem === 'descartada';
+  const { data: descartadasDedupData, isLoading: isLoadingDescartadasDedup, isFetching: isFetchingDescartadasDedup } = useQuery({
+    queryKey: [
+      'descartadas-dedup',
+      user?.id,
+      coordenacaoFiltroEfetivo,
+      apenasHoje,
+      dataInicioDebounced,
+      dataFimDebounced,
+      dataDisponibilizacaoDebounced,
+      termoBuscaDebounced,
+      monitoramentoId,
+      readStatus,
+      descartadasPage,
+      PAGE_SIZE_DESCARTADAS,
+    ],
+    queryFn: async () => {
+      if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
+
+      const dataInicioFiltro = apenasHoje
+        ? formatToUTC(startOfDay(new Date()))
+        : dataInicioDebounced
+          ? dateLocalToUTCRange(dataInicioDebounced, false)
+          : null;
+      const dataFimFiltro = apenasHoje
+        ? formatToUTC(endOfDay(new Date()))
+        : dataFimDebounced
+          ? dateLocalToUTCRange(dataFimDebounced, true)
+          : null;
+      const dataDispInicio = dataDisponibilizacaoDebounced
+        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, false)
+        : null;
+      const dataDispFim = dataDisponibilizacaoDebounced
+        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, true)
+        : null;
+
+      const { data, error } = await (supabase as any).rpc('get_djen_descartadas_dedup', {
+        p_coordenacao_id: coordenacaoFiltroEfetivo ?? null,
+        p_inicio: dataInicioFiltro,
+        p_fim: dataFimFiltro,
+        p_data_disponibilizacao_inicio: dataDispInicio,
+        p_data_disponibilizacao_fim: dataDispFim,
+        p_apenas_hoje: apenasHoje,
+        p_search_query: termoBuscaDebounced || null,
+        p_limit: PAGE_SIZE_DESCARTADAS,
+        p_offset: (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS,
+        p_monitoramento_id: monitoramentoId || null,
+        p_read_status: readStatus,
+      });
+
+      if (error) {
+        console.warn('Erro ao buscar descartadas deduplicadas:', error);
+        return { rows: [] as PublicacaoUnificada[], total: 0 };
+      }
+
+      const rawRows: any[] = (data || []) as any[];
+      const total = rawRows.length > 0 ? Number(rawRows[0].total_count || 0) : 0;
+      const rows: PublicacaoUnificada[] = rawRows.map((r: any) => ({
+        id: r.id,
+        tipo_origem: 'descartada',
+        processo_id: null,
+        processo_numero: r.processo_numero,
+        conteudo: r.conteudo,
+        data_publicacao: r.data_publicacao,
+        data_disponibilizacao: r.data_disponibilizacao,
+        fonte: r.fonte,
+        lida: !!r.lida,
+        created_at: r.created_at,
+        monitoramento_id: r.monitoramento_id,
+        monitoramento_termo: r.monitoramento_termo,
+        monitoramento_descricao: r.monitoramento_descricao,
+        monitoramento_tipo: r.monitoramento_tipo,
+        monitoramento_oab: r.monitoramento_oab,
+        monitoramento_uf: r.monitoramento_uf,
+        coordenacao_id: r.coordenacao_id,
+        coordenacao_nome: r.coordenacao_nome,
+        polo_ativo: null,
+        polo_passivo: null,
+        tribunal: r.tribunal,
+        orgao: r.orgao || null,
+        tipo_comunicacao: r.tipo_comunicacao || null,
+        meio: r.meio || null,
+        advogados_json: Array.isArray(r.advogados_json) ? r.advogados_json : null,
+        partes_json: Array.isArray(r.partes_json) ? r.partes_json : null,
+        motivo_descarte: r.motivo_descarte,
+        lido_por: Array.isArray(r.lido_por)
+          ? r.lido_por.map((x: any) => ({ nome: String(x?.nome ?? 'Desconhecido'), lida_em: String(x?.lida_em ?? '') }))
+          : [],
+      }));
+      return { rows, total };
+    },
+    enabled: descartadasDedupEnabled,
+    staleTime: 30_000,
+  });
+
+  const descartadasStats = { total: descartadasDedupData?.total ?? 0 };
+  const isLoadingDescartadasStats = isLoadingDescartadasDedup;
+
+  // Stub: o card "Descartadas" só carrega a RPC quando está selecionado.
+  // Mantém compatibilidade com o cardápio anterior.
+  const _legacyDescartadasStatsQuery = useQuery({
+    queryKey: ['descartadas-stats-header-disabled'],
+    queryFn: async () => ({ total: 0 }),
+    enabled: false,
+  });
+  void _legacyDescartadasStatsQuery; // evita warning sobre import não usado
+  if (false) {
+    // Bloco abaixo intencionalmente isolado para manter histórico (removido).
+  }
+  const _unused_descartadas_old = async () => {
     queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, termoBuscaDebounced, monitoramentoId, tipoOrigem],
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
