@@ -1,4 +1,6 @@
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -134,7 +136,7 @@ export function MarkdownMessage({ content, className, showCopyButton = true }: M
   return (
     <div className={cn("space-y-3", className)}>
       <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:p-3">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{content}</ReactMarkdown>
       </div>
       
       <div className="flex flex-wrap items-center gap-2 pt-2">
