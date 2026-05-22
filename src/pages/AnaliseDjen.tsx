@@ -142,6 +142,10 @@ const AnaliseDjen = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Paginação client-side somente para a aba Descartadas (auditoria),
+  // que pode trazer milhares de linhas com HTML completo e travar o render.
+  const PAGE_SIZE_DESCARTADAS = 500;
+  const [descartadasPage, setDescartadasPage] = useState(1);
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
   // Evita travar a tela renderizando milhares de cards de uma vez.
