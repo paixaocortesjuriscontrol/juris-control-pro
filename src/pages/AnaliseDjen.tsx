@@ -2707,6 +2707,242 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== Dedup: remove publicações com mesmo processo + conteúdo idêntico
+  // (ignorando o bloco final "Destinatário(s): ..."). Mantém a de maior
+  // conteúdo, preservando a ordem original.
+  const dedupPubsPorProcessoSemDestinatarios = <T extends { processo_numero?: string | null; conteudo?: string | null }>(
+    pubs: T[]
+  ): T[] => {
+    const normalize = (s: string) =>
+      stripDestinatarios(s)
+        .replace(/<[^>]*>/g, " ")
+        .replace(/[^\w\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    const bestIdxByKey = new Map<string, number>();
+    const keep = new Array<boolean>(pubs.length).fill(false);
+    pubs.forEach((p, i) => {
+      const digits = String(p.processo_numero || "").replace(/\D/g, "");
+      if (!digits) { keep[i] = true; return; }
+      const key = `${digits}|${normalize(String(p.conteudo || ""))}`;
+      const prev = bestIdxByKey.get(key);
+      if (prev === undefined) {
+        bestIdxByKey.set(key, i);
+      } else {
+        const prevLen = (pubs[prev].conteudo || "").length;
+        const curLen = (p.conteudo || "").length;
+        if (curLen > prevLen) bestIdxByKey.set(key, i);
+      }
+    });
+    bestIdxByKey.forEach((i) => { keep[i] = true; });
+    return pubs.filter((_, i) => keep[i]);
+  };
+
+  // ===== "Resumo PDF sem repetição" — mesmo fluxo do "Resumo sem IA",
+  // mas descartando publicações duplicadas para o mesmo processo
+  // (que diferem só no bloco "Destinatário(s): ..."). =====
+  const handleGerarPdfResumoSemRepeticao = async () => {
+    const rawPubs = getPubsParaGerar();
+    if (rawPubs.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    const allPublicacoes = dedupPubsPorProcessoSemDestinatarios(rawPubs);
+    const removidas = rawPubs.length - allPublicacoes.length;
+    setGerandoResumoSemRepeticao(true);
+    const toastId = toast.loading(
+      removidas > 0
+        ? `Gerando PDF Resumo sem repetição (${removidas} duplicada(s) ignorada(s))...`
+        : "Gerando PDF Resumo sem repetição..."
+    );
+    try {
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const mL = 15;
+      const mR = 15;
+      const maxW = pageW - mL - mR;
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      drawPdfHeader(doc, pageW, `Resumo (sem repetição) de Publicações ${origemLabel}`);
+      let y = 34;
+      const checkPage = (need: number) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+
+      const dataDisp = allPublicacoes[0]?.data_disponibilizacao;
+      if (dataDisp) {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Data de disponibilização: ${formatDateOnlyFull(dataDisp)}`, mL, y);
+        y += 10;
+      }
+
+      allPublicacoes.forEach((pub, idx) => {
+        if (idx > 0) {
+          checkPage(14);
+          y += 4;
+          doc.setDrawColor(30, 58, 95);
+          doc.setLineWidth(0.8);
+          doc.line(mL, y, pageW - mR, y);
+          y += 10;
+        }
+
+        checkPage(60);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`COMUNICAÇÃO PJE #${formatProcessoNumero(pub.processo_numero)}`, mL, y);
+        y += 8;
+
+        doc.setFontSize(10);
+        const labelW = 52;
+        const tableX = mL;
+        const tableW = pageW - mR - mL;
+        const rowH = 6;
+        const addRow = (label: string, value: string) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(label, tableX, y);
+          doc.setFont("helvetica", "normal");
+          const valLines = doc.splitTextToSize(value, tableW - labelW - 4);
+          valLines.forEach((l: string, i: number) => {
+            doc.text(l, tableX + labelW, y + i * 5);
+          });
+          y += Math.max(rowH, valLines.length * 5);
+        };
+
+        addRow("Processo", formatProcessoNumero(pub.processo_numero) || "—");
+        addRow("Órgão", pub.tribunal || pub.orgao || "—");
+        if (pub.orgao && pub.orgao !== pub.tribunal) addRow("Turma", shortenTurma(pub.orgao));
+        addRow("Data de disponibilização", pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—");
+        addRow("Tipo de Comunicação", pub.tipo_comunicacao || "Intimação");
+
+        const { partes, advogados } = getPartesEAdvogadosParaExibicao(
+          pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo
+        );
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Parte(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (partes.length > 0) {
+          checkPage(10 + partes.length * 5);
+          partes.forEach(p => {
+            checkPage(5);
+            const iconColor = getParteIconColor(p);
+            const nome = cleanParteName(p);
+            drawPersonIcon(doc, mL, y, iconColor);
+            const linhas = doc.splitTextToSize(nome, maxW - 8);
+            linhas.forEach((l: string) => { doc.text(l, mL + 6, y); y += 5; });
+          });
+        } else {
+          doc.text("—", mL, y); y += 5;
+        }
+        y += 2;
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Advogado(s):", mL, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        if (advogados.length > 0) {
+          checkPage(10 + advogados.length * 5);
+          advogados.forEach(a => {
+            checkPage(5);
+            drawPersonIcon(doc, mL, y, 'black');
+            const linhas = doc.splitTextToSize(a, maxW - 8);
+            linhas.forEach((l: string) => { doc.text(l, mL + 6, y); y += 5; });
+          });
+        } else {
+          doc.text("—", mL, y); y += 5;
+        }
+        y += 2;
+
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        if (trecho) {
+          y += 4;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          const ehCejusc = /\bCEJUSC\b/i.test(String(pub.conteudo || "").replace(/<[^>]+>/g, " "));
+          if (ehCejusc) {
+            y -= 4;
+          } else {
+            doc.text(
+              ehPauta
+                ? "Pauta de julgamento (íntegra):"
+                : "Resumo (últimos parágrafos + assinatura/intimados):",
+              mL,
+              y,
+            );
+            y += 6;
+          }
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const paragrafos = trecho.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+          paragrafos.forEach((bloco) => {
+            doc.splitTextToSize(bloco, maxW).forEach((line: string) => {
+              checkPage(5);
+              doc.text(line, mL, y);
+              y += 5;
+            });
+            y += 2;
+          });
+          y += 2;
+        }
+
+        const coms = comentariosMap.get(pub.id);
+        if (coms && coms.length > 0) {
+          y += 2;
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 58, 95);
+          checkPage(8);
+          doc.text(`Comentários da coordenação (${coms.length}):`, mL, y);
+          y += 6;
+          doc.setTextColor(0, 0, 0);
+          coms.forEach((c) => {
+            const dataFmt = (() => { try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; } })();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            checkPage(5);
+            doc.text(`${c.autor} (${dataFmt})`, mL, y);
+            y += 5;
+            doc.setFont("helvetica", "normal");
+            const lines = doc.splitTextToSize(c.comentario, maxW - 4);
+            lines.forEach((l: string) => { checkPage(5); doc.text(l, mL + 4, y); y += 5; });
+            y += 2;
+          });
+        }
+
+        y += 6;
+      });
+
+      const total = doc.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
+        doc.text(`Juris Control – Página ${i}/${total}`, pageW / 2, 292, { align: "center" });
+      }
+
+      doc.save(`resumo_sem_repeticao_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success(
+        removidas > 0
+          ? `PDF Resumo sem repetição gerado! (${removidas} duplicada(s) ignorada(s))`
+          : "PDF Resumo sem repetição gerado!",
+        { id: toastId }
+      );
+    } catch (error: any) {
+      console.error("Erro ao gerar PDF Resumo sem repetição:", error);
+      toast.error(`Erro ao gerar PDF Resumo sem repetição: ${error?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoResumoSemRepeticao(false);
+    }
+  };
+
   // ===== "Gerar Doc Resumo sem IA" =====
   const handleGerarDocResumoSemIA = async () => {
     const allPublicacoes = getPubsParaGerar();
