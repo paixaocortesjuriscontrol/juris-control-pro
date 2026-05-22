@@ -1,0 +1,155 @@
+import { useState, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Upload, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
+
+const ROMAN_TO_CODE: Record<string, string> = {
+  I: "CARGA_I",
+  II: "CARGA_II",
+  III: "CARGA_III",
+  IV: "CARGA_IV",
+  V: "CARGA_V",
+  VI: "CARGA_VI",
+  VII: "CARGA_VII",
+};
+
+function norm(val: unknown): string {
+  return String(val ?? "").trim();
+}
+
+function situacaoToCode(raw: string): string | null {
+  const s = raw.toUpperCase().replace(/\s+/g, " ").trim();
+  const m = s.match(/CARGA\s+(I{1,3}|IV|V|VI|VII)\b/);
+  if (!m) return null;
+  return ROMAN_TO_CODE[m[1]] ?? null;
+}
+
+interface Props {
+  onUpdated: () => void;
+}
+
+export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setProgress(0);
+    setStatusText("Lendo planilha…");
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
+
+      // Locate columns
+      let headerIdx = -1;
+      let colProc = -1;
+      let colSit = -1;
+      for (let i = 0; i < Math.min(json.length, 10); i++) {
+        const row = json[i];
+        if (!row) continue;
+        for (let j = 0; j < row.length; j++) {
+          const h = norm(row[j]).toLowerCase();
+          if (h === "processo" && colProc === -1) colProc = j;
+          if (h.includes("situa") && h.includes("envio") && colSit === -1) colSit = j;
+        }
+        if (colProc >= 0 && colSit >= 0) { headerIdx = i; break; }
+      }
+      if (headerIdx === -1) {
+        toast.error("Não encontrei as colunas 'Processo' e 'Situação Envio'");
+        return;
+      }
+
+      // Load situacoes
+      const { data: sits, error: sitErr } = await supabase
+        .from("situacoes_envio_carga" as any)
+        .select("id, codigo");
+      if (sitErr || !sits) {
+        toast.error("Erro ao carregar situações: " + (sitErr?.message ?? ""));
+        return;
+      }
+      const codeToId = new Map<string, string>();
+      for (const s of sits as any[]) codeToId.set(s.codigo, s.id);
+
+      // Build processo → situacao_id map
+      const updates = new Map<string, string>(); // processo -> situacao_id
+      let semCodigo = 0;
+      for (let i = headerIdx + 1; i < json.length; i++) {
+        const r = json[i];
+        if (!r) continue;
+        const processo = norm(r[colProc]);
+        const sitRaw = norm(r[colSit]);
+        if (!processo || !sitRaw) continue;
+        const code = situacaoToCode(sitRaw);
+        if (!code) { semCodigo++; continue; }
+        const id = codeToId.get(code);
+        if (!id) { semCodigo++; continue; }
+        updates.set(processo, id);
+      }
+
+      if (updates.size === 0) {
+        toast.warning("Nenhum registro válido encontrado");
+        return;
+      }
+
+      // Group by situacao_id, then batch update by processo IN (...)
+      const bySit = new Map<string, string[]>();
+      for (const [proc, sid] of updates) {
+        if (!bySit.has(sid)) bySit.set(sid, []);
+        bySit.get(sid)!.push(proc);
+      }
+
+      let updated = 0;
+      const totalGroups = bySit.size;
+      let gIdx = 0;
+      for (const [sid, procs] of bySit) {
+        gIdx++;
+        for (let i = 0; i < procs.length; i += 300) {
+          const batch = procs.slice(i, i + 300);
+          setProgress(Math.round(((gIdx - 1) / totalGroups + (i / procs.length) / totalGroups) * 100));
+          setStatusText(`Atualizando grupo ${gIdx}/${totalGroups} · ${updated} atualizados`);
+          const { error, count } = await supabase
+            .from("dados_benner" as any)
+            .update({ situacao_envio_carga_id: sid } as any, { count: "exact" })
+            .in("processo", batch);
+          if (!error) updated += count ?? batch.length;
+        }
+      }
+
+      setProgress(100);
+      toast.success(`${updated} processos atualizados${semCodigo > 0 ? ` · ${semCodigo} ignorados (situação não mapeada)` : ""}`);
+      onUpdated();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || String(err)));
+    } finally {
+      setImporting(false);
+      setProgress(0);
+      setStatusText("");
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+        {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+        Atualizar Situação Envio
+      </Button>
+      {importing && (
+        <div className="space-y-1 min-w-[200px]">
+          <Progress value={progress} className="h-2" />
+          <p className="text-[10px] text-muted-foreground truncate">{statusText}</p>
+        </div>
+      )}
+    </div>
+  );
+}
