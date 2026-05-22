@@ -177,6 +177,7 @@ export default function DistribuicaoTst() {
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
+  const [filtroEquipe, setFiltroEquipe] = useState<string>("todos");
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
@@ -210,10 +211,11 @@ export default function DistribuicaoTst() {
         fonteImportacao: filtroFonteImportacao !== "todas" ? filtroFonteImportacao : undefined,
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
+        equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga]);
+  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
@@ -344,6 +346,8 @@ export default function DistribuicaoTst() {
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
     if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") return "de2026" as const;
     if (filtroStatus === "pronto_envio" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
+    if (filtroEquipe === "sim") return "comEquipe" as const;
+    if (filtroEquipe === "nao") return "semEquipe" as const;
     return null;
   })();
 
@@ -358,6 +362,7 @@ export default function DistribuicaoTst() {
     setFiltroSituacaoProcesso("todos");
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
+    setFiltroEquipe("todos");
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     // Reseta filtro "sem responsável" ao alternar cards
@@ -398,6 +403,8 @@ export default function DistribuicaoTst() {
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
+      case "comEquipe": setFiltroEquipe("sim"); break;
+      case "semEquipe": setFiltroEquipe("nao"); break;
     }
   };
 

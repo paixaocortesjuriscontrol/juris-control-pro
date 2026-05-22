@@ -23,6 +23,8 @@ export interface DistribuicaoTstStats {
   de2026: number;
   prontoEnvio: number;
   semResponsavel: number;
+  comEquipe: number;
+  semEquipe: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -46,6 +48,8 @@ const ZERO: DistribuicaoTstStats = {
   de2026: 0,
   prontoEnvio: 0,
   semResponsavel: 0,
+  comEquipe: 0,
+  semEquipe: 0,
 };
 
 export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
@@ -91,6 +95,8 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         de2026: Number(row.de_2026) || 0,
         prontoEnvio: Number(row.pronto_envio) || 0,
         semResponsavel: Number(row.sem_responsavel) || 0,
+        comEquipe: Number(row.com_equipe) || 0,
+        semEquipe: Number(row.sem_equipe) || 0,
       });
     } finally {
       setLoading(false);
