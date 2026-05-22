@@ -32,6 +32,7 @@ import {
   Table2,
   ArrowRightLeft,
   KeyRound,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -86,6 +87,7 @@ const menuItemsPublicos: MenuItem[] = [
 
 // Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin: MenuItem[] = [
+  { icon: Sparkles, label: "IA Responde", path: "/ia-responde" },
   { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },

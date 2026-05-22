@@ -186,3 +186,6 @@ verify_jwt = true
 
 [functions.fix-data-planilha]
 verify_jwt = false
+
+[functions.ia-responde]
+verify_jwt = true
