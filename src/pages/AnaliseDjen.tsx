@@ -2951,7 +2951,12 @@ const AnaliseDjen = () => {
     : tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = usarContadoresDaLista
     ? totalDescartadasVisivel
-    : tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
+    : tipoOrigem === 'datajud'
+      ? 0
+      // Quando o card Descartadas está selecionado, usa a query detalhada
+      // (respeita termoBusca/dataDisponibilizacao); caso contrário, usa o
+      // COUNT leve (totalDescartadasHoje) para o card sempre mostrar o total.
+      : tipoOrigem === 'descartada' ? descartadasStats.total : totalDescartadasHoje;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
   const temMaisResultados = totalFiltradoGeral > totalExibidoNaPagina;
