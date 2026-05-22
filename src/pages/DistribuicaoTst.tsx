@@ -1362,7 +1362,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Benner</Label>
+                <Label className="text-[10px] font-semibold text-green-600">Benner</Label>
                 <Select value={filtroBenner} onValueChange={setFiltroBenner}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Benner" />
@@ -1403,7 +1403,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Judit</Label>
+                <Label className="text-[10px] font-semibold text-green-600">Judit</Label>
                 <Select value={filtroJudit} onValueChange={setFiltroJudit}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Judit" />
@@ -1429,7 +1429,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Equipe</Label>
+                <Label className="text-[10px] font-semibold text-blue-600">Equipe</Label>
                 <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Equipe" />
@@ -1456,7 +1456,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Provas Digitais</Label>
+                <Label className="text-[10px] font-semibold text-blue-600">Provas Digitais</Label>
                 <Select value={filtroProvasDigitais} onValueChange={setFiltroProvasDigitais}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Provas Digitais" />
@@ -1484,7 +1484,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Situação Carga Santander</Label>
+                <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
                 <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Situação Carga Santander" />
@@ -1499,7 +1499,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Status envio</Label>
+                <Label className="text-[10px] font-semibold text-blue-600">Status envio</Label>
                 <Select
                   value={filtroProblemaJudit === "sim" ? "problema_judit" : filtroStatus}
                   onValueChange={(v) => {
