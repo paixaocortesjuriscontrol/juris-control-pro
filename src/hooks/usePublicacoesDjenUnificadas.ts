@@ -1143,7 +1143,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
       // Se estamos filtrando apenas descartadas, garantir que só venham descartadas
       if (filtros.tipoOrigem === 'descartada') {
-        deduped = deduped.filter(p => p.tipo_origem === 'descartada');
+        // Auditoria de descartadas: cada linha é um registro próprio (com seu
+        // motivo_descarte), não deve sofrer dedup visual — caso contrário a
+        // paginação de 500 colapsa para poucas dezenas.
+        deduped = resultadosFiltrados.filter(p => p.tipo_origem === 'descartada');
       }
 
       // Se estamos filtrando apenas "parte", garantir que só venham termos do tipo 'parte'
