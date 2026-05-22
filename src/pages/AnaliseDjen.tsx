@@ -3623,7 +3623,7 @@ const AnaliseDjen = () => {
                                       Motivo: {pub.motivo_descarte}
                                     </Badge>
                                   )}
-                                  
+
                                   {!pub.lida && (
                                     <Badge variant="default" className="bg-amber-500 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       Nova
