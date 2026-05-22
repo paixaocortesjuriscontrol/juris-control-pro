@@ -1567,15 +1567,7 @@ export default function DistribuicaoTst() {
           </div>
         )}
 
-        {/* Top horizontal scrollbar synced with table */}
-        <div
-          ref={topScrollRef}
-          onScroll={onTopScroll}
-          className="border border-border border-b-0 rounded-t-lg overflow-x-auto overflow-y-hidden"
-          style={{ height: '16px' }}
-        >
-          <div style={{ width: tableScrollWidth, height: '1px' }} />
-        </div>
+        {/* Table container */}
         {/* Table container with bottom scrollbar */}
         <div
           ref={bottomScrollRef}
