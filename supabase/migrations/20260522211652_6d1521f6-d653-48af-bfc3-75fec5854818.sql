@@ -1,0 +1,2 @@
+UPDATE public.monitoramentos_djen SET condicao_concomitante = 'BRADESCO' WHERE id = '18e5c1db-b509-483d-9a16-18e34e0aca37';
+UPDATE public.monitoramentos_djen SET condicao_concomitante = 'PARQUE PLANALTO EMPREENDIMENTOS IMOBILIARIOS' WHERE id = '561f9e6d-7da0-4330-bf8d-dc1fb5975d32';
