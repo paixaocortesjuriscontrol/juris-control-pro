@@ -100,7 +100,7 @@ const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];
 export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAdminOrCoordinator, role } = useUserRole();
+  const { isAdmin, isAdminOrCoordinator, role } = useUserRole();
   const isAdvogadoTemporario = role === "advogado_temporario";
 
   // Advogado Temporário (perfil de conferência) vê Análise DJEN, Termos DJEN e Comparar DJEN
@@ -109,7 +109,9 @@ export function Sidebar() {
   const visiblePublicos = isAdvogadoTemporario
     ? menuItemsPublicos.filter((item) => allowedForTemporario.has(item.path))
     : menuItemsPublicos.filter(
-        (item) => item.highlight || item.color || isAdminOrCoordinator
+        (item) =>
+          (!item.adminOnly || isAdmin) &&
+          (item.highlight || item.color || isAdminOrCoordinator)
       );
 
   const SidebarContent = () => (
