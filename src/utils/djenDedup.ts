@@ -11,7 +11,11 @@ import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
  * Sem essa remoção, a dedup falha e o mesmo processo aparece N vezes.
  */
 export const stripDestinatarios = (text: string): string => {
-  const idx = text.search(/Destinat[aá]rio\(s\)\s*:/i);
+  // Corta no primeiro rótulo de "lista de pessoas" que costuma variar
+  // entre publicações idênticas (Destinatário/Intimado/Advogado/Parte/
+  // Reclamante/Reclamado/Autor/Réu/Requerente/Requerido).
+  const re = /(Destinat[aá]rio|Intimad[ao]|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(s\)?\s*:/i;
+  const idx = text.search(re);
   return idx > 0 ? text.slice(0, idx) : text;
 };
 
