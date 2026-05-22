@@ -1,0 +1,133 @@
+import { useState, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Users, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
+
+const PREFIX = "Jurídico Trabalhista - ";
+
+function norm(val: unknown): string {
+  return String(val ?? "").trim();
+}
+
+function stripPrefix(equipe: string): string {
+  const n = equipe.normalize("NFC").trim();
+  if (n.toLowerCase().startsWith(PREFIX.toLowerCase())) {
+    return n.slice(PREFIX.length).trim();
+  }
+  return n;
+}
+
+interface Props {
+  onUpdated: () => void;
+}
+
+export function EquipeUpdateImport({ onUpdated }: Props) {
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setProgress(0);
+    setStatusText("Lendo planilha…");
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
+
+      // Lê coluna B (dossiê) e coluna L (equipe) de TODAS as abas.
+      // Cabeçalho geralmente está na linha 1.
+      const equipePorDossie = new Map<string, string>();
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
+        // detecta linha de cabeçalho procurando "Dossi" na col B ou "Equipe" na col L
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(json.length, 10); i++) {
+          const r = json[i] || [];
+          const b = norm(r[1]).toLowerCase();
+          const l = norm(r[11]).toLowerCase();
+          if (b.includes("dossi") || l.includes("equipe")) { headerIdx = i; break; }
+        }
+        for (let i = headerIdx + 1; i < json.length; i++) {
+          const r = json[i];
+          if (!r) continue;
+          const dossie = norm(r[1]);
+          const equipeRaw = norm(r[11]);
+          if (!dossie || !equipeRaw) continue;
+          const equipe = stripPrefix(equipeRaw);
+          if (equipe) equipePorDossie.set(dossie, equipe);
+        }
+      }
+
+      if (equipePorDossie.size === 0) {
+        toast.warning("Nenhum dossiê/equipe encontrado na planilha (Col B / Col L)");
+        setImporting(false);
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+
+      // Agrupa dossiês por equipe para reduzir UPDATEs
+      const dossiesPorEquipe = new Map<string, string[]>();
+      for (const [dossie, equipe] of equipePorDossie) {
+        if (!dossiesPorEquipe.has(equipe)) dossiesPorEquipe.set(equipe, []);
+        dossiesPorEquipe.get(equipe)!.push(dossie);
+      }
+
+      let updated = 0;
+      const grupos = [...dossiesPorEquipe.entries()];
+      for (let g = 0; g < grupos.length; g++) {
+        const [equipe, dossies] = grupos[g];
+        setProgress(Math.round(((g + 1) / grupos.length) * 100));
+        setStatusText(`Equipe "${equipe}" (${g + 1}/${grupos.length}) · ${updated} atualizados`);
+        // updates em lotes de 500 dossiês
+        for (let i = 0; i < dossies.length; i += 500) {
+          const batch = dossies.slice(i, i + 500);
+          const { data, error } = await supabase
+            .from("dados_benner" as any)
+            .update({ equipe } as any)
+            .in("dossie", batch)
+            .select("id");
+          if (!error && data) updated += (data as any[]).length;
+        }
+      }
+
+      setProgress(100);
+      if (updated > 0) {
+        toast.success(`${updated} registros atualizados com a equipe da planilha.`);
+        onUpdated();
+      } else {
+        toast.warning("Nenhum registro atualizado (nenhum dossiê correspondente encontrado)");
+      }
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || String(err)));
+    } finally {
+      setImporting(false);
+      setProgress(0);
+      setStatusText("");
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+        {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Users className="w-4 h-4 mr-2" />}
+        Atualizar Equipe
+      </Button>
+      {importing && (
+        <div className="space-y-1 min-w-[200px]">
+          <Progress value={progress} className="h-2" />
+          <p className="text-[10px] text-muted-foreground truncate">{statusText}</p>
+        </div>
+      )}
+    </div>
+  );
+}
