@@ -1420,7 +1420,7 @@ async function processarTermo(
         if (PROCESSOS_DEBUG.some(d => numDebug.includes(d))) {
           console.log(`[DJEN] 🎯 DESCARTE condicao_concomitante (sem resgate): processo=${pub.numeroProcesso || pub.processo}, termo="${mon.termo_busca}", allTermos=${(allTermos || []).length}`);
         }
-        pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+        pubsDescartadas.push({ ...pub, motivo_descarte: `condicao_concomitante: ${mon.condicao_concomitante || ''}`.trim() });
         return false;
       }
       // Se resgatado, continua no filtro (será salvo com monitoramento_id diferente)
