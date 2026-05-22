@@ -1219,7 +1219,7 @@ async function processarTermoEmTribunal(
       : condicaoConcomitanteAtendida(pub, mon.condicao_concomitante);
     if (!concomitanteOk) {
       descartadas++;
-      pubsDescartadas.push({ ...pub, motivo_descarte: 'condicao_concomitante' });
+      pubsDescartadas.push({ ...pub, motivo_descarte: `condicao_concomitante: ${mon.condicao_concomitante || ''}`.trim() });
       return false;
     }
     return true;

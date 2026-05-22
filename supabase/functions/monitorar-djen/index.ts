@@ -477,7 +477,7 @@ async function processPublicationFromIndex(
         data_disponibilizacao: dataDisponibilizacao,
         processo_numero: processoNumero,
         tribunal: tribunal || null,
-        motivo_descarte: 'condicao_concomitante',
+        motivo_descarte: `condicao_concomitante: ${monitoramento.condicao_concomitante || ''}`.trim(),
         ...metadataDescartada,
       });
 
