@@ -1,67 +1,56 @@
 ## Objetivo
 
-Adotar o `id_djen` (id oficial retornado pela API do CNJ) como **única chave de deduplicação** das publicações capturadas pelo monitoramento DJEN Paralela, removendo a comparação por conteúdo (`dedup_head_norm` + MD5).
+Adicionar um novo botão **"Resumo PDF sem repetição"** na tela Análise DJEN, ao lado do botão atual **"Gerar PDF Resumo"** (sem IA — `handleGerarPdfResumoSemIA`, ~linha 2518; é o único ativo hoje, os botões com IA estão desabilitados).
 
-## ⚠️ Observação importante sobre "Pautas Paralela"
+O novo botão produz exatamente o mesmo PDF do "sem IA" (mesmo layout, regras de pauta, trecho final, assinatura/intimados), **mas descartando publicações duplicadas para o mesmo processo** — aquelas que só diferem no bloco final "Destinatário(s): ...".
 
-A rotina **Pautas Paralela** (`buscar-dejt-pautas`) **não consome a API CNJ** — ela extrai texto de PDFs do DEJT (caderno do TRT). Esses blocos **não têm `id` oficial**, então não é possível aplicar a mesma estratégia ali. Para Pautas, a dedup precisa continuar baseada em hash de conteúdo (que é o que já faz hoje via `sha256(mon.id|tribunal|data|processo|conteudo[:1024])`).
+**Não alterar** a função `handleGerarPdfResumoSemIA` existente. Criar uma função separada e independente.
 
-**Confirmação necessária:** você está de acordo em manter Pautas Paralela com a dedup atual (por hash), ou quer que eu proponha algo separado? Por ora o plano abaixo cobre **apenas DJEN Paralela** (API CNJ).
+## Regra de deduplicação
 
-## Plano — DJEN Paralela (id_djen como chave única)
+Reutilizar a lógica já existente em `src/utils/djenDedup.ts`:
 
-### 1. Schema (migration)
+- `stripDestinatarios(text)` — corta tudo a partir de `Destinatário(s):`.
+- Normalização: minúsculas, sem tags HTML, sem pontuação, espaços colapsados (mesmo padrão do `normalizeText` do utilitário).
 
-Em `publicacoes_djen`, `publicacoes_djen_descartadas` e `publicacoes_djen_processos`:
+Chave de dedup:
 
-- Adicionar `id_djen text` (id retornado pela API CNJ, ex.: `517283542`).
-- Criar índice único parcial: `UNIQUE (coordenacao_id, id_djen) WHERE id_djen IS NOT NULL`.
-- **Backfill imediato** dos registros existentes: `UPDATE ... SET id_djen = djen_diario_publicacoes.raw_json->>'id'` via join por `hash_global`/`hash_conteudo` quando possível (o id está em `djen_diario_publicacoes.raw_json->>'id'`).
-- Manter as colunas antigas (`dedup_head_norm`, `dedup_processo_digits`, `dedup_data_ref`, `dedup_key`) por enquanto, mas **deixar de usá-las** — podemos removê-las numa migration de limpeza depois.
+```
+processo_digits (só dígitos do CNJ) + "|" + normalize(stripDestinatarios(conteudo))
+```
 
-### 2. Triggers
+Em colisão, mantém a publicação com **maior `conteudo.length`** (critério já usado em `dedupePublicacoesDjen`). Publicações sem `processo_numero` são preservadas como estão. Ordem original mantida.
 
-- Substituir `mark_djen_duplicada_on_insert` e `mark_djenp_duplicada_on_insert` por versões simples:
-  - Se já existe registro com mesmo `(coordenacao_id, id_djen)` → marca `status = 'duplicada'`.
-  - Caso contrário → `status = 'encontrada'`.
-  - Sem `id_djen`? Marca `encontrada` (não deveria acontecer após o passo 3).
-- Remover a função `normalize_djen_dedup_content` e as referências em `compute_dedup_fields`.
+## Mudanças de código
 
-### 3. Edge functions de captura DJEN Paralela
+Arquivo principal: `src/pages/AnaliseDjen.tsx`. Também: `src/utils/djenDedup.ts`.
 
-Passar `id_djen: item.raw_json?.id ?? item.id` no insert em todas estas:
+1. **Exportar `stripDestinatarios`** em `src/utils/djenDedup.ts` (hoje é função privada). Sem qualquer outra mudança nesse arquivo — comportamento atual preservado.
 
-- `monitorar-djen` (DJEN Paralela principal)
-- `monitorar-djen-processos`
-- `monitorar-djen-trigger`
-- `buscar-djen`
-- `backfill-djen`, `backfill-djen-jina`, `backfill-djen-job`
-- `indexar-djen-diario` (já guarda em `djen_diario_publicacoes`; nada muda lá, mas confirmar que o id segue em `raw_json`)
+2. **Criar helper local** `dedupPubsPorProcessoSemDestinatarios(pubs)` em `AnaliseDjen.tsx`, próximo a `getPubsParaGerar`, importando `stripDestinatarios`. Aplica a chave acima e devolve o array deduplicado, na ordem original.
 
-### 4. Reclassificação dos registros de hoje
+3. **Criar função nova e independente** `handleGerarPdfResumoSemRepeticao` em `AnaliseDjen.tsx`. Estrutura:
+   - É uma **cópia** do corpo atual de `handleGerarPdfResumoSemIA` (linhas ~2518–2704), com duas únicas diferenças:
+     - logo após `getPubsParaGerar()`, aplicar `dedupPubsPorProcessoSemDestinatarios(allPublicacoes)`;
+     - título do PDF passado para `drawPdfHeader`: `Resumo (sem repetição) de Publicações ${origemLabel}`;
+     - toast: `Gerando PDF Resumo sem repetição...` / `PDF Resumo sem repetição gerado!`.
+   - Usa um **novo estado** `gerandoResumoSemRepeticao` (não compartilha com `gerandoResumoSemIA`) para que os dois botões funcionem de forma independente.
+   - A função `handleGerarPdfResumoSemIA` original permanece **intacta**.
 
-Após backfill, rodar uma vez:
-- Para cada coordenação, identificar grupos com mesmo `id_djen` → manter a primeira como `encontrada`, demais `duplicada`.
-- Inversamente, marcar como `encontrada` registros que estavam `duplicada` mas têm `id_djen` único.
+4. **Adicionar o botão no JSX** logo após o botão atual "Gerar PDF Resumo" sem IA (~linha 3422). Mesma variante/tamanho/ícone do vizinho, `disabled={gerandoResumoSemRepeticao || ...}`, label "Resumo PDF sem repetição" (mobile: "Sem repetição"), `title`: "Mesmo Resumo sem IA, descartando publicações idênticas para o mesmo processo (varia só o intimado)".
 
-### 5. Validação
+## O que NÃO muda
 
-- Rodar DJEN Paralela novamente para Dra. Janaina Completa.
-- Verificar que as 2 publicações do processo `0000023-83.2026.5.10.0016` (ATO ORDINATÓRIO + DESPACHO) aparecem como `encontrada` — elas têm `id_djen` diferentes na origem.
+- `handleGerarPdfResumoSemIA` e seu botão permanecem 100% iguais.
+- Layout/regras de PDF, ordem das publicações, comentários, contadores.
+- Demais botões (IA desabilitados, "Resumo Rápido", "DOC Resumo") intactos.
+- Sem migration, sem edge function, sem alteração de banco.
 
-### 6. Limpeza futura (opcional, em outra migration)
+## Validação
 
-Após 1–2 semanas de operação estável:
-- Drop colunas `dedup_head_norm`, `dedup_processo_digits`, `dedup_data_ref`, `dedup_key` e índices associados.
-- Manter `hash_conteudo` + `publicacoes_djen_global_hash` (servem ao propósito diferente de anti-reprocessamento entre execuções).
+- Build (`bun run build`) deve passar.
+- Verificação manual na preview: período com publicações repetidas por intimado → novo botão gera PDF com um único bloco por processo quando o conteúdo é idêntico fora do "Destinatário(s):". Conferir lado a lado com o "Gerar PDF Resumo" original para garantir que o original ainda lista todas as repetições.
 
-## Considerações técnicas
+## Trade-off considerado
 
-- O `id_djen` da API CNJ é numérico estável (ex.: `517283542`); guardado como `text` para flexibilidade.
-- Já existe no banco (em `djen_diario_publicacoes.raw_json->>'id'`), então o backfill é factível para o histórico recente.
-- Frontend (`src/utils/djenDedup.ts`) pode ser simplificado depois para também usar `id_djen` em vez de slice de conteúdo — mas não é bloqueante.
-- Sem impacto em Pautas Paralela (fonte PDF, sem id oficial).
-
-## Pergunta antes de implementar
-
-Confirma que **Pautas Paralela fica com a dedup atual por hash de conteúdo** (já que não há id oficial em PDF)? Se sim, prossigo com o plano acima focado só em DJEN Paralela.
+Duplicar ~190 linhas de código aumenta a manutenção (uma futura mudança no layout do PDF "sem IA" precisará ser replicada nas duas funções). O usuário priorizou isolamento total sobre DRY, então seguimos por cópia.
