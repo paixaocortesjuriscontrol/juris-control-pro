@@ -312,8 +312,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             { count: 'exact', head: true },
           );
 
-        if (dataInicioFiltro) q = q.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) q = q.lte('created_at', dataFimFiltro);
+        if (dataInicioFiltro) q = filtros.apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) q = filtros.apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
         if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         // Per-user tracking: lida filter handled client-side
@@ -682,8 +682,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             `)
             .order('created_at', { ascending: false });
 
-          if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
-          if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
+          if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
+          if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
           // Per-user tracking: lida filter handled client-side via mergeWithLeituras
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
@@ -1043,8 +1043,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryDescartadas = queryDescartadas.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryDescartadas = queryDescartadas.lte('created_at', dataFimFiltro);
+        if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
         if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
