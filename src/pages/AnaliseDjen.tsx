@@ -4246,10 +4246,65 @@ const AnaliseDjen = () => {
         {!isLoading && allPublicacoes.length > 0 && (
           <div className="flex flex-col items-center justify-center gap-3 mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground text-center">
-              Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
-              {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+              {tipoOrigem === 'descartada' ? (
+                <>
+                  Exibindo <strong>{publicacoesParaListagem.length}</strong> de{' '}
+                  <strong>{allPublicacoes.length}</strong> descartadas
+                  {descartadasTotalPages > 1 && (
+                    <> — página <strong>{descartadasPage}</strong> de <strong>{descartadasTotalPages}</strong></>
+                  )}
+                </>
+              ) : (
+                <>
+                  Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
+                  {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+                </>
+              )}
             </div>
-            {temMaisResultados && !coordenacaoFiltroEfetivo && (
+            {tipoOrigem === 'descartada' && descartadasTotalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage(1)}
+                  disabled={descartadasPage === 1}
+                >
+                  « Primeira
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage((p) => Math.max(1, p - 1))}
+                  disabled={descartadasPage === 1}
+                >
+                  ‹ Anterior
+                </Button>
+                <span className="text-xs text-muted-foreground px-2">
+                  {descartadasPage} / {descartadasTotalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage((p) => Math.min(descartadasTotalPages, p + 1))}
+                  disabled={descartadasPage >= descartadasTotalPages}
+                >
+                  Próxima ›
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage(descartadasTotalPages)}
+                  disabled={descartadasPage >= descartadasTotalPages}
+                >
+                  Última »
+                </Button>
+              </div>
+            )}
+            {tipoOrigem !== 'descartada' && temMaisResultados && !coordenacaoFiltroEfetivo && (
               <Button
                 type="button"
                 variant="outline"
