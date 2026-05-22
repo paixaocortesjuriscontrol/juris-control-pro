@@ -473,6 +473,35 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     }
     setBuscandoJudit(true);
     try {
+      // Salva o que a advogada já digitou ANTES de consultar a Judit, para
+      // que nenhum dado não salvo seja perdido caso a Judit sobrescreva
+      // campos ou se algo falhe no meio do caminho.
+      try {
+        const prePayload: DistribuicaoTstInsert = { ...form, processo_numero: numero };
+        if (!prePayload.processo_id && prePayload.processo_numero?.trim()) {
+          const { data: proc } = await supabase
+            .from("processos")
+            .select("id")
+            .eq("numero", prePayload.processo_numero.trim())
+            .maybeSingle();
+          if (proc) prePayload.processo_id = proc.id;
+          else {
+            const { data: existingId } = await supabase.rpc(
+              "find_processo_id_by_numero" as any,
+              { _numero: prePayload.processo_numero.trim() }
+            );
+            if (existingId) prePayload.processo_id = existingId as string;
+          }
+        }
+        const preResult = await onSave(prePayload, dado?.id);
+        if (preResult && typeof preResult === "string" && !dado?.id) {
+          // Novo registro: propaga o id para o parent para que `dado` seja
+          // recarregado e o auto-save pós-Judit atualize a mesma linha.
+          onJuditSync?.(preResult);
+        }
+      } catch (e) {
+        console.warn("Pré-save antes da Judit falhou:", e);
+      }
       const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: comAnexosArg, force_refresh: forceRefresh };
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: requestPayload,
