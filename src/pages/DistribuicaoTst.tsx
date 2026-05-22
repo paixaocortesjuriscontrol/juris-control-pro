@@ -1403,7 +1403,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Judit</Label>
+                <Label className="text-[10px] font-semibold text-muted-foreground">Judit</Label>
                 <Select value={filtroJudit} onValueChange={setFiltroJudit}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Judit" />
