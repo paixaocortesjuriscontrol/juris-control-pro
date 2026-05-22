@@ -367,6 +367,18 @@ export default function TermosDjen() {
                   <Building2 className="h-4 w-4" />
                   Gerar PDF por Tribunal
                 </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 w-full sm:w-auto"
+                  title="Abrir manual em PDF"
+                >
+                  <a href="/Manual_Termos_DJEN.pdf" target="_blank" rel="noopener noreferrer">
+                    <BookOpen className="h-4 w-4" />
+                    Manual
+                  </a>
+                </Button>
                 <Button onClick={handleNovo} size="sm" className="gap-2 w-full sm:w-auto">
                   <Plus className="h-4 w-4" />
                   Novo Monitoramento
