@@ -346,6 +346,8 @@ export default function DistribuicaoTst() {
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
     if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") return "de2026" as const;
     if (filtroStatus === "pronto_envio" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
+    if (filtroEquipe === "sim") return "comEquipe" as const;
+    if (filtroEquipe === "nao") return "semEquipe" as const;
     return null;
   })();
 
@@ -360,6 +362,7 @@ export default function DistribuicaoTst() {
     setFiltroSituacaoProcesso("todos");
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
+    setFiltroEquipe("todos");
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     // Reseta filtro "sem responsável" ao alternar cards
@@ -400,6 +403,8 @@ export default function DistribuicaoTst() {
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
+      case "comEquipe": setFiltroEquipe("sim"); break;
+      case "semEquipe": setFiltroEquipe("nao"); break;
     }
   };
 
