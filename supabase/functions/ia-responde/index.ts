@@ -288,9 +288,9 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "messages obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY não configurada");
-    const MODEL = body.model || "google/gemini-3-flash-preview";
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY não configurada");
+    const MODEL = "gpt-4o";
 
     // Carrega schema real (com fallback silencioso)
     let schemaPrompt = "";
@@ -308,11 +308,11 @@ serve(async (req) => {
     const trace: any[] = [];
 
     for (let step = 0; step < 12; step++) {
-      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
           model: MODEL,
@@ -324,9 +324,6 @@ serve(async (req) => {
       });
       if (resp.status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em instantes." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      if (resp.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos em Settings → Workspace → Usage." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       if (!resp.ok) {
         const txt = await resp.text();
