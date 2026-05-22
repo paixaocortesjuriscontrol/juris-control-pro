@@ -1353,7 +1353,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Aba origem" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todas">Aba: Todas</SelectItem>
+                    <SelectItem value="todas">Todas</SelectItem>
                     {abas.map(({ aba, count }) => (
                       <SelectItem key={aba} value={aba}>{aba} ({count})</SelectItem>
                     ))}
@@ -1367,9 +1367,9 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Benner" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Benner: Todos</SelectItem>
-                    <SelectItem value="sim">Benner: Sim</SelectItem>
-                    <SelectItem value="nao">Benner: Não</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1380,7 +1380,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Dossiê" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Dossiê: Todos</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="preenchido">Preenchido</SelectItem>
                     <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
                     <SelectItem value="valido">Preenchido Válido</SelectItem>
@@ -1395,9 +1395,9 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Processo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Processo: Todos</SelectItem>
-                    <SelectItem value="valido">Processo Válido (CNJ)</SelectItem>
-                    <SelectItem value="invalido">Processo Inválido</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="valido">Válido (CNJ)</SelectItem>
+                    <SelectItem value="invalido">Inválido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1408,7 +1408,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Judit" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Judit: Todos</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Preenchido com Judit</SelectItem>
                     <SelectItem value="nao">Não preenchido com Judit</SelectItem>
                   </SelectContent>
@@ -1421,7 +1421,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Duplicados" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Duplicados: Todos</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Apenas duplicados</SelectItem>
                     <SelectItem value="nao">Apenas não duplicados</SelectItem>
                   </SelectContent>
@@ -1434,7 +1434,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Origem importação" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todas">Origem: Todas</SelectItem>
+                    <SelectItem value="todas">Todas</SelectItem>
                     <SelectItem value="Resposta Santander">Resposta Santander</SelectItem>
                     <SelectItem value="Certidão TST">Certidão TST (PDF)</SelectItem>
                     <SelectItem value="Planilha Distribuição">Planilha Distribuição</SelectItem>
@@ -1448,7 +1448,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Provas Digitais" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Provas Digitais: Todas</SelectItem>
+                    <SelectItem value="todos">Todas</SelectItem>
                     <SelectItem value="sim">Com Provas Digitais (S)</SelectItem>
                     <SelectItem value="nao">Sem Provas Digitais (N)</SelectItem>
                     <SelectItem value="nao_selecionado">Não selecionado</SelectItem>
@@ -1462,7 +1462,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Situação" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Situação: Todas</SelectItem>
+                    <SelectItem value="todos">Todas</SelectItem>
                     <SelectItem value="ativo">Ativo</SelectItem>
                     <SelectItem value="transito">Trânsito em Julgado</SelectItem>
                     <SelectItem value="outros">Outros</SelectItem>
@@ -1476,7 +1476,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Situação Carga Santander" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todas">Carga Santander: Todas</SelectItem>
+                    <SelectItem value="todas">Todas</SelectItem>
                     <SelectItem value="__sem__">Sem situação definida</SelectItem>
                     {situacoesCarga.map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
@@ -1502,7 +1502,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Status envio" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Status: Todos</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="rascunho">Rascunho</SelectItem>
                     <SelectItem value="pronto_envio">Pronto para Enviar</SelectItem>
                     <SelectItem value="enviado">Enviado</SelectItem>
@@ -1518,7 +1518,7 @@ export default function DistribuicaoTst() {
                     <SelectValue placeholder="Em análise" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Em análise: Todos</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Apenas Em análise</SelectItem>
                     <SelectItem value="nao">Não em análise</SelectItem>
                   </SelectContent>
