@@ -98,6 +98,7 @@ export interface DistribuicaoTstFilters {
   centralizador?: string;
   fonteImportacao?: string;
   provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
+  situacaoEnvioCargaId?: string;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
