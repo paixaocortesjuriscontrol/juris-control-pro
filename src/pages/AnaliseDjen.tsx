@@ -241,7 +241,13 @@ const AnaliseDjen = () => {
     incluirDescartadas: tipoOrigem === 'descartada'
       || ((termoBuscaDebounced || '').replace(/\D/g, '').length >= 11),
     page: 1,
-    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    // Para a aba Descartadas (auditoria), limitar o pageSize. Cada linha traz
+    // conteúdo HTML completo + join com monitoramento/coordenação — buscar
+    // 100k linhas trava a listagem por dezenas de segundos. 2000 cobre as
+    // bases reais (alguns milhares de descartes) sem sacrificar performance.
+    pageSize: tipoOrigem === 'descartada'
+      ? 2000
+      : (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
