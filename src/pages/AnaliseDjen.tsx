@@ -235,8 +235,11 @@ const AnaliseDjen = () => {
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
-    // incluir descartadas APENAS quando o filtro 'descartada' estiver ativo
-    incluirDescartadas: tipoOrigem === 'descartada',
+    // incluir descartadas quando o filtro 'descartada' estiver ativo OU
+    // quando o usuário busca por um número de processo (>=11 dígitos),
+    // para que o item descartado apareça mesmo em outras abas.
+    incluirDescartadas: tipoOrigem === 'descartada'
+      || ((termoBuscaDebounced || '').replace(/\D/g, '').length >= 11),
     page: 1,
     pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
     desabilitarLista: tipoOrigem === 'datajud',
