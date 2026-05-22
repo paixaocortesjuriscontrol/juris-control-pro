@@ -3160,10 +3160,11 @@ const AnaliseDjen = () => {
     return result;
   }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
-  // Paginação client-side da aba "Descartadas": fatiar a lista exibida em
-  // páginas de 500 para evitar travar o render quando há milhares de itens.
+  // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
+  // do banco. Total vem do COUNT exato (descartadasStats.total).
+  const descartadasTotalServidor = tipoOrigem === 'descartada' ? (descartadasStats?.total ?? 0) : 0;
   const descartadasTotalPages = tipoOrigem === 'descartada'
-    ? Math.max(1, Math.ceil(allPublicacoes.length / PAGE_SIZE_DESCARTADAS))
+    ? Math.max(1, Math.ceil(descartadasTotalServidor / PAGE_SIZE_DESCARTADAS))
     : 1;
   useEffect(() => {
     if (descartadasPage > descartadasTotalPages) setDescartadasPage(1);
@@ -3171,11 +3172,9 @@ const AnaliseDjen = () => {
   useEffect(() => {
     setDescartadasPage(1);
   }, [tipoOrigem, coordenacaoFiltroEfetivo, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, tribunalFiltro, monitoramentoId]);
-  const publicacoesParaListagem = useMemo(() => {
-    if (tipoOrigem !== 'descartada') return allPublicacoes;
-    const start = (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS;
-    return allPublicacoes.slice(start, start + PAGE_SIZE_DESCARTADAS);
-  }, [allPublicacoes, tipoOrigem, descartadasPage]);
+  // Na aba descartada a paginação é server-side, então allPublicacoes já
+  // contém apenas a página atual.
+  const publicacoesParaListagem = allPublicacoes;
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
