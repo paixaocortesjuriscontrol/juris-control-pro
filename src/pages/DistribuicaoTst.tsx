@@ -1348,7 +1348,7 @@ export default function DistribuicaoTst() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
               <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Aba origem</Label>
+                <Label className="text-[10px] font-semibold text-muted-foreground">Aba origem</Label>
                 <Select value={filtroAba} onValueChange={setFiltroAba}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Aba origem" />
