@@ -1429,7 +1429,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Equipe</Label>
+                <Label className="text-[10px] font-semibold text-muted-foreground">Equipe</Label>
                 <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Equipe" />
