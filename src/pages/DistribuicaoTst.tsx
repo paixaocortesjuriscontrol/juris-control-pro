@@ -1526,7 +1526,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Em análise</Label>
+                <Label className="text-[10px] font-semibold text-muted-foreground">Em análise</Label>
                 <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Em análise" />
