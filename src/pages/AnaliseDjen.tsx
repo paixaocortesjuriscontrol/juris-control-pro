@@ -3163,8 +3163,25 @@ const AnaliseDjen = () => {
     return result;
   }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
+  // Paginação client-side da aba "Descartadas": fatiar a lista exibida em
+  // páginas de 500 para evitar travar o render quando há milhares de itens.
+  const descartadasTotalPages = tipoOrigem === 'descartada'
+    ? Math.max(1, Math.ceil(allPublicacoes.length / PAGE_SIZE_DESCARTADAS))
+    : 1;
+  useEffect(() => {
+    if (descartadasPage > descartadasTotalPages) setDescartadasPage(1);
+  }, [descartadasTotalPages, descartadasPage]);
+  useEffect(() => {
+    setDescartadasPage(1);
+  }, [tipoOrigem, coordenacaoFiltroEfetivo, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, tribunalFiltro, monitoramentoId]);
+  const publicacoesParaListagem = useMemo(() => {
+    if (tipoOrigem !== 'descartada') return allPublicacoes;
+    const start = (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS;
+    return allPublicacoes.slice(start, start + PAGE_SIZE_DESCARTADAS);
+  }, [allPublicacoes, tipoOrigem, descartadasPage]);
+
   // Agrupar publicações por coordenação
-  const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
+  const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
     const coordId = pub.coordenacao_id || 'sem-coordenacao';
     if (!acc[coordId]) {
       acc[coordId] = {
