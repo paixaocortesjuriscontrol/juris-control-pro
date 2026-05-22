@@ -710,7 +710,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
           if (!buscaPorProcessoList) {
-            if (dataInicioFiltro && dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+            if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
             if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
           }
           // Ocultar descartes por termo não encontrado da listagem
