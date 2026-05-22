@@ -1591,17 +1591,15 @@ export default function DistribuicaoTst() {
                 <TableHead>Relator</TableHead>
                 <TableHead>Turma</TableHead>
                 <TableHead>Responsáveis</TableHead>
-                <TableHead>Tipo de Recurso</TableHead>
-                
                 <TableHead>Benner</TableHead>
                 <TableHead className="w-28">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
@@ -1778,7 +1776,6 @@ export default function DistribuicaoTst() {
                       </div>
                     ) : "—"}
                   </TableCell>
-                  <TableCell className="text-xs align-middle">{d.tipo_recurso || "—"}</TableCell>
                   <TableCell className="align-middle">
                     {d.benner_atualizado ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -1788,22 +1785,11 @@ export default function DistribuicaoTst() {
                   </TableCell>
                   <TableCell onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleOpenBenner(d)}
-                        disabled={loadingBenner === d.id}
-                        title="Abrir Dados Benner"
-                      >
-                        {loadingBenner === d.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Database className="w-4 h-4 text-primary" />
-                        )}
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {isAdminOrCoordinator && (
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
