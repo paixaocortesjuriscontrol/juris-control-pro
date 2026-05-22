@@ -1288,7 +1288,7 @@ export default function DistribuicaoTst() {
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1 flex-1 min-w-[220px] max-w-xs">
-              <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Responsáveis</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground">Responsáveis</Label>
               <ResponsaveisSelector
                 selectedIds={filtroResponsavelIds}
                 onChange={setFiltroResponsavelIds}
