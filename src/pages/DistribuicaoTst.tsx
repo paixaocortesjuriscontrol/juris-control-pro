@@ -1456,7 +1456,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Provas Digitais</Label>
+                <Label className="text-[10px] font-semibold text-muted-foreground">Provas Digitais</Label>
                 <Select value={filtroProvasDigitais} onValueChange={setFiltroProvasDigitais}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Provas Digitais" />
