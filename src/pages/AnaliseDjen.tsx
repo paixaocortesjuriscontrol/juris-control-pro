@@ -3615,8 +3615,12 @@ const AnaliseDjen = () => {
                                   
                                   {/* Motivo do descarte */}
                                   {pub.tipo_origem === 'descartada' && pub.motivo_descarte && (
-                                    <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[200px] truncate">
-                                      {pub.motivo_descarte}
+                                    <Badge
+                                      variant="outline"
+                                      title={pub.motivo_descarte}
+                                      className="bg-red-50 text-red-700 border-red-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 whitespace-normal break-words text-left"
+                                    >
+                                      Motivo: {pub.motivo_descarte}
                                     </Badge>
                                   )}
                                   
