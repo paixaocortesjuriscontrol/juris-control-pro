@@ -1594,14 +1594,14 @@ export default function DistribuicaoTst() {
                 <TableHead>Turma</TableHead>
                 <TableHead>Responsáveis</TableHead>
                 <TableHead>Benner</TableHead>
-                <TableHead className="w-28">Ações</TableHead>
+                {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 11 : 10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 11 : 10} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
@@ -1785,15 +1785,15 @@ export default function DistribuicaoTst() {
                       <XCircle className="w-4 h-4 text-muted-foreground/40" />
                     )}
                   </TableCell>
-                  <TableCell onClick={e => e.stopPropagation()}>
-                    <div className="flex gap-1">
-                      {isAdminOrCoordinator && (
+                  {isAdminOrCoordinator && (
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
                 );
               })}
