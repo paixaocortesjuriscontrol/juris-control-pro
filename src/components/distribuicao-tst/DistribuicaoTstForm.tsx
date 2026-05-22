@@ -814,15 +814,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="Acordo Extrajudicial">Acordo Extrajudicial</SelectItem>
+                  <SelectItem value="Ações Corporativas">Ações Corporativas</SelectItem>
+                  <SelectItem value="Ações Especiais">Ações Especiais</SelectItem>
+                  <SelectItem value="Adm e Coligadas">Adm e Coligadas</SelectItem>
                   <SelectItem value="Núcleo Complementação de Aposentadoria">Núcleo Complementação de Aposentadoria</SelectItem>
+                  <SelectItem value="Núcleo de Terceiros">Núcleo de Terceiros</SelectItem>
                   <SelectItem value="Núcleo Execução">Núcleo Execução</SelectItem>
                   <SelectItem value="Núcleo Noroeste Sul">Núcleo Noroeste Sul</SelectItem>
                   <SelectItem value="Núcleo Sudeste">Núcleo Sudeste</SelectItem>
-                  <SelectItem value="Núcleo de Terceiros">Núcleo de Terceiros</SelectItem>
-                  <SelectItem value="Ações Especiais">Ações Especiais</SelectItem>
-                  <SelectItem value="Ações Corporativas">Ações Corporativas</SelectItem>
-                  <SelectItem value="Acordo Extrajudicial">Acordo Extrajudicial</SelectItem>
-                  <SelectItem value="Adm e Coligadas">Adm e Coligadas</SelectItem>
                 </SelectContent>
               </Select>
             </div>
