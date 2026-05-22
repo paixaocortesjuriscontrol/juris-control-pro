@@ -113,8 +113,10 @@ export default function IaResponde() {
                     )}
                     <div
                       className={cn(
-                        "rounded-lg px-4 py-2 max-w-[80%]",
-                        m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                        "rounded-lg px-4 py-2",
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground max-w-[80%]"
+                          : "bg-muted max-w-[90%] w-full"
                       )}
                     >
                       {m.role === "assistant" ? (
