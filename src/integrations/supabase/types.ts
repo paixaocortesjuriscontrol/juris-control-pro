@@ -1620,6 +1620,7 @@ export type Database = {
           resultado_sem_transcendencia: boolean | null
           risco_descricao: string | null
           risco_midia: string | null
+          situacao_envio_carga_id: string | null
           situacao_processo: string | null
           status: string
           status_distribuicao: string | null
@@ -1724,6 +1725,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
           status?: string
           status_distribuicao?: string | null
@@ -1828,6 +1830,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
           status?: string
           status_distribuicao?: string | null
@@ -1855,6 +1858,13 @@ export type Database = {
             columns: ["coordenacao_id"]
             isOneToOne: false
             referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dados_benner_situacao_envio_carga_id_fkey"
+            columns: ["situacao_envio_carga_id"]
+            isOneToOne: false
+            referencedRelation: "situacoes_envio_carga"
             referencedColumns: ["id"]
           },
         ]
@@ -6367,6 +6377,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      situacoes_envio_carga: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       tarefas: {
         Row: {
