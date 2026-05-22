@@ -325,8 +325,6 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
     else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
     else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
-
-    query = query.range(from, from + PAGE - 1);
     if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") {
       if (filters.situacaoEnvioCargaId === "__sem__") {
         query = query.is("situacao_envio_carga_id", null);
@@ -334,6 +332,8 @@ export async function fetchAllDistribuicaoTstIds(
         query = query.eq("situacao_envio_carga_id", filters.situacaoEnvioCargaId);
       }
     }
+
+    query = query.range(from, from + PAGE - 1);
     const { data, error } = await query;
     if (error) throw error;
     const rows = (data as any[]) || [];
