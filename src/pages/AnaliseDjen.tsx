@@ -2731,7 +2731,11 @@ const AnaliseDjen = () => {
     pubs.forEach((p, i) => {
       const digits = String(p.processo_numero || "").replace(/\D/g, "");
       if (!digits) { keep[i] = true; return; }
-      const key = `${digits}|${normalize(String(p.conteudo || ""))}`;
+      const norm = normalize(String(p.conteudo || ""));
+      // Usa um prefixo do conteúdo normalizado para tolerar pequenas
+      // variações no final (nomes adicionais, ordem de advogados, etc.)
+      const head = norm.slice(0, 400);
+      const key = `${digits}|${head}`;
       const prev = bestIdxByKey.get(key);
       if (prev === undefined) {
         bestIdxByKey.set(key, i);
