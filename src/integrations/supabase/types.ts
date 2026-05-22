@@ -7213,6 +7213,7 @@ export type Database = {
           usuario_id: string
         }[]
       }
+      get_ia_schema: { Args: never; Returns: Json }
       get_leituras_publicacoes: {
         Args: { p_ids: string[] }
         Returns: {
