@@ -1123,6 +1123,7 @@ export default function DistribuicaoTst() {
               <CertidaoPdfImport onImported={handleRefresh} />
               <DistribuicaoTstImport onImported={handleRefresh} />
               <DossieUpdateImport onUpdated={handleRefresh} />
+              <EquipeUpdateImport onUpdated={handleRefresh} />
               {isAdmin && <SituacaoEnvioUpdateImport onUpdated={handleRefresh} />}
               <Link to="/dados-benner">
                 <Button variant="outline">
