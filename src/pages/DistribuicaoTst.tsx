@@ -1433,6 +1433,18 @@ export default function DistribuicaoTst() {
                 <SelectItem value="outros">Outros</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Situação Carga Santander" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Carga Santander: Todas</SelectItem>
+                <SelectItem value="__sem__">Sem situação definida</SelectItem>
+                {situacoesCarga.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
               value={filtroProblemaJudit === "sim" ? "problema_judit" : filtroStatus}
               onValueChange={(v) => {
