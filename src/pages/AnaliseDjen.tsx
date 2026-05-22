@@ -477,6 +477,12 @@ const AnaliseDjen = () => {
           : null;
 
       try {
+        // Quando o termo de busca for um número de processo (>=11 dígitos),
+        // ignorar filtros de data e buscar em toda a base de descartadas via
+        // processo_numero (armazenado apenas com dígitos).
+        const termoDigits = (termoBuscaDebounced || '').replace(/\D/g, '');
+        const buscaPorProcesso = termoDigits.length >= 11;
+
         let q = (supabase.from('publicacoes_djen_descartadas') as any)
           .select(`
             id, processo_numero, conteudo, data_disponibilizacao, created_at,
@@ -484,8 +490,12 @@ const AnaliseDjen = () => {
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) q = apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) q = apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
+        if (!buscaPorProcesso) {
+          if (dataInicioFiltro) q = apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
+          if (dataFimFiltro) q = apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
+        } else {
+          q = q.ilike('processo_numero', `%${termoDigits}%`);
+        }
         if (coordenacaoFiltroEfetivo) q = q.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
         if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
           q = q.in('monitoramento.coordenacao_id', userCoordenacaoIds);

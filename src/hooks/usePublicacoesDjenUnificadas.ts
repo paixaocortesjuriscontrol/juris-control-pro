@@ -305,6 +305,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         : null;
 
       try {
+        // Quando o termo for um número de processo (>=11 dígitos),
+        // ignorar filtros de data e buscar em toda a base.
+        const termoDigitsCount = (filtros.termoBusca || '').replace(/\D/g, '');
+        const buscaPorProcessoCount = termoDigitsCount.length >= 11;
+
         let q = (supabase
           .from('publicacoes_djen_descartadas') as any)
           .select(
@@ -316,10 +321,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // de exclusão (excluido: ...) e condição concomitante interessam.
         q = q.neq('motivo_descarte', 'termo_nao_encontrado');
 
-        if (dataInicioFiltro) q = filtros.apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) q = filtros.apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
-        if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
-        if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
+        if (!buscaPorProcessoCount) {
+          if (dataInicioFiltro) q = filtros.apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
+          if (dataFimFiltro) q = filtros.apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
+          if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+          if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
+        } else {
+          q = q.ilike('processo_numero', `%${termoDigitsCount}%`);
+        }
         // Per-user tracking: lida filter handled client-side
         if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
@@ -661,6 +670,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // incluir descartadas, se solicitado (em paralelo com as demais)
         const descartadasPromise: Promise<any[]> = (async () => {
           if (!filtros.incluirDescartadas) return [];
+          // Quando o termo for um número de processo (>=11 dígitos),
+          // ignorar filtros de data e buscar em toda a base de descartadas.
+          const termoDigitsList = (filtros.termoBusca || '').replace(/\D/g, '');
+          const buscaPorProcessoList = termoDigitsList.length >= 11;
+
           let queryDescartadas = (supabase
             .from('publicacoes_djen_descartadas') as any)
             .select(`
@@ -686,13 +700,19 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             `)
             .order('created_at', { ascending: false });
 
-          if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
-          if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+          if (!buscaPorProcessoList) {
+            if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
+            if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+          } else {
+            queryDescartadas = queryDescartadas.ilike('processo_numero', `%${termoDigitsList}%`);
+          }
           // Per-user tracking: lida filter handled client-side via mergeWithLeituras
           queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
-          if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
-          if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
+          if (!buscaPorProcessoList) {
+            if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+            if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
+          }
           // Ocultar descartes por termo não encontrado da listagem
           queryDescartadas = queryDescartadas.neq('motivo_descarte', 'termo_nao_encontrado');
 
