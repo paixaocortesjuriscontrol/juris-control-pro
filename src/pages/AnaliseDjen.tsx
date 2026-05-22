@@ -239,17 +239,14 @@ const AnaliseDjen = () => {
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
-    // incluir descartadas quando o filtro 'descartada' estiver ativo OU
-    // quando o usuário busca por um número de processo (>=11 dígitos),
-    // para que o item descartado apareça mesmo em outras abas.
-    incluirDescartadas: tipoOrigem === 'descartada'
-      || ((termoBuscaDebounced || '').replace(/\D/g, '').length >= 11),
-    // Aba "Descartadas" usa paginação server-side de 500 em 500.
-    page: tipoOrigem === 'descartada' ? descartadasPage : 1,
-    pageSize: tipoOrigem === 'descartada'
-      ? PAGE_SIZE_DESCARTADAS
-      : (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
-    desabilitarLista: tipoOrigem === 'datajud',
+    // Quando estamos na aba "Descartadas", a listagem vem da RPC dedicada
+    // (paginação + deduplicação no banco). O hook unificado é desligado
+    // nesse caso para evitar consultas duplicadas e pesadas.
+    incluirDescartadas: (termoBuscaDebounced || '').replace(/\D/g, '').length >= 11
+      && tipoOrigem !== 'descartada',
+    page: 1,
+    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
 
