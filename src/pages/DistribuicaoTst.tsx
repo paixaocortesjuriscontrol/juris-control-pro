@@ -1594,7 +1594,7 @@ export default function DistribuicaoTst() {
                 <TableHead>Turma</TableHead>
                 <TableHead>Responsáveis</TableHead>
                 <TableHead>Benner</TableHead>
-                <TableHead className="w-28">Ações</TableHead>
+                {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
