@@ -3672,6 +3672,23 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleGerarPdfResumoSemRepeticao}
+            disabled={allPublicacoes.length === 0 || gerandoResumoSemRepeticao}
+            title="Mesmo Resumo sem IA, descartando publicações idênticas para o mesmo processo (varia só o intimado)"
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
+          >
+            {gerandoResumoSemRepeticao ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoResumoSemRepeticao ? "Gerando..." : "Resumo PDF sem repetição"}</span>
+            <span className="sm:hidden">{gerandoResumoSemRepeticao ? "..." : "Sem repetição"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleGerarDocResumoSemIA}
             disabled={allPublicacoes.length === 0 || gerandoDocResumoSemIA}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
