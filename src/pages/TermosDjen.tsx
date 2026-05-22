@@ -374,7 +374,7 @@ export default function TermosDjen() {
                   className="gap-2 w-full sm:w-auto"
                   title="Abrir manual em PDF"
                 >
-                  <a href="/Manual_Termos_DJEN.pdf" target="_blank" rel="noopener noreferrer">
+                  <a href="/Manual_Termos_DJEN.pdf" download="Manual_Termos_DJEN.pdf">
                     <BookOpen className="h-4 w-4" />
                     Manual
                   </a>
