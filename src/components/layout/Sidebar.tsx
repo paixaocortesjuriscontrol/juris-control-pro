@@ -45,6 +45,7 @@ type MenuItem = {
   path: string;
   highlight?: boolean;
   color?: string;
+  adminOnly?: boolean;
 };
 
 // Itens visíveis para todos os usuários autenticados
@@ -65,6 +66,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },
   { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
   { icon: Upload, label: "Carga Benner", path: "/carga-benner", color: "text-sky-400" },
+  { icon: Sparkles, label: "IA Responde", path: "/ia-responde", color: "text-amber-400", adminOnly: true },
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },
   { icon: ShieldCheck, label: "Classificação TST", path: "/classificacao-tst", color: "text-sky-400" },
@@ -87,7 +89,6 @@ const menuItemsPublicos: MenuItem[] = [
 
 // Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin: MenuItem[] = [
-  { icon: Sparkles, label: "IA Responde", path: "/ia-responde" },
   { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Radar, label: "Monitoração", path: "/monitoracao" },
