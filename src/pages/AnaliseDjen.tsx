@@ -624,12 +624,15 @@ const AnaliseDjen = () => {
   const mergedPublicacoes = useMemo(() => {
     let result: PublicacaoUnificada[];
     if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
+    else if (tipoOrigem === 'descartada') result = descartadasDedupData?.rows ?? [];
     else result = publicacoes;
     return filtrarPorCoordenacaoUsuario(result);
-  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, deveRestringirPorCoordenacao, userCoordenacaoIds]);
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds]);
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
-  const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes || (tipoOrigem === 'datajud' && isLoadingDatajud);
+  const isLoading = loadingUserCoord || coordenacaoId === null
+    || (tipoOrigem === 'descartada' ? isLoadingDescartadasDedup : isLoadingPublicacoes)
+    || (tipoOrigem === 'datajud' && isLoadingDatajud);
 
 
   // Buscar termos (monitoramentos) da coordenação selecionada (ordem alfabética)
