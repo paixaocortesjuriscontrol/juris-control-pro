@@ -1785,15 +1785,15 @@ export default function DistribuicaoTst() {
                       <XCircle className="w-4 h-4 text-muted-foreground/40" />
                     )}
                   </TableCell>
-                  <TableCell onClick={e => e.stopPropagation()}>
-                    <div className="flex gap-1">
-                      {isAdminOrCoordinator && (
+                  {isAdminOrCoordinator && (
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
                 );
               })}
