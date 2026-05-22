@@ -1373,7 +1373,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="nao">Não preenchido com Judit</SelectItem>
                   </SelectContent>
                 </Select>
-              </di
+              </div>
               {/* VERMELHO */}
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
