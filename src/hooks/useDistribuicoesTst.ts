@@ -402,7 +402,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       } else if (filters.emAnalise === "sim") {
         query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
       } else {
-        query = query.order("created_at", { ascending: false });
+        query = query
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("processo", { ascending: true, nullsFirst: false });
       }
 
       if (hasResponsavelFilter) {
