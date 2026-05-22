@@ -7064,6 +7064,7 @@ export type Database = {
           ate_2025: number
           benner_nao: number
           benner_sim: number
+          com_equipe: number
           de_2026: number
           dossies_invalidos: number
           dossies_nao_preenchidos: number
@@ -7077,6 +7078,7 @@ export type Database = {
           processos_unicos: number
           processos_validos: number
           pronto_envio: number
+          sem_equipe: number
           sem_responsavel: number
           sem_turma: number
           total: number
