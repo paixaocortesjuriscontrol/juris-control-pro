@@ -491,6 +491,9 @@ const AnaliseDjen = () => {
           q = q.in('monitoramento.coordenacao_id', userCoordenacaoIds);
         }
         if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
+        // Não considerar descartes por termo não encontrado — apenas
+        // exclusões por critério e descartes por condição concomitante.
+        q = q.neq('motivo_descarte', 'termo_nao_encontrado');
 
         const { data, error } = await q.limit(10000);
         if (error) {
