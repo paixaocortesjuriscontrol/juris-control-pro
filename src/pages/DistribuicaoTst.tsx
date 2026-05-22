@@ -1347,21 +1347,8 @@ export default function DistribuicaoTst() {
               Filtros por categoria (selecione uma opção)
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Aba origem</Label>
-                <Select value={filtroAba} onValueChange={setFiltroAba}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Aba origem" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    {abas.map(({ aba, count }) => (
-                      <SelectItem key={aba} value={aba}>{aba} ({count})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
+              {/* VERDE */}
+              <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-green-600">Benner</Label>
                 <Select value={filtroBenner} onValueChange={setFiltroBenner}>
                   <SelectTrigger className="h-8 text-xs">
@@ -1374,35 +1361,7 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Dossiê</Label>
-                <Select value={filtroDossieStatus} onValueChange={setFiltroDossieStatus}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Dossiê" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="preenchido">Preenchido</SelectItem>
-                    <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
-                    <SelectItem value="valido">Preenchido Válido</SelectItem>
-                    <SelectItem value="invalido">Preenchido Inválido</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Processo</Label>
-                <Select value={filtroProcessoStatus} onValueChange={setFiltroProcessoStatus}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Processo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="valido">Válido (CNJ)</SelectItem>
-                    <SelectItem value="invalido">Inválido</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-green-600">Judit</Label>
                 <Select value={filtroJudit} onValueChange={setFiltroJudit}>
                   <SelectTrigger className="h-8 text-xs">
@@ -1414,76 +1373,9 @@ export default function DistribuicaoTst() {
                     <SelectItem value="nao">Não preenchido com Judit</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Duplicados</Label>
-                <Select value={filtroDuplicado} onValueChange={setFiltroDuplicado}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Duplicados" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="sim">Apenas duplicados</SelectItem>
-                    <SelectItem value="nao">Apenas não duplicados</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-blue-600">Equipe</Label>
-                <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Equipe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="sim">Sim</SelectItem>
-                    <SelectItem value="nao">Não</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Origem importação</Label>
-                <Select value={filtroFonteImportacao} onValueChange={setFiltroFonteImportacao}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Origem importação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    <SelectItem value="Resposta Santander">Resposta Santander</SelectItem>
-                    <SelectItem value="Certidão TST">Certidão TST (PDF)</SelectItem>
-                    <SelectItem value="Planilha Distribuição">Planilha Distribuição</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-blue-600">Provas Digitais</Label>
-                <Select value={filtroProvasDigitais} onValueChange={setFiltroProvasDigitais}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Provas Digitais" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
-                    <SelectItem value="sim">Com Provas Digitais (S)</SelectItem>
-                    <SelectItem value="nao">Sem Provas Digitais (N)</SelectItem>
-                    <SelectItem value="nao_selecionado">Não selecionado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Situação processo</Label>
-                <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Situação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="transito">Trânsito em Julgado</SelectItem>
-                    <SelectItem value="outros">Outros</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-0.5">
+              </di
+              {/* VERMELHO */}
+              <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
                 <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
                   <SelectTrigger className="h-8 text-xs">
@@ -1498,7 +1390,35 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-0.5">
+              {/* AZUL */}
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-blue-600">Equipe</Label>
+                <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Equipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-blue-600">Provas Digitais</Label>
+                <Select value={filtroProvasDigitais} onValueChange={setFiltroProvasDigitais}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Provas Digitais" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas</SelectItem>
+                    <SelectItem value="sim">Com Provas Digitais (S)</SelectItem>
+                    <SelectItem value="nao">Sem Provas Digitais (N)</SelectItem>
+                    <SelectItem value="nao_selecionado">Não selecionado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-blue-600">Status envio</Label>
                 <Select
                   value={filtroProblemaJudit === "sim" ? "problema_judit" : filtroStatus}
@@ -1525,8 +1445,9 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-0.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground">Em análise</Label>
+              {/* LARANJA */}
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-orange-600">Em análise</Label>
                 <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Em análise" />
@@ -1535,6 +1456,90 @@ export default function DistribuicaoTst() {
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Apenas Em análise</SelectItem>
                     <SelectItem value="nao">Não em análise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* SEM COR */}
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Aba origem</Label>
+                <Select value={filtroAba} onValueChange={setFiltroAba}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Aba origem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    {abas.map(({ aba, count }) => (
+                      <SelectItem key={aba} value={aba}>{aba} ({count})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Dossiê</Label>
+                <Select value={filtroDossieStatus} onValueChange={setFiltroDossieStatus}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Dossiê" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="preenchido">Preenchido</SelectItem>
+                    <SelectItem value="nao_preenchido">Não Preenchido</SelectItem>
+                    <SelectItem value="valido">Preenchido Válido</SelectItem>
+                    <SelectItem value="invalido">Preenchido Inválido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Processo</Label>
+                <Select value={filtroProcessoStatus} onValueChange={setFiltroProcessoStatus}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Processo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="valido">Válido (CNJ)</SelectItem>
+                    <SelectItem value="invalido">Inválido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Duplicados</Label>
+                <Select value={filtroDuplicado} onValueChange={setFiltroDuplicado}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Duplicados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="sim">Apenas duplicados</SelectItem>
+                    <SelectItem value="nao">Apenas não duplicados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Origem importação</Label>
+                <Select value={filtroFonteImportacao} onValueChange={setFiltroFonteImportacao}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Origem importação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="Resposta Santander">Resposta Santander</SelectItem>
+                    <SelectItem value="Certidão TST">Certidão TST (PDF)</SelectItem>
+                    <SelectItem value="Planilha Distribuição">Planilha Distribuição</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Situação processo</Label>
+                <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Situação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas</SelectItem>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="transito">Trânsito em Julgado</SelectItem>
+                    <SelectItem value="outros">Outros</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
