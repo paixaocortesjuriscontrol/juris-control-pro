@@ -1470,6 +1470,7 @@ const AnaliseDjen = () => {
   const [gerandoDocResumoRapido, setGerandoDocResumoRapido] = useState(false);
   const [gerandoResumoSemIA, setGerandoResumoSemIA] = useState(false);
   const [gerandoDocResumoSemIA, setGerandoDocResumoSemIA] = useState(false);
+  const [gerandoResumoSemRepeticao, setGerandoResumoSemRepeticao] = useState(false);
 
   // ===== Extrator "Resumo sem IA" =====
   // - Pauta de Julgamento: retorna o conteúdo na íntegra (apenas limpa HTML).
