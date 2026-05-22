@@ -60,7 +60,7 @@ export default function IaResponde() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout title="IA Responde" subtitle="Assistente que consulta o sistema para responder suas perguntas">
       <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto p-4 gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
