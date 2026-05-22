@@ -1470,7 +1470,7 @@ export default function DistribuicaoTst() {
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] text-muted-foreground">Situação processo</Label>
+                <Label className="text-[10px] font-semibold text-muted-foreground">Situação processo</Label>
                 <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Situação" />
