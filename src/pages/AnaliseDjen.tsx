@@ -239,17 +239,14 @@ const AnaliseDjen = () => {
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
-    // incluir descartadas quando o filtro 'descartada' estiver ativo OU
-    // quando o usuário busca por um número de processo (>=11 dígitos),
-    // para que o item descartado apareça mesmo em outras abas.
-    incluirDescartadas: tipoOrigem === 'descartada'
-      || ((termoBuscaDebounced || '').replace(/\D/g, '').length >= 11),
-    // Aba "Descartadas" usa paginação server-side de 500 em 500.
-    page: tipoOrigem === 'descartada' ? descartadasPage : 1,
-    pageSize: tipoOrigem === 'descartada'
-      ? PAGE_SIZE_DESCARTADAS
-      : (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
-    desabilitarLista: tipoOrigem === 'datajud',
+    // Quando estamos na aba "Descartadas", a listagem vem da RPC dedicada
+    // (paginação + deduplicação no banco). O hook unificado é desligado
+    // nesse caso para evitar consultas duplicadas e pesadas.
+    incluirDescartadas: (termoBuscaDebounced || '').replace(/\D/g, '').length >= 11
+      && tipoOrigem !== 'descartada',
+    page: 1,
+    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
 
@@ -467,89 +464,108 @@ const AnaliseDjen = () => {
     staleTime: 30_000,
   });
 
-  // ===== Descartadas stats (independente, respeita filtros, igual aos demais cards) =====
-  const { data: descartadasStats = { total: 0 }, isLoading: isLoadingDescartadasStats } = useQuery({
-    queryKey: ['descartadas-stats-header', user?.id, coordenacaoFiltroEfetivo, JSON.stringify(userCoordenacaoIds), isAdmin, apenasHoje, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, termoBuscaDebounced, monitoramentoId, tipoOrigem],
+  // ===== Descartadas (RPC deduplicada com paginação no servidor) =====
+  // Substitui a antiga query que trazia 10.000 linhas e depois filtrava no
+  // cliente: agora a RPC `get_djen_descartadas_dedup` aplica filtros,
+  // deduplica via window function e devolve apenas a página solicitada,
+  // junto com o total deduplicado (via COUNT() OVER()).
+  const descartadasDedupEnabled = !!user?.id && tipoOrigem === 'descartada';
+  const { data: descartadasDedupData, isLoading: isLoadingDescartadasDedup, isFetching: isFetchingDescartadasDedup } = useQuery({
+    queryKey: [
+      'descartadas-dedup',
+      user?.id,
+      coordenacaoFiltroEfetivo,
+      apenasHoje,
+      dataInicioDebounced,
+      dataFimDebounced,
+      dataDisponibilizacaoDebounced,
+      termoBuscaDebounced,
+      monitoramentoId,
+      readStatus,
+      descartadasPage,
+      PAGE_SIZE_DESCARTADAS,
+    ],
     queryFn: async () => {
-      if (!user?.id) return { total: 0 };
+      if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
-      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
       const dataInicioFiltro = apenasHoje
         ? formatToUTC(startOfDay(new Date()))
-        : dataInicioEfetiva
-          ? dateLocalToUTCRange(dataInicioEfetiva, false)
+        : dataInicioDebounced
+          ? dateLocalToUTCRange(dataInicioDebounced, false)
           : null;
       const dataFimFiltro = apenasHoje
         ? formatToUTC(endOfDay(new Date()))
-        : dataFimEfetiva
-          ? dateLocalToUTCRange(dataFimEfetiva, true)
+        : dataFimDebounced
+          ? dateLocalToUTCRange(dataFimDebounced, true)
           : null;
+      const dataDispInicio = dataDisponibilizacaoDebounced
+        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, false)
+        : null;
+      const dataDispFim = dataDisponibilizacaoDebounced
+        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, true)
+        : null;
 
-      try {
-        // Quando o termo de busca for um número de processo (>=11 dígitos),
-        // ignorar filtros de data e buscar em toda a base de descartadas via
-        // processo_numero (armazenado apenas com dígitos).
-        const termoDigits = (termoBuscaDebounced || '').replace(/\D/g, '');
-        const buscaPorProcesso = termoDigits.length >= 11;
+      const { data, error } = await (supabase as any).rpc('get_djen_descartadas_dedup', {
+        p_coordenacao_id: coordenacaoFiltroEfetivo ?? null,
+        p_inicio: dataInicioFiltro,
+        p_fim: dataFimFiltro,
+        p_data_disponibilizacao_inicio: dataDispInicio,
+        p_data_disponibilizacao_fim: dataDispFim,
+        p_apenas_hoje: apenasHoje,
+        p_search_query: termoBuscaDebounced || null,
+        p_limit: PAGE_SIZE_DESCARTADAS,
+        p_offset: (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS,
+        p_monitoramento_id: monitoramentoId || null,
+        p_read_status: readStatus,
+      });
 
-        let q = (supabase.from('publicacoes_djen_descartadas') as any)
-          .select(`
-            id, processo_numero, conteudo, data_disponibilizacao, created_at,
-            monitoramento:monitoramentos_djen!inner(id, termo_busca, coordenacao_id)
-          `)
-          .order('created_at', { ascending: false });
-
-        if (!buscaPorProcesso) {
-          if (dataInicioFiltro) q = apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
-          if (dataFimFiltro) q = apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
-        } else {
-          q = q.ilike('processo_numero', `%${termoDigits}%`);
-        }
-        if (coordenacaoFiltroEfetivo) q = q.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
-        if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
-          q = q.in('monitoramento.coordenacao_id', userCoordenacaoIds);
-        }
-        if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
-        // Não considerar descartes por termo não encontrado — apenas
-        // exclusões por critério e descartes por condição concomitante.
-        q = q.neq('motivo_descarte', 'termo_nao_encontrado');
-
-        const { data, error } = await q.limit(10000);
-        if (error) {
-          console.warn('Erro ao contar descartadas (stats header):', error);
-          return { total: 0 };
-        }
-
-        let rows = (data || []) as any[];
-        if (dataDisponibilizacaoDebounced) {
-          rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
-        }
-        if (termoBuscaDebounced) {
-          const termoLower = termoBuscaDebounced.toLowerCase();
-          const termoDigits = termoLower.replace(/\D/g, '');
-          rows = rows.filter((pub) => {
-            const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
-            const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
-            const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
-            const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
-              ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
-              : false;
-            return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
-          });
-        }
-
-        return { total: rows.length };
-      } catch (e) {
-        console.warn('Erro ao contar descartadas (stats header):', e);
-        return { total: 0 };
+      if (error) {
+        console.warn('Erro ao buscar descartadas deduplicadas:', error);
+        return { rows: [] as PublicacaoUnificada[], total: 0 };
       }
+
+      const rawRows: any[] = (data || []) as any[];
+      const total = rawRows.length > 0 ? Number(rawRows[0].total_count || 0) : 0;
+      const rows: PublicacaoUnificada[] = rawRows.map((r: any) => ({
+        id: r.id,
+        tipo_origem: 'descartada',
+        processo_id: null,
+        processo_numero: r.processo_numero,
+        conteudo: r.conteudo,
+        data_publicacao: r.data_publicacao,
+        data_disponibilizacao: r.data_disponibilizacao,
+        fonte: r.fonte,
+        lida: !!r.lida,
+        created_at: r.created_at,
+        monitoramento_id: r.monitoramento_id,
+        monitoramento_termo: r.monitoramento_termo,
+        monitoramento_descricao: r.monitoramento_descricao,
+        monitoramento_tipo: r.monitoramento_tipo,
+        monitoramento_oab: r.monitoramento_oab,
+        monitoramento_uf: r.monitoramento_uf,
+        coordenacao_id: r.coordenacao_id,
+        coordenacao_nome: r.coordenacao_nome,
+        polo_ativo: null,
+        polo_passivo: null,
+        tribunal: r.tribunal,
+        orgao: r.orgao || null,
+        tipo_comunicacao: r.tipo_comunicacao || null,
+        meio: r.meio || null,
+        advogados_json: Array.isArray(r.advogados_json) ? r.advogados_json : null,
+        partes_json: Array.isArray(r.partes_json) ? r.partes_json : null,
+        motivo_descarte: r.motivo_descarte,
+        lido_por: Array.isArray(r.lido_por)
+          ? r.lido_por.map((x: any) => ({ nome: String(x?.nome ?? 'Desconhecido'), lida_em: String(x?.lida_em ?? '') }))
+          : [],
+      }));
+      return { rows, total };
     },
-    // Heavy query (até 10k rows). Só roda quando o card de Descartadas está
-    // selecionado — antes disso o badge mostra 0 e a tela responde rápido.
-    enabled: !!user?.id && tipoOrigem === 'descartada',
+    enabled: descartadasDedupEnabled,
     staleTime: 30_000,
   });
+
+  const descartadasStats = { total: descartadasDedupData?.total ?? 0 };
+  const isLoadingDescartadasStats = isLoadingDescartadasDedup;
 
   const isLoadingStatsCards = loadingStats || isLoadingDatajudStats || isLoadingPautasDejtStats || isLoadingDescartadasStats;
   const totalPautasDejt = pautasDejtStats.total;
@@ -608,12 +624,15 @@ const AnaliseDjen = () => {
   const mergedPublicacoes = useMemo(() => {
     let result: PublicacaoUnificada[];
     if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
+    else if (tipoOrigem === 'descartada') result = descartadasDedupData?.rows ?? [];
     else result = publicacoes;
     return filtrarPorCoordenacaoUsuario(result);
-  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, deveRestringirPorCoordenacao, userCoordenacaoIds]);
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds]);
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
-  const isLoading = loadingUserCoord || coordenacaoId === null || isLoadingPublicacoes || (tipoOrigem === 'datajud' && isLoadingDatajud);
+  const isLoading = loadingUserCoord || coordenacaoId === null
+    || (tipoOrigem === 'descartada' ? isLoadingDescartadasDedup : isLoadingPublicacoes)
+    || (tipoOrigem === 'datajud' && isLoadingDatajud);
 
 
   // Buscar termos (monitoramentos) da coordenação selecionada (ordem alfabética)
