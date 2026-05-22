@@ -3613,17 +3613,6 @@ const AnaliseDjen = () => {
                                     </Badge>
                                   )}
                                   
-                                  {/* Motivo do descarte */}
-                                  {pub.tipo_origem === 'descartada' && pub.motivo_descarte && (
-                                    <Badge
-                                      variant="outline"
-                                      title={pub.motivo_descarte}
-                                      className="bg-red-50 text-red-700 border-red-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 whitespace-normal break-words text-left"
-                                    >
-                                      Motivo: {pub.motivo_descarte}
-                                    </Badge>
-                                  )}
-
                                   {!pub.lida && (
                                     <Badge variant="default" className="bg-amber-500 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       Nova
@@ -3648,6 +3637,16 @@ const AnaliseDjen = () => {
                                      </Badge>
                                    )}
                                 </div>
+
+                                {/* Motivo do descarte - destacado em linha própria */}
+                                {pub.tipo_origem === 'descartada' && (
+                                  <div className="mb-2 rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-xs md:text-sm text-red-800">
+                                    <span className="font-semibold">Motivo do descarte: </span>
+                                    <span className="break-words">
+                                      {pub.motivo_descarte || 'Não informado'}
+                                    </span>
+                                  </div>
+                                )}
 
                                 {/* Process number with eye button inline */}
                                 <div 
