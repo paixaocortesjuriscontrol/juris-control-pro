@@ -69,6 +69,7 @@ import PautasTst from "./pages/PautasTst";
 import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
 import ClassificacaoTst from "./pages/ClassificacaoTst";
+import IaResponde from "./pages/IaResponde";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 
 const queryClient = new QueryClient({
@@ -162,6 +163,7 @@ function App() {
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
               <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
+              <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
