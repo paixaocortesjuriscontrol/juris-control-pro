@@ -466,6 +466,13 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
     else if (filters.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
     else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
+    if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") {
+      if (filters.situacaoEnvioCargaId === "__sem__") {
+        query = query.is("situacao_envio_carga_id", null);
+      } else {
+        query = query.eq("situacao_envio_carga_id", filters.situacaoEnvioCargaId);
+      }
+    }
       return query;
     };
 
