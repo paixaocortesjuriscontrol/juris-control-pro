@@ -293,7 +293,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -309,6 +309,7 @@ export default function DistribuicaoTst() {
     setFiltroDuplicado("todos");
     setFiltroFonteImportacao("todas");
     setFiltroProvasDigitais("todos");
+    setFiltroSituacaoCarga("todas");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
