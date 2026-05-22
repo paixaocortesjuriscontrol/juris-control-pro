@@ -1599,9 +1599,9 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 11 : 10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 11 : 10} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
