@@ -324,6 +324,7 @@ export default function DistribuicaoTst() {
     setFiltroResponsavelIds([]);
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
+    setFiltroEquipe("todos");
     setSelectedIds(new Set());
   };
 
@@ -1424,6 +1425,19 @@ export default function DistribuicaoTst() {
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Apenas duplicados</SelectItem>
                     <SelectItem value="nao">Apenas não duplicados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">Equipe</Label>
+                <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Equipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
