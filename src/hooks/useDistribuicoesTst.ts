@@ -64,6 +64,7 @@ export interface DistribuicaoTst {
   em_analise_por?: string | null;
   em_analise_em?: string | null;
   subida_em_massa?: boolean;
+  situacao_envio_carga_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -157,6 +158,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     created_at: b.created_at,
     updated_at: b.updated_at,
     subida_em_massa: !!b.subida_em_massa,
+    situacao_envio_carga_id: b.situacao_envio_carga_id ?? null,
   } as any;
 }
 
@@ -204,6 +206,7 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   // direta da interface DistribuicaoTst, mas existem em `dados_benner`.
   const anyD = d as any;
   if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
+  if (anyD.situacao_envio_carga_id !== undefined) payload.situacao_envio_carga_id = anyD.situacao_envio_carga_id;
   if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
   if (anyD.processo_baixado !== undefined) payload.processo_baixado = anyD.processo_baixado;
   if (anyD.data_transito_julgado !== undefined) payload.data_transito_julgado = anyD.data_transito_julgado;
