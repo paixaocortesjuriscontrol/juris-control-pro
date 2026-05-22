@@ -402,7 +402,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       } else if (filters.emAnalise === "sim") {
         query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
       } else {
-        query = query.order("created_at", { ascending: false });
+        query = query
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("processo", { ascending: true, nullsFirst: false });
       }
 
       if (hasResponsavelFilter) {
@@ -505,13 +507,27 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         for (const r of (res.data as any[]) || []) merged.push(r);
       }
       // Reordena conforme a ordem global escolhida
-      const sortKey = filters.duplicado === "sim" ? "processo" : filters.emAnalise === "sim" ? "em_analise_em" : "created_at";
-      const ascending = sortKey !== "created_at";
       merged.sort((a, b) => {
-        const av = a[sortKey] ?? "";
-        const bv = b[sortKey] ?? "";
-        if (av === bv) return 0;
-        return ascending ? (av > bv ? 1 : -1) : (av > bv ? -1 : 1);
+        if (filters.duplicado === "sim") {
+          const av = a.processo ?? "";
+          const bv = b.processo ?? "";
+          if (av === bv) return 0;
+          return av > bv ? 1 : -1;
+        }
+        if (filters.emAnalise === "sim") {
+          const av = a.em_analise_em ?? "";
+          const bv = b.em_analise_em ?? "";
+          if (av === bv) return 0;
+          return av > bv ? 1 : -1;
+        }
+        // Padrão: salvos primeiro (updated_at desc), depois por número do processo (asc)
+        const av = a.updated_at ?? "";
+        const bv = b.updated_at ?? "";
+        if (av !== bv) return av > bv ? -1 : 1;
+        const ap = a.processo ?? "";
+        const bp = b.processo ?? "";
+        if (ap === bp) return 0;
+        return ap > bp ? 1 : -1;
       });
       count = merged.length;
       const from = (page - 1) * PAGE_SIZE;
