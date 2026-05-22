@@ -142,6 +142,10 @@ const AnaliseDjen = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Paginação client-side somente para a aba Descartadas (auditoria),
+  // que pode trazer milhares de linhas com HTML completo e travar o render.
+  const PAGE_SIZE_DESCARTADAS = 500;
+  const [descartadasPage, setDescartadasPage] = useState(1);
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
   // Evita travar a tela renderizando milhares de cards de uma vez.
@@ -3159,8 +3163,25 @@ const AnaliseDjen = () => {
     return result;
   }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
+  // Paginação client-side da aba "Descartadas": fatiar a lista exibida em
+  // páginas de 500 para evitar travar o render quando há milhares de itens.
+  const descartadasTotalPages = tipoOrigem === 'descartada'
+    ? Math.max(1, Math.ceil(allPublicacoes.length / PAGE_SIZE_DESCARTADAS))
+    : 1;
+  useEffect(() => {
+    if (descartadasPage > descartadasTotalPages) setDescartadasPage(1);
+  }, [descartadasTotalPages, descartadasPage]);
+  useEffect(() => {
+    setDescartadasPage(1);
+  }, [tipoOrigem, coordenacaoFiltroEfetivo, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, tribunalFiltro, monitoramentoId]);
+  const publicacoesParaListagem = useMemo(() => {
+    if (tipoOrigem !== 'descartada') return allPublicacoes;
+    const start = (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS;
+    return allPublicacoes.slice(start, start + PAGE_SIZE_DESCARTADAS);
+  }, [allPublicacoes, tipoOrigem, descartadasPage]);
+
   // Agrupar publicações por coordenação
-  const publicacoesPorCoordenacao = allPublicacoes.reduce((acc, pub) => {
+  const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
     const coordId = pub.coordenacao_id || 'sem-coordenacao';
     if (!acc[coordId]) {
       acc[coordId] = {
@@ -4225,10 +4246,65 @@ const AnaliseDjen = () => {
         {!isLoading && allPublicacoes.length > 0 && (
           <div className="flex flex-col items-center justify-center gap-3 mt-4 px-2">
             <div className="text-xs md:text-sm text-muted-foreground text-center">
-              Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
-              {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+              {tipoOrigem === 'descartada' ? (
+                <>
+                  Exibindo <strong>{publicacoesParaListagem.length}</strong> de{' '}
+                  <strong>{allPublicacoes.length}</strong> descartadas
+                  {descartadasTotalPages > 1 && (
+                    <> — página <strong>{descartadasPage}</strong> de <strong>{descartadasTotalPages}</strong></>
+                  )}
+                </>
+              ) : (
+                <>
+                  Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
+                  {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+                </>
+              )}
             </div>
-            {temMaisResultados && !coordenacaoFiltroEfetivo && (
+            {tipoOrigem === 'descartada' && descartadasTotalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage(1)}
+                  disabled={descartadasPage === 1}
+                >
+                  « Primeira
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage((p) => Math.max(1, p - 1))}
+                  disabled={descartadasPage === 1}
+                >
+                  ‹ Anterior
+                </Button>
+                <span className="text-xs text-muted-foreground px-2">
+                  {descartadasPage} / {descartadasTotalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage((p) => Math.min(descartadasTotalPages, p + 1))}
+                  disabled={descartadasPage >= descartadasTotalPages}
+                >
+                  Próxima ›
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDescartadasPage(descartadasTotalPages)}
+                  disabled={descartadasPage >= descartadasTotalPages}
+                >
+                  Última »
+                </Button>
+              </div>
+            )}
+            {tipoOrigem !== 'descartada' && temMaisResultados && !coordenacaoFiltroEfetivo && (
               <Button
                 type="button"
                 variant="outline"
