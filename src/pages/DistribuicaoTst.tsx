@@ -18,6 +18,7 @@ import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/Distribuica
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
 import { CertidaoPdfImport } from "@/components/distribuicao-tst/CertidaoPdfImport";
 import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
+import { EquipeUpdateImport } from "@/components/distribuicao-tst/EquipeUpdateImport";
 import { SituacaoEnvioUpdateImport } from "@/components/distribuicao-tst/SituacaoEnvioUpdateImport";
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
 import { RespostaSantanderImport } from "@/components/distribuicao-tst/RespostaSantanderImport";
