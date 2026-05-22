@@ -312,6 +312,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             { count: 'exact', head: true },
           );
 
+        // Não contar descartes por "termo não encontrado" — apenas critérios
+        // de exclusão (excluido: ...) e condição concomitante interessam.
+        q = q.neq('motivo_descarte', 'termo_nao_encontrado');
+
         if (dataInicioFiltro) q = filtros.apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) q = filtros.apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
         if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
@@ -689,6 +693,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
           if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
+          // Ocultar descartes por termo não encontrado da listagem
+          queryDescartadas = queryDescartadas.neq('motivo_descarte', 'termo_nao_encontrado');
 
           const { data: descartadasData } = await queryDescartadas.limit(200).abortSignal(signal);
           return (descartadasData || []).map((pub: any) => ({
@@ -1049,6 +1055,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
         if (filtros.monitoramentoId) queryDescartadas = queryDescartadas.eq('monitoramento_id', filtros.monitoramentoId);
+        // Ocultar descartes por termo não encontrado
+        queryDescartadas = queryDescartadas.neq('motivo_descarte', 'termo_nao_encontrado');
 
         const { data: descartadasData } = await queryDescartadas
           .range(offsetGlobal, offsetGlobal + pageSize - 1)
