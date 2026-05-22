@@ -264,6 +264,26 @@ const emptyForm: DistribuicaoTstInsert = {
   observacao_advogado: null,
 };
 
+const EQUIPE_OPTIONS = [
+  "Acordo Extrajudicial",
+  "Ações Corporativas",
+  "Ações Especiais",
+  "Adm e Coligadas",
+  "Núcleo Complementação de Aposentadoria",
+  "Núcleo de Terceiros",
+  "Núcleo Execução",
+  "Núcleo Noroeste Sul",
+  "Núcleo Sudeste",
+];
+
+const getEquipeOptions = (current?: string | null) => {
+  const currentValue = String(current || "").trim();
+  const options = currentValue && !EQUIPE_OPTIONS.includes(currentValue)
+    ? [...EQUIPE_OPTIONS, currentValue]
+    : EQUIPE_OPTIONS;
+  return [...options].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+};
+
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
   { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo }: Props,
   ref
