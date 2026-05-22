@@ -327,6 +327,13 @@ export async function fetchAllDistribuicaoTstIds(
     else if (filters.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
 
     query = query.range(from, from + PAGE - 1);
+    if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") {
+      if (filters.situacaoEnvioCargaId === "__sem__") {
+        query = query.is("situacao_envio_carga_id", null);
+      } else {
+        query = query.eq("situacao_envio_carga_id", filters.situacaoEnvioCargaId);
+      }
+    }
     const { data, error } = await query;
     if (error) throw error;
     const rows = (data as any[]) || [];
