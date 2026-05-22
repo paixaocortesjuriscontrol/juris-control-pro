@@ -1590,237 +1590,253 @@ export default function DistribuicaoTst() {
           </div>
         )}
 
-        <div className="border border-border rounded-lg overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox 
-                    checked={dados.length > 0 && dados.every(d => selectedIds.has(d.id))}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedIds(new Set([...selectedIds, ...dados.map(d => d.id)]));
-                      } else {
-                        const newSet = new Set(selectedIds);
-                        dados.forEach(d => newSet.delete(d.id));
-                        setSelectedIds(newSet);
-                      }
-                    }}
-                  />
-                </TableHead>
-                <TableHead>Data Plan.</TableHead>
-                <TableHead>Data Real</TableHead>
-                <TableHead>Processo</TableHead>
-                <TableHead>Dossiê</TableHead>
-                <TableHead>Relator</TableHead>
-                <TableHead>Turma</TableHead>
-                <TableHead>Responsáveis</TableHead>
-                <TableHead>Benner</TableHead>
-                <TableHead className="w-28">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dados.map(d => {
-                const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
-                const relatorClass = isPresidencia
-                  ? ""
-                  : d.relator_favorabilidade?.toLowerCase().includes("positiv")
-                    ? "text-emerald-600 dark:text-emerald-400 font-semibold"
-                    : d.relator_favorabilidade?.toLowerCase().includes("negativ")
-                      ? "text-destructive font-semibold"
-                      : "";
-                const turmaClass = isPresidencia
-                  ? ""
-                  : d.turma_favorabilidade?.toLowerCase().includes("positiv")
-                    ? "text-emerald-600 dark:text-emerald-400 font-semibold"
-                    : d.turma_favorabilidade?.toLowerCase().includes("negativ")
-                      ? "text-destructive font-semibold"
-                      : "";
-                const responsaveis = responsaveisMap.get(d.id) || [];
-                const isPronto = ((d as any).status || "") === "pronto_envio";
-                const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
-                const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
-                const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
-                return (
-                <TableRow
-                  key={d.id}
-                  className={cn(
-                    "cursor-pointer hover:bg-muted/50 align-middle",
-                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
-                  )}
-                  onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
-                >
-                  <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
-                    <Checkbox
-                      checked={selectedIds.has(d.id)}
+        {/* Top horizontal scrollbar synced with table */}
+        <div
+          ref={topScrollRef}
+          onScroll={onTopScroll}
+          className="border border-border border-b-0 rounded-t-lg overflow-x-auto overflow-y-hidden"
+          style={{ height: '16px' }}
+        >
+          <div style={{ width: tableScrollWidth, height: '1px' }} />
+        </div>
+        {/* Table container with bottom scrollbar */}
+        <div
+          ref={bottomScrollRef}
+          onScroll={onBottomScroll}
+          className="border border-border border-t-0 rounded-b-lg overflow-x-auto"
+        >
+          <div ref={tableWrapperRef}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox 
+                      checked={dados.length > 0 && dados.every(d => selectedIds.has(d.id))}
                       onCheckedChange={(checked) => {
-                        const newSet = new Set(selectedIds);
-                        if (checked) newSet.add(d.id);
-                        else newSet.delete(d.id);
-                        setSelectedIds(newSet);
+                        if (checked) {
+                          setSelectedIds(new Set([...selectedIds, ...dados.map(d => d.id)]));
+                        } else {
+                          const newSet = new Set(selectedIds);
+                          dados.forEach(d => newSet.delete(d.id));
+                          setSelectedIds(newSet);
+                        }
                       }}
                     />
-                  </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha || d.data_distribuicao_real)}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
-                  <TableCell className="text-xs align-middle">
-                    {(() => {
-                      const raw = d.processo_numero || "";
-                      const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
-                      const situacao = (d.situacao_processo || "").toLowerCase();
-                      const isTransito = situacao.includes("trânsito") || situacao.includes("transito");
-                      const isAtivo = situacao.trim() === "ativo";
-                      const situacaoClass = isTransito
+                  </TableHead>
+                  <TableHead>Data Plan.</TableHead>
+                  <TableHead>Data Real</TableHead>
+                  <TableHead>Processo</TableHead>
+                  <TableHead>Dossiê</TableHead>
+                  <TableHead>Relator</TableHead>
+                  <TableHead>Turma</TableHead>
+                  <TableHead>Responsáveis</TableHead>
+                  <TableHead>Benner</TableHead>
+                  <TableHead className="w-28">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                ) : dados.length === 0 ? (
+                  <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                ) : dados.map(d => {
+                  const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
+                  const relatorClass = isPresidencia
+                    ? ""
+                    : d.relator_favorabilidade?.toLowerCase().includes("positiv")
+                      ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                      : d.relator_favorabilidade?.toLowerCase().includes("negativ")
                         ? "text-destructive font-semibold"
-                        : isAtivo
-                        ? "text-blue-600 dark:text-blue-400 font-semibold"
                         : "";
-                      if (cnjMatch) {
-                        const numero = cnjMatch[1];
-                        const resto = cnjMatch[2].trim();
-                        return (
-                          <div className="space-y-0.5">
-                            <div className={cn("whitespace-nowrap inline-flex items-center gap-1", situacaoClass)}>
-                              <span>{numero}</span>
-                              <CopyButton value={numero} label="Processo" />
-                              {(d as any).em_analise && (
-                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
-                                  Em análise
-                                </Badge>
-                              )}
-                              {(d as any).ic_duplicado && (
-                                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
-                                  Dup.
-                                </Badge>
-                              )}
-                              {isPronto && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
-                                  Pronto
-                                </Badge>
-                              )}
-                              {hasProvasDigitais && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
-                                  Provas Digitais
-                                </Badge>
-                              )}
-                              {isTransito && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
-                                  Trans. Julgado
-                                </Badge>
-                              )}
+                  const turmaClass = isPresidencia
+                    ? ""
+                    : d.turma_favorabilidade?.toLowerCase().includes("positiv")
+                      ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+                      : d.turma_favorabilidade?.toLowerCase().includes("negativ")
+                        ? "text-destructive font-semibold"
+                        : "";
+                  const responsaveis = responsaveisMap.get(d.id) || [];
+                  const isPronto = ((d as any).status || "") === "pronto_envio";
+                  const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
+                  const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
+                  const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
+                  return (
+                  <TableRow
+                    key={d.id}
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50 align-middle",
+                      (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
+                    )}
+                    onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
+                  >
+                    <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(d.id)}
+                        onCheckedChange={(checked) => {
+                          const newSet = new Set(selectedIds);
+                          if (checked) newSet.add(d.id);
+                          else newSet.delete(d.id);
+                          setSelectedIds(newSet);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha || d.data_distribuicao_real)}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
+                    <TableCell className="text-xs align-middle">
+                      {(() => {
+                        const raw = d.processo_numero || "";
+                        const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
+                        const situacao = (d.situacao_processo || "").toLowerCase();
+                        const isTransito = situacao.includes("trânsito") || situacao.includes("transito");
+                        const isAtivo = situacao.trim() === "ativo";
+                        const situacaoClass = isTransito
+                          ? "text-destructive font-semibold"
+                          : isAtivo
+                          ? "text-blue-600 dark:text-blue-400 font-semibold"
+                          : "";
+                        if (cnjMatch) {
+                          const numero = cnjMatch[1];
+                          const resto = cnjMatch[2].trim();
+                          return (
+                            <div className="space-y-0.5">
+                              <div className={cn("whitespace-nowrap inline-flex items-center gap-1", situacaoClass)}>
+                                <span>{numero}</span>
+                                <CopyButton value={numero} label="Processo" />
+                                {(d as any).em_analise && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
+                                    Em análise
+                                  </Badge>
+                                )}
+                                {(d as any).ic_duplicado && (
+                                  <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
+                                    Dup.
+                                  </Badge>
+                                )}
+                                {isPronto && (
+                                  <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
+                                    Pronto
+                                  </Badge>
+                                )}
+                                {hasProvasDigitais && (
+                                  <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
+                                    Provas Digitais
+                                  </Badge>
+                                )}
+                                {isTransito && (
+                                  <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
+                                    Trans. Julgado
+                                  </Badge>
+                                )}
+                              </div>
+                              {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                             </div>
-                            {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
+                          );
+                        }
+                        return (
+                          <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
+                            <span>{raw}</span>
+                            {raw && <CopyButton value={raw} label="Processo" />}
+                            {(d as any).em_analise && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
+                                Em análise
+                              </Badge>
+                            )}
+                            {(d as any).ic_duplicado && (
+                              <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
+                                Dup.
+                              </Badge>
+                            )}
+                            {isPronto && (
+                              <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
+                                Pronto
+                              </Badge>
+                            )}
+                            {hasProvasDigitais && (
+                              <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
+                                Provas Digitais
+                              </Badge>
+                            )}
+                            {isTransito && (
+                              <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
+                                Trans. Julgado
+                              </Badge>
+                            )}
                           </div>
                         );
-                      }
-                      return (
-                        <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
-                          <span>{raw}</span>
-                          {raw && <CopyButton value={raw} label="Processo" />}
-                          {(d as any).em_analise && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
-                              Em análise
-                            </Badge>
-                          )}
-                          {(d as any).ic_duplicado && (
-                            <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
-                              Dup.
-                            </Badge>
-                          )}
-                          {isPronto && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
-                              Pronto
-                            </Badge>
-                          )}
-                          {hasProvasDigitais && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
-                              Provas Digitais
-                            </Badge>
-                          )}
-                          {isTransito && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
-                              Trans. Julgado
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle" onClick={e => e.stopPropagation()}>
-                    {d.dossie ? (
-                      <span className="inline-flex items-center gap-1">
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap align-middle" onClick={e => e.stopPropagation()}>
+                      {d.dossie ? (
+                        <span className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="text-primary hover:underline disabled:opacity-50"
+                            onClick={() => handleOpenBenner(d)}
+                            disabled={loadingBenner === d.id}
+                            title="Abrir Dados Benner"
+                          >
+                            {d.dossie}
+                          </button>
+                          <CopyButton value={d.dossie} label="Dossiê" />
+                        </span>
+                      ) : (
                         <button
                           type="button"
-                          className="text-primary hover:underline disabled:opacity-50"
+                          className="text-orange-500 hover:underline italic disabled:opacity-50"
                           onClick={() => handleOpenBenner(d)}
                           disabled={loadingBenner === d.id}
                           title="Abrir Dados Benner"
                         >
-                          {d.dossie}
+                          Não localizado
                         </button>
-                        <CopyButton value={d.dossie} label="Dossiê" />
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="text-orange-500 hover:underline italic disabled:opacity-50"
-                        onClick={() => handleOpenBenner(d)}
-                        disabled={loadingBenner === d.id}
-                        title="Abrir Dados Benner"
-                      >
-                        Não localizado
-                      </button>
-                    )}
-                  </TableCell>
-                  <TableCell className={cn("text-xs align-middle", relatorClass)}>
-                    <div className="inline-flex items-center gap-1 flex-wrap">
-                      <span>{relatorDisplay || "—"}</span>
-                      {isSubidaMassa && (
-                        <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
-                          Subida em Massa
-                        </Badge>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className={cn("text-xs align-middle", turmaClass)}>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <span>{d.turma || "—"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs align-middle">
-                    {responsaveis.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {responsaveis.map(r => (
-                          <Badge key={r.id} variant="secondary" className="text-xs px-1.5 py-0 font-normal">{r.nome}</Badge>
-                        ))}
+                    </TableCell>
+                    <TableCell className={cn("text-xs align-middle", relatorClass)}>
+                      <div className="inline-flex items-center gap-1 flex-wrap">
+                        <span>{relatorDisplay || "—"}</span>
+                        {isSubidaMassa && (
+                          <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
+                            Subida em Massa
+                          </Badge>
+                        )}
                       </div>
-                    ) : "—"}
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    {d.benner_atualizado ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40" />
-                    )}
-                  </TableCell>
-                  <TableCell onClick={e => e.stopPropagation()}>
-                    <div className="flex gap-1">
-                      {isAdminOrCoordinator && (
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                    </TableCell>
+                    <TableCell className={cn("text-xs align-middle", turmaClass)}>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span>{d.turma || "—"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs align-middle">
+                      {responsaveis.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {responsaveis.map(r => (
+                            <Badge key={r.id} variant="secondary" className="text-xs px-1.5 py-0 font-normal">{r.nome}</Badge>
+                          ))}
+                        </div>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell className="align-middle">
+                      {d.benner_atualizado ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-muted-foreground/40" />
                       )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                    </TableCell>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-1">
+                        {isAdminOrCoordinator && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
 
         {/* Pagination */}
