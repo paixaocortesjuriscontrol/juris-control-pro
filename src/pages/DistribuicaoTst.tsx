@@ -1390,17 +1390,17 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* AZUL */}
+              {/* LARANJA */}
               <div className="space-y-1">
-                <Label className="text-[10px] font-semibold text-blue-600">Equipe</Label>
-                <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
+                <Label className="text-[10px] font-semibold text-orange-600">Em análise</Label>
+                <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Equipe" />
+                    <SelectValue placeholder="Em análise" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="sim">Sim</SelectItem>
-                    <SelectItem value="nao">Não</SelectItem>
+                    <SelectItem value="sim">Apenas Em análise</SelectItem>
+                    <SelectItem value="nao">Não em análise</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1445,17 +1445,17 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* LARANJA */}
+              {/* AZUL */}
               <div className="space-y-1">
-                <Label className="text-[10px] font-semibold text-orange-600">Em análise</Label>
-                <Select value={filtroEmAnalise} onValueChange={setFiltroEmAnalise}>
+                <Label className="text-[10px] font-semibold text-blue-600">Equipe</Label>
+                <Select value={filtroEquipe} onValueChange={setFiltroEquipe}>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Em análise" />
+                    <SelectValue placeholder="Equipe" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="sim">Apenas Em análise</SelectItem>
-                    <SelectItem value="nao">Não em análise</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
