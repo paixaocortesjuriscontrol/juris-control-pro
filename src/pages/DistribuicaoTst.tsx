@@ -1280,7 +1280,7 @@ export default function DistribuicaoTst() {
             >
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
-            <RespostaSantanderImport onUpdated={handleRefresh} />
+            {isAdmin && <RespostaSantanderImport onUpdated={handleRefresh} />}
           </div>
         )}
 
