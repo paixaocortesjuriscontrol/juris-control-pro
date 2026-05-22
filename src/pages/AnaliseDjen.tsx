@@ -2951,7 +2951,12 @@ const AnaliseDjen = () => {
     : tipoOrigem !== 'datajud' && tipoOrigem !== 'descartada' ? totalProcessosHoje : 0;
   const totalDescartadasFiltrado = usarContadoresDaLista
     ? totalDescartadasVisivel
-    : tipoOrigem === 'datajud' ? 0 : descartadasStats.total;
+    : tipoOrigem === 'datajud'
+      ? 0
+      // Quando o card Descartadas está selecionado, usa a query detalhada
+      // (respeita termoBusca/dataDisponibilizacao); caso contrário, usa o
+      // COUNT leve (totalDescartadasHoje) para o card sempre mostrar o total.
+      : tipoOrigem === 'descartada' ? descartadasStats.total : totalDescartadasHoje;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
   const temMaisResultados = totalFiltradoGeral > totalExibidoNaPagina;
@@ -3610,8 +3615,12 @@ const AnaliseDjen = () => {
                                   
                                   {/* Motivo do descarte */}
                                   {pub.tipo_origem === 'descartada' && pub.motivo_descarte && (
-                                    <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[200px] truncate">
-                                      {pub.motivo_descarte}
+                                    <Badge
+                                      variant="outline"
+                                      title={pub.motivo_descarte}
+                                      className="bg-red-50 text-red-700 border-red-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 whitespace-normal break-words text-left"
+                                    >
+                                      Motivo: {pub.motivo_descarte}
                                     </Badge>
                                   )}
                                   
