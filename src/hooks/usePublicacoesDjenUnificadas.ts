@@ -335,7 +335,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         return 0;
       }
     },
-    enabled: !!user?.id && (filtros.incluirDescartadas || filtros.tipoOrigem === 'descartada'),
+    // Sempre habilitado para que o card "Descartadas" mostre o total mesmo quando
+    // a aba atual não é "descartada". Usa COUNT exato com head:true (leve).
+    enabled: !!user?.id,
     staleTime: 30_000,
   });
 
