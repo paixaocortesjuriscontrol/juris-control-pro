@@ -336,6 +336,8 @@ export async function fetchAllDistribuicaoTstIds(
         query = query.eq("situacao_envio_carga_id", filters.situacaoEnvioCargaId);
       }
     }
+    if (filters.equipe === "sim") query = query.not("equipe", "is", null).neq("equipe", "");
+    else if (filters.equipe === "nao") query = query.or("equipe.is.null,equipe.eq.");
 
     query = query.range(from, from + PAGE - 1);
     const { data, error } = await query;
@@ -477,6 +479,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         query = query.eq("situacao_envio_carga_id", filters.situacaoEnvioCargaId);
       }
     }
+    if (filters.equipe === "sim") query = query.not("equipe", "is", null).neq("equipe", "");
+    else if (filters.equipe === "nao") query = query.or("equipe.is.null,equipe.eq.");
       return query;
     };
 
