@@ -291,12 +291,12 @@ export async function fetchAllDistribuicaoTstIds(
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
-    if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
-    else if (filters.situacaoProcesso === "transito") {
-      query = query.or("transito_julgado.eq.true,situacao_processo.ilike.*trânsito em julgado*");
+    if (filters.situacaoProcesso === "ativo") {
+      query = query.ilike("situacao_processo", "ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
+    } else if (filters.situacaoProcesso === "transito") {
+      query = query.eq("transito_julgado", true);
     } else if (filters.situacaoProcesso === "outros") {
-      query = query.or('situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.*trânsito em julgado*)');
-      query = query.or("transito_julgado.is.null,transito_julgado.eq.false");
+      query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
     }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
@@ -432,16 +432,12 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
-    if (filters.situacaoProcesso === "ativo") query = query.ilike("situacao_processo", "ativo");
-    else if (filters.situacaoProcesso === "transito") {
-      query = query.or("transito_julgado.eq.true,situacao_processo.ilike.*trânsito em julgado*");
-    }
-    else if (filters.situacaoProcesso === "outros") {
-      // "Outros" = qualquer valor que não seja Ativo nem Trânsito em Julgado (inclui NULL)
-      query = query.or(
-        'situacao_processo.is.null,and(situacao_processo.not.ilike.ativo,situacao_processo.not.ilike.*trânsito em julgado*)'
-      );
-      query = query.or("transito_julgado.is.null,transito_julgado.eq.false");
+    if (filters.situacaoProcesso === "ativo") {
+      query = query.ilike("situacao_processo", "ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
+    } else if (filters.situacaoProcesso === "transito") {
+      query = query.eq("transito_julgado", true);
+    } else if (filters.situacaoProcesso === "outros") {
+      query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
     }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
