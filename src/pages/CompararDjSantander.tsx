@@ -108,13 +108,23 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
       else cnjsVistos.add(key);
     }
     // Varre o bloco INTEIRO buscando marcadores de tipo.
-    // No DOC do advogado, "Pauta de julgamento" pode aparecer só no
-    // corpo da publicação (não no cabeçalho).
+    // Regras alinhadas ao botão "Docs TST" da tela Análise DJEN
+    // (handleGerarDocsTST). Ordem de prioridade — primeira que casar vence:
+    //  1. CEJUSC        → "CEJUSC" presente E "plataforma zoom" no corpo
+    //  2. DISTRIBUIÇÕES → "Lista de Distribuição" no corpo
+    //  3. PAUTA         → "Pauta de Julgamento" no corpo (e não é CEJUSC)
+    //  4. OUTROS        → default
     const corpo = bloco.join("\n");
-    if (/\bCEJUSC\b/i.test(corpo)) cejusc++;
-    else if (/Pauta\s+de\s+Julgamento/i.test(corpo)) pauta++;
-    else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpo)) distribuicao++;
-    else outros++;
+    const temCejusc = /\bCEJUSC\b/i.test(corpo);
+    if (temCejusc && /plataforma\s+zoom/i.test(corpo)) {
+      cejusc++;
+    } else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpo)) {
+      distribuicao++;
+    } else if (!temCejusc && /Pauta\s+de\s+Julgamento/i.test(corpo)) {
+      pauta++;
+    } else {
+      outros++;
+    }
   }
 
   return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length };
