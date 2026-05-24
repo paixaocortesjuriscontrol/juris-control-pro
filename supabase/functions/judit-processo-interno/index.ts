@@ -77,13 +77,13 @@ async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
   } catch { return null; }
 }
 
-async function juditCriarRequest(apiKey: string, cnj: string, cacheTtl: number): Promise<string | null> {
+async function juditCriarRequest(apiKey: string, cnj: string, cacheTtl: number, withAttachments = false): Promise<string | null> {
   const r = await fetch(REQUESTS_URL, {
     method: "POST",
     headers: { "api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
       search: { search_type: "lawsuit_cnj", search_key: cnj, cache_ttl_in_days: cacheTtl },
-      with_attachments: false,
+      with_attachments: withAttachments,
     }),
   });
   if (!r.ok) { console.error(`POST /requests ${r.status}: ${await r.text()}`); return null; }
@@ -328,6 +328,7 @@ serve(async (req) => {
     const numero = String(body?.numero_processo || "").trim();
     if (!numero) return json({ error: "numero_processo é obrigatório" }, 400);
     const forceRefresh = body?.force_refresh === true;
+    const withAttachments = body?.with_attachments === true || body?.com_anexos === true;
     const cacheTtl = forceRefresh ? 0 : CACHE_TTL_DAYS_DEFAULT;
     const t0 = Date.now();
 
@@ -340,7 +341,7 @@ serve(async (req) => {
     const cached = await juditCache(apiKey, cnj);
     if (cached) raw.cache_lookup = cached;
 
-    const reqId = await juditCriarRequest(apiKey, cnj, cacheTtl);
+    const reqId = await juditCriarRequest(apiKey, cnj, cacheTtl, withAttachments);
     if (reqId) {
       const env = await juditPollar(apiKey, reqId);
       if (env) {
@@ -376,6 +377,41 @@ serve(async (req) => {
     const area = areaPorJustica(justica);
     const sistema = sistemaDoCrawler(rd);
     const uf = ufDoTribunal(tribAcr) || (rd?.courts?.[0]?.state || null);
+
+    // Coleta anexos quando solicitado — varre todos os steps de todas as instâncias
+    let attachments: any[] = [];
+    if (withAttachments) {
+      const all: any[] = [];
+      if (cached) all.push(cached);
+      for (const it of raw.crawler?.page_data || []) {
+        if (it?.response_data) all.push(it.response_data);
+      }
+      const seenIds = new Set<string>();
+      for (const inst of all) {
+        const steps = Array.isArray(inst?.steps) ? inst.steps : [];
+        for (const s of steps) {
+          const atts = Array.isArray(s?.attachments) ? s.attachments : [];
+          for (const a of atts) {
+            const id = String(a?.step_id || a?.attachment_id || a?.id || "");
+            if (!id || seenIds.has(id)) continue;
+            seenIds.add(id);
+            attachments.push({
+              cnj,
+              instance: inst?.instance != null ? String(inst.instance) : null,
+              step_id: s?.step_id || null,
+              attachment_id: id,
+              attachment_name: a?.name || a?.attachment_name || null,
+              attachment_date: a?.date || a?.attachment_date || s?.step_date || s?.date || null,
+              extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
+              url: a?.url || a?.download_url || null,
+              raw: a,
+            });
+          }
+        }
+      }
+    }
 
     const result = {
       // Identificação
@@ -421,6 +457,7 @@ serve(async (req) => {
         cache_ttl_days: cacheTtl,
       },
       _judit_raw: stripAttachments(raw),
+      attachments,
     };
 
     console.log(`[judit-processo-interno] ${cnj} -> tribunal=${tribAcr} classe=${classe} status=${status}`);
