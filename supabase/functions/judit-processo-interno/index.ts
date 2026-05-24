@@ -378,39 +378,53 @@ serve(async (req) => {
     const sistema = sistemaDoCrawler(rd);
     const uf = ufDoTribunal(tribAcr) || (rd?.courts?.[0]?.state || null);
 
-    // Coleta anexos quando solicitado — varre todos os steps de todas as instâncias
+    // Coleta anexos quando solicitado — varre TODAS as fontes (capa + steps de
+    // todas as instâncias) como a buscar-judit já faz. A Judit pode devolver
+    // anexos em `response_data.attachments` (capa) e/ou dentro dos `steps`.
     let attachments: any[] = [];
     if (withAttachments) {
-      const all: any[] = [];
-      if (cached) all.push(cached);
+      const fontes: any[] = [];
+      if (cached) fontes.push(cached);
       for (const it of raw.crawler?.page_data || []) {
-        if (it?.response_data) all.push(it.response_data);
+        if (it?.response_data && !fontes.includes(it.response_data)) fontes.push(it.response_data);
       }
-      const seenIds = new Set<string>();
-      for (const inst of all) {
+      const seen = new Set<string>();
+      const pushAtt = (a: any, instance: any, sDate: string | null) => {
+        if (!a || typeof a !== "object") return;
+        if (String(a?.status || "done").toLowerCase() !== "done" || a?.corrupted === true) return;
+        const id = String(a?.attachment_id || a?.id || a?.step_id || "");
+        if (!id) return;
+        const key = `${instance ?? "?"}::${id}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        attachments.push({
+          cnj,
+          instance: instance != null ? String(instance) : null,
+          step_id: a?.step_id ? String(a.step_id) : null,
+          attachment_id: id,
+          attachment_name: a?.attachment_name || a?.name || a?.title || null,
+          attachment_date: a?.attachment_date || a?.date || sDate || null,
+          extension: a?.extension || a?.ext || null,
+          status: a?.status || "done",
+          corrupted: a?.corrupted ?? false,
+          url: a?.url || a?.download_url || null,
+          raw: a,
+        });
+      };
+      for (const inst of fontes) {
+        const instance = inst?.instance ?? null;
+        // 1) Anexos no nível capa
+        const direct = Array.isArray(inst?.attachments) ? inst.attachments : [];
+        for (const a of direct) pushAtt(a, instance, null);
+        // 2) Anexos dentro dos andamentos
         const steps = Array.isArray(inst?.steps) ? inst.steps : [];
         for (const s of steps) {
           const atts = Array.isArray(s?.attachments) ? s.attachments : [];
-          for (const a of atts) {
-            const id = String(a?.step_id || a?.attachment_id || a?.id || "");
-            if (!id || seenIds.has(id)) continue;
-            seenIds.add(id);
-            attachments.push({
-              cnj,
-              instance: inst?.instance != null ? String(inst.instance) : null,
-              step_id: s?.step_id || null,
-              attachment_id: id,
-              attachment_name: a?.name || a?.attachment_name || null,
-              attachment_date: a?.date || a?.attachment_date || s?.step_date || s?.date || null,
-              extension: a?.extension || null,
-              status: a?.status || "done",
-              corrupted: a?.corrupted ?? false,
-              url: a?.url || a?.download_url || null,
-              raw: a,
-            });
-          }
+          const sDate = s?.step_date || s?.date || null;
+          for (const a of atts) pushAtt({ ...a, step_id: a?.step_id || s?.step_id || s?.id }, instance, sDate);
         }
       }
+      console.log(`[judit-processo-interno] anexos coletados: ${attachments.length} (with_attachments=${withAttachments})`);
     }
 
     const result = {
