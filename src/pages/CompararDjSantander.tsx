@@ -565,9 +565,9 @@ function exportarPdf(
       doc.text(titulo, mL, y);
       y += 5;
       doc.setTextColor(0, 0, 0);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136]);
       renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237]);
       renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235]);
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136]);
       y += 4;
     };
 
@@ -1989,14 +1989,14 @@ export default function CompararDjSantander() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm">Processos classificados — {titulo}</CardTitle>
                       <CardDescription className="text-xs">
-                        Listagem por tipo (Pauta, Distribuição, CEJUSC)
+                        Listagem por tipo (CEJUSC, Pauta, Distribuição)
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {([
+                        { rotulo: "CEJUSC-TST", lista: t!.cejuscList, cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
                         { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
                         { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
-                        { rotulo: "CEJUSC-TST", lista: t!.cejuscList, cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
                       ]).map(({ rotulo, lista, cls }) => (
                         <div key={rotulo}>
                           <div className="text-xs font-semibold mb-1.5 text-foreground">
