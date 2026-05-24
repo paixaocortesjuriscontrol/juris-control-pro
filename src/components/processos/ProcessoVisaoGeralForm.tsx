@@ -304,9 +304,9 @@ export function ProcessoVisaoGeralForm({
       });
       try {
         await supabase.from("judit_logs" as any).insert({
-          processo_numero: processo.numero,
+          processo_numero: numeroLimpo,
           tribunal: "TST",
-          request_payload: { numero_processo: processo.numero, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
+          request_payload: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
           raw_response: data,
           status: "sucesso",
           error_message: null,
