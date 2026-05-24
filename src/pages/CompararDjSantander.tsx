@@ -742,18 +742,28 @@ function exportarPdf(
       });
       y = maxColY;
     } else {
-      // Lista simples em 3 colunas
+      // Lista simples em 3 colunas — badges verdes (espelhando a tela)
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
+      const rowH = 5.2;
       const rows = Math.ceil(items.length / cols);
       for (let r = 0; r < rows; r++) {
-        checkPage(5);
+        checkPage(rowH + 1);
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
-          if (idx < items.length) doc.text(items[idx], mL + c * (colW + gap), y);
+          if (idx >= items.length) continue;
+          const x = mL + c * (colW + gap);
+          doc.setFillColor(240, 253, 244);   // green-50
+          doc.setDrawColor(187, 247, 208);   // green-200
+          doc.setLineWidth(0.2);
+          doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
+          doc.setTextColor(22, 101, 52);      // green-800
+          doc.text(items[idx], x + colW / 2, y + 3.6, { align: "center" });
         }
-        y += 4.5;
+        y += rowH + 1.2;
       }
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(0, 0, 0);
     }
     y += 6;
   };
