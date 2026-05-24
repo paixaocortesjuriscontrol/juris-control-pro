@@ -475,8 +475,8 @@ function exportarPdf(
     y += 5;
     doc.setTextColor(0, 0, 0);
 
-    const headers = ["Documento", "Pauta de Julgamento", "Lista de Distribuição", "CEJUSC-TST", "Outros", "Repetidos", "Total"];
-    const colWs = [38, 30, 32, 22, 20, 22, contentW - (38 + 30 + 32 + 22 + 20 + 22)];
+    const headers = ["Documento", "CEJUSC-TST", "Pauta de Julgamento", "Lista de Distribuição", "Outros", "Repetidos", "Total"];
+    const colWs = [38, 22, 30, 32, 20, 22, contentW - (38 + 22 + 30 + 32 + 20 + 22)];
     const rowH = 8;
     const headerH = 12;
     // Header row
@@ -505,7 +505,7 @@ function exportarPdf(
         doc.setFillColor(248, 250, 252);
         doc.rect(mL, y, contentW, rowH, "F");
       }
-      const vals = [label, String(t.pauta), String(t.distribuicao), String(t.cejusc), String(t.outros), String(t.repetidos), String(t.total)];
+      const vals = [label, String(t.cejusc), String(t.pauta), String(t.distribuicao), String(t.outros), String(t.repetidos), String(t.total)];
       let xc = mL;
       vals.forEach((v, i) => {
         const align = i === 0 ? "left" : "right";
@@ -1939,9 +1939,9 @@ export default function CompararDjSantander() {
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-2 px-2 font-medium">Documento</th>
+                        <th className="text-right py-2 px-2 font-medium">CEJUSC-TST</th>
                         <th className="text-right py-2 px-2 font-medium">Pauta de Julgamento</th>
                         <th className="text-right py-2 px-2 font-medium">Lista de Distribuição</th>
-                        <th className="text-right py-2 px-2 font-medium">CEJUSC-TST</th>
                         <th className="text-right py-2 px-2 font-medium text-muted-foreground">Outros</th>
                         <th className="text-right py-2 px-2 font-medium">Repetidos</th>
                         <th className="text-right py-2 px-2 font-medium">Total (blocos)</th>
@@ -1951,9 +1951,9 @@ export default function CompararDjSantander() {
                       {tiposEsq && (
                         <tr className="border-b">
                           <td className="py-2 px-2">{leftLabel}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.pauta}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.distribuicao}</td>
-                          <td className="py-2 px-2 text-right font-mono">{tiposEsq.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposEsq.outros}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposEsq.repetidos}</td>
                           <td className="py-2 px-2 text-right font-mono font-semibold">{tiposEsq.total}</td>
@@ -1962,9 +1962,9 @@ export default function CompararDjSantander() {
                       {tiposDir && (
                         <tr>
                           <td className="py-2 px-2">{sourceLabel}</td>
+                          <td className="py-2 px-2 text-right font-mono">{tiposDir.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.pauta}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.distribuicao}</td>
-                          <td className="py-2 px-2 text-right font-mono">{tiposDir.cejusc}</td>
                           <td className="py-2 px-2 text-right font-mono text-muted-foreground">{tiposDir.outros}</td>
                           <td className="py-2 px-2 text-right font-mono">{tiposDir.repetidos}</td>
                           <td className="py-2 px-2 text-right font-mono font-semibold">{tiposDir.total}</td>
