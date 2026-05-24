@@ -27,6 +27,13 @@ interface Props {
   tarefas?: any[];
   movimentacoes?: any[];
   onNavigate?: (section: string) => void;
+  /**
+   * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
+   * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
+   * Judit / Salvar). Usado nas seções "analise-judit" e "anexos-judit" para
+   * manter os botões sempre visíveis sem renderizar o formulário completo.
+   */
+  compact?: boolean;
 }
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
@@ -82,6 +89,7 @@ export function ProcessoVisaoGeralForm({
   tarefas = [],
   movimentacoes = [],
   onNavigate,
+  compact = false,
 }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
@@ -375,17 +383,17 @@ export function ProcessoVisaoGeralForm({
    * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
    * Judit traz valor).
    */
-  const handleSyncJuditInterno = async () => {
+  const handleSyncJuditInterno = async (comAnexos: boolean = false) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
     const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
     const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
-    setSyncingInterno(true);
+    if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
     try {
       const { data, error } = await supabase.functions.invoke("judit-processo-interno", {
-        body: { numero_processo: numeroLimpo, force_refresh: true },
+        body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
       });
       if (error) throw error;
       if (data?.error) { toast.error(data.error); return; }
@@ -419,7 +427,7 @@ export function ProcessoVisaoGeralForm({
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numeroLimpo,
           tribunal: data?.tribunal || null,
-          request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno" },
+          request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
           raw_response: data,
           status: "sucesso",
           error_message: null,
@@ -448,14 +456,55 @@ export function ProcessoVisaoGeralForm({
         }
       }
 
+      // Persiste anexos quando solicitado (mesma lógica do "Judit c/ anexos" anterior)
+      if (comAnexos) {
+        const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
+        if (atts.length > 0) {
+          try {
+            const rowsRaw = atts.map((a: any) => ({
+              processo_numero: numeroLimpo,
+              cnj: a?.cnj || numeroLimpo,
+              instance: a?.instance != null ? String(a.instance) : null,
+              attachment_id: String(a?.attachment_id || a?.step_id || ""),
+              step_id: a?.step_id ? String(a.step_id) : null,
+              attachment_name: a?.attachment_name || null,
+              attachment_date: a?.attachment_date || null,
+              extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
+              raw_attachment: a?.raw || a,
+              created_by: uid,
+            })).filter((r: any) => r.attachment_id);
+            const seen = new Set<string>();
+            const rows = rowsRaw.filter((r: any) => {
+              const key = getJuditAttachmentDedupKey(r);
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            if (rows.length > 0) {
+              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", numeroLimpo);
+              await supabase.from("judit_anexos" as any).insert(rows);
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", processo.numero] });
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", numeroLimpo] });
+            }
+            toast.success(`Judit retornou ${atts.length} anexo(s).`);
+          } catch (e) {
+            console.warn("Falha ao persistir judit_anexos:", e);
+          }
+        } else {
+          toast.warning("Judit não retornou anexos nesta consulta.");
+        }
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["processo"] });
       await queryClient.invalidateQueries({ queryKey: ["processos_partes", processo.id] });
       const preenchidos = Object.keys(data || {}).filter((k) => (FIELDS as readonly string[]).includes(k) && (data as any)[k] != null && String((data as any)[k]).trim() !== "").length;
-      toast.success(`Judit (Interno) sincronizada — ${preenchidos} campo(s) preenchido(s).`);
+      toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit (Interno)"} sincronizada — ${preenchidos} campo(s) preenchido(s).`);
     } catch (e: any) {
-      toast.error("Erro Judit Interno: " + (e?.message || "desconhecido"));
+      toast.error(`Erro Judit ${comAnexos ? "c/ anexos" : "Interno"}: ` + (e?.message || "desconhecido"));
     } finally {
-      setSyncingInterno(false);
+      if (comAnexos) setSyncingAnexos(false); else setSyncingInterno(false);
     }
   };
 
@@ -502,7 +551,7 @@ export function ProcessoVisaoGeralForm({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleSyncJudit(true)}
+                onClick={() => handleSyncJuditInterno(true)}
                 disabled={syncing || syncingAnexos || saving}
                 className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
               >
@@ -514,7 +563,7 @@ export function ProcessoVisaoGeralForm({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleSyncJuditInterno}
+                onClick={() => handleSyncJuditInterno(false)}
                 disabled={juditBusy || saving}
                 className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                 title="Preenche o máximo de campos do formulário usando uma chamada Judit independente"
@@ -524,7 +573,7 @@ export function ProcessoVisaoGeralForm({
                   ? (juditElapsed < 3 ? "Consultando…" : `Aguardando… ${juditElapsed}s`)
                   : "Judit (Interno)"}
               </Button>
-              {(juditSessionFields.size > 0 || (Array.isArray((processo as any)?.judit_campos) && (processo as any).judit_campos.length > 0)) && onNavigate && (
+              {onNavigate && (
                 <>
                   <Button
                     size="sm"
@@ -566,6 +615,13 @@ export function ProcessoVisaoGeralForm({
             </div>
           )}
 
+          {compact && (
+            <div className="text-xs text-muted-foreground">
+              Use os botões acima para sincronizar/atualizar os dados Judit. Para editar campos do processo, volte para a aba "Resumo".
+            </div>
+          )}
+
+          {!compact && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* COLUNA PRINCIPAL */}
             <div className="lg:col-span-2 space-y-6">
@@ -808,6 +864,7 @@ export function ProcessoVisaoGeralForm({
               </div>
             </div>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
