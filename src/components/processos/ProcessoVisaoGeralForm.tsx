@@ -670,7 +670,7 @@ export function ProcessoVisaoGeralForm({
                   </FormField>
                   <FormField label="Tipo de Processo">
                     <Select value={form.tipo_processo || "judicial"} onValueChange={(v) => update("tipo_processo", v)}>
-                      <SelectTrigger className={inputCls}><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={cn(inputCls, jcls("tipo_processo"))}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="judicial">Judicial</SelectItem>
                         <SelectItem value="administrativo">Administrativo</SelectItem>
@@ -679,7 +679,7 @@ export function ProcessoVisaoGeralForm({
                   </FormField>
                   <FormField label="Situação">
                     <Select value={form.status || "ativo"} onValueChange={(v) => update("status", v)}>
-                      <SelectTrigger className={inputCls}><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={cn(inputCls, jcls("status"))}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ativo">Ativo</SelectItem>
                         <SelectItem value="arquivado_parcialmente">Arquivado Parcialmente</SelectItem>
@@ -693,10 +693,10 @@ export function ProcessoVisaoGeralForm({
                     <Input className={cn(inputCls, jcls("classe"))} value={form.classe || ""} onChange={(e) => update("classe", e.target.value)} />
                   </FormField>
                   <FormField label="Natureza">
-                    <Input className={inputCls} value={form.natureza || ""} onChange={(e) => update("natureza", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("natureza"))} value={form.natureza || ""} onChange={(e) => update("natureza", e.target.value)} />
                   </FormField>
                   <FormField label="Área">
-                    <Input className={inputCls} value={form.area || ""} onChange={(e) => update("area", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("area"))} value={form.area || ""} onChange={(e) => update("area", e.target.value)} />
                   </FormField>
                   <FormField label="Fase Processual">
                     <Input className={cn(inputCls, jcls("fase"))} value={form.fase || ""} onChange={(e) => update("fase", e.target.value)} />
@@ -712,19 +712,19 @@ export function ProcessoVisaoGeralForm({
                     <Input className={cn(inputCls, jcls("tribunal"))} value={form.tribunal || ""} onChange={(e) => update("tribunal", e.target.value)} />
                   </FormField>
                   <FormField label="Justiça">
-                    <Input className={inputCls} value={form.justica || ""} onChange={(e) => update("justica", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("justica"))} value={form.justica || ""} onChange={(e) => update("justica", e.target.value)} />
                   </FormField>
                   <FormField label="Instância">
                     <Input className={cn(inputCls, jcls("instancia"))} value={form.instancia || ""} onChange={(e) => update("instancia", e.target.value)} />
                   </FormField>
                   <FormField label="Esfera">
-                    <Input className={inputCls} value={form.esfera || ""} onChange={(e) => update("esfera", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("esfera"))} value={form.esfera || ""} onChange={(e) => update("esfera", e.target.value)} />
                   </FormField>
                   <FormField label="Sistema">
-                    <Input className={inputCls} value={form.sistema || ""} onChange={(e) => update("sistema", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("sistema"))} value={form.sistema || ""} onChange={(e) => update("sistema", e.target.value)} />
                   </FormField>
                   <FormField label="Matéria">
-                    <Input className={inputCls} value={form.materia || ""} onChange={(e) => update("materia", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("materia"))} value={form.materia || ""} onChange={(e) => update("materia", e.target.value)} />
                   </FormField>
                   <FormField label="Órgão Julgador" className="md:col-span-2">
                     <Input className={cn(inputCls, jcls("orgao_julgador"))} value={form.orgao_julgador || ""} onChange={(e) => update("orgao_julgador", e.target.value)} />
@@ -758,10 +758,10 @@ export function ProcessoVisaoGeralForm({
                     <Input className={cn(inputCls, jcls("reclamados"))} value={form.reclamados || ""} onChange={(e) => update("reclamados", e.target.value)} />
                   </FormField>
                   <FormField label="Terceiros Envolvidos" className="md:col-span-2">
-                    <Textarea className="text-sm min-h-[50px]" value={form.terceiro_envolvido || ""} onChange={(e) => update("terceiro_envolvido", e.target.value)} />
+                    <Textarea className={cn("text-sm min-h-[50px]", jcls("terceiro_envolvido"))} value={form.terceiro_envolvido || ""} onChange={(e) => update("terceiro_envolvido", e.target.value)} />
                   </FormField>
                   <FormField label="Pedidos" className="md:col-span-2">
-                    <Textarea className="text-sm min-h-[60px]" value={form.pedidos || ""} onChange={(e) => update("pedidos", e.target.value)} />
+                    <Textarea className={cn("text-sm min-h-[60px]", jcls("pedidos"))} value={form.pedidos || ""} onChange={(e) => update("pedidos", e.target.value)} />
                   </FormField>
                   <FormField label="Responsáveis Internos" className="md:col-span-2">
                     <SelecionarResponsaveisProcesso
@@ -781,10 +781,10 @@ export function ProcessoVisaoGeralForm({
                     <Input type="date" className={cn(inputCls, jcls("data_distribuicao"))} value={form.data_distribuicao || ""} onChange={(e) => update("data_distribuicao", e.target.value)} />
                   </FormField>
                   <FormField label="Recebimento">
-                    <Input type="date" className={inputCls} value={form.data_recebimento || ""} onChange={(e) => update("data_recebimento", e.target.value)} />
+                    <Input type="date" className={cn(inputCls, jcls("data_recebimento"))} value={form.data_recebimento || ""} onChange={(e) => update("data_recebimento", e.target.value)} />
                   </FormField>
                   <FormField label="Citação">
-                    <Input type="date" className={inputCls} value={form.data_citacao || ""} onChange={(e) => update("data_citacao", e.target.value)} />
+                    <Input type="date" className={cn(inputCls, jcls("data_citacao"))} value={form.data_citacao || ""} onChange={(e) => update("data_citacao", e.target.value)} />
                   </FormField>
                 </div>
               </section>
