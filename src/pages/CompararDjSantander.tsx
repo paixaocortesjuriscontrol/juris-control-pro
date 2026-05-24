@@ -528,6 +528,7 @@ function exportarPdf(
       titulo: string,
       items: string[],
       color: [number, number, number],
+      missingSet?: Set<string> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -548,14 +549,27 @@ function exportarPdf(
         checkPage(5);
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
-          if (idx < items.length) doc.text(items[idx], mL + c * colW, y);
+          if (idx < items.length) {
+            const item = items[idx];
+            const faltando = missingSet && !missingSet.has(item);
+            if (faltando) {
+              doc.setTextColor(200, 30, 30);
+              doc.setFont("helvetica", "bold");
+            } else {
+              doc.setTextColor(0, 0, 0);
+              doc.setFont("helvetica", "normal");
+            }
+            doc.text(item, mL + c * colW, y);
+          }
         }
         y += 4.5;
       }
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
       y += 3;
     };
 
-    const renderBlocoTipos = (titulo: string, t: TipoCounts) => {
+    const renderBlocoTipos = (titulo: string, t: TipoCounts, dir?: TipoCounts | null) => {
       const hasAny = t.pautaList.length + t.distribuicaoList.length + t.cejuscList.length > 0;
       if (!hasAny) return;
       checkPage(12);
@@ -565,13 +579,16 @@ function exportarPdf(
       doc.text(titulo, mL, y);
       y += 5;
       doc.setTextColor(0, 0, 0);
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136]);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237]);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235]);
+      const cejuscSet = dir ? new Set(dir.cejuscList) : null;
+      const pautaSet = dir ? new Set(dir.pautaList) : null;
+      const distSet = dir ? new Set(dir.distribuicaoList) : null;
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136], cejuscSet);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237], pautaSet);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235], distSet);
       y += 4;
     };
 
-    if (tiposEsq) renderBlocoTipos(leftLabel, tiposEsq);
+    if (tiposEsq) renderBlocoTipos(leftLabel, tiposEsq, tiposDir);
     if (tiposDir) renderBlocoTipos(sourceLabel, tiposDir);
   }
 
@@ -2014,12 +2031,12 @@ export default function CompararDjSantander() {
 
           {(tiposEsq || tiposDir) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {([
-                { titulo: leftLabel, t: tiposEsq },
-                { titulo: sourceLabel, t: tiposDir },
-              ] as { titulo: string; t: TipoCounts | null }[])
-                .filter((x) => x.t)
-                .map(({ titulo, t }) => (
+               {([
+                 { titulo: leftLabel, t: tiposEsq, isLeft: true },
+                 { titulo: sourceLabel, t: tiposDir, isLeft: false },
+               ] as { titulo: string; t: TipoCounts | null; isLeft: boolean }[])
+                 .filter((x) => x.t)
+                 .map(({ titulo, t, isLeft }) => (
                   <Card key={titulo}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm">Processos classificados — {titulo}</CardTitle>
@@ -2029,10 +2046,12 @@ export default function CompararDjSantander() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {([
-                        { rotulo: "CEJUSC-TST", lista: t!.cejuscList, cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
-                        { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
-                        { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
-                      ]).map(({ rotulo, lista, cls }) => (
+                         { rotulo: "CEJUSC-TST", lista: t!.cejuscList, dirLista: tiposDir?.cejuscList || [], cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
+                         { rotulo: "Pauta de Julgamento", lista: t!.pautaList, dirLista: tiposDir?.pautaList || [], cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
+                         { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, dirLista: tiposDir?.distribuicaoList || [], cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
+                       ]).map(({ rotulo, lista, dirLista, cls }) => {
+                         const dirSet = new Set(dirLista);
+                         return (
                         <div key={rotulo}>
                           <div className="text-xs font-semibold mb-1.5 text-foreground">
                             {rotulo} ({lista.length})
@@ -2041,15 +2060,28 @@ export default function CompararDjSantander() {
                             <p className="text-xs text-muted-foreground italic">Nenhum processo</p>
                           ) : (
                             <div className="flex flex-wrap gap-1">
-                              {lista.map((p, i) => (
-                                <Badge key={`${p}-${i}`} variant="outline" className={`text-xs font-mono ${cls}`}>
-                                  {p}
-                                </Badge>
-                              ))}
+                               {lista.map((p, i) => {
+                                 const faltando = isLeft && tiposDir && !dirSet.has(p);
+                                 return (
+                                   <Badge
+                                     key={`${p}-${i}`}
+                                     variant="outline"
+                                     className={
+                                       faltando
+                                         ? "text-xs font-mono bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400 border-red-300 font-semibold"
+                                         : `text-xs font-mono ${cls}`
+                                     }
+                                     title={faltando ? "Não encontrado no PDF (DJEN)" : undefined}
+                                   >
+                                     {p}
+                                   </Badge>
+                                 );
+                               })}
                             </div>
                           )}
                         </div>
-                      ))}
+                         );
+                       })}
                     </CardContent>
                   </Card>
                 ))}
