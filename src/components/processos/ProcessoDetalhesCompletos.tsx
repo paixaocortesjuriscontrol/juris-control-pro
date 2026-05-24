@@ -915,53 +915,65 @@ export function ProcessoDetalhesCompletos({
       <div className="flex flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
         <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0">
-          {/* Mobile: horizontal scroll */}
+          {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
-            <nav className="flex gap-1 px-2 py-2 min-w-max">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
-                    activeSection === item.id
-                      ? "bg-primary text-primary-foreground font-medium"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="w-3 h-3 flex-shrink-0" />
-                  <span>{item.label}</span>
-                  {item.count !== undefined && item.count > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
-                      {item.count}
-                    </Badge>
-                  )}
-                </button>
+            <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
+              {navGroups.map((group, gi) => (
+                <div key={group.label} className="flex items-center gap-1">
+                  {gi > 0 && <span className="text-muted-foreground/40 px-1">|</span>}
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
+                        activeSection === item.id
+                          ? "bg-primary text-primary-foreground font-medium"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="w-3 h-3 flex-shrink-0" />
+                      <span>{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
+                          {item.count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
               ))}
             </nav>
           </div>
-          {/* Desktop: vertical sidebar */}
-          <ScrollArea className="hidden sm:block h-[calc(100vh-120px)]">
+          {/* Desktop: vertical sidebar agrupado estilo Projuris */}
+          <ScrollArea className="hidden sm:block h-[calc(100vh-160px)]">
             <nav className="py-2">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
-                    activeSection === item.id
-                      ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                  {item.count !== undefined && item.count > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
-                      {item.count}
-                    </Badge>
-                  )}
-                </button>
+              {navGroups.map((group) => (
+                <div key={group.label} className="mb-2">
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {group.label}
+                  </p>
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      className={cn(
+                        "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
+                        activeSection === item.id
+                          ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
+                          {item.count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
               ))}
             </nav>
           </ScrollArea>
