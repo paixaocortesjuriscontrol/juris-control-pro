@@ -745,31 +745,82 @@ export function ProcessoDetalhesCompletos({
     return acc;
   }, []);
 
-  // Navigation items for sidebar - inclui todas as abas operacionais
-  const navItems = [
-    { id: "resumo", label: "Resumo", icon: Home },
-    { id: "detalhes", label: "Detalhes", icon: FileText },
-    { id: "cobranca", label: "Cobrança", icon: DollarSign },
-    { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
-    { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
-    { id: "tst", label: "TST", icon: Gavel },
-    { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
-    { id: "judit", label: "Detalhe Judit", icon: Sparkles },
-    { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
-    { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
-    { id: "prazo", label: "Prazo", icon: Clock },
-    { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
-    { id: "pedidos", label: "Pedidos", icon: ListPlus },
-    { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
-    { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
-    { id: "redistribuicoes", label: "Redistrib.", icon: Shuffle, count: redistribuicoes.length },
-    { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
-    { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
-    { id: "portal", label: "Portal", icon: Globe },
-    { id: "envolvidos", label: "Envolvidos", icon: Users },
-    { id: "comentarios", label: "Comentários", icon: MessageSquare },
+  // Navegação agrupada estilo Projuris: 7 grupos principais + Visão Geral
+  // Mantém todas as seções existentes, apenas organizadas por categoria.
+  const navGroups: Array<{
+    label: string;
+    items: Array<{ id: string; label: string; icon: any; count?: number }>;
+  }> = [
+    {
+      label: "Visão geral",
+      items: [
+        { id: "resumo", label: "Resumo", icon: Home },
+        { id: "detalhes", label: "Detalhes", icon: FileText },
+        { id: "envolvidos", label: "Envolvidos", icon: Users },
+      ],
+    },
+    {
+      label: "Prazos & Eventos",
+      items: [
+        { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
+        { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
+        { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
+        { id: "prazo", label: "Prazo", icon: Clock },
+      ],
+    },
+    {
+      label: "Tarefas",
+      items: [
+        { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
+      ],
+    },
+    {
+      label: "Andamentos",
+      items: [
+        { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
+        { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
+        { id: "redistribuicoes", label: "Redistribuições", icon: Shuffle, count: redistribuicoes.length },
+      ],
+    },
+    {
+      label: "Documentos",
+      items: [
+        { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
+        { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
+      ],
+    },
+    {
+      label: "Pedidos & Financeiro",
+      items: [
+        { id: "pedidos", label: "Pedidos", icon: ListPlus },
+        { id: "cobranca", label: "Cobrança", icon: DollarSign },
+      ],
+    },
+    {
+      label: "Monitoramento",
+      items: [
+        { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
+        { id: "portal", label: "Portal", icon: Globe },
+        { id: "judit", label: "Detalhe Judit", icon: Sparkles },
+        { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
+      ],
+    },
+    {
+      label: "TST",
+      items: [
+        { id: "tst", label: "TST", icon: Gavel },
+        { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
+      ],
+    },
+    {
+      label: "Interação",
+      items: [
+        { id: "comentarios", label: "Comentários", icon: MessageSquare },
+      ],
+    },
   ];
+  // Lista achatada (compatibilidade com lógica que dependia de navItems)
+  const navItems = navGroups.flatMap((g) => g.items);
 
   const getAudienciaStatusBadge = (status: string) => {
     const statusConfig: Record<string, { className: string; label: string }> = {
@@ -795,35 +846,67 @@ export function ProcessoDetalhesCompletos({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header compacto */}
+      {/* Header estilo Projuris: partes + identificador + nº CNJ + assunto */}
       <div className="border-b bg-card">
-        <div className="flex items-center gap-3 px-2 sm:px-4 py-2">
+        {/* Linha 1: voltar + partes + tipo */}
+        <div className="flex items-center gap-3 px-2 sm:px-4 py-2 border-b border-border/50">
           <Button variant="ghost" size="sm" onClick={onVoltar}>
             <ArrowLeft className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Voltar</span>
           </Button>
-          
+
           <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
             {envolvidos.slice(0, 2).map((env, idx) => (
               <div key={idx} className="flex items-center gap-1">
                 {idx > 0 && <span className="text-muted-foreground text-sm">×</span>}
-                <span className="font-medium text-sm truncate max-w-[120px] sm:max-w-[200px]">{env.nome}</span>
-                <Badge 
+                <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-[260px]">{env.nome}</span>
+                <Badge
                   className={cn(
                     "text-[9px] px-1 py-0",
-                    env.tipo === "requerido" 
-                      ? "bg-emerald-100 text-emerald-700" 
+                    env.tipo === "requerido"
+                      ? "bg-emerald-100 text-emerald-700"
                       : "bg-zinc-100 text-zinc-700"
                   )}
                 >
-                  {env.tipo === "requerido" ? "Req." : "Reqte."}
+                  {env.tipo === "requerido" ? "Reclamado" : "Reclamante"}
                 </Badge>
               </div>
             ))}
           </div>
 
           <div className="flex items-center gap-1">
-            <Badge className="bg-blue-600 text-white text-xs hidden sm:inline-flex">Judicial</Badge>
+            <Badge className="bg-blue-600 text-white text-xs hidden sm:inline-flex">
+              {processo?.tipo_processo === "administrativo" ? "Administrativo" : "Judicial"}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Linha 2: Identificador interno + Nº CNJ + Assunto (estilo Projuris) */}
+        <div className="px-2 sm:px-4 py-2 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Identificador</p>
+            <p className="font-medium truncate">
+              {processo?.pasta_cliente || processo?.pasta_fisica || (processo?.id ? `PRO.${String(processo.id).slice(0, 8)}` : "—")}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Número do Processo</p>
+            <p className="font-mono font-medium truncate flex items-center gap-1">
+              <span className="truncate">{processo?.numero || "—"}</span>
+              {processo?.numero && (
+                <button
+                  onClick={() => copyToClipboard(processo.numero)}
+                  className="text-muted-foreground hover:text-foreground"
+                  title="Copiar"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              )}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Assunto</p>
+            <p className="font-medium truncate">{processo?.assunto || "Não informado"}</p>
           </div>
         </div>
       </div>
@@ -832,53 +915,65 @@ export function ProcessoDetalhesCompletos({
       <div className="flex flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
         <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0">
-          {/* Mobile: horizontal scroll */}
+          {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
-            <nav className="flex gap-1 px-2 py-2 min-w-max">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
-                    activeSection === item.id
-                      ? "bg-primary text-primary-foreground font-medium"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="w-3 h-3 flex-shrink-0" />
-                  <span>{item.label}</span>
-                  {item.count !== undefined && item.count > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
-                      {item.count}
-                    </Badge>
-                  )}
-                </button>
+            <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
+              {navGroups.map((group, gi) => (
+                <div key={group.label} className="flex items-center gap-1">
+                  {gi > 0 && <span className="text-muted-foreground/40 px-1">|</span>}
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
+                        activeSection === item.id
+                          ? "bg-primary text-primary-foreground font-medium"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="w-3 h-3 flex-shrink-0" />
+                      <span>{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
+                          {item.count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
               ))}
             </nav>
           </div>
-          {/* Desktop: vertical sidebar */}
-          <ScrollArea className="hidden sm:block h-[calc(100vh-120px)]">
+          {/* Desktop: vertical sidebar agrupado estilo Projuris */}
+          <ScrollArea className="hidden sm:block h-[calc(100vh-160px)]">
             <nav className="py-2">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={cn(
-                    "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
-                    activeSection === item.id
-                      ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                  {item.count !== undefined && item.count > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
-                      {item.count}
-                    </Badge>
-                  )}
-                </button>
+              {navGroups.map((group) => (
+                <div key={group.label} className="mb-2">
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {group.label}
+                  </p>
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      className={cn(
+                        "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
+                        activeSection === item.id
+                          ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
+                          {item.count}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
               ))}
             </nav>
           </ScrollArea>
