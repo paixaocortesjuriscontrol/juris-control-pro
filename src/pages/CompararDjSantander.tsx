@@ -2051,6 +2051,11 @@ export default function CompararDjSantander() {
                          { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, dirLista: tiposDir?.distribuicaoList || [], cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
                        ]).map(({ rotulo, lista, dirLista, cls }) => {
                          const dirSet = new Set(dirLista);
+                           const todosDir = new Set<string>([
+                             ...(tiposDir?.cejuscList || []),
+                             ...(tiposDir?.pautaList || []),
+                             ...(tiposDir?.distribuicaoList || []),
+                           ]);
                          return (
                         <div key={rotulo}>
                           <div className="text-xs font-semibold mb-1.5 text-foreground">
@@ -2061,21 +2066,29 @@ export default function CompararDjSantander() {
                           ) : (
                             <div className="flex flex-wrap gap-1">
                                {lista.map((p, i) => {
-                                 const faltando = isLeft && tiposDir && !dirSet.has(p);
-                                 return (
-                                   <Badge
-                                     key={`${p}-${i}`}
-                                     variant="outline"
-                                     className={
-                                       faltando
-                                         ? "text-xs font-mono bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400 border-red-300 font-semibold"
-                                         : `text-xs font-mono ${cls}`
-                                     }
-                                     title={faltando ? "Não encontrado no PDF (DJEN)" : undefined}
-                                   >
-                                     {p}
-                                   </Badge>
-                                 );
+                                  let estado: "ok" | "outro" | "ausente" = "ok";
+                                  if (isLeft && tiposDir) {
+                                    if (!dirSet.has(p)) {
+                                      estado = todosDir.has(p) ? "outro" : "ausente";
+                                    }
+                                  }
+                                  const classe =
+                                    estado === "ausente"
+                                      ? "text-xs font-mono bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400 border-red-300 font-semibold"
+                                      : estado === "outro"
+                                      ? "text-xs font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 font-semibold"
+                                      : `text-xs font-mono ${cls}`;
+                                  const titulo =
+                                    estado === "ausente"
+                                      ? "Não encontrado no PDF (DJEN)"
+                                      : estado === "outro"
+                                      ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
+                                      : undefined;
+                                  return (
+                                    <Badge key={`${p}-${i}`} variant="outline" className={classe} title={titulo}>
+                                      {p}
+                                    </Badge>
+                                  );
                                })}
                             </div>
                           )}
