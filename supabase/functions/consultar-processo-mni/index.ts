@@ -10,56 +10,74 @@ const corsHeaders = {
 const MAX_TENTATIVAS = 3;
 const BLOQUEIO_HORAS = 1;
 
+const ENCRYPTION_KEY = Deno.env.get("COFRE_ENCRYPTION_KEY") ?? "";
+const N8N_PROXY_URL = Deno.env.get("N8N_PJE_PROXY_URL") ?? "";
+const N8N_PROXY_TOKEN = Deno.env.get("N8N_PJE_PROXY_TOKEN") ?? "";
+
+// =========================
+// AES-GCM decrypt (igual cofre-senhas / testar-mni)
+// =========================
+async function deriveKey(secret: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  return await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret.padEnd(32, "0").slice(0, 32)),
+    "AES-GCM",
+    false,
+    ["decrypt"]
+  );
+}
+async function decrypt(ciphertext: string): Promise<string> {
+  const combined = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const encrypted = combined.slice(12);
+  const key = await deriveKey(ENCRYPTION_KEY);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encrypted
+  );
+  return new TextDecoder().decode(decrypted);
+}
+async function decryptSafe(value: string | null): Promise<string | null> {
+  if (!value) return null;
+  try { return await decrypt(value); } catch { return value; }
+}
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunkSize))
+    );
+  }
+  return btoa(binary);
+}
+
 // ============================================================
-// Mapeamento de tribunais → endpoint MNI (duplicado da utility
-// do front porque edge functions não importam de src/)
+// Endpoints MNI 3.0 (pje-integracao-api) — mesmo padrão de testar-mni
 // ============================================================
-interface TribunalMni {
-  sigla: string;
-  endpoint1Grau: string;
-  endpoint2Grau?: string;
-}
-
-function buildTrt(n: number): TribunalMni {
-  const pad = String(n).padStart(2, "0");
-  return {
-    sigla: `TRT${n}`,
-    endpoint1Grau: `https://pje.trt${n}.jus.br/primeirograu/intercomunicacao?wsdl`,
-    endpoint2Grau: `https://pje.trt${n}.jus.br/segundograu/intercomunicacao?wsdl`,
-  };
-}
-
-const TRIBUNAIS_TRABALHO: Record<string, TribunalMni> = {};
-for (let i = 1; i <= 24; i++) {
-  TRIBUNAIS_TRABALHO[String(i).padStart(2, "0")] = buildTrt(i);
-}
-
-const TRIBUNAIS_ESTADUAL: Record<string, TribunalMni> = {
-  "07": { sigla: "TJDFT", endpoint1Grau: "https://pje.tjdft.jus.br/pje/intercomunicacao?wsdl" },
-  "06": { sigla: "TJCE", endpoint1Grau: "https://pje.tjce.jus.br/pje1grau/intercomunicacao?wsdl" },
-  "17": { sigla: "TJES", endpoint1Grau: "https://pje.tjes.jus.br/pje/intercomunicacao?wsdl" },
+const MNI_ENDPOINTS: Record<string, string> = {
+  TST: "https://pje.tst.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  STJ: "https://pje.stj.jus.br/pje-integracao-api/mni300/intercomunicacao",
+  STF: "https://pje.stf.jus.br/pje-integracao-api/mni300/intercomunicacao",
 };
+for (let i = 1; i <= 24; i++) {
+  MNI_ENDPOINTS[`TRT${i}`] = `https://pje.trt${i}.jus.br/pje-integracao-api/mni300/intercomunicacao`;
+}
 
-function resolverEndpointMni(numeroCnj: string): { endpoint: string; sigla: string } | null {
+function resolverSiglaTribunal(numeroCnj: string): string | null {
   const digits = numeroCnj.replace(/\D/g, "");
   if (digits.length !== 20) return null;
-
   const justica = digits[13];
   const tribunal = digits.slice(14, 16);
-  const origem = digits.slice(16, 20);
-
-  let info: TribunalMni | undefined;
-  if (justica === "5") info = TRIBUNAIS_TRABALHO[tribunal];
-  else if (justica === "8") info = TRIBUNAIS_ESTADUAL[tribunal];
-
-  if (!info) return null;
-
-  const endpoint =
-    origem === "0000" && info.endpoint2Grau
-      ? info.endpoint2Grau
-      : info.endpoint1Grau;
-
-  return { endpoint, sigla: info.sigla };
+  if (justica === "5") {
+    const n = parseInt(tribunal, 10);
+    if (n >= 1 && n <= 24) return `TRT${n}`;
+  }
+  return null;
 }
 
 // ============================================================
