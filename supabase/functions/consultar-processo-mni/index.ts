@@ -395,8 +395,9 @@ serve(async (req) => {
     }
 
     // 1. Resolver endpoint MNI
-    const tribunalInfo = resolverEndpointMni(processo_numero);
-    if (!tribunalInfo) {
+    const sigla = resolverSiglaTribunal(processo_numero);
+    const endpoint = sigla ? MNI_ENDPOINTS[sigla] : null;
+    if (!sigla || !endpoint) {
       return new Response(
         JSON.stringify({
           sucesso: false,
@@ -407,12 +408,12 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[consultar-processo-mni] Tribunal: ${tribunalInfo.sigla}, Endpoint: ${tribunalInfo.endpoint}`);
+    console.log(`[consultar-processo-mni] Tribunal: ${sigla}, Endpoint: ${endpoint}`);
 
-    // 2. Buscar credencial
+    // 2. Buscar credencial (com cert A1 e ownership)
     const { data: credencial, error: credErr } = await supabase
       .from("cofre_senhas")
-      .select("id, login, senha_hash, tentativas_falhas, bloqueado_ate")
+      .select("id, login, senha_hash, usuario_id, certificado_a1_path, certificado_a1_senha, tentativas_falhas, bloqueado_ate")
       .eq("id", cofre_senha_id)
       .single();
 
@@ -420,6 +421,13 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Credencial não encontrada" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (credencial.usuario_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: "Acesso negado" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -438,33 +446,114 @@ serve(async (req) => {
       );
     }
 
-    // 4. Construir e enviar SOAP
+    // 4. Validar proxy n8n (Edge Function não faz mTLS — precisa do VPS com PFX)
+    if (!N8N_PROXY_URL || !N8N_PROXY_TOKEN) {
+      return new Response(
+        JSON.stringify({
+          sucesso: false,
+          erro: "Proxy n8n não configurado (N8N_PJE_PROXY_URL / N8N_PJE_PROXY_TOKEN ausentes).",
+          origem: "mni",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 5. Baixar certificado A1 (.pfx) do Storage se houver
+    let pfxBase64: string | null = null;
+    let pfxPassword: string | null = null;
+    if (credencial.certificado_a1_path) {
+      const { data: pfxFile, error: pfxError } = await supabase.storage
+        .from("cofre_certificados")
+        .download(credencial.certificado_a1_path);
+      if (pfxError || !pfxFile) {
+        return new Response(
+          JSON.stringify({
+            sucesso: false,
+            erro: "Falha ao baixar certificado A1 do storage",
+            detalhes: pfxError?.message,
+            origem: "mni",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const pfxBuffer = await pfxFile.arrayBuffer();
+      pfxBase64 = arrayBufferToBase64(pfxBuffer);
+      pfxPassword = await decryptSafe(credencial.certificado_a1_senha);
+    }
+
+    // 6. Decriptar senha do login e montar SOAP
+    const senhaPlain = await decryptSafe(credencial.senha_hash);
+    if (!senhaPlain) {
+      return new Response(
+        JSON.stringify({ sucesso: false, erro: "Senha do cofre vazia", origem: "mni" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const soapBody = buildSoapEnvelope(
       credencial.login,
-      credencial.senha_hash,
+      senhaPlain,
       processo_numero,
       incluir_documentos,
       incluir_movimentos
     );
 
-    // O endpoint WSDL termina com ?wsdl; o POST vai na URL sem ?wsdl
-    const postUrl = tribunalInfo.endpoint.replace("?wsdl", "");
+    // 7. Enviar via proxy n8n (mTLS com PFX)
+    console.log(`[consultar-processo-mni] POST via n8n proxy -> ${endpoint}`);
+    const proxyController = new AbortController();
+    const proxyTimeout = setTimeout(() => proxyController.abort(), 55000);
 
-    console.log(`[consultar-processo-mni] POST ${postUrl}`);
+    let httpStatus = 0;
+    let responseText = "";
+    try {
+      const proxyResp = await fetch(N8N_PROXY_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Proxy-Token": N8N_PROXY_TOKEN,
+        },
+        body: JSON.stringify({
+          endpoint,
+          soap_action: "consultarProcesso",
+          soap_body: soapBody,
+          pfx_base64: pfxBase64,
+          pfx_password: pfxPassword,
+          timeout_ms: 45000,
+        }),
+        signal: proxyController.signal,
+      });
+      clearTimeout(proxyTimeout);
 
-    const soapResponse = await fetch(postUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/xml; charset=utf-8",
-        "SOAPAction": "",
-      },
-      body: soapBody,
-    });
+      if (!proxyResp.ok) {
+        const errText = await proxyResp.text();
+        return new Response(
+          JSON.stringify({
+            sucesso: false,
+            erro: `Proxy n8n retornou HTTP ${proxyResp.status}`,
+            detalhes: errText.slice(0, 500),
+            origem: "mni",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const proxyJson = await proxyResp.json();
+      httpStatus = proxyJson.status ?? proxyJson.http_status ?? 0;
+      responseText = proxyJson.body ?? proxyJson.data ?? "";
+    } catch (proxyErr: any) {
+      clearTimeout(proxyTimeout);
+      console.error("[consultar-processo-mni] Erro proxy n8n:", proxyErr);
+      return new Response(
+        JSON.stringify({
+          sucesso: false,
+          erro: "Falha ao contatar proxy n8n",
+          detalhes: String(proxyErr?.message || proxyErr),
+          origem: "mni",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const responseText = await soapResponse.text();
-
-    if (!soapResponse.ok) {
-      console.error(`[consultar-processo-mni] HTTP ${soapResponse.status}: ${responseText.slice(0, 500)}`);
+    if (httpStatus < 200 || httpStatus >= 300) {
+      console.error(`[consultar-processo-mni] HTTP ${httpStatus}: ${responseText.slice(0, 500)}`);
 
       // Verificar se é erro de autenticação
       const isAuthError =
@@ -472,8 +561,8 @@ serve(async (req) => {
         responseText.toLowerCase().includes("autenticação") ||
         responseText.toLowerCase().includes("credenciais") ||
         responseText.toLowerCase().includes("unauthorized") ||
-        soapResponse.status === 401 ||
-        soapResponse.status === 403;
+        httpStatus === 401 ||
+        httpStatus === 403;
 
       if (isAuthError) {
         const falha = await registrarFalha(supabase, cofre_senha_id);
@@ -495,7 +584,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           sucesso: false,
-          erro: `Tribunal retornou HTTP ${soapResponse.status}. O serviço MNI pode estar temporariamente indisponível.`,
+          erro: `Tribunal retornou HTTP ${httpStatus}. O serviço MNI pode estar temporariamente indisponível.`,
           origem: "mni",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
