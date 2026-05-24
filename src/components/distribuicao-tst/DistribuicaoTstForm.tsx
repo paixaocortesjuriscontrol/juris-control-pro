@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
+import { RelatorTurmaCombo } from "@/components/distribuicao-tst/RelatorTurmaCombo";
 const OPCOES_RECURSO_NORM = [
   "Agravo de Instrumento em Recurso de Revista",
   "Recurso de Revista com Agravo",
@@ -919,7 +920,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
               <Label className="flex items-center">Relator <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
-              <Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} />
+              <RelatorTurmaCombo tipo="relator" value={form.relator} onChange={(v) => set("relator", v)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
               <Label className="flex items-center">Relator (+ ou -) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
@@ -936,7 +937,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
               <Label className="flex items-center">Turma <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
-              <Input value={form.turma || ""} onChange={e => set("turma", e.target.value)} />
+              <RelatorTurmaCombo tipo="turma" value={form.turma} onChange={(v) => set("turma", v)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
               <Label className="flex items-center">Turma (+ ou -) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
@@ -1066,9 +1067,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         </div>
       </div>
 
-      {/* SEÇÃO 4B - Recurso de outro Reclamado ou de terceiro */}
+      {/* SEÇÃO 4B - Recurso de terceiro (*preenchimento IA - não preencher) */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <SectionHeader title="Recurso de outro Reclamado ou de terceiro" color="bg-[#A4C2F4] !text-black" />
+        <SectionHeader title="Recurso de terceiro (*preenchimento IA - não preencher)" color="bg-[#A4C2F4] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>

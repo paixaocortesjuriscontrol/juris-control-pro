@@ -65,6 +65,7 @@ export interface DistribuicaoTst {
   em_analise_em?: string | null;
   subida_em_massa?: boolean;
   situacao_envio_carga_id?: string | null;
+  processo_outro_escritorio?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -160,6 +161,7 @@ function bennerToDistribuicao(b: any): DistribuicaoTst {
     updated_at: b.updated_at,
     subida_em_massa: !!b.subida_em_massa,
     situacao_envio_carga_id: b.situacao_envio_carga_id ?? null,
+    processo_outro_escritorio: !!b.processo_outro_escritorio,
   } as any;
 }
 

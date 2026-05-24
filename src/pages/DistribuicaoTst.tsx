@@ -1692,6 +1692,17 @@ export default function DistribuicaoTst() {
                                   Trans. Julgado
                                 </Badge>
                               )}
+                              {(() => {
+                                const sid = (d as any).situacao_envio_carga_id;
+                                if (!sid) return null;
+                                const s = situacoesCarga.find((x) => x.id === sid);
+                                if (!s) return null;
+                                return (
+                                  <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title={s.nome}>
+                                    {s.codigo || s.nome}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1726,6 +1737,17 @@ export default function DistribuicaoTst() {
                               Trans. Julgado
                             </Badge>
                           )}
+                          {(() => {
+                            const sid = (d as any).situacao_envio_carga_id;
+                            if (!sid) return null;
+                            const s = situacoesCarga.find((x) => x.id === sid);
+                            if (!s) return null;
+                            return (
+                              <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title={s.nome}>
+                                {s.codigo || s.nome}
+                              </Badge>
+                            );
+                          })()}
                         </div>
                       );
                     })()}
