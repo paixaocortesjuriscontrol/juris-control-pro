@@ -2311,6 +2311,7 @@ export default function CompararDjSantander() {
                 )}
               </CardContent>
             </Card>
+            </div>
           </div>
         </div>
       )}
