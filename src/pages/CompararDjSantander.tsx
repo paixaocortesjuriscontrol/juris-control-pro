@@ -2130,6 +2130,11 @@ export default function CompararDjSantander() {
                      pautaList: toCounts(outro?.pautaList || []),
                      distribuicaoList: toCounts(outro?.distribuicaoList || []),
                    };
+                    const selfCounts = toCounts([
+                      ...(t?.cejuscList || []),
+                      ...(t?.pautaList || []),
+                      ...(t?.distribuicaoList || []),
+                    ]);
                    return (
                   <Card key={titulo}>
                     <CardHeader className="pb-3">
@@ -2178,6 +2183,10 @@ export default function CompararDjSantander() {
                                       : estado === "outro"
                                       ? "text-xs font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 font-semibold"
                                       : `text-xs font-mono ${cls}`;
+                                  const isRepetido = (selfCounts.get(p) || 0) > 1;
+                                  const classeFinal = isRepetido
+                                    ? `${classe} !text-black dark:!text-white font-bold`
+                                    : classe;
                                   const titulo =
                                     estado === "ausente"
                                       ? (isLeft ? "Não encontrado no PDF (DJEN)" : "Não encontrado no Doc do Advogado")
@@ -2185,9 +2194,9 @@ export default function CompararDjSantander() {
                                       ? (isLeft
                                           ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
                                           : "Existe no Doc do Advogado, mas em bloco diferente (classificação divergente)")
-                                      : undefined;
+                                      : (isRepetido ? `Processo repetido nesta lista (${selfCounts.get(p)}x)` : undefined);
                                   return (
-                                    <Badge key={`${p}-${i}`} variant="outline" className={classe} title={titulo}>
+                                    <Badge key={`${p}-${i}`} variant="outline" className={classeFinal} title={isRepetido && estado === "ok" ? `Processo repetido nesta lista (${selfCounts.get(p)}x)` : titulo}>
                                       {p}
                                     </Badge>
                                   );
