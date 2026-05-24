@@ -1067,9 +1067,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         </div>
       </div>
 
-      {/* SEÇÃO 4B - Recurso de outro Reclamado ou de terceiro */}
+      {/* SEÇÃO 4B - Recurso de terceiro (*preenchimento IA - não preencher) */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <SectionHeader title="Recurso de outro Reclamado ou de terceiro" color="bg-[#A4C2F4] !text-black" />
+        <SectionHeader title="Recurso de terceiro (*preenchimento IA - não preencher)" color="bg-[#A4C2F4] !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>
