@@ -112,6 +112,14 @@ export function ProcessoVisaoGeralForm({
     const next: Record<string, any> = {};
     for (const f of FIELDS) next[f] = (processo as any)[f] ?? "";
     setForm(next);
+    // Recupera campos preenchidos pela Judit em sessões anteriores para
+    // manter o destaque verde mesmo após sair e voltar.
+    const persisted = (processo as any)?.judit_campos;
+    if (Array.isArray(persisted)) {
+      setJuditSessionFields(new Set(persisted.filter((s: any) => typeof s === "string")));
+    } else {
+      setJuditSessionFields(new Set());
+    }
   }, [processo?.id, processo?.updated_at]);
 
   const update = (field: string, value: any) =>
