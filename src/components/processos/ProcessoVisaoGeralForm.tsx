@@ -184,11 +184,17 @@ export function ProcessoVisaoGeralForm({
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
+    // Extrai o CNJ "limpo" do campo numero — alguns processos têm texto
+    // extra (ex.: "0010996-92.2021.5.15.0094 (transitou em julgado...)") que,
+    // se enviado bruto, quebra o cache de anexos (a chave processo_numero
+    // fica diferente da chave usada pela aba "Anexos Judit").
+    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
     if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: {
-          numero_processo: processo.numero,
+          numero_processo: numeroLimpo,
           tribunal: "TST",
           com_anexos: comAnexos,
           force_refresh: true,
@@ -314,8 +320,8 @@ export function ProcessoVisaoGeralForm({
         if (atts.length > 0) {
           try {
             const rowsRaw = atts.map((a: any) => ({
-              processo_numero: processo.numero,
-              cnj: a?.cnj || processo.numero,
+              processo_numero: numeroLimpo,
+              cnj: a?.cnj || numeroLimpo,
               instance: a?.instance != null ? String(a.instance) : null,
               attachment_id: String(a?.step_id || a?.attachment_id || ""),
               step_id: a?.step_id ? String(a.step_id) : null,
@@ -335,9 +341,10 @@ export function ProcessoVisaoGeralForm({
               return true;
             });
             if (rows.length > 0) {
-              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", processo.numero);
+              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", numeroLimpo);
               await supabase.from("judit_anexos" as any).insert(rows);
               await queryClient.invalidateQueries({ queryKey: ["judit_anexos", processo.numero] });
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", numeroLimpo] });
             }
             toast.success(`Judit retornou ${atts.length} anexo(s).`);
           } catch (e) {
