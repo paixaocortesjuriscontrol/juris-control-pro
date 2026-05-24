@@ -392,7 +392,7 @@ export function ProcessoVisaoGeralForm({
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Assunto" className="md:col-span-2">
-                    <Input className={inputCls} value={form.assunto || ""} onChange={(e) => update("assunto", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("assunto"))} value={form.assunto || ""} onChange={(e) => update("assunto", e.target.value)} />
                   </FormField>
                   <FormField label="Tipo de Processo">
                     <Select value={form.tipo_processo || "judicial"} onValueChange={(v) => update("tipo_processo", v)}>
@@ -416,7 +416,7 @@ export function ProcessoVisaoGeralForm({
                     </Select>
                   </FormField>
                   <FormField label="Classe CNJ">
-                    <Input className={inputCls} value={form.classe || ""} onChange={(e) => update("classe", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("classe"))} value={form.classe || ""} onChange={(e) => update("classe", e.target.value)} />
                   </FormField>
                   <FormField label="Natureza">
                     <Input className={inputCls} value={form.natureza || ""} onChange={(e) => update("natureza", e.target.value)} />
@@ -425,7 +425,7 @@ export function ProcessoVisaoGeralForm({
                     <Input className={inputCls} value={form.area || ""} onChange={(e) => update("area", e.target.value)} />
                   </FormField>
                   <FormField label="Fase Processual">
-                    <Input className={inputCls} value={form.fase || ""} onChange={(e) => update("fase", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("fase"))} value={form.fase || ""} onChange={(e) => update("fase", e.target.value)} />
                   </FormField>
                 </div>
               </section>
@@ -435,13 +435,13 @@ export function ProcessoVisaoGeralForm({
                 <SectionHeader icon={Scale} title="Tribunal e Órgão Julgador" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Tribunal">
-                    <Input className={inputCls} value={form.tribunal || ""} onChange={(e) => update("tribunal", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("tribunal"))} value={form.tribunal || ""} onChange={(e) => update("tribunal", e.target.value)} />
                   </FormField>
                   <FormField label="Justiça">
                     <Input className={inputCls} value={form.justica || ""} onChange={(e) => update("justica", e.target.value)} />
                   </FormField>
                   <FormField label="Instância">
-                    <Input className={inputCls} value={form.instancia || ""} onChange={(e) => update("instancia", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("instancia"))} value={form.instancia || ""} onChange={(e) => update("instancia", e.target.value)} />
                   </FormField>
                   <FormField label="Esfera">
                     <Input className={inputCls} value={form.esfera || ""} onChange={(e) => update("esfera", e.target.value)} />
@@ -453,16 +453,16 @@ export function ProcessoVisaoGeralForm({
                     <Input className={inputCls} value={form.materia || ""} onChange={(e) => update("materia", e.target.value)} />
                   </FormField>
                   <FormField label="Órgão Julgador" className="md:col-span-2">
-                    <Input className={inputCls} value={form.orgao_julgador || ""} onChange={(e) => update("orgao_julgador", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("orgao_julgador"))} value={form.orgao_julgador || ""} onChange={(e) => update("orgao_julgador", e.target.value)} />
                   </FormField>
                   <FormField label="Vara / Câmara">
-                    <Input className={inputCls} value={form.vara || ""} onChange={(e) => update("vara", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("vara"))} value={form.vara || ""} onChange={(e) => update("vara", e.target.value)} />
                   </FormField>
                   <FormField label="Comarca">
-                    <Input className={inputCls} value={form.comarca || ""} onChange={(e) => update("comarca", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("comarca"))} value={form.comarca || ""} onChange={(e) => update("comarca", e.target.value)} />
                   </FormField>
                   <FormField label="UF">
-                    <Input className={inputCls} value={form.uf || ""} onChange={(e) => update("uf", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("uf"))} value={form.uf || ""} onChange={(e) => update("uf", e.target.value)} />
                   </FormField>
                 </div>
               </section>
@@ -472,16 +472,16 @@ export function ProcessoVisaoGeralForm({
                 <SectionHeader icon={Users} title="Partes e Envolvidos" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Polo Ativo (Reclamante / Autor)">
-                    <Textarea className="text-sm min-h-[60px]" value={form.polo_ativo || ""} onChange={(e) => update("polo_ativo", e.target.value)} />
+                    <Textarea className={cn("text-sm min-h-[60px]", jcls("polo_ativo"))} value={form.polo_ativo || ""} onChange={(e) => update("polo_ativo", e.target.value)} />
                   </FormField>
                   <FormField label="Polo Passivo (Reclamado / Réu)">
-                    <Textarea className="text-sm min-h-[60px]" value={form.polo_passivo || ""} onChange={(e) => update("polo_passivo", e.target.value)} />
+                    <Textarea className={cn("text-sm min-h-[60px]", jcls("polo_passivo"))} value={form.polo_passivo || ""} onChange={(e) => update("polo_passivo", e.target.value)} />
                   </FormField>
                   <FormField label="Reclamante (Judit)">
-                    <Input className={inputCls} value={form.reclamante || ""} onChange={(e) => update("reclamante", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("reclamante"))} value={form.reclamante || ""} onChange={(e) => update("reclamante", e.target.value)} />
                   </FormField>
                   <FormField label="Reclamados (Judit)">
-                    <Input className={inputCls} value={form.reclamados || ""} onChange={(e) => update("reclamados", e.target.value)} />
+                    <Input className={cn(inputCls, jcls("reclamados"))} value={form.reclamados || ""} onChange={(e) => update("reclamados", e.target.value)} />
                   </FormField>
                   <FormField label="Terceiros Envolvidos" className="md:col-span-2">
                     <Textarea className="text-sm min-h-[50px]" value={form.terceiro_envolvido || ""} onChange={(e) => update("terceiro_envolvido", e.target.value)} />
@@ -504,7 +504,7 @@ export function ProcessoVisaoGeralForm({
                 <SectionHeader icon={Activity} title="Datas Processuais" />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <FormField label="Distribuição">
-                    <Input type="date" className={inputCls} value={form.data_distribuicao || ""} onChange={(e) => update("data_distribuicao", e.target.value)} />
+                    <Input type="date" className={cn(inputCls, jcls("data_distribuicao"))} value={form.data_distribuicao || ""} onChange={(e) => update("data_distribuicao", e.target.value)} />
                   </FormField>
                   <FormField label="Recebimento">
                     <Input type="date" className={inputCls} value={form.data_recebimento || ""} onChange={(e) => update("data_recebimento", e.target.value)} />
@@ -520,7 +520,7 @@ export function ProcessoVisaoGeralForm({
                 <SectionHeader icon={DollarSign} title="Financeiro e Contingenciamento" />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <FormField label="Valor da Causa">
-                    <Input type="number" step="0.01" className={inputCls} value={form.valor_causa ?? ""} onChange={(e) => update("valor_causa", e.target.value)} />
+                    <Input type="number" step="0.01" className={cn(inputCls, jcls("valor_causa"))} value={form.valor_causa ?? ""} onChange={(e) => update("valor_causa", e.target.value)} />
                   </FormField>
                   <FormField label="Valor da Condenação">
                     <Input type="number" step="0.01" className={inputCls} value={form.valor_condenacao ?? ""} onChange={(e) => update("valor_condenacao", e.target.value)} />
