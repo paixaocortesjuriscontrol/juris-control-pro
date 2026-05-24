@@ -64,6 +64,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [savingTop, setSavingTop] = useState(false);
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [problemaJudit, setProblemaJudit] = useState(false);
+  const [transitoJulgado, setTransitoJulgado] = useState(false);
+  const [outroEscritorio, setOutroEscritorio] = useState(false);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
@@ -234,6 +236,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setProblemaJudit(!!(bennerDado as any)?.problema_judit);
   }, [bennerDado]);
 
+  // Sincroniza switches "Trânsito em Julgado" e "Processo outro escritório"
+  // com o registro Benner.
+  useEffect(() => {
+    setTransitoJulgado(!!(bennerDado as any)?.transito_julgado);
+    setOutroEscritorio(!!(bennerDado as any)?.processo_outro_escritorio);
+  }, [bennerDado]);
+
   // Carrega o registro Benner ao abrir o detalhe (independente da aba), para
   // que o switch "Problema Judit" reflita o valor real e o save consiga
   // localizar a linha em dados_benner.
@@ -301,6 +310,32 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           }
         }
       }
+
+      // Persiste switches "Trânsito em Julgado" e "Processo outro escritório".
+      const currentTransito = !!(bennerDado as any)?.transito_julgado;
+      const currentOutro = !!(bennerDado as any)?.processo_outro_escritorio;
+      if (currentTransito !== transitoJulgado || currentOutro !== outroEscritorio) {
+        const targetId = (bennerDado as any)?.id || dado?.id;
+        if (targetId) {
+          const payload: any = {};
+          if (currentTransito !== transitoJulgado) {
+            payload.transito_julgado = transitoJulgado;
+            if (!transitoJulgado) payload.data_transito_julgado = null;
+          }
+          if (currentOutro !== outroEscritorio) {
+            payload.processo_outro_escritorio = outroEscritorio;
+          }
+          const { error: updErr } = await supabase
+            .from("dados_benner" as any)
+            .update(payload)
+            .eq("id", targetId);
+          if (updErr) {
+            toast.error("Erro ao salvar flags: " + updErr.message);
+          } else {
+            setBennerLoaded(false);
+          }
+        }
+      }
     } finally {
       setSavingTop(false);
     }
@@ -329,6 +364,20 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 onCheckedChange={setProblemaJudit}
               />
               <Label className="text-sm font-medium text-amber-700 dark:text-amber-400">Problema Judit</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={transitoJulgado}
+                onCheckedChange={setTransitoJulgado}
+              />
+              <Label className="text-sm font-medium text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={outroEscritorio}
+                onCheckedChange={setOutroEscritorio}
+              />
+              <Label className="text-sm font-medium text-purple-700 dark:text-purple-400">Processo outro escritório</Label>
             </div>
           </div>
           <Button onClick={handleSaveTop} disabled={savingTop}>
