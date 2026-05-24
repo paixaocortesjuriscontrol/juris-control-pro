@@ -28,6 +28,7 @@ interface ParteRow {
 export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [liveData, setLiveData] = useState<any>(null);
 
   const { data: partes = [], isLoading: loadingPartes } = useQuery({
     queryKey: ["processos_partes", processoId],
@@ -76,6 +77,7 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
       const partesNovas = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
+      setLiveData(data);
       // Substitui partes vindas da Judit
       await supabase
         .from("processos_partes" as any)
@@ -118,7 +120,8 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
     }
   };
 
-  const payload: any = ultimaConsulta?.payload_resposta || null;
+  const rawPayload: any = liveData || ultimaConsulta?.payload_resposta || null;
+  const payload: any = normalizeJuditPayload(rawPayload);
   const partesNaoAdv = partes.filter((p) => !p.is_advogado);
   const advogados = partes.filter((p) => p.is_advogado);
 
@@ -231,4 +234,92 @@ function Field({ label, value }: { label: string; value?: string | null }) {
       <p className="text-xs font-medium break-words">{value || "—"}</p>
     </div>
   );
+}
+
+// Normaliza o payload da consulta Judit para sempre expor os mesmos campos planos,
+// independentemente da origem (buscar-judit já traz tudo achatado; consultar-processo-judit
+// grava o payload bruto da Judit com `response_data`/`courts`/`judge`/`parties`).
+function normalizeJuditPayload(p: any): any {
+  if (!p || typeof p !== "object") return {};
+  // Se já tem campos planos do buscar-judit, devolve direto (preserva tudo).
+  if (p.parties_detail || p.reclamante || p.orgao_julgador) return p;
+
+  const rd = p.response_data || p.lawsuit || p;
+  const courts: any[] = Array.isArray(rd?.courts) ? rd.courts : [];
+  const parties: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
+  const classifications: any[] = Array.isArray(rd?.classifications) ? rd.classifications : [];
+
+  const orgaoJulgador =
+    rd?.county ||
+    courts.find((c) => /vara|gabinete|turma|c[âa]mara|se[çc][aã]o|pleno|sbdi/i.test(c?.name || ""))?.name ||
+    courts[0]?.name ||
+    null;
+
+  let turma: string | null = null;
+  for (const c of courts) {
+    const n = c?.name || "";
+    if (/turma|sbdi|sdi|pleno|especial|se[çc][aã]o/i.test(n)) {
+      turma = n;
+      break;
+    }
+  }
+
+  let relator: string | null = null;
+  const judge = rd?.judge;
+  if (typeof judge === "string" && judge.trim() && !/n[ãa]o\s+informado/i.test(judge)) {
+    relator = judge.trim();
+  } else if (judge?.name) {
+    relator = String(judge.name).trim();
+  }
+  // TST costuma usar "Gabinete do Ministro Fulano"
+  if (!relator && orgaoJulgador) {
+    const m = String(orgaoJulgador).match(/Gabinete\s+d[aoe]s?\s+Ministr[oa]\s+(.+)/i);
+    if (m) relator = m[1].trim();
+  }
+
+  const classe =
+    classifications[classifications.length - 1]?.name ||
+    classifications[0]?.name ||
+    null;
+
+  const ativos = parties.filter(
+    (x) => String(x?.side || "").toLowerCase() === "active" && !/advogado/i.test(x?.person_type || ""),
+  );
+  const passivos = parties.filter(
+    (x) => String(x?.side || "").toLowerCase() === "passive" && !/advogado/i.test(x?.person_type || ""),
+  );
+
+  const dataDistISO = rd?.distribution_date || null;
+  let dataDistBR: string | null = null;
+  if (dataDistISO) {
+    const d = new Date(dataDistISO);
+    if (!isNaN(d.getTime())) {
+      dataDistBR = d.toLocaleDateString("pt-BR");
+    }
+  }
+
+  const phaseRaw = String(rd?.phase || rd?.status || "").toUpperCase();
+  let situacao: string | null = null;
+  if (/ARQUIVAD|FINALIZAD/.test(phaseRaw)) situacao = "Arquivado";
+  else if (/BAIXAD/.test(phaseRaw)) situacao = "Baixado";
+  else if (/SUSPENS/.test(phaseRaw)) situacao = "Suspenso";
+  else if (/ATIV/.test(phaseRaw)) situacao = "Ativo";
+  else if (rd?.phase) situacao = String(rd.phase);
+
+  const tribunal =
+    rd?.tribunal_acronym ||
+    rd?.tribunal ||
+    (rd?.state ? `TRT/${rd.state}` : null);
+
+  return {
+    tribunal,
+    orgao_julgador: orgaoJulgador,
+    classe_capa: classe,
+    data_distribuicao_br: dataDistBR,
+    relator,
+    turma,
+    situacao_processo: situacao,
+    reclamante: ativos.map((x) => x?.name).filter(Boolean).join(" / ") || null,
+    reclamada: passivos.map((x) => x?.name).filter(Boolean).join(" / ") || null,
+  };
 }
