@@ -54,6 +54,9 @@ interface TipoCounts {
   outros: number;
   repetidos: number;
   total: number;
+  pautaList: string[];
+  distribuicaoList: string[];
+  cejuscList: string[];
 }
 
 // Classifica cada bloco de publicação OLHANDO SÓ NO TÍTULO/CABEÇALHO
@@ -98,6 +101,9 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
   const vistos = new Set<string>();
   let repetidos = 0;
+  const pautaList: string[] = [];
+  const distribuicaoList: string[] = [];
+  const cejuscList: string[] = [];
   for (const bloco of blocos) {
     // Conta repetidos: mesmo CNJ + mesmo conteúdo normalizado.
     // Blocos com mesmo CNJ mas conteúdos diferentes (ex.: pauta + despacho)
@@ -109,6 +115,7 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
+    const cnjFormatado = m ? formatarCNJ(m[1]) : null;
     if (m) {
       const cnj = m[1].replace(/\D/g, "");
       const key = `${cnj}|${conteudoNorm}`;
@@ -125,16 +132,19 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     const temCejusc = /\bCEJUSC\b/i.test(corpoCompleto);
     if (temCejusc && /plataforma\s+zoom/i.test(corpoCompleto)) {
       cejusc++;
+      if (cnjFormatado) cejuscList.push(cnjFormatado);
     } else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpoCompleto)) {
       distribuicao++;
+      if (cnjFormatado) distribuicaoList.push(cnjFormatado);
     } else if (!temCejusc && /Pauta\s+de\s+Julgamento/i.test(corpoCompleto)) {
       pauta++;
+      if (cnjFormatado) pautaList.push(cnjFormatado);
     } else {
       outros++;
     }
   }
 
-  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length };
+  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length, pautaList, distribuicaoList, cejuscList };
 }
 
 // Extrai o texto plano de um DOCX preservando quebras de parágrafo,
@@ -1902,6 +1912,50 @@ export default function CompararDjSantander() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {(tiposEsq || tiposDir) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {([
+                { titulo: leftLabel, t: tiposEsq },
+                { titulo: sourceLabel, t: tiposDir },
+              ] as { titulo: string; t: TipoCounts | null }[])
+                .filter((x) => x.t)
+                .map(({ titulo, t }) => (
+                  <Card key={titulo}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Processos classificados — {titulo}</CardTitle>
+                      <CardDescription className="text-xs">
+                        Listagem por tipo (Pauta, Distribuição, CEJUSC)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {([
+                        { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
+                        { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
+                        { rotulo: "CEJUSC-TST", lista: t!.cejuscList, cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
+                      ]).map(({ rotulo, lista, cls }) => (
+                        <div key={rotulo}>
+                          <div className="text-xs font-semibold mb-1.5 text-foreground">
+                            {rotulo} ({lista.length})
+                          </div>
+                          {lista.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">Nenhum processo</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {lista.map((p, i) => (
+                                <Badge key={`${p}-${i}`} variant="outline" className={`text-xs font-mono ${cls}`}>
+                                  {p}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
