@@ -755,9 +755,7 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Visão geral",
       items: [
-        { id: "resumo", label: "Resumo", icon: Home },
-        { id: "detalhes", label: "Detalhes", icon: FileText },
-        { id: "envolvidos", label: "Envolvidos", icon: Users },
+        { id: "resumo", label: "Visão Geral", icon: Home },
       ],
     },
     {
