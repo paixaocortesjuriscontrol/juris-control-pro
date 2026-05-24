@@ -480,7 +480,7 @@ serve(async (req) => {
           erro: `Tribunal retornou HTTP ${soapResponse.status}. O serviço MNI pode estar temporariamente indisponível.`,
           origem: "mni",
         }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
