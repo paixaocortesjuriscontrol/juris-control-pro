@@ -87,7 +87,7 @@ export interface DistribuicaoTstFilters {
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
-  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros";
+  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio";
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
@@ -299,6 +299,8 @@ export async function fetchAllDistribuicaoTstIds(
       query = query.eq("transito_julgado", true);
     } else if (filters.situacaoProcesso === "outros") {
       query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
+    } else if (filters.situacaoProcesso === "outro_escritorio") {
+      query = query.eq("processo_outro_escritorio", true);
     }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
@@ -440,6 +442,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       query = query.eq("transito_julgado", true);
     } else if (filters.situacaoProcesso === "outros") {
       query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
+    } else if (filters.situacaoProcesso === "outro_escritorio") {
+      query = query.eq("processo_outro_escritorio", true);
     }
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
