@@ -528,6 +528,7 @@ function exportarPdf(
       titulo: string,
       items: string[],
       color: [number, number, number],
+      missingSet?: Set<string> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -548,14 +549,27 @@ function exportarPdf(
         checkPage(5);
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
-          if (idx < items.length) doc.text(items[idx], mL + c * colW, y);
+          if (idx < items.length) {
+            const item = items[idx];
+            const faltando = missingSet && !missingSet.has(item);
+            if (faltando) {
+              doc.setTextColor(200, 30, 30);
+              doc.setFont("helvetica", "bold");
+            } else {
+              doc.setTextColor(0, 0, 0);
+              doc.setFont("helvetica", "normal");
+            }
+            doc.text(item, mL + c * colW, y);
+          }
         }
         y += 4.5;
       }
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
       y += 3;
     };
 
-    const renderBlocoTipos = (titulo: string, t: TipoCounts) => {
+    const renderBlocoTipos = (titulo: string, t: TipoCounts, dir?: TipoCounts | null) => {
       const hasAny = t.pautaList.length + t.distribuicaoList.length + t.cejuscList.length > 0;
       if (!hasAny) return;
       checkPage(12);
@@ -565,13 +579,16 @@ function exportarPdf(
       doc.text(titulo, mL, y);
       y += 5;
       doc.setTextColor(0, 0, 0);
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136]);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237]);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235]);
+      const cejuscSet = dir ? new Set(dir.cejuscList) : null;
+      const pautaSet = dir ? new Set(dir.pautaList) : null;
+      const distSet = dir ? new Set(dir.distribuicaoList) : null;
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136], cejuscSet);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237], pautaSet);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235], distSet);
       y += 4;
     };
 
-    if (tiposEsq) renderBlocoTipos(leftLabel, tiposEsq);
+    if (tiposEsq) renderBlocoTipos(leftLabel, tiposEsq, tiposDir);
     if (tiposDir) renderBlocoTipos(sourceLabel, tiposDir);
   }
 
