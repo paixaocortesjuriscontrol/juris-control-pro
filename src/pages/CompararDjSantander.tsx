@@ -380,7 +380,7 @@ function exportarPdf(
     tiposDir?: TipoCounts | null;
   } = {},
 ) {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const mL = 14;
