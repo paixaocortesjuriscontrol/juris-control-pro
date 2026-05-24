@@ -65,6 +65,7 @@ export interface DistribuicaoTst {
   em_analise_em?: string | null;
   subida_em_massa?: boolean;
   situacao_envio_carga_id?: string | null;
+  processo_outro_escritorio?: boolean | null;
   created_at: string;
   updated_at: string;
 }
