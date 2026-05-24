@@ -96,16 +96,24 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   if (atual) blocos.push(atual);
 
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
-  const cnjsVistos = new Set<string>();
+  const vistos = new Set<string>();
   let repetidos = 0;
   for (const bloco of blocos) {
-    // Conta repetidos pelo CNJ do cabeçalho
+    // Conta repetidos: mesmo CNJ + mesmo conteúdo normalizado.
+    // Blocos com mesmo CNJ mas conteúdos diferentes (ex.: pauta + despacho)
+    // são tratados como distintos.
     const header = colarCnjNaLinha(bloco[0] || "");
     const m = header.match(/(\d{20}|\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
+    const corpoCompleto = bloco.join("\n");
+    const conteudoNorm = corpoCompleto
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
     if (m) {
-      const key = m[1].replace(/\D/g, "");
-      if (cnjsVistos.has(key)) repetidos++;
-      else cnjsVistos.add(key);
+      const cnj = m[1].replace(/\D/g, "");
+      const key = `${cnj}|${conteudoNorm}`;
+      if (vistos.has(key)) repetidos++;
+      else vistos.add(key);
     }
     // Varre o bloco INTEIRO buscando marcadores de tipo.
     // Regras alinhadas ao botão "Docs TST" da tela Análise DJEN
@@ -114,13 +122,12 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     //  2. DISTRIBUIÇÕES → "Lista de Distribuição" no corpo
     //  3. PAUTA         → "Pauta de Julgamento" no corpo (e não é CEJUSC)
     //  4. OUTROS        → default
-    const corpo = bloco.join("\n");
-    const temCejusc = /\bCEJUSC\b/i.test(corpo);
-    if (temCejusc && /plataforma\s+zoom/i.test(corpo)) {
+    const temCejusc = /\bCEJUSC\b/i.test(corpoCompleto);
+    if (temCejusc && /plataforma\s+zoom/i.test(corpoCompleto)) {
       cejusc++;
-    } else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpo)) {
+    } else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpoCompleto)) {
       distribuicao++;
-    } else if (!temCejusc && /Pauta\s+de\s+Julgamento/i.test(corpo)) {
+    } else if (!temCejusc && /Pauta\s+de\s+Julgamento/i.test(corpoCompleto)) {
       pauta++;
     } else {
       outros++;
