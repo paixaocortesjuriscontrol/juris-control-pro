@@ -530,6 +530,7 @@ function exportarPdf(
       color: [number, number, number],
       sameRemaining?: Map<string, number> | null,
       anyRemaining?: Map<string, number> | null,
+      selfCounts?: Map<string, number> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -602,8 +603,13 @@ function exportarPdf(
           doc.setDrawColor(border[0], border[1], border[2]);
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
-          doc.setTextColor(fg[0], fg[1], fg[2]);
-          doc.setFont("helvetica", estado === "ok" ? "normal" : "bold");
+          const isRepetido = (selfCounts?.get(item) || 0) > 1;
+          if (isRepetido) {
+            doc.setTextColor(0, 0, 0);
+          } else {
+            doc.setTextColor(fg[0], fg[1], fg[2]);
+          }
+          doc.setFont("helvetica", isRepetido || estado !== "ok" ? "bold" : "normal");
           doc.text(item, x + colW / 2, y + 3.6, { align: "center" });
         }
         y += rowH + 1.2;
@@ -641,10 +647,11 @@ function exportarPdf(
       const anyRem = dir
         ? toCounts([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
+      const selfCounts = toCounts([...t.cejuscList, ...t.pautaList, ...t.distribuicaoList]);
       // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem, selfCounts);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem, selfCounts);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem, selfCounts);
       y += 4;
     };
 
@@ -2123,6 +2130,11 @@ export default function CompararDjSantander() {
                      pautaList: toCounts(outro?.pautaList || []),
                      distribuicaoList: toCounts(outro?.distribuicaoList || []),
                    };
+                    const selfCounts = toCounts([
+                      ...(t?.cejuscList || []),
+                      ...(t?.pautaList || []),
+                      ...(t?.distribuicaoList || []),
+                    ]);
                    return (
                   <Card key={titulo}>
                     <CardHeader className="pb-3">
@@ -2171,6 +2183,10 @@ export default function CompararDjSantander() {
                                       : estado === "outro"
                                       ? "text-xs font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 font-semibold"
                                       : `text-xs font-mono ${cls}`;
+                                  const isRepetido = (selfCounts.get(p) || 0) > 1;
+                                  const classeFinal = isRepetido
+                                    ? `${classe} !text-black dark:!text-white font-bold`
+                                    : classe;
                                   const titulo =
                                     estado === "ausente"
                                       ? (isLeft ? "Não encontrado no PDF (DJEN)" : "Não encontrado no Doc do Advogado")
@@ -2178,9 +2194,9 @@ export default function CompararDjSantander() {
                                       ? (isLeft
                                           ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
                                           : "Existe no Doc do Advogado, mas em bloco diferente (classificação divergente)")
-                                      : undefined;
+                                      : (isRepetido ? `Processo repetido nesta lista (${selfCounts.get(p)}x)` : undefined);
                                   return (
-                                    <Badge key={`${p}-${i}`} variant="outline" className={classe} title={titulo}>
+                                    <Badge key={`${p}-${i}`} variant="outline" className={classeFinal} title={isRepetido && estado === "ok" ? `Processo repetido nesta lista (${selfCounts.get(p)}x)` : titulo}>
                                       {p}
                                     </Badge>
                                   );
