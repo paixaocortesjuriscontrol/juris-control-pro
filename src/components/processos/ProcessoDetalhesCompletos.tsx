@@ -1730,41 +1730,6 @@ export function ProcessoDetalhesCompletos({
                 </div>
               )}
 
-              {/* Envolvidos Section */}
-              {activeSection === "envolvidos" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      Envolvidos
-                    </h3>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7">
-                      Adicionar
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {envolvidos.map((env, idx) => (
-                      <div key={idx} className="flex items-center justify-between py-2 px-3 border rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium text-blue-600">{env.nome}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {env.tipo === "requerido" ? "Requerido" : "Requerente"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {env.tipo === "requerido" && (
-                            <Badge className="bg-emerald-500 text-white text-xs">Cliente</Badge>
-                          )}
-                          {env.principal && (
-                            <Badge variant="outline" className="text-xs">Principal</Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Cobrança Section */}
               {activeSection === "cobranca" && (
                 <CobrancaSection processo={processo} formatDate={formatDate} />
