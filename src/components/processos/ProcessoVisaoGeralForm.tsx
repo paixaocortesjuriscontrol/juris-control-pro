@@ -383,17 +383,17 @@ export function ProcessoVisaoGeralForm({
    * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
    * Judit traz valor).
    */
-  const handleSyncJuditInterno = async () => {
+  const handleSyncJuditInterno = async (comAnexos: boolean = false) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
     const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
     const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
-    setSyncingInterno(true);
+    if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
     try {
       const { data, error } = await supabase.functions.invoke("judit-processo-interno", {
-        body: { numero_processo: numeroLimpo, force_refresh: true },
+        body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
       });
       if (error) throw error;
       if (data?.error) { toast.error(data.error); return; }
@@ -427,7 +427,7 @@ export function ProcessoVisaoGeralForm({
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numeroLimpo,
           tribunal: data?.tribunal || null,
-          request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno" },
+          request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
           raw_response: data,
           status: "sucesso",
           error_message: null,
@@ -456,14 +456,55 @@ export function ProcessoVisaoGeralForm({
         }
       }
 
+      // Persiste anexos quando solicitado (mesma lógica do "Judit c/ anexos" anterior)
+      if (comAnexos) {
+        const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
+        if (atts.length > 0) {
+          try {
+            const rowsRaw = atts.map((a: any) => ({
+              processo_numero: numeroLimpo,
+              cnj: a?.cnj || numeroLimpo,
+              instance: a?.instance != null ? String(a.instance) : null,
+              attachment_id: String(a?.attachment_id || a?.step_id || ""),
+              step_id: a?.step_id ? String(a.step_id) : null,
+              attachment_name: a?.attachment_name || null,
+              attachment_date: a?.attachment_date || null,
+              extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
+              raw_attachment: a?.raw || a,
+              created_by: uid,
+            })).filter((r: any) => r.attachment_id);
+            const seen = new Set<string>();
+            const rows = rowsRaw.filter((r: any) => {
+              const key = getJuditAttachmentDedupKey(r);
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            if (rows.length > 0) {
+              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", numeroLimpo);
+              await supabase.from("judit_anexos" as any).insert(rows);
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", processo.numero] });
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", numeroLimpo] });
+            }
+            toast.success(`Judit retornou ${atts.length} anexo(s).`);
+          } catch (e) {
+            console.warn("Falha ao persistir judit_anexos:", e);
+          }
+        } else {
+          toast.warning("Judit não retornou anexos nesta consulta.");
+        }
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["processo"] });
       await queryClient.invalidateQueries({ queryKey: ["processos_partes", processo.id] });
       const preenchidos = Object.keys(data || {}).filter((k) => (FIELDS as readonly string[]).includes(k) && (data as any)[k] != null && String((data as any)[k]).trim() !== "").length;
-      toast.success(`Judit (Interno) sincronizada — ${preenchidos} campo(s) preenchido(s).`);
+      toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit (Interno)"} sincronizada — ${preenchidos} campo(s) preenchido(s).`);
     } catch (e: any) {
-      toast.error("Erro Judit Interno: " + (e?.message || "desconhecido"));
+      toast.error(`Erro Judit ${comAnexos ? "c/ anexos" : "Interno"}: ` + (e?.message || "desconhecido"));
     } finally {
-      setSyncingInterno(false);
+      if (comAnexos) setSyncingAnexos(false); else setSyncingInterno(false);
     }
   };
 
