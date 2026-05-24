@@ -2214,8 +2214,8 @@ export default function CompararDjSantander() {
             </div>
           )}
 
-          <div className="space-y-6">
-            <Card>
+          <div className="grid grid-cols-1 lg:grid-cols-8 gap-6">
+            <Card className="lg:col-span-4">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -2226,7 +2226,7 @@ export default function CompararDjSantander() {
                 {result.comuns.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Nenhum processo em comum</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {result.comuns.map((p, i) => (
                       <div key={i} className="py-1">
                         <Badge variant="outline" className="text-xs font-mono bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-green-200 whitespace-nowrap">
@@ -2239,8 +2239,7 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -2251,9 +2250,9 @@ export default function CompararDjSantander() {
                 {result.somente_doc.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
                 ) : (
-                  <div className="flex flex-col">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {result.somente_doc.map((p, i) => (
-                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
+                      <div key={i} className="py-1">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs font-mono bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200 whitespace-nowrap">
                             {p}
@@ -2276,7 +2275,7 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <XCircle className="w-4 h-4 text-orange-500" />
@@ -2287,9 +2286,9 @@ export default function CompararDjSantander() {
                 {result.somente_pdf.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
                 ) : (
-                  <div className="flex flex-col">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {result.somente_pdf.map((p, i) => (
-                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
+                      <div key={i} className="py-1">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs font-mono bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400 border-orange-200 whitespace-nowrap">
                             {p}
@@ -2311,7 +2310,6 @@ export default function CompararDjSantander() {
                 )}
               </CardContent>
             </Card>
-            </div>
           </div>
         </div>
       )}
