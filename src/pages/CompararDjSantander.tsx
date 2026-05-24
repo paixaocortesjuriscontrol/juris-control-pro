@@ -575,7 +575,7 @@ function exportarPdf(
     if (tiposDir) renderBlocoTipos(sourceLabel, tiposDir);
   }
 
-  // ----- Lista helper colorida -----
+  // ----- Lista helper colorida (sempre 3 colunas) -----
   const renderSecao = (
     titulo: string,
     items: string[],
@@ -603,42 +603,77 @@ function exportarPdf(
       return;
     }
 
+    const cols = 3;
+    const gap = 3;
+    const colW = (contentW - gap * (cols - 1)) / cols;
+
     if (showMotivos) {
-      // Lista detalhada com motivos
-      const maxTextWidth = contentW - 6;
-      items.forEach((p) => {
-        checkPage(7);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 58, 95);
-        doc.text(p, mL, y);
-        y += 4.5;
-        doc.setTextColor(0, 0, 0);
+      // 3 colunas com motivos abaixo de cada item
+      const cellTextW = colW - 2;
+      // Pré-calcula células (CNJ + motivos quebrados) com altura
+      const cells = items.map((p) => {
         const motivos = analise[p]?.motivos || [];
+        const lines: string[] = [];
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
+        doc.setFontSize(7);
         motivos.forEach((m) => {
-          const wrapped: string[] = doc.splitTextToSize(`• ${m}`, maxTextWidth);
-          wrapped.forEach((line: string) => {
-            checkPage(4.5);
-            doc.text(line, mL + 4, y);
-            y += 4;
-          });
+          const wrapped: string[] = doc.splitTextToSize(`• ${m}`, cellTextW);
+          wrapped.forEach((l: string) => lines.push(l));
         });
-        y += 1.5;
+        const height = 4 + lines.length * 3 + 1.5;
+        return { p, lines, height };
       });
+
+      let colIdx = 0;
+      let colY = [y, y, y];
+      const colStartY = y;
+      let maxColY = y;
+
+      const newPage = () => {
+        doc.addPage();
+        y = 20;
+        colY = [y, y, y];
+        maxColY = y;
+        colIdx = 0;
+      };
+
+      cells.forEach((cell) => {
+        // Se a célula não cabe na coluna atual da página
+        if (colY[colIdx] + cell.height > pageHeight - 15) {
+          colIdx++;
+          if (colIdx >= cols) {
+            newPage();
+          }
+        }
+        const x = mL + colIdx * (colW + gap);
+        let cy = colY[colIdx];
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(30, 58, 95);
+        doc.text(cell.p, x, cy);
+        cy += 4;
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        cell.lines.forEach((l) => {
+          doc.text(l, x + 2, cy);
+          cy += 3;
+        });
+        cy += 1.5;
+        colY[colIdx] = cy;
+        if (cy > maxColY) maxColY = cy;
+      });
+      y = maxColY;
     } else {
       // Lista simples em 3 colunas
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      const cols = 3;
-      const colW = contentW / cols;
       const rows = Math.ceil(items.length / cols);
       for (let r = 0; r < rows; r++) {
         checkPage(5);
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
-          if (idx < items.length) doc.text(items[idx], mL + c * colW, y);
+          if (idx < items.length) doc.text(items[idx], mL + c * (colW + gap), y);
         }
         y += 4.5;
       }
@@ -2030,19 +2065,19 @@ export default function CompararDjSantander() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
-                  {result.comuns.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic">Nenhum processo em comum</p>
-                  ) : (
-                    result.comuns.map((p, i) => (
-                      <div key={i} className="flex items-center gap-2 py-1">
+                {result.comuns.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">Nenhum processo em comum</p>
+                ) : (
+                  <div className="columns-1 sm:columns-2 lg:columns-3 gap-2">
+                    {result.comuns.map((p, i) => (
+                      <div key={i} className="break-inside-avoid py-1">
                         <Badge variant="outline" className="text-xs font-mono bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-green-200">
                           {p}
                         </Badge>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -2054,12 +2089,12 @@ export default function CompararDjSantander() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
-                  {result.somente_doc.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
-                  ) : (
-                    result.somente_doc.map((p, i) => (
-                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
+                {result.somente_doc.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
+                ) : (
+                  <div className="columns-1 sm:columns-2 lg:columns-3 gap-3">
+                    {result.somente_doc.map((p, i) => (
+                      <div key={i} className="break-inside-avoid py-1.5 border-b border-border/50 last:border-b-0">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs font-mono bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200">
                             {p}
@@ -2076,9 +2111,9 @@ export default function CompararDjSantander() {
                           </ul>
                         )}
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -2090,12 +2125,12 @@ export default function CompararDjSantander() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
-                  {result.somente_pdf.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
-                  ) : (
-                    result.somente_pdf.map((p, i) => (
-                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
+                {result.somente_pdf.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">Nenhum processo exclusivo</p>
+                ) : (
+                  <div className="columns-1 sm:columns-2 lg:columns-3 gap-3">
+                    {result.somente_pdf.map((p, i) => (
+                      <div key={i} className="break-inside-avoid py-1.5 border-b border-border/50 last:border-b-0">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs font-mono bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400 border-orange-200">
                             {p}
@@ -2112,9 +2147,9 @@ export default function CompararDjSantander() {
                           </ul>
                         )}
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
