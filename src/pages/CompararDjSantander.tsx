@@ -99,29 +99,14 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   if (atual) blocos.push(atual);
 
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
-  const vistos = new Set<string>();
-  let repetidos = 0;
   const pautaList: string[] = [];
   const distribuicaoList: string[] = [];
   const cejuscList: string[] = [];
   for (const bloco of blocos) {
-    // Conta repetidos: mesmo CNJ + mesmo conteúdo normalizado.
-    // Blocos com mesmo CNJ mas conteúdos diferentes (ex.: pauta + despacho)
-    // são tratados como distintos.
     const header = colarCnjNaLinha(bloco[0] || "");
     const m = header.match(/(\d{20}|\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
     const corpoCompleto = bloco.join("\n");
-    const conteudoNorm = corpoCompleto
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
     const cnjFormatado = m ? formatarCNJ(m[1]) : null;
-    if (m) {
-      const cnj = m[1].replace(/\D/g, "");
-      const key = `${cnj}|${conteudoNorm}`;
-      if (vistos.has(key)) repetidos++;
-      else vistos.add(key);
-    }
     // Varre o bloco INTEIRO buscando marcadores de tipo.
     // Regras alinhadas ao botão "Docs TST" da tela Análise DJEN
     // (handleGerarDocsTST). Ordem de prioridade — primeira que casar vence:
@@ -149,6 +134,14 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     const nb = b.replace(/\D/g, "");
     return na.localeCompare(nb);
   };
+
+  // Repetidos = total de ocorrências EXTRAS (2ª, 3ª…) de cada CNJ
+  // dentro das listas exibidas (CEJUSC + Pauta + Distribuição).
+  const todasExibidas = [...cejuscList, ...pautaList, ...distribuicaoList];
+  const contagemExibidas = new Map<string, number>();
+  for (const c of todasExibidas) contagemExibidas.set(c, (contagemExibidas.get(c) || 0) + 1);
+  let repetidos = 0;
+  for (const n of contagemExibidas.values()) if (n > 1) repetidos += n - 1;
 
   return {
     pauta, distribuicao, cejusc, outros, repetidos,
@@ -531,6 +524,7 @@ function exportarPdf(
       sameRemaining?: Map<string, number> | null,
       anyRemaining?: Map<string, number> | null,
       selfCounts?: Map<string, number> | null,
+      selfSeen?: Map<string, number> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -603,7 +597,10 @@ function exportarPdf(
           doc.setDrawColor(border[0], border[1], border[2]);
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
-          const isRepetido = (selfCounts?.get(item) || 0) > 1;
+          const totalSelf = selfCounts?.get(item) || 0;
+          const jaVisto = selfSeen?.get(item) || 0;
+          if (selfSeen) selfSeen.set(item, jaVisto + 1);
+          const isRepetido = totalSelf > 1 && jaVisto >= 1;
           if (isRepetido) {
             doc.setTextColor(0, 0, 0);
           } else {
@@ -648,10 +645,11 @@ function exportarPdf(
         ? toCounts([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
       const selfCounts = toCounts([...t.cejuscList, ...t.pautaList, ...t.distribuicaoList]);
+      const selfSeen = new Map<string, number>();
       // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem, selfCounts);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem, selfCounts);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem, selfCounts);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem, selfCounts, selfSeen);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem, selfCounts, selfSeen);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem, selfCounts, selfSeen);
       y += 4;
     };
 
@@ -2135,6 +2133,7 @@ export default function CompararDjSantander() {
                       ...(t?.pautaList || []),
                       ...(t?.distribuicaoList || []),
                     ]);
+                    const vistosSelf = new Map<string, number>();
                    return (
                   <Card key={titulo}>
                     <CardHeader className="pb-3">
@@ -2183,7 +2182,11 @@ export default function CompararDjSantander() {
                                       : estado === "outro"
                                       ? "text-xs font-mono bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 font-semibold"
                                       : `text-xs font-mono ${cls}`;
-                                  const isRepetido = (selfCounts.get(p) || 0) > 1;
+                                  const totalSelf = selfCounts.get(p) || 0;
+                                  const jaVisto = vistosSelf.get(p) || 0;
+                                  vistosSelf.set(p, jaVisto + 1);
+                                  // Marca em preto somente as ocorrências EXTRAS (2ª, 3ª…)
+                                  const isRepetido = totalSelf > 1 && jaVisto >= 1;
                                   const classeFinal = isRepetido
                                     ? `${classe} !text-black dark:!text-white font-bold`
                                     : classe;
@@ -2194,9 +2197,9 @@ export default function CompararDjSantander() {
                                       ? (isLeft
                                           ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
                                           : "Existe no Doc do Advogado, mas em bloco diferente (classificação divergente)")
-                                      : (isRepetido ? `Processo repetido nesta lista (${selfCounts.get(p)}x)` : undefined);
+                                      : (isRepetido ? `Ocorrência repetida (${jaVisto + 1}ª de ${totalSelf})` : undefined);
                                   return (
-                                    <Badge key={`${p}-${i}`} variant="outline" className={classeFinal} title={isRepetido && estado === "ok" ? `Processo repetido nesta lista (${selfCounts.get(p)}x)` : titulo}>
+                                    <Badge key={`${p}-${i}`} variant="outline" className={classeFinal} title={isRepetido && estado === "ok" ? `Ocorrência repetida (${jaVisto + 1}ª de ${totalSelf})` : titulo}>
                                       {p}
                                     </Badge>
                                   );
