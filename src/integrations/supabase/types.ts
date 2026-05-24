@@ -4904,6 +4904,7 @@ export type Database = {
           identificador_projuris: string | null
           instancia: string | null
           judit_campos: Json
+          judit_ia_observacoes: string | null
           justica: string | null
           justificativa_risco: string | null
           lei_13467_2017: string | null
@@ -5095,6 +5096,7 @@ export type Database = {
           identificador_projuris?: string | null
           instancia?: string | null
           judit_campos?: Json
+          judit_ia_observacoes?: string | null
           justica?: string | null
           justificativa_risco?: string | null
           lei_13467_2017?: string | null
@@ -5286,6 +5288,7 @@ export type Database = {
           identificador_projuris?: string | null
           instancia?: string | null
           judit_campos?: Json
+          judit_ia_observacoes?: string | null
           justica?: string | null
           justificativa_risco?: string | null
           lei_13467_2017?: string | null

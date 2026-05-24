@@ -1,14 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AnexosJuditTab } from "@/components/distribuicao-tst/AnexosJuditTab";
 import { Loader2 } from "lucide-react";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
+import { toast } from "sonner";
 
 interface Props {
   processoNumero: string;
 }
 
 export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
+  const queryClient = useQueryClient();
   const { data: anexos = [], isLoading } = useQuery({
     queryKey: ["judit_anexos", processoNumero],
     enabled: !!processoNumero,
@@ -53,6 +55,31 @@ export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
       processoNumero={processoNumero}
       attachments={attachments}
       dadosJudit={null}
+      onIaPreenchido={async ({ resumo }) => {
+        if (!resumo) return;
+        try {
+          const variantes = obterVariantesCnjBusca(processoNumero);
+          const { data: procs } = await supabase
+            .from("processos")
+            .select("id, judit_ia_observacoes")
+            .in("numero", variantes)
+            .limit(1);
+          const proc = (procs as any[])?.[0];
+          if (!proc?.id) return;
+          const acumulado = proc.judit_ia_observacoes
+            ? `${proc.judit_ia_observacoes}\n\n${resumo}`
+            : resumo;
+          const { error } = await supabase
+            .from("processos")
+            .update({ judit_ia_observacoes: acumulado } as any)
+            .eq("id", proc.id);
+          if (error) throw error;
+          await queryClient.invalidateQueries({ queryKey: ["processo"] });
+          toast.success("Observações da IA gravadas no processo.");
+        } catch (e: any) {
+          toast.error("Falha ao gravar observações da IA: " + (e?.message || ""));
+        }
+      }}
     />
   );
 }
