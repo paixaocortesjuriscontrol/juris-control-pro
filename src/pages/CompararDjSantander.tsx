@@ -522,6 +522,57 @@ function exportarPdf(
     if (tiposEsq) renderTipoRow(leftLabel, tiposEsq, false);
     if (tiposDir) renderTipoRow(sourceLabel, tiposDir, true);
     y += 8;
+
+    // ----- Listas de CNJs por tipo (Pauta, Distribuição, CEJUSC) -----
+    const renderListaTipo = (
+      titulo: string,
+      items: string[],
+      color: [number, number, number],
+    ) => {
+      if (!items || items.length === 0) return;
+      checkPage(14);
+      doc.setFillColor(...color);
+      doc.rect(mL, y, contentW, 6, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(`${titulo} (${items.length})`, mL + 2, y + 4.2);
+      doc.setTextColor(0, 0, 0);
+      y += 8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const cols = 3;
+      const colW = contentW / cols;
+      const rows = Math.ceil(items.length / cols);
+      for (let r = 0; r < rows; r++) {
+        checkPage(5);
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          if (idx < items.length) doc.text(items[idx], mL + c * colW, y);
+        }
+        y += 4.5;
+      }
+      y += 3;
+    };
+
+    const renderBlocoTipos = (titulo: string, t: TipoCounts) => {
+      const hasAny = t.pautaList.length + t.distribuicaoList.length + t.cejuscList.length > 0;
+      if (!hasAny) return;
+      checkPage(12);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 58, 95);
+      doc.text(titulo, mL, y);
+      y += 5;
+      doc.setTextColor(0, 0, 0);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237]);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235]);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136]);
+      y += 4;
+    };
+
+    if (tiposEsq) renderBlocoTipos(leftLabel, tiposEsq);
+    if (tiposDir) renderBlocoTipos(sourceLabel, tiposDir);
   }
 
   // ----- Lista helper colorida -----
