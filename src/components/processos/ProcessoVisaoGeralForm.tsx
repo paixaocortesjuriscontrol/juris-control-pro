@@ -89,13 +89,14 @@ export function ProcessoVisaoGeralForm({
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
+  const [syncingInterno, setSyncingInterno] = useState(false);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
   // experiência da tela de Distribuição TST: o usuário vê que algo está
   // acontecendo e não pensa que travou.
   const [juditElapsed, setJuditElapsed] = useState(0);
-  const juditBusy = syncing || syncingAnexos;
+  const juditBusy = syncing || syncingAnexos || syncingInterno;
   useEffect(() => {
     if (!juditBusy) { setJuditElapsed(0); return; }
     const start = Date.now();
@@ -368,6 +369,96 @@ export function ProcessoVisaoGeralForm({
     }
   };
 
+  /**
+   * Sincronização INDEPENDENTE para Processo Interno — chama a edge function
+   * `judit-processo-interno` (separada da buscar-judit usada pela Dados Benner).
+   * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
+   * Judit traz valor).
+   */
+  const handleSyncJuditInterno = async () => {
+    if (!processo?.numero) {
+      toast.warning("Processo sem número CNJ cadastrado.");
+      return;
+    }
+    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
+    setSyncingInterno(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("judit-processo-interno", {
+        body: { numero_processo: numeroLimpo, force_refresh: true },
+      });
+      if (error) throw error;
+      if (data?.error) { toast.error(data.error); return; }
+
+      const next: Record<string, any> = { ...form };
+      const filled = new Set<string>(juditSessionFields);
+      const apply = (field: string, value: any) => {
+        if (value !== null && value !== undefined && String(value).trim() !== "") {
+          next[field] = value;
+          filled.add(field);
+        }
+      };
+      for (const f of FIELDS) apply(f, (data as any)[f]);
+      setForm(next);
+      setJuditSessionFields(filled);
+
+      // Persiste
+      const updatePayload: Record<string, any> = {};
+      for (const f of FIELDS) {
+        const v = next[f];
+        if (NUMERIC_FIELDS.has(f)) updatePayload[f] = v === "" || v == null ? null : Number(v);
+        else updatePayload[f] = v === "" || v == null ? null : v;
+      }
+      (updatePayload as any).judit_campos = Array.from(filled);
+      await supabase.from("processos").update(updatePayload as any).eq("id", processo.id);
+
+      // Log
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData?.user?.id || null;
+      try {
+        await supabase.from("judit_logs" as any).insert({
+          processo_numero: numeroLimpo,
+          tribunal: data?.tribunal || null,
+          request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno" },
+          raw_response: data,
+          status: "sucesso",
+          error_message: null,
+          created_by: uid,
+        });
+      } catch (_) { /* noop */ }
+
+      // Partes
+      const partes = Array.isArray((data as any)?.parties_detail) ? (data as any).parties_detail : [];
+      await supabase.from("processos_partes" as any).delete().eq("processo_id", processo.id).eq("fonte", "judit");
+      if (partes.length > 0) {
+        const rows = partes.map((p: any) => ({
+          processo_id: processo.id,
+          nome: String(p?.nome || "").trim(),
+          documento: p?.documento || null,
+          tipo_pessoa: p?.tipo_pessoa || null,
+          polo: p?.polo || null,
+          lado_efetivo: p?.lado_efetivo || null,
+          is_advogado: !!p?.is_advogado,
+          fonte: "judit",
+          raw: p,
+          created_by: uid,
+        })).filter((r: any) => r.nome);
+        if (rows.length > 0) {
+          await supabase.from("processos_partes" as any).insert(rows);
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["processo"] });
+      await queryClient.invalidateQueries({ queryKey: ["processos_partes", processo.id] });
+      const preenchidos = Object.keys(data || {}).filter((k) => (FIELDS as readonly string[]).includes(k) && (data as any)[k] != null && String((data as any)[k]).trim() !== "").length;
+      toast.success(`Judit (Interno) sincronizada — ${preenchidos} campo(s) preenchido(s).`);
+    } catch (e: any) {
+      toast.error("Erro Judit Interno: " + (e?.message || "desconhecido"));
+    } finally {
+      setSyncingInterno(false);
+    }
+  };
+
   const copy = (t: string) => navigator.clipboard.writeText(t);
 
   const inputCls = "h-9 text-sm";
@@ -419,6 +510,19 @@ export function ProcessoVisaoGeralForm({
                 {syncingAnexos
                   ? (juditElapsed < 3 ? "Buscando anexos…" : `Aguardando crawler… ${juditElapsed}s`)
                   : "Judit c/ anexos"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSyncJuditInterno}
+                disabled={juditBusy || saving}
+                className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+                title="Preenche o máximo de campos do formulário usando uma chamada Judit independente"
+              >
+                {syncingInterno ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {syncingInterno
+                  ? (juditElapsed < 3 ? "Consultando…" : `Aguardando… ${juditElapsed}s`)
+                  : "Judit (Interno)"}
               </Button>
               {(juditSessionFields.size > 0 || (Array.isArray((processo as any)?.judit_campos) && (processo as any).judit_campos.length > 0)) && onNavigate && (
                 <>
