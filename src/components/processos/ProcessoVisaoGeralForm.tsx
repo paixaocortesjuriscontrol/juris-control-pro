@@ -112,6 +112,14 @@ export function ProcessoVisaoGeralForm({
     const next: Record<string, any> = {};
     for (const f of FIELDS) next[f] = (processo as any)[f] ?? "";
     setForm(next);
+    // Recupera campos preenchidos pela Judit em sessões anteriores para
+    // manter o destaque verde mesmo após sair e voltar.
+    const persisted = (processo as any)?.judit_campos;
+    if (Array.isArray(persisted)) {
+      setJuditSessionFields(new Set(persisted.filter((s: any) => typeof s === "string")));
+    } else {
+      setJuditSessionFields(new Set());
+    }
   }, [processo?.id, processo?.updated_at]);
 
   const update = (field: string, value: any) =>
@@ -176,11 +184,17 @@ export function ProcessoVisaoGeralForm({
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
+    // Extrai o CNJ "limpo" do campo numero — alguns processos têm texto
+    // extra (ex.: "0010996-92.2021.5.15.0094 (transitou em julgado...)") que,
+    // se enviado bruto, quebra o cache de anexos (a chave processo_numero
+    // fica diferente da chave usada pela aba "Anexos Judit").
+    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
     if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: {
-          numero_processo: processo.numero,
+          numero_processo: numeroLimpo,
           tribunal: "TST",
           com_anexos: comAnexos,
           force_refresh: true,
@@ -224,7 +238,9 @@ export function ProcessoVisaoGeralForm({
       apply("classe", data.classe_capa || data.classe);
       apply("assunto", data.assunto);
       apply("comarca", data.comarca);
-      apply("vara", data.vara || data.orgao_julgador);
+      // Vara só é preenchida se a Judit trouxer um valor próprio para `vara`;
+      // não duplicamos o conteúdo do órgão julgador no campo Vara/Câmara.
+      apply("vara", data.vara);
       apply("uf", data.uf);
       apply("instancia", data.instancia);
       apply("data_distribuicao", data.data_distribuicao);
@@ -245,6 +261,9 @@ export function ProcessoVisaoGeralForm({
         if (NUMERIC_FIELDS.has(f)) updatePayload[f] = v === "" || v == null ? null : Number(v);
         else updatePayload[f] = v === "" || v == null ? null : v;
       }
+      // Persiste a lista de campos preenchidos pela Judit para preservar
+      // o destaque verde após reload.
+      (updatePayload as any).judit_campos = Array.from(filled);
       await supabase.from("processos").update(updatePayload as any).eq("id", processo.id);
 
       // Atualiza partes vindas da Judit em processos_partes
@@ -285,9 +304,9 @@ export function ProcessoVisaoGeralForm({
       });
       try {
         await supabase.from("judit_logs" as any).insert({
-          processo_numero: processo.numero,
+          processo_numero: numeroLimpo,
           tribunal: "TST",
-          request_payload: { numero_processo: processo.numero, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
+          request_payload: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
           raw_response: data,
           status: "sucesso",
           error_message: null,
@@ -301,8 +320,8 @@ export function ProcessoVisaoGeralForm({
         if (atts.length > 0) {
           try {
             const rowsRaw = atts.map((a: any) => ({
-              processo_numero: processo.numero,
-              cnj: a?.cnj || processo.numero,
+              processo_numero: numeroLimpo,
+              cnj: a?.cnj || numeroLimpo,
               instance: a?.instance != null ? String(a.instance) : null,
               attachment_id: String(a?.step_id || a?.attachment_id || ""),
               step_id: a?.step_id ? String(a.step_id) : null,
@@ -322,9 +341,10 @@ export function ProcessoVisaoGeralForm({
               return true;
             });
             if (rows.length > 0) {
-              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", processo.numero);
+              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", numeroLimpo);
               await supabase.from("judit_anexos" as any).insert(rows);
               await queryClient.invalidateQueries({ queryKey: ["judit_anexos", processo.numero] });
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", numeroLimpo] });
             }
             toast.success(`Judit retornou ${atts.length} anexo(s).`);
           } catch (e) {
