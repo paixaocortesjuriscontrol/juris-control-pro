@@ -168,6 +168,26 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     return pagesText;
   };
 
+  const extrairTextoHtmlNoNavegador = async (signedUrl: string): Promise<string[]> => {
+    const res = await fetch(signedUrl);
+    if (!res.ok) throw new Error(`Falha ao abrir HTML: HTTP ${res.status}`);
+    const html = await res.text();
+    // Remove scripts/styles e converte para texto plano
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("script,style,noscript").forEach((el) => el.remove());
+    const text = (doc.body?.innerText || doc.body?.textContent || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (!text) throw new Error("HTML sem texto extraível.");
+    // Paginação artificial em blocos ~3000 chars para reutilizar o pipeline de chunks
+    const PAGE = 3000;
+    const pages: string[] = [];
+    for (let i = 0; i < text.length; i += PAGE) pages.push(text.slice(i, i + PAGE));
+    return pages;
+  };
+
   const processarComIA = async () => {
     if (selected.size === 0) {
       toast.warning("Selecione ao menos um anexo.");
@@ -252,11 +272,20 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
             setStage(`Baixando/lendo ${label} (paralelo)…`);
             arquivo = await baixarAnexoParaIndexacao(a);
           }
-          const isPdf = (arquivo.content_type || "").includes("pdf") || (arquivo.filename || a.attachment_name || "").toLowerCase().endsWith(".pdf");
-          if (!isPdf) throw new Error("Somente anexos PDF podem ser lidos com IA nesta rotina.");
-          pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
+          const nomeLower = (arquivo.filename || a.attachment_name || "").toLowerCase();
+          const ctype = (arquivo.content_type || "").toLowerCase();
+          const ext = (a.extension || "").toLowerCase();
+          const isPdf = ctype.includes("pdf") || nomeLower.endsWith(".pdf") || ext === "pdf";
+          const isHtml = ctype.includes("html") || nomeLower.endsWith(".html") || nomeLower.endsWith(".htm") || ext === "html" || ext === "htm";
+          if (isPdf) {
+            pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
+          } else if (isHtml) {
+            pagesText = await extrairTextoHtmlNoNavegador(arquivo.signed_url);
+          } else {
+            throw new Error(`Formato não suportado para leitura com IA: ${ext || ctype || "desconhecido"}`);
+          }
           if (!pagesText.some((page) => page.trim())) {
-            throw new Error("PDF sem texto extraível no navegador.");
+            throw new Error("Anexo sem texto extraível no navegador.");
           }
         } catch (e: any) {
           failed.push({ step_id: a.step_id, error: e?.message || "falha na leitura" });
