@@ -168,6 +168,26 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
     return pagesText;
   };
 
+  const extrairTextoHtmlNoNavegador = async (signedUrl: string): Promise<string[]> => {
+    const res = await fetch(signedUrl);
+    if (!res.ok) throw new Error(`Falha ao abrir HTML: HTTP ${res.status}`);
+    const html = await res.text();
+    // Remove scripts/styles e converte para texto plano
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("script,style,noscript").forEach((el) => el.remove());
+    const text = (doc.body?.innerText || doc.body?.textContent || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (!text) throw new Error("HTML sem texto extraível.");
+    // Paginação artificial em blocos ~3000 chars para reutilizar o pipeline de chunks
+    const PAGE = 3000;
+    const pages: string[] = [];
+    for (let i = 0; i < text.length; i += PAGE) pages.push(text.slice(i, i + PAGE));
+    return pages;
+  };
+
   const processarComIA = async () => {
     if (selected.size === 0) {
       toast.warning("Selecione ao menos um anexo.");
