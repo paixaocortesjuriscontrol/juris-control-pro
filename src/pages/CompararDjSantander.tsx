@@ -598,9 +598,7 @@ function exportarPdf(
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
           const totalSelf = selfCounts?.get(item) || 0;
-          const jaVisto = selfSeen?.get(item) || 0;
-          if (selfSeen) selfSeen.set(item, jaVisto + 1);
-          const isRepetido = totalSelf > 1 && jaVisto >= 1;
+          const isRepetido = totalSelf > 1;
           if (isRepetido) {
             doc.setTextColor(0, 0, 0);
           } else {
