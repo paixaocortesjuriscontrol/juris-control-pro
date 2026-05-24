@@ -17,6 +17,7 @@ import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { cn } from "@/lib/utils";
+import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 
 interface Props {
   processo: any;
@@ -84,6 +85,9 @@ export function ProcessoVisaoGeralForm({
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingAnexos, setSyncingAnexos] = useState(false);
+  // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
+  const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
 
   // Inicializa form quando processo carregar/trocar
   useEffect(() => {
@@ -147,19 +151,21 @@ export function ProcessoVisaoGeralForm({
    * Sincronização com Judit — equivalente ao botão da Distribuição TST.
    * Busca dados da Judit, atualiza o processo (capa + partes/advogados) e
    * grava log em consultas_judit. Em seguida, recarrega o form.
+   * Quando `comAnexos = true`, também persiste os anexos em `judit_anexos`
+   * para que a aba "Anexos Judit" exiba a lista com o botão de IA.
    */
-  const handleSyncJudit = async () => {
+  const handleSyncJudit = async (comAnexos: boolean = false) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
-    setSyncing(true);
+    if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
         body: {
           numero_processo: processo.numero,
           tribunal: "TST",
-          com_anexos: false,
+          com_anexos: comAnexos,
           force_refresh: true,
         },
       });
@@ -189,9 +195,11 @@ export function ProcessoVisaoGeralForm({
 
       // Monta atualização do processo — só sobrescreve quando Judit traz valor
       const next: Record<string, any> = { ...form };
+      const filled = new Set<string>(juditSessionFields);
       const apply = (field: string, value: any) => {
         if (value !== null && value !== undefined && String(value).trim() !== "") {
           next[field] = value;
+          filled.add(field);
         }
       };
       apply("tribunal", data.tribunal || data.tribunal_acronimo);
@@ -211,6 +219,7 @@ export function ProcessoVisaoGeralForm({
       apply("fase", data.situacao_processo);
 
       setForm(next);
+      setJuditSessionFields(filled);
 
       // Persiste no banco
       const updatePayload: Record<string, any> = {};
@@ -261,13 +270,53 @@ export function ProcessoVisaoGeralForm({
         await supabase.from("judit_logs" as any).insert({
           processo_numero: processo.numero,
           tribunal: "TST",
-          request_payload: { numero_processo: processo.numero, tribunal: "TST", com_anexos: false, force_refresh: true },
+          request_payload: { numero_processo: processo.numero, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
           raw_response: data,
           status: "sucesso",
           error_message: null,
           created_by: uid,
         });
       } catch (_) { /* noop */ }
+
+      // Persiste anexos (mesma lógica da Distribuição TST) para alimentar a aba Anexos Judit
+      if (comAnexos) {
+        const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
+        if (atts.length > 0) {
+          try {
+            const rowsRaw = atts.map((a: any) => ({
+              processo_numero: processo.numero,
+              cnj: a?.cnj || processo.numero,
+              instance: a?.instance != null ? String(a.instance) : null,
+              attachment_id: String(a?.step_id || a?.attachment_id || ""),
+              step_id: a?.step_id ? String(a.step_id) : null,
+              attachment_name: a?.attachment_name || null,
+              attachment_date: a?.attachment_date || null,
+              extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
+              raw_attachment: a,
+              created_by: uid,
+            })).filter((r: any) => r.attachment_id);
+            const seen = new Set<string>();
+            const rows = rowsRaw.filter((r: any) => {
+              const key = getJuditAttachmentDedupKey(r);
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            if (rows.length > 0) {
+              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", processo.numero);
+              await supabase.from("judit_anexos" as any).insert(rows);
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", processo.numero] });
+            }
+            toast.success(`Judit retornou ${atts.length} anexo(s).`);
+          } catch (e) {
+            console.warn("Falha ao persistir judit_anexos:", e);
+          }
+        } else {
+          toast.warning("Judit não retornou anexos nesta consulta.");
+        }
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["processo"] });
       await queryClient.invalidateQueries({ queryKey: ["processos_partes", processo.id] });
@@ -276,13 +325,18 @@ export function ProcessoVisaoGeralForm({
     } catch (e: any) {
       toast.error("Erro Judit: " + (e?.message || "desconhecido"));
     } finally {
-      setSyncing(false);
+      if (comAnexos) setSyncingAnexos(false); else setSyncing(false);
     }
   };
 
   const copy = (t: string) => navigator.clipboard.writeText(t);
 
   const inputCls = "h-9 text-sm";
+  // Classe verde aplicada a inputs cujo campo foi preenchido pela Judit na sessão.
+  const jcls = (field: string) =>
+    juditSessionFields.has(field) && form[field] !== "" && form[field] != null
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+      : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 
   return (
@@ -306,14 +360,24 @@ export function ProcessoVisaoGeralForm({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleSyncJudit}
-                disabled={syncing || saving}
+                onClick={() => handleSyncJudit(false)}
+                disabled={syncing || syncingAnexos || saving}
                 className="gap-1"
               >
                 {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-emerald-600" />}
                 Sincronizar Judit
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving || syncing}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSyncJudit(true)}
+                disabled={syncing || syncingAnexos || saving}
+                className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              >
+                {syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Judit c/ anexos
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                 Salvar alterações
               </Button>
