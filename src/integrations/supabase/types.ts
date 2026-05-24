@@ -4995,6 +4995,7 @@ export type Database = {
           risco_atual: string | null
           setor: string | null
           sigla_unidade: string | null
+          sistema: string | null
           situacao_original: string | null
           status: Database["public"]["Enums"]["status_processo"]
           status_pedido: string | null
@@ -5184,6 +5185,7 @@ export type Database = {
           risco_atual?: string | null
           setor?: string | null
           sigla_unidade?: string | null
+          sistema?: string | null
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
@@ -5373,6 +5375,7 @@ export type Database = {
           risco_atual?: string | null
           setor?: string | null
           sigla_unidade?: string | null
+          sistema?: string | null
           situacao_original?: string | null
           status?: Database["public"]["Enums"]["status_processo"]
           status_pedido?: string | null
