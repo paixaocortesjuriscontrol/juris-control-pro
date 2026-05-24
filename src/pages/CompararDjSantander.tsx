@@ -2214,7 +2214,7 @@ export default function CompararDjSantander() {
             </div>
           )}
 
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -2226,9 +2226,9 @@ export default function CompararDjSantander() {
                 {result.comuns.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Nenhum processo em comum</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  <div className="flex flex-col">
                     {result.comuns.map((p, i) => (
-                      <div key={i} className="py-1">
+                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
                         <Badge variant="outline" className="text-xs font-mono bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-green-200 whitespace-nowrap">
                           {p}
                         </Badge>
@@ -2239,7 +2239,6 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -2311,7 +2310,6 @@ export default function CompararDjSantander() {
                 )}
               </CardContent>
             </Card>
-            </div>
           </div>
         </div>
       )}
