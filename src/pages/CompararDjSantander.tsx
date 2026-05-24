@@ -533,73 +533,105 @@ function exportarPdf(
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
-      doc.setFillColor(...color);
-      doc.rect(mL, y, contentW, 6, "F");
+      // Header pill (cor do tipo)
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.roundedRect(mL, y, contentW, 6.5, 1.2, 1.2, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(`${titulo} (${items.length})`, mL + 2, y + 4.2);
-      doc.setTextColor(0, 0, 0);
-      y += 8;
+      doc.setFontSize(8.5);
+      doc.text(`${titulo}  (${items.length})`, mL + 3, y + 4.5);
+      y += 9;
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+      doc.setFontSize(7.8);
       const cols = 3;
-      const colW = contentW / cols;
+      const gap = 2.5;
+      const colW = (contentW - gap * (cols - 1)) / cols;
+      const rowH = 5.2;
       const rows = Math.ceil(items.length / cols);
       for (let r = 0; r < rows; r++) {
-        checkPage(5);
+        checkPage(rowH + 1);
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
-          if (idx < items.length) {
-            const item = items[idx];
-            let estado: "ok" | "outro" | "ausente" = "ok";
-            if (sameBlockSet && !sameBlockSet.has(item)) {
-              estado = anyBlockSet && anyBlockSet.has(item) ? "outro" : "ausente";
-            }
-            if (estado === "ausente") {
-              doc.setTextColor(200, 30, 30);
-              doc.setFont("helvetica", "bold");
-            } else if (estado === "outro") {
-              doc.setTextColor(180, 120, 0);
-              doc.setFont("helvetica", "bold");
-            } else {
-              doc.setTextColor(0, 0, 0);
-              doc.setFont("helvetica", "normal");
-            }
-            doc.text(item, mL + c * colW, y);
+          if (idx >= items.length) continue;
+          const item = items[idx];
+          let estado: "ok" | "outro" | "ausente" = "ok";
+          if (sameBlockSet && !sameBlockSet.has(item)) {
+            estado = anyBlockSet && anyBlockSet.has(item) ? "outro" : "ausente";
           }
+          // Cores do badge (espelhando a tela)
+          let bg: [number, number, number];
+          let border: [number, number, number];
+          let fg: [number, number, number];
+          if (estado === "ausente") {
+            bg = [254, 242, 242]; border = [252, 165, 165]; fg = [185, 28, 28];
+          } else if (estado === "outro") {
+            bg = [255, 251, 235]; border = [253, 224, 71]; fg = [180, 83, 9];
+          } else {
+            // tom claro do tipo + texto escuro do tipo
+            bg = [
+              Math.round(color[0] + (255 - color[0]) * 0.88),
+              Math.round(color[1] + (255 - color[1]) * 0.88),
+              Math.round(color[2] + (255 - color[2]) * 0.88),
+            ];
+            border = [
+              Math.round(color[0] + (255 - color[0]) * 0.55),
+              Math.round(color[1] + (255 - color[1]) * 0.55),
+              Math.round(color[2] + (255 - color[2]) * 0.55),
+            ];
+            fg = [
+              Math.round(color[0] * 0.75),
+              Math.round(color[1] * 0.75),
+              Math.round(color[2] * 0.75),
+            ];
+          }
+          const x = mL + c * (colW + gap);
+          doc.setFillColor(bg[0], bg[1], bg[2]);
+          doc.setDrawColor(border[0], border[1], border[2]);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
+          doc.setTextColor(fg[0], fg[1], fg[2]);
+          doc.setFont("helvetica", estado === "ok" ? "normal" : "bold");
+          doc.text(item, x + colW / 2, y + 3.6, { align: "center" });
         }
-        y += 4.5;
+        y += rowH + 1.2;
       }
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
+      doc.setDrawColor(0, 0, 0);
       y += 3;
     };
 
     const renderBlocoTipos = (titulo: string, t: TipoCounts, dir?: TipoCounts | null) => {
       const hasAny = t.pautaList.length + t.distribuicaoList.length + t.cejuscList.length > 0;
       if (!hasAny) return;
-      checkPage(12);
+      checkPage(14);
+      // Faixa de título do bloco
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(mL, y, contentW, 7.5, 1.2, 1.2, "FD");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.setTextColor(30, 58, 95);
-      doc.text(titulo, mL, y);
-      y += 5;
+      doc.setTextColor(15, 23, 42);
+      doc.text(titulo, mL + 3, y + 5);
+      y += 10;
       doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(0, 0, 0);
       const cejuscSet = dir ? new Set(dir.cejuscList) : null;
       const pautaSet = dir ? new Set(dir.pautaList) : null;
       const distSet = dir ? new Set(dir.distribuicaoList) : null;
       const anySet = dir
         ? new Set<string>([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136], cejuscSet, anySet);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237], pautaSet, anySet);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235], distSet, anySet);
+      // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscSet, anySet);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaSet, anySet);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distSet, anySet);
       y += 4;
     };
 
     if (tiposEsq) renderBlocoTipos(leftLabel, tiposEsq, tiposDir);
-    if (tiposDir) renderBlocoTipos(sourceLabel, tiposDir);
+    if (tiposDir) renderBlocoTipos(sourceLabel, tiposDir, tiposEsq);
   }
 
   // ----- Lista helper colorida (sempre 3 colunas) -----
@@ -2056,15 +2088,16 @@ export default function CompararDjSantander() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {([
-                         { rotulo: "CEJUSC-TST", lista: t!.cejuscList, dirLista: tiposDir?.cejuscList || [], cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
-                         { rotulo: "Pauta de Julgamento", lista: t!.pautaList, dirLista: tiposDir?.pautaList || [], cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
-                         { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, dirLista: tiposDir?.distribuicaoList || [], cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
-                       ]).map(({ rotulo, lista, dirLista, cls }) => {
-                         const dirSet = new Set(dirLista);
-                           const todosDir = new Set<string>([
-                             ...(tiposDir?.cejuscList || []),
-                             ...(tiposDir?.pautaList || []),
-                             ...(tiposDir?.distribuicaoList || []),
+                          { rotulo: "CEJUSC-TST", lista: t!.cejuscList, cmpKey: "cejuscList" as const, cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
+                          { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cmpKey: "pautaList" as const, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
+                          { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cmpKey: "distribuicaoList" as const, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
+                        ]).map(({ rotulo, lista, cmpKey, cls }) => {
+                           const outro = isLeft ? tiposDir : tiposEsq;
+                           const sameSet = new Set(outro?.[cmpKey] || []);
+                           const anySet = new Set<string>([
+                             ...(outro?.cejuscList || []),
+                             ...(outro?.pautaList || []),
+                             ...(outro?.distribuicaoList || []),
                            ]);
                          return (
                         <div key={rotulo}>
@@ -2077,9 +2110,9 @@ export default function CompararDjSantander() {
                             <div className="flex flex-wrap gap-1">
                                {lista.map((p, i) => {
                                   let estado: "ok" | "outro" | "ausente" = "ok";
-                                  if (isLeft && tiposDir) {
-                                    if (!dirSet.has(p)) {
-                                      estado = todosDir.has(p) ? "outro" : "ausente";
+                                  if (outro) {
+                                    if (!sameSet.has(p)) {
+                                      estado = anySet.has(p) ? "outro" : "ausente";
                                     }
                                   }
                                   const classe =
@@ -2090,9 +2123,11 @@ export default function CompararDjSantander() {
                                       : `text-xs font-mono ${cls}`;
                                   const titulo =
                                     estado === "ausente"
-                                      ? "Não encontrado no PDF (DJEN)"
+                                      ? (isLeft ? "Não encontrado no PDF (DJEN)" : "Não encontrado no Doc do Advogado")
                                       : estado === "outro"
-                                      ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
+                                      ? (isLeft
+                                          ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
+                                          : "Existe no Doc do Advogado, mas em bloco diferente (classificação divergente)")
                                       : undefined;
                                   return (
                                     <Badge key={`${p}-${i}`} variant="outline" className={classe} title={titulo}>
