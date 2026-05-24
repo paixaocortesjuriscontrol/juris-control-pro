@@ -4927,6 +4927,7 @@ export type Database = {
           observacao_cobranca: string | null
           observacao_resp_subsidiaria: string | null
           observacoes_processo: string | null
+          orgao_julgador: string | null
           orgao_origem: string | null
           parte_recorrente_tst: string | null
           pasta_cliente: string | null
@@ -5115,6 +5116,7 @@ export type Database = {
           observacao_cobranca?: string | null
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
+          orgao_julgador?: string | null
           orgao_origem?: string | null
           parte_recorrente_tst?: string | null
           pasta_cliente?: string | null
@@ -5303,6 +5305,7 @@ export type Database = {
           observacao_cobranca?: string | null
           observacao_resp_subsidiaria?: string | null
           observacoes_processo?: string | null
+          orgao_julgador?: string | null
           orgao_origem?: string | null
           parte_recorrente_tst?: string | null
           pasta_cliente?: string | null
