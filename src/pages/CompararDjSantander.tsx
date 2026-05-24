@@ -524,6 +524,7 @@ function exportarPdf(
       sameRemaining?: Map<string, number> | null,
       anyRemaining?: Map<string, number> | null,
       selfCounts?: Map<string, number> | null,
+      selfSeen?: Map<string, number> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -596,7 +597,10 @@ function exportarPdf(
           doc.setDrawColor(border[0], border[1], border[2]);
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
-          const isRepetido = (selfCounts?.get(item) || 0) > 1;
+          const totalSelf = selfCounts?.get(item) || 0;
+          const jaVisto = selfSeen?.get(item) || 0;
+          if (selfSeen) selfSeen.set(item, jaVisto + 1);
+          const isRepetido = totalSelf > 1 && jaVisto >= 1;
           if (isRepetido) {
             doc.setTextColor(0, 0, 0);
           } else {
@@ -641,10 +645,11 @@ function exportarPdf(
         ? toCounts([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
       const selfCounts = toCounts([...t.cejuscList, ...t.pautaList, ...t.distribuicaoList]);
+      const selfSeen = new Map<string, number>();
       // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem, selfCounts);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem, selfCounts);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem, selfCounts);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem, selfCounts, selfSeen);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem, selfCounts, selfSeen);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem, selfCounts, selfSeen);
       y += 4;
     };
 
