@@ -848,69 +848,12 @@ export function ProcessoDetalhesCompletos({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header estilo Projuris: partes + identificador + nº CNJ + assunto */}
-      <div className="border-b bg-card">
-        {/* Linha 1: voltar + partes + tipo */}
-        <div className="flex items-center gap-3 px-2 sm:px-4 py-2 border-b border-border/50">
-          <Button variant="ghost" size="sm" onClick={onVoltar}>
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Voltar</span>
-          </Button>
-
-          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-            {envolvidos.slice(0, 2).map((env, idx) => (
-              <div key={idx} className="flex items-center gap-1">
-                {idx > 0 && <span className="text-muted-foreground text-sm">×</span>}
-                <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-[260px]">{env.nome}</span>
-                <Badge
-                  className={cn(
-                    "text-[9px] px-1 py-0",
-                    env.tipo === "requerido"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-zinc-100 text-zinc-700"
-                  )}
-                >
-                  {env.tipo === "requerido" ? "Reclamado" : "Reclamante"}
-                </Badge>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Badge className="bg-blue-600 text-white text-xs hidden sm:inline-flex">
-              {processo?.tipo_processo === "administrativo" ? "Administrativo" : "Judicial"}
-            </Badge>
-          </div>
-        </div>
-
-        {/* Linha 2: Identificador interno + Nº CNJ + Assunto (estilo Projuris) */}
-        <div className="px-2 sm:px-4 py-2 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
-          <div className="min-w-0">
-            <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Identificador</p>
-            <p className="font-medium truncate">
-              {processo?.pasta_cliente || processo?.pasta_fisica || (processo?.id ? `PRO.${String(processo.id).slice(0, 8)}` : "—")}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Número do Processo</p>
-            <p className="font-mono font-medium truncate flex items-center gap-1">
-              <span className="truncate">{processo?.numero || "—"}</span>
-              {processo?.numero && (
-                <button
-                  onClick={() => copyToClipboard(processo.numero)}
-                  className="text-muted-foreground hover:text-foreground"
-                  title="Copiar"
-                >
-                  <Copy className="w-3 h-3" />
-                </button>
-              )}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Assunto</p>
-            <p className="font-medium truncate">{processo?.assunto || "Não informado"}</p>
-          </div>
-        </div>
+      {/* Barra de navegação enxuta — dados do processo agora vivem só em "Visão Geral" */}
+      <div className="border-b bg-card px-2 sm:px-4 py-1.5">
+        <Button variant="ghost" size="sm" onClick={onVoltar}>
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">Voltar</span>
+        </Button>
       </div>
 
       {/* Main Content - Sidebar + Content */}
