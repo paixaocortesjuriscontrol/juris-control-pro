@@ -530,6 +530,7 @@ function exportarPdf(
       color: [number, number, number],
       sameRemaining?: Map<string, number> | null,
       anyRemaining?: Map<string, number> | null,
+      selfCounts?: Map<string, number> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -602,8 +603,13 @@ function exportarPdf(
           doc.setDrawColor(border[0], border[1], border[2]);
           doc.setLineWidth(0.2);
           doc.roundedRect(x, y, colW, rowH, 1, 1, "FD");
-          doc.setTextColor(fg[0], fg[1], fg[2]);
-          doc.setFont("helvetica", estado === "ok" ? "normal" : "bold");
+          const isRepetido = (selfCounts?.get(item) || 0) > 1;
+          if (isRepetido) {
+            doc.setTextColor(0, 0, 0);
+          } else {
+            doc.setTextColor(fg[0], fg[1], fg[2]);
+          }
+          doc.setFont("helvetica", isRepetido || estado !== "ok" ? "bold" : "normal");
           doc.text(item, x + colW / 2, y + 3.6, { align: "center" });
         }
         y += rowH + 1.2;
@@ -641,10 +647,11 @@ function exportarPdf(
       const anyRem = dir
         ? toCounts([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
+      const selfCounts = toCounts([...t.cejuscList, ...t.pautaList, ...t.distribuicaoList]);
       // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem, selfCounts);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem, selfCounts);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem, selfCounts);
       y += 4;
     };
 
