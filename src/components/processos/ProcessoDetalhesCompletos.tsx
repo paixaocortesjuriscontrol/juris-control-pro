@@ -198,7 +198,10 @@ export function ProcessoDetalhesCompletos({
   useEffect(() => {
     if (initialSection && initialSection !== prevInitialSectionRef.current) {
       prevInitialSectionRef.current = initialSection;
-      setActiveSection(initialSection);
+      const merged = initialSection === "detalhes" || initialSection === "envolvidos"
+        ? "resumo"
+        : initialSection;
+      setActiveSection(merged);
     }
   }, [initialSection]);
   
