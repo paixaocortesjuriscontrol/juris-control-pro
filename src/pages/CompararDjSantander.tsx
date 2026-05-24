@@ -528,7 +528,8 @@ function exportarPdf(
       titulo: string,
       items: string[],
       color: [number, number, number],
-      missingSet?: Set<string> | null,
+      sameBlockSet?: Set<string> | null,
+      anyBlockSet?: Set<string> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -551,9 +552,15 @@ function exportarPdf(
           const idx = r * cols + c;
           if (idx < items.length) {
             const item = items[idx];
-            const faltando = missingSet && !missingSet.has(item);
-            if (faltando) {
+            let estado: "ok" | "outro" | "ausente" = "ok";
+            if (sameBlockSet && !sameBlockSet.has(item)) {
+              estado = anyBlockSet && anyBlockSet.has(item) ? "outro" : "ausente";
+            }
+            if (estado === "ausente") {
               doc.setTextColor(200, 30, 30);
+              doc.setFont("helvetica", "bold");
+            } else if (estado === "outro") {
+              doc.setTextColor(180, 120, 0);
               doc.setFont("helvetica", "bold");
             } else {
               doc.setTextColor(0, 0, 0);
@@ -582,9 +589,12 @@ function exportarPdf(
       const cejuscSet = dir ? new Set(dir.cejuscList) : null;
       const pautaSet = dir ? new Set(dir.pautaList) : null;
       const distSet = dir ? new Set(dir.distribuicaoList) : null;
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136], cejuscSet);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237], pautaSet);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235], distSet);
+      const anySet = dir
+        ? new Set<string>([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
+        : null;
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [13, 148, 136], cejuscSet, anySet);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [124, 58, 237], pautaSet, anySet);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [37, 99, 235], distSet, anySet);
       y += 4;
     };
 
