@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity } from "lucide-react";
+import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip } from "lucide-react";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
@@ -26,6 +26,7 @@ interface Props {
   intimacoes?: any[];
   tarefas?: any[];
   movimentacoes?: any[];
+  onNavigate?: (section: string) => void;
 }
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
@@ -80,6 +81,7 @@ export function ProcessoVisaoGeralForm({
   intimacoes = [],
   tarefas = [],
   movimentacoes = [],
+  onNavigate,
 }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
@@ -418,6 +420,28 @@ export function ProcessoVisaoGeralForm({
                   ? (juditElapsed < 3 ? "Buscando anexos…" : `Aguardando crawler… ${juditElapsed}s`)
                   : "Judit c/ anexos"}
               </Button>
+              {(juditSessionFields.size > 0 || (Array.isArray((processo as any)?.judit_campos) && (processo as any).judit_campos.length > 0)) && onNavigate && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onNavigate("analise-judit")}
+                    className="gap-1"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    Análise Judit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onNavigate("anexos-judit")}
+                    className="gap-1"
+                  >
+                    <Paperclip className="w-4 h-4 text-emerald-600" />
+                    Anexos Judit
+                  </Button>
+                </>
+              )}
               <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                 Salvar alterações

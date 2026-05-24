@@ -1,0 +1,1 @@
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS judit_ia_observacoes text;
