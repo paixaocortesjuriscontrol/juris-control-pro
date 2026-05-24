@@ -528,8 +528,8 @@ function exportarPdf(
       titulo: string,
       items: string[],
       color: [number, number, number],
-      sameBlockSet?: Set<string> | null,
-      anyBlockSet?: Set<string> | null,
+      sameRemaining?: Map<string, number> | null,
+      anyRemaining?: Map<string, number> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -555,8 +555,21 @@ function exportarPdf(
           if (idx >= items.length) continue;
           const item = items[idx];
           let estado: "ok" | "outro" | "ausente" = "ok";
-          if (sameBlockSet && !sameBlockSet.has(item)) {
-            estado = anyBlockSet && anyBlockSet.has(item) ? "outro" : "ausente";
+          if (sameRemaining && anyRemaining) {
+            const nSame = sameRemaining.get(item) || 0;
+            if (nSame > 0) {
+              estado = "ok";
+              sameRemaining.set(item, nSame - 1);
+              anyRemaining.set(item, (anyRemaining.get(item) || 0) - 1);
+            } else {
+              const nAny = anyRemaining.get(item) || 0;
+              if (nAny > 0) {
+                estado = "outro";
+                anyRemaining.set(item, nAny - 1);
+              } else {
+                estado = "ausente";
+              }
+            }
           }
           // Cores do badge (espelhando a tela)
           let bg: [number, number, number];
@@ -617,16 +630,21 @@ function exportarPdf(
       y += 10;
       doc.setTextColor(0, 0, 0);
       doc.setDrawColor(0, 0, 0);
-      const cejuscSet = dir ? new Set(dir.cejuscList) : null;
-      const pautaSet = dir ? new Set(dir.pautaList) : null;
-      const distSet = dir ? new Set(dir.distribuicaoList) : null;
-      const anySet = dir
-        ? new Set<string>([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
+      const toCounts = (arr: string[]) => {
+        const m = new Map<string, number>();
+        for (const x of arr) m.set(x, (m.get(x) || 0) + 1);
+        return m;
+      };
+      const cejuscRem = dir ? toCounts(dir.cejuscList) : null;
+      const pautaRem = dir ? toCounts(dir.pautaList) : null;
+      const distRem = dir ? toCounts(dir.distribuicaoList) : null;
+      const anyRem = dir
+        ? toCounts([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
       // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscSet, anySet);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaSet, anySet);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distSet, anySet);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem);
       y += 4;
     };
 
@@ -2078,7 +2096,24 @@ export default function CompararDjSantander() {
                  { titulo: sourceLabel, t: tiposDir, isLeft: false },
                ] as { titulo: string; t: TipoCounts | null; isLeft: boolean }[])
                  .filter((x) => x.t)
-                 .map(({ titulo, t, isLeft }) => (
+                 .map(({ titulo, t, isLeft }) => {
+                   const outro = isLeft ? tiposDir : tiposEsq;
+                   const toCounts = (arr: string[]) => {
+                     const m = new Map<string, number>();
+                     for (const x of arr) m.set(x, (m.get(x) || 0) + 1);
+                     return m;
+                   };
+                   const anyRemaining = toCounts([
+                     ...(outro?.cejuscList || []),
+                     ...(outro?.pautaList || []),
+                     ...(outro?.distribuicaoList || []),
+                   ]);
+                   const sameRemainingByKey: Record<string, Map<string, number>> = {
+                     cejuscList: toCounts(outro?.cejuscList || []),
+                     pautaList: toCounts(outro?.pautaList || []),
+                     distribuicaoList: toCounts(outro?.distribuicaoList || []),
+                   };
+                   return (
                   <Card key={titulo}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm">Processos classificados — {titulo}</CardTitle>
@@ -2092,13 +2127,7 @@ export default function CompararDjSantander() {
                           { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cmpKey: "pautaList" as const, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
                           { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cmpKey: "distribuicaoList" as const, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
                         ]).map(({ rotulo, lista, cmpKey, cls }) => {
-                           const outro = isLeft ? tiposDir : tiposEsq;
-                           const sameSet = new Set(outro?.[cmpKey] || []);
-                           const anySet = new Set<string>([
-                             ...(outro?.cejuscList || []),
-                             ...(outro?.pautaList || []),
-                             ...(outro?.distribuicaoList || []),
-                           ]);
+                           const sameRemaining = sameRemainingByKey[cmpKey];
                          return (
                         <div key={rotulo}>
                           <div className="text-xs font-semibold mb-1.5 text-foreground">
@@ -2111,9 +2140,20 @@ export default function CompararDjSantander() {
                                {lista.map((p, i) => {
                                   let estado: "ok" | "outro" | "ausente" = "ok";
                                   if (outro) {
-                                    if (!sameSet.has(p)) {
-                                      estado = anySet.has(p) ? "outro" : "ausente";
-                                    }
+                                     const nSame = sameRemaining.get(p) || 0;
+                                     if (nSame > 0) {
+                                       estado = "ok";
+                                       sameRemaining.set(p, nSame - 1);
+                                       anyRemaining.set(p, (anyRemaining.get(p) || 0) - 1);
+                                     } else {
+                                       const nAny = anyRemaining.get(p) || 0;
+                                       if (nAny > 0) {
+                                         estado = "outro";
+                                         anyRemaining.set(p, nAny - 1);
+                                       } else {
+                                         estado = "ausente";
+                                       }
+                                     }
                                   }
                                   const classe =
                                     estado === "ausente"
@@ -2142,7 +2182,8 @@ export default function CompararDjSantander() {
                        })}
                     </CardContent>
                   </Card>
-                ))}
+                   );
+                 })}
             </div>
           )}
 
