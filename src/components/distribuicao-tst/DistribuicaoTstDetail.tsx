@@ -348,42 +348,32 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <ArrowLeft className="w-4 h-4 mr-1" /> Voltar à lista
         </Button>
         <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
-        <div className="ml-auto flex items-center gap-4">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={prontoEnviar}
-                onCheckedChange={setProntoEnviar}
-                disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado"}
-              />
-              <Label className="text-sm font-medium">Pronto para Enviar</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={problemaJudit}
-                onCheckedChange={setProblemaJudit}
-              />
-              <Label className="text-sm font-medium text-amber-700 dark:text-amber-400">Problema Judit</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={transitoJulgado}
-                onCheckedChange={setTransitoJulgado}
-              />
-              <Label className="text-sm font-medium text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={outroEscritorio}
-                onCheckedChange={setOutroEscritorio}
-              />
-              <Label className="text-sm font-medium text-purple-700 dark:text-purple-400">Processo outro escritório</Label>
-            </div>
-          </div>
-          <Button onClick={handleSaveTop} disabled={savingTop}>
-            {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar
-          </Button>
+        <Button className="ml-auto" onClick={handleSaveTop} disabled={savingTop}>
+          {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Salvar
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pl-1">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={prontoEnviar}
+            onCheckedChange={setProntoEnviar}
+            disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado"}
+          />
+          <Label className="text-sm font-medium">Pronto para Enviar</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={problemaJudit} onCheckedChange={setProblemaJudit} />
+          <Label className="text-sm font-medium text-amber-700 dark:text-amber-400">Problema Judit</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={transitoJulgado} onCheckedChange={setTransitoJulgado} />
+          <Label className="text-sm font-medium text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={outroEscritorio} onCheckedChange={setOutroEscritorio} />
+          <Label className="text-sm font-medium text-purple-700 dark:text-purple-400">Processo outro escritório</Label>
         </div>
       </div>
 
