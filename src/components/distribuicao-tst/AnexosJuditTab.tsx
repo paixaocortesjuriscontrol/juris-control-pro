@@ -272,11 +272,20 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
             setStage(`Baixando/lendo ${label} (paralelo)…`);
             arquivo = await baixarAnexoParaIndexacao(a);
           }
-          const isPdf = (arquivo.content_type || "").includes("pdf") || (arquivo.filename || a.attachment_name || "").toLowerCase().endsWith(".pdf");
-          if (!isPdf) throw new Error("Somente anexos PDF podem ser lidos com IA nesta rotina.");
-          pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
+          const nomeLower = (arquivo.filename || a.attachment_name || "").toLowerCase();
+          const ctype = (arquivo.content_type || "").toLowerCase();
+          const ext = (a.extension || "").toLowerCase();
+          const isPdf = ctype.includes("pdf") || nomeLower.endsWith(".pdf") || ext === "pdf";
+          const isHtml = ctype.includes("html") || nomeLower.endsWith(".html") || nomeLower.endsWith(".htm") || ext === "html" || ext === "htm";
+          if (isPdf) {
+            pagesText = await extrairTextoPdfNoNavegador(arquivo.signed_url);
+          } else if (isHtml) {
+            pagesText = await extrairTextoHtmlNoNavegador(arquivo.signed_url);
+          } else {
+            throw new Error(`Formato não suportado para leitura com IA: ${ext || ctype || "desconhecido"}`);
+          }
           if (!pagesText.some((page) => page.trim())) {
-            throw new Error("PDF sem texto extraível no navegador.");
+            throw new Error("Anexo sem texto extraível no navegador.");
           }
         } catch (e: any) {
           failed.push({ step_id: a.step_id, error: e?.message || "falha na leitura" });
