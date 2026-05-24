@@ -27,6 +27,13 @@ interface Props {
   tarefas?: any[];
   movimentacoes?: any[];
   onNavigate?: (section: string) => void;
+  /**
+   * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
+   * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
+   * Judit / Salvar). Usado nas seções "analise-judit" e "anexos-judit" para
+   * manter os botões sempre visíveis sem renderizar o formulário completo.
+   */
+  compact?: boolean;
 }
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
@@ -82,6 +89,7 @@ export function ProcessoVisaoGeralForm({
   tarefas = [],
   movimentacoes = [],
   onNavigate,
+  compact = false,
 }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
