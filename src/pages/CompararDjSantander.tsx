@@ -528,8 +528,8 @@ function exportarPdf(
       titulo: string,
       items: string[],
       color: [number, number, number],
-      sameBlockSet?: Set<string> | null,
-      anyBlockSet?: Set<string> | null,
+      sameRemaining?: Map<string, number> | null,
+      anyRemaining?: Map<string, number> | null,
     ) => {
       if (!items || items.length === 0) return;
       checkPage(14);
@@ -555,8 +555,21 @@ function exportarPdf(
           if (idx >= items.length) continue;
           const item = items[idx];
           let estado: "ok" | "outro" | "ausente" = "ok";
-          if (sameBlockSet && !sameBlockSet.has(item)) {
-            estado = anyBlockSet && anyBlockSet.has(item) ? "outro" : "ausente";
+          if (sameRemaining && anyRemaining) {
+            const nSame = sameRemaining.get(item) || 0;
+            if (nSame > 0) {
+              estado = "ok";
+              sameRemaining.set(item, nSame - 1);
+              anyRemaining.set(item, (anyRemaining.get(item) || 0) - 1);
+            } else {
+              const nAny = anyRemaining.get(item) || 0;
+              if (nAny > 0) {
+                estado = "outro";
+                anyRemaining.set(item, nAny - 1);
+              } else {
+                estado = "ausente";
+              }
+            }
           }
           // Cores do badge (espelhando a tela)
           let bg: [number, number, number];
@@ -617,16 +630,21 @@ function exportarPdf(
       y += 10;
       doc.setTextColor(0, 0, 0);
       doc.setDrawColor(0, 0, 0);
-      const cejuscSet = dir ? new Set(dir.cejuscList) : null;
-      const pautaSet = dir ? new Set(dir.pautaList) : null;
-      const distSet = dir ? new Set(dir.distribuicaoList) : null;
-      const anySet = dir
-        ? new Set<string>([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
+      const toCounts = (arr: string[]) => {
+        const m = new Map<string, number>();
+        for (const x of arr) m.set(x, (m.get(x) || 0) + 1);
+        return m;
+      };
+      const cejuscRem = dir ? toCounts(dir.cejuscList) : null;
+      const pautaRem = dir ? toCounts(dir.pautaList) : null;
+      const distRem = dir ? toCounts(dir.distribuicaoList) : null;
+      const anyRem = dir
+        ? toCounts([...dir.cejuscList, ...dir.pautaList, ...dir.distribuicaoList])
         : null;
       // Cores alinhadas com a tela: purple-600, indigo-600, sky-600
-      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscSet, anySet);
-      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaSet, anySet);
-      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distSet, anySet);
+      renderListaTipo("CEJUSC-TST", t.cejuscList, [147, 51, 234], cejuscRem, anyRem);
+      renderListaTipo("Pauta de Julgamento", t.pautaList, [79, 70, 229], pautaRem, anyRem);
+      renderListaTipo("Lista de Distribuição", t.distribuicaoList, [2, 132, 199], distRem, anyRem);
       y += 4;
     };
 
