@@ -2185,8 +2185,8 @@ export default function CompararDjSantander() {
                                   const totalSelf = selfCounts.get(p) || 0;
                                   const jaVisto = vistosSelf.get(p) || 0;
                                   vistosSelf.set(p, jaVisto + 1);
-                                  // Marca em preto somente as ocorrências EXTRAS (2ª, 3ª…)
-                                  const isRepetido = totalSelf > 1 && jaVisto >= 1;
+                                  // Marca TODAS as ocorrências de CNJs repetidos em preto
+                                  const isRepetido = totalSelf > 1;
                                   const classeFinal = isRepetido
                                     ? `${classe} !text-black dark:!text-white font-bold`
                                     : classe;
@@ -2197,9 +2197,9 @@ export default function CompararDjSantander() {
                                       ? (isLeft
                                           ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
                                           : "Existe no Doc do Advogado, mas em bloco diferente (classificação divergente)")
-                                      : (isRepetido ? `Ocorrência repetida (${jaVisto + 1}ª de ${totalSelf})` : undefined);
+                                      : (isRepetido ? `Processo repetido (${totalSelf}x)` : undefined);
                                   return (
-                                    <Badge key={`${p}-${i}`} variant="outline" className={classeFinal} title={isRepetido && estado === "ok" ? `Ocorrência repetida (${jaVisto + 1}ª de ${totalSelf})` : titulo}>
+                                    <Badge key={`${p}-${i}`} variant="outline" className={classeFinal} title={isRepetido && estado === "ok" ? `Processo repetido (${totalSelf}x)` : titulo}>
                                       {p}
                                     </Badge>
                                   );
