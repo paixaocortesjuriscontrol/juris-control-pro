@@ -99,29 +99,14 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   if (atual) blocos.push(atual);
 
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
-  const vistos = new Set<string>();
-  let repetidos = 0;
   const pautaList: string[] = [];
   const distribuicaoList: string[] = [];
   const cejuscList: string[] = [];
   for (const bloco of blocos) {
-    // Conta repetidos: mesmo CNJ + mesmo conteúdo normalizado.
-    // Blocos com mesmo CNJ mas conteúdos diferentes (ex.: pauta + despacho)
-    // são tratados como distintos.
     const header = colarCnjNaLinha(bloco[0] || "");
     const m = header.match(/(\d{20}|\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/);
     const corpoCompleto = bloco.join("\n");
-    const conteudoNorm = corpoCompleto
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
     const cnjFormatado = m ? formatarCNJ(m[1]) : null;
-    if (m) {
-      const cnj = m[1].replace(/\D/g, "");
-      const key = `${cnj}|${conteudoNorm}`;
-      if (vistos.has(key)) repetidos++;
-      else vistos.add(key);
-    }
     // Varre o bloco INTEIRO buscando marcadores de tipo.
     // Regras alinhadas ao botão "Docs TST" da tela Análise DJEN
     // (handleGerarDocsTST). Ordem de prioridade — primeira que casar vence:
@@ -149,6 +134,14 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     const nb = b.replace(/\D/g, "");
     return na.localeCompare(nb);
   };
+
+  // Repetidos = total de ocorrências EXTRAS (2ª, 3ª…) de cada CNJ
+  // dentro das listas exibidas (CEJUSC + Pauta + Distribuição).
+  const todasExibidas = [...cejuscList, ...pautaList, ...distribuicaoList];
+  const contagemExibidas = new Map<string, number>();
+  for (const c of todasExibidas) contagemExibidas.set(c, (contagemExibidas.get(c) || 0) + 1);
+  let repetidos = 0;
+  for (const n of contagemExibidas.values()) if (n > 1) repetidos += n - 1;
 
   return {
     pauta, distribuicao, cejusc, outros, repetidos,
