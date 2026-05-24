@@ -16,6 +16,7 @@ import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 
@@ -88,6 +89,22 @@ export function ProcessoVisaoGeralForm({
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
+  // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
+  // experiência da tela de Distribuição TST: o usuário vê que algo está
+  // acontecendo e não pensa que travou.
+  const [juditElapsed, setJuditElapsed] = useState(0);
+  const juditBusy = syncing || syncingAnexos;
+  useEffect(() => {
+    if (!juditBusy) { setJuditElapsed(0); return; }
+    const start = Date.now();
+    const id = window.setInterval(() => setJuditElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    return () => window.clearInterval(id);
+  }, [juditBusy]);
+  // Progresso "suave" 0→95% enquanto aguardamos a Judit (a API não devolve
+  // progresso real). Vai para 100% quando termina.
+  const juditProgress = juditBusy
+    ? Math.min(95, Math.round((1 - Math.exp(-juditElapsed / 12)) * 100))
+    : 0;
 
   // Inicializa form quando processo carregar/trocar
   useEffect(() => {
