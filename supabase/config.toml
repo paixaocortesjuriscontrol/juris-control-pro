@@ -189,3 +189,6 @@ verify_jwt = false
 
 [functions.ia-responde]
 verify_jwt = true
+
+[functions.judit-processo-interno]
+verify_jwt = true
