@@ -848,14 +848,6 @@ export function ProcessoDetalhesCompletos({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Barra de navegação enxuta — dados do processo agora vivem só em "Visão Geral" */}
-      <div className="border-b bg-card px-2 sm:px-4 py-1.5">
-        <Button variant="ghost" size="sm" onClick={onVoltar}>
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          <span className="hidden sm:inline">Voltar</span>
-        </Button>
-      </div>
-
       {/* Main Content - Sidebar + Content */}
       <div className="flex flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
@@ -863,6 +855,14 @@ export function ProcessoDetalhesCompletos({
           {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
             <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
+              <button
+                onClick={onVoltar}
+                className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="w-3 h-3 flex-shrink-0" />
+                <span>Voltar</span>
+              </button>
+              <span className="text-muted-foreground/40 px-1">|</span>
               {navGroups.map((group, gi) => (
                 <div key={group.label} className="flex items-center gap-1">
                   {gi > 0 && <span className="text-muted-foreground/40 px-1">|</span>}
@@ -893,6 +893,13 @@ export function ProcessoDetalhesCompletos({
           {/* Desktop: vertical sidebar agrupado estilo Projuris */}
           <ScrollArea className="hidden sm:block h-[calc(100vh-160px)]">
             <nav className="py-2">
+              <button
+                onClick={onVoltar}
+                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors mb-1 border-b"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">Voltar</span>
+              </button>
               {navGroups.map((group) => (
                 <div key={group.label} className="mb-2">
                   <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
