@@ -645,6 +645,17 @@ export function ProcessoVisaoGeralForm({
                   </FormField>
                 </div>
               </section>
+
+              {(processo as any)?.judit_ia_observacoes && (
+                <section>
+                  <SectionHeader icon={Sparkles} title="Observações da IA (Anexos Judit)" />
+                  <Textarea
+                    className="text-sm min-h-[120px] font-mono bg-emerald-50/40 dark:bg-emerald-950/20"
+                    value={(processo as any).judit_ia_observacoes || ""}
+                    readOnly
+                  />
+                </section>
+              )}
             </div>
 
             {/* COLUNA LATERAL — cards de status / pendências */}
