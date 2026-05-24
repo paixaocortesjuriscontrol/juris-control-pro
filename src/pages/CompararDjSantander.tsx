@@ -2078,7 +2078,24 @@ export default function CompararDjSantander() {
                  { titulo: sourceLabel, t: tiposDir, isLeft: false },
                ] as { titulo: string; t: TipoCounts | null; isLeft: boolean }[])
                  .filter((x) => x.t)
-                 .map(({ titulo, t, isLeft }) => (
+                 .map(({ titulo, t, isLeft }) => {
+                   const outro = isLeft ? tiposDir : tiposEsq;
+                   const toCounts = (arr: string[]) => {
+                     const m = new Map<string, number>();
+                     for (const x of arr) m.set(x, (m.get(x) || 0) + 1);
+                     return m;
+                   };
+                   const anyRemaining = toCounts([
+                     ...(outro?.cejuscList || []),
+                     ...(outro?.pautaList || []),
+                     ...(outro?.distribuicaoList || []),
+                   ]);
+                   const sameRemainingByKey: Record<string, Map<string, number>> = {
+                     cejuscList: toCounts(outro?.cejuscList || []),
+                     pautaList: toCounts(outro?.pautaList || []),
+                     distribuicaoList: toCounts(outro?.distribuicaoList || []),
+                   };
+                   return (
                   <Card key={titulo}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm">Processos classificados — {titulo}</CardTitle>
@@ -2092,13 +2109,7 @@ export default function CompararDjSantander() {
                           { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cmpKey: "pautaList" as const, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
                           { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cmpKey: "distribuicaoList" as const, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
                         ]).map(({ rotulo, lista, cmpKey, cls }) => {
-                           const outro = isLeft ? tiposDir : tiposEsq;
-                           const sameSet = new Set(outro?.[cmpKey] || []);
-                           const anySet = new Set<string>([
-                             ...(outro?.cejuscList || []),
-                             ...(outro?.pautaList || []),
-                             ...(outro?.distribuicaoList || []),
-                           ]);
+                           const sameRemaining = sameRemainingByKey[cmpKey];
                          return (
                         <div key={rotulo}>
                           <div className="text-xs font-semibold mb-1.5 text-foreground">
@@ -2111,9 +2122,20 @@ export default function CompararDjSantander() {
                                {lista.map((p, i) => {
                                   let estado: "ok" | "outro" | "ausente" = "ok";
                                   if (outro) {
-                                    if (!sameSet.has(p)) {
-                                      estado = anySet.has(p) ? "outro" : "ausente";
-                                    }
+                                     const nSame = sameRemaining.get(p) || 0;
+                                     if (nSame > 0) {
+                                       estado = "ok";
+                                       sameRemaining.set(p, nSame - 1);
+                                       anyRemaining.set(p, (anyRemaining.get(p) || 0) - 1);
+                                     } else {
+                                       const nAny = anyRemaining.get(p) || 0;
+                                       if (nAny > 0) {
+                                         estado = "outro";
+                                         anyRemaining.set(p, nAny - 1);
+                                       } else {
+                                         estado = "ausente";
+                                       }
+                                     }
                                   }
                                   const classe =
                                     estado === "ausente"
@@ -2142,7 +2164,8 @@ export default function CompararDjSantander() {
                        })}
                     </CardContent>
                   </Card>
-                ))}
+                   );
+                 })}
             </div>
           )}
 
