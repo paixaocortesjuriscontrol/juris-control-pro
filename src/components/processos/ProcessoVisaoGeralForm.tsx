@@ -382,7 +382,9 @@ export function ProcessoVisaoGeralForm({
                 className="gap-1"
               >
                 {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-emerald-600" />}
-                Sincronizar Judit
+                {syncing
+                  ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
+                  : "Sincronizar Judit"}
               </Button>
               <Button
                 size="sm"
@@ -392,7 +394,9 @@ export function ProcessoVisaoGeralForm({
                 className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
               >
                 {syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Judit c/ anexos
+                {syncingAnexos
+                  ? (juditElapsed < 3 ? "Buscando anexos…" : `Aguardando crawler… ${juditElapsed}s`)
+                  : "Judit c/ anexos"}
               </Button>
               <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
@@ -400,6 +404,19 @@ export function ProcessoVisaoGeralForm({
               </Button>
             </div>
           </div>
+
+          {juditBusy && (
+            <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900 px-3 py-2">
+              <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {syncingAnexos ? "Consultando Judit (com anexos)…" : "Consultando Judit…"}
+                </span>
+                <span className="font-mono">{juditElapsed}s · {juditProgress}%</span>
+              </div>
+              <Progress value={juditProgress} className="h-2" />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* COLUNA PRINCIPAL */}
