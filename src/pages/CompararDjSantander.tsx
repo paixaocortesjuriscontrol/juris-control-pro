@@ -144,7 +144,19 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     }
   }
 
-  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length, pautaList, distribuicaoList, cejuscList };
+  const ordenarPorCNJ = (a: string, b: string) => {
+    const na = a.replace(/\D/g, "");
+    const nb = b.replace(/\D/g, "");
+    return na.localeCompare(nb);
+  };
+
+  return {
+    pauta, distribuicao, cejusc, outros, repetidos,
+    total: blocos.length,
+    pautaList: pautaList.sort(ordenarPorCNJ),
+    distribuicaoList: distribuicaoList.sort(ordenarPorCNJ),
+    cejuscList: cejuscList.sort(ordenarPorCNJ),
+  };
 }
 
 // Extrai o texto plano de um DOCX preservando quebras de parágrafo,
