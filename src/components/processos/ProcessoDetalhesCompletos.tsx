@@ -952,6 +952,7 @@ export function ProcessoDetalhesCompletos({
                   intimacoes={intimacoes}
                   tarefas={tarefas}
                   movimentacoes={movimentacoes}
+                  onNavigate={setActiveSection}
                 />
               )}
 
