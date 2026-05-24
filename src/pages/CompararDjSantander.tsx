@@ -2088,15 +2088,16 @@ export default function CompararDjSantander() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {([
-                         { rotulo: "CEJUSC-TST", lista: t!.cejuscList, dirLista: tiposDir?.cejuscList || [], cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
-                         { rotulo: "Pauta de Julgamento", lista: t!.pautaList, dirLista: tiposDir?.pautaList || [], cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
-                         { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, dirLista: tiposDir?.distribuicaoList || [], cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
-                       ]).map(({ rotulo, lista, dirLista, cls }) => {
-                         const dirSet = new Set(dirLista);
-                           const todosDir = new Set<string>([
-                             ...(tiposDir?.cejuscList || []),
-                             ...(tiposDir?.pautaList || []),
-                             ...(tiposDir?.distribuicaoList || []),
+                          { rotulo: "CEJUSC-TST", lista: t!.cejuscList, cmpKey: "cejuscList" as const, cls: "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200" },
+                          { rotulo: "Pauta de Julgamento", lista: t!.pautaList, cmpKey: "pautaList" as const, cls: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200" },
+                          { rotulo: "Lista de Distribuição", lista: t!.distribuicaoList, cmpKey: "distribuicaoList" as const, cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200" },
+                        ]).map(({ rotulo, lista, cmpKey, cls }) => {
+                           const outro = isLeft ? tiposDir : tiposEsq;
+                           const sameSet = new Set(outro?.[cmpKey] || []);
+                           const anySet = new Set<string>([
+                             ...(outro?.cejuscList || []),
+                             ...(outro?.pautaList || []),
+                             ...(outro?.distribuicaoList || []),
                            ]);
                          return (
                         <div key={rotulo}>
@@ -2109,9 +2110,9 @@ export default function CompararDjSantander() {
                             <div className="flex flex-wrap gap-1">
                                {lista.map((p, i) => {
                                   let estado: "ok" | "outro" | "ausente" = "ok";
-                                  if (isLeft && tiposDir) {
-                                    if (!dirSet.has(p)) {
-                                      estado = todosDir.has(p) ? "outro" : "ausente";
+                                  if (outro) {
+                                    if (!sameSet.has(p)) {
+                                      estado = anySet.has(p) ? "outro" : "ausente";
                                     }
                                   }
                                   const classe =
@@ -2122,9 +2123,11 @@ export default function CompararDjSantander() {
                                       : `text-xs font-mono ${cls}`;
                                   const titulo =
                                     estado === "ausente"
-                                      ? "Não encontrado no PDF (DJEN)"
+                                      ? (isLeft ? "Não encontrado no PDF (DJEN)" : "Não encontrado no Doc do Advogado")
                                       : estado === "outro"
-                                      ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
+                                      ? (isLeft
+                                          ? "Existe no DJEN, mas em bloco diferente (classificação divergente)"
+                                          : "Existe no Doc do Advogado, mas em bloco diferente (classificação divergente)")
                                       : undefined;
                                   return (
                                     <Badge key={`${p}-${i}`} variant="outline" className={classe} title={titulo}>
