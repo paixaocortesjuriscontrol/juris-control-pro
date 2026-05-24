@@ -54,6 +54,9 @@ interface TipoCounts {
   outros: number;
   repetidos: number;
   total: number;
+  pautaList: string[];
+  distribuicaoList: string[];
+  cejuscList: string[];
 }
 
 // Classifica cada bloco de publicação OLHANDO SÓ NO TÍTULO/CABEÇALHO
@@ -98,6 +101,9 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
   let pauta = 0, distribuicao = 0, cejusc = 0, outros = 0;
   const vistos = new Set<string>();
   let repetidos = 0;
+  const pautaList: string[] = [];
+  const distribuicaoList: string[] = [];
+  const cejuscList: string[] = [];
   for (const bloco of blocos) {
     // Conta repetidos: mesmo CNJ + mesmo conteúdo normalizado.
     // Blocos com mesmo CNJ mas conteúdos diferentes (ex.: pauta + despacho)
@@ -109,6 +115,7 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
+    const cnjFormatado = m ? formatarCNJ(m[1]) : null;
     if (m) {
       const cnj = m[1].replace(/\D/g, "");
       const key = `${cnj}|${conteudoNorm}`;
@@ -125,16 +132,19 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     const temCejusc = /\bCEJUSC\b/i.test(corpoCompleto);
     if (temCejusc && /plataforma\s+zoom/i.test(corpoCompleto)) {
       cejusc++;
+      if (cnjFormatado) cejuscList.push(cnjFormatado);
     } else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpoCompleto)) {
       distribuicao++;
+      if (cnjFormatado) distribuicaoList.push(cnjFormatado);
     } else if (!temCejusc && /Pauta\s+de\s+Julgamento/i.test(corpoCompleto)) {
       pauta++;
+      if (cnjFormatado) pautaList.push(cnjFormatado);
     } else {
       outros++;
     }
   }
 
-  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length };
+  return { pauta, distribuicao, cejusc, outros, repetidos, total: blocos.length, pautaList, distribuicaoList, cejuscList };
 }
 
 // Extrai o texto plano de um DOCX preservando quebras de parágrafo,
