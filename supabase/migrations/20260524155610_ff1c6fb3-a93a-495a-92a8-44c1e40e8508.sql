@@ -1,0 +1,1 @@
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS orgao_julgador TEXT;
