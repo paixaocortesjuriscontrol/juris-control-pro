@@ -232,7 +232,9 @@ export function ProcessoVisaoGeralForm({
       apply("classe", data.classe_capa || data.classe);
       apply("assunto", data.assunto);
       apply("comarca", data.comarca);
-      apply("vara", data.vara || data.orgao_julgador);
+      // Vara só é preenchida se a Judit trouxer um valor próprio para `vara`;
+      // não duplicamos o conteúdo do órgão julgador no campo Vara/Câmara.
+      apply("vara", data.vara);
       apply("uf", data.uf);
       apply("instancia", data.instancia);
       apply("data_distribuicao", data.data_distribuicao);
@@ -253,6 +255,9 @@ export function ProcessoVisaoGeralForm({
         if (NUMERIC_FIELDS.has(f)) updatePayload[f] = v === "" || v == null ? null : Number(v);
         else updatePayload[f] = v === "" || v == null ? null : v;
       }
+      // Persiste a lista de campos preenchidos pela Judit para preservar
+      // o destaque verde após reload.
+      (updatePayload as any).judit_campos = Array.from(filled);
       await supabase.from("processos").update(updatePayload as any).eq("id", processo.id);
 
       // Atualiza partes vindas da Judit em processos_partes
