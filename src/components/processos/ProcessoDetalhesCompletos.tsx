@@ -745,31 +745,82 @@ export function ProcessoDetalhesCompletos({
     return acc;
   }, []);
 
-  // Navigation items for sidebar - inclui todas as abas operacionais
-  const navItems = [
-    { id: "resumo", label: "Resumo", icon: Home },
-    { id: "detalhes", label: "Detalhes", icon: FileText },
-    { id: "cobranca", label: "Cobrança", icon: DollarSign },
-    { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
-    { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-    { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
-    { id: "tst", label: "TST", icon: Gavel },
-    { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
-    { id: "judit", label: "Detalhe Judit", icon: Sparkles },
-    { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
-    { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
-    { id: "prazo", label: "Prazo", icon: Clock },
-    { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
-    { id: "pedidos", label: "Pedidos", icon: ListPlus },
-    { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
-    { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
-    { id: "redistribuicoes", label: "Redistrib.", icon: Shuffle, count: redistribuicoes.length },
-    { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
-    { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
-    { id: "portal", label: "Portal", icon: Globe },
-    { id: "envolvidos", label: "Envolvidos", icon: Users },
-    { id: "comentarios", label: "Comentários", icon: MessageSquare },
+  // Navegação agrupada estilo Projuris: 7 grupos principais + Visão Geral
+  // Mantém todas as seções existentes, apenas organizadas por categoria.
+  const navGroups: Array<{
+    label: string;
+    items: Array<{ id: string; label: string; icon: any; count?: number }>;
+  }> = [
+    {
+      label: "Visão geral",
+      items: [
+        { id: "resumo", label: "Resumo", icon: Home },
+        { id: "detalhes", label: "Detalhes", icon: FileText },
+        { id: "envolvidos", label: "Envolvidos", icon: Users },
+      ],
+    },
+    {
+      label: "Prazos & Eventos",
+      items: [
+        { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
+        { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
+        { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
+        { id: "prazo", label: "Prazo", icon: Clock },
+      ],
+    },
+    {
+      label: "Tarefas",
+      items: [
+        { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
+      ],
+    },
+    {
+      label: "Andamentos",
+      items: [
+        { id: "andamentos", label: "Andamentos", icon: Activity, count: movimentacoes.length },
+        { id: "publicacoes", label: "Pub. DJEN", icon: Newspaper, count: publicacoesDjen.length },
+        { id: "redistribuicoes", label: "Redistribuições", icon: Shuffle, count: redistribuicoes.length },
+      ],
+    },
+    {
+      label: "Documentos",
+      items: [
+        { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
+        { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
+      ],
+    },
+    {
+      label: "Pedidos & Financeiro",
+      items: [
+        { id: "pedidos", label: "Pedidos", icon: ListPlus },
+        { id: "cobranca", label: "Cobrança", icon: DollarSign },
+      ],
+    },
+    {
+      label: "Monitoramento",
+      items: [
+        { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
+        { id: "portal", label: "Portal", icon: Globe },
+        { id: "judit", label: "Detalhe Judit", icon: Sparkles },
+        { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
+      ],
+    },
+    {
+      label: "TST",
+      items: [
+        { id: "tst", label: "TST", icon: Gavel },
+        { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
+      ],
+    },
+    {
+      label: "Interação",
+      items: [
+        { id: "comentarios", label: "Comentários", icon: MessageSquare },
+      ],
+    },
   ];
+  // Lista achatada (compatibilidade com lógica que dependia de navItems)
+  const navItems = navGroups.flatMap((g) => g.items);
 
   const getAudienciaStatusBadge = (status: string) => {
     const statusConfig: Record<string, { className: string; label: string }> = {
