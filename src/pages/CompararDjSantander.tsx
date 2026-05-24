@@ -2226,9 +2226,9 @@ export default function CompararDjSantander() {
                 {result.comuns.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Nenhum processo em comum</p>
                 ) : (
-                  <div className="flex flex-col">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
                     {result.comuns.map((p, i) => (
-                      <div key={i} className="py-1.5 border-b border-border/50 last:border-b-0">
+                      <div key={i} className="py-1">
                         <Badge variant="outline" className="text-xs font-mono bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-green-200 whitespace-nowrap">
                           {p}
                         </Badge>
