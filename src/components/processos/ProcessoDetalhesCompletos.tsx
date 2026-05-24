@@ -943,27 +943,20 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
-              {/* Atalhos sempre visíveis: Análise Judit e Anexos Judit (após primeira sincronização) */}
-              {(Array.isArray((processo as any)?.judit_campos) && (processo as any).judit_campos.length > 0) && activeSection !== "resumo" && (
-                <div className="flex items-center justify-end gap-2 mb-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setActiveSection("analise-judit")}
-                    className={cn("gap-1", activeSection === "analise-judit" && "border-emerald-500 text-emerald-700")}
-                  >
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    Análise Judit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setActiveSection("anexos-judit")}
-                    className={cn("gap-1", activeSection === "anexos-judit" && "border-emerald-500 text-emerald-700")}
-                  >
-                    <Paperclip className="w-4 h-4 text-emerald-600" />
-                    Anexos Judit
-                  </Button>
+              {/* Barra de ações Judit sempre visível nas seções Análise/Anexos Judit
+                 — mantém Sincronizar Judit, Judit c/ anexos, Judit (Interno),
+                 Análise Judit, Anexos Judit e Salvar alterações ao alcance. */}
+              {(activeSection === "analise-judit" || activeSection === "anexos-judit") && (
+                <div className="mb-3">
+                  <ProcessoVisaoGeralForm
+                    processo={processo}
+                    audiencias={audiencias}
+                    intimacoes={intimacoes}
+                    tarefas={tarefas}
+                    movimentacoes={movimentacoes}
+                    onNavigate={setActiveSection}
+                    compact
+                  />
                 </div>
               )}
               {/* Resumo Section - Visão geral rápida */}
