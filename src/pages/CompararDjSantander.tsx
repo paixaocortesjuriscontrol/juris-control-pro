@@ -631,7 +631,7 @@ function exportarPdf(
 
       const newPage = () => {
         doc.addPage();
-        y = mT;
+        y = 20;
         colY = [y, y, y];
         maxColY = y;
         colIdx = 0;
@@ -639,7 +639,7 @@ function exportarPdf(
 
       cells.forEach((cell) => {
         // Se a célula não cabe na coluna atual da página
-        if (colY[colIdx] + cell.height > pageHeight - mB) {
+        if (colY[colIdx] + cell.height > pageHeight - 15) {
           colIdx++;
           if (colIdx >= cols) {
             newPage();
