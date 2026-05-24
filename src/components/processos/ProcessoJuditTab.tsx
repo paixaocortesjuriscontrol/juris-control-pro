@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 interface Props {
   processoId: string;
@@ -56,6 +57,27 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fallback: o sync feito a partir do form "Visão Geral" grava em judit_logs
+  // (e não em consultas_judit). Usamos esse log mais recente para popular a Capa
+  // quando não há consultas_judit cadastrada para o processo.
+  const { data: ultimoJuditLog } = useQuery({
+    queryKey: ["judit_logs_capa", processoNumero],
+    enabled: !!processoNumero,
+    queryFn: async () => {
+      const variantes = obterVariantesCnjBusca(processoNumero!);
+      const { data, error } = await supabase
+        .from("judit_logs" as any)
+        .select("raw_response, created_at")
+        .in("processo_numero", variantes)
+        .eq("status", "sucesso")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
     },
   });
 
@@ -120,8 +142,19 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
     }
   };
 
-  const rawPayload: any = liveData || ultimaConsulta?.payload_resposta || null;
+  const rawPayload: any =
+    liveData || ultimaConsulta?.payload_resposta || ultimoJuditLog?.raw_response || null;
   const payload: any = normalizeJuditPayload(rawPayload);
+  const fmtBR = (iso?: string | null) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString("pt-BR");
+  };
+  const fmtHora = (h?: string | null) => {
+    if (!h) return null;
+    const m = String(h).match(/^(\d{1,2}):(\d{2})/);
+    return m ? `${m[1].padStart(2, "0")}:${m[2]}` : String(h);
+  };
   const partesNaoAdv = partes.filter((p) => !p.is_advogado);
   const advogados = partes.filter((p) => p.is_advogado);
 
@@ -144,15 +177,40 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
           <CardTitle className="text-sm">Capa</CardTitle>
         </CardHeader>
         <CardContent className="py-3 px-4 grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-          <Field label="Tribunal" value={payload?.tribunal || payload?.tribunal_acronimo} />
+          <Field label="Tribunal" value={payload?.tribunal_acronimo || payload?.tribunal} />
           <Field label="Órgão julgador" value={payload?.orgao_julgador} />
           <Field label="Classe" value={payload?.classe_capa || payload?.tipo_recurso} />
-          <Field label="Distribuição" value={payload?.data_distribuicao_br || payload?.data_distribuicao} />
+          <Field label="Distribuição" value={payload?.data_distribuicao_br || fmtBR(payload?.data_distribuicao)} />
           <Field label="Relator" value={payload?.relator} />
           <Field label="Turma" value={payload?.turma} />
           <Field label="Situação" value={payload?.situacao_processo} />
           <Field label="Reclamante" value={payload?.reclamante} />
           <Field label="Reclamada" value={payload?.reclamada} />
+          <Field label="Recorrente" value={payload?.recorrente} />
+          <Field label="Tipo de recurso" value={payload?.tipo_recurso} />
+          <Field label="Tipo recurso (banco)" value={payload?.tipo_recurso_banco} />
+          <Field label="Tipo recurso (reclamante)" value={payload?.tipo_recurso_reclamante} />
+          <Field label="Tipo recurso (terceiro)" value={payload?.tipo_recurso_terceiro} />
+          <Field label="Dossiê" value={payload?.dossie} />
+          <Field
+            label="Julgamento"
+            value={[
+              payload?.tem_data_julgamento ? "Sim" : null,
+              fmtBR(payload?.data_julgamento),
+              fmtHora(payload?.horario_julgamento),
+              payload?.tipo_julgamento,
+            ].filter(Boolean).join(" · ") || null}
+          />
+          <Field
+            label="Processo baixado"
+            value={
+              payload?.processo_baixado === true
+                ? "Sim"
+                : payload?.processo_baixado === false
+                ? "Não"
+                : null
+            }
+          />
         </CardContent>
       </Card>
 
