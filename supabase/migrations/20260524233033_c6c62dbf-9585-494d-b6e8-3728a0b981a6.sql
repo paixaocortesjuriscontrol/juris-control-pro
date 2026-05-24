@@ -1,0 +1,1 @@
+ALTER TABLE public.dados_benner ADD COLUMN IF NOT EXISTS processo_outro_escritorio boolean NOT NULL DEFAULT false;

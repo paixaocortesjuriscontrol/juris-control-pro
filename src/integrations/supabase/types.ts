@@ -1605,6 +1605,7 @@ export type Database = {
           problema_judit_por: string | null
           processo: string | null
           processo_baixado: string | null
+          processo_outro_escritorio: boolean
           provas_digitais: string | null
           reclamada: string | null
           reclamante: string | null
@@ -1710,6 +1711,7 @@ export type Database = {
           problema_judit_por?: string | null
           processo?: string | null
           processo_baixado?: string | null
+          processo_outro_escritorio?: boolean
           provas_digitais?: string | null
           reclamada?: string | null
           reclamante?: string | null
@@ -1815,6 +1817,7 @@ export type Database = {
           problema_judit_por?: string | null
           processo?: string | null
           processo_baixado?: string | null
+          processo_outro_escritorio?: boolean
           provas_digitais?: string | null
           reclamada?: string | null
           reclamante?: string | null
