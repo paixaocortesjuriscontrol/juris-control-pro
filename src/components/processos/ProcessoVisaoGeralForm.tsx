@@ -551,7 +551,7 @@ export function ProcessoVisaoGeralForm({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleSyncJudit(true)}
+                onClick={() => handleSyncJuditInterno(true)}
                 disabled={syncing || syncingAnexos || saving}
                 className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
               >
@@ -563,7 +563,7 @@ export function ProcessoVisaoGeralForm({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleSyncJuditInterno}
+                onClick={() => handleSyncJuditInterno(false)}
                 disabled={juditBusy || saving}
                 className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
                 title="Preenche o máximo de campos do formulário usando uma chamada Judit independente"
@@ -573,7 +573,7 @@ export function ProcessoVisaoGeralForm({
                   ? (juditElapsed < 3 ? "Consultando…" : `Aguardando… ${juditElapsed}s`)
                   : "Judit (Interno)"}
               </Button>
-              {(juditSessionFields.size > 0 || (Array.isArray((processo as any)?.judit_campos) && (processo as any).judit_campos.length > 0)) && onNavigate && (
+              {onNavigate && (
                 <>
                   <Button
                     size="sm"
@@ -615,6 +615,13 @@ export function ProcessoVisaoGeralForm({
             </div>
           )}
 
+          {compact && (
+            <div className="text-xs text-muted-foreground">
+              Use os botões acima para sincronizar/atualizar os dados Judit. Para editar campos do processo, volte para a aba "Resumo".
+            </div>
+          )}
+
+          {!compact && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* COLUNA PRINCIPAL */}
             <div className="lg:col-span-2 space-y-6">
