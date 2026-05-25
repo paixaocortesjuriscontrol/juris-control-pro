@@ -1268,13 +1268,18 @@ export default function CompararDjSantander() {
   const analisarMotivosSomenteDoc = async () => {
     if (!result) return;
     if (result.somente_doc.length === 0 && result.somente_pdf.length === 0) return;
-    if (!selectedCoordenacao || !selectedDate) {
-      toast.error("Selecione coordenação e data para analisar");
+    if (!selectedCoordenacao || (!selectedDate && !selectedPubInicio)) {
+      toast.error("Selecione coordenação e ao menos uma data (disponibilização ou publicação)");
       return;
     }
     setAnalisando(true);
-    const inicio = format(selectedDate, "yyyy-MM-dd");
-    const fim = format(selectedDateFim ?? selectedDate, "yyyy-MM-dd");
+    const dispInicio = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+    const dispFim = selectedDate ? format(selectedDateFim ?? selectedDate, "yyyy-MM-dd") : null;
+    const pubInicio = selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null;
+    const pubFim = selectedPubFim ? format(selectedPubFim, "yyyy-MM-dd") : (selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null);
+    // Compat: alguns trechos abaixo referenciam `inicio`/`fim` para mensagens
+    const inicio = dispInicio ?? pubInicio!;
+    const fim = dispFim ?? pubFim!;
     const monIds = monitoramentosConfig.map(m => m.id);
 
     // Mapa id -> rótulo do termo (para exibir no detalhe)
@@ -1324,13 +1329,14 @@ export default function CompararDjSantander() {
       const motivos: string[] = [];
       const digits = processo.replace(/\D/g, "");
       try {
-        const { data: descartadas } = await supabase
+        let q = supabase
           .from("publicacoes_djen_descartadas")
           .select("motivo_descarte, tribunal")
           .in("monitoramento_id", monIds)
-          .eq("dedup_processo_digits", digits)
-          .gte("data_disponibilizacao", `${inicio}T00:00:00.000Z`)
-          .lte("data_disponibilizacao", `${fim}T23:59:59.999Z`);
+          .eq("dedup_processo_digits", digits);
+        if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
+        if (pubInicio) q = q.gte("data_publicacao", pubInicio).lte("data_publicacao", pubFim!);
+        const { data: descartadas } = await q;
         if (descartadas && descartadas.length > 0) {
           const unicos = [...new Set(descartadas.map(d => d.motivo_descarte).filter(Boolean))];
           unicos.forEach(m => motivos.push(`Descartado: ${m}`));
@@ -1343,12 +1349,13 @@ export default function CompararDjSantander() {
       // Verifica se a publicação foi capturada na base do DJEN
       // (por esta ou por outras coordenações)
       try {
-        const { data: capturadas } = await supabase
+        let q = supabase
           .from("publicacoes_djen")
           .select("coordenacao_id, monitoramento_id, tribunal, orgao, tipo_comunicacao, coordenacoes:coordenacao_id(nome)")
-          .eq("dedup_processo_digits", digits)
-          .gte("data_disponibilizacao", `${inicio}T00:00:00.000Z`)
-          .lte("data_disponibilizacao", `${fim}T23:59:59.999Z`);
+          .eq("dedup_processo_digits", digits);
+        if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
+        if (pubInicio) q = q.gte("data_publicacao", pubInicio).lte("data_publicacao", pubFim!);
+        const { data: capturadas } = await q;
         if (capturadas && capturadas.length > 0) {
           const naSelecionada = capturadas.filter((c: any) => monIds.includes(c.monitoramento_id));
           if (naSelecionada.length > 0) {
@@ -1426,13 +1433,14 @@ export default function CompararDjSantander() {
     const analisarCapturado = async (processo: string): Promise<string[]> => {
       const digits = processo.replace(/\D/g, "");
       try {
-        const { data: capturadas } = await supabase
+        let q = supabase
           .from("publicacoes_djen")
           .select("monitoramento_id, tribunal, orgao")
           .in("monitoramento_id", monIds)
-          .eq("dedup_processo_digits", digits)
-          .gte("data_disponibilizacao", `${inicio}T00:00:00.000Z`)
-          .lte("data_disponibilizacao", `${fim}T23:59:59.999Z`);
+          .eq("dedup_processo_digits", digits);
+        if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
+        if (pubInicio) q = q.gte("data_publicacao", pubInicio).lte("data_publicacao", pubFim!);
+        const { data: capturadas } = await q;
         if (capturadas && capturadas.length > 0) {
           return [`Capturado via ${descreverCaptura(capturadas)}`];
         }
