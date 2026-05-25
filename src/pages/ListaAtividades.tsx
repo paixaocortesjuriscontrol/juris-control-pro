@@ -43,7 +43,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
-import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
+import { TarefaDetalhesPanel } from "@/components/prazos/TarefaDetalhesPanel";
+import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -119,11 +120,16 @@ export default function ListaAtividades() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPrazo, setEditingPrazo] = useState<Prazo | null>(null);
-  const [detalhesOpen, setDetalhesOpen] = useState(false);
   const [detalhesPrazo, setDetalhesPrazo] = useState<Prazo | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
+
+  // Collapse main app sidebar while a tarefa is selected (split-screen mode)
+  useEffect(() => {
+    if (detalhesPrazo) setCollapsed(true);
+  }, [detalhesPrazo, setCollapsed]);
 
   const { data: coordenacoes } = useCoordenacoesFull();
 
@@ -324,8 +330,16 @@ export default function ListaAtividades() {
     >
       <div className="flex flex-col gap-4 p-4 lg:p-6 bg-muted/30 min-h-[calc(100vh-4rem)]">
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
-          {/* Filtros laterais */}
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            detalhesPrazo
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+              : "lg:grid-cols-[280px_1fr]",
+          )}
+        >
+          {/* Filtros laterais — ocultos no modo dividido */}
+          {!detalhesPrazo && (
           <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -499,6 +513,7 @@ export default function ListaAtividades() {
               />
             </div>
           </Card>
+          )}
 
           {/* Tabela */}
           <Card className="overflow-hidden">
@@ -611,7 +626,6 @@ export default function ListaAtividades() {
                             const tgt = e.target as HTMLElement;
                             if (tgt.closest("[data-stop]")) return;
                             setDetalhesPrazo(r);
-                            setDetalhesOpen(true);
                           }}
                         >
                           <TableCell className="px-2 py-3 align-top" data-stop>
@@ -773,6 +787,36 @@ export default function ListaAtividades() {
               </div>
             </div>
           </Card>
+
+          {/* Painel de detalhes (split-screen) */}
+          {detalhesPrazo && (
+            <div className="lg:sticky lg:top-4 h-[calc(100vh-6rem)]">
+              <TarefaDetalhesPanel
+                prazo={detalhesPrazo}
+                onClose={() => setDetalhesPrazo(null)}
+                onEdit={(p) => {
+                  setEditingPrazo(p);
+                  setDialogOpen(true);
+                }}
+                onMarkAsCumprido={async (p) => {
+                  const { error } = await supabase
+                    .from("tarefas")
+                    .update({
+                      status: "cumprido",
+                      data_cumprimento: new Date().toISOString(),
+                    })
+                    .eq("id", p.id);
+                  if (error) {
+                    toast.error(error.message);
+                    return;
+                  }
+                  await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+                  toast.success("Tarefa concluída");
+                  setDetalhesPrazo({ ...p, status: "cumprido" });
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -783,11 +827,6 @@ export default function ListaAtividades() {
           if (!o) setEditingPrazo(null);
         }}
         prazo={editingPrazo}
-      />
-      <TarefaDetalhesDialog
-        open={detalhesOpen}
-        onOpenChange={setDetalhesOpen}
-        prazo={detalhesPrazo}
       />
     </MainLayout>
   );
