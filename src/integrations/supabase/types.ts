@@ -7071,6 +7071,7 @@ export type Database = {
           count: number
           id: string
           nome: string
+          pronto: number
         }[]
       }
       get_distribuicao_tst_stats: {
