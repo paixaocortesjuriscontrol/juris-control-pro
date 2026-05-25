@@ -982,6 +982,7 @@ async function processarTermo(
                 onRateLimit: (waitMs) => {
                   onRateLimit?.(waitMs);
                 },
+                continueUntilEmpty: true,
               }
             );
             respItems = resp.items;
@@ -1111,6 +1112,7 @@ async function processarTermo(
                 maxRetries: runtimeConfig.max_retries,
                 retryBaseDelay: runtimeConfig.retry_base_delay,
                 onRateLimit: (waitMs) => { onRateLimit?.(waitMs); },
+                continueUntilEmpty: true,
               }
             );
             respItems = resp.items;
