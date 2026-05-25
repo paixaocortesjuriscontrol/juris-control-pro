@@ -311,24 +311,16 @@ export default function ListaAtividades() {
     !!filters.search;
 
   return (
-    <MainLayout>
+    <MainLayout
+      title="Lista de atividades"
+      subtitle={`${total.toLocaleString("pt-BR")} atividade(s) encontrada(s)`}
+      headerActions={
+        <Button onClick={() => setDialogOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" /> Novo
+        </Button>
+      }
+    >
       <div className="flex flex-col gap-4 p-4 lg:p-6 bg-muted/30 min-h-[calc(100vh-4rem)]">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Lista de atividades
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {total.toLocaleString("pt-BR")} atividade(s) encontrada(s)
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setDialogOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> Novo
-            </Button>
-          </div>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
           {/* Filtros laterais */}
@@ -559,7 +551,13 @@ export default function ListaAtividades() {
                   <TableRow className="h-9">
                     <TableHead className="w-8 px-2">
                       <Checkbox
-                        checked={allSelected || (someSelected && "indeterminate")}
+                        checked={
+                          allSelected
+                            ? true
+                            : someSelected
+                              ? "indeterminate"
+                              : false
+                        }
                         onCheckedChange={toggleAll}
                         aria-label="Selecionar todos"
                       />
@@ -775,7 +773,7 @@ export default function ListaAtividades() {
       <TarefaDetalhesDialog
         open={detalhesOpen}
         onOpenChange={setDetalhesOpen}
-        tarefa={detalhesPrazo}
+        prazo={detalhesPrazo}
       />
     </MainLayout>
   );
