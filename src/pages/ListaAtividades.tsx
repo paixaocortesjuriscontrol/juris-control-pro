@@ -787,6 +787,36 @@ export default function ListaAtividades() {
               </div>
             </div>
           </Card>
+
+          {/* Painel de detalhes (split-screen) */}
+          {detalhesPrazo && (
+            <div className="lg:sticky lg:top-4 h-[calc(100vh-6rem)]">
+              <TarefaDetalhesPanel
+                prazo={detalhesPrazo}
+                onClose={() => setDetalhesPrazo(null)}
+                onEdit={(p) => {
+                  setEditingPrazo(p);
+                  setDialogOpen(true);
+                }}
+                onMarkAsCumprido={async (p) => {
+                  const { error } = await supabase
+                    .from("tarefas")
+                    .update({
+                      status: "cumprido",
+                      data_cumprimento: new Date().toISOString(),
+                    })
+                    .eq("id", p.id);
+                  if (error) {
+                    toast.error(error.message);
+                    return;
+                  }
+                  await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+                  toast.success("Tarefa concluída");
+                  setDetalhesPrazo({ ...p, status: "cumprido" });
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -797,11 +827,6 @@ export default function ListaAtividades() {
           if (!o) setEditingPrazo(null);
         }}
         prazo={editingPrazo}
-      />
-      <TarefaDetalhesDialog
-        open={detalhesOpen}
-        onOpenChange={setDetalhesOpen}
-        prazo={detalhesPrazo}
       />
     </MainLayout>
   );
