@@ -1,73 +1,49 @@
-## Problema
+## Causa raiz
 
-A tela `ImportarTarefas` (aba Projuris) demora muito (milhares de linhas → vários minutos) e o feedback é um único `<Progress />` com o texto "Importando tarefas..." sem detalhes. Lendo `src/pages/ImportarTarefas.tsx` (linhas 582–830), identifiquei os gargalos:
+No `src/hooks/useDjenTermosParalelaEngine.ts` (linhas 1697-1699), quando o pool de VPS está ativo, o código continua adicionando o slot `DIRECT_SLOT_ID` ("Direto (browser)") à lista de vias:
 
-1. **Round-trips sequenciais por linha** dentro do batch:
-   - `findResponsavelId` → procura/cria perfil (chama Edge Function `cadastrar-perfil` 1×/usuário novo, sequencial).
-   - `findOrCreateProcessoId` → `insert` em `processos` 1×/processo novo, sequencial.
-   - Tarefas já existentes: `await supabase.from("tarefas").update(...)` 1× por linha.
-   - `vincularResponsavelAoProcesso` → `SELECT` + `INSERT` + `SELECT` + `UPDATE` 1× por linha após inserir.
-   Resultado: 4–6 round-trips por linha × milhares de linhas = lento mesmo com batch de 100.
-
-2. **Fallback de erro problemático**: se o `insert` em lote falha, reinsere cada item sequencialmente, e itens que poderiam ter sucesso são tentados de novo gerando duplicidade/erro.
-
-3. **Progresso opaco**: só atualiza ao final de cada lote de 100, sem fase atual, sem contadores em tempo real, sem ETA, sem indicar o que está rodando (criando usuários? processos? inserindo? vinculando?).
-
-## Solução proposta
-
-### A) Pipeline em fases (pré-resolução em massa) — ganho principal de performance
-
-Substituir o loop atual por 4 fases sequenciais, cada uma em lote:
-
-```text
-[1/4] Resolvendo processos     ────────────  X / Y
-[2/4] Resolvendo responsáveis  ────────────  X / Y
-[3/4] Inserindo/atualizando    ────────────  X / Y  (lote N de M)
-[4/4] Vinculando responsáveis  ────────────  X / Y
+```ts
+const vias: ViaSpec[] = viasProxy.length > 0
+  ? [...viasProxy, { id: DIRECT_SLOT_ID, label: 'Direto (browser)' }]   // adiciona browser indevidamente
+  : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
 ```
 
-- **Fase 1 — Processos**: deduplica todos os `numeroProcesso` da planilha → 1 `SELECT ... IN (...)` (em chunks de 500) → coleta os ausentes → 1 `INSERT` em lote (chunks de 200) com todos os novos processos. Resultado: 1 mapa `numero → id` na memória.
-- **Fase 2 — Responsáveis**: deduplica todos os nomes de `responsaveis` → matching local contra `profiles` (já carregado) → para os ausentes, chamar `cadastrar-perfil` em paralelo limitado (Promise pool, ex.: 6 concorrentes) ao invés de sequencial.
-- **Fase 3 — Inserir/atualizar tarefas**:
-  - 1 `SELECT` upfront dos `identificador_projuris` existentes (já existe).
-  - Para existentes: agrupar em lotes e fazer `UPDATE` via `upsert` (com `onConflict: identificador_projuris`) ao invés de 1 update por linha.
-  - Para novas: `INSERT` em lote de 200 (sem fallback per-row em caso de erro; em vez disso, dividir o lote em 2 recursivamente até isolar o erro — bem mais rápido que retry per-row).
-- **Fase 4 — Vincular responsáveis ao processo**:
-  - Pré-carregar `processos_responsaveis` para o conjunto de `processo_id` envolvidos em 1 query, montar `Set<processo_id|usuario_id>`.
-  - Filtrar pares novos → 1 `INSERT` em lote.
-  - Atualizar `advogado_responsavel_id` apenas onde está NULL com 1 `UPDATE` por usuário (chunks).
+Isso contraria o comentário que está logo acima ("Se houver VPS habilitada no pool, a Paralela NÃO usa o browser como via") e gera 1 worker preso no IP do navegador. Como cada worker fica responsável por uma fila estável de tribunais (round-robin de pop), o TST hoje caiu nesse worker e o IP do browser está sendo bloqueado/instável pelo CloudFront do PJE Comunica → `Failed to fetch` → retries de 12s, 26s, 50s → ~90s por termo.
 
-### B) Barra de progresso detalhada
+## Correção (sem pular termos)
 
-Novo componente de progresso que mostra:
+### Fix único: tirar o browser quando houver VPS
 
-- **Fase atual** (1/4, 2/4, ...) com label descritivo.
-- **Barra por fase** + barra geral ponderada (processos 10%, responsáveis 15%, inserção 60%, vínculos 15%).
-- **Contadores em tempo real**: "X / Y", "N novos usuários", "P novos processos", "S sucesso / E erros".
-- **ETA estimado** a partir da velocidade média (linhas/seg) das últimas 5s.
-- **Linha atual** (ex.: "Inserindo lote 3 de 21 — 300 / 4081 tarefas").
-- **Botão Cancelar** mantém comportamento; entre fases, checar `cancelledRef`.
+Em `src/hooks/useDjenTermosParalelaEngine.ts`, trocar o bloco para:
 
-Componente novo: `src/components/tarefas/ImportProgress.tsx` (UI puro recebendo `phase`, `phaseProgress`, `overallProgress`, `counters`, `eta`).
+```ts
+const vias: ViaSpec[] =
+  viasProxy.length > 0
+    ? viasProxy                                       // só VPS, browser fica fora
+    : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }]; // fallback se não houver pool
+const usandoPoolVps = viasProxy.length > 0;
+```
 
-### C) Outros ajustes
+Comportamento após o fix:
 
-- Manter API/colunas do banco; nenhuma migração.
-- Aplicar a mesma estrutura na aba Ástrea, reaproveitando o mesmo componente de progresso (sem refazer toda a lógica agora — só a barra).
-- Manter contadores de cabeçalho (Total / Válidas / Inválidas / Importadas / Erros / Concluídas) sincronizados a cada fase.
-- Logs `console.time` por fase para diagnosticar regressões.
+- Se o pool está ligado com 1+ VPS habilitada → a Paralela usa **apenas** as VPS (sem browser).
+- Se o pool está desligado ou sem VPS → comportamento atual (browser direto).
+- Nenhum termo é pulado. O retry/backoff existente continua para 429/504; a única diferença é que o IP do navegador deixa de ser usado, eliminando o `Failed to fetch` que aparece nos logs.
+- Concorrência efetiva passa a ser `min(nº de VPS, nº tribunais)` em vez de `min(nº VPS + 1, nº tribunais)`.
 
-## Estimativa de ganho
+### Observação importante sobre cobertura
 
-Para 4.000 linhas com ~500 processos novos e ~50 usuários novos:
-- Hoje: ~4.000 × (3–5 awaits sequenciais) ≈ 12k–20k round-trips.
-- Depois: ~50 (paralelo) + ~5 (processos em lote) + ~20 (insert tarefas em lote) + ~5 (vínculos em lote) ≈ **80 round-trips**.
-Esperado: redução de minutos para segundos/dezenas de segundos.
+A função `processarTribunalTrack` (linhas 980-1045) já é robusta: ela varre **todos os dias × todos os termos × todos os tribunais** sem skip. Se uma busca falhar após os retries, ela registra `ultimoErro`, soma 0 em "novas" e segue para o próximo termo — mas o termo permanece marcado como processado naquele dia. Isso é o comportamento atual e **não vai mudar**. Para garantir que nenhuma busca falhe silenciosamente quando a VPS estiver instável, recomendo aceitar também este segundo ajuste opcional:
 
-## Arquivos afetados
+### Fix complementar opcional (se quiser zero falha silenciosa)
 
-- `src/pages/ImportarTarefas.tsx` — refatorar `handleImport` em fases; novo state `importPhase`, `phaseCounters`.
-- `src/components/tarefas/ImportProgress.tsx` — novo componente.
-- (opcional) extrair helpers para `src/lib/importTarefasPipeline.ts` para isolar fases e facilitar manutenção.
+Em `src/utils/pjeComunicaClient.ts` (`fetchWithRetry`), tratar `Failed to fetch` / `TypeError` com o mesmo backoff que 504 (jitter de ~3s, sem multiplicação exponencial cara) e manter as 5 tentativas. Isso reduz o tempo perdido em erros de rede de ~90s para ~15s sem pular nada.
 
-Sem mudanças de schema, sem mudanças nas demais telas.
+Esse fix é independente e pode ser aplicado junto ou depois. Não altera Pro / Flash / STF / Processos — só o caminho de retry compartilhado.
+
+## Arquivos tocados
+
+- `src/hooks/useDjenTermosParalelaEngine.ts` — Fix principal (~3 linhas).
+- (opcional) `src/utils/pjeComunicaClient.ts` — Fix complementar.
+
+Nada de migrations, nada em edge functions, nada de UI.
