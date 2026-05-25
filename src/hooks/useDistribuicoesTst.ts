@@ -88,6 +88,7 @@ export interface DistribuicaoTstFilters {
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
   situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio";
+  subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
