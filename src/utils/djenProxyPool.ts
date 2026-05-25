@@ -19,6 +19,7 @@ const PJE_COMUNICA_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const STORAGE_POOL = "djen_proxy_pool";
 const STORAGE_ENABLED = "djen_proxy_pool_enabled";
 const OFFLINE_COOLDOWN_MS = 60_000;
+const PROXY_SLOT_TIMEOUT_MS = 25_000;
 
 // Importa o cliente Supabase de forma lazy para evitar ciclo de import
 // e permitir que o pool funcione mesmo se a conexão falhar (cai pro cache local).
@@ -416,6 +417,16 @@ async function callProxySlot(
   fullDirectUrl: string,
   init: RequestInit,
 ): Promise<{ status: number; body: string }> {
+  const timeoutController = new AbortController();
+  let proxyTimedOut = false;
+  const timeoutId = window.setTimeout(() => {
+    proxyTimedOut = true;
+    timeoutController.abort();
+  }, PROXY_SLOT_TIMEOUT_MS);
+  const upstreamSignal = init.signal
+    ? AbortSignal.any([init.signal as AbortSignal, timeoutController.signal])
+    : timeoutController.signal;
+
   const dialect = await detectDialect(slot);
   const url =
     dialect === "v3-proxy"
@@ -424,32 +435,41 @@ async function callProxySlot(
   const headers = new Headers(init.headers || {});
   headers.set("X-Proxy-Token", slot.token);
 
-  const proxyResp = await fetch(url, {
-    method: "GET",
-    headers,
-    signal: init.signal,
-  });
-
-  // Auto-swap: se a VPS devolveu 404/502, é provável que escolhemos a rota
-  // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
-  // o outro dialeto uma vez NESTA chamada e cacheia o vencedor. Não usamos
-  // trava global porque a VPS pode ser atualizada no meio de uma execução.
-  if (proxyResp.status === 404 || proxyResp.status === 502) {
-    const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
-    dialectCache[slot.id] = swapped;
-    const swappedUrl =
-      swapped === "v3-proxy"
-        ? buildV3ProxyUrl(slot.baseUrl, fullDirectUrl)
-        : buildV1DjenUrl(slot.baseUrl, fullDirectUrl);
-    const retryResp = await fetch(swappedUrl, {
+  try {
+    const proxyResp = await fetch(url, {
       method: "GET",
       headers,
-      signal: init.signal,
+      signal: upstreamSignal,
     });
-    return parseProxyResponse(slot, swapped, retryResp);
-  }
 
-  return parseProxyResponse(slot, dialect, proxyResp);
+    // Auto-swap: se a VPS devolveu 404/502, é provável que escolhemos a rota
+    // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
+    // o outro dialeto uma vez NESTA chamada e cacheia o vencedor. Não usamos
+    // trava global porque a VPS pode ser atualizada no meio de uma execução.
+    if (proxyResp.status === 404 || proxyResp.status === 502) {
+      const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
+      dialectCache[slot.id] = swapped;
+      const swappedUrl =
+        swapped === "v3-proxy"
+          ? buildV3ProxyUrl(slot.baseUrl, fullDirectUrl)
+          : buildV1DjenUrl(slot.baseUrl, fullDirectUrl);
+      const retryResp = await fetch(swappedUrl, {
+        method: "GET",
+        headers,
+        signal: upstreamSignal,
+      });
+      return parseProxyResponse(slot, swapped, retryResp);
+    }
+
+    return parseProxyResponse(slot, dialect, proxyResp);
+  } catch (err: any) {
+    if (proxyTimedOut && !(init.signal as AbortSignal | undefined)?.aborted) {
+      throw new Error(`proxy_slot_timeout_${PROXY_SLOT_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 async function parseProxyResponse(
