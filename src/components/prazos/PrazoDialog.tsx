@@ -323,7 +323,14 @@ export function PrazoDialog({
       prioridade: prioridade as "baixa" | "media" | "alta" | "urgente",
       processo_id: (processoId === "__none__" || !processoId) ? null : processoId,
       responsavel_id: responsavelId || undefined,
-      observacoes: observacoes || undefined,
+      observacoes: [
+        observacoes?.trim(),
+        localLink?.trim() ? `Local/Link: ${localLink.trim()}` : "",
+      ].filter(Boolean).join("\n\n") || undefined,
+      tipo_tarefa: tipoTarefa || null,
+      data_base: dataBase ? format(dataBase, "yyyy-MM-dd") : null,
+      data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
+      grupos_trabalho: gruposTrabalho || null,
     };
 
     try {
