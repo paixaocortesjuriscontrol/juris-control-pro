@@ -28,6 +28,7 @@ import {
   Copy,
   Maximize2,
   Minimize2,
+  Layers,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,18 @@ const AnaliseDjen = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
+  // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
+  // filtra a lista renderizada. Preferência persistida em localStorage.
+  const [ocultarDuplicadas, setOcultarDuplicadas] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = window.localStorage.getItem('analise-djen:ocultar-duplicadas');
+    return stored === null ? true : stored === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('analise-djen:ocultar-duplicadas', ocultarDuplicadas ? '1' : '0');
+  }, [ocultarDuplicadas]);
   // Paginação client-side somente para a aba Descartadas (auditoria),
   // que pode trazer milhares de linhas com HTML completo e travar o render.
   const PAGE_SIZE_DESCARTADAS = 500;
@@ -3176,8 +3189,33 @@ const AnaliseDjen = () => {
         return re.test(t);
       });
     }
+    if (ocultarDuplicadas) {
+      result = dedupePublicacoesDjen(result);
+    }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas]);
+
+  // Quantas publicações foram ocultadas pela deduplicação (para o badge).
+  const totalDuplicadasOcultas = useMemo(() => {
+    if (!ocultarDuplicadas) return 0;
+    let base = mergedPublicacoes;
+    if (dataDisponibilizacao) {
+      base = base.filter(pub => {
+        if (!pub.data_disponibilizacao) return false;
+        return pub.data_disponibilizacao.slice(0, 10) === dataDisponibilizacao;
+      });
+    }
+    if (tribunalFiltro) {
+      const alvo = tribunalFiltro.toUpperCase();
+      base = base.filter(pub => {
+        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
+        if (!t) return false;
+        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
+        return re.test(t);
+      });
+    }
+    return Math.max(0, base.length - allPublicacoes.length);
+  }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
   // do banco. Total vem do COUNT exato (descartadasStats.total).
@@ -3564,6 +3602,27 @@ const AnaliseDjen = () => {
                   </Button>
                   <Button type="button" size="sm" variant={readStatus === 'todas' ? 'default' : 'outline'} onClick={() => setReadStatus('todas')} disabled={tipoOrigem === 'descartada'}>
                     Todas
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm">Duplicadas</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={ocultarDuplicadas ? 'default' : 'outline'}
+                    onClick={() => setOcultarDuplicadas(v => !v)}
+                    title="Oculta publicações repetidas (mesmo processo + conteúdo na mesma coordenação). Não altera o banco."
+                  >
+                    <Layers className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                    {ocultarDuplicadas ? 'Ocultando duplicadas' : 'Mostrar todas'}
+                    {ocultarDuplicadas && totalDuplicadasOcultas > 0 && (
+                      <span className="ml-2 rounded-full bg-background/30 px-2 py-0.5 text-[10px] font-semibold">
+                        {totalDuplicadasOcultas} ocultas
+                      </span>
+                    )}
                   </Button>
                 </div>
               </div>

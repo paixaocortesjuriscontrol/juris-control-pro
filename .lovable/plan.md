@@ -1,37 +1,23 @@
-## Plano corrigido
+# Botão "Ocultar duplicadas" na Análise DJEN
 
-Você está certo: **termo do tipo `parte` não pode buscar por palavra-chave**. Não vou reintroduzir fallback. O único motor a mexer será o **DJEN Termos Paralelo**.
+## Objetivo
+Adicionar um botão toggle no topo da lista de publicações da página Análise DJEN que esconde visualmente publicações duplicadas (mesmo processo + mesmo conteúdo na mesma coordenação), mantendo apenas a mais completa. Sem alteração no banco — apenas filtro de tela, reversível com um clique.
 
-## O que será alterado
+## Mudanças
 
-1. **Travar a regra de busca por parte no motor paralelo**
-   - Em `useDjenTermosParalelaEngine.ts`, manter `tipo: 'parte'` usando exclusivamente `nomeParte`.
-   - Garantir que `palavraChave` nunca seja enviada quando `mon.tipo === 'parte'`.
-   - Remover/evitar qualquer retry ou fallback que transforme parte em palavra-chave.
+**`src/pages/AnaliseDjen.tsx`**
+1. Novo estado `ocultarDuplicadas` (boolean, default `true` para já entregar a tela limpa).
+2. Persistir a preferência em `localStorage` (`analise-djen:ocultar-duplicadas`) para o advogado não precisar reclicar a cada acesso.
+3. Aplicar `dedupePublicacoesDjen` (já existente em `src/utils/djenDedup.ts`) sobre a lista **após** os filtros atuais (coordenação, data, termo, lida/não-lida, tipo). Assim o escopo respeita exatamente o que está visível.
+4. Botão na barra de ações da lista, ao lado dos filtros existentes:
+   - Ícone `Layers` + texto "Ocultar duplicadas" / "Mostrar duplicadas"
+   - Badge mostrando quantas foram ocultadas (ex.: "23 ocultas")
+   - Tooltip explicando o critério (mesmo processo + conteúdo na coordenação)
+5. Contadores de "não lidas" / "total" exibidos no header passam a refletir a lista deduplicada quando o toggle está ativo (consistência visual).
 
-2. **Corrigir o problema real mostrado nos logs: 429**
-   - A execução paralela está tomando `HTTP 429 Too Many Attempts` no PJE Comunica.
-   - Reduzir o paralelismo por host PJE Comunica de `2` para `1`, porque todos os tribunais usam o mesmo backend.
-   - Aumentar o espaçamento/retry para não “queimar” a sequência de termos após o primeiro bloqueio.
+## Detalhes técnicos
 
-3. **Manter paginação completa para parte**
-   - Preservar `continueUntilEmpty: true` e `maxPages: null` no `buscarPjeComunicaPaginado`.
-   - A busca deve seguir página por página até página vazia, sem parar por `hasMore=false` quando a API mentir.
-
-4. **Garantir que resultado encontrado via `nomeParte` seja aceito**
-   - Publicações retornadas pela API via `nomeParte` continuarão marcadas com `__matchedByNomeParte`.
-   - Isso evita descarte indevido quando o TST não devolve metadados estruturados completos.
-
-5. **Blindagem contra regressão**
-   - Adicionar uma proteção explícita no código: se `tipo === 'parte'`, lançar/registrar alerta interno caso `palavraChave` apareça nos parâmetros.
-   - Assim o bug antigo não volta silenciosamente.
-
-## Arquivo previsto
-
-- `src/hooks/useDjenTermosParalelaEngine.ts`
-
-## Não será feito
-
-- Não mexer nos engines Flash ou Pro.
-- Não usar busca por palavra-chave para termo do tipo parte.
-- Não criar fallback de parte para texto/palavra-chave.
+- A função `dedupePublicacoesDjen` já preserva o registro com conteúdo mais completo e respeita `id_djen` quando presente — não precisa duplicar lógica.
+- O filtro é puro client-side dentro do `useMemo` que já produz a lista renderizada; não dispara refetch nem invalida queries.
+- Geração de PDF/resumo IA continua usando a base completa filtrada (não muda); apenas a renderização da tabela é afetada.
+- Nenhuma alteração em hooks, edge functions, RLS ou schema.
