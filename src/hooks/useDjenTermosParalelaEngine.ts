@@ -116,7 +116,7 @@ const CONFIG = {
   delay_between_pages: 1200,
   delay_between_termos_or: 1000,
   max_retries: 3,
-  retry_base_delay: 3000,
+  retry_base_delay: 12000,
 };
 
 // ============================================================================
