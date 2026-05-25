@@ -1160,6 +1160,7 @@ export default function DistribuicaoTst() {
             </span>
             {responsavelCounts.filter(c => c.count > 0).map((c) => {
               const active = filtroResponsavelIds.includes(c.id);
+              const faltam = Math.max(0, c.count - (c.pronto || 0));
               return (
                 <button
                   key={c.id}
@@ -1170,11 +1171,30 @@ export default function DistribuicaoTst() {
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-card text-foreground hover:bg-muted"
                   }`}
-                  title={`Filtrar por ${c.nome}`}
+                  title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Faltam: ${faltam}`}
                 >
                   <span className="truncate max-w-[160px]">{c.nome}</span>
-                  <span className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums">
+                  <span
+                    className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums"
+                    title="Total"
+                  >
                     {c.count}
+                  </span>
+                  <span
+                    className="rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 font-bold tabular-nums"
+                    title="Pronto (finalizadas)"
+                  >
+                    {c.pronto}
+                  </span>
+                  <span
+                    className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
+                      faltam > 0
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                    title="Faltam"
+                  >
+                    {faltam}
                   </span>
                 </button>
               );
