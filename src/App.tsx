@@ -21,6 +21,7 @@ import ImportarProcessos from "./pages/ImportarProcessos";
 import ImportarHub from "./pages/ImportarHub";
 import Configuracoes from "./pages/Configuracoes";
 import Prazos from "./pages/Prazos";
+import ListaAtividades from "./pages/ListaAtividades";
 import Documentos from "./pages/Documentos";
 import BuscarDJEN from "./pages/BuscarDJEN";
 import BuscarPJE from "./pages/BuscarPJE";
