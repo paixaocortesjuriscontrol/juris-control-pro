@@ -1572,19 +1572,11 @@ export default function ImportarTarefas() {
                   </div>
                 )}
 
-                {importing && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Importando tarefas...</span>
-                      </div>
-                      <Button variant="destructive" size="sm" onClick={handleCancel}>
-                        Cancelar
-                      </Button>
-                    </div>
-                    <Progress value={importProgress} />
-                  </div>
+                {(importing || importState.phase === "done") && importState.phase !== "idle" && (
+                  <ImportProgress
+                    state={importState}
+                    onCancel={importing ? handleCancel : undefined}
+                  />
                 )}
               </CardContent>
             </Card>
