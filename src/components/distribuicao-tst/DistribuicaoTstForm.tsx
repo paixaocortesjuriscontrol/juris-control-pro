@@ -441,7 +441,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setForm(base);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dado, JSON.stringify(iaSugestao || {})]);
+    // IMPORTANTE: só refaz a carga inicial quando muda o REGISTRO (dado.id).
+    // NÃO depender de `dado` por referência nem de `iaSugestao` — caso contrário
+    // qualquer refetch do parent ou sugestão da IA chegando durante a edição
+    // sobrescreveria o que o advogado digitou (bug reportado: "ao salvar volta
+    // os valores da Judit").
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dado?.id]);
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
