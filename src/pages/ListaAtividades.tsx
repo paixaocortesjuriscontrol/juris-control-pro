@@ -567,10 +567,16 @@ export default function ListaAtividades() {
                 <colgroup>
                   <col className="w-9" />
                   <col />
-                  <col className="w-[160px]" />
-                  <col className="w-[140px]" />
-                  <col className="w-[110px]" />
-                  <col className="w-[72px]" />
+                  {detalhesPrazo ? (
+                    <col className="w-[72px]" />
+                  ) : (
+                    <>
+                      <col className="w-[160px]" />
+                      <col className="w-[140px]" />
+                      <col className="w-[110px]" />
+                      <col className="w-[72px]" />
+                    </>
+                  )}
                 </colgroup>
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
                   <TableRow className="h-9">
