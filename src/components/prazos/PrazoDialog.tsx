@@ -257,6 +257,11 @@ export function PrazoDialog({
       setResponsavelId(prazo.responsavel_id || "");
       setObservacoes(prazo.observacoes || "");
       setAnexos([]);
+      setTipoTarefa(prazo.tipo_tarefa || "");
+      setDataBase(prazo.data_base ? parseISO(prazo.data_base) : undefined);
+      setDataFatal(prazo.data_fatal ? parseISO(prazo.data_fatal) : undefined);
+      setGruposTrabalho(prazo.grupos_trabalho || "");
+      setLocalLink("");
     } else {
       setTitulo("");
       setDescricao("");
@@ -269,7 +274,14 @@ export function PrazoDialog({
       setClienteId("");
       setSearchProcesso("");
       setAnexos([]);
+      setTipoTarefa("");
+      setDataBase(undefined);
+      setDataFatal(undefined);
+      setGruposTrabalho("");
+      setLocalLink("");
     }
+    setShowAddTipo(false);
+    setNovoTipo("");
   }, [prazo, open, defaultProcessoId]);
 
   const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault || !!processoAtual || !!defaultProcessoId;
