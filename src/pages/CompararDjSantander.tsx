@@ -916,6 +916,26 @@ export default function CompararDjSantander() {
     })();
   }, [selectedCoordenacao]);
 
+  // Handlers unificados para filtros comuns (fora das abas)
+  const onChangeCoordenacao = (v: string) => {
+    setSelectedCoordenacao(v);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangeDate = (d: Date | undefined) => {
+    setSelectedDate(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangeDateFim = (d: Date | undefined) => {
+    setSelectedDateFim(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+
   const handleDocUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
