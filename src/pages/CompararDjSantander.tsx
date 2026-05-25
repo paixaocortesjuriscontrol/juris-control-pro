@@ -1621,7 +1621,7 @@ export default function CompararDjSantander() {
                 <div className="space-y-3">
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -1643,7 +1643,7 @@ export default function CompararDjSantander() {
                   </p>
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -1665,7 +1665,7 @@ export default function CompararDjSantander() {
                   </p>
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -1687,7 +1687,7 @@ export default function CompararDjSantander() {
                   </p>
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
