@@ -8,7 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList } from "lucide-react";
+import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList, ExternalLink, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
