@@ -94,6 +94,7 @@ interface SearchParams {
   palavraChave?: string;
   nomeParte?: string;
   numeroProcesso?: string;
+  siglaTribunal?: string;
   dataInicio?: string;
   dataFim?: string;
   page?: number;
@@ -346,7 +347,7 @@ function normalizeAccents(text: string): string {
 }
 
 async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, browserlessApiKey?: string): Promise<any> {
-  const { tipo, oab, uf, palavraChave, nomeParte, numeroProcesso, dataInicio, dataFim } = params;
+  const { tipo, oab, uf, palavraChave, nomeParte, numeroProcesso, siglaTribunal, dataInicio, dataFim } = params;
 
   const baseParams = new URLSearchParams();
 
@@ -380,6 +381,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
 
   if (dataInicio) baseParams.append("dataDisponibilizacaoInicio", dataInicio);
   if (dataFim) baseParams.append("dataDisponibilizacaoFim", dataFim);
+  if (siglaTribunal) baseParams.append("siglaTribunal", siglaTribunal.toUpperCase());
 
   const page = Math.max(params.page ?? 0, 0);
   // Allow up to 50 for OR-based searches (DJEN Processos uses grouped queries)
@@ -500,6 +502,7 @@ async function searchPJEComunica(params: SearchParams, jinaApiKey?: string, brow
     qp.set("tamanhoPagina", String(pageSize));
     qp.set("page", String(pageNumber));
     qp.set("size", String(pageSize));
+    qp.set("itensPorPagina", String(pageSize));
 
     const fullUrl = `${endpoint}?${qp.toString()}`;
     console.log(`Trying endpoint (page ${pageNumber}):`, fullUrl);
