@@ -348,9 +348,12 @@ const dialectCache: Record<string, ProxyDialect> = {};
 async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
   const cached = dialectCache[slot.id];
   if (cached) return cached;
+  const timeoutController = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => timeoutController.abort(), 5_000);
   try {
     const resp = await fetch(`${slot.baseUrl.replace(/\/$/, "")}/health`, {
       method: "GET",
+      signal: timeoutController.signal,
     });
     if (resp.ok) {
       const j: any = await resp.json().catch(() => null);
@@ -373,6 +376,8 @@ async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
     }
   } catch {
     // ignora — usa default
+  } finally {
+    globalThis.clearTimeout(timeoutId);
   }
   // Default conservador: v3-proxy (formato mais comum nas VPS atuais).
   // Se for v1 e errarmos, o auto-swap em callProxySlot corrige na 1ª 404.
@@ -419,7 +424,7 @@ async function callProxySlot(
 ): Promise<{ status: number; body: string }> {
   const timeoutController = new AbortController();
   let proxyTimedOut = false;
-  const timeoutId = window.setTimeout(() => {
+  const timeoutId = globalThis.setTimeout(() => {
     proxyTimedOut = true;
     timeoutController.abort();
   }, PROXY_SLOT_TIMEOUT_MS);
@@ -468,7 +473,7 @@ async function callProxySlot(
     }
     throw err;
   } finally {
-    window.clearTimeout(timeoutId);
+    globalThis.clearTimeout(timeoutId);
   }
 }
 
