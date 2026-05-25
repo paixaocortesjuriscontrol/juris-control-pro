@@ -43,7 +43,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
-import { TarefaDetalhesDialog } from "@/components/prazos/TarefaDetalhesDialog";
+import { TarefaDetalhesPanel } from "@/components/prazos/TarefaDetalhesPanel";
+import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -119,11 +120,16 @@ export default function ListaAtividades() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPrazo, setEditingPrazo] = useState<Prazo | null>(null);
-  const [detalhesOpen, setDetalhesOpen] = useState(false);
   const [detalhesPrazo, setDetalhesPrazo] = useState<Prazo | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
+
+  // Collapse main app sidebar while a tarefa is selected (split-screen mode)
+  useEffect(() => {
+    if (detalhesPrazo) setCollapsed(true);
+  }, [detalhesPrazo, setCollapsed]);
 
   const { data: coordenacoes } = useCoordenacoesFull();
 
