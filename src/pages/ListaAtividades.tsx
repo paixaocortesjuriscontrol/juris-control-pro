@@ -604,7 +604,7 @@ export default function ListaAtividades() {
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={6}>
+                        <TableCell colSpan={detalhesPrazo ? 3 : 6}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -612,7 +612,7 @@ export default function ListaAtividades() {
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={detalhesPrazo ? 3 : 6}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -673,6 +673,8 @@ export default function ListaAtividades() {
                               )}
                             </div>
                           </TableCell>
+                          {!detalhesPrazo && (
+                          <>
                           <TableCell className="py-3 align-top whitespace-nowrap">
                             {r.responsavel?.nome ? (
                               <div className="flex items-center gap-1.5">
@@ -710,6 +712,8 @@ export default function ListaAtividades() {
                               <span className="capitalize">{r.status}</span>
                             </div>
                           </TableCell>
+                          </>
+                          )}
                           <TableCell className="py-3 align-top text-right pr-3" data-stop>
                             <div className="flex items-center justify-end gap-0.5">
                               <Button
