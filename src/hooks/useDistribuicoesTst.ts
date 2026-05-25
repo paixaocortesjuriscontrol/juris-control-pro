@@ -88,6 +88,7 @@ export interface DistribuicaoTstFilters {
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
   situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio";
+  subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
   dataFim?: string;
@@ -302,6 +303,8 @@ export async function fetchAllDistribuicaoTstIds(
     } else if (filters.situacaoProcesso === "outro_escritorio") {
       query = query.eq("processo_outro_escritorio", true);
     }
+    if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
+    else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
@@ -445,6 +448,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     } else if (filters.situacaoProcesso === "outro_escritorio") {
       query = query.eq("processo_outro_escritorio", true);
     }
+    if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
+    else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
