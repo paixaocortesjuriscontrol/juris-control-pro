@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus, FolderPlus, Calendar, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
+import { ImportProgress, type ImportProgressState } from "@/components/tarefas/ImportProgress";
 
 // ==================== INTERFACES ====================
 
@@ -161,6 +162,14 @@ export default function ImportarTarefas() {
   const [parseProgress, setParseProgress] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [importState, setImportState] = useState<ImportProgressState>({
+    phase: "idle",
+    phaseLabel: "",
+    phaseCurrent: 0,
+    phaseTotal: 0,
+    overall: 0,
+    counters: { novosUsuarios: 0, novosProcessos: 0, sucesso: 0, erro: 0, atualizadas: 0, total: 0 },
+  });
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [importarConcluidas, setImportarConcluidas] = useState(true);
   const [vincularResponsaveis, setVincularResponsaveis] = useState(true);
@@ -600,19 +609,24 @@ export default function ImportarTarefas() {
     cancelledRef.current = false;
 
     const updatedTarefas = [...tarefas];
-    let successCount = 0;
-    let errorCount = 0;
-    const BATCH_SIZE = 100;
+    const startedAt = Date.now();
+    const counters = { novosUsuarios: 0, novosProcessos: 0, sucesso: 0, erro: 0, atualizadas: 0, total: toImport.length };
+    const novosUsuariosLocal: string[] = [];
+    const novosProcessosLocal: string[] = [];
 
-    const allIds = toImport.map(t => t.identificador);
-    const { data: existingTarefas } = await supabase
-      .from("tarefas")
-      .select("id, identificador_projuris, tipo_tarefa, titulo")
-      .in("identificador_projuris", allIds);
-    
-    const existingMap = new Map<string, { id: string; tipo_tarefa: string | null; titulo: string }>(); 
-    (existingTarefas || []).forEach((t: any) => {
-      if (t.identificador_projuris) existingMap.set(t.identificador_projuris, { id: t.id, tipo_tarefa: t.tipo_tarefa, titulo: t.titulo });
+    // Weights for overall progress (must sum to 100)
+    const W = { processos: 10, responsaveis: 15, tarefas: 60, vinculos: 15 };
+
+    const updateState = (patch: Partial<ImportProgressState>) =>
+      setImportState(prev => ({ ...prev, ...patch, counters: { ...counters }, startedAt }));
+
+    updateState({
+      phase: "preparing",
+      phaseLabel: "Preparando",
+      phaseCurrent: 0,
+      phaseTotal: 1,
+      overall: 0,
+      detail: `Analisando ${toImport.length.toLocaleString()} tarefa(s)...`,
     });
 
     createdUsersCache.current.clear();
@@ -620,23 +634,208 @@ export default function ImportarTarefas() {
     setNovosUsuariosCriados([]);
     setNovosProcessosCriados([]);
 
-    for (let i = 0; i < toImport.length; i += BATCH_SIZE) {
-      if (cancelledRef.current) {
-        toast({ title: "Importação cancelada" });
-        break;
+    // Helper: promise pool with concurrency limit
+    async function runPool<T>(items: T[], limit: number, fn: (item: T, idx: number) => Promise<void>) {
+      let i = 0;
+      const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (true) {
+          if (cancelledRef.current) return;
+          const idx = i++;
+          if (idx >= items.length) return;
+          try { await fn(items[idx], idx); } catch (e) { console.error("pool item failed", e); }
+        }
+      });
+      await Promise.all(workers);
+    }
+
+    try {
+      // ============ FETCH EXISTING TAREFAS ============
+      const allIds = toImport.map(t => t.identificador).filter(Boolean);
+      const existingMap = new Map<string, { id: string; tipo_tarefa: string | null; titulo: string }>();
+      for (let i = 0; i < allIds.length; i += 500) {
+        const chunk = allIds.slice(i, i + 500);
+        const { data } = await supabase
+          .from("tarefas")
+          .select("id, identificador_projuris, tipo_tarefa, titulo")
+          .in("identificador_projuris", chunk);
+        (data || []).forEach((t: any) => {
+          if (t.identificador_projuris) existingMap.set(t.identificador_projuris, { id: t.id, tipo_tarefa: t.tipo_tarefa, titulo: t.titulo });
+        });
       }
 
-      const batch = toImport.slice(i, i + BATCH_SIZE);
-      
-      const insertPayloads: Array<{ payload: any; processoId: string | null; responsavelId: string | null }> = [];
-      for (const t of batch) {
-        // Build título with tipo prefix
+      // ============ PHASE 1: PROCESSOS ============
+      const uniqueProcessos = new Map<string, TarefaImport>(); // normalized -> first tarefa (for extras)
+      for (const t of toImport) {
+        if (!t.numeroProcesso) continue;
+        const norm = t.numeroProcesso.replace(/[^0-9]/g, "");
+        if (!norm) continue;
+        if (!uniqueProcessos.has(norm)) uniqueProcessos.set(norm, t);
+      }
+      const processosList = Array.from(uniqueProcessos.entries());
+
+      updateState({
+        phase: "processos",
+        phaseLabel: "Resolvendo processos",
+        phaseCurrent: 0,
+        phaseTotal: processosList.length,
+        overall: 0,
+        detail: `${processosList.length} processo(s) únicos na planilha`,
+      });
+
+      // Pre-fill cache with existing matches from processosMap
+      const toCreate: typeof processosList = [];
+      for (const [norm, t] of processosList) {
+        if (cancelledRef.current) break;
+        const existingId = processosMap?.get(norm) || processosMap?.get(t.numeroProcesso!);
+        if (existingId) {
+          createdProcessosCache.current.set(norm, existingId);
+        } else if (cadastrarNovosProcessos && selectedCoordenacao) {
+          toCreate.push([norm, t]);
+        }
+      }
+
+      // Bulk insert new processos in chunks of 200
+      let createdProcessoCount = 0;
+      for (let i = 0; i < toCreate.length; i += 200) {
+        if (cancelledRef.current) break;
+        const chunk = toCreate.slice(i, i + 200);
+        const payload = chunk.map(([, t]) => ({
+          numero: t.numeroProcesso!,
+          assunto: t.assunto || "Importado via tarefas",
+          vara: t.vara || null,
+          fase: t.fase || null,
+          pasta_fisica: t.pastaFisica || null,
+          pasta_cliente: t.pastaCliente || null,
+          instancia: t.instancia || null,
+          coordenacao_id: selectedCoordenacao,
+          status: t.situacaoProcesso?.toLowerCase().includes("arquivado") ? "arquivado" : "ativo",
+          area: "trabalhista",
+        }));
+        const { data: inserted, error } = await supabase
+          .from("processos")
+          .insert(payload as any)
+          .select("id, numero");
+        if (!error && inserted) {
+          (inserted as any[]).forEach(row => {
+            const norm = row.numero.replace(/[^0-9]/g, "");
+            createdProcessosCache.current.set(norm, row.id);
+            novosProcessosLocal.push(row.numero);
+            counters.novosProcessos++;
+          });
+        } else if (error) {
+          // Fallback per-item to isolate failures
+          for (const [, t] of chunk) {
+            const newId = await createNewProcesso(t.numeroProcesso!, selectedCoordenacao, {
+              assunto: t.assunto || undefined,
+              vara: t.vara || undefined,
+              fase: t.fase || undefined,
+              pastaFisica: t.pastaFisica || undefined,
+              pastaCliente: t.pastaCliente || undefined,
+              instancia: t.instancia || undefined,
+              orgao: t.orgao || undefined,
+              orgaoJulgador: t.orgaoJulgador || undefined,
+              situacaoProcesso: t.situacaoProcesso || undefined,
+            });
+            if (newId) {
+              novosProcessosLocal.push(t.numeroProcesso!);
+              counters.novosProcessos++;
+            }
+          }
+        }
+        createdProcessoCount += chunk.length;
+        updateState({
+          phase: "processos",
+          phaseLabel: "Resolvendo processos",
+          phaseCurrent: createdProcessoCount,
+          phaseTotal: processosList.length,
+          overall: W.processos * (createdProcessoCount / Math.max(1, processosList.length)),
+          detail: `${counters.novosProcessos} novo(s) processo(s) criado(s)`,
+        });
+      }
+      setNovosProcessosCriados([...novosProcessosLocal]);
+
+      // ============ PHASE 2: RESPONSAVEIS ============
+      const uniqueNomes = new Set<string>();
+      if (vincularResponsaveis) {
+        for (const t of toImport) {
+          if (!t.responsaveis) continue;
+          for (const nome of t.responsaveis.split(/[,;]/).map(n => n.trim()).filter(Boolean)) {
+            uniqueNomes.add(nome);
+          }
+        }
+      }
+      const nomesArr = Array.from(uniqueNomes);
+
+      updateState({
+        phase: "responsaveis",
+        phaseLabel: "Resolvendo responsáveis",
+        phaseCurrent: 0,
+        phaseTotal: nomesArr.length,
+        overall: W.processos,
+        detail: `${nomesArr.length} responsável(eis) únicos`,
+      });
+
+      // Resolve cache for known profiles
+      const nomesToCreate: string[] = [];
+      for (const nome of nomesArr) {
+        const nomeLower = nome.toLowerCase();
+        const profile = profiles.find(p =>
+          p.nome.toLowerCase().includes(nomeLower) || nomeLower.includes(p.nome.toLowerCase())
+        );
+        if (profile) {
+          createdUsersCache.current.set(nomeLower, profile.id);
+        } else if (cadastrarNovosUsuarios && selectedCoordenacao) {
+          nomesToCreate.push(nome);
+        }
+      }
+
+      let createdUserCount = 0;
+      await runPool(nomesToCreate, 6, async (nome) => {
+        const id = await createNewProfile(nome, selectedCoordenacao);
+        if (id) {
+          novosUsuariosLocal.push(nome);
+          counters.novosUsuarios++;
+        }
+        createdUserCount++;
+        updateState({
+          phase: "responsaveis",
+          phaseLabel: "Resolvendo responsáveis",
+          phaseCurrent: nomesArr.length - nomesToCreate.length + createdUserCount,
+          phaseTotal: nomesArr.length,
+          overall: W.processos + W.responsaveis * (createdUserCount / Math.max(1, nomesToCreate.length)),
+          detail: `${counters.novosUsuarios} novo(s) usuário(s) criado(s)`,
+        });
+      });
+      setNovosUsuariosCriados([...novosUsuariosLocal]);
+
+      if (cancelledRef.current) throw new Error("__cancelled__");
+
+      // ============ PHASE 3: INSERIR / ATUALIZAR TAREFAS ============
+      const toInsert: Array<{ payload: any; processoId: string | null; responsavelId: string | null; idx: number }> = [];
+      const toUpdate: Array<{ id: string; payload: any; idx: number; tarefa: TarefaImport }> = [];
+
+      const resolveResponsavel = (responsaveisStr: string | null): string | null => {
+        if (!responsaveisStr || !vincularResponsaveis) return null;
+        for (const nome of responsaveisStr.split(/[,;]/).map(n => n.trim()).filter(Boolean)) {
+          const id = createdUsersCache.current.get(nome.toLowerCase());
+          if (id) return id;
+        }
+        return null;
+      };
+
+      const resolveProcesso = (numero: string | null): string | null => {
+        if (!numero) return null;
+        const norm = numero.replace(/[^0-9]/g, "");
+        return createdProcessosCache.current.get(norm) || processosMap?.get(norm) || processosMap?.get(numero) || null;
+      };
+
+      for (const t of toImport) {
         const tipoPrefix = t.tipo ? `[${t.tipo.toUpperCase()}] ` : "";
         const tituloCompleto = `${tipoPrefix}${t.titulo || "Tarefa sem título"}`;
-
+        const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
         const existing = existingMap.get(t.identificador);
+
         if (existing) {
-          // Update existing task: tipo, título, and ALL dates from spreadsheet
           const updatePayload: any = {};
           if (t.tipo) {
             updatePayload.tipo_tarefa = t.tipo;
@@ -644,76 +843,37 @@ export default function ImportarTarefas() {
               updatePayload.titulo = tituloCompleto;
             }
           }
-          // Always update dates from spreadsheet
           const dataVencimentoUpdate = parseDate(t.dataPrevista) || parseDate(t.dataFatal);
           if (dataVencimentoUpdate) updatePayload.data_vencimento = dataVencimentoUpdate;
-          const dataPrevistaUpdate = parseDate(t.dataPrevista);
-          if (dataPrevistaUpdate) updatePayload.data_prevista = dataPrevistaUpdate;
-          const dataFatalUpdate = parseDate(t.dataFatal);
-          if (dataFatalUpdate) updatePayload.data_fatal = dataFatalUpdate;
-          const dataBaseUpdate = parseDate(t.dataBase);
-          if (dataBaseUpdate) updatePayload.data_base = dataBaseUpdate;
-          const dataCriacaoUpdate = parseDate(t.dataCriacao);
-          if (dataCriacaoUpdate) updatePayload.data_criacao_projuris = dataCriacaoUpdate;
-          const dataConclusaoUpdate = parseDate(t.dataConclusao);
-          if (dataConclusaoUpdate) updatePayload.data_cumprimento = dataConclusaoUpdate;
+          const dPrev = parseDate(t.dataPrevista);
+          if (dPrev) updatePayload.data_prevista = dPrev;
+          const dFatal = parseDate(t.dataFatal);
+          if (dFatal) updatePayload.data_fatal = dFatal;
+          const dBase = parseDate(t.dataBase);
+          if (dBase) updatePayload.data_base = dBase;
+          const dCri = parseDate(t.dataCriacao);
+          if (dCri) updatePayload.data_criacao_projuris = dCri;
+          const dConc = parseDate(t.dataConclusao);
+          if (dConc) updatePayload.data_cumprimento = dConc;
 
           if (Object.keys(updatePayload).length > 0) {
-            const { error: updateError } = await supabase
-              .from("tarefas")
-              .update(updatePayload)
-              .eq("id", existing.id);
-            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
-            if (idx >= 0) {
-              if (updateError) {
-                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: updateError.message };
-                errorCount++;
-              } else {
-                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso", erroImport: "Atualizado (datas/tipo)" };
-                successCount++;
-              }
-            }
-          } else {
-            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
-            if (idx >= 0) {
-              updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe, sem dados para atualizar" };
-              errorCount++;
-            }
+            toUpdate.push({ id: existing.id, payload: updatePayload, idx, tarefa: t });
+          } else if (idx >= 0) {
+            updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe, sem dados para atualizar" };
+            counters.erro++;
           }
           continue;
         }
-        
+
         const status = mapSituacaoToStatus(t.situacao);
-        // Data prevista deve alimentar data_vencimento; data_fatal fica apenas em data_fatal
         const dataVencimento = parseDate(t.dataPrevista) || parseDate(t.dataFatal);
-        
-        const processoId = await findOrCreateProcessoId(
-          t.numeroProcesso,
-          selectedCoordenacao,
-          cadastrarNovosProcessos,
-          { 
-            assunto: t.assunto || undefined, 
-            vara: t.vara || undefined, 
-            fase: t.fase || undefined, 
-            pastaFisica: t.pastaFisica || undefined, 
-            pastaCliente: t.pastaCliente || undefined,
-            instancia: t.instancia || undefined,
-            orgao: t.orgao || undefined,
-            orgaoJulgador: t.orgaoJulgador || undefined,
-            situacaoProcesso: t.situacaoProcesso || undefined,
-          },
-          (num) => setNovosProcessosCriados(prev => [...prev, num])
-        );
-        
-        const responsavelId = await findResponsavelId(
-          t.responsaveis,
-          vincularResponsaveis,
-          cadastrarNovosUsuarios,
-          selectedCoordenacao,
-          (nome) => setNovosUsuariosCriados(prev => [...prev, nome])
-        );
-        
-        insertPayloads.push({
+        const processoId = resolveProcesso(t.numeroProcesso);
+        const responsavelId = resolveResponsavel(t.responsaveis);
+
+        toInsert.push({
+          processoId,
+          responsavelId,
+          idx,
           payload: {
             identificador_projuris: t.identificador || `auto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             tipo_tarefa: t.tipo,
@@ -737,7 +897,6 @@ export default function ImportarTarefas() {
             quadro_kanban: t.quadroKanban,
             criado_por: user?.id || null,
             origem: "projuris",
-            // New Projuris-specific columns
             hora_criacao: t.horaCriacao,
             hora_prevista: t.horaPrevista,
             hora_fatal: t.horaFatal,
@@ -759,73 +918,180 @@ export default function ImportarTarefas() {
             orgao_julgador: t.orgaoJulgador,
             marcadores_vinculo: t.marcadoresVinculo,
           },
-          processoId,
-          responsavelId,
         });
       }
 
-      const insertPayload = insertPayloads.map(p => p.payload);
+      const totalPhase3 = toInsert.length + toUpdate.length;
+      let phase3Done = 0;
+      updateState({
+        phase: "tarefas",
+        phaseLabel: "Inserindo/atualizando tarefas",
+        phaseCurrent: 0,
+        phaseTotal: totalPhase3,
+        overall: W.processos + W.responsaveis,
+        detail: `${toInsert.length.toLocaleString()} nova(s), ${toUpdate.length.toLocaleString()} atualização(ões)`,
+      });
 
-      if (insertPayload.length > 0) {
-        const { error } = await supabase.from("tarefas").insert(insertPayload as any);
-        
-        if (error) {
-          for (const item of insertPayloads) {
-            const { error: singleError } = await supabase.from("tarefas").insert(item.payload as any);
-            const idx = updatedTarefas.findIndex(t => t.identificador === item.payload.identificador_projuris);
-            if (idx >= 0) {
-              if (singleError) {
-                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: singleError.message };
-                errorCount++;
-              } else {
-                updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
-                successCount++;
-                if (item.processoId && item.responsavelId) {
-                  await vincularResponsavelAoProcesso(item.processoId, item.responsavelId, selectedCoordenacao);
-                }
-              }
-            }
+      // INSERT in chunks of 200, fallback splits on error
+      async function insertChunk(items: typeof toInsert): Promise<void> {
+        if (items.length === 0 || cancelledRef.current) return;
+        const { error } = await supabase.from("tarefas").insert(items.map(i => i.payload) as any);
+        if (!error) {
+          for (const it of items) {
+            if (it.idx >= 0) updatedTarefas[it.idx] = { ...updatedTarefas[it.idx], status: "sucesso" };
+            counters.sucesso++;
           }
+        } else if (items.length === 1) {
+          const it = items[0];
+          if (it.idx >= 0) updatedTarefas[it.idx] = { ...updatedTarefas[it.idx], status: "erro", erroImport: error.message };
+          counters.erro++;
         } else {
-          for (const item of insertPayloads) {
-            const idx = updatedTarefas.findIndex(t => t.identificador === item.payload.identificador_projuris);
-            if (idx >= 0) {
-              updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
-              successCount++;
-              if (item.processoId && item.responsavelId) {
-                await vincularResponsavelAoProcesso(item.processoId, item.responsavelId, selectedCoordenacao);
-              }
-            }
+          // Split & retry
+          const mid = Math.floor(items.length / 2);
+          await insertChunk(items.slice(0, mid));
+          await insertChunk(items.slice(mid));
+          return;
+        }
+        phase3Done += items.length;
+        updateState({
+          phase: "tarefas",
+          phaseLabel: "Inserindo/atualizando tarefas",
+          phaseCurrent: phase3Done,
+          phaseTotal: totalPhase3,
+          overall: W.processos + W.responsaveis + W.tarefas * (phase3Done / Math.max(1, totalPhase3)),
+          detail: `Lote ${Math.ceil(phase3Done / 200)} de ~${Math.ceil(totalPhase3 / 200)}`,
+        });
+      }
+
+      for (let i = 0; i < toInsert.length; i += 200) {
+        if (cancelledRef.current) break;
+        await insertChunk(toInsert.slice(i, i + 200));
+        setTarefas([...updatedTarefas]);
+      }
+
+      // UPDATES via promise pool (concurrency 8)
+      await runPool(toUpdate, 8, async (item) => {
+        const { error } = await supabase.from("tarefas").update(item.payload).eq("id", item.id);
+        if (item.idx >= 0) {
+          if (error) {
+            updatedTarefas[item.idx] = { ...updatedTarefas[item.idx], status: "erro", erroImport: error.message };
+            counters.erro++;
+          } else {
+            updatedTarefas[item.idx] = { ...updatedTarefas[item.idx], status: "sucesso", erroImport: "Atualizado (datas/tipo)" };
+            counters.atualizadas++;
           }
+        }
+        phase3Done++;
+        if (phase3Done % 25 === 0 || phase3Done === totalPhase3) {
+          updateState({
+            phase: "tarefas",
+            phaseLabel: "Inserindo/atualizando tarefas",
+            phaseCurrent: phase3Done,
+            phaseTotal: totalPhase3,
+            overall: W.processos + W.responsaveis + W.tarefas * (phase3Done / Math.max(1, totalPhase3)),
+            detail: `Atualizando tarefas existentes`,
+          });
+          setTarefas([...updatedTarefas]);
+        }
+      });
+      setTarefas([...updatedTarefas]);
+
+      if (cancelledRef.current) throw new Error("__cancelled__");
+
+      // ============ PHASE 4: VINCULAR RESPONSAVEIS AOS PROCESSOS ============
+      const pares = new Map<string, { processoId: string; usuarioId: string }>();
+      for (const it of toInsert) {
+        if (it.processoId && it.responsavelId) {
+          pares.set(`${it.processoId}|${it.responsavelId}`, { processoId: it.processoId, usuarioId: it.responsavelId });
+        }
+      }
+      const paresArr = Array.from(pares.values());
+
+      updateState({
+        phase: "vinculos",
+        phaseLabel: "Vinculando responsáveis aos processos",
+        phaseCurrent: 0,
+        phaseTotal: paresArr.length,
+        overall: W.processos + W.responsaveis + W.tarefas,
+        detail: `${paresArr.length} vínculo(s) potenciais`,
+      });
+
+      if (paresArr.length > 0) {
+        // Pre-fetch existing pairs
+        const procIds = Array.from(new Set(paresArr.map(p => p.processoId)));
+        const existingPairs = new Set<string>();
+        for (let i = 0; i < procIds.length; i += 200) {
+          const chunk = procIds.slice(i, i + 200);
+          const { data } = await supabase
+            .from("processos_responsaveis")
+            .select("processo_id, usuario_id")
+            .in("processo_id", chunk);
+          (data || []).forEach((r: any) => existingPairs.add(`${r.processo_id}|${r.usuario_id}`));
+        }
+
+        const newPairs = paresArr.filter(p => !existingPairs.has(`${p.processoId}|${p.usuarioId}`));
+        for (let i = 0; i < newPairs.length; i += 200) {
+          if (cancelledRef.current) break;
+          const chunk = newPairs.slice(i, i + 200);
+          await supabase.from("processos_responsaveis").insert(
+            chunk.map(p => ({
+              processo_id: p.processoId,
+              usuario_id: p.usuarioId,
+              coordenacao_id: selectedCoordenacao || null,
+              papel: "Responsável",
+              ativo: true,
+            })) as any
+          );
+          updateState({
+            phase: "vinculos",
+            phaseLabel: "Vinculando responsáveis aos processos",
+            phaseCurrent: Math.min(paresArr.length, i + chunk.length),
+            phaseTotal: paresArr.length,
+            overall: W.processos + W.responsaveis + W.tarefas + W.vinculos * ((i + chunk.length) / Math.max(1, newPairs.length || 1)),
+            detail: `Criados ${i + chunk.length} de ${newPairs.length}`,
+          });
         }
       }
 
-      // Existing tasks already handled in the loop above
-
-      setImportProgress(((i + batch.length) / toImport.length) * 100);
-      setTarefas([...updatedTarefas]);
+      updateState({
+        phase: "done",
+        phaseLabel: "Concluído",
+        phaseCurrent: counters.total,
+        phaseTotal: counters.total,
+        overall: 100,
+        detail: `${counters.sucesso} inserida(s), ${counters.atualizadas} atualizada(s), ${counters.erro} erro(s)`,
+      });
+    } catch (err: any) {
+      if (err?.message !== "__cancelled__") {
+        console.error("Erro na importação:", err);
+        toast({ title: "Erro na importação", description: err?.message || String(err), variant: "destructive" });
+      }
     }
 
     setImporting(false);
+    setImportProgress(100);
     queryClient.invalidateQueries({ queryKey: ["prazos"] });
     queryClient.invalidateQueries({ queryKey: ["tarefas"] });
     queryClient.invalidateQueries({ queryKey: ["profiles-import"] });
     queryClient.invalidateQueries({ queryKey: ["processos"] });
     queryClient.invalidateQueries({ queryKey: ["processos-map-import"] });
-    
-    if (novosUsuariosCriados.length > 0) {
+
+    if (novosUsuariosLocal.length > 0) {
       refetchProfiles();
     }
 
-    const descParts = [`${successCount} tarefa(s) importada(s)`];
-    if (errorCount > 0) descParts.push(`${errorCount} erro(s)/duplicada(s)`);
-    if (novosUsuariosCriados.length > 0) descParts.push(`${novosUsuariosCriados.length} usuário(s) criado(s)`);
-    if (novosProcessosCriados.length > 0) descParts.push(`${novosProcessosCriados.length} processo(s) criado(s)`);
+    const descParts = [`${counters.sucesso} tarefa(s) inserida(s)`];
+    if (counters.atualizadas > 0) descParts.push(`${counters.atualizadas} atualizada(s)`);
+    if (counters.erro > 0) descParts.push(`${counters.erro} erro(s)/duplicada(s)`);
+    if (counters.novosUsuarios > 0) descParts.push(`${counters.novosUsuarios} usuário(s) criado(s)`);
+    if (counters.novosProcessos > 0) descParts.push(`${counters.novosProcessos} processo(s) criado(s)`);
+    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+    descParts.push(`em ${elapsed}s`);
 
     toast({
-      title: "Importação concluída",
+      title: cancelledRef.current ? "Importação cancelada" : "Importação concluída",
       description: descParts.join(". ") + ".",
-      variant: errorCount > 0 && successCount === 0 ? "destructive" : "default",
+      variant: counters.erro > 0 && counters.sucesso === 0 ? "destructive" : "default",
     });
   };
 
@@ -846,6 +1112,14 @@ export default function ImportarTarefas() {
     setNovosProcessosCriados([]);
     createdUsersCache.current.clear();
     createdProcessosCache.current.clear();
+    setImportState({
+      phase: "idle",
+      phaseLabel: "",
+      phaseCurrent: 0,
+      phaseTotal: 0,
+      overall: 0,
+      counters: { novosUsuarios: 0, novosProcessos: 0, sucesso: 0, erro: 0, atualizadas: 0, total: 0 },
+    });
   };
 
   const downloadTemplate = () => {
@@ -1306,19 +1580,11 @@ export default function ImportarTarefas() {
                   </div>
                 )}
 
-                {importing && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Importando tarefas...</span>
-                      </div>
-                      <Button variant="destructive" size="sm" onClick={handleCancel}>
-                        Cancelar
-                      </Button>
-                    </div>
-                    <Progress value={importProgress} />
-                  </div>
+                {(importing || importState.phase === "done") && importState.phase !== "idle" && (
+                  <ImportProgress
+                    state={importState}
+                    onCancel={importing ? handleCancel : undefined}
+                  />
                 )}
               </CardContent>
             </Card>
