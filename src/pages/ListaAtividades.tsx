@@ -131,7 +131,7 @@ export default function ListaAtividades() {
     if (detalhesPrazo) setCollapsed(true);
   }, [detalhesPrazo, setCollapsed]);
 
-  const { data: coordenacoes } = useCoordenacoesFull();
+  const { data: coordenacoes, isLoading: coordenacoesLoading } = useCoordenacoesFull();
 
   // Responsáveis para filtro
   const { data: responsaveis } = useQuery({
@@ -183,6 +183,7 @@ export default function ListaAtividades() {
 
   const { data: result, isLoading } = useQuery({
     queryKey,
+    enabled: !coordenacoesLoading && (filters.coordenacaoId !== "" || (coordenacoes?.length ?? 0) === 0),
     queryFn: async () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
