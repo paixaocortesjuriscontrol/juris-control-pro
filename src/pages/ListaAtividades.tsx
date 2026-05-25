@@ -210,7 +210,7 @@ export default function ListaAtividades() {
 
       let q = supabase
         .from("tarefas")
-        .select(selectFields, { count: "exact" })
+        .select(selectFields, { count: "estimated" })
         .order("created_at", { ascending: false, nullsFirst: false })
         .range(from, to);
 
@@ -658,11 +658,11 @@ export default function ListaAtividades() {
                                   {PRIO_LABEL[r.prioridade] || r.prioridade}
                                 </Badge>
                               </div>
-                              <div className="font-medium text-sm text-foreground truncate max-w-[600px]">
+                              <div className="font-medium text-sm text-foreground break-words">
                                 {r.titulo}
                               </div>
                               {r.processo?.numero && (
-                                <div className="text-[11px] text-muted-foreground font-mono truncate max-w-[600px]">
+                                <div className="text-[11px] text-muted-foreground font-mono break-words">
                                   Processo: {r.processo.numero}
                                   {r.processo.assunto ? ` — ${r.processo.assunto}` : ""}
                                 </div>
