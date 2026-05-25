@@ -1075,6 +1075,10 @@ export default function CompararDjSantander() {
       const fimStr = format(dataFim, "yyyy-MM-dd");
       const startOfDay = `${inicioStr}T00:00:00.000Z`;
       const endOfDay = `${fimStr}T23:59:59.999Z`;
+      const pubInicioStr = selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null;
+      const pubFimStr = selectedPubFim ? format(selectedPubFim, "yyyy-MM-dd") : (pubInicioStr ?? null);
+      const pubStart = pubInicioStr ? `${pubInicioStr}T00:00:00.000Z` : null;
+      const pubEnd = pubFimStr ? `${pubFimStr}T23:59:59.999Z` : null;
 
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
@@ -1114,13 +1118,15 @@ export default function CompararDjSantander() {
       let hasMore = true;
 
       while (hasMore) {
-        const { data: publicacoes, error } = await supabase
+        let q = supabase
           .from("publicacoes_djen")
           .select("processo_numero, orgao, tipo_comunicacao, conteudo")
           .in("monitoramento_id", monIds)
           .gte("data_disponibilizacao", startOfDay)
-          .lte("data_disponibilizacao", endOfDay)
-          .range(offset, offset + pageSize - 1);
+          .lte("data_disponibilizacao", endOfDay);
+        if (pubStart) q = q.gte("data_publicacao", pubStart);
+        if (pubEnd) q = q.lte("data_publicacao", pubEnd);
+        const { data: publicacoes, error } = await q.range(offset, offset + pageSize - 1);
 
         if (error) {
           console.error("Erro ao buscar publicações:", error);
