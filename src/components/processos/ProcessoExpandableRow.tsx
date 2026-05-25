@@ -222,302 +222,251 @@ export function ProcessoExpandableRow({
       <div
         onClick={handleRowClick}
         className={cn(
-          "grid grid-cols-1 md:grid-cols-[40px_1fr_200px_180px_180px] gap-4 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer group",
+          "relative flex gap-3 px-3 py-3 hover:bg-muted/30 transition-colors cursor-pointer group",
+          // Left accent bar (Projuris-style)
+          "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-primary/70",
           isSelected && "bg-primary/5"
         )}
       >
-        {/* Checkbox Column */}
-        <div className="hidden md:flex items-start justify-center pt-1">
-          {isSelectionMode ? (
-            <Checkbox
-              checked={isSelected}
-              onClick={(e) => e.stopPropagation()}
-              onCheckedChange={() => onToggleSelection(processo.id)}
-            />
-          ) : (
-            <div className="w-6 h-6 rounded bg-muted/50 flex items-center justify-center">
-              <Scale className="w-3.5 h-3.5 text-muted-foreground" />
-            </div>
-          )}
+        {/* Checkbox */}
+        <div className="flex items-start pt-1 pl-1">
+          <Checkbox
+            checked={isSelected}
+            onClick={(e) => e.stopPropagation()}
+            onCheckedChange={() => onToggleSelection(processo.id)}
+            aria-label="Selecionar processo"
+          />
         </div>
 
-        {/* Title Column */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            {temRedistribuicaoRecente && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-medium px-1.5 py-0 border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30 shrink-0"
-                  >
-                    <ArrowRightLeft className="w-2.5 h-2.5" />
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>Redistribuído nos últimos 7 dias</TooltipContent>
-              </Tooltip>
-            )}
-            <span className="font-medium text-foreground truncate">
-              {processo.polo_ativo && processo.polo_passivo
-                ? `${processo.polo_ativo} X ${processo.polo_passivo}`
-                : processo.polo_ativo || processo.polo_passivo || processo.numero}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="text-primary">Processo {processo.status}</span>
-            {(processo.polo_ativo || processo.polo_passivo) && (
-              <span className="font-mono">{processo.numero}</span>
-            )}
-          </div>
-          {/* Mobile only: show all info + action buttons */}
-          <div className="md:hidden mt-2 space-y-2">
-            <div className="text-xs text-muted-foreground space-y-1">
-              {processo.cliente?.nome && <div>Cliente: {processo.cliente.nome}</div>}
-              {processo.pasta?.nome && <div>Pasta: {processo.pasta.nome}</div>}
-              <div>{processo.vara || processo.tribunal || "-"}</div>
+        {/* Projuris-style labeled 3-column grid */}
+        <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-2">
+          {/* Coluna 1: Cliente / Envolvido */}
+          <div className="min-w-0 space-y-2">
+            <div>
+              <div className="text-[11px] text-muted-foreground leading-tight">Cliente</div>
+              <div className="text-sm font-medium text-foreground truncate">
+                {processo.cliente?.nome || processo.polo_passivo || "Não informado"}
+              </div>
+              <Badge
+                variant="secondary"
+                className="mt-0.5 text-[10px] px-1.5 py-0 font-normal bg-muted text-muted-foreground"
+              >
+                Reclamado
+              </Badge>
             </div>
-            <div className="flex items-center gap-2 pt-1">
+            <div>
+              <div className="text-[11px] text-muted-foreground leading-tight">Envolvido</div>
+              <div className="text-sm font-medium text-foreground truncate">
+                {processo.polo_ativo || "Não informado"}
+              </div>
+              <Badge
+                variant="secondary"
+                className="mt-0.5 text-[10px] px-1.5 py-0 font-normal bg-muted text-muted-foreground"
+              >
+                Reclamante
+              </Badge>
+            </div>
+          </div>
+
+          {/* Coluna 2: Número / Assunto */}
+          <div className="min-w-0 space-y-2">
+            <div>
+              <div className="text-[11px] text-muted-foreground leading-tight">Número do processo</div>
+              <div className="text-sm text-foreground truncate flex items-center gap-1">
+                <span className="font-mono">{processo.numero}</span>
+                <span className="text-muted-foreground text-xs">(CNJ)</span>
+                {temRedistribuicaoRecente && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/30 ml-1"
+                      >
+                        <ArrowRightLeft className="w-2.5 h-2.5" />
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>Redistribuído nos últimos 7 dias</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-muted-foreground leading-tight">Assunto</div>
+              <div className="text-sm text-foreground truncate">
+                {processo.pasta?.nome ||
+                  (processo.area === "civil"
+                    ? "Jurídico Cível"
+                    : processo.area === "trabalhista"
+                    ? "Jurídico Trabalhista"
+                    : "Jurídico Empresarial")}
+              </div>
+            </div>
+          </div>
+
+          {/* Coluna 3: Órgão / Órgão julgador */}
+          <div className="min-w-0 space-y-2">
+            <div>
+              <div className="text-[11px] text-muted-foreground leading-tight">Órgão</div>
+              <div className="text-sm text-foreground truncate">
+                {processo.tribunal || "Não informado"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-muted-foreground leading-tight">Órgão julgador</div>
+              <div className="text-sm text-foreground truncate">
+                {processo.vara || "Não informado"}
+              </div>
+            </div>
+          </div>
+
+          {/* Counts row (across all columns) */}
+          {(hasDjen || hasMov || hasAudiencias || hasIntimacoes || hasTarefas) && (
+            <div className="md:col-span-3 flex flex-wrap items-center gap-1.5 pt-1">
               {hasDjen && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "djen" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("djen");
-                  }}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countDjen}</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-1.5 gap-1",
+                        expandedSection === "djen" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); toggleSection("djen"); }}
+                    >
+                      <FileText className="w-3 h-3" />
+                      <span className="text-[11px]">{countDjen}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Publicações DJEN</TooltipContent>
+                </Tooltip>
               )}
               {hasMov && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "andamentos" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("andamentos");
-                  }}
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countMov}</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-1.5 gap-1",
+                        expandedSection === "andamentos" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); toggleSection("andamentos"); }}
+                    >
+                      <Activity className="w-3 h-3" />
+                      <span className="text-[11px]">{countMov}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Andamentos</TooltipContent>
+                </Tooltip>
               )}
               {hasAudiencias && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "audiencias" && "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("audiencias");
-                  }}
-                >
-                  <Gavel className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countAudiencias}</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-1.5 gap-1",
+                        expandedSection === "audiencias" && "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); toggleSection("audiencias"); }}
+                    >
+                      <Gavel className="w-3 h-3" />
+                      <span className="text-[11px]">{countAudiencias}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Audiências</TooltipContent>
+                </Tooltip>
               )}
               {hasIntimacoes && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "intimacoes" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("intimacoes");
-                  }}
-                >
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countIntimacoes}</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-1.5 gap-1",
+                        expandedSection === "intimacoes" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); toggleSection("intimacoes"); }}
+                    >
+                      <AlertCircle className="w-3 h-3" />
+                      <span className="text-[11px]">{countIntimacoes}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Intimações</TooltipContent>
+                </Tooltip>
               )}
               {hasTarefas && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "tarefas" && "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("tarefas");
-                  }}
-                >
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countTarefas}</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-1.5 gap-1",
+                        expandedSection === "tarefas" && "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); toggleSection("tarefas"); }}
+                    >
+                      <ClipboardList className="w-3 h-3" />
+                      <span className="text-[11px]">{countTarefas}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Tarefas</TooltipContent>
+                </Tooltip>
               )}
-              <span className="text-xs text-muted-foreground ml-auto">
+              <span className="text-[11px] text-muted-foreground ml-auto">
                 {processo.data_distribuicao
                   ? new Date(processo.data_distribuicao).toLocaleDateString("pt-BR")
                   : new Date(processo.created_at).toLocaleDateString("pt-BR")}
               </span>
             </div>
-          </div>
-        </div>
-
-        {/* Cliente/Pasta Column */}
-        <div className="hidden md:block min-w-0">
-          <div className="text-sm font-medium text-foreground truncate">
-            {processo.cliente?.nome || "Cliente não Informado"}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">
-            {processo.pasta?.nome || "-"}
-          </div>
-          {processo.cliente?.tipo && (
-            <div className="text-xs text-muted-foreground">
-              {processo.cliente.tipo === "pessoa_juridica" ? "Pessoa Jurídica" : "Pessoa Física"}
-            </div>
           )}
         </div>
 
-        {/* Ação/Foro Column */}
-        <div className="hidden md:block min-w-0">
-          <div className="text-sm text-foreground truncate">
-            {processo.area === "civil" ? "ACPCiv" : processo.area === "trabalhista" ? "ATOrd" : "AEmp"}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">
-            {processo.vara || processo.tribunal || "-"}
-          </div>
-        </div>
-
-        {/* Actions + Date Column */}
-        <div className="hidden md:flex items-center justify-end gap-2">
-          {hasDjen && (
+        {/* Right side: responsável + ações */}
+        <div className="flex items-start gap-1 shrink-0">
+          {processo.advogado_responsavel?.nome && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "djen" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("djen");
-                  }}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countDjen}</span>
-                </Button>
+                <div className="h-8 w-8 rounded bg-orange-400 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                  {processo.advogado_responsavel.nome
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((s) => s[0]?.toUpperCase() ?? "")
+                    .join("")}
+                </div>
               </TooltipTrigger>
-              <TooltipContent>Publicações DJEN</TooltipContent>
+              <TooltipContent>{processo.advogado_responsavel.nome}</TooltipContent>
             </Tooltip>
           )}
-
-          {hasMov && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "andamentos" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("andamentos");
-                  }}
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countMov}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Andamentos</TooltipContent>
-            </Tooltip>
-          )}
-
-          {hasAudiencias && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "audiencias" && "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("audiencias");
-                  }}
-                >
-                  <Gavel className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countAudiencias}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Audiências</TooltipContent>
-            </Tooltip>
-          )}
-
-          {hasIntimacoes && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "intimacoes" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("intimacoes");
-                  }}
-                >
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countIntimacoes}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Intimações</TooltipContent>
-            </Tooltip>
-          )}
-
-          {hasTarefas && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-7 px-2 gap-1",
-                    expandedSection === "tarefas" && "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSection("tarefas");
-                  }}
-                >
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  <span className="text-xs">{countTarefas}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Tarefas</TooltipContent>
-            </Tooltip>
-          )}
-
-          <span className="text-sm text-muted-foreground ml-2">
-            {processo.data_distribuicao
-              ? new Date(processo.data_distribuicao).toLocaleDateString("pt-BR")
-              : new Date(processo.created_at).toLocaleDateString("pt-BR")}
-          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            title="Abrir processo"
+            onClick={(e) => { e.stopPropagation(); onNavigate(processo.id); }}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-8 w-8 bg-foreground hover:bg-foreground/90"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => onNavigate(processo.id)}>Editar</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onNavigate(processo.id)}>Detalhes</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
