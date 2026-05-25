@@ -937,6 +937,18 @@ export default function CompararDjSantander() {
     setDjenProcessos([]);
     setResult(null);
   };
+  const onChangePubInicio = (d: Date | undefined) => {
+    setSelectedPubInicio(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangePubFim = (d: Date | undefined) => {
+    setSelectedPubFim(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
 
   const handleDocUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
