@@ -162,6 +162,14 @@ export default function ImportarTarefas() {
   const [parseProgress, setParseProgress] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [importState, setImportState] = useState<ImportProgressState>({
+    phase: "idle",
+    phaseLabel: "",
+    phaseCurrent: 0,
+    phaseTotal: 0,
+    overall: 0,
+    counters: { novosUsuarios: 0, novosProcessos: 0, sucesso: 0, erro: 0, atualizadas: 0, total: 0 },
+  });
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [importarConcluidas, setImportarConcluidas] = useState(true);
   const [vincularResponsaveis, setVincularResponsaveis] = useState(true);
