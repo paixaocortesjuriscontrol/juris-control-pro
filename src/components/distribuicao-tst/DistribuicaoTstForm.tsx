@@ -1187,7 +1187,46 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="space-y-2">
             <Label>Decisão - Análise do Quarteirizado</Label>
-            <Input value={form.decisao_quarteirizado || ""} onChange={e => set("decisao_quarteirizado", e.target.value)} />
+            {(() => {
+              const OPCOES_QUARTEIRIZADO = [
+                "Desistir - Falha Processual",
+                "Desistir - Fatos e Provas",
+                "Desistir - Jurisprudência consolidada",
+                "Desistir - Mídia Negativa",
+                "Desistir - Súmula 266 C.TST",
+                "Prosseguir",
+              ];
+              const valor = form.decisao_quarteirizado || "";
+              const isPredef = OPCOES_QUARTEIRIZADO.includes(valor);
+              return (
+                <div className="space-y-2">
+                  <Select
+                    value={isPredef ? valor : (valor ? "__custom__" : "__none__")}
+                    onValueChange={(v) => {
+                      if (v === "__none__") set("decisao_quarteirizado", null);
+                      else if (v === "__custom__") set("decisao_quarteirizado", valor && !isPredef ? valor : " ");
+                      else set("decisao_quarteirizado", v);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Selecione</SelectItem>
+                      {OPCOES_QUARTEIRIZADO.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">Outro…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!isPredef && valor && (
+                    <Input
+                      value={valor}
+                      onChange={e => set("decisao_quarteirizado", e.target.value)}
+                      placeholder="Descreva a decisão"
+                    />
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
