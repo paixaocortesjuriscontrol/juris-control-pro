@@ -49,22 +49,25 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
 
-      // Locate columns
+      // Locate columns (Dossiê, Processo, Tipo Carga)
       let headerIdx = -1;
       let colProc = -1;
       let colSit = -1;
+      let colDossie = -1;
       for (let i = 0; i < Math.min(json.length, 10); i++) {
         const row = json[i];
         if (!row) continue;
         for (let j = 0; j < row.length; j++) {
           const h = norm(row[j]).toLowerCase();
           if (h === "processo" && colProc === -1) colProc = j;
-          if (h.includes("situa") && h.includes("envio") && colSit === -1) colSit = j;
+          if ((h.includes("tipo") && h.includes("carga")) && colSit === -1) colSit = j;
+          if ((h.includes("situa") && h.includes("envio")) && colSit === -1) colSit = j;
+          if ((h === "dossie" || h === "dossiê" || h.startsWith("dossi")) && colDossie === -1) colDossie = j;
         }
         if (colProc >= 0 && colSit >= 0) { headerIdx = i; break; }
       }
       if (headerIdx === -1) {
-        toast.error("Não encontrei as colunas 'Processo' e 'Situação Envio'");
+        toast.error("Não encontrei as colunas 'Processo' e 'Tipo Carga'");
         return;
       }
 
@@ -79,32 +82,49 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
       const codeToId = new Map<string, string>();
       for (const s of sits as any[]) codeToId.set(s.codigo, s.id);
 
-      // Build processo → situacao_id map
-      const updates = new Map<string, string>(); // processo -> situacao_id
+      // Build rows: processo -> { situacao_id, dossie }
+      const rows: { processo: string; dossie: string | null; sid: string }[] = [];
       let semCodigo = 0;
       for (let i = headerIdx + 1; i < json.length; i++) {
         const r = json[i];
         if (!r) continue;
         const processo = norm(r[colProc]);
         const sitRaw = norm(r[colSit]);
+        const dossie = colDossie >= 0 ? norm(r[colDossie]) : "";
         if (!processo || !sitRaw) continue;
         const code = situacaoToCode(sitRaw);
         if (!code) { semCodigo++; continue; }
         const id = codeToId.get(code);
         if (!id) { semCodigo++; continue; }
-        updates.set(processo, id);
+        rows.push({ processo, dossie: dossie || null, sid: id });
       }
 
-      if (updates.size === 0) {
+      if (rows.length === 0) {
         toast.warning("Nenhum registro válido encontrado");
         return;
       }
 
-      // Group by situacao_id, then batch update by processo IN (...)
+      // Check which processes already exist
+      setStatusText("Verificando processos existentes…");
+      const uniqueProcs = Array.from(new Set(rows.map(r => r.processo)));
+      const existing = new Set<string>();
+      for (let i = 0; i < uniqueProcs.length; i += 500) {
+        const batch = uniqueProcs.slice(i, i + 500);
+        const { data } = await supabase
+          .from("dados_benner" as any)
+          .select("processo")
+          .in("processo", batch);
+        for (const r of (data as any[] ?? [])) existing.add(r.processo);
+      }
+
+      const toUpdate = rows.filter(r => existing.has(r.processo));
+      const toInsert = rows.filter(r => !existing.has(r.processo));
+
+      // Group updates by sid
       const bySit = new Map<string, string[]>();
-      for (const [proc, sid] of updates) {
+      for (const { processo, sid } of toUpdate) {
         if (!bySit.has(sid)) bySit.set(sid, []);
-        bySit.get(sid)!.push(proc);
+        bySit.get(sid)!.push(processo);
       }
 
       let updated = 0;
@@ -112,9 +132,10 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
       let gIdx = 0;
       for (const [sid, procs] of bySit) {
         gIdx++;
-        for (let i = 0; i < procs.length; i += 300) {
-          const batch = procs.slice(i, i + 300);
-          setProgress(Math.round(((gIdx - 1) / totalGroups + (i / procs.length) / totalGroups) * 100));
+        const uniq = Array.from(new Set(procs));
+        for (let i = 0; i < uniq.length; i += 300) {
+          const batch = uniq.slice(i, i + 300);
+          setProgress(Math.round(((gIdx - 1) / totalGroups + (i / uniq.length) / totalGroups) * 50));
           setStatusText(`Atualizando grupo ${gIdx}/${totalGroups} · ${updated} atualizados`);
           const { error, count } = await supabase
             .from("dados_benner" as any)
@@ -124,8 +145,46 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
         }
       }
 
+      // Insert new records as BENNER = SIM
+      let inserted = 0;
+      if (toInsert.length > 0) {
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData.user?.id ?? null;
+        // Dedupe by processo+dossie
+        const seen = new Set<string>();
+        const newRecords = toInsert
+          .filter(r => {
+            const k = `${r.processo}|${r.dossie ?? ""}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          })
+          .map(r => ({
+            processo: r.processo,
+            dossie: r.dossie,
+            situacao_envio_carga_id: r.sid,
+            benner_atualizado: true,
+            user_id: userId,
+            fontes_importacao: ["situacao_envio_carga"],
+          }));
+        for (let i = 0; i < newRecords.length; i += 200) {
+          const batch = newRecords.slice(i, i + 200);
+          setProgress(50 + Math.round((i / newRecords.length) * 50));
+          setStatusText(`Cadastrando novos · ${inserted}/${newRecords.length}`);
+          const { error, data } = await supabase
+            .from("dados_benner" as any)
+            .insert(batch as any)
+            .select("id");
+          if (!error) inserted += (data as any[])?.length ?? batch.length;
+          else console.error("Insert error:", error);
+        }
+      }
+
       setProgress(100);
-      toast.success(`${updated} processos atualizados${semCodigo > 0 ? ` · ${semCodigo} ignorados (situação não mapeada)` : ""}`);
+      toast.success(
+        `${updated} atualizados · ${inserted} cadastrados (BENNER=SIM)` +
+          (semCodigo > 0 ? ` · ${semCodigo} ignorados (situação não mapeada)` : "")
+      );
       onUpdated();
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
