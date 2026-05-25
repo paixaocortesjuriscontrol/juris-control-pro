@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Pencil,
   Filter,
   Loader2,
   Plus,
@@ -117,6 +118,7 @@ export default function ListaAtividades() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPrazo, setEditingPrazo] = useState<Prazo | null>(null);
   const [detalhesOpen, setDetalhesOpen] = useState(false);
   const [detalhesPrazo, setDetalhesPrazo] = useState<Prazo | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -203,7 +205,7 @@ export default function ListaAtividades() {
       let q = supabase
         .from("tarefas")
         .select(selectFields, { count: "exact" })
-        .order("data_vencimento", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
         .range(from, to);
 
       if (filters.coordenacaoId) {
