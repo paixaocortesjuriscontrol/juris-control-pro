@@ -312,12 +312,18 @@ export function PrazoDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!titulo || !dataVencimento) {
+    const tituloFinal = titulo.trim() || tipoTarefa.trim();
+    if (!tituloFinal) {
+      toast.error("Informe o tipo de tarefa ou um título");
+      return;
+    }
+    if (!dataVencimento) {
+      toast.error("Informe a data prevista");
       return;
     }
 
     const prazoData = {
-      titulo,
+      titulo: tituloFinal,
       descricao: descricao || undefined,
       data_vencimento: format(dataVencimento, "yyyy-MM-dd"),
       prioridade: prioridade as "baixa" | "media" | "alta" | "urgente",
