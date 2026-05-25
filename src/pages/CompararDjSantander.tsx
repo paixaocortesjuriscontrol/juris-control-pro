@@ -1059,8 +1059,8 @@ export default function CompararDjSantander() {
   }, []);
 
   const handleBuscarDjen = async () => {
-    if (!selectedCoordenacao || !selectedDate) {
-      toast.error("Selecione a coordenação e a data de início");
+    if (!selectedCoordenacao || (!selectedDate && !selectedPubInicio)) {
+      toast.error("Selecione a coordenação e ao menos uma data (disponibilização ou publicação)");
       return;
     }
     setLoadingDjen(true);
@@ -1070,11 +1070,10 @@ export default function CompararDjSantander() {
     setResult(null);
     try {
       // Format date range for query - data_disponibilizacao is stored as timestamptz
-      const dataFim = selectedDateFim ?? selectedDate;
-      const inicioStr = format(selectedDate, "yyyy-MM-dd");
-      const fimStr = format(dataFim, "yyyy-MM-dd");
-      const startOfDay = `${inicioStr}T00:00:00.000Z`;
-      const endOfDay = `${fimStr}T23:59:59.999Z`;
+      const inicioStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+      const fimStr = selectedDate ? format(selectedDateFim ?? selectedDate, "yyyy-MM-dd") : null;
+      const startOfDay = inicioStr ? `${inicioStr}T00:00:00.000Z` : null;
+      const endOfDay = fimStr ? `${fimStr}T23:59:59.999Z` : null;
       const pubInicioStr = selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null;
       const pubFimStr = selectedPubFim ? format(selectedPubFim, "yyyy-MM-dd") : (pubInicioStr ?? null);
       const pubStart = pubInicioStr ? `${pubInicioStr}T00:00:00.000Z` : null;
@@ -1121,9 +1120,9 @@ export default function CompararDjSantander() {
         let q = supabase
           .from("publicacoes_djen")
           .select("processo_numero, orgao, tipo_comunicacao, conteudo")
-          .in("monitoramento_id", monIds)
-          .gte("data_disponibilizacao", startOfDay)
-          .lte("data_disponibilizacao", endOfDay);
+          .in("monitoramento_id", monIds);
+        if (startOfDay) q = q.gte("data_disponibilizacao", startOfDay);
+        if (endOfDay) q = q.lte("data_disponibilizacao", endOfDay);
         if (pubStart) q = q.gte("data_publicacao", pubStart);
         if (pubEnd) q = q.lte("data_publicacao", pubEnd);
         const { data: publicacoes, error } = await q.range(offset, offset + pageSize - 1);
@@ -1622,7 +1621,7 @@ export default function CompararDjSantander() {
                 <div className="space-y-3">
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -1644,7 +1643,7 @@ export default function CompararDjSantander() {
                   </p>
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -1666,7 +1665,7 @@ export default function CompararDjSantander() {
                   </p>
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -1688,7 +1687,7 @@ export default function CompararDjSantander() {
                   </p>
                   <Button
                     onClick={handleBuscarDjen}
-                    disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
+                    disabled={!selectedCoordenacao || (!selectedDate && !selectedPubInicio) || loadingDjen}
                     className="w-full gap-2"
                   >
                     {loadingDjen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
