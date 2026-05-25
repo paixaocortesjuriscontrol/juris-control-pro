@@ -248,10 +248,14 @@ export default function ListaAtividades() {
         const digits = searchTrim.replace(/\D/g, "");
         // Se parece um número de processo (6+ dígitos), busca por processo.numero
         if (digits.length >= 6) {
+          // O campo "numero" no banco contém pontuação (ex: 0058600-96.2024.8.04.1000),
+          // então um ilike com apenas dígitos nunca casa. Intercalamos % entre os
+          // dígitos para permitir os separadores (-, ., /) entre eles.
+          const pattern = `%${digits.split("").join("%")}%`;
           let pq = supabase
             .from("processos")
             .select("id")
-            .ilike("numero", `%${digits}%`)
+            .ilike("numero", pattern)
             .limit(500);
           if (filters.coordenacaoId) {
             pq = pq.eq("coordenacao_id", filters.coordenacaoId);
