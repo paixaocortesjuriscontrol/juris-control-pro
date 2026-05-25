@@ -852,6 +852,8 @@ export default function CompararDjSantander() {
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedDateFim, setSelectedDateFim] = useState<Date | undefined>(undefined);
+  const [selectedPubInicio, setSelectedPubInicio] = useState<Date | undefined>(undefined);
+  const [selectedPubFim, setSelectedPubFim] = useState<Date | undefined>(undefined);
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
   const [djenTexto, setDjenTexto] = useState<string>("");
   const [loadingDjen, setLoadingDjen] = useState(false);
