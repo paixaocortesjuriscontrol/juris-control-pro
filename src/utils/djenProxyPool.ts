@@ -19,6 +19,7 @@ const PJE_COMUNICA_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const STORAGE_POOL = "djen_proxy_pool";
 const STORAGE_ENABLED = "djen_proxy_pool_enabled";
 const OFFLINE_COOLDOWN_MS = 60_000;
+const PROXY_SLOT_TIMEOUT_MS = 25_000;
 
 // Importa o cliente Supabase de forma lazy para evitar ciclo de import
 // e permitir que o pool funcione mesmo se a conexão falhar (cai pro cache local).
@@ -347,9 +348,12 @@ const dialectCache: Record<string, ProxyDialect> = {};
 async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
   const cached = dialectCache[slot.id];
   if (cached) return cached;
+  const timeoutController = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => timeoutController.abort(), 5_000);
   try {
     const resp = await fetch(`${slot.baseUrl.replace(/\/$/, "")}/health`, {
       method: "GET",
+      signal: timeoutController.signal,
     });
     if (resp.ok) {
       const j: any = await resp.json().catch(() => null);
@@ -372,6 +376,8 @@ async function detectDialect(slot: ProxySlotConfig): Promise<ProxyDialect> {
     }
   } catch {
     // ignora — usa default
+  } finally {
+    globalThis.clearTimeout(timeoutId);
   }
   // Default conservador: v3-proxy (formato mais comum nas VPS atuais).
   // Se for v1 e errarmos, o auto-swap em callProxySlot corrige na 1ª 404.
@@ -416,6 +422,16 @@ async function callProxySlot(
   fullDirectUrl: string,
   init: RequestInit,
 ): Promise<{ status: number; body: string }> {
+  const timeoutController = new AbortController();
+  let proxyTimedOut = false;
+  const timeoutId = globalThis.setTimeout(() => {
+    proxyTimedOut = true;
+    timeoutController.abort();
+  }, PROXY_SLOT_TIMEOUT_MS);
+  const upstreamSignal = init.signal
+    ? AbortSignal.any([init.signal as AbortSignal, timeoutController.signal])
+    : timeoutController.signal;
+
   const dialect = await detectDialect(slot);
   const url =
     dialect === "v3-proxy"
@@ -424,32 +440,41 @@ async function callProxySlot(
   const headers = new Headers(init.headers || {});
   headers.set("X-Proxy-Token", slot.token);
 
-  const proxyResp = await fetch(url, {
-    method: "GET",
-    headers,
-    signal: init.signal,
-  });
-
-  // Auto-swap: se a VPS devolveu 404/502, é provável que escolhemos a rota
-  // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
-  // o outro dialeto uma vez NESTA chamada e cacheia o vencedor. Não usamos
-  // trava global porque a VPS pode ser atualizada no meio de uma execução.
-  if (proxyResp.status === 404 || proxyResp.status === 502) {
-    const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
-    dialectCache[slot.id] = swapped;
-    const swappedUrl =
-      swapped === "v3-proxy"
-        ? buildV3ProxyUrl(slot.baseUrl, fullDirectUrl)
-        : buildV1DjenUrl(slot.baseUrl, fullDirectUrl);
-    const retryResp = await fetch(swappedUrl, {
+  try {
+    const proxyResp = await fetch(url, {
       method: "GET",
       headers,
-      signal: init.signal,
+      signal: upstreamSignal,
     });
-    return parseProxyResponse(slot, swapped, retryResp);
-  }
 
-  return parseProxyResponse(slot, dialect, proxyResp);
+    // Auto-swap: se a VPS devolveu 404/502, é provável que escolhemos a rota
+    // errada (ex.: chamamos /djen num server v3 que só tem /proxy). Tenta
+    // o outro dialeto uma vez NESTA chamada e cacheia o vencedor. Não usamos
+    // trava global porque a VPS pode ser atualizada no meio de uma execução.
+    if (proxyResp.status === 404 || proxyResp.status === 502) {
+      const swapped: ProxyDialect = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
+      dialectCache[slot.id] = swapped;
+      const swappedUrl =
+        swapped === "v3-proxy"
+          ? buildV3ProxyUrl(slot.baseUrl, fullDirectUrl)
+          : buildV1DjenUrl(slot.baseUrl, fullDirectUrl);
+      const retryResp = await fetch(swappedUrl, {
+        method: "GET",
+        headers,
+        signal: upstreamSignal,
+      });
+      return parseProxyResponse(slot, swapped, retryResp);
+    }
+
+    return parseProxyResponse(slot, dialect, proxyResp);
+  } catch (err: any) {
+    if (proxyTimedOut && !(init.signal as AbortSignal | undefined)?.aborted) {
+      throw new Error(`proxy_slot_timeout_${PROXY_SLOT_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
 }
 
 async function parseProxyResponse(
@@ -586,6 +611,7 @@ export async function fetchDjenViaPool(
      */
     forceVia?: string;
     fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
   }
 ): Promise<Response> {
   if (!isDjenProxyPoolEnabled() && !routing?.forceVia) {
@@ -615,22 +641,32 @@ export async function fetchDjenViaPool(
       }
       throw new Error(`Via forçada indisponível: ${routing.forceVia}`);
     }
-    try {
+    const proxyStatusShouldFailover = (status: number) =>
+      status === 403 || status === 502 || status === 503 || status === 504;
+
+    const callProxyAsResponse = async (proxySlot: ProxySlotConfig): Promise<Response> => {
       sessionStats.total++;
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
-        await callProxySlot(slot, fullDirectUrl, init);
-      clearProxyRuntimeState(slot.id);
-      if (upstreamStatus === 429) {
-        sessionStats.rateLimitsByProxy[slot.id] =
-          (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
+        await callProxySlot(proxySlot, fullDirectUrl, init);
+      clearProxyRuntimeState(proxySlot.id);
+      if (proxyStatusShouldFailover(upstreamStatus)) {
+        throw new Error(`upstream_status_${upstreamStatus}`);
       }
-      sessionStats.byProxy[slot.id] = (sessionStats.byProxy[slot.id] || 0) + 1;
+      if (upstreamStatus === 429) {
+        sessionStats.rateLimitsByProxy[proxySlot.id] =
+          (sessionStats.rateLimitsByProxy[proxySlot.id] || 0) + 1;
+      }
+      sessionStats.byProxy[proxySlot.id] = (sessionStats.byProxy[proxySlot.id] || 0) + 1;
       const rebuilt = new Response(upstreamBody, {
         status: upstreamStatus || 200,
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
-      return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
+      return annotateVia(rebuilt, proxySlot.id, proxySlot.label || proxySlot.baseUrl, "proxy");
+    };
+
+    try {
+      return await callProxyAsResponse(slot);
     } catch (err: any) {
       if (err?.name === "AbortError") throw err;
       const message = err?.message || String(err);
@@ -644,6 +680,23 @@ export async function fetchDjenViaPool(
       }
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
+      if (routing.fallbackToPool) {
+        const alternatives = loadDjenProxyPool().filter(
+          (s) => s.enabled && s.id !== slot.id && isOnline(s),
+        );
+        for (const alt of alternatives) {
+          try {
+            return await callProxyAsResponse(alt);
+          } catch (altErr: any) {
+            if (altErr?.name === "AbortError") throw altErr;
+            const altMessage = altErr?.message || String(altErr);
+            if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
+            else markOffline(alt.id, altMessage);
+            sessionStats.errorsByProxy[alt.id] =
+              (sessionStats.errorsByProxy[alt.id] || 0) + 1;
+          }
+        }
+      }
       if (routing.fallbackToDirect) return callDirect();
       throw err;
     }
@@ -667,6 +720,9 @@ export async function fetchDjenViaPool(
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
         await callProxySlot(slot, fullDirectUrl, init);
+      if (upstreamStatus === 403 || upstreamStatus === 502 || upstreamStatus === 503 || upstreamStatus === 504) {
+        throw new Error(`upstream_status_${upstreamStatus}`);
+      }
       clearProxyRuntimeState(slot.id);
 
       if (upstreamStatus === 429) {

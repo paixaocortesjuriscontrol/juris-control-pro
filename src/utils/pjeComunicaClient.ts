@@ -284,6 +284,7 @@ export async function buscarPjeComunicaNoBrowser(
     onPoolVia?: (via: PoolViaInfo) => void;
     forceVia?: string;
     fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
@@ -438,7 +439,7 @@ export async function buscarPjeComunicaNoBrowser(
           signal: combinedSignal,
         },
         options?.forceVia
-          ? { forceVia: options.forceVia, fallbackToDirect: options.fallbackToDirect }
+          ? { forceVia: options.forceVia, fallbackToDirect: options.fallbackToDirect, fallbackToPool: options.fallbackToPool }
           : undefined,
       );
       clearTimeout(timeoutId);
@@ -684,6 +685,7 @@ export async function buscarPjeComunicaPaginado(
     onPoolVia?: (via: PoolViaInfo) => void;
     forceVia?: string;
     fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
@@ -728,6 +730,7 @@ export async function buscarPjeComunicaPaginado(
             onPoolVia: options?.onPoolVia,
             forceVia: options?.forceVia,
             fallbackToDirect: options?.fallbackToDirect,
+            fallbackToPool: options?.fallbackToPool,
           }
         );
         return resp;
