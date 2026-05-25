@@ -3043,6 +3043,73 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Gerar Doc Resumo sem repetição" — mesmo fluxo do Doc Resumo sem IA,
+  // mas descartando publicações duplicadas para o mesmo processo (varia só o intimado).
+  const handleGerarDocResumoSemRepeticao = async () => {
+    const rawPubs = getPubsParaGerar();
+    if (rawPubs.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    const allPublicacoes = dedupPubsPorProcessoSemDestinatarios(rawPubs);
+    const removidas = rawPubs.length - allPublicacoes.length;
+    setGerandoDocResumoSemRepeticao(true);
+    const toastId = toast.loading(
+      removidas > 0
+        ? `Gerando Doc Resumo sem repetição (${removidas} duplicada(s) ignorada(s))...`
+        : "Gerando Doc Resumo sem repetição..."
+    );
+    try {
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Resumo (sem repetição) de Publicações ${origemLabel}`, allPublicacoes.length)];
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+
+      allPublicacoes.forEach((pub, idx) => {
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        const ehCejusc = /\bCEJUSC\b/i.test(String(pub.conteudo || "").replace(/<[^>]+>/g, " "));
+        children.push(...buildConteudoParagraphs(
+          trecho || "Sem conteúdo disponível",
+          ehCejusc
+            ? ""
+            : ehPauta
+              ? "PAUTA DE JULGAMENTO (ÍNTEGRA)"
+              : "RESUMO (ÚLTIMOS PARÁGRAFOS + ASSINATURA/INTIMADOS)"
+        ));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
+      });
+
+      const doc = new Document({
+        styles: { default: { document: { run: { font: docFont, size: docFontSize } } } },
+        sections: [{
+          properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } },
+          children,
+        }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resumo_sem_repeticao_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(
+        removidas > 0
+          ? `Doc Resumo sem repetição gerado! (${removidas} duplicada(s) ignorada(s))`
+          : "Doc Resumo sem repetição gerado!",
+        { id: toastId }
+      );
+    } catch (err: any) {
+      console.error("Erro ao gerar Doc Resumo sem repetição:", err);
+      toast.error(`Erro ao gerar Doc Resumo sem repetição: ${err?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoDocResumoSemRepeticao(false);
+    }
+  };
+
   // ===== "Gerar Docs TST" - Classifica publicações por palavras-chave (sem IA) e gera até 5 documentos Word
   //  (TEMAS_IRR, PAUTA, CEJUSC, DISTRIBUIÇÕES, PRAZOS).
   //  Regras (case-insensitive, primeira que casar vence):
