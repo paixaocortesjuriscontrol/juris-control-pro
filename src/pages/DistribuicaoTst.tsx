@@ -1713,6 +1713,11 @@ export default function DistribuicaoTst() {
                                   Trans. Julgado
                                 </Badge>
                               )}
+                              {isSubidaMassa && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
+                                  Subida em Massa
+                                </Badge>
+                              )}
                               {(() => {
                                 const sid = (d as any).situacao_envio_carga_id;
                                 if (!sid) return null;
@@ -1756,6 +1761,11 @@ export default function DistribuicaoTst() {
                           {isTransito && (
                             <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
                               Trans. Julgado
+                            </Badge>
+                          )}
+                          {isSubidaMassa && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
+                              Subida em Massa
                             </Badge>
                           )}
                           {(() => {
@@ -1802,11 +1812,6 @@ export default function DistribuicaoTst() {
                   <TableCell className={cn("text-xs align-middle", relatorClass)}>
                     <div className="inline-flex items-center gap-1 flex-wrap">
                       <span>{relatorDisplay || "—"}</span>
-                      {isSubidaMassa && (
-                        <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
-                          Subida em Massa
-                        </Badge>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell className={cn("text-xs align-middle", turmaClass)}>
