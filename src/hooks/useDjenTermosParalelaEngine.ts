@@ -112,11 +112,11 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  delay_between_terms: 1500,
-  delay_between_pages: 1200,
-  delay_between_termos_or: 1000,
+  delay_between_terms: 2500,
+  delay_between_pages: 1800,
+  delay_between_termos_or: 1800,
   max_retries: 3,
-  retry_base_delay: 12000,
+  retry_base_delay: 20000,
 };
 
 // ============================================================================
@@ -139,7 +139,7 @@ function getHostBucket(_tribunal: string): HostBucket {
 // Limite por bucket: máx. simultâneos no MESMO host PJE Comunica.
 // Manter 2 reduz drasticamente o 429 sem matar o paralelismo.
 const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
-  'pje-comunica': 2,
+  'pje-comunica': 1,
   'outro': 5,
 };
 
@@ -1097,7 +1097,7 @@ async function processarTermoEmTribunal(
     baseParams.uf = mon.uf;
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
-  } else {
+  } else if (tipo !== 'parte') {
     if (mon.termo_busca.includes('+')) {
       const partes = mon.termo_busca.split('+').map(p => p.trim()).filter(Boolean).filter(p => !/^OAB\s/i.test(p));
       const maior = partes.sort((a, b) => b.length - a.length)[0] || mon.termo_busca;
@@ -1108,7 +1108,26 @@ async function processarTermoEmTribunal(
   }
 
   const executarBusca = async (params: any, matchMeta: Record<string, any> = {}) => {
-    const resp = await buscarPjeComunicaPaginado({ ...params, page: 1 }, {
+    const requestParams = { ...params, page: 1 };
+    if (requestParams.tipo === 'parte') {
+      if (requestParams.palavraChave) {
+        console.error('[DJEN Paralela] Proteção: termo do tipo parte nunca pode enviar palavraChave. Removendo parâmetro.', {
+          tribunal,
+          termo: mon.termo_busca,
+          palavraChave: requestParams.palavraChave,
+        });
+        delete requestParams.palavraChave;
+      }
+      if (!requestParams.nomeParte) {
+        console.error('[DJEN Paralela] Proteção: termo do tipo parte sem nomeParte. Busca bloqueada.', {
+          tribunal,
+          termo: mon.termo_busca,
+        });
+        return { items: [], pagesFetched: 0, lastError: 'tipo parte sem nomeParte' } as any;
+      }
+    }
+
+    const resp = await buscarPjeComunicaPaginado(requestParams, {
       signal,
       maxPages: null,
       continueUntilEmpty: true,
