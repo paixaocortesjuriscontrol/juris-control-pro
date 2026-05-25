@@ -563,10 +563,10 @@ export default function ListaAtividades() {
             </div>
 
             <div className="overflow-auto">
-              <Table className="text-xs">
+              <Table className="text-xs w-full">
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
                   <TableRow className="h-9">
-                    <TableHead className="w-8 px-2">
+                    <TableHead className="w-8 px-2 whitespace-nowrap">
                       <Checkbox
                         checked={
                           allSelected
@@ -579,23 +579,23 @@ export default function ListaAtividades() {
                         aria-label="Selecionar todos"
                       />
                     </TableHead>
-                    <TableHead className="h-9 font-semibold">
+                    <TableHead className="h-9 font-semibold w-full text-left">
                       Atividade
                     </TableHead>
                     {!detalhesPrazo && (
                       <>
-                        <TableHead className="h-9 font-semibold whitespace-nowrap w-[180px]">
+                        <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
                           Responsável
                         </TableHead>
-                        <TableHead className="h-9 font-semibold whitespace-nowrap w-[140px]">
+                        <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
                           Datas
                         </TableHead>
-                        <TableHead className="h-9 font-semibold whitespace-nowrap w-[120px]">
+                        <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
                           Status
                         </TableHead>
                       </>
                     )}
-                    <TableHead className="h-9 font-semibold w-[90px] text-right pr-3">
+                    <TableHead className="h-9 font-semibold w-px whitespace-nowrap text-right pr-3">
                       Ações
                     </TableHead>
                   </TableRow>
