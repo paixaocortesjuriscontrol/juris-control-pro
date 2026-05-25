@@ -160,6 +160,34 @@ export default function DistribuicaoTstKanban() {
 
   const totals = useMemo(() => columns.map((c) => ({ key: c.key, count: cards.filter(c.match).length })), [cards]);
 
+  // Resumo por responsável (obedece filtros aplicados, pois deriva de `cards`)
+  const resumoResponsaveis = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string; total: number; pronto: number }>();
+    cards.forEach((c) => {
+      const isPronto = c.status_distribuicao === "finalizada";
+      if (c.responsaveis.length === 0) {
+        const k = "__sem__";
+        const cur = map.get(k) || { id: k, nome: "Sem responsável", total: 0, pronto: 0 };
+        cur.total += 1;
+        if (isPronto) cur.pronto += 1;
+        map.set(k, cur);
+      } else {
+        c.responsaveis.forEach((r) => {
+          const cur = map.get(r.id) || { id: r.id, nome: r.nome, total: 0, pronto: 0 };
+          cur.total += 1;
+          if (isPronto) cur.pronto += 1;
+          map.set(r.id, cur);
+        });
+      }
+    });
+    return [...map.values()].sort((a, b) => {
+      const fa = a.total - a.pronto;
+      const fb = b.total - b.pronto;
+      if (fb !== fa) return fb - fa;
+      return a.nome.localeCompare(b.nome, "pt-BR");
+    });
+  }, [cards]);
+
   return (
     <MainLayout title="Kanban Delegação TST">
       <div className="space-y-4 h-[calc(100vh-8rem)] flex flex-col">
@@ -215,6 +243,63 @@ export default function DistribuicaoTstKanban() {
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden">
+          {resumoResponsaveis.length > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Por responsável <span className="font-normal normal-case">({resumoResponsaveis.length})</span>
+                </h3>
+                <span className="text-[11px] text-muted-foreground">filtros aplicados</span>
+              </div>
+              <ScrollArea className="w-full">
+                <div className="flex gap-2 pb-2">
+                  {resumoResponsaveis.map((r) => {
+                    const faltam = r.total - r.pronto;
+                    const pct = r.total > 0 ? Math.round((r.pronto / r.total) * 100) : 0;
+                    const ativo = filtroAdvogados.includes(r.id);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => {
+                          if (r.id === "__sem__") return;
+                          setFiltroAdvogados((prev) =>
+                            prev.includes(r.id) ? prev.filter((x) => x !== r.id) : [...prev, r.id],
+                          );
+                        }}
+                        className={`shrink-0 w-[200px] text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
+                          ativo ? "border-primary ring-1 ring-primary/40" : "border-border"
+                        }`}
+                      >
+                        <p className="text-xs font-semibold truncate" title={r.nome}>{r.nome}</p>
+                        <div className="mt-1.5 grid grid-cols-3 gap-1 text-center">
+                          <div>
+                            <p className="text-[9px] uppercase text-muted-foreground">Total</p>
+                            <p className="text-sm font-bold text-foreground">{r.total}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] uppercase text-muted-foreground">Pronto</p>
+                            <p className="text-sm font-bold text-emerald-600">{r.pronto}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] uppercase text-muted-foreground">Faltam</p>
+                            <p className={`text-sm font-bold ${faltam > 0 ? "text-amber-600" : "text-muted-foreground"}`}>{faltam}</p>
+                          </div>
+                        </div>
+                        <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground text-right mt-0.5">{pct}%</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
             {columns.map((col) => {
               const items = cards.filter(col.match);
