@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus, FolderPlus, Calendar, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
+import { ImportProgress, type ImportProgressState } from "@/components/tarefas/ImportProgress";
 
 // ==================== INTERFACES ====================
 
