@@ -582,15 +582,19 @@ export default function ListaAtividades() {
                     <TableHead className="h-9 font-semibold">
                       Atividade
                     </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap w-[180px]">
-                      Responsável
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap w-[140px]">
-                      Datas
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap w-[120px]">
-                      Status
-                    </TableHead>
+                    {!detalhesPrazo && (
+                      <>
+                        <TableHead className="h-9 font-semibold whitespace-nowrap w-[180px]">
+                          Responsável
+                        </TableHead>
+                        <TableHead className="h-9 font-semibold whitespace-nowrap w-[140px]">
+                          Datas
+                        </TableHead>
+                        <TableHead className="h-9 font-semibold whitespace-nowrap w-[120px]">
+                          Status
+                        </TableHead>
+                      </>
+                    )}
                     <TableHead className="h-9 font-semibold w-[90px] text-right pr-3">
                       Ações
                     </TableHead>
