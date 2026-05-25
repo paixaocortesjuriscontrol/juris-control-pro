@@ -916,6 +916,26 @@ export default function CompararDjSantander() {
     })();
   }, [selectedCoordenacao]);
 
+  // Handlers unificados para filtros comuns (fora das abas)
+  const onChangeCoordenacao = (v: string) => {
+    setSelectedCoordenacao(v);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangeDate = (d: Date | undefined) => {
+    setSelectedDate(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangeDateFim = (d: Date | undefined) => {
+    setSelectedDateFim(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+
   const handleDocUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1453,66 +1473,70 @@ export default function CompararDjSantander() {
                 </TabsTrigger>
               </TabsList>
 
+              {/* Filtros comuns — Coordenação + Período */}
+              <div className="mb-4 p-3 bg-muted/30 rounded-lg border space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
+                    <Select value={selectedCoordenacao} onValueChange={(v) => onChangeCoordenacao(v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {coordenacoes.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(d) => onChangeDate(d)}
+                          locale={ptBR}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDateFim}
+                          onSelect={(d) => onChangeDateFim(d)}
+                          locale={ptBR}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+
               <TabsContent value="pdf">
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Selecione a coordenação e o período: serão usados apenas para a análise dos motivos (PJE Comunica). A comparação em si usa o PDF.
+                    A coordenação e o período serão usados para a análise dos motivos (PJE Comunica). A comparação em si usa o PDF.
                   </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
-                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setResult(null); }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {coordenacoes.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(d) => { setSelectedDate(d); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDateFim}
-                            onSelect={(d) => { setSelectedDateFim(d); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
                   <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-muted-foreground/25">
                   <div className="flex flex-col items-center justify-center py-4">
                     {pdfFile ? (
@@ -1535,61 +1559,6 @@ export default function CompararDjSantander() {
 
               <TabsContent value="djen">
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
-                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {coordenacoes.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDateFim}
-                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
                   <Button
                     onClick={handleBuscarDjen}
                     disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
@@ -1612,61 +1581,6 @@ export default function CompararDjSantander() {
                   <p className="text-xs text-muted-foreground">
                     Compara os processos extraídos dos títulos do PDF da Equipe DR. Thomás com as publicações DJEN da base.
                   </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
-                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {coordenacoes.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDateFim}
-                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
                   <Button
                     onClick={handleBuscarDjen}
                     disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
@@ -1689,61 +1603,6 @@ export default function CompararDjSantander() {
                   <p className="text-xs text-muted-foreground">
                     Compara os processos da coluna <strong>"Processo"</strong> da planilha do Projuris com as publicações DJEN da base.
                   </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
-                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {coordenacoes.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDateFim}
-                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
                   <Button
                     onClick={handleBuscarDjen}
                     disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
@@ -1766,61 +1625,6 @@ export default function CompararDjSantander() {
                   <p className="text-xs text-muted-foreground">
                     Compara os processos da coluna <strong>"Número do processo"</strong> da planilha do Astrea com as publicações DJEN da base.
                   </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Coordenação</label>
-                      <Select value={selectedCoordenacao} onValueChange={(v) => { setSelectedCoordenacao(v); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {coordenacoes.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (início)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(d) => { setSelectedDate(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Disponibilização (fim)</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDateFim && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDateFim ? format(selectedDateFim, "dd/MM/yyyy") : "Selecione..."}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDateFim}
-                            onSelect={(d) => { setSelectedDateFim(d); setDjenLoaded(false); setDjenProcessos([]); setResult(null); }}
-                            locale={ptBR}
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
                   <Button
                     onClick={handleBuscarDjen}
                     disabled={!selectedCoordenacao || !selectedDate || loadingDjen}
