@@ -998,9 +998,13 @@ async function processarTermo(
               seen.add(key);
               // Se buscamos com siglaTribunal, alguns tribunais não retornam a sigla no payload.
               // Enriquecemos para garantir persistência + filtros consistentes.
-              const enriched = trib
-                ? { ...item, siglaTribunal: item?.siglaTribunal ?? trib }
-                : item;
+              const enriched = {
+                ...item,
+                ...(trib ? { siglaTribunal: item?.siglaTribunal ?? trib } : {}),
+                ...(tipo === 'parte' && baseParams.nomeParte
+                  ? { __matchedByNomeParte: true, __nomeParteBusca: baseParams.nomeParte }
+                  : {}),
+              };
               resultados.push(enriched);
             }
           }
@@ -1257,6 +1261,10 @@ async function processarTermo(
       // REGRA: tipo='parte' SÓ casa nos metadados estruturados (PARTE(S) — lado esquerdo).
       // Nunca olhar o corpo da publicação — a API DJEN retorna falsos positivos
       // (ex.: "SANTANDER" mencionado apenas na fundamentação do acórdão).
+      // Exceção necessária: se a própria API retornou o item via `nomeParte=<termo>`,
+      // considerar validado. No TST o payload frequentemente não traz polo/destinatários
+      // estruturados, embora a busca nativa por parte tenha encontrado corretamente.
+      if (pub?.__matchedByNomeParte) return true;
       const termoParaValidar = extrairPalavraChavePura(mon.termo_busca);
       const candidatos = [
         termoParaValidar,
