@@ -832,6 +832,7 @@ serve(async (req) => {
       palavraChave,
       nomeParte,
       numeroProcesso,
+      siglaTribunal,
       dataInicio,
       dataFim,
       page,
@@ -891,6 +892,11 @@ serve(async (req) => {
       }
     }
 
+    // Validate siglaTribunal (ex: TST, TRT2, TJSP, TRF1, STF, STJ)
+    if (siglaTribunal && (typeof siglaTribunal !== 'string' || !/^[A-Za-z]{2,5}\d{0,2}$/.test(siglaTribunal.trim()))) {
+      validationErrors.push("Sigla do tribunal inválida");
+    }
+
     // Return validation errors
     if (validationErrors.length > 0) {
       return new Response(
@@ -948,6 +954,7 @@ serve(async (req) => {
       palavraChave,
       nomeParte,
       numeroProcesso,
+      siglaTribunal: typeof siglaTribunal === "string" ? siglaTribunal.trim().toUpperCase() : undefined,
       dataInicio,
       dataFim,
       page: typeof page === "number" ? page : 0,
