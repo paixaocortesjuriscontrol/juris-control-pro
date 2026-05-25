@@ -120,6 +120,7 @@ function App() {
               <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalhes /></ProtectedRoute>} />
               <Route path="/processos/:id" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />
               <Route path="/prazos" element={<ProtectedRoute><Prazos /></ProtectedRoute>} />
+              <Route path="/lista-atividades" element={<ProtectedRoute><ListaAtividades /></ProtectedRoute>} />
               <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />
