@@ -261,7 +261,7 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
           return ultima;
         }
         await sleep(backoff429);
-        backoff429 = Math.min(backoff429 * 2, 3_000);
+        backoff429 = Math.min(backoff429 * 2, 12_000);
         continue;
       }
       if (!r.ok) { await r.text(); await sleep(POLL_INTERVAL_MS); continue; }

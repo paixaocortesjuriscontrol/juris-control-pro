@@ -103,7 +103,7 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
       const r = await fetch(url.toString(), { headers: { "api-key": apiKey } });
       if (r.status === 429) {
         if (++attempts429 >= 3) return ultima;
-        await sleep(backoff); backoff = Math.min(backoff * 2, 3_000); continue;
+        await sleep(backoff); backoff = Math.min(backoff * 2, 12_000); continue;
       }
       if (!r.ok) { await r.text(); await sleep(POLL_INTERVAL_MS); continue; }
       const data = await r.json();
