@@ -1549,6 +1549,47 @@ export default function CompararDjSantander() {
                       </PopoverContent>
                     </Popover>
                   </div>
+                  <div />
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Publicação (início)</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedPubInicio && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedPubInicio ? format(selectedPubInicio, "dd/MM/yyyy") : "Opcional"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedPubInicio}
+                          onSelect={(d) => onChangePubInicio(d)}
+                          locale={ptBR}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Publicação (fim)</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedPubFim && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedPubFim ? format(selectedPubFim, "dd/MM/yyyy") : "Opcional"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedPubFim}
+                          onSelect={(d) => onChangePubFim(d)}
+                          locale={ptBR}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               </div>
 
