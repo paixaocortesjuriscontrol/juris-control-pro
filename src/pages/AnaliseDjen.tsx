@@ -3189,8 +3189,33 @@ const AnaliseDjen = () => {
         return re.test(t);
       });
     }
+    if (ocultarDuplicadas) {
+      result = dedupePublicacoesDjen(result);
+    }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas]);
+
+  // Quantas publicações foram ocultadas pela deduplicação (para o badge).
+  const totalDuplicadasOcultas = useMemo(() => {
+    if (!ocultarDuplicadas) return 0;
+    let base = mergedPublicacoes;
+    if (dataDisponibilizacao) {
+      base = base.filter(pub => {
+        if (!pub.data_disponibilizacao) return false;
+        return pub.data_disponibilizacao.slice(0, 10) === dataDisponibilizacao;
+      });
+    }
+    if (tribunalFiltro) {
+      const alvo = tribunalFiltro.toUpperCase();
+      base = base.filter(pub => {
+        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
+        if (!t) return false;
+        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
+        return re.test(t);
+      });
+    }
+    return Math.max(0, base.length - allPublicacoes.length);
+  }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
   // do banco. Total vem do COUNT exato (descartadasStats.total).
