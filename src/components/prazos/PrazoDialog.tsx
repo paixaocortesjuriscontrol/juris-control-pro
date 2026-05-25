@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Search, Upload, FileText, Trash2 } from "lucide-react";
+import { CalendarIcon, Loader2, Search, Upload, FileText, Trash2, Plus, Link2, Users, Briefcase, ClipboardList } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, sanitizeFileName } from "@/lib/utils";
@@ -33,6 +33,29 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
+import { Separator } from "@/components/ui/separator";
+
+const CUSTOM_TIPOS_KEY = "tarefas_tipos_customizados_v1";
+
+function loadCustomTipos(): string[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TIPOS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomTipo(tipo: string) {
+  const list = loadCustomTipos();
+  if (!list.includes(tipo)) {
+    list.push(tipo);
+    localStorage.setItem(CUSTOM_TIPOS_KEY, JSON.stringify(list));
+  }
+}
 
 type PrazoDialogProps = {
   open: boolean;
