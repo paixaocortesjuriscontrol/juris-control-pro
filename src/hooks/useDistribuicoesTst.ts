@@ -303,6 +303,8 @@ export async function fetchAllDistribuicaoTstIds(
     } else if (filters.situacaoProcesso === "outro_escritorio") {
       query = query.eq("processo_outro_escritorio", true);
     }
+    if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
+    else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
