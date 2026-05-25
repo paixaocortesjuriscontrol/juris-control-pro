@@ -5,15 +5,28 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
+// Module-level cache to avoid refetching role on every navigation,
+// which was causing AdminRoute to briefly see role=null and redirect.
+const roleCache = new Map<string, AppRole | null>();
+
 export function useUserRole() {
   const { user } = useAuth();
-  const [role, setRole] = useState<AppRole | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = user ? roleCache.get(user.id) : null;
+  const hasCached = user ? roleCache.has(user.id) : false;
+  const [role, setRole] = useState<AppRole | null>(cached ?? null);
+  const [loading, setLoading] = useState(!hasCached);
 
   useEffect(() => {
     async function fetchRole() {
       if (!user) {
         setRole(null);
+        setLoading(false);
+        return;
+      }
+
+      // If we already have a cached role for this user, use it and skip refetch.
+      if (roleCache.has(user.id)) {
+        setRole(roleCache.get(user.id) ?? null);
         setLoading(false);
         return;
       }
@@ -37,8 +50,12 @@ export function useUserRole() {
 
       if (error) {
         console.error("Error fetching user role:", error);
-        setRole(null);
+        // Do NOT cache or null-out on error: keep prior role if any to avoid
+        // false redirects on transient network/auth blips.
+        setLoading(false);
+        return;
       } else {
+        roleCache.set(user.id, resolvedRole);
         setRole(resolvedRole);
       }
       setLoading(false);
