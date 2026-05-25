@@ -698,6 +698,7 @@ export function useBuscaDjenDireta() {
     // Nunca confiar no corpo da publicação, pois a API retorna falsos positivos
     // (ex.: "SANTANDER" mencionado apenas na fundamentação).
     if (tipo === 'parte') {
+      if (pub?.__matchedByNomeParte) return true;
       const termoPuro = extrairPalavraChavePura(termo);
       const candidatos = [termoPuro, ...((termosOr || []).map((t) => extrairPalavraChavePura(t.trim())).filter(Boolean))];
       return candidatos.some((c) => c && partePresenteNosMetadados(pub || {}, c));
@@ -842,7 +843,7 @@ export function useBuscaDjenDireta() {
       dataInicioYmd = start.toISOString().slice(0, 10);
     }
 
-    const tipoMapeado = monitoramento.tipo === 'parte' ? 'palavra-chave' : (monitoramento.tipo === 'nome' ? 'palavra-chave' : monitoramento.tipo);
+    const tipoMapeado = monitoramento.tipo === 'nome' ? 'palavra-chave' : monitoramento.tipo;
 
     const params: any = {
       tipo: tipoMapeado,
@@ -883,7 +884,7 @@ export function useBuscaDjenDireta() {
         monitoramento.oab,
         ufValue
       );
-    } else if (tipoMapeado === 'palavra-chave' || monitoramento.tipo === 'parte') {
+    } else if (tipoMapeado === 'palavra-chave' || tipoMapeado === 'parte') {
       const termoPuro = extrairPalavraChavePura(monitoramento.termo_busca);
       palavrasChaveVariantes = gerarVariantes(termoPuro);
       if (monitoramento.termos_or?.length) {
@@ -968,7 +969,10 @@ export function useBuscaDjenDireta() {
                 oab: tipoMapeado === 'advogado' ? variante.oab : params.oab,
                 uf: tipoMapeado === 'advogado' ? (variante.uf || ufParaBusca) : ufParaBusca,
                 nomeAdvogado: tipoMapeado === 'advogado' ? (variante.nome || undefined) : undefined,
-                palavraChave: tipoMapeado === 'advogado'
+                nomeParte: tipoMapeado === 'parte'
+                  ? (variante.palavraChave || undefined)
+                  : undefined,
+                palavraChave: tipoMapeado === 'advogado' || tipoMapeado === 'parte'
                   ? undefined
                   : (variante.palavraChave || undefined),
                 numeroProcesso: params.numeroProcesso,
@@ -991,7 +995,9 @@ export function useBuscaDjenDireta() {
               const key = id || JSON.stringify(item).slice(0, 400);
               if (!seen.has(key)) {
                 seen.add(key);
-                acumulado.push(item);
+                acumulado.push(tipoMapeado === 'parte'
+                  ? { ...item, __matchedByNomeParte: true, __nomeParteBusca: variante.palavraChave }
+                  : item);
               }
             }
           } catch (browserErr: any) {
