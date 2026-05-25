@@ -1,0 +1,1 @@
+DELETE FROM public.tarefas WHERE processo_id IN (SELECT id FROM public.processos WHERE coordenacao_id = '968631d0-6659-46f1-b45d-899892cb0121');
