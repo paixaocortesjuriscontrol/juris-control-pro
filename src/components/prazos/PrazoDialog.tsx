@@ -81,6 +81,16 @@ export function PrazoDialog({
   const [processoId, setProcessoId] = useState("");
   const [responsavelId, setResponsavelId] = useState("");
   const [observacoes, setObservacoes] = useState("");
+
+  // Projuris-style fields
+  const [tipoTarefa, setTipoTarefa] = useState<string>("");
+  const [dataBase, setDataBase] = useState<Date | undefined>();
+  const [dataFatal, setDataFatal] = useState<Date | undefined>();
+  const [localLink, setLocalLink] = useState("");
+  const [gruposTrabalho, setGruposTrabalho] = useState("");
+  const [customTipos, setCustomTipos] = useState<string[]>(() => loadCustomTipos());
+  const [showAddTipo, setShowAddTipo] = useState(false);
+  const [novoTipo, setNovoTipo] = useState("");
   
   // Anexos
   const [anexos, setAnexos] = useState<File[]>([]);
