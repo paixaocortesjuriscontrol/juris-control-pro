@@ -284,6 +284,7 @@ export async function buscarPjeComunicaNoBrowser(
     onPoolVia?: (via: PoolViaInfo) => void;
     forceVia?: string;
     fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
@@ -728,6 +729,7 @@ export async function buscarPjeComunicaPaginado(
             onPoolVia: options?.onPoolVia,
             forceVia: options?.forceVia,
             fallbackToDirect: options?.fallbackToDirect,
+            fallbackToPool: options?.fallbackToPool,
           }
         );
         return resp;
