@@ -468,8 +468,8 @@ export function PrazoDialog({
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-          <ScrollArea className="flex-1 px-6 py-5">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
             <div className="space-y-6">
               {/* SECTION: Vínculo */}
               <section className="space-y-3">
