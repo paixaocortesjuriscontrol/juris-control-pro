@@ -302,6 +302,10 @@ export function useCreateTarefa() {
       responsavel_id?: string;
       observacoes?: string;
       criado_por?: string;
+      tipo_tarefa?: string | null;
+      data_base?: string | null;
+      data_fatal?: string | null;
+      grupos_trabalho?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -367,6 +371,11 @@ export function useUpdateTarefa() {
       responsavel_id?: string;
       observacoes?: string;
       data_cumprimento?: string;
+      tipo_tarefa?: string | null;
+      data_base?: string | null;
+      data_fatal?: string | null;
+      grupos_trabalho?: string | null;
+      processo_id?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
