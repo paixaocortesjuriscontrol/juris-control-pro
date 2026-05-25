@@ -760,6 +760,10 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   if (tipo === 'parte') {
     // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
     // Nunca valida no corpo/teor geral da publicação.
+    // Se a própria API do PJe retornou a publicação para `nomeParte=<termo>`,
+    // consideramos a parte validada mesmo quando o payload não traz destinatarios/
+    // poloAtivo/poloPassivo completos (comum no TST).
+    if (pub?.__matchedByNomeParte) return true;
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of (mon.termos_or || [])) {
@@ -1069,13 +1073,13 @@ async function processarTermoEmTribunal(
   let rateLimitHits = 0;
   let ultimoErro: string | null = null;
 
-  const addResults = (items: any[]) => {
+  const addResults = (items: any[], matchMeta: Record<string, any> = {}) => {
     for (const item of items) {
       const idDjen = extrairIdDjen(item);
       const k = idDjen ? `id_djen:${idDjen}` : JSON.stringify(item).slice(0, 400);
       if (seen.has(k)) continue;
       seen.add(k);
-      resultados.push({ ...item, id_djen: idDjen, id: idDjen ?? item?.id, siglaTribunal: item?.siglaTribunal ?? tribunal });
+      resultados.push({ ...item, ...matchMeta, id_djen: idDjen, id: idDjen ?? item?.id, siglaTribunal: item?.siglaTribunal ?? tribunal });
     }
   };
 
@@ -1103,7 +1107,7 @@ async function processarTermoEmTribunal(
     }
   }
 
-  const executarBusca = async (params: any) => {
+  const executarBusca = async (params: any, matchMeta: Record<string, any> = {}) => {
     const resp = await buscarPjeComunicaPaginado({ ...params, page: 1 }, {
       signal,
       maxPages: null,
@@ -1119,7 +1123,7 @@ async function processarTermoEmTribunal(
       forceVia: viaId,
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
     });
-    addResults(resp.items);
+    addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
     return resp;
   };
@@ -1128,7 +1132,10 @@ async function processarTermoEmTribunal(
     if (tipo === 'parte') {
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
-        const resp = await executarBusca({ ...baseParams, nomeParte: termoParte });
+        const resp = await executarBusca(
+          { ...baseParams, nomeParte: termoParte },
+          { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
+        );
         console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         await abortableDelay(CONFIG.delay_between_termos_or, signal);
       }
