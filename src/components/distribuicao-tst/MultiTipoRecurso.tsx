@@ -37,12 +37,6 @@ const OPCOES_RECURSO = [
   "Recurso Ordinário em Mandado de Segurança",
   "Recurso Ordinário em Procedimento Sumaríssimo",
   "Recurso Ordinário Trabalhista",
-  "Desistir - Falha Processual",
-  "Desistir - Fatos e Provas",
-  "Desistir - Jurisprudência consolidada",
-  "Desistir - Mídia Negativa",
-  "Desistir - Súmula 266 C.TST",
-  "Prosseguir",
 ].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
 const SEPARADOR = " + ";
