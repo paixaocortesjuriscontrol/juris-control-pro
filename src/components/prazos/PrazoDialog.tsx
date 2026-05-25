@@ -770,7 +770,7 @@ export function PrazoDialog({
                 </>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="flex justify-end gap-2 px-6 py-4 border-t bg-muted/30">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
