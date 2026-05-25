@@ -391,7 +391,7 @@ export default function ListaAtividades() {
                   onChange={(e) =>
                     setFilters((f) => ({ ...f, search: e.target.value }))
                   }
-                  placeholder="Título ou identificador"
+                  placeholder="Título, identificador ou nº processo"
                   className="pl-7 h-8 text-sm"
                 />
               </div>
