@@ -977,19 +977,12 @@ const Processos = () => {
         <>
           {/* Header Row */}
           <div className="bg-card rounded-t-xl border border-border/50 overflow-hidden">
-            <div className="hidden md:grid md:grid-cols-[40px_1fr_200px_180px_180px] gap-4 px-4 py-3 bg-muted/30 border-b border-border/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              <div className="flex items-center justify-center">
-                {isSelectionMode && (
-                  <Checkbox
-                    checked={selectedProcessos.length === processos.length && processos.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                )}
-              </div>
-              <div>TÍTULO</div>
-              <div>CLIENTE / PASTA</div>
-              <div>AÇÃO / FORO</div>
-              <div className="text-right">AÇÕES / DATA</div>
+            <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border/50 text-xs text-muted-foreground">
+              <Checkbox
+                checked={selectedProcessos.length === processos.length && processos.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span>Selecione todos desta página</span>
             </div>
 
             {/* List Items */}
