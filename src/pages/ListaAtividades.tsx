@@ -564,34 +564,19 @@ export default function ListaAtividades() {
                         aria-label="Selecionar todos"
                       />
                     </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
-                      Identificador
+                    <TableHead className="h-9 font-semibold">
+                      Atividade
                     </TableHead>
-                    <TableHead className="h-9 font-semibold min-w-[220px]">
-                      Título
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
-                      Tipo
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
-                      Processo
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
+                    <TableHead className="h-9 font-semibold whitespace-nowrap w-[180px]">
                       Responsável
                     </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
-                      Data base
+                    <TableHead className="h-9 font-semibold whitespace-nowrap w-[140px]">
+                      Datas
                     </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
-                      Data fatal
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
-                      Prioridade
-                    </TableHead>
-                    <TableHead className="h-9 font-semibold whitespace-nowrap">
+                    <TableHead className="h-9 font-semibold whitespace-nowrap w-[120px]">
                       Status
                     </TableHead>
-                    <TableHead className="h-9 font-semibold w-16">
+                    <TableHead className="h-9 font-semibold w-[90px] text-right pr-3">
                       Ações
                     </TableHead>
                   </TableRow>
@@ -599,8 +584,8 @@ export default function ListaAtividades() {
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
-                      <TableRow key={i} className="h-9">
-                        <TableCell colSpan={11}>
+                      <TableRow key={i}>
+                        <TableCell colSpan={6}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -608,7 +593,7 @@ export default function ListaAtividades() {
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={11}
+                        colSpan={6}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -621,7 +606,7 @@ export default function ListaAtividades() {
                         <TableRow
                           key={r.id}
                           data-state={isSel ? "selected" : undefined}
-                          className="h-9 hover:bg-muted/40 cursor-pointer"
+                          className="hover:bg-muted/40 cursor-pointer align-top"
                           onClick={(e) => {
                             const tgt = e.target as HTMLElement;
                             if (tgt.closest("[data-stop]")) return;
@@ -629,68 +614,74 @@ export default function ListaAtividades() {
                             setDetalhesOpen(true);
                           }}
                         >
-                          <TableCell className="px-2 py-1" data-stop>
+                          <TableCell className="px-2 py-3 align-top" data-stop>
                             <Checkbox
                               checked={isSel}
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
-                          <TableCell className="py-1 font-mono text-[11px] text-muted-foreground">
-                            {r.identificador_projuris || "—"}
+                          <TableCell className="py-3 align-top">
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-[11px] text-primary font-semibold">
+                                  {r.identificador_projuris || "—"}
+                                </span>
+                                {r.tipo_tarefa && (
+                                  <Badge
+                                    variant="outline"
+                                    className="font-normal text-[10px] px-1.5 py-0"
+                                  >
+                                    {TIPOS_TAREFA_LABELS[r.tipo_tarefa] || r.tipo_tarefa}
+                                  </Badge>
+                                )}
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "font-normal text-[10px] px-1.5 py-0",
+                                    PRIO_BADGE[r.prioridade] || "",
+                                  )}
+                                >
+                                  {PRIO_LABEL[r.prioridade] || r.prioridade}
+                                </Badge>
+                              </div>
+                              <div className="font-medium text-sm text-foreground truncate max-w-[600px]">
+                                {r.titulo}
+                              </div>
+                              {r.processo?.numero && (
+                                <div className="text-[11px] text-muted-foreground font-mono truncate max-w-[600px]">
+                                  Processo: {r.processo.numero}
+                                  {r.processo.assunto ? ` — ${r.processo.assunto}` : ""}
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
-                          <TableCell className="py-1 font-medium max-w-[420px] truncate">
-                            {r.titulo}
-                          </TableCell>
-                          <TableCell className="py-1 whitespace-nowrap">
-                            {r.tipo_tarefa ? (
-                              <Badge
-                                variant="outline"
-                                className="font-normal text-[10px] px-1.5 py-0"
-                              >
-                                {TIPOS_TAREFA_LABELS[r.tipo_tarefa] || r.tipo_tarefa}
-                              </Badge>
-                            ) : (
-                              "—"
-                            )}
-                          </TableCell>
-                          <TableCell className="py-1 font-mono text-[11px] whitespace-nowrap">
-                            {r.processo?.numero || "—"}
-                          </TableCell>
-                          <TableCell className="py-1 whitespace-nowrap">
+                          <TableCell className="py-3 align-top whitespace-nowrap">
                             {r.responsavel?.nome ? (
                               <div className="flex items-center gap-1.5">
-                                <div className="h-5 w-5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center">
+                                <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
                                   {initials(r.responsavel.nome)}
                                 </div>
-                                <span className="truncate max-w-[120px]">
+                                <span className="truncate max-w-[140px]">
                                   {r.responsavel.nome}
                                 </span>
                               </div>
                             ) : (
-                              "—"
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-1 whitespace-nowrap text-muted-foreground">
-                            {fmtDate(r.data_base)}
-                          </TableCell>
-                          <TableCell className="py-1 whitespace-nowrap font-medium">
-                            <div className="flex items-center gap-1">
-                              <CalendarIcon className="h-3 w-3 text-muted-foreground" />
-                              {fmtDate(r.data_fatal || r.data_vencimento)}
+                          <TableCell className="py-3 align-top whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5 text-[11px]">
+                              <div className="flex items-center gap-1 font-medium">
+                                <CalendarIcon className="h-3 w-3 text-red-500" />
+                                <span className="text-muted-foreground">Fatal:</span>
+                                <span>{fmtDate(r.data_fatal || r.data_vencimento)}</span>
+                              </div>
+                              <div className="text-muted-foreground pl-4">
+                                Base: {fmtDate(r.data_base)}
+                              </div>
                             </div>
                           </TableCell>
-                          <TableCell className="py-1">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "font-normal text-[10px] px-1.5 py-0",
-                                PRIO_BADGE[r.prioridade] || "",
-                              )}
-                            >
-                              {PRIO_LABEL[r.prioridade] || r.prioridade}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-1">
+                          <TableCell className="py-3 align-top">
                             <div className="flex items-center gap-1.5">
                               <span
                                 className={cn(
@@ -701,11 +692,24 @@ export default function ListaAtividades() {
                               <span className="capitalize">{r.status}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-1" data-stop>
+                          <TableCell className="py-3 align-top text-right pr-3" data-stop>
+                            <div className="flex items-center justify-end gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="Editar"
+                                onClick={() => {
+                                  setEditingPrazo(r);
+                                  setDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-7 w-7"
                               title="Concluir"
                               disabled={r.status === "cumprido"}
                               onClick={async () => {
@@ -728,6 +732,7 @@ export default function ListaAtividades() {
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                             </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
