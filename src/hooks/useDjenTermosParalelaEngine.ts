@@ -760,6 +760,10 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   if (tipo === 'parte') {
     // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
     // Nunca valida no corpo/teor geral da publicação.
+    // Se a própria API do PJe retornou a publicação para `nomeParte=<termo>`,
+    // consideramos a parte validada mesmo quando o payload não traz destinatarios/
+    // poloAtivo/poloPassivo completos (comum no TST).
+    if (pub?.__matchedByNomeParte) return true;
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of (mon.termos_or || [])) {
