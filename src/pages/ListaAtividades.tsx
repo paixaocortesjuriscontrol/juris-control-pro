@@ -579,21 +579,16 @@ export default function ListaAtividades() {
                         aria-label="Selecionar todos"
                       />
                     </TableHead>
-                    <TableHead className="h-9 font-semibold w-full text-left">
+                    <TableHead
+                      colSpan={detalhesPrazo ? 1 : 3}
+                      className="h-9 font-semibold w-full text-left"
+                    >
                       Atividade
                     </TableHead>
                     {!detalhesPrazo && (
-                      <>
-                        <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
-                          Responsável
-                        </TableHead>
-                        <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
-                          Datas
-                        </TableHead>
-                        <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
-                          Status
-                        </TableHead>
-                      </>
+                      <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
+                        Status
+                      </TableHead>
                     )}
                     <TableHead className="h-9 font-semibold w-px whitespace-nowrap text-right pr-3">
                       Ações
@@ -638,7 +633,8 @@ export default function ListaAtividades() {
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
-                          <TableCell className="py-3 align-top">
+                          <TableCell colSpan={detalhesPrazo ? 1 : 3} className="py-3 align-top">
+                            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-mono text-[11px] text-primary font-semibold">
@@ -672,35 +668,35 @@ export default function ListaAtividades() {
                                 </div>
                               )}
                             </div>
-                          </TableCell>
-                          {!detalhesPrazo && (
-                          <>
-                          <TableCell className="py-3 align-top whitespace-nowrap">
-                            {r.responsavel?.nome ? (
-                              <div className="flex items-center gap-1.5">
-                                <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
-                                  {initials(r.responsavel.nome)}
+                            {!detalhesPrazo && (
+                              <div className="flex flex-wrap items-start gap-x-5 gap-y-1 text-[11px] text-muted-foreground lg:justify-end lg:whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  {r.responsavel?.nome ? (
+                                    <>
+                                      <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
+                                        {initials(r.responsavel.nome)}
+                                      </div>
+                                      <span className="max-w-[180px] truncate text-foreground">
+                                        {r.responsavel.nome}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span>Responsável: —</span>
+                                  )}
                                 </div>
-                                <span className="truncate max-w-[140px]">
-                                  {r.responsavel.nome}
-                                </span>
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1 font-medium text-foreground">
+                                    <CalendarIcon className="h-3 w-3 text-destructive" />
+                                    <span className="text-muted-foreground">Fatal:</span>
+                                    <span>{fmtDate(r.data_fatal || r.data_vencimento)}</span>
+                                  </div>
+                                  <div className="pl-4">Base: {fmtDate(r.data_base)}</div>
+                                </div>
                               </div>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
                             )}
-                          </TableCell>
-                          <TableCell className="py-3 align-top whitespace-nowrap">
-                            <div className="flex flex-col gap-0.5 text-[11px]">
-                              <div className="flex items-center gap-1 font-medium">
-                                <CalendarIcon className="h-3 w-3 text-red-500" />
-                                <span className="text-muted-foreground">Fatal:</span>
-                                <span>{fmtDate(r.data_fatal || r.data_vencimento)}</span>
-                              </div>
-                              <div className="text-muted-foreground pl-4">
-                                Base: {fmtDate(r.data_base)}
-                              </div>
                             </div>
                           </TableCell>
+                          {!detalhesPrazo && (
                           <TableCell className="py-3 align-top">
                             <div className="flex items-center gap-1.5">
                               <span
@@ -712,7 +708,6 @@ export default function ListaAtividades() {
                               <span className="capitalize">{r.status}</span>
                             </div>
                           </TableCell>
-                          </>
                           )}
                           <TableCell className="py-3 align-top text-right pr-3" data-stop>
                             <div className="flex items-center justify-end gap-0.5">
