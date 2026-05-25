@@ -334,7 +334,7 @@ export default function ListaAtividades() {
           className={cn(
             "grid grid-cols-1 gap-4",
             detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+              ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(380px,1fr)]"
               : "lg:grid-cols-[280px_1fr]",
           )}
         >
