@@ -6,6 +6,7 @@ export interface ResponsavelCount {
   id: string;
   nome: string;
   count: number;
+  pronto: number;
 }
 
 /**
@@ -34,6 +35,7 @@ export function useResponsaveisCounts(filters: DistribuicaoTstFilters) {
           id: r.id,
           nome: r.nome || "(sem nome)",
           count: Number(r.count) || 0,
+          pronto: Number(r.pronto) || 0,
         }));
         if (!cancelled) setCounts(result);
       } catch (e) {
