@@ -1122,6 +1122,7 @@ async function processarTermoEmTribunal(
       onPoolVia: (via) => registrarViaTrack(tribunal, via),
       forceVia: viaId,
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
+      fallbackToPool: viaId !== DIRECT_SLOT_ID,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
@@ -1169,6 +1170,7 @@ async function processarTermoEmTribunal(
           onPoolVia: (via) => registrarViaTrack(tribunal, via),
           forceVia: viaId,
           fallbackToDirect: viaId === DIRECT_SLOT_ID,
+          fallbackToPool: viaId !== DIRECT_SLOT_ID,
         });
         addResults(respRetry.items);
         if (respRetry.items.length > 0) {
