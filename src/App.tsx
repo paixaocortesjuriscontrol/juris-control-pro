@@ -21,6 +21,7 @@ import ImportarProcessos from "./pages/ImportarProcessos";
 import ImportarHub from "./pages/ImportarHub";
 import Configuracoes from "./pages/Configuracoes";
 import Prazos from "./pages/Prazos";
+import ListaAtividades from "./pages/ListaAtividades";
 import Documentos from "./pages/Documentos";
 import BuscarDJEN from "./pages/BuscarDJEN";
 import BuscarPJE from "./pages/BuscarPJE";
@@ -119,6 +120,7 @@ function App() {
               <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalhes /></ProtectedRoute>} />
               <Route path="/processos/:id" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />
               <Route path="/prazos" element={<ProtectedRoute><Prazos /></ProtectedRoute>} />
+              <Route path="/lista-atividades" element={<ProtectedRoute><ListaAtividades /></ProtectedRoute>} />
               <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />

@@ -57,6 +57,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true },
   { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
   { icon: Clock, label: "Prazos Fatais", path: "/tst-prazos", highlight: true },
+  { icon: ClipboardList, label: "Lista de Atividades", path: "/lista-atividades", highlight: true },
   { icon: Calendar, label: "Audiências", path: "/painel-audiencias", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
