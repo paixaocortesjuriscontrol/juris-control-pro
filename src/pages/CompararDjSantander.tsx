@@ -852,6 +852,8 @@ export default function CompararDjSantander() {
   const [selectedCoordenacao, setSelectedCoordenacao] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedDateFim, setSelectedDateFim] = useState<Date | undefined>(undefined);
+  const [selectedPubInicio, setSelectedPubInicio] = useState<Date | undefined>(undefined);
+  const [selectedPubFim, setSelectedPubFim] = useState<Date | undefined>(undefined);
   const [djenProcessos, setDjenProcessos] = useState<string[]>([]);
   const [djenTexto, setDjenTexto] = useState<string>("");
   const [loadingDjen, setLoadingDjen] = useState(false);
@@ -931,6 +933,18 @@ export default function CompararDjSantander() {
   };
   const onChangeDateFim = (d: Date | undefined) => {
     setSelectedDateFim(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangePubInicio = (d: Date | undefined) => {
+    setSelectedPubInicio(d);
+    setDjenLoaded(false);
+    setDjenProcessos([]);
+    setResult(null);
+  };
+  const onChangePubFim = (d: Date | undefined) => {
+    setSelectedPubFim(d);
     setDjenLoaded(false);
     setDjenProcessos([]);
     setResult(null);
@@ -1061,6 +1075,10 @@ export default function CompararDjSantander() {
       const fimStr = format(dataFim, "yyyy-MM-dd");
       const startOfDay = `${inicioStr}T00:00:00.000Z`;
       const endOfDay = `${fimStr}T23:59:59.999Z`;
+      const pubInicioStr = selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null;
+      const pubFimStr = selectedPubFim ? format(selectedPubFim, "yyyy-MM-dd") : (pubInicioStr ?? null);
+      const pubStart = pubInicioStr ? `${pubInicioStr}T00:00:00.000Z` : null;
+      const pubEnd = pubFimStr ? `${pubFimStr}T23:59:59.999Z` : null;
 
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
@@ -1100,13 +1118,15 @@ export default function CompararDjSantander() {
       let hasMore = true;
 
       while (hasMore) {
-        const { data: publicacoes, error } = await supabase
+        let q = supabase
           .from("publicacoes_djen")
           .select("processo_numero, orgao, tipo_comunicacao, conteudo")
           .in("monitoramento_id", monIds)
           .gte("data_disponibilizacao", startOfDay)
-          .lte("data_disponibilizacao", endOfDay)
-          .range(offset, offset + pageSize - 1);
+          .lte("data_disponibilizacao", endOfDay);
+        if (pubStart) q = q.gte("data_publicacao", pubStart);
+        if (pubEnd) q = q.lte("data_publicacao", pubEnd);
+        const { data: publicacoes, error } = await q.range(offset, offset + pageSize - 1);
 
         if (error) {
           console.error("Erro ao buscar publicações:", error);
@@ -1523,6 +1543,47 @@ export default function CompararDjSantander() {
                           mode="single"
                           selected={selectedDateFim}
                           onSelect={(d) => onChangeDateFim(d)}
+                          locale={ptBR}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div />
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Publicação (início)</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedPubInicio && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedPubInicio ? format(selectedPubInicio, "dd/MM/yyyy") : "Opcional"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedPubInicio}
+                          onSelect={(d) => onChangePubInicio(d)}
+                          locale={ptBR}
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Publicação (fim)</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedPubFim && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedPubFim ? format(selectedPubFim, "dd/MM/yyyy") : "Opcional"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={selectedPubFim}
+                          onSelect={(d) => onChangePubFim(d)}
                           locale={ptBR}
                           className="p-3 pointer-events-auto"
                         />
