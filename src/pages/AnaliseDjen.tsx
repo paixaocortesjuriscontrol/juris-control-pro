@@ -28,6 +28,7 @@ import {
   Copy,
   Maximize2,
   Minimize2,
+  Layers,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,18 @@ const AnaliseDjen = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
+  // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
+  // filtra a lista renderizada. Preferência persistida em localStorage.
+  const [ocultarDuplicadas, setOcultarDuplicadas] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = window.localStorage.getItem('analise-djen:ocultar-duplicadas');
+    return stored === null ? true : stored === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('analise-djen:ocultar-duplicadas', ocultarDuplicadas ? '1' : '0');
+  }, [ocultarDuplicadas]);
   // Paginação client-side somente para a aba Descartadas (auditoria),
   // que pode trazer milhares de linhas com HTML completo e travar o render.
   const PAGE_SIZE_DESCARTADAS = 500;
