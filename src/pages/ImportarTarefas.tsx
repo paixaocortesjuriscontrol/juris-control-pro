@@ -1112,6 +1112,14 @@ export default function ImportarTarefas() {
     setNovosProcessosCriados([]);
     createdUsersCache.current.clear();
     createdProcessosCache.current.clear();
+    setImportState({
+      phase: "idle",
+      phaseLabel: "",
+      phaseCurrent: 0,
+      phaseTotal: 0,
+      overall: 0,
+      counters: { novosUsuarios: 0, novosProcessos: 0, sucesso: 0, erro: 0, atualizadas: 0, total: 0 },
+    });
   };
 
   const downloadTemplate = () => {
