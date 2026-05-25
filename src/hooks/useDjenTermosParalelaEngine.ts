@@ -1694,8 +1694,11 @@ async function executarLoop(
         }
       }
     }
+    // Se houver VPS no pool, NÃO usar o browser como via — evita que um worker
+    // fique preso no IP do navegador (sujeito a Failed to fetch do CloudFront
+    // do PJE Comunica), penalizando os tribunais alocados a ele (ex.: TST).
     const vias: ViaSpec[] = viasProxy.length > 0
-      ? [...viasProxy, { id: DIRECT_SLOT_ID, label: 'Direto (browser)' }]
+      ? viasProxy
       : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
     const usandoPoolVps = viasProxy.length > 0;
 
