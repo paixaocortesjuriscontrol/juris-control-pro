@@ -776,7 +776,14 @@ export default function ListaAtividades() {
         </div>
       </div>
 
-      <PrazoDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <PrazoDialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) setEditingPrazo(null);
+        }}
+        prazo={editingPrazo}
+      />
       <TarefaDetalhesDialog
         open={detalhesOpen}
         onOpenChange={setDetalhesOpen}
