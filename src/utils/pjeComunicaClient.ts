@@ -439,7 +439,7 @@ export async function buscarPjeComunicaNoBrowser(
           signal: combinedSignal,
         },
         options?.forceVia
-          ? { forceVia: options.forceVia, fallbackToDirect: options.fallbackToDirect }
+          ? { forceVia: options.forceVia, fallbackToDirect: options.fallbackToDirect, fallbackToPool: options.fallbackToPool }
           : undefined,
       );
       clearTimeout(timeoutId);
@@ -685,6 +685,7 @@ export async function buscarPjeComunicaPaginado(
     onPoolVia?: (via: PoolViaInfo) => void;
     forceVia?: string;
     fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
