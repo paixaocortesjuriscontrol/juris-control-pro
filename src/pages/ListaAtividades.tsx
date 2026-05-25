@@ -330,8 +330,16 @@ export default function ListaAtividades() {
     >
       <div className="flex flex-col gap-4 p-4 lg:p-6 bg-muted/30 min-h-[calc(100vh-4rem)]">
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
-          {/* Filtros laterais */}
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            detalhesPrazo
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+              : "lg:grid-cols-[280px_1fr]",
+          )}
+        >
+          {/* Filtros laterais — ocultos no modo dividido */}
+          {!detalhesPrazo && (
           <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -505,6 +513,7 @@ export default function ListaAtividades() {
               />
             </div>
           </Card>
+          )}
 
           {/* Tabela */}
           <Card className="overflow-hidden">
@@ -617,7 +626,6 @@ export default function ListaAtividades() {
                             const tgt = e.target as HTMLElement;
                             if (tgt.closest("[data-stop]")) return;
                             setDetalhesPrazo(r);
-                            setDetalhesOpen(true);
                           }}
                         >
                           <TableCell className="px-2 py-3 align-top" data-stop>
