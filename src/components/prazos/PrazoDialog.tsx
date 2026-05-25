@@ -396,270 +396,386 @@ export function PrazoDialog({
 
   const isLoading = createPrazo.isPending || updatePrazo.isPending || uploadingAnexos;
 
+  const allTipos = Array.from(new Set([...TIPOS_TAREFA, ...customTipos])).sort();
+
+  const handleAddTipo = () => {
+    const v = novoTipo.trim().toUpperCase();
+    if (!v) {
+      toast.error("Informe o nome do tipo");
+      return;
+    }
+    saveCustomTipo(v);
+    setCustomTipos(loadCustomTipos());
+    setTipoTarefa(v);
+    setNovoTipo("");
+    setShowAddTipo(false);
+    toast.success("Tipo adicionado");
+  };
+
+  const DatePickerField = ({
+    value,
+    onChange,
+    placeholder = "Selecionar data",
+  }: {
+    value: Date | undefined;
+    onChange: (d: Date | undefined) => void;
+    placeholder?: string;
+  }) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            "w-full justify-start text-left font-normal h-9",
+            !value && "text-muted-foreground"
+          )}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {value ? format(value, "dd/MM/yyyy", { locale: ptBR }) : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar mode="single" selected={value} onSelect={onChange} locale={ptBR} className="pointer-events-auto" />
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle>
-            {prazo ? "Alterar Tarefa" : "Nova Tarefa"}
-          </DialogTitle>
-        </DialogHeader>
-
-        <ScrollArea className="max-h-[calc(90vh-100px)] pr-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="titulo">Título *</Label>
-              <Input
-                id="titulo"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                placeholder="Ex: Contestação, Recurso, Audiência..."
-                required
-              />
+      <DialogContent className="sm:max-w-[760px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-6 py-4 border-b bg-muted/30">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-primary/10 text-primary">
+              <ClipboardList className="h-5 w-5" />
             </div>
-
-            {/* Filtros para seleção de processo */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Coordenação</Label>
-                <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrar por coordenação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coordenacoes?.map((coord) => (
-                      <SelectItem key={coord.id} value={coord.id}>
-                        {coord.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Cliente</Label>
-                <Select value={clienteId} onValueChange={handleSelectCliente}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrar por cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {loadingClientes ? (
-                      <SelectItem value="__loading">Carregando clientes...</SelectItem>
-                    ) : clientes?.length ? (
-                      clientes.map((cliente) => (
-                        <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.nome}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="__empty">Nenhum cliente encontrado</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Buscar Processo</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={searchProcesso}
-                  onChange={(e) => setSearchProcesso(e.target.value)}
-                  placeholder="Digite 3+ caracteres para buscar..."
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="processo">Processo (opcional)</Label>
-              {!showProcessoSelect ? (
-                <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
-                  Selecione uma coordenação, cliente ou digite 3+ caracteres para buscar processos
+            <div>
+              <DialogTitle className="text-base font-semibold">
+                {prazo ? "Alterar Tarefa" : "Nova Tarefa"}
+              </DialogTitle>
+              {prazo?.identificador_projuris && (
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                  {prazo.identificador_projuris}
                 </p>
-              ) : loadingProcessos || (defaultProcessoId && loadingProcessoDefault) ? (
-                <div className="flex items-center gap-2 p-3 border rounded-md">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm text-muted-foreground">Carregando processos...</span>
-                </div>
-              ) : processos?.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
-                  Nenhum processo encontrado com os filtros selecionados
-                </p>
-              ) : (
-                <Select value={processoId} onValueChange={setProcessoId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sem vínculo com processo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sem vínculo com processo</SelectItem>
-                    <ScrollArea className="h-[200px]">
-                      {processos?.map((processo) => (
-                        <SelectItem key={processo.id} value={processo.id}>
-                          {processo.numero} - {processo.polo_ativo || processo.assunto || "Sem assunto"}
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
               )}
             </div>
+          </div>
+        </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Data de Vencimento *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dataVencimento && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataVencimento
-                        ? format(dataVencimento, "dd/MM/yyyy", { locale: ptBR })
-                        : "Selecionar data"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dataVencimento}
-                      onSelect={setDataVencimento}
-                      locale={ptBR}
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prioridade">Prioridade *</Label>
-                <Select value={prioridade} onValueChange={setPrioridade}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="baixa">Baixa</SelectItem>
-                    <SelectItem value="media">Média</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="urgente">Urgente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="responsavel">Responsável</Label>
-              <Select value={responsavelId} onValueChange={setResponsavelId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  {advogados?.map((advogado) => (
-                    <SelectItem key={advogado.id} value={advogado.id}>
-                      {advogado.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição</Label>
-              <Textarea
-                id="descricao"
-                value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-                placeholder="Descreva os detalhes do prazo..."
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="observacoes">Observações</Label>
-              <Textarea
-                id="observacoes"
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Observações adicionais..."
-                rows={2}
-              />
-            </div>
-
-            {/* Seção de Anexos - sempre visível quando há processo selecionado */}
-            {processoId && (
-              <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Documentos em Anexo
-                  </Label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id="anexos-prazo-upload"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={handleAddAnexo}
-                      multiple
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-                    />
-                    <Button type="button" variant="outline" size="sm" className="pointer-events-none">
-                      <Upload className="w-3 h-3 mr-1" />
-                      Adicionar
-                    </Button>
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <ScrollArea className="flex-1 px-6 py-5">
+            <div className="space-y-6">
+              {/* SECTION: Vínculo */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <Link2 className="h-3.5 w-3.5" />
+                  Vínculo
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Coordenação</Label>
+                    <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Filtrar por coordenação" /></SelectTrigger>
+                      <SelectContent>
+                        {coordenacoes?.map((coord) => (
+                          <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Cliente</Label>
+                    <Select value={clienteId} onValueChange={handleSelectCliente}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Filtrar por cliente" /></SelectTrigger>
+                      <SelectContent>
+                        {loadingClientes ? (
+                          <SelectItem value="__loading">Carregando clientes...</SelectItem>
+                        ) : clientes?.length ? (
+                          clientes.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>{cliente.nome}</SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="__empty">Nenhum cliente encontrado</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                
-                {anexos.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-2">
-                    Nenhum documento anexado
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {anexos.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-background rounded-lg text-sm">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-4 h-4 text-primary shrink-0" />
-                          <span className="truncate">{file.name}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            ({formatFileSize(file.size)})
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0"
-                          onClick={() => handleRemoveAnexo(index)}
-                        >
-                          <Trash2 className="w-3 h-3 text-destructive" />
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Buscar processo</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={searchProcesso}
+                      onChange={(e) => setSearchProcesso(e.target.value)}
+                      placeholder="Digite 3+ caracteres para buscar..."
+                      className="pl-9 h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Processo vinculado</Label>
+                  {!showProcessoSelect ? (
+                    <p className="text-xs text-muted-foreground p-2.5 border rounded-md bg-muted/40">
+                      Selecione uma coordenação, cliente ou digite 3+ caracteres para buscar processos
+                    </p>
+                  ) : loadingProcessos || (defaultProcessoId && loadingProcessoDefault) ? (
+                    <div className="flex items-center gap-2 p-2.5 border rounded-md">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-xs text-muted-foreground">Carregando processos...</span>
+                    </div>
+                  ) : processos?.length === 0 ? (
+                    <p className="text-xs text-muted-foreground p-2.5 border rounded-md bg-muted/40">
+                      Nenhum processo encontrado com os filtros selecionados
+                    </p>
+                  ) : (
+                    <Select value={processoId} onValueChange={setProcessoId}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Sem vínculo com processo" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Sem vínculo com processo</SelectItem>
+                        <ScrollArea className="h-[200px]">
+                          {processos?.map((processo) => (
+                            <SelectItem key={processo.id} value={processo.id}>
+                              {processo.numero} - {processo.polo_ativo || processo.assunto || "Sem assunto"}
+                            </SelectItem>
+                          ))}
+                        </ScrollArea>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </section>
+
+              <Separator />
+
+              {/* SECTION: Detalhes */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <Briefcase className="h-3.5 w-3.5" />
+                  Detalhes da tarefa
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Tipo de tarefa *</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setShowAddTipo((v) => !v)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Novo tipo
+                      </Button>
+                    </div>
+                    <Select value={tipoTarefa} onValueChange={setTipoTarefa}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                      <SelectContent>
+                        <ScrollArea className="h-[260px]">
+                          {allTipos.map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </ScrollArea>
+                      </SelectContent>
+                    </Select>
+                    {showAddTipo && (
+                      <div className="flex gap-2 pt-1">
+                        <Input
+                          value={novoTipo}
+                          onChange={(e) => setNovoTipo(e.target.value)}
+                          placeholder="Nome do novo tipo"
+                          className="h-8 text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddTipo();
+                            }
+                          }}
+                        />
+                        <Button type="button" size="sm" className="h-8" onClick={handleAddTipo}>
+                          Adicionar
                         </Button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            )}
 
-            <div className="flex justify-end gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {uploadingAnexos ? "Enviando anexos..." : prazo ? "Salvar" : "Criar Tarefa"}
-              </Button>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Título</Label>
+                    <Input
+                      value={titulo}
+                      onChange={(e) => setTitulo(e.target.value)}
+                      placeholder="Título opcional (usa o tipo se vazio)"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data base</Label>
+                    <DatePickerField value={dataBase} onChange={setDataBase} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data prevista *</Label>
+                    <DatePickerField value={dataVencimento} onChange={setDataVencimento} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data fatal</Label>
+                    <DatePickerField value={dataFatal} onChange={setDataFatal} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Local / Link</Label>
+                  <Input
+                    value={localLink}
+                    onChange={(e) => setLocalLink(e.target.value)}
+                    placeholder="Endereço, sala, link da videoconferência..."
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Descrição</Label>
+                  <Textarea
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value)}
+                    placeholder="Descreva os detalhes da tarefa..."
+                    rows={3}
+                  />
+                </div>
+              </section>
+
+              <Separator />
+
+              {/* SECTION: Atribuição */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <Users className="h-3.5 w-3.5" />
+                  Atribuição
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Responsável *</Label>
+                    <Select value={responsavelId} onValueChange={setResponsavelId}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
+                      <SelectContent>
+                        {advogados?.map((advogado) => (
+                          <SelectItem key={advogado.id} value={advogado.id}>{advogado.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Grupos de trabalho</Label>
+                    <Input
+                      value={gruposTrabalho}
+                      onChange={(e) => setGruposTrabalho(e.target.value)}
+                      placeholder="Ex: Trabalhista, Cível..."
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Prioridade *</Label>
+                    <Select value={prioridade} onValueChange={setPrioridade}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="urgente">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Observações</Label>
+                  <Textarea
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    placeholder="Observações adicionais..."
+                    rows={2}
+                  />
+                </div>
+              </section>
+
+              {/* SECTION: Anexos */}
+              {processoId && (
+                <>
+                  <Separator />
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <FileText className="h-3.5 w-3.5" />
+                        Documentos em anexo
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="file"
+                          id="anexos-prazo-upload"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={handleAddAnexo}
+                          multiple
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+                        />
+                        <Button type="button" variant="outline" size="sm" className="pointer-events-none h-8">
+                          <Upload className="w-3 h-3 mr-1" /> Adicionar
+                        </Button>
+                      </div>
+                    </div>
+                    {anexos.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-3 border rounded-md bg-muted/30">
+                        Nenhum documento anexado
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {anexos.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 border rounded-md text-sm bg-background">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="w-4 h-4 text-primary shrink-0" />
+                              <span className="truncate">{file.name}</span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                ({formatFileSize(file.size)})
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => handleRemoveAnexo(index)}
+                            >
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
             </div>
-          </form>
-        </ScrollArea>
+          </ScrollArea>
+
+          <div className="flex justify-end gap-2 px-6 py-4 border-t bg-muted/30">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {uploadingAnexos ? "Enviando anexos..." : prazo ? "Salvar" : "Criar Tarefa"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
