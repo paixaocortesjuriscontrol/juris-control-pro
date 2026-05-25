@@ -1569,6 +1569,19 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Subida em massa</Label>
+                <Select value={filtroSubidaMassa} onValueChange={setFiltroSubidaMassa}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Subida em massa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
