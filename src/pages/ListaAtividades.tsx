@@ -244,9 +244,30 @@ export default function ListaAtividades() {
         q = q.lte("data_vencimento", filters.dataAte);
       }
       if (debouncedSearch) {
-        q = q.or(
-          `titulo.ilike.%${debouncedSearch}%,identificador_projuris.ilike.%${debouncedSearch}%`,
-        );
+        const searchTrim = debouncedSearch.trim();
+        const digits = searchTrim.replace(/\D/g, "");
+        // Se parece um número de processo (6+ dígitos), busca por processo.numero
+        if (digits.length >= 6) {
+          let pq = supabase
+            .from("processos")
+            .select("id")
+            .ilike("numero", `%${digits}%`)
+            .limit(500);
+          if (filters.coordenacaoId) {
+            pq = pq.eq("coordenacao_id", filters.coordenacaoId);
+          }
+          const { data: procs, error: procErr } = await pq;
+          if (procErr) throw procErr;
+          const procIds = (procs || []).map((p: any) => p.id);
+          if (procIds.length === 0) {
+            return { rows: [] as Prazo[], count: 0 };
+          }
+          q = q.in("processo_id", procIds);
+        } else {
+          q = q.or(
+            `titulo.ilike.%${searchTrim}%,identificador_projuris.ilike.%${searchTrim}%`,
+          );
+        }
       }
 
       const { data, error, count } = await q;
