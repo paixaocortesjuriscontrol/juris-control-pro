@@ -1135,7 +1135,7 @@ export default function NovaTarefa() {
                         <Textarea
                           placeholder="Detalhes adicionais sobre a tarefa..."
                           className="resize-none"
-                          rows={4}
+                          rows={8}
                           {...field}
                         />
                       </FormControl>
