@@ -146,14 +146,15 @@ const AnaliseDjen = () => {
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
+  // Default false: mostra todas por padrão; o advogado clica para ocultar.
   const [ocultarDuplicadas, setOcultarDuplicadas] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    const stored = window.localStorage.getItem('analise-djen:ocultar-duplicadas');
-    return stored === null ? true : stored === '1';
+    if (typeof window === 'undefined') return false;
+    const stored = window.localStorage.getItem('analise-djen:ocultar-duplicadas-v2');
+    return stored === null ? false : stored === '1';
   });
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem('analise-djen:ocultar-duplicadas', ocultarDuplicadas ? '1' : '0');
+    window.localStorage.setItem('analise-djen:ocultar-duplicadas-v2', ocultarDuplicadas ? '1' : '0');
   }, [ocultarDuplicadas]);
   // Paginação client-side somente para a aba Descartadas (auditoria),
   // que pode trazer milhares de linhas com HTML completo e travar o render.
