@@ -586,6 +586,7 @@ export async function fetchDjenViaPool(
      */
     forceVia?: string;
     fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
   }
 ): Promise<Response> {
   if (!isDjenProxyPoolEnabled() && !routing?.forceVia) {
@@ -615,22 +616,32 @@ export async function fetchDjenViaPool(
       }
       throw new Error(`Via forçada indisponível: ${routing.forceVia}`);
     }
-    try {
+    const proxyStatusShouldFailover = (status: number) =>
+      status === 403 || status === 502 || status === 503 || status === 504;
+
+    const callProxyAsResponse = async (proxySlot: ProxySlotConfig): Promise<Response> => {
       sessionStats.total++;
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
-        await callProxySlot(slot, fullDirectUrl, init);
-      clearProxyRuntimeState(slot.id);
-      if (upstreamStatus === 429) {
-        sessionStats.rateLimitsByProxy[slot.id] =
-          (sessionStats.rateLimitsByProxy[slot.id] || 0) + 1;
+        await callProxySlot(proxySlot, fullDirectUrl, init);
+      clearProxyRuntimeState(proxySlot.id);
+      if (proxyStatusShouldFailover(upstreamStatus)) {
+        throw new Error(`upstream_status_${upstreamStatus}`);
       }
-      sessionStats.byProxy[slot.id] = (sessionStats.byProxy[slot.id] || 0) + 1;
+      if (upstreamStatus === 429) {
+        sessionStats.rateLimitsByProxy[proxySlot.id] =
+          (sessionStats.rateLimitsByProxy[proxySlot.id] || 0) + 1;
+      }
+      sessionStats.byProxy[proxySlot.id] = (sessionStats.byProxy[proxySlot.id] || 0) + 1;
       const rebuilt = new Response(upstreamBody, {
         status: upstreamStatus || 200,
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
-      return annotateVia(rebuilt, slot.id, slot.label || slot.baseUrl, "proxy");
+      return annotateVia(rebuilt, proxySlot.id, proxySlot.label || proxySlot.baseUrl, "proxy");
+    };
+
+    try {
+      return await callProxyAsResponse(slot);
     } catch (err: any) {
       if (err?.name === "AbortError") throw err;
       const message = err?.message || String(err);
@@ -644,6 +655,23 @@ export async function fetchDjenViaPool(
       }
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
+      if (routing.fallbackToPool) {
+        const alternatives = loadDjenProxyPool().filter(
+          (s) => s.enabled && s.id !== slot.id && isOnline(s),
+        );
+        for (const alt of alternatives) {
+          try {
+            return await callProxyAsResponse(alt);
+          } catch (altErr: any) {
+            if (altErr?.name === "AbortError") throw altErr;
+            const altMessage = altErr?.message || String(altErr);
+            if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
+            else markOffline(alt.id, altMessage);
+            sessionStats.errorsByProxy[alt.id] =
+              (sessionStats.errorsByProxy[alt.id] || 0) + 1;
+          }
+        }
+      }
       if (routing.fallbackToDirect) return callDirect();
       throw err;
     }
@@ -667,6 +695,9 @@ export async function fetchDjenViaPool(
       // Auto-detecta v1 (/djen + envelope) ou v3 (/proxy + cru) por slot.
       const { status: upstreamStatus, body: upstreamBody } =
         await callProxySlot(slot, fullDirectUrl, init);
+      if (upstreamStatus === 403 || upstreamStatus === 502 || upstreamStatus === 503 || upstreamStatus === 504) {
+        throw new Error(`upstream_status_${upstreamStatus}`);
+      }
       clearProxyRuntimeState(slot.id);
 
       if (upstreamStatus === 429) {
