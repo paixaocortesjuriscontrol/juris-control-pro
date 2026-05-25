@@ -563,7 +563,15 @@ export default function ListaAtividades() {
             </div>
 
             <div className="overflow-auto">
-              <Table className="text-xs w-full">
+              <Table className="text-xs w-full table-fixed">
+                <colgroup>
+                  <col className="w-9" />
+                  <col />
+                  <col className="w-[160px]" />
+                  <col className="w-[140px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[72px]" />
+                </colgroup>
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
                   <TableRow className="h-9">
                     <TableHead className="w-8 px-2 whitespace-nowrap">
@@ -634,7 +642,7 @@ export default function ListaAtividades() {
                             />
                           </TableCell>
                           <TableCell colSpan={detalhesPrazo ? 1 : 3} className="py-3 align-top">
-                            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                            <div className="flex min-w-0 flex-col gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-mono text-[11px] text-primary font-semibold">
@@ -658,7 +666,7 @@ export default function ListaAtividades() {
                                   {PRIO_LABEL[r.prioridade] || r.prioridade}
                                 </Badge>
                               </div>
-                              <div className="font-medium text-sm text-foreground break-words">
+                              <div className="font-medium text-sm text-foreground break-words leading-snug">
                                 {r.titulo}
                               </div>
                               {r.processo?.numero && (
@@ -669,7 +677,7 @@ export default function ListaAtividades() {
                               )}
                             </div>
                             {!detalhesPrazo && (
-                              <div className="flex flex-wrap items-start gap-x-5 gap-y-1 text-[11px] text-muted-foreground lg:justify-end lg:whitespace-nowrap">
+                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
                                 <div className="flex items-center gap-1.5">
                                   {r.responsavel?.nome ? (
                                     <>
