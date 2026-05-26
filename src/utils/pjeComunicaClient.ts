@@ -165,8 +165,8 @@ const getGlobalCooldownRemainingMs = (via?: string | null): number => {
  * Exportado para que engines (DJEN Pro/Flash) possam aguardar o cooldown global
  * ANTES de iniciar um novo termo, evitando cascata de 429 entre termos consecutivos.
  */
-export const awaitPjeComunicaGlobalCooldown = awaitGlobalCooldown;
-export const getPjeComunicaGlobalCooldownRemainingMs = getGlobalCooldownRemainingMs;
+export const awaitPjeComunicaGlobalCooldown = (via?: string | null) => awaitGlobalCooldown(via);
+export const getPjeComunicaGlobalCooldownRemainingMs = (via?: string | null) => getGlobalCooldownRemainingMs(via);
 function optimizeItem(item: any) {
   // IMPORTANTE:
   // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
