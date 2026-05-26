@@ -603,6 +603,14 @@ export async function buscarPjeComunicaNoBrowser(
   // Com a estratégia v6 (grupos OR), temos ~200-400 requisições ao invés de 13.000+
   // Isso torna o risco de WORKER_LIMIT (546) baixo e aceitável
   if (corsBlocked) {
+    // REGRA ESTRITA: termos do tipo 'parte' NUNCA podem cair em fallback
+    // por Edge Function — esse caminho historicamente traduzia a busca em
+    // palavra-chave/texto, gerando capturas erradas, lentidão e 429.
+    // Falha em CORS deve voltar como erro para o engine tratar/retentar.
+    if (params.tipo === 'parte') {
+      console.warn('[PJE Comunica] CORS bloqueou busca por parte — fallback Edge Function DESABILITADO para tipo=parte.');
+      throw lastErr || new Error('CORS bloqueado em busca por parte (sem fallback permitido)');
+    }
     console.log('[PJE Comunica] CORS blocked, usando Edge Function como proxy...');
     
     try {
