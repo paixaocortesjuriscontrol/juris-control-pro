@@ -18,7 +18,8 @@ const ADVOGADO_TEMPORARIO_ALLOWED = new Set([
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
 
   if (loading || roleLoading) {
     return (
@@ -32,7 +33,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 
   if (role === "advogado_temporario" && !ADVOGADO_TEMPORARIO_ALLOWED.has(pathname)) {
