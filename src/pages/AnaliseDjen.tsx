@@ -29,6 +29,7 @@ import {
   Maximize2,
   Minimize2,
   Layers,
+  Zap,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
-type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
 const formatToUTC = (date: Date) => date.toISOString();
@@ -251,8 +252,8 @@ const AnaliseDjen = () => {
     readStatus,
     apenasHoje: apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
-    // datajud é tratado separadamente
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
+    // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
     // Quando estamos na aba "Descartadas", a listagem vem da RPC dedicada
     // (paginação + deduplicação no banco). O hook unificado é desligado
     // nesse caso para evitar consultas duplicadas e pesadas.
@@ -3241,6 +3242,9 @@ const AnaliseDjen = () => {
   // Filtro client-side por data de disponibilização.
   const allPublicacoes = useMemo(() => {
     let result = mergedPublicacoes;
+    if (tipoOrigem === 'kurier') {
+      result = result.filter(pub => (pub.fonte || '').toLowerCase() === 'kurier');
+    }
     if (dataDisponibilizacao) {
       result = result.filter(pub => {
         if (!pub.data_disponibilizacao) return false;
@@ -3262,7 +3266,7 @@ const AnaliseDjen = () => {
       result = dedupePublicacoesDjen(result);
     }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
@@ -3334,6 +3338,10 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
+  const totalKurierVisivel = useMemo(
+    () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
+    [mergedPublicacoes]
+  );
   const usarContadoresDaLista = filtroDataDisponibilizacaoAtivo || !!tribunalFiltro;
   const totalGeralFiltrado = usarContadoresDaLista
     ? totalListaVisivel
@@ -3422,7 +3430,7 @@ const AnaliseDjen = () => {
         <DjenExecutionBanner />
 
         {/* Stats Cards - Mobile optimized */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
@@ -3509,6 +3517,23 @@ const AnaliseDjen = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card
+            className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setTipoOrigem('kurier')}
+          >
+            <CardContent className="p-3 md:pt-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-orange-600 dark:text-orange-400 truncate">Kurier</p>
+                  <p className="text-xl md:text-3xl font-bold text-orange-700 dark:text-orange-300">
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalKurierVisivel}
+                  </p>
+                </div>
+                <Zap className="w-6 h-6 md:w-10 md:h-10 text-orange-500/50 flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filtros - Mobile optimized */}
@@ -3549,10 +3574,11 @@ const AnaliseDjen = () => {
                   value={tipoOrigem}
                   onChange={(e) => setTipoOrigem(e.target.value as any)}
                 >
-                  <option value="todos">DJEN: Termos + Processos</option>
+                  <option value="todos">Todas (todas as origens)</option>
                   <option value="termo">Por Termos/OAB</option>
                   <option value="parte">Por Parte</option>
                   <option value="processo">Por Processos</option>
+                  <option value="kurier">Kurier</option>
                   <option value="datajud">DataJud (CNJ)</option>
                   <option value="djet-pautas">DEJT Pautas</option>
                   <option value="descartada">Descartadas (auditoria)</option>
@@ -4071,6 +4097,13 @@ const AnaliseDjen = () => {
                                       <Gavel className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
                                       <span className="hidden sm:inline">Processo Cadastrado</span>
                                       <span className="sm:hidden">Processo</span>
+                                    </Badge>
+                                  )}
+
+                                  {(pub.fonte || '').toLowerCase() === 'kurier' && (
+                                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                      <Zap className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
+                                      Kurier
                                     </Badge>
                                   )}
                                   
