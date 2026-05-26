@@ -77,6 +77,23 @@ function pickStr(p: KurierPub, ...keys: string[]): string | null {
   return null;
 }
 
+function pickInt(p: KurierPub, ...keys: string[]): number | null {
+  const raw = pickStr(p, ...keys);
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildConfirmacaoKurier(p: KurierPub): Record<string, number | string> | null {
+  const IdProcesso = pickInt(p, "IdProcesso", "idProcesso", "IDProcesso");
+  const CodigoTermoPesquisa = pickInt(p, "CodigoTermoPesquisa", "codigoTermoPesquisa");
+  const CodigoDiario = pickInt(p, "CodigoDiario", "codigoDiario");
+  const CodigoDivisaoDiario = pickInt(p, "CodigoDivisaoDiario", "codigoDivisaoDiario");
+  const DataDiario = pickStr(p, "DataDiario", "dataDiario");
+  if (!IdProcesso || !CodigoTermoPesquisa || !CodigoDiario || !CodigoDivisaoDiario || !DataDiario) return null;
+  return { IdProcesso, CodigoTermoPesquisa, CodigoDiario, CodigoDivisaoDiario, DataDiario };
+}
+
 function normalizedKey(k: string): string {
   return String(k || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
@@ -347,6 +364,7 @@ Deno.serve(async (req: Request) => {
       lotesProcessados++;
       totalRecebidas += pubs.length;
       const idsConfirmar: string[] = [];
+      const confirmacoes: Record<string, number | string>[] = [];
 
       const rawRows: any[] = [];
 
@@ -486,6 +504,8 @@ Deno.serve(async (req: Request) => {
           recebida_em: new Date().toISOString(),
         });
 
+        const confirmacao = buildConfirmacaoKurier(p);
+        if (confirmacao) confirmacoes.push(confirmacao);
         if (idK) idsConfirmar.push(idK);
       }
 
@@ -497,23 +517,24 @@ Deno.serve(async (req: Request) => {
       }
 
       // Confirma o lote
-      if (idsConfirmar.length) {
+      if (confirmacoes.length) {
         try {
           const confirmUrl = buildKurierUrl(baseUrl, "/api/KJuridico/ConfirmarPublicacoes", {
           });
           const cResp = await fetch(confirmUrl, {
             method: "POST",
             headers: buildKurierAuthHeaders(cred.login, senha, { "Content-Type": "application/json" }),
-            body: JSON.stringify(idsConfirmar.map((id) => ({ id }))),
+            body: JSON.stringify(confirmacoes),
           });
           if (cResp.ok) {
-            totalConfirmadas += idsConfirmar.length;
+            totalConfirmadas += confirmacoes.length;
             await admin
               .from("kurier_publicacoes_raw")
               .update({ confirmada: true, confirmada_em: new Date().toISOString() })
               .in("id_kurier", idsConfirmar);
           } else {
-            ultimoErro = `Falha confirmacao HTTP ${cResp.status}`;
+            const cText = await cResp.text().catch(() => "");
+            ultimoErro = `Falha confirmacao HTTP ${cResp.status}: ${cText.slice(0, 160)}`;
           }
         } catch (e) {
           ultimoErro = `Falha confirmacao: ${String(e)}`;
