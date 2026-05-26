@@ -2024,6 +2024,14 @@ export function executarDjenTermosParalela(
   const hoje = ymdBrasilia();
   const inicio = dataInicioYmd || hoje;
   const fim = dataFimYmd || hoje;
+  // Quando NÃO é retomada, limpa imediatamente os cards/tracks da execução
+  // anterior para que a UI não fique mostrando o estado antigo enquanto o
+  // loop assíncrono prepara os novos workers.
+  if (!retomar) {
+    state.progress = createDefaultProgress();
+    state.lastUpdatedAt = Date.now();
+    notifyListeners();
+  }
   void executarLoop(inicio, fim, retomar, coordenacaoId, monitoramentoIds);
 }
 
