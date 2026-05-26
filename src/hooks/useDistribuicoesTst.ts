@@ -87,7 +87,7 @@ export interface DistribuicaoTstFilters {
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
-  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio";
+  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio" | "segredo_justica";
   subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
@@ -302,6 +302,8 @@ export async function fetchAllDistribuicaoTstIds(
       query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
     } else if (filters.situacaoProcesso === "outro_escritorio") {
       query = query.eq("processo_outro_escritorio", true);
+    } else if (filters.situacaoProcesso === "segredo_justica") {
+      query = query.eq("segredo_justica", true);
     }
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -451,6 +453,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
     } else if (filters.situacaoProcesso === "outro_escritorio") {
       query = query.eq("processo_outro_escritorio", true);
+    } else if (filters.situacaoProcesso === "segredo_justica") {
+      query = query.eq("segredo_justica", true);
     }
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
