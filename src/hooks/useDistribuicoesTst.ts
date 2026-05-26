@@ -95,7 +95,7 @@ export interface DistribuicaoTstFilters {
   responsavelIds?: string[];
   semTurma?: boolean;
   status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
-  emAnalise?: "todos" | "sim" | "nao";
+  emAnalise?: "todos" | "sim" | "nao" | "analisado";
   problemaJudit?: "todos" | "sim" | "nao";
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;

@@ -1539,6 +1539,9 @@ export type Database = {
       dados_benner: {
         Row: {
           aba_origem: string | null
+          analisado: boolean
+          analisado_em: string | null
+          analisado_por: string | null
           analise_quarteirizado: string | null
           aparelhamento_banco: string | null
           aparelhamento_reclamante: string | null
@@ -1645,6 +1648,9 @@ export type Database = {
         }
         Insert: {
           aba_origem?: string | null
+          analisado?: boolean
+          analisado_em?: string | null
+          analisado_por?: string | null
           analise_quarteirizado?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
@@ -1751,6 +1757,9 @@ export type Database = {
         }
         Update: {
           aba_origem?: string | null
+          analisado?: boolean
+          analisado_em?: string | null
+          analisado_por?: string | null
           analise_quarteirizado?: string | null
           aparelhamento_banco?: string | null
           aparelhamento_reclamante?: string | null
