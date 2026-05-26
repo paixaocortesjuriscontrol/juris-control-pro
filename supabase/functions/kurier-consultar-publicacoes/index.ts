@@ -329,16 +329,11 @@ Deno.serve(async (req: Request) => {
     let lotesProcessados = 0;
 
     for (let lote = 0; lote < max_lotes; lote++) {
-      const qp: Record<string, string> = {};
-      if (data_inicio) {
-        qp.dataInicio = data_inicio;
-        qp.dataDisponibilizacaoInicio = data_inicio;
-      }
-      if (data_fim) {
-        qp.dataFim = data_fim;
-        qp.dataDisponibilizacaoFim = data_fim;
-      }
-      const url = buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", qp);
+      // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
+      // credenciais retornam 0 quando a data é enviada, impedindo a drenagem.
+      // A janela solicitada pelo usuário continua sendo obedecida no filtro
+      // local abaixo, e itens fora da janela são confirmados para liberar a fila.
+      const url = buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
 
       let resp: Response;
       let texto = "";
