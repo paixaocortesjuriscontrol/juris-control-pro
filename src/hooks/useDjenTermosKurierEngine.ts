@@ -52,6 +52,7 @@ interface Checkpoint {
   novas: number;
   duplicadas: number;
   descartadas: number;
+  foraJanela: number;
   confirmadas: number;
   tempoInicio: number;
 }
@@ -200,7 +201,7 @@ async function processarCredencial(
         novas: progress.novas,
         duplicadas: progress.duplicadas,
         descartadas: progress.descartadas,
-          foraJanela: progress.foraJanela,
+        foraJanela: progress.foraJanela,
         confirmadas: progress.confirmadas,
         tempoInicio: progress.iniciadoEm ? new Date(progress.iniciadoEm).getTime() : Date.now(),
       });
