@@ -57,6 +57,45 @@ export function KurierCredenciaisPanel() {
   const { data: creds = [], isLoading, update, create, remove, salvarSenha, testar } = useKurierCredenciais();
   const [novoLogin, setNovoLogin] = useState("");
   const [testandoId, setTestandoId] = useState<string | null>(null);
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const qc = useQueryClient();
+  const { data: vinculos = [] } = useQuery({
+    queryKey: ["kurier-cred-coord-vinculos"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("kurier_credencial_coordenacoes")
+        .select("credencial_id, coordenacao_id");
+      if (error) throw error;
+      return data as { credencial_id: string; coordenacao_id: string }[];
+    },
+  });
+
+  const vinculosPorCred = new Map<string, Set<string>>();
+  for (const v of vinculos) {
+    if (!vinculosPorCred.has(v.credencial_id)) vinculosPorCred.set(v.credencial_id, new Set());
+    vinculosPorCred.get(v.credencial_id)!.add(v.coordenacao_id);
+  }
+
+  async function toggleVinculo(credencialId: string, coordenacaoId: string, marcar: boolean) {
+    try {
+      if (marcar) {
+        const { error } = await (supabase as any)
+          .from("kurier_credencial_coordenacoes")
+          .insert({ credencial_id: credencialId, coordenacao_id: coordenacaoId });
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from("kurier_credencial_coordenacoes")
+          .delete()
+          .eq("credencial_id", credencialId)
+          .eq("coordenacao_id", coordenacaoId);
+        if (error) throw error;
+      }
+      await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
+    } catch (e: any) {
+      toast.error(`Falha ao atualizar vínculo: ${e?.message ?? e}`);
+    }
+  }
 
   const ativos = creds.filter((c) => c.ativo).length;
   const comSenha = creds.filter((c) => !!c.senha_encrypted).length;
@@ -101,6 +140,7 @@ export function KurierCredenciaisPanel() {
                 <TableHead>Senha</TableHead>
                 <TableHead className="w-24">Prioridade</TableHead>
                 <TableHead className="w-20">Ativo</TableHead>
+                <TableHead>Coordenações</TableHead>
                 <TableHead>Último uso</TableHead>
                 <TableHead>Último status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -136,6 +176,45 @@ export function KurierCredenciaisPanel() {
                         update.mutate({ id: c.id, patch: { ativo: v } });
                       }}
                     />
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const selected = vinculosPorCred.get(c.id) ?? new Set<string>();
+                      const count = selected.size;
+                      return (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button size="sm" variant="outline" className="h-8 gap-1">
+                              <Users className="h-3 w-3" />
+                              {count === 0 ? "Nenhuma" : `${count} coord.`}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 max-h-80 overflow-auto" align="start">
+                            <div className="text-xs font-medium mb-2 text-muted-foreground">
+                              Coordenações que usam este login
+                            </div>
+                            {coordenacoes.length === 0 ? (
+                              <div className="text-xs text-muted-foreground">Nenhuma coordenação disponível.</div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                {coordenacoes.map((coord: any) => {
+                                  const checked = selected.has(coord.id);
+                                  return (
+                                    <label key={coord.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded p-1">
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={(v) => toggleVinculo(c.id, coord.id, !!v)}
+                                      />
+                                      <span className="truncate">{coord.nome}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {c.ultimo_uso ? new Date(c.ultimo_uso).toLocaleString("pt-BR") : "—"}
