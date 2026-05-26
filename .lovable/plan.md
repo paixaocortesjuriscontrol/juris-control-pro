@@ -1,47 +1,45 @@
-## Versão simples
+## Diagnóstico
 
-Em vez de shards dinâmicos e re-roteamento ao vivo, faço o mínimo: trato cada **monitoramento de parte** como uma unidade de trabalho independente na fila, igual já fazemos hoje com `(tipo, tribunal)`.
+O "Cooldown PJE 42s" que aparece em quase todos os tracks acontece porque o cooldown é **global** no cliente PJE Comunica — uma única variável de módulo `globalCooldownUntil` em `src/utils/pjeComunicaClient.ts` (linha 88). Quando **qualquer** VPS recebe um 429/503/504, essa variável é setada e **todos os workers das 6 VPSs** ficam esperando os 42s, mesmo quem está usando outra VPS que não foi rate-limitada.
 
-Hoje a unidade é `parte|TST` (1 item na fila, 112 monitoramentos dentro). Vou trocar para `parte|TST|<mon.id>` (112 itens na fila, 1 monitoramento cada). Pronto — o pool de VPSs existente puxa esses 112 itens em paralelo automaticamente, sem código novo de sharding, sem re-balance, sem leftover queue.
+Pontos no código:
+- `setGlobalCooldown(...)` é chamado nas linhas 480, 486, 781 sem distinguir qual VPS atendeu a requisição.
+- `awaitGlobalCooldown()` (linha 424) é chamado antes de toda requisição, igual para todas as VPSs.
+- O motor Paralela (`useDjenTermosParalelaEngine.ts` linhas 1022-1026) ainda mostra "Cooldown PJE" no track porque consulta esse cooldown global.
 
-```text
-ANTES: fila parte tem [parte|TST, parte|STF, parte|STJ, ...]
-       Worker pega parte|TST → processa os 112 monitoramentos sozinho.
+## Solução
 
-DEPOIS: fila parte tem [parte|TST|m1, parte|TST|m2, ..., parte|TST|m112,
-                        parte|STF|m1, ...]
-        Cada VPS livre pega 1 item → 1 monitoramento. Paralelismo natural.
-```
+Tornar o cooldown **por proxy/VPS**, usando como chave o `via` (id da VPS / "direct") retornado pelo `djenProxyPool`.
 
-## Mudanças mínimas em `useDjenTermosParalelaEngine.ts`
+### `src/utils/pjeComunicaClient.ts`
 
-1. **Granularidade da fila só para `tipo=parte`**: ao montar `queues['parte']`, expandir cada tribunal em N entradas (uma por monitoramento aplicável). Outros tipos continuam exatamente como estão.
+1. Trocar `let globalCooldownUntil = 0;` por `const cooldownByVia = new Map<string, number>()`.
+2. `setGlobalCooldown(ms, via)` passa a aceitar a chave `via` e atualiza só essa entrada (mantém `Math.max` por chave).
+3. `awaitGlobalCooldown(via)` e `getGlobalCooldownRemainingMs(via)` recebem a chave e leem só o cooldown daquela VPS.
+4. No `doRequest` (linha 423):
+   - Antes do fetch, se já houver um `forceVia` definido, aguardar o cooldown **daquela** VPS. Quando não houver `forceVia` (decisão de pool acontece dentro do `fetchDjenViaPool`), aguardar o menor cooldown disponível (e idealmente fazer o pool escolher uma VPS sem cooldown — passo 6).
+   - Após o response, ler `via` via `readPoolViaFromResponse` e, em 429/502/503/504, chamar `setGlobalCooldown(wait, via)` — só penaliza a VPS culpada.
+5. Atualizar a linha 781 (retry no outro bloco) da mesma forma — usar o `via` da resposta atual.
+6. (Opcional, mas recomendado) Expor `getCooldownSnapshot(): Record<string, number>` e fazer `djenProxyPool` consultá-lo para evitar escolher uma VPS em cooldown quando há outras livres.
 
-2. **Track key**: aceita formato estendido `parte|TRIBUNAL|MON_ID`. A UI exibe "TST · parte · <termo_busca>" para essa entrada. Para os outros tipos, segue `tipo|tribunal` igual a hoje.
+### `src/utils/djenProxyPool.ts`
 
-3. **`processarTribunalTrack`** ganha parâmetro opcional `monId?: string`. Quando presente, filtra `monsParaEsseTrib` para esse único monitoramento. Quando ausente, comportamento atual (todos os mons do tribunal).
+- Aceitar/consumir o snapshot de cooldowns para que o round-robin pule VPSs em cooldown.
 
-4. **Checkpoint**: `unidadesConcluidas` aceita as 3 formas (`tribunal`, `tipo|tribunal`, `tipo|tribunal|monId`). Formatos antigos são ignorados.
+### `src/hooks/useDjenTermosParalelaEngine.ts`
 
-5. **Bump**: `public/version.json` → `1.2.0`.
+- A leitura `getPjeComunicaGlobalCooldownRemainingMs()` (linha 1023) passa a receber o `via` da unidade (cada `WorkUnit` já é despachada para uma VPS no `VPSWorkerPool`). Mostrar `⏸ Cooldown PJE 42s` só quando **aquela** VPS estiver em cooldown; caso contrário, prosseguir.
 
-## Por que isso é seguro
+### Exports a manter
 
-- Não muda dedup, validação de parte, anti-429, pool de VPS, steal cross-tipo, nem o caminho de busca por `nomeParte`.
-- Reaproveita 100% do código de `processarTermoEmTribunal` e da fila atual — só altera **como a fila é construída** para `tipo=parte`.
-- Sem instrumentação nova; sem mexer em `CONFIG`/delays.
-- Rollback trivial: voltar a expansão da fila para a forma anterior.
+- `awaitPjeComunicaGlobalCooldown` e `getPjeComunicaGlobalCooldownRemainingMs` continuam exportados (compat), mas agora aceitam parâmetro `via?: string`. Sem parâmetro, retornam o mínimo dos cooldowns (compat com chamadas antigas como o Kurier/Flash).
 
-## O que NÃO faço (cortado para reduzir risco)
+### Versão
 
-- Sharding por hash com sub-filas dedicadas.
-- Leftover queue / re-shard ao vivo.
-- Logs de instrumentação por mon.
-- Mudanças em delays.
+- Bump `public/version.json` → `1.2.2`.
 
-Se depois quisermos investigar a regressão de velocidade percebida, faço em uma rodada separada com logs dedicados — fora deste plano.
+## Resultado esperado
 
-## Arquivos tocados
-
-- `src/hooks/useDjenTermosParalelaEngine.ts`
-- `public/version.json`
+- Um 429 em uma VPS pausa apenas aquela VPS por 42s.
+- As outras 5 continuam trabalhando normalmente.
+- O badge "Cooldown PJE" só aparece nos tracks cuja VPS está realmente penalizada.
