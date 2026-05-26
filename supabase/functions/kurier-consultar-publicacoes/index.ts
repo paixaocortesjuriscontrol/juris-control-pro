@@ -417,15 +417,6 @@ Deno.serve(async (req: Request) => {
             if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
             const idKForaJanela = pickId(p);
             if (idKForaJanela) idsConfirmar.push(idKForaJanela);
-            rawRows.push({
-              id_kurier: pickId(p) ?? `outwin_${sha256(JSON.stringify(p)).slice(0, 24)}`,
-              credencial_id: cred.id,
-              login_usado: cred.login,
-              payload: p as any,
-              publicacao_djen_id: null,
-              motivo_descarte: `fora_janela_datas:${refYmd ?? "sem_data"}`,
-              recebida_em: new Date().toISOString(),
-            });
             continue;
           }
         }
