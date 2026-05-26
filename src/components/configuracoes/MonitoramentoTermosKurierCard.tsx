@@ -27,7 +27,7 @@ function formatDuracao(s: number) {
 }
 
 export function MonitoramentoTermosKurierCard() {
-  const { progress, isRunning, canResume, executar, drenarBacklog, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
+  const { progress, isRunning, canResume, executar, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
   const { config, saveConfig } = useDjenTermosKurierScheduler();
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
   const [freqDraft, setFreqDraft] = useState<string | null>(null);
@@ -231,17 +231,6 @@ export function MonitoramentoTermosKurierCard() {
             )}
             <Button variant="outline" disabled={!isRunning} onClick={() => void cancelar()}>
               <Square className="h-4 w-4 mr-1" /> Cancelar
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={isRunning}
-              onClick={() => {
-                const f = getFilters();
-                drenarBacklog(f.coordenacaoId, f.monitoramentoIds);
-              }}
-              title="Consome todo o backlog antigo do Kurier sem filtro de data até a fila ficar vazia"
-            >
-              <Waves className="h-4 w-4 mr-1" /> Drenar backlog
             </Button>
             <Button variant="destructive" onClick={() => void forceKill(true)}>
               <ShieldAlert className="h-4 w-4 mr-1" /> Force Kill + limpar
