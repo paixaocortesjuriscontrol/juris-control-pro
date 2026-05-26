@@ -3821,6 +3821,7 @@ export type Database = {
           id: string
           id_kurier: string
           login_usado: string | null
+          motivo_descarte: string | null
           payload: Json
           publicacao_djen_id: string | null
           recebida_em: string
@@ -3833,6 +3834,7 @@ export type Database = {
           id?: string
           id_kurier: string
           login_usado?: string | null
+          motivo_descarte?: string | null
           payload: Json
           publicacao_djen_id?: string | null
           recebida_em?: string
@@ -3845,6 +3847,7 @@ export type Database = {
           id?: string
           id_kurier?: string
           login_usado?: string | null
+          motivo_descarte?: string | null
           payload?: Json
           publicacao_djen_id?: string | null
           recebida_em?: string

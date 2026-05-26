@@ -47,7 +47,16 @@ interface KurierPub {
 }
 
 function pickId(p: KurierPub): string | null {
-  const raw = p.id ?? p.Id ?? p.idPublicacao ?? p.IdPublicacao;
+  const raw =
+    p.id ?? p.Id ??
+    (p as any).idPublicacao ?? (p as any).IdPublicacao ??
+    (p as any).idDocumento ?? (p as any).IdDocumento ??
+    (p as any).cdDocumento ?? (p as any).CdDocumento ??
+    (p as any).codigoDocumento ?? (p as any).CodigoDocumento ??
+    (p as any).numeroDocumento ?? (p as any).NumeroDocumento ??
+    (p as any).protocolo ?? (p as any).Protocolo ??
+    (p as any).hash ?? (p as any).Hash ??
+    (p as any).guid ?? (p as any).Guid;
   if (raw === undefined || raw === null || raw === "") return null;
   return String(raw);
 }
@@ -184,43 +193,74 @@ Deno.serve(async (req: Request) => {
 
       if (!pubs.length) break; // Sem mais publicações pendentes
 
+      // Log do shape da primeira publicação do primeiro lote para diagnóstico
+      if (lote === 0 && pubs[0]) {
+        try {
+          console.log(`[kurier] payload keys lote0:`, Object.keys(pubs[0]).join(","));
+          console.log(`[kurier] payload sample lote0:`, JSON.stringify(pubs[0]).slice(0, 1500));
+        } catch {}
+      }
+
       lotesProcessados++;
       totalRecebidas += pubs.length;
       const idsConfirmar: string[] = [];
 
       for (const p of pubs) {
         const idK = pickId(p);
-        if (!idK) { totalDescartadas++; continue; }
+        // Mesmo sem id reconhecido, persiste o payload para inspecionar depois.
+        // Usa fallback hash para evitar perder o payload e poder reprocessar.
+        const idKEff = idK ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
 
         // Idempotência: se já existe em raw, é duplicada (já foi processada antes).
         const { data: existente } = await admin
           .from("kurier_publicacoes_raw")
           .select("id, publicacao_djen_id")
-          .eq("id_kurier", idK)
+          .eq("id_kurier", idKEff)
           .maybeSingle();
 
         if (existente) {
           totalDuplicadas++;
-          idsConfirmar.push(idK);
+          if (idK) idsConfirmar.push(idK);
           continue;
         }
 
-        const numero = normalizeProcesso(pickStr(p, "numero_processo", "NumeroProcesso", "processo", "Processo"));
-        const conteudo = pickStr(p, "conteudo", "Conteudo", "texto", "Texto");
-        const dataDisp = pickStr(p, "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao");
-        const dataPub = pickStr(p, "data_publicacao", "DataPublicacao", "dataPublicacao");
-        const tribunal = pickStr(p, "tribunal", "Tribunal", "siglaTribunal");
+        const numero = normalizeProcesso(pickStr(p,
+          "numero_processo", "NumeroProcesso", "processo", "Processo",
+          "numProcesso", "NumProcesso", "nrProcesso", "NrProcesso",
+          "numeroProcesso", "processoNumero", "ProcessoNumero",
+          "numeroProcessoFormatado", "NumeroProcessoFormatado",
+          "processoCNJ", "ProcessoCNJ"));
+        const conteudo = pickStr(p,
+          "conteudo", "Conteudo", "texto", "Texto",
+          "mensagem", "Mensagem", "descricao", "Descricao",
+          "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
+          "publicacao", "Publicacao", "movimento", "Movimento",
+          "andamento", "Andamento", "intimacao", "Intimacao");
+        const dataDisp = pickStr(p,
+          "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
+          "dtDisponibilizacao", "DtDisponibilizacao",
+          "dataDisponibilidade", "DataDisponibilidade");
+        const dataPub = pickStr(p,
+          "data_publicacao", "DataPublicacao", "dataPublicacao",
+          "dtPublicacao", "DtPublicacao",
+          "dataMovimento", "DataMovimento", "dtMovimento", "DtMovimento");
+        const tribunal = pickStr(p,
+          "tribunal", "Tribunal", "siglaTribunal", "SiglaTribunal",
+          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador");
 
         let publicacaoDjenId: string | null = null;
+        let motivoDescarte: string | null = null;
+        if (!idK) motivoDescarte = "id_nao_reconhecido";
 
         if (numero && conteudo) {
           // 1) Matching contra monitoramentos DJEN (mesma lógica do monitorar-djen)
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
+          let motivoExcl: string | null = null;
           for (const m of monitoramentos) {
             try {
               if (!conteudoContemTermoOuOr(conteudo, m as Monitoramento)) continue;
               const motivo = shouldExclude(conteudo, m.exclusoes || [], null, null);
-              if (motivo) continue;
+              if (motivo) { motivoExcl = motivo; continue; }
               matched = m;
               break;
             } catch (e) {
@@ -230,6 +270,7 @@ Deno.serve(async (req: Request) => {
 
           if (!matched) {
             totalDescartadas++;
+            motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
           } else {
             const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
             const digits = numero.replace(/\D/g, "");
@@ -269,6 +310,7 @@ Deno.serve(async (req: Request) => {
               if (pubErr) {
                 console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
                 totalDuplicadas++;
+                motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
               } else if (insPub) {
                 publicacaoDjenId = insPub.id;
                 totalNovas++;
@@ -277,21 +319,24 @@ Deno.serve(async (req: Request) => {
           }
         } else {
           totalDescartadas++;
+          if (!conteudo) motivoDescarte = motivoDescarte ?? "sem_conteudo";
+          else if (!numero) motivoDescarte = motivoDescarte ?? "sem_processo";
         }
 
         // Grava raw após tentar inserir publicacoes_djen
         await admin
           .from("kurier_publicacoes_raw")
           .insert({
-            id_kurier: idK,
+            id_kurier: idKEff,
             credencial_id: cred.id,
             login_usado: cred.login,
             payload: p as any,
             publicacao_djen_id: publicacaoDjenId,
+            motivo_descarte: motivoDescarte,
             recebida_em: new Date().toISOString(),
           });
 
-        idsConfirmar.push(idK);
+        if (idK) idsConfirmar.push(idK);
       }
 
       // Confirma o lote
