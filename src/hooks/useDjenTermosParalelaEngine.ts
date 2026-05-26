@@ -1784,13 +1784,33 @@ async function executarLoop(
     // está desligado ou sem VPS válida.
 
     // Filas por tipo: cada tipo tem sua própria fila de tribunais pendentes.
-    type WorkUnit = { tipo: WorkerTipo; tribunal: string };
-    const filasPorTipo = new Map<WorkerTipo, string[]>();
+    // Para tipo=parte cada monitoramento é uma unidade própria — permite que
+    // VPSs distintas processem partes diferentes em paralelo (antes a fila era
+    // por tribunal e 1 VPS pegava todos os ~112 monitoramentos de parte do TST).
+    type WorkUnit = { tipo: WorkerTipo; tribunal: string; monId?: string | null };
+    const filasPorTipo = new Map<WorkerTipo, WorkUnit[]>();
     for (const tipo of tiposAtivos) {
-      const tribs = (tribunaisPorTipo.get(tipo) || []).filter(
-        (t) => !unidadesJaConcluidas.has(trackKey(tipo, t)),
-      );
-      filasPorTipo.set(tipo, tribs);
+      const tribs = tribunaisPorTipo.get(tipo) || [];
+      const fila: WorkUnit[] = [];
+      if (tipo === 'parte') {
+        const monsDoTipo = monsPorTipo.get(tipo) || [];
+        for (const trib of tribs) {
+          const monsDoTrib = monsDoTipo.filter((m) => {
+            const t = expandirTribunaisDoMon(m.tribunais);
+            return t.length === 0 || t.includes(trib);
+          });
+          for (const m of monsDoTrib) {
+            if (unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))) continue;
+            fila.push({ tipo, tribunal: trib, monId: m.id });
+          }
+        }
+      } else {
+        for (const trib of tribs) {
+          if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+          fila.push({ tipo, tribunal: trib });
+        }
+      }
+      filasPorTipo.set(tipo, fila);
     }
     const totalUnidadesPendentes = Array.from(filasPorTipo.values()).reduce((a, b) => a + b.length, 0);
     const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
@@ -1840,16 +1860,14 @@ async function executarLoop(
       // 1) Tipo primário primeiro
       const filaPrim = filasPorTipo.get(tipoPrimario);
       if (filaPrim && filaPrim.length > 0) {
-        const trib = filaPrim.shift()!;
-        return { tipo: tipoPrimario, tribunal: trib };
+        return filaPrim.shift()!;
       }
       // 2) Steal: percorre demais tipos
       for (const tipo of tiposAtivos) {
         if (tipo === tipoPrimario) continue;
         const fila = filasPorTipo.get(tipo);
         if (fila && fila.length > 0) {
-          const trib = fila.shift()!;
-          return { tipo, tribunal: trib };
+          return fila.shift()!;
         }
       }
       return null;
@@ -1860,11 +1878,11 @@ async function executarLoop(
         const unit = pickNextUnit(tipoPrimario);
         if (!unit) break;
         try {
-          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id);
+          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId ?? null);
         } catch (e) {
           console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}:`, e);
         }
-        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal));
+        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, unit.monId ?? null));
 
         saveCheckpoint({
           runKey,
