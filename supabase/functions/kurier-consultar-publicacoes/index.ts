@@ -382,8 +382,15 @@ Deno.serve(async (req: Request) => {
           "dtPublicacao", "DtPublicacao");
         const refIso = toIsoDate(dispRaw) ?? toIsoDate(pubRaw);
         const refYmd = refIso ? refIso.slice(0, 10) : null;
-        if ((data_inicio || data_fim) && refYmd) {
-          if ((data_inicio && refYmd < data_inicio) || (data_fim && refYmd > data_fim)) {
+        // Filtro de janela ESTRITO: a API Kurier ignora dataInicio/dataFim na fila,
+        // então fazemos o corte aqui. Se o cliente enviou janela e a publicação
+        // está fora dela (ou sequer tem data reconhecida), descartamos e NÃO
+        // confirmamos — continua na fila para uso futuro.
+        if (data_inicio || data_fim) {
+          const foraJanela = !refYmd
+            || (data_inicio && refYmd < data_inicio)
+            || (data_fim && refYmd > data_fim);
+          if (foraJanela) {
             totalDescartadas++;
             rawRows.push({
               id_kurier: pickId(p) ?? `outwin_${sha256(JSON.stringify(p)).slice(0, 24)}`,
@@ -391,10 +398,9 @@ Deno.serve(async (req: Request) => {
               login_usado: cred.login,
               payload: p as any,
               publicacao_djen_id: null,
-              motivo_descarte: `fora_janela_datas:${refYmd}`,
+              motivo_descarte: `fora_janela_datas:${refYmd ?? "sem_data"}`,
               recebida_em: new Date().toISOString(),
             });
-            // NÃO adicionar a confirmacoes → continua na fila Kurier
             continue;
           }
         }
