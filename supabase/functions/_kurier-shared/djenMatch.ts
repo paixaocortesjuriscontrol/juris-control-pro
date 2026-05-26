@@ -2,7 +2,7 @@
 // VALIDATION FUNCTIONS for monitorar-djen
 // 100% STRICT phrase matching - no partial matches
 // ============================================================================
-import { extrairDadosLadoEsquerdo, conteudoAteLadoEsquerdo } from "./utils.ts";
+import { extrairDadosLadoEsquerdo, conteudoAteLadoEsquerdo } from "./djenMatchUtils.ts";
 
 export interface Monitoramento {
   id: string;
