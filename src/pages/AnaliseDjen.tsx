@@ -3241,6 +3241,9 @@ const AnaliseDjen = () => {
   // Filtro client-side por data de disponibilização.
   const allPublicacoes = useMemo(() => {
     let result = mergedPublicacoes;
+    if (tipoOrigem === 'kurier') {
+      result = result.filter(pub => (pub.fonte || '').toLowerCase() === 'kurier');
+    }
     if (dataDisponibilizacao) {
       result = result.filter(pub => {
         if (!pub.data_disponibilizacao) return false;
@@ -3262,7 +3265,7 @@ const AnaliseDjen = () => {
       result = dedupePublicacoesDjen(result);
     }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
