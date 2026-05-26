@@ -10,6 +10,8 @@ import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/Monit
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
+import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
+import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 import PoolProxyDjenCard from "@/components/configuracoes/PoolProxyDjenCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
@@ -57,6 +59,14 @@ export default function Configuracoes() {
           <TabsTrigger value="djen-termos-paralela" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Paralela</span>
+          </TabsTrigger>
+          <TabsTrigger value="djen-termos-kurier" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">DJEN Termos Kurier</span>
+          </TabsTrigger>
+          <TabsTrigger value="stf-termos" className="flex items-center gap-2">
+            <FileSearch className="h-4 w-4" />
+            <span className="hidden sm:inline">STF Termos</span>
           </TabsTrigger>
           <TabsTrigger value="djet-pautas-paralela" className="flex items-center gap-2">
             <FileSearch className="h-4 w-4" />
@@ -167,6 +177,28 @@ export default function Configuracoes() {
           </div>
           <MonitoramentoTermosParalelaCard />
           <PoolProxyDjenCard />
+        </TabsContent>
+
+        {/* Aba DJEN Termos Kurier */}
+        <TabsContent value="djen-termos-kurier" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">DJEN Termos Kurier</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca publicações pendentes do Kurier usando os termos do DJEN e envia os matches para Análise DJEN.
+            </p>
+          </div>
+          <MonitoramentoTermosKurierCard />
+        </TabsContent>
+
+        {/* Aba STF Termos */}
+        <TabsContent value="stf-termos" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">STF Termos</h2>
+            <p className="text-sm text-muted-foreground">
+              Busca direta no STF com os mesmos termos cadastrados no DJEN.
+            </p>
+          </div>
+          <StfTermosDashboardCard />
         </TabsContent>
 
         {/* Aba DJET Pautas Paralela */}
