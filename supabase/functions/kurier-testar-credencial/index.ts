@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  buildKurierAuthHeaders,
   buildKurierUrl,
   corsHeaders,
   decryptKurier,
@@ -67,14 +68,14 @@ Deno.serve(async (req: Request) => {
     const url = buildKurierUrl(
       baseUrl,
       "/api/KJuridico/ConsultarQuantidadePublicacoesDisponiveis",
-      { login, senha },
+      {},
     );
 
     const t0 = Date.now();
     let httpStatus = 0;
     let texto = "";
     try {
-      const resp = await fetch(url, { method: "GET" });
+      const resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(login, senha) });
       httpStatus = resp.status;
       texto = await resp.text();
     } catch (e) {

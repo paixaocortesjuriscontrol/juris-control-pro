@@ -6,6 +6,7 @@ function sha256(s: string): string {
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  buildKurierAuthHeaders,
   buildKurierUrl,
   corsHeaders,
   decryptKurier,
@@ -131,14 +132,12 @@ Deno.serve(async (req: Request) => {
 
     for (let lote = 0; lote < max_lotes; lote++) {
       const url = buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {
-        login: cred.login,
-        senha,
       });
 
       let resp: Response;
       let texto = "";
       try {
-        resp = await fetch(url, { method: "GET" });
+        resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
         texto = await resp.text();
       } catch (e) {
         ultimoErro = `Falha rede lote ${lote}: ${String(e)}`;
@@ -242,12 +241,10 @@ Deno.serve(async (req: Request) => {
       if (idsConfirmar.length) {
         try {
           const confirmUrl = buildKurierUrl(baseUrl, "/api/KJuridico/ConfirmarPublicacoes", {
-            login: cred.login,
-            senha,
           });
           const cResp = await fetch(confirmUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: buildKurierAuthHeaders(cred.login, senha, { "Content-Type": "application/json" }),
             body: JSON.stringify(idsConfirmar.map((id) => ({ id }))),
           });
           if (cResp.ok) {

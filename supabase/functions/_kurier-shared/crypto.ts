@@ -51,6 +51,24 @@ export function buildKurierUrl(baseUrl: string, path: string, params: Record<str
   return url.toString();
 }
 
+function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+export function buildKurierAuthHeaders(
+  login: string,
+  senha: string,
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    ...extra,
+    Authorization: `Basic ${base64Utf8(`${login}:${senha}`)}`,
+  };
+}
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
