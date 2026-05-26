@@ -7,6 +7,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  executarDjenTermosKurier,
+  isDjenTermosKurierRunning,
+} from './useDjenTermosKurierEngine';
+import {
   type DjenTermosParalelaProgress,
   executarDjenTermosParalela,
   cancelarDjenTermosParalela,
@@ -27,6 +31,10 @@ export function useDjenTermosParalela() {
   const [progress, setProgress] = useState<DjenTermosParalelaProgress>(getDjenTermosParalelaProgress);
   const [isRunning, setIsRunning] = useState(isDjenTermosParalelaRunning);
   const lastNotifiedStatusRef = useRef<string>(getDjenTermosParalelaProgress().status);
+  const lastRunParamsRef = useRef<{
+    coordenacaoId?: string;
+    monitoramentoIds?: string[];
+  }>({});
 
   useEffect(() => {
     const unsub = subscribeDjenTermosParalela((p) => {
@@ -53,6 +61,17 @@ export function useDjenTermosParalela() {
             console.warn('[DJEN Paralela] Falha ao atualizar estatísticas (ANALYZE):', e);
           }
           if (p.novas > 0) toast.success(`DJEN Paralela: ${p.novas} novas publicações encontradas!`);
+          if (!isDjenTermosKurierRunning()) {
+            const params = lastRunParamsRef.current;
+            toast.info('Kurier: iniciando varredura após DJEN Paralela...');
+            void executarDjenTermosKurier(
+              false,
+              params.monitoramentoIds,
+              params.coordenacaoId,
+              p.dataInicioYmd ?? undefined,
+              p.dataFimYmd ?? undefined,
+            );
+          }
         })();
       }
       if (p.status === 'erro' && statusChanged) toast.error(p.mensagem || 'Erro DJEN Paralela');
@@ -92,12 +111,14 @@ export function useDjenTermosParalela() {
   const canResume = !!checkpoint && progress.status !== 'executando';
 
   const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string, coordenacaoId?: string, monitoramentoIds?: string[]) => {
+    lastRunParamsRef.current = { coordenacaoId, monitoramentoIds };
     executarDjenTermosParalela(dataInicioYmd, dataFimYmd, false, coordenacaoId, monitoramentoIds);
     toast.info('DJEN Termos Paralela iniciado');
   }, []);
 
   const retomar = useCallback((coordenacaoId?: string, monitoramentoIds?: string[]) => {
     if (!checkpoint) return;
+    lastRunParamsRef.current = { coordenacaoId, monitoramentoIds };
     executarDjenTermosParalela(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, coordenacaoId, monitoramentoIds);
     toast.info('DJEN Paralela retomando...');
   }, [checkpoint]);
