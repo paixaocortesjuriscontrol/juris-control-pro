@@ -13,20 +13,20 @@ import { toast } from "sonner";
  * Cada VPS recebe uma URL `/worker-kurier-vps?credenciais=...` com seu subconjunto.
  */
 export function KurierVpsDistribuidorCard() {
-  const { credenciais } = useKurierCredenciais();
+  const { data: credenciais } = useKurierCredenciais();
   const [numVps, setNumVps] = useState(3);
   const [concurrency, setConcurrency] = useState(3);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
 
-  const ativas = useMemo(
-    () => (credenciais || []).filter((c: any) => c.ativo && c.tem_senha),
+  const ativas = useMemo<any[]>(
+    () => (credenciais || []).filter((c: any) => c.ativo && (c.senha_encrypted || c.tem_senha)),
     [credenciais],
   );
 
   const grupos = useMemo(() => {
     const n = Math.max(1, Math.min(20, numVps));
-    const out: typeof ativas[] = Array.from({ length: n }, () => [] as any);
+    const out: any[][] = Array.from({ length: n }, () => [] as any[]);
     ativas.forEach((c, i) => out[i % n].push(c));
     return out;
   }, [ativas, numVps]);
