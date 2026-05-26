@@ -973,13 +973,17 @@ async function processarTribunalTrack(
   datas: string[],
   signal: AbortSignal,
   viaId?: string,
+  monId?: string | null,
 ) {
-  const track = state.progress.tracks.find(t => t.tribunal === tribunal && t.tipo === tipo);
+  const track = state.progress.tracks.find(
+    t => t.tribunal === tribunal && t.tipo === tipo && (t.monId ?? null) === (monId ?? null),
+  );
   if (!track) return;
 
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
+    if (monId && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
@@ -993,14 +997,14 @@ async function processarTribunalTrack(
     current: 0,
     startedAt: Date.now(),
     mensagem: `${tipo}: iniciando ${monsParaEsseTrib.length} termos × ${datas.length} dias`,
-  });
+  }, monId);
 
   if (total === 0) {
     updateTrack(tribunal, tipo, {
       status: 'concluido',
       finishedAt: Date.now(),
       mensagem: `${tipo}: sem termos aplicáveis a este tribunal`,
-    });
+    }, monId);
     return;
   }
 
@@ -1018,7 +1022,7 @@ async function processarTribunalTrack(
         // Cooldown global PJE
         const cooldown = getPjeComunicaGlobalCooldownRemainingMs();
         if (cooldown > 250) {
-          updateTrack(tribunal, tipo, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` });
+          updateTrack(tribunal, tipo, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` }, monId);
           await awaitPjeComunicaGlobalCooldown();
           if (signal.aborted) break;
         }
@@ -1027,10 +1031,10 @@ async function processarTribunalTrack(
           termoAtual: mon.descricao || mon.termo_busca,
           diaAtual: diaYmd,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
-        });
+        }, monId);
 
         try {
-          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo);
+          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo, monId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1050,7 +1054,7 @@ async function processarTribunalTrack(
           descartadas: acumDesc,
           rateLimitHits,
           ultimoErro,
-        });
+        }, monId);
 
         syncExecutionProgress();
         await abortableDelay(CONFIG.delay_between_terms, signal);
@@ -1064,14 +1068,14 @@ async function processarTribunalTrack(
       mensagem: signal.aborted
         ? 'Cancelado'
         : `Concluído: ${acumNovas} novas, ${acumDup} duplicadas, ${acumDesc} descartadas`,
-    });
+    }, monId);
   } catch (e: any) {
     updateTrack(tribunal, tipo, {
       status: 'erro',
       finishedAt: Date.now(),
       ultimoErro: e?.message || String(e),
       mensagem: `Erro: ${e?.message || 'desconhecido'}`,
-    });
+    }, monId);
   }
 }
 
