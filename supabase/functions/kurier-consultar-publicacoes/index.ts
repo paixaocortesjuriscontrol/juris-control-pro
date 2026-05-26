@@ -386,7 +386,7 @@ Deno.serve(async (req: Request) => {
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
         // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
-        // aqui: descartamos publicações fora da janela e confirmamos na Kurier
+        // aqui: separamos publicações fora da janela e confirmamos na Kurier
         // para não ficar preso repetindo backlog antigo antes das publicações do dia.
         const dispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
