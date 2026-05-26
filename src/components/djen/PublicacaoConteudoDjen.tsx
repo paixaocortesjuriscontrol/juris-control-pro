@@ -250,7 +250,7 @@ const extractPartesAndAdvogados = (
       }
     }
 
-    for (const advs of plainText.matchAll(/\bAdv\s*\(\s*s\s*\)\s*([\s\S]*?)(?=\s+(?:Agravado|Agravante|Apelado|Apelante|Reclamado|Reclamante|Exequente|Executado|Promovido|Promovente|POLO\s+ATIVO|POLO\s+PASSIVO|https?:?\/\/|Página\b|Tribunal\b|$))/gi)) {
+    for (const advs of plainText.matchAll(/\bAdv\s*\(\s*s\s*\)\s*([\s\S]*?)(?=\s+(?:Agravado|Agravante|Apelado|Apelante|Reclamado|Reclamante|Exequente|Executado|Promovido|Promovente|POLO\s+ATIVO|POLO\s+PASSIVO|https?:?\/\/|Página\b|Tribunal\b)|$)/gi)) {
       const bloco = (advs[1] || "").trim();
       for (const item of bloco.split(/\s*,\s*/)) {
         const m = item.match(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.']{4,}?)\s*[-–—]\s*([\d.]+\s*\/?\s*[a-z]?)$/i);
