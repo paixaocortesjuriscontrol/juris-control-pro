@@ -3,13 +3,10 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
-import { MonitoramentoDjenCard } from "@/components/configuracoes/MonitoramentoDjenCard";
-import { BotaoSincronizarDjen } from "@/components/djen/BotaoSincronizarDjen";
-import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDiagnosticoDialog";
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
@@ -27,7 +24,6 @@ import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel"
 // MonitoramentoDataJudCard removido - agora integrado no Dashboard via DataJudDashboardCard
 
 export default function Configuracoes() {
-  const [showDiagnostico, setShowDiagnostico] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
@@ -49,10 +45,6 @@ export default function Configuracoes() {
           <TabsTrigger value="distribuicoes" className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             <span className="hidden sm:inline">Distribuições</span>
-          </TabsTrigger>
-          <TabsTrigger value="djen" className="flex items-center gap-2">
-            <Newspaper className="h-4 w-4" />
-            <span className="hidden sm:inline">DJEN</span>
           </TabsTrigger>
           <TabsTrigger value="djen-processos" className="flex items-center gap-2">
             <FileSearch className="h-4 w-4" />
@@ -140,35 +132,6 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoDistribuicoesCard coordenacaoId="" />
-        </TabsContent>
-
-        {/* Aba DJEN */}
-        <TabsContent value="djen" className="space-y-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Monitoramento DJEN</h2>
-              <p className="text-sm text-muted-foreground">
-                Busca publicações no Diário de Justiça Eletrônico Nacional
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowDiagnostico(true)}
-                className="gap-2"
-              >
-                <FlaskConical className="h-4 w-4" />
-                Diagnóstico OAB
-              </Button>
-              <BotaoSincronizarDjen />
-            </div>
-          </div>
-          <MonitoramentoDjenCard coordenacaoId="" />
-          <DjenAdvogadoDiagnosticoDialog 
-            open={showDiagnostico} 
-            onOpenChange={setShowDiagnostico} 
-          />
         </TabsContent>
 
         {/* Aba DJEN Processos */}
