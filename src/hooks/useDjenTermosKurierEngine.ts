@@ -54,7 +54,8 @@ interface Checkpoint {
   tempoInicio: number;
 }
 
-const MAX_CONCURRENCY = 3;
+const MAX_CONCURRENCY = 1;
+const MAX_CALLS_PER_CREDENCIAL = 200;
 const STORAGE_KEY = "djen-termos-kurier-checkpoint-v1";
 
 function initialProgress(): KurierProgress {
@@ -135,31 +136,48 @@ async function processarCredencial(
   emit();
 
   try {
-    const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
-      body: {
-        credencial_id: track.credencialId,
-        max_lotes: 20,
-        monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
-        coordenacao_id: coordenacaoId || undefined,
-        data_inicio: dataInicioYmd || undefined,
-        data_fim: dataFimYmd || undefined,
-      },
-    });
-    if (error) throw error;
-    const r = data as any;
-    if (r?.error) throw new Error(r.error);
+    for (let chamada = 1; chamada <= MAX_CALLS_PER_CREDENCIAL && !cancelRequested; chamada++) {
+      track.mensagem = `Consultando lote ${chamada}…`;
+      emit();
 
-    track.novas = Number(r?.total_novas ?? 0);
-    track.duplicadas = Number(r?.total_duplicadas ?? 0);
-    track.descartadas = Number(r?.total_descartadas ?? 0);
-    track.confirmadas = Number(r?.total_confirmadas ?? 0);
-    track.recebidas = Number(r?.total_recebidas ?? 0);
-    track.lotes = Number(r?.lotes_processados ?? 0);
-    track.erro = r?.erro ?? null;
-    track.status = r?.ok === false ? "erro" : "concluido";
-    track.mensagem = r?.ok === false
-      ? `Erro: ${(r?.erro ?? "").slice(0, 80)}`
-      : `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+      const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
+        body: {
+          credencial_id: track.credencialId,
+          max_lotes: 1,
+          monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
+          coordenacao_id: coordenacaoId || undefined,
+          data_inicio: dataInicioYmd || undefined,
+          data_fim: dataFimYmd || undefined,
+        },
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (r?.error) throw new Error(r.error);
+
+      const recebidas = Number(r?.total_recebidas ?? 0);
+      track.novas += Number(r?.total_novas ?? 0);
+      track.duplicadas += Number(r?.total_duplicadas ?? 0);
+      track.descartadas += Number(r?.total_descartadas ?? 0);
+      track.confirmadas += Number(r?.total_confirmadas ?? 0);
+      track.recebidas += recebidas;
+      track.lotes += Number(r?.lotes_processados ?? 0);
+      track.erro = r?.erro ?? null;
+      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+      recompute();
+      emit();
+
+      if (r?.ok === false) {
+        track.status = "erro";
+        track.mensagem = `Erro: ${(r?.erro ?? "").slice(0, 80)}`;
+        return;
+      }
+      if (recebidas < 50 || Number(r?.lotes_processados ?? 0) === 0) break;
+    }
+
+    track.status = cancelRequested ? "cancelado" : "concluido";
+    if (track.status === "concluido") {
+      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+    }
   } catch (e: any) {
     track.status = "erro";
     track.erro = String(e?.message ?? e);
