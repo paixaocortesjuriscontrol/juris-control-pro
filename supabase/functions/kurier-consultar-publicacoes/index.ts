@@ -13,6 +13,11 @@ import {
   getKurierBaseUrlFromDb,
   jsonResponse,
 } from "../_kurier-shared/crypto.ts";
+import {
+  conteudoContemTermoOuOr,
+  shouldExclude,
+  type Monitoramento,
+} from "../_kurier-shared/djenMatch.ts";
 
 // Consome publicações pendentes de UMA credencial Kurier em lotes de 50.
 // Persiste em kurier_publicacoes_raw (idempotente por id_kurier) e em
@@ -96,6 +101,11 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({} as any));
     const credencial_id: string | undefined = body.credencial_id;
     const max_lotes: number = Math.min(100, Math.max(1, Number(body.max_lotes ?? 20)));
+    const monitoramento_ids: string[] | undefined = Array.isArray(body.monitoramento_ids)
+      ? body.monitoramento_ids.filter((x: any) => typeof x === "string" && x)
+      : undefined;
+    const coordenacao_id: string | undefined = typeof body.coordenacao_id === "string" && body.coordenacao_id
+      ? body.coordenacao_id : undefined;
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
     const { data: cred, error: credErr } = await admin
@@ -108,6 +118,19 @@ Deno.serve(async (req: Request) => {
 
     const senha = await decryptKurier(cred.senha_encrypted);
     const baseUrl = await getKurierBaseUrlFromDb(admin);
+
+    // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
+    // recebidas via Kurier. Sem monitoramento que case, a publicação é descartada
+    // (consumida na fila, mas não persistida em publicacoes_djen).
+    let monitQuery = admin
+      .from("monitoramentos_djen")
+      .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por")
+      .eq("ativo", true);
+    if (monitoramento_ids?.length) monitQuery = monitQuery.in("id", monitoramento_ids);
+    if (coordenacao_id) monitQuery = monitQuery.eq("coordenacao_id", coordenacao_id);
+    const { data: monitsRaw } = await monitQuery;
+    const monitoramentos: (Monitoramento & { coordenacao_id?: string | null })[] = (monitsRaw ?? []) as any;
+    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length}`);
 
     // Registra execução
     const { data: execIns } = await admin
@@ -191,32 +214,66 @@ Deno.serve(async (req: Request) => {
         let publicacaoDjenId: string | null = null;
 
         if (numero && conteudo) {
-          const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
-          const digits = numero.replace(/\D/g, "");
+          // 1) Matching contra monitoramentos DJEN (mesma lógica do monitorar-djen)
+          let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
+          for (const m of monitoramentos) {
+            try {
+              if (!conteudoContemTermoOuOr(conteudo, m as Monitoramento)) continue;
+              const motivo = shouldExclude(conteudo, m.exclusoes || [], null, null);
+              if (motivo) continue;
+              matched = m;
+              break;
+            } catch (e) {
+              console.warn(`[kurier] erro matching monit ${m.id}:`, String(e));
+            }
+          }
 
-          const payload: any = {
-            processo_numero: numero,
-            conteudo,
-            fonte: "kurier",
-            hash_conteudo: hashConteudo,
-            dedup_processo_digits: digits || null,
-            dedup_data_ref: (dataDisp ?? dataPub ?? "").slice(0, 10) || null,
-            tribunal,
-            data_disponibilizacao: dataDisp ?? null,
-            data_publicacao: dataPub ?? null,
-          };
+          if (!matched) {
+            totalDescartadas++;
+          } else {
+            const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
+            const digits = numero.replace(/\D/g, "");
 
-          const { data: insPub, error: pubErr } = await admin
-            .from("publicacoes_djen")
-            .insert(payload)
-            .select("id")
-            .maybeSingle();
+            // 2) Dedup: se já existe publicação com mesmo hash, conta como duplicada
+            const { data: jaExiste } = await admin
+              .from("publicacoes_djen")
+              .select("id")
+              .eq("hash_conteudo", hashConteudo)
+              .maybeSingle();
 
-          if (pubErr) {
-            totalDuplicadas++;
-          } else if (insPub) {
-            publicacaoDjenId = insPub.id;
-            totalNovas++;
+            if (jaExiste) {
+              publicacaoDjenId = jaExiste.id;
+              totalDuplicadas++;
+            } else {
+              const payload: any = {
+                monitoramento_id: matched.id,
+                coordenacao_id: matched.coordenacao_id ?? null,
+                processo_numero: numero,
+                conteudo,
+                fonte: "kurier",
+                hash_conteudo: hashConteudo,
+                dedup_processo_digits: digits || null,
+                dedup_data_ref: (dataDisp ?? dataPub ?? "").slice(0, 10) || null,
+                tribunal,
+                data_disponibilizacao: dataDisp ?? null,
+                data_publicacao: dataPub ?? null,
+                tipo_publicacao: "intimacao",
+              };
+
+              const { data: insPub, error: pubErr } = await admin
+                .from("publicacoes_djen")
+                .insert(payload)
+                .select("id")
+                .maybeSingle();
+
+              if (pubErr) {
+                console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
+                totalDuplicadas++;
+              } else if (insPub) {
+                publicacaoDjenId = insPub.id;
+                totalNovas++;
+              }
+            }
           }
         } else {
           totalDescartadas++;
