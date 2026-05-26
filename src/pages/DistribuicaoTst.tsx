@@ -11,6 +11,7 @@ import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/Distrib
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
+import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
@@ -133,6 +134,10 @@ export default function DistribuicaoTst() {
   // Relatório PDF de Partes
   const [pdfRunning, setPdfRunning] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
+
+  // Relatório Excel Distribuição TST
+  const [xlsxRunning, setXlsxRunning] = useState(false);
+  const [xlsxProgress, setXlsxProgress] = useState({ current: 0, total: 0 });
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -611,6 +616,37 @@ export default function DistribuicaoTst() {
       toast.error("Erro ao gerar relatório: " + (err?.message || String(err)));
     } finally {
       setPdfRunning(false);
+    }
+  };
+
+  // Gerar relatório Excel da Distribuição TST (respeita filtros e seleção)
+  const handleGerarRelatorioExcel = async () => {
+    setXlsxRunning(true);
+    setXlsxProgress({ current: 0, total: 0 });
+    try {
+      toast.info(selectedIds.size > 0 ? `Gerando planilha de ${selectedIds.size} processo(s)...` : "Buscando processos filtrados...");
+      const { blob, filename, total } = await gerarRelatorioExcelDistribuicaoTst({
+        filters: debouncedFilters,
+        selectedIds,
+        onProgress: (c, t) => setXlsxProgress({ current: c, total: t }),
+      });
+      if (total === 0) {
+        toast.info("Nenhum processo para gerar a planilha.");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Planilha gerada com ${total} processo(s).`);
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+    } finally {
+      setXlsxRunning(false);
     }
   };
 
@@ -1139,6 +1175,19 @@ export default function DistribuicaoTst() {
                   : selectedIds.size > 0
                     ? `Relatório PDF Partes (${selectedIds.size})`
                     : "Relatório PDF Partes"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleGerarRelatorioExcel}
+                disabled={xlsxRunning}
+                title="Gera uma planilha Excel obedecendo os filtros: Processo, Dossiê, Equipe, Data da Distribuição, Responsável, Situação do Processo, Status do Envio, Em Análise e Situação Carga Santander."
+              >
+                {xlsxRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+                {xlsxRunning
+                  ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
+                  : selectedIds.size > 0
+                    ? `Relatório Excel (${selectedIds.size})`
+                    : "Relatório Excel"}
               </Button>
               <CertidaoPdfImport onImported={handleRefresh} />
               <DistribuicaoTstImport onImported={handleRefresh} />
