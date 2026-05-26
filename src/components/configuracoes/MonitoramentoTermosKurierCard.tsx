@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
-import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
+import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon, Waves } from "lucide-react";
 
 function formatDuracao(s: number) {
   if (!s) return "0s";
