@@ -536,10 +536,11 @@ export function MonitoramentoTermosParalelaCard() {
 
         {/* Tracks por tribunal */}
         {progress.tracks.length > 0 && (
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-            <h4 className="text-sm font-semibold sticky top-0 bg-card py-1">
+          <div className="max-h-[600px] overflow-y-auto pr-1">
+            <h4 className="text-sm font-semibold sticky top-0 bg-card py-1 z-10">
               Tribunais ({progress.tracks.length})
             </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
             {progress.tracks.map((track) => {
               const pct = track.total > 0
                 ? Math.min(100, Math.round((track.current / track.total) * 100))
@@ -627,6 +628,7 @@ export function MonitoramentoTermosParalelaCard() {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 
