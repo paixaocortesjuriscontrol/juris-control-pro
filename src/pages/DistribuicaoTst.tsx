@@ -39,6 +39,7 @@ import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
+import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -1117,6 +1118,13 @@ export default function DistribuicaoTst() {
     <MainLayout title="Distribuição TST">
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap justify-end items-center">
+          <Button
+            onClick={() => gerarManualDistribuicaoTst()}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
+          >
+            <FileText className="w-4 h-4 mr-2" /> Manual
+          </Button>
           {isAdminOrCoordinator && (
             <>
               <Button
