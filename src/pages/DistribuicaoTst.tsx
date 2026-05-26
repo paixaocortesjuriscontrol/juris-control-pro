@@ -38,6 +38,7 @@ import { DistribuirAutomaticoDialog } from "@/components/distribuicao-tst/Distri
 import { CopyButton } from "@/components/ui/copy-button";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
@@ -109,6 +110,7 @@ export default function DistribuicaoTst() {
   // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const { user } = useAuth();
   const [delegarOpen, setDelegarOpen] = useState(false);
   const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
@@ -351,7 +353,6 @@ export default function DistribuicaoTst() {
     if (filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "total" as const;
     if (filtroSituacaoProcesso === "ativo" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosAtivos" as const;
     if (filtroSituacaoProcesso === "transito" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "transitoJulgado" as const;
-    if (filtroSituacaoProcesso === "outros" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "outrosSituacao" as const;
     if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
     if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
@@ -397,7 +398,6 @@ export default function DistribuicaoTst() {
       case "bennerNao": setFiltroBenner("nao"); break;
       case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
       case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
-      case "outrosSituacao": setFiltroSituacaoProcesso("outros"); break;
       case "semTurma": setFiltroSemTurma(true); break;
       case "problemaJudit": setFiltroProblemaJudit("sim"); break;
       case "ate2025":
@@ -1219,10 +1219,19 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
-        <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
+        <DistribuicaoTstStatsCards
+          stats={stats}
+          loading={statsLoading}
+          activeKey={activeCardKey}
+          onCardClick={handleCardClick}
+          responsavelCard={(() => {
+            const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
+            return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
+          })()}
+        />
 
-        {/* Totais por responsável (todos os registros filtrados, > 1 processo) */}
-        {responsavelCounts.filter(c => c.count > 0).length > 0 && (
+        {/* Totais por responsável — visível apenas para administradores. */}
+        {isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
               Por responsável:

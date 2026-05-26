@@ -16,7 +16,6 @@ export type StatsCardKey =
   | "bennerNao"
   | "processosAtivos"
   | "transitoJulgado"
-  | "outrosSituacao"
   | "semTurma"
   | "problemaJudit"
   | "ate2025"
@@ -31,6 +30,8 @@ interface Props {
   loading: boolean;
   activeKey?: StatsCardKey | null;
   onCardClick?: (key: StatsCardKey) => void;
+  /** Totais do responsável logado, exibido logo após o card "Total de Processos". */
+  responsavelCard?: { atribuidos: number; prontos: number } | null;
 }
 
 interface CardDef {
@@ -41,7 +42,7 @@ interface CardDef {
   textClass: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard }: Props) {
   const cards: CardDef[] = [
     { key: "total", label: "Total de Processos", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
     { key: "processosUnicos", label: "Processos Únicos", value: stats.processosUnicos, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-200 dark:border-indigo-800", textClass: "text-indigo-600 dark:text-indigo-400" },
@@ -55,7 +56,6 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "bennerNao", label: "Benner Não Enviado", value: stats.bennerNao, className: "from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200 dark:border-orange-800", textClass: "text-orange-600 dark:text-orange-400" },
     { key: "processosAtivos", label: "Processos Ativos", value: stats.processosAtivos, className: "from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800", textClass: "text-green-600 dark:text-green-400" },
     { key: "transitoJulgado", label: "Trânsito em Julgado", value: stats.transitoJulgado, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-600 dark:text-amber-400" },
-    { key: "outrosSituacao", label: "Outros", value: stats.outrosSituacao, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-200 dark:border-zinc-800", textClass: "text-zinc-600 dark:text-zinc-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
@@ -71,7 +71,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
       {cards.map((c) => {
         const isActive = activeKey === c.key;
         const clickable = !!onCardClick;
-        return (
+        const cardNode = (
           <Card
             key={c.key}
             onClick={clickable ? () => onCardClick?.(c.key) : undefined}
@@ -91,6 +91,42 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
             </CardContent>
           </Card>
         );
+        if (c.key === "total" && responsavelCard) {
+          return (
+            <div key="__total_plus_resp__" className="contents">
+              {cardNode}
+              <Card
+                key="__resp_card__"
+                className={cn(
+                  "bg-gradient-to-br transition-all",
+                  "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800"
+                )}
+                title="Totais do responsável logado"
+              >
+                <CardContent className="p-2">
+                  <p className="text-[10px] md:text-[11px] font-medium truncate leading-tight text-amber-700 dark:text-amber-400">
+                    Total por responsável
+                  </p>
+                  <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-base md:text-lg font-bold leading-tight text-amber-700 dark:text-amber-400 tabular-nums">
+                        {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : responsavelCard.atribuidos.toLocaleString("pt-BR")}
+                      </span>
+                      <span className="text-[9px] text-amber-700/70 dark:text-amber-400/70">atrib.</span>
+                    </span>
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-base md:text-lg font-bold leading-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                        {loading ? "" : responsavelCard.prontos.toLocaleString("pt-BR")}
+                      </span>
+                      <span className="text-[9px] text-emerald-700/70 dark:text-emerald-400/70">prontos</span>
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        }
+        return cardNode;
       })}
     </div>
   );
