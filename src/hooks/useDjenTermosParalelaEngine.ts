@@ -40,6 +40,8 @@ export type TrackStatus = 'pendente' | 'executando' | 'concluido' | 'erro' | 'ca
 
 export interface TrackProgress {
   tribunal: string;
+  /** Tipo de busca dedicado a essa track (parte/advogado/palavra-chave/processo). */
+  tipo: 'parte' | 'advogado' | 'palavra-chave' | 'processo';
   status: TrackStatus;
   current: number; // termos processados (no tribunal × dias)
   total: number;   // total termos × dias para esse tribunal

@@ -1,27 +1,69 @@
-## Diagnóstico
-- A execução atual da DJEN Paralela está ativa há quase 30 minutos e o TST está preso em `100/148` termos.
-- O TST está sofrendo muito mais chamadas e rate limit que os demais: `143` chamadas na mesma VPS e `26` HTTP 429 só no TST.
-- Há `112` monitoramentos ativos que atingem TST do tipo `parte`, além de advogado/palavra-chave/processo. Isso aumenta bastante o volume.
-- No caminho principal da Paralela, termos `tipo='parte'` já são enviados como `nomeParte` e existe proteção removendo `palavraChave` se aparecer.
-- Porém ainda há um caminho de fallback por Edge Function (`buscar-djen`) quando o browser/proxy acusa CORS/erro de rede. Esse fallback pode aumentar latência e foge da regra desejada de não usar caminhos alternativos para busca por parte.
+## Objetivo
 
-## Plano de correção
-1. **Bloquear fallback para `parte` na camada PJE Comunica**
-   - Em `src/utils/pjeComunicaClient.ts`, quando `params.tipo === 'parte'`, falhas de CORS/rede devem retornar erro/resultado controlado, sem chamar Edge Function como proxy.
-   - Manter apenas `nomeParte` na URL, sem `texto` e sem `palavraChave`.
+Hoje, o motor DJEN Paralela cria 1 worker por VPS, cada worker pega um TRIBUNAL inteiro da fila e processa TODOS os tipos (parte, advogado, palavra-chave, processo) sequencialmente nesse tribunal. Isso faz o TST ficar preso em 1 única VPS, processando ~112 monitoramentos de `parte` + outros tipos um a um.
 
-2. **Adicionar trava explícita contra `texto/palavraChave` em `parte`**
-   - Garantir que a montagem da URL de `parte` remove qualquer `texto` residual antes do fetch.
-   - Logar erro claro se algum chamador tentar enviar `palavraChave` junto com `tipo='parte'`.
+Vou trocar a unidade de trabalho de **`tribunal`** para **`(tipo, tribunal)`**, distribuindo as VPS por tipo de busca para maximizar o paralelismo real.
 
-3. **Reduzir a lentidão específica do TST sem sacrificar cobertura**
-   - Ajustar a paginação da Paralela para `tipo='parte'` parar quando a API retornar página com menos de `pageSize` ou sem itens novos, mantendo `continueUntilEmpty` para casos amplos como Santander.
-   - Evitar retry automático alternativo para `parte`; a busca por parte já será uma única estratégia: `nomeParte`.
+## Como vai funcionar
 
-4. **Melhorar distribuição de carga do TST nas VPS**
-   - Revisar o worker atual, que entrega o TST inteiro a uma única VPS até terminar.
-   - Se a mudança for pequena e segura, separar o TST em unidades menores por termo/dia para não ficar monopolizado por uma VPS; caso contrário, manter essa etapa fora deste hotfix para não alterar demais a arquitetura.
+```text
+ANTES (1 worker/VPS, fila por tribunal):
+VPS-A: TST [parte+adv+kw+proc] → STF [parte+adv+kw+proc] → ...
+VPS-B: STJ [parte+adv+kw+proc] → ...
 
-5. **Verificação**
-   - Confirmar por busca no código que `tipo='parte'` não envia `palavraChave` nem `texto`.
-   - Conferir no banco/execução se novas rodadas mostram TST avançando sem fallback por palavra-chave e com menos 429.
+DEPOIS (1 worker/VPS, fila por (tipo, tribunal), VPS fixa em 1 tipo):
+VPS-A (parte):         TST·parte    → STF·parte    → STJ·parte    → ...
+VPS-B (advogado):      TST·adv      → STF·adv      → STJ·adv      → ...
+VPS-C (palavra-chave): TST·kw       → STF·kw       → ...
+VPS-D (processo):      TST·proc     → STF·proc     → ...
+(quando a fila do tipo primário esvazia, a VPS rouba units dos outros tipos)
+```
+
+Com 4+ VPS, os 4 tipos rodam em paralelo no mesmo tribunal (TST·parte e TST·adv ao mesmo tempo, em IPs diferentes — sem 429). Com menos VPS, a distribuição é round-robin por tipo e o trabalho continua maximizado.
+
+## Mudanças no código
+
+### `src/hooks/useDjenTermosParalelaEngine.ts`
+
+1. **Track key**: passa de `tribunal` para `${tipo}|${tribunal}` (ex.: `parte|TST`). Cada combinação vira uma linha na UI: "TST · parte", "TST · advogado", etc. Total de tracks = soma de (tribunais aplicáveis a cada tipo).
+
+2. **Build de filas por tipo**:
+   - Agrupar `monitoramentos` por `tipo` (com `nome` → `palavra-chave`).
+   - Para cada tipo, listar os tribunais aplicáveis (união dos `tribunais` dos monitoramentos daquele tipo).
+   - Criar `queues: Record<tipo, string[]>` com tribunais ordenados (TST/STF/STJ primeiro).
+
+3. **Assignment de VPS → tipo primário**: round-robin sobre os tipos presentes. Cada worker recebe `{ via, tipoPrimario }`.
+
+4. **Loop do worker**:
+   ```text
+   while (alguma fila não vazia):
+     1. Tenta pegar próximo tribunal da fila do tipoPrimario.
+     2. Se vazia, rouba do próximo tipo com fila não-vazia (round-robin).
+     3. Processa (tipo, tribunal) — chama `processarTribunalTrack` filtrando `monsParaEsseTrib` por `mon.tipo === tipo`.
+   ```
+
+5. **`processarTribunalTrack(tribunal, tipo, ...)`**: ganha novo parâmetro `tipo`. Filtra `monsParaEsseTrib` por aquele tipo. Atualiza track pela chave `${tipo}|${tribunal}`.
+
+6. **Agregados globais (novas/dup/desc/percentage)**: continuam somando todas as tracks — sem mudança visível além de mais linhas.
+
+7. **Checkpoint**: `tribunaisConcluidos: string[]` vira `unidadesConcluidas: string[]` armazenando `${tipo}|${tribunal}`. Migration silenciosa: checkpoints antigos são ignorados (já caem por idade ou runKey).
+
+8. **Mensagem inicial e `concorrencia`**: passa a indicar `V VPS × T tipos = N workers ativos`, mas N segue limitado por nº de VPS (cada VPS continua sendo 1 worker; o que muda é a granularidade do que ela puxa).
+
+### `public/version.json`
+Bump para `1.1.0` (mudança de arquitetura).
+
+## Detalhes técnicos
+
+- **Anti-429**: hoje `HOST_BUCKET_LIMITS['pje-comunica'] = 1` era para limitar paralelismo no mesmo IP. Como cada VPS = IP distinto, 4 VPSs rodando 4 tipos contra o mesmo host é seguro (era exatamente esse o desenho do pool).
+- **Sticky por tipo**: evita que a mesma VPS alterne tipos toda hora (cada `tipo` tem um payload de URL diferente — manter sticky ajuda no cache do upstream e na leitura dos logs).
+- **Steal cross-tipo**: quando o tipo primário acaba, a VPS não fica ociosa — pega trabalho dos outros tipos, garantindo que a última VPS livre não vire gargalo.
+- **`forceVia` e fallback**: continuam idênticos; o `viaId` é repassado para `processarTermoEmTribunal` como hoje.
+- **Sem fallback por palavra-chave em `parte`**: já está bloqueado nas alterações anteriores; nada muda aqui.
+
+## Não muda
+
+- Validações por metadados estruturados (parte/advogado).
+- Dedup, hash, persistência em `publicacoes_djen`.
+- Cooldown global PJE.
+- Edge functions e cron — só o motor cliente é alterado.
