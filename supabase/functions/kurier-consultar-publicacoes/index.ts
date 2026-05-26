@@ -633,7 +633,7 @@ Deno.serve(async (req: Request) => {
           total_descartadas: totalDescartadas,
           total_confirmadas: totalConfirmadas,
           erro: ultimoErro,
-          metadata: { lotes_processados: lotesProcessados },
+          metadata: { lotes_processados: lotesProcessados, fora_janela: totalForaJanela },
           finalizado_em: new Date().toISOString(),
         })
         .eq("id", execId);
@@ -648,6 +648,7 @@ Deno.serve(async (req: Request) => {
       total_novas: totalNovas,
       total_duplicadas: totalDuplicadas,
       total_descartadas: totalDescartadas,
+      total_fora_janela: totalForaJanela,
       total_confirmadas: totalConfirmadas,
       erro: ultimoErro,
     });
