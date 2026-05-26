@@ -495,7 +495,7 @@ Deno.serve(async (req: Request) => {
           "numProcesso", "NumProcesso", "nrProcesso", "NrProcesso",
           "numeroProcesso", "processoNumero", "ProcessoNumero",
           "numeroProcessoFormatado", "NumeroProcessoFormatado",
-          "processoCNJ", "ProcessoCNJ") ?? pickDeep(p, [
+          "processoCNJ", "ProcessoCNJ", "NUMERO_PROCESSO") ?? pickDeep(p, [
             "numero_processo", "NumeroProcesso", "processo", "Processo",
             "numProcesso", "nrProcesso", "numeroProcesso", "processoNumero",
             "numeroProcessoFormatado", "processoCNJ", "cnj",
@@ -504,25 +504,27 @@ Deno.serve(async (req: Request) => {
           "conteudo", "Conteudo", "texto", "Texto",
           "mensagem", "Mensagem", "descricao", "Descricao",
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
-          "publicacao", "Publicacao", "movimento", "Movimento",
+          "publicacao", "Publicacao", "PUBLICACAO", "movimento", "Movimento",
           "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
         const dataDisp = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
-          "dataDisponibilidade", "DataDisponibilidade") ?? pickDeep(p, [
+          "dataDisponibilidade", "DataDisponibilidade",
+          "DATA_DIVULGACAO", "DATA_DISPONIBILIZACAO") ?? pickDeep(p, [
             "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
             "dtDisponibilizacao", "dataDisponibilidade", "disponibilizacao",
           ]);
         const dataPub = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
-          "dtPublicacao", "DtPublicacao",
+          "dtPublicacao", "DtPublicacao", "DATA_PUBLICACAO",
           "dataMovimento", "DataMovimento", "dtMovimento", "DtMovimento") ?? pickDeep(p, [
             "data_publicacao", "DataPublicacao", "dataPublicacao", "dtPublicacao",
             "dataMovimento", "dtMovimento", "publicacao", "data",
           ]);
         const tribunal = pickStr(p,
           "tribunal", "Tribunal", "siglaTribunal", "SiglaTribunal",
-          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador") ?? pickDeep(p, [
+          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador",
+          "JORNAL", "ORGAO_TRIBUNAL") ?? pickDeep(p, [
             "tribunal", "siglaTribunal", "orgao", "orgaoJulgador", "diario",
           ]);
 
