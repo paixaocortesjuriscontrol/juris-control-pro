@@ -143,7 +143,7 @@ async function processarCredencial(
       const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
         body: {
           credencial_id: track.credencialId,
-          max_lotes: 1,
+          max_lotes: 3,
           monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
           coordenacao_id: coordenacaoId || undefined,
           data_inicio: dataInicioYmd || undefined,
