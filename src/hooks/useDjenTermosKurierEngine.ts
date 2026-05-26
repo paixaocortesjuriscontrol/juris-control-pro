@@ -240,10 +240,22 @@ export async function executarDjenTermosKurier(
   cancelRequested = false;
   runKey = retomar ? (loadCheckpoint()?.runKey ?? crypto.randomUUID()) : crypto.randomUUID();
 
+  // Se o usuário não preencheu data início/fim, considera HOJE (timezone local).
+  // Evita trazer publicações de dias anteriores do backlog do Kurier.
+  const hojeYmd = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  })();
+  const effInicio = dataInicioYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataInicioYmd) ? dataInicioYmd : hojeYmd;
+  const effFim = dataFimYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataFimYmd) ? dataFimYmd : hojeYmd;
+
   progress = initialProgress();
   progress.status = "executando";
   progress.iniciadoEm = new Date().toISOString();
-  progress.mensagem = "Carregando credenciais ativas…";
+  progress.mensagem = `Carregando credenciais ativas… (janela ${effInicio} → ${effFim})`;
   emit();
 
   try {
@@ -308,7 +320,7 @@ export async function executarDjenTermosKurier(
     emit();
 
     const aPercorrer = tracks.filter((t) => t.status === "pendente");
-    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
+    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, effInicio, effFim);
 
     if (cancelRequested) {
       progress.status = "cancelado";
