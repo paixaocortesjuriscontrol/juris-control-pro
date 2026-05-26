@@ -222,8 +222,9 @@ function normalizeProcesso(n: string | null): string | null {
 }
 
 const LOTE_SIZE = 50;
+const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
-const MAX_LOTES_PER_CALL = 3;
+const MAX_LOTES_PER_CALL = 1;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
