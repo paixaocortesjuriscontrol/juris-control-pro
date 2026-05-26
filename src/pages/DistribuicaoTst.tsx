@@ -1151,16 +1151,20 @@ export default function DistribuicaoTst() {
   ) : null;
 
   return (
-    <MainLayout title="Distribuição TST">
+    <MainLayout
+      title="Distribuição TST"
+      headerActions={
+        <Button
+          onClick={() => gerarManualDistribuicaoTst()}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+          title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
+        >
+          <FileText className="w-4 h-4 mr-2" /> Manual
+        </Button>
+      }
+    >
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap justify-end items-center">
-          <Button
-            onClick={() => gerarManualDistribuicaoTst()}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
-          >
-            <FileText className="w-4 h-4 mr-2" /> Manual
-          </Button>
           {isAdminOrCoordinator && (
             <>
               <Button
