@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap, Briefcase } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, Newspaper, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -13,10 +13,8 @@ import { DjenAdvogadoDiagnosticoDialog } from "@/components/djen/DjenAdvogadoDia
 import { MonitoramentoDjenProcessosCard } from "@/components/configuracoes/MonitoramentoDjenProcessosCard";
 import { MonitoramentoTermosCard } from "@/components/configuracoes/MonitoramentoTermosCard";
 import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
-import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 import PoolProxyDjenCard from "@/components/configuracoes/PoolProxyDjenCard";
-import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
@@ -68,17 +66,9 @@ export default function Configuracoes() {
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">DJEN Termos Paralela</span>
           </TabsTrigger>
-          <TabsTrigger value="djen-termos-kurier" className="flex items-center gap-2">
-            <Briefcase className="h-4 w-4" />
-            <span className="hidden sm:inline">DJEN Termos Kurier</span>
-          </TabsTrigger>
           <TabsTrigger value="djet-pautas-paralela" className="flex items-center gap-2">
             <FileSearch className="h-4 w-4" />
             <span className="hidden sm:inline">DJET Pautas Paralela</span>
-          </TabsTrigger>
-          <TabsTrigger value="stf-termos" className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            <span className="hidden sm:inline">STF Termos</span>
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -216,18 +206,6 @@ export default function Configuracoes() {
           <PoolProxyDjenCard />
         </TabsContent>
 
-        <TabsContent value="djen-termos-kurier" className="space-y-4">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">DJEN Termos Kurier</h2>
-            <p className="text-sm text-muted-foreground">
-              Integração com a API Kurier (KJuridico). Cadastre os logins do escritório,
-              ative os que devem ser consumidos e o sistema busca em paralelo a fila de
-              publicações de cada login, confirmando os lotes automaticamente.
-            </p>
-          </div>
-          <MonitoramentoTermosKurierCard />
-        </TabsContent>
-
         {/* Aba DJET Pautas Paralela */}
         <TabsContent value="djet-pautas-paralela" className="space-y-4">
           <div className="mb-4">
@@ -239,18 +217,6 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoDjetPautasCard />
-        </TabsContent>
-
-        {/* Aba STF Termos */}
-        <TabsContent value="stf-termos" className="space-y-4">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">STF Termos</h2>
-            <p className="text-sm text-muted-foreground">
-              Busca direta no portal público do STF (<code>digital.stf.jus.br/publico/publicacoes</code>).
-              Reaproveita os mesmos monitoramentos do DJEN (termos, exclusões e condição concomitante).
-            </p>
-          </div>
-          <StfTermosDashboardCard />
         </TabsContent>
 
         {/* Aba Relatórios de Monitoramento */}
