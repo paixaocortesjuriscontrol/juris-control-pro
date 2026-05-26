@@ -358,9 +358,9 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
  * Atualiza tanto o "lastVia" (mostrado em destaque na UI) quanto os contadores
  * acumulados por rota para um painel de uso por tribunal.
  */
-function registrarViaTrack(tribunal: string, tipo: WorkerTipo, via: PoolViaInfo) {
+function registrarViaTrack(tribunal: string, tipo: WorkerTipo, via: PoolViaInfo, monId?: string | null) {
   const tracks = state.progress.tracks.map(t => {
-    if (t.tribunal !== tribunal || t.tipo !== tipo) return t;
+    if (t.tribunal !== tribunal || t.tipo !== tipo || (t.monId ?? null) !== (monId ?? null)) return t;
     const callsByProxy = { ...t.callsByProxy };
     let callsDirect = t.callsDirect;
     if (via.kind === 'direct') {
