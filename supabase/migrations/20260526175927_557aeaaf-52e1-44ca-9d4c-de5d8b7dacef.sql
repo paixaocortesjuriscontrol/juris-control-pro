@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte = 'kurier' AND (data_disponibilizacao IS NULL OR data_disponibilizacao <> DATE '2026-05-26');
