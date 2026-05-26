@@ -1614,23 +1614,42 @@ async function executarLoop(
       coordenacao_id: t.coordenacao_id,
     }));
 
-    // Coletar conjunto único de tribunais a partir dos monitoramentos.
-    // Se algum monitoramento não tem tribunais (= todos), incluir TODOS_TRT + TODOS_CIVEIS + STF/STJ.
-    const tribSet = new Set<string>();
-    let temTodos = false;
+    // Distribuição POR TIPO DE BUSCA × tribunal.
+    // 1) Agrupar monitoramentos por tipo de worker (nome → palavra-chave).
+    // 2) Para cada tipo, calcular o conjunto de tribunais aplicáveis.
+    const monsPorTipo = new Map<WorkerTipo, Monitoramento[]>();
     for (const m of monitoramentos) {
-      const tribs = expandirTribunaisDoMon(m.tribunais);
-      if (tribs.length === 0) temTodos = true;
-      else for (const t of tribs) tribSet.add(t);
-    }
-    if (temTodos) {
-      TODOS_TRT.forEach(t => tribSet.add(t));
-      TODOS_CIVEIS.forEach(t => tribSet.add(t));
-      ['STF', 'STJ', 'TRF1', 'TRF2', 'TRF3', 'TRF4', 'TRF5', 'TRF6'].forEach(t => tribSet.add(t));
+      const t = mapMonTipoToWorkerTipo(m.tipo);
+      const arr = monsPorTipo.get(t) || [];
+      arr.push(m);
+      monsPorTipo.set(t, arr);
     }
 
-    const tribunais = ordenarTribunais(Array.from(tribSet));
-    if (tribunais.length === 0) {
+    const tribunaisPorTipo = new Map<WorkerTipo, string[]>();
+    const tribunaisGlobalSet = new Set<string>();
+    for (const tipo of WORKER_TIPOS_ORDER) {
+      const mons = monsPorTipo.get(tipo) || [];
+      if (mons.length === 0) continue;
+      const set = new Set<string>();
+      let temTodos = false;
+      for (const m of mons) {
+        const tribs = expandirTribunaisDoMon(m.tribunais);
+        if (tribs.length === 0) temTodos = true;
+        else for (const x of tribs) set.add(x);
+      }
+      if (temTodos) {
+        TODOS_TRT.forEach(x => set.add(x));
+        TODOS_CIVEIS.forEach(x => set.add(x));
+        ['STF', 'STJ', 'TRF1', 'TRF2', 'TRF3', 'TRF4', 'TRF5', 'TRF6'].forEach(x => set.add(x));
+      }
+      const ordered = ordenarTribunais(Array.from(set));
+      tribunaisPorTipo.set(tipo, ordered);
+      ordered.forEach(x => tribunaisGlobalSet.add(x));
+    }
+
+    const tribunais = ordenarTribunais(Array.from(tribunaisGlobalSet));
+    const tiposAtivos: WorkerTipo[] = WORKER_TIPOS_ORDER.filter(t => (tribunaisPorTipo.get(t) || []).length > 0);
+    if (tribunais.length === 0 || tiposAtivos.length === 0) {
       updateProgress({ status: 'erro', mensagem: 'Nenhum tribunal a processar.', percentage: 0 });
       return;
     }
@@ -1644,44 +1663,60 @@ async function executarLoop(
     // Checkpoint
     const cp = retomar ? loadCheckpoint() : null;
     const runKey = `${dataInicioYmd}..${dataFimYmd}`;
-    const tribunaisJaConcluidos = new Set<string>(
+    // Chaves de unidade concluída no formato `${tipo}|${tribunal}` (v2).
+    // Checkpoints antigos (v1) só tinham siglas de tribunal e não casarão —
+    // o que apenas faz com que o retomar refaça aquele tipo/tribunal sem erro.
+    const unidadesJaConcluidas = new Set<string>(
       cp && cp.runKey === runKey ? cp.tribunaisConcluidos : []
     );
 
-    // Inicializar tracks
-    const tracks: TrackProgress[] = tribunais.map(trib => ({
-      tribunal: trib,
-      status: tribunaisJaConcluidos.has(trib) ? 'concluido' : 'pendente',
-      current: 0,
-      total: 0,
-      novas: 0,
-      duplicadas: 0,
-      descartadas: 0,
-      mensagem: tribunaisJaConcluidos.has(trib) ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-      termoAtual: null,
-      diaAtual: null,
-      rateLimitHits: 0,
-      ultimoErro: null,
-      startedAt: null,
-      finishedAt: tribunaisJaConcluidos.has(trib) ? Date.now() : null,
-      lastViaId: null,
-      lastViaLabel: null,
-      lastViaKind: null,
-      callsDirect: 0,
-      callsByProxy: {},
-    }));
+    // Inicializar tracks: 1 por (tipo, tribunal). Ordem: agrupado por tribunal
+    // (TST_parte, TST_adv, TST_kw, TST_proc, STF_parte, ...) para leitura natural.
+    const tracks: TrackProgress[] = [];
+    for (const trib of tribunais) {
+      for (const tipo of tiposAtivos) {
+        const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
+        if (!tribsDoTipo.includes(trib)) continue;
+        const key = trackKey(tipo, trib);
+        const jaConcluido = unidadesJaConcluidas.has(key);
+        tracks.push({
+          tribunal: trib,
+          tipo,
+          status: jaConcluido ? 'concluido' : 'pendente',
+          current: 0,
+          total: 0,
+          novas: 0,
+          duplicadas: 0,
+          descartadas: 0,
+          mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
+          termoAtual: null,
+          diaAtual: null,
+          rateLimitHits: 0,
+          ultimoErro: null,
+          startedAt: null,
+          finishedAt: jaConcluido ? Date.now() : null,
+          lastViaId: null,
+          lastViaLabel: null,
+          lastViaKind: null,
+          callsDirect: 0,
+          callsByProxy: {},
+        });
+      }
+    }
+    const totalUnidades = tracks.length;
+    const unidadesConcluidasInicial = tracks.filter(t => t.status === 'concluido').length;
 
     updateProgress({
       status: 'executando',
       tracks,
-      totalTribunais: tribunais.length,
-      tribunaisConcluidos: tribunaisJaConcluidos.size,
+      totalTribunais: totalUnidades,
+      tribunaisConcluidos: unidadesConcluidasInicial,
       novas: cp?.novas || 0,
       duplicadas: cp?.duplicadas || 0,
       descartadas: cp?.descartadas || 0,
       dataInicioYmd,
       dataFimYmd,
-      mensagem: `Preparando workers para ${tribunais.length} tribunais...`,
+      mensagem: `Preparando workers para ${totalUnidades} unidades (${tribunais.length} tribunais × ${tiposAtivos.length} tipos)...`,
       concorrencia: 1,
     });
 
@@ -1695,7 +1730,7 @@ async function executarLoop(
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
           iniciado_em: iniciadoEm,
-          detalhes: { runKey, totalTribunais: tribunais.length, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'] },
+          detalhes: { runKey, totalTribunais: totalUnidades, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'], tiposAtivos },
         })
         .select('id');
       if (insErr) console.error('[DJEN Paralela] Falha registrar execução:', insErr.message);
@@ -1718,9 +1753,17 @@ async function executarLoop(
     // worker dedicado. O browser direto fica apenas como fallback quando o pool
     // está desligado ou sem VPS válida.
 
-    const tribunaisPendentes = tribunais.filter(t => !tribunaisJaConcluidos.has(t));
-    const queue = [...tribunaisPendentes];
-    const tribunaisConcluidosLista: string[] = Array.from(tribunaisJaConcluidos);
+    // Filas por tipo: cada tipo tem sua própria fila de tribunais pendentes.
+    type WorkUnit = { tipo: WorkerTipo; tribunal: string };
+    const filasPorTipo = new Map<WorkerTipo, string[]>();
+    for (const tipo of tiposAtivos) {
+      const tribs = (tribunaisPorTipo.get(tipo) || []).filter(
+        (t) => !unidadesJaConcluidas.has(trackKey(tipo, t)),
+      );
+      filasPorTipo.set(tipo, tribs);
+    }
+    const totalUnidadesPendentes = Array.from(filasPorTipo.values()).reduce((a, b) => a + b.length, 0);
+    const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
 
     try {
       // Sempre sincroniza antes de definir workers. O agendamento automático pode
@@ -1748,30 +1791,56 @@ async function executarLoop(
       : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
     const usandoPoolVps = viasProxy.length > 0;
 
-    // Concorrência efetiva = mín(nº vias, nº tribunais pendentes).
-    const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, tribunaisPendentes.length || 1));
+    // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
+    const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Executando: ${tribunais.length} tribunais, ${concorrenciaEfetiva} workers (${vias.map(v => v.label).join(' + ')})`,
+      mensagem: `Executando: ${totalUnidadesPendentes} unidades (${tribunais.length} tribunais × ${tiposAtivos.length} tipos), ${concorrenciaEfetiva} workers VPS`,
     });
-    syncExecutionProgress({ pool_enabled: usandoPoolVps, vias: vias.map(v => ({ id: v.id, label: v.label })) }, true);
+    syncExecutionProgress({
+      pool_enabled: usandoPoolVps,
+      vias: vias.map(v => ({ id: v.id, label: v.label })),
+      tipos_ativos: tiposAtivos,
+    }, true);
 
-    const worker = async (via: ViaSpec) => {
-      while (queue.length > 0 && !signal.aborted) {
-        const trib = queue.shift();
-        if (!trib) break;
-        try {
-          await processarTribunalTrack(trib, monitoramentos, datas, signal, via.id);
-        } catch (e) {
-          console.error(`[DJEN Paralela][worker ${via.label}] erro tribunal ${trib}:`, e);
+    // Cada worker (VPS) recebe um tipo PRIMÁRIO em round-robin.
+    // Quando a fila do tipo primário esvazia, o worker rouba unidades das filas
+    // de outros tipos (round-robin) para maximizar utilização das VPS.
+    const pickNextUnit = (tipoPrimario: WorkerTipo): WorkUnit | null => {
+      // 1) Tipo primário primeiro
+      const filaPrim = filasPorTipo.get(tipoPrimario);
+      if (filaPrim && filaPrim.length > 0) {
+        const trib = filaPrim.shift()!;
+        return { tipo: tipoPrimario, tribunal: trib };
+      }
+      // 2) Steal: percorre demais tipos
+      for (const tipo of tiposAtivos) {
+        if (tipo === tipoPrimario) continue;
+        const fila = filasPorTipo.get(tipo);
+        if (fila && fila.length > 0) {
+          const trib = fila.shift()!;
+          return { tipo, tribunal: trib };
         }
-        tribunaisConcluidosLista.push(trib);
+      }
+      return null;
+    };
+
+    const worker = async (via: ViaSpec, tipoPrimario: WorkerTipo) => {
+      while (!signal.aborted) {
+        const unit = pickNextUnit(tipoPrimario);
+        if (!unit) break;
+        try {
+          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id);
+        } catch (e) {
+          console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}:`, e);
+        }
+        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal));
 
         saveCheckpoint({
           runKey,
           dataInicioYmd,
           dataFimYmd,
-          tribunaisConcluidos: tribunaisConcluidosLista,
+          tribunaisConcluidos: unidadesConcluidasLista,
           novas: state.progress.novas,
           duplicadas: state.progress.duplicadas,
           descartadas: state.progress.descartadas,
@@ -1781,7 +1850,11 @@ async function executarLoop(
       }
     };
 
-    const workersToRun = vias.slice(0, concorrenciaEfetiva).map(v => worker(v));
+    // Atribuição de tipo primário por VPS — round-robin sobre os tipos ativos.
+    const workersToRun = vias.slice(0, concorrenciaEfetiva).map((v, idx) => {
+      const tipoPrimario = tiposAtivos[idx % tiposAtivos.length];
+      return worker(v, tipoPrimario);
+    });
     await Promise.all(workersToRun);
 
     if (signal.aborted) {
