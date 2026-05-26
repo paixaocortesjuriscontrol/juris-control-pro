@@ -222,7 +222,7 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({} as any));
     const credencial_id: string | undefined = body.credencial_id;
-    const max_lotes: number = Math.min(100, Math.max(1, Number(body.max_lotes ?? 20)));
+    const max_lotes: number = Math.min(100, Math.max(1, Number(body.max_lotes ?? 5)));
     const monitoramento_ids: string[] | undefined = Array.isArray(body.monitoramento_ids)
       ? body.monitoramento_ids.filter((x: any) => typeof x === "string" && x)
       : undefined;
@@ -257,6 +257,20 @@ Deno.serve(async (req: Request) => {
     const { data: monitsRaw } = await monitQuery;
     const monitoramentos: (Monitoramento & { coordenacao_id?: string | null })[] = (monitsRaw ?? []) as any;
     console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length}`);
+
+    // Pré-indexa monitoramentos por palavra-chave pura normalizada para
+    // evitar varrer 271 monitoramentos por publicação (CPU exceeded).
+    const monitsByTermo = new Map<string, (Monitoramento & { coordenacao_id?: string | null })[]>();
+    for (const m of monitoramentos) {
+      const termos = [m.termo_busca, ...(m.termos_or || [])].filter(Boolean) as string[];
+      for (const t of termos) {
+        const key = normalizar(extrairPalavraChavePura(String(t).trim())).split(/\s+/)[0];
+        if (!key) continue;
+        const arr = monitsByTermo.get(key) || [];
+        arr.push(m);
+        monitsByTermo.set(key, arr);
+      }
+    }
 
     // Registra execução
     const { data: execIns } = await admin
@@ -331,7 +345,13 @@ Deno.serve(async (req: Request) => {
       const idsConfirmar: string[] = [];
 
       for (const p of pubs) {
-        const searchable = collectSearchableText(p);
+        // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
+        // pesado em CPU. Inclui também TermoPesquisa/Processo para matching.
+        const searchable = [
+          (p as any).Texto ?? (p as any).texto ?? "",
+          (p as any).TermoPesquisa ?? "",
+          (p as any).Processo ?? "",
+        ].filter(Boolean).join("\n");
         const idK = pickId(p) ?? pickDeep(p, [
           "id", "idPublicacao", "IDPublicacao", "codigoPublicacao", "codPublicacao", "cdPublicacao",
           "codigo", "idDocumento", "cdDocumento", "codigoDocumento", "numeroDocumento", "protocolo", "guid", "hash",
@@ -394,10 +414,14 @@ Deno.serve(async (req: Request) => {
         if (!idK) motivoDescarte = "id_nao_reconhecido";
 
         if (numero && conteudo) {
-          // 1) Matching contra monitoramentos DJEN (mesma lógica do monitorar-djen)
+          // 1) Matching: Kurier já filtrou pelo TermoPesquisa. Reduz drasticamente
+          // o universo de monitoramentos avaliados usando o índice por palavra-chave.
+          const termoKurier = String((p as any).TermoPesquisa || "").trim();
+          const termoKey = normalizar(extrairPalavraChavePura(termoKurier)).split(/\s+/)[0];
+          const candidatos = (termoKey && monitsByTermo.get(termoKey)) || monitoramentos;
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
           let motivoExcl: string | null = null;
-          for (const m of monitoramentos) {
+          for (const m of candidatos) {
             try {
               if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento)) continue;
               const motivo = shouldExclude(searchable || conteudo, m.exclusoes || [], null, null);
