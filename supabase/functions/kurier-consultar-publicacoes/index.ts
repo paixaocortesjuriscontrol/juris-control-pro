@@ -435,46 +435,41 @@ Deno.serve(async (req: Request) => {
             const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
             const digits = numero.replace(/\D/g, "");
 
-            // 2) Dedup: se já existe publicação com mesmo hash, conta como duplicada
-            const { data: jaExiste } = await admin
+            // 2) Dedup: tenta inserir direto; a constraint monitoramento_id+hash_conteudo
+            // transforma repetição em 23505 sem SELECT por publicação.
+            const payload: any = {
+              monitoramento_id: matched.id,
+              coordenacao_id: matched.coordenacao_id ?? null,
+              processo_numero: numero,
+              conteudo,
+              fonte: "kurier",
+              hash_conteudo: hashConteudo,
+              dedup_processo_digits: digits || null,
+              dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
+              tribunal,
+              data_disponibilizacao: toIsoDate(dataDisp) ?? null,
+              data_publicacao: toIsoDate(dataPub) ?? null,
+              tipo_publicacao: "intimacao",
+            };
+
+            const { data: insPub, error: pubErr } = await admin
               .from("publicacoes_djen")
+              .insert(payload)
               .select("id")
-              .eq("hash_conteudo", hashConteudo)
               .maybeSingle();
 
-            if (jaExiste) {
-              publicacaoDjenId = jaExiste.id;
-              totalDuplicadas++;
-            } else {
-              const payload: any = {
-                monitoramento_id: matched.id,
-                coordenacao_id: matched.coordenacao_id ?? null,
-                processo_numero: numero,
-                conteudo,
-                fonte: "kurier",
-                hash_conteudo: hashConteudo,
-                dedup_processo_digits: digits || null,
-                dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
-                tribunal,
-                data_disponibilizacao: toIsoDate(dataDisp) ?? null,
-                data_publicacao: toIsoDate(dataPub) ?? null,
-                tipo_publicacao: "intimacao",
-              };
-
-              const { data: insPub, error: pubErr } = await admin
-                .from("publicacoes_djen")
-                .insert(payload)
-                .select("id")
-                .maybeSingle();
-
-              if (pubErr) {
+            if (pubErr) {
+              if ((pubErr as any).code === "23505") {
+                totalDuplicadas++;
+                motivoDescarte = "duplicada_hash";
+              } else {
                 console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
                 totalDuplicadas++;
                 motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
-              } else if (insPub) {
-                publicacaoDjenId = insPub.id;
-                totalNovas++;
               }
+            } else if (insPub) {
+              publicacaoDjenId = insPub.id;
+              totalNovas++;
             }
           }
         } else {
@@ -483,19 +478,15 @@ Deno.serve(async (req: Request) => {
           else if (!numero) motivoDescarte = motivoDescarte ?? "sem_processo";
         }
 
-        // Grava raw após tentar inserir publicacoes_djen
-        const { error: rawErr } = await admin
-          .from("kurier_publicacoes_raw")
-          .insert({
-            id_kurier: idKEff,
-            credencial_id: cred.id,
-            login_usado: cred.login,
-            payload: p as any,
-            publicacao_djen_id: publicacaoDjenId,
-            motivo_descarte: motivoDescarte,
-            recebida_em: new Date().toISOString(),
-          });
-        if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
+        rawRows.push({
+          id_kurier: idKEff,
+          credencial_id: cred.id,
+          login_usado: cred.login,
+          payload: p as any,
+          publicacao_djen_id: publicacaoDjenId,
+          motivo_descarte: motivoDescarte,
+          recebida_em: new Date().toISOString(),
+        });
 
         if (idK) idsConfirmar.push(idK);
       }
