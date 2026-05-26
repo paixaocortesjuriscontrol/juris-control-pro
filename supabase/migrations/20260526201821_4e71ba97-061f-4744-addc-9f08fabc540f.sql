@@ -1,0 +1,1 @@
+DELETE FROM publicacoes_djen WHERE fonte = 'kurier' AND created_at >= CURRENT_DATE;
