@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
+import { KurierVpsDistribuidorCard } from "./KurierVpsDistribuidorCard";
 import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
 
 function formatDuracao(s: number) {
@@ -212,6 +213,7 @@ export function MonitoramentoTermosKurierCard() {
       </Card>
 
       <KurierCredenciaisPanel />
+      <KurierVpsDistribuidorCard />
     </div>
   );
 }
