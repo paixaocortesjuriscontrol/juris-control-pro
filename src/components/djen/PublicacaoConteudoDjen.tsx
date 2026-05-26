@@ -290,6 +290,19 @@ const extractPartesAndAdvogados = (
       }
     }
 
+    // Formato Kurier: "ADVOGADO(A) NOME (OAB SP091461)" — OAB + UF + número grudados,
+    // sem hífen/espaço. Pode ou não vir precedido do rótulo "ADVOGADO(A)".
+    for (const match of plainText.matchAll(
+      /(?:ADVOGADO\s*\(\s*A\s*\)\s+)?([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.']+?)\s*\(\s*OAB\s+([A-Z]{2})\s*[-–—\/]?\s*(\d{1,10})\s*\)/g
+    )) {
+      const nome = (match[1] || "").trim();
+      const uf = (match[2] || "").toUpperCase();
+      const numero = (match[3] || "").trim();
+      if (nome.length >= 4 && numero && uf && (pareceNomeAdvogado(nome) || acceptNome(nome))) {
+        addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+      }
+    }
+
     // Formato: NOME - OAB UF-12345 ou NOME OAB: UF-12345 (ex.: EVANDRO FERREIRA SALVI - OAB SP-246470)
     for (const match of plainText.matchAll(
       /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s]+?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi
