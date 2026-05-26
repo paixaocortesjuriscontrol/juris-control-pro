@@ -325,6 +325,7 @@ Deno.serve(async (req: Request) => {
     let totalDuplicadas = 0;
     let totalConfirmadas = 0;
     let totalDescartadas = 0;
+    let totalForaJanela = 0;
     let ultimoErro: string | null = null;
     let lotesProcessados = 0;
 
@@ -412,11 +413,20 @@ Deno.serve(async (req: Request) => {
             || (data_inicio && refYmd < data_inicio)
             || (data_fim && refYmd > data_fim);
           if (foraJanela) {
-            totalDescartadas++;
+            totalForaJanela++;
             const confirmacaoForaJanela = buildConfirmacaoKurier(p);
             if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
             const idKForaJanela = pickId(p);
             if (idKForaJanela) idsConfirmar.push(idKForaJanela);
+            rawRows.push({
+              id_kurier: idKForaJanela ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: p as any,
+              publicacao_djen_id: null,
+              motivo_descarte: `fora_janela_datas:${refYmd ?? "sem_data"}`,
+              recebida_em: new Date().toISOString(),
+            });
             continue;
           }
         }
