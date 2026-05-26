@@ -17,7 +17,7 @@ import {
   conteudoContemTermoOuOr,
   shouldExclude,
   type Monitoramento,
-} from "../monitorar-djen/validation.ts";
+} from "../_kurier-shared/djenMatch.ts";
 
 // Consome publicações pendentes de UMA credencial Kurier em lotes de 50.
 // Persiste em kurier_publicacoes_raw (idempotente por id_kurier) e em
