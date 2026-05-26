@@ -16,7 +16,6 @@ export type StatsCardKey =
   | "bennerNao"
   | "processosAtivos"
   | "transitoJulgado"
-  | "outrosSituacao"
   | "semTurma"
   | "problemaJudit"
   | "ate2025"
@@ -31,6 +30,8 @@ interface Props {
   loading: boolean;
   activeKey?: StatsCardKey | null;
   onCardClick?: (key: StatsCardKey) => void;
+  /** Totais do responsável logado, exibido logo após o card "Total de Processos". */
+  responsavelCard?: { atribuidos: number; prontos: number } | null;
 }
 
 interface CardDef {
