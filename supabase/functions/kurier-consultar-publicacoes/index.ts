@@ -313,6 +313,30 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       let monitId: string | undefined = existing?.id;
       if (!monitId) {
+        // criado_por é NOT NULL — reusa o criador de qualquer monitoramento da coord,
+        // ou de qualquer monitoramento existente como fallback.
+        let criadoPor: string | null = null;
+        const { data: anyMonit } = await admin
+          .from("monitoramentos_djen")
+          .select("criado_por")
+          .eq("coordenacao_id", c.id)
+          .not("criado_por", "is", null)
+          .limit(1)
+          .maybeSingle();
+        criadoPor = anyMonit?.criado_por ?? null;
+        if (!criadoPor) {
+          const { data: globalMonit } = await admin
+            .from("monitoramentos_djen")
+            .select("criado_por")
+            .not("criado_por", "is", null)
+            .limit(1)
+            .maybeSingle();
+          criadoPor = globalMonit?.criado_por ?? null;
+        }
+        if (!criadoPor) {
+          console.warn(`[kurier] sem criado_por disponível para sentinel coord ${c.id}, pulando`);
+          continue;
+        }
         const { data: newM, error: newMErr } = await admin
           .from("monitoramentos_djen")
           .insert({
@@ -321,6 +345,7 @@ Deno.serve(async (req: Request) => {
             tipo: "palavra-chave",
             ativo: true,
             descricao: "Captura total Kurier (sentinela - não editar)",
+            criado_por: criadoPor,
           })
           .select("id")
           .maybeSingle();
