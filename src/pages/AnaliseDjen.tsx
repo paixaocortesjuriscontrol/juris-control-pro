@@ -81,7 +81,7 @@ import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
-type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
 const formatToUTC = (date: Date) => date.toISOString();
@@ -251,8 +251,8 @@ const AnaliseDjen = () => {
     readStatus,
     apenasHoje: apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
-    // datajud é tratado separadamente
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
+    // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
     // Quando estamos na aba "Descartadas", a listagem vem da RPC dedicada
     // (paginação + deduplicação no banco). O hook unificado é desligado
     // nesse caso para evitar consultas duplicadas e pesadas.
