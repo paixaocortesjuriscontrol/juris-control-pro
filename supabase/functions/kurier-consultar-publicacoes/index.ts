@@ -14,7 +14,9 @@ import {
   jsonResponse,
 } from "../_kurier-shared/crypto.ts";
 import {
-  conteudoContemTermoOuOr,
+  condicaoConcomitanteAtendida,
+  extrairPalavraChavePura,
+  normalizar,
   shouldExclude,
   type Monitoramento,
 } from "../_kurier-shared/djenMatch.ts";
@@ -50,6 +52,11 @@ function pickId(p: KurierPub): string | null {
   const raw =
     p.id ?? p.Id ??
     (p as any).idPublicacao ?? (p as any).IdPublicacao ??
+    (p as any).IDPublicacao ?? (p as any).id_publicacao ?? (p as any).ID_PUBLICACAO ??
+    (p as any).codigoPublicacao ?? (p as any).CodigoPublicacao ??
+    (p as any).codPublicacao ?? (p as any).CodPublicacao ??
+    (p as any).cdPublicacao ?? (p as any).CdPublicacao ??
+    (p as any).codigo ?? (p as any).Codigo ??
     (p as any).idDocumento ?? (p as any).IdDocumento ??
     (p as any).cdDocumento ?? (p as any).CdDocumento ??
     (p as any).codigoDocumento ?? (p as any).CodigoDocumento ??
@@ -67,6 +74,112 @@ function pickStr(p: KurierPub, ...keys: string[]): string | null {
     if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
   }
   return null;
+}
+
+function normalizedKey(k: string): string {
+  return String(k || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+function pickDeep(p: unknown, keys: string[], maxDepth = 4): string | null {
+  const targets = new Set(keys.map(normalizedKey));
+  const seen = new Set<unknown>();
+  const walk = (value: unknown, depth: number): string | null => {
+    if (!value || typeof value !== "object" || depth > maxDepth || seen.has(value)) return null;
+    seen.add(value);
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (targets.has(normalizedKey(k)) && v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+    }
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          const found = walk(item, depth + 1);
+          if (found) return found;
+        }
+      } else {
+        const found = walk(v, depth + 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return walk(p, 0);
+}
+
+function collectSearchableText(value: unknown, maxDepth = 5): string {
+  const parts: string[] = [];
+  const seen = new Set<unknown>();
+  const walk = (v: unknown, depth: number) => {
+    if (v === null || v === undefined || depth > maxDepth) return;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      const s = String(v).trim();
+      if (s) parts.push(s);
+      return;
+    }
+    if (typeof v !== "object" || seen.has(v)) return;
+    seen.add(v);
+    if (Array.isArray(v)) for (const item of v) walk(item, depth + 1);
+    else for (const [k, item] of Object.entries(v as Record<string, unknown>)) {
+      parts.push(k);
+      walk(item, depth + 1);
+    }
+  };
+  walk(value, 0);
+  return parts.join("\n");
+}
+
+function extractProcessoFromText(texto: string): string | null {
+  const m = texto.match(/\d{7}[-.\s]?\d{2}[-.\s]?\d{4}[-.\s]?\d[-.\s]?\d{2}[-.\s]?\d{4}/);
+  return m ? m[0] : null;
+}
+
+function toIsoDate(value: string | null): string | null {
+  if (!value) return null;
+  const s = value.trim();
+  const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
+  if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}${br[4] ? `T${br[4]}` : "T12:00:00"}.000Z`;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function containsPhraseOrAnd(searchNorm: string, termo: string | null | undefined): boolean {
+  const raw = String(termo || "").trim();
+  if (!raw) return false;
+  const parts = raw.split("+").map((p) => normalizar(extrairPalavraChavePura(p.trim()))).filter(Boolean);
+  if (!parts.length) return false;
+  return parts.every((part) => new RegExp(`(?:^|\\s)${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`).test(searchNorm));
+}
+
+function kurierMatchesMonitoramento(searchable: string, monitoramento: Monitoramento): boolean {
+  const searchNorm = normalizar(searchable);
+  const searchDigits = searchable.replace(/\D/g, "");
+  const tipo = monitoramento.tipo;
+  const termos = [monitoramento.termo_busca, ...(monitoramento.termos_or || [])].filter(Boolean);
+
+  let ok = false;
+  if (tipo === "processo") {
+    ok = termos.some((t) => {
+      const digits = String(t || "").replace(/\D/g, "");
+      return digits ? searchDigits.includes(digits) : containsPhraseOrAnd(searchNorm, t);
+    });
+  } else if (tipo === "advogado") {
+    const oabDigits = String(monitoramento.oab || "").replace(/\D/g, "");
+    ok = termos.some((t) => containsPhraseOrAnd(searchNorm, t)) || (!!oabDigits && searchDigits.includes(oabDigits));
+  } else {
+    // Kurier não traz o mesmo bloco estruturado do DJEN; para parte/palavra-chave,
+    // validamos no payload inteiro recebido da Kurier.
+    ok = termos.some((t) => containsPhraseOrAnd(searchNorm, t));
+  }
+
+  if (!ok) return false;
+  return condicaoConcomitanteAtendida(searchable, monitoramento.condicao_concomitante);
+}
+
+function extractPublicacoes(payload: any): KurierPub[] {
+  if (Array.isArray(payload)) return payload;
+  const keys = ["publicacoes", "Publicacoes", "PUBLICACOES", "items", "Itens", "data", "Data", "dados", "Dados", "resultado", "Resultado", "results"];
+  for (const k of keys) if (Array.isArray(payload?.[k])) return payload[k];
+  for (const v of Object.values(payload || {})) if (Array.isArray(v)) return v as KurierPub[];
+  return [];
 }
 
 function normalizeProcesso(n: string | null): string | null {
@@ -185,7 +298,7 @@ Deno.serve(async (req: Request) => {
       let pubs: KurierPub[] = [];
       try {
         const j = JSON.parse(texto);
-        pubs = Array.isArray(j) ? j : (j?.publicacoes ?? j?.Publicacoes ?? j?.items ?? []);
+        pubs = extractPublicacoes(j);
       } catch (e) {
         ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
         break;
@@ -206,7 +319,11 @@ Deno.serve(async (req: Request) => {
       const idsConfirmar: string[] = [];
 
       for (const p of pubs) {
-        const idK = pickId(p);
+        const searchable = collectSearchableText(p);
+        const idK = pickId(p) ?? pickDeep(p, [
+          "id", "idPublicacao", "IDPublicacao", "codigoPublicacao", "codPublicacao", "cdPublicacao",
+          "codigo", "idDocumento", "cdDocumento", "codigoDocumento", "numeroDocumento", "protocolo", "guid", "hash",
+        ]);
         // Mesmo sem id reconhecido, persiste o payload para inspecionar depois.
         // Usa fallback hash para evitar perder o payload e poder reprocessar.
         const idKEff = idK ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
@@ -229,24 +346,36 @@ Deno.serve(async (req: Request) => {
           "numProcesso", "NumProcesso", "nrProcesso", "NrProcesso",
           "numeroProcesso", "processoNumero", "ProcessoNumero",
           "numeroProcessoFormatado", "NumeroProcessoFormatado",
-          "processoCNJ", "ProcessoCNJ"));
+          "processoCNJ", "ProcessoCNJ") ?? pickDeep(p, [
+            "numero_processo", "NumeroProcesso", "processo", "Processo",
+            "numProcesso", "nrProcesso", "numeroProcesso", "processoNumero",
+            "numeroProcessoFormatado", "processoCNJ", "cnj",
+          ]) ?? extractProcessoFromText(searchable));
         const conteudo = pickStr(p,
           "conteudo", "Conteudo", "texto", "Texto",
           "mensagem", "Mensagem", "descricao", "Descricao",
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "movimento", "Movimento",
-          "andamento", "Andamento", "intimacao", "Intimacao");
+          "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
         const dataDisp = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
-          "dataDisponibilidade", "DataDisponibilidade");
+          "dataDisponibilidade", "DataDisponibilidade") ?? pickDeep(p, [
+            "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
+            "dtDisponibilizacao", "dataDisponibilidade", "disponibilizacao",
+          ]);
         const dataPub = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
           "dtPublicacao", "DtPublicacao",
-          "dataMovimento", "DataMovimento", "dtMovimento", "DtMovimento");
+          "dataMovimento", "DataMovimento", "dtMovimento", "DtMovimento") ?? pickDeep(p, [
+            "data_publicacao", "DataPublicacao", "dataPublicacao", "dtPublicacao",
+            "dataMovimento", "dtMovimento", "publicacao", "data",
+          ]);
         const tribunal = pickStr(p,
           "tribunal", "Tribunal", "siglaTribunal", "SiglaTribunal",
-          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador");
+          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador") ?? pickDeep(p, [
+            "tribunal", "siglaTribunal", "orgao", "orgaoJulgador", "diario",
+          ]);
 
         let publicacaoDjenId: string | null = null;
         let motivoDescarte: string | null = null;
@@ -258,8 +387,8 @@ Deno.serve(async (req: Request) => {
           let motivoExcl: string | null = null;
           for (const m of monitoramentos) {
             try {
-              if (!conteudoContemTermoOuOr(conteudo, m as Monitoramento)) continue;
-              const motivo = shouldExclude(conteudo, m.exclusoes || [], null, null);
+              if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento)) continue;
+              const motivo = shouldExclude(searchable || conteudo, m.exclusoes || [], null, null);
               if (motivo) { motivoExcl = motivo; continue; }
               matched = m;
               break;
@@ -294,10 +423,10 @@ Deno.serve(async (req: Request) => {
                 fonte: "kurier",
                 hash_conteudo: hashConteudo,
                 dedup_processo_digits: digits || null,
-                dedup_data_ref: (dataDisp ?? dataPub ?? "").slice(0, 10) || null,
+                dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
                 tribunal,
-                data_disponibilizacao: dataDisp ?? null,
-                data_publicacao: dataPub ?? null,
+                data_disponibilizacao: toIsoDate(dataDisp) ?? null,
+                data_publicacao: toIsoDate(dataPub) ?? null,
                 tipo_publicacao: "intimacao",
               };
 
@@ -324,7 +453,7 @@ Deno.serve(async (req: Request) => {
         }
 
         // Grava raw após tentar inserir publicacoes_djen
-        await admin
+        const { error: rawErr } = await admin
           .from("kurier_publicacoes_raw")
           .insert({
             id_kurier: idKEff,
@@ -335,6 +464,7 @@ Deno.serve(async (req: Request) => {
             motivo_descarte: motivoDescarte,
             recebida_em: new Date().toISOString(),
           });
+        if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
 
         if (idK) idsConfirmar.push(idK);
       }
