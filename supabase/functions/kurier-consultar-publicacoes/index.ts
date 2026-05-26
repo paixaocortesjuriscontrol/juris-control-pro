@@ -368,12 +368,29 @@ Deno.serve(async (req: Request) => {
     let ultimoErro: string | null = null;
     let lotesProcessados = 0;
 
-    for (let lote = 0; lote < max_lotes; lote++) {
+    // Modo "personalizado": quando o usuário escolhe um intervalo de datas, usamos
+    // o endpoint ConsultarPublicacoesPersonalizado (consulta por data, NÃO confirma)
+    // em vez da fila — isso permite re-buscar publicações já confirmadas/drenadas.
+    const useDateMode = !!(data_inicio && data_fim);
+    const datas: string[] = [];
+    if (useDateMode) {
+      const start = new Date(`${data_inicio}T00:00:00Z`);
+      const end = new Date(`${data_fim}T00:00:00Z`);
+      for (let d = new Date(start); d.getTime() <= end.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+        datas.push(d.toISOString().slice(0, 10));
+      }
+    }
+    const totalIter = useDateMode ? datas.length : max_lotes;
+    console.log(`[kurier] modo=${useDateMode ? "personalizado" : "fila"} iter=${totalIter}`);
+
+    for (let lote = 0; lote < totalIter; lote++) {
       // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
       // credenciais retornam 0 quando a data é enviada, impedindo a drenagem.
       // A janela solicitada pelo usuário continua sendo obedecida no filtro
       // local abaixo, e itens fora da janela são confirmados para liberar a fila.
-      const url = buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
+      const url = useDateMode
+        ? buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoesPersonalizado", { data: datas[lote] })
+        : buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
 
       let resp: Response;
       let texto = "";
@@ -400,7 +417,11 @@ Deno.serve(async (req: Request) => {
         break;
       }
 
-      if (!pubs.length) break; // Sem mais publicações pendentes
+      if (!pubs.length) {
+        // Em modo data, dia sem publicações é normal — só pula para o próximo.
+        if (useDateMode) continue;
+        break; // Fila: ausência = fim do backlog
+      }
 
       // Log do shape da primeira publicação do primeiro lote para diagnóstico
       if (lote === 0 && pubs[0]) {
@@ -438,7 +459,8 @@ Deno.serve(async (req: Request) => {
         const refYmd = refIso ? refIso.slice(0, 10) : null;
         // Filtro de janela ESTRITO: a API Kurier ignora dataInicio/dataFim na fila,
         // então fazemos o corte aqui e confirmamos o item antigo para liberar a fila.
-        if (data_inicio || data_fim) {
+        // Em modo personalizado já pedimos por data, sem necessidade de filtro nem confirmação.
+        if (!useDateMode && (data_inicio || data_fim)) {
           const foraJanela = !refYmd
             || (data_inicio && refYmd < data_inicio)
             || (data_fim && refYmd > data_fim);
@@ -614,9 +636,13 @@ Deno.serve(async (req: Request) => {
           recebida_em: new Date().toISOString(),
         });
 
-        const confirmacao = buildConfirmacaoKurier(p);
-        if (confirmacao) confirmacoes.push(confirmacao);
-        if (idK) idsConfirmar.push(idK);
+        // Em modo data, NÃO confirmamos — o endpoint Personalizado é só leitura
+        // e queremos preservar a fila para o monitoramento normal.
+        if (!useDateMode) {
+          const confirmacao = buildConfirmacaoKurier(p);
+          if (confirmacao) confirmacoes.push(confirmacao);
+          if (idK) idsConfirmar.push(idK);
+        }
       }
 
       if (rawRows.length) {
@@ -651,7 +677,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      if (pubs.length < LOTE_SIZE) break; // último lote
+      if (!useDateMode && pubs.length < LOTE_SIZE) break; // último lote da fila
       await delay(DELAY_MS);
     }
 
