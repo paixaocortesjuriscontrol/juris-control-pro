@@ -155,8 +155,22 @@ function toIsoDate(value: string | null): string | null {
   const s = value.trim();
   const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
   if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}${br[4] ? `T${br[4]}` : "T12:00:00"}.000Z`;
+  const dashBr = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
+  if (dashBr) return `${dashBr[3]}-${dashBr[2].padStart(2, "0")}-${dashBr[1].padStart(2, "0")}${dashBr[4] ? `T${dashBr[4]}` : "T12:00:00"}.000Z`;
+  const ymd = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}:\d{2}(?::\d{2})?))?/);
+  if (ymd) return `${ymd[1]}-${ymd[2].padStart(2, "0")}-${ymd[3].padStart(2, "0")}${ymd[4] ? `T${ymd[4]}` : "T12:00:00"}.000Z`;
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function extractDateFromText(texto: string, labels: RegExp[]): string | null {
+  for (const label of labels) {
+    const after = texto.match(label);
+    if (!after?.[1]) continue;
+    const iso = toIsoDate(after[1].trim());
+    if (iso) return iso;
+  }
+  return null;
 }
 
 function containsPhraseOrAnd(searchNorm: string, termo: string | null | undefined): boolean {
@@ -208,7 +222,7 @@ function normalizeProcesso(n: string | null): string | null {
 
 const LOTE_SIZE = 50;
 const DELAY_MS = 150;
-const MAX_LOTES_PER_CALL = 1;
+const MAX_LOTES_PER_CALL = 3;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
@@ -371,8 +385,8 @@ Deno.serve(async (req: Request) => {
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
         // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
-        // aqui: descartamos publicações fora da janela e NÃO confirmamos
-        // (ficam na fila para outra execução).
+        // aqui: descartamos publicações fora da janela e confirmamos na Kurier
+        // para não ficar preso repetindo backlog antigo antes das publicações do dia.
         const dispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
@@ -380,27 +394,29 @@ Deno.serve(async (req: Request) => {
         const pubRaw = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
           "dtPublicacao", "DtPublicacao");
-        const refIso = toIsoDate(dispRaw) ?? toIsoDate(pubRaw);
+        const textoKurier = String((p as any).Texto ?? (p as any).texto ?? "");
+        const refIso = toIsoDate(dispRaw)
+          ?? extractDateFromText(textoKurier, [
+            /DATA\s+DE\s+DISPONIBILIZA[ÇC][AÃ]O\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
+            /Data\s+de\s+Divulga[çc][aã]o\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
+          ])
+          ?? toIsoDate(pubRaw)
+          ?? extractDateFromText(textoKurier, [
+            /Data\s+de\s+Publica[çc][aã]o\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
+          ]);
         const refYmd = refIso ? refIso.slice(0, 10) : null;
         // Filtro de janela ESTRITO: a API Kurier ignora dataInicio/dataFim na fila,
-        // então fazemos o corte aqui. Se o cliente enviou janela e a publicação
-        // está fora dela (ou sequer tem data reconhecida), descartamos e NÃO
-        // confirmamos — continua na fila para uso futuro.
+        // então fazemos o corte aqui e confirmamos o item antigo para liberar a fila.
         if (data_inicio || data_fim) {
           const foraJanela = !refYmd
             || (data_inicio && refYmd < data_inicio)
             || (data_fim && refYmd > data_fim);
           if (foraJanela) {
             totalDescartadas++;
-            rawRows.push({
-              id_kurier: pickId(p) ?? `outwin_${sha256(JSON.stringify(p)).slice(0, 24)}`,
-              credencial_id: cred.id,
-              login_usado: cred.login,
-              payload: p as any,
-              publicacao_djen_id: null,
-              motivo_descarte: `fora_janela_datas:${refYmd ?? "sem_data"}`,
-              recebida_em: new Date().toISOString(),
-            });
+            const confirmacaoForaJanela = buildConfirmacaoKurier(p);
+            if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
+            const idKForaJanela = pickId(p);
+            if (idKForaJanela) idsConfirmar.push(idKForaJanela);
             continue;
           }
         }
