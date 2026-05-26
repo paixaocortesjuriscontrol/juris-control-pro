@@ -619,6 +619,37 @@ export default function DistribuicaoTst() {
     }
   };
 
+  // Gerar relatório Excel da Distribuição TST (respeita filtros e seleção)
+  const handleGerarRelatorioExcel = async () => {
+    setXlsxRunning(true);
+    setXlsxProgress({ current: 0, total: 0 });
+    try {
+      toast.info(selectedIds.size > 0 ? `Gerando planilha de ${selectedIds.size} processo(s)...` : "Buscando processos filtrados...");
+      const { blob, filename, total } = await gerarRelatorioExcelDistribuicaoTst({
+        filters: debouncedFilters,
+        selectedIds,
+        onProgress: (c, t) => setXlsxProgress({ current: c, total: t }),
+      });
+      if (total === 0) {
+        toast.info("Nenhum processo para gerar a planilha.");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Planilha gerada com ${total} processo(s).`);
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+    } finally {
+      setXlsxRunning(false);
+    }
+  };
+
   // Gerar carga Benner respeitando os filtros aplicados na lista
   const handleGerarCarga = async () => {
     setCargaLoading(true);
