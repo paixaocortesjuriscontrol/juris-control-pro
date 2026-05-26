@@ -16,7 +16,7 @@ export interface KurierSchedulerConfig {
   baseUrl: string;
 }
 
-const DEFAULT_BASE_URL = "https://wsk.kurier.com.br";
+const DEFAULT_BASE_URL = "https://www.kurierservicos.com.br/wsservicos";
 
 function parseFrequencia(f: string | null): number {
   if (!f) return 30;
