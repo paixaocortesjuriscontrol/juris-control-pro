@@ -1843,6 +1843,19 @@ async function executarLoop(
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
+    // Diagnóstico: confirma quantas VPSs realmente subiram e o tamanho das filas.
+    try {
+      const filasResumo: Record<string, number> = {};
+      filasPorTipo.forEach((f, t) => { filasResumo[t] = f.length; });
+      console.log('[DJEN Paralela] 🚀 Spawning workers', {
+        viasDisponiveis: vias.length,
+        concorrenciaEfetiva,
+        totalUnidadesPendentes,
+        filasPorTipo: filasResumo,
+        vias: vias.map(v => v.label),
+        poolAtivo,
+      });
+    } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
       mensagem: `Executando: ${totalUnidadesPendentes} unidades (${tribunais.length} tribunais × ${tiposAtivos.length} tipos), ${concorrenciaEfetiva} workers VPS`,
@@ -1874,9 +1887,16 @@ async function executarLoop(
     };
 
     const worker = async (via: ViaSpec, tipoPrimario: WorkerTipo) => {
+      let processed = 0;
+      const t0 = Date.now();
+      console.log(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] ▶ iniciado`);
       while (!signal.aborted) {
         const unit = pickNextUnit(tipoPrimario);
-        if (!unit) break;
+        if (!unit) {
+          console.log(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] ⏹ fila vazia, encerrando após ${processed} unidades em ${Math.round((Date.now()-t0)/1000)}s`);
+          break;
+        }
+        processed++;
         try {
           await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId ?? null);
         } catch (e) {
