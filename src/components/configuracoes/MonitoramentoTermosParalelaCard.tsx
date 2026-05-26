@@ -550,15 +550,23 @@ export function MonitoramentoTermosParalelaCard() {
                 Object.values(track.callsByProxy || {}).reduce((a, b) => a + b, 0);
               return (
                 <div
-                  key={track.tribunal}
+                  key={`${track.tipo}|${track.tribunal}|${track.monId ?? ''}`}
                   className={cn("border rounded-md p-2 space-y-1", colorClass)}
                 >
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono font-bold text-sm">{track.tribunal}</span>
                       <Badge variant="outline" className="text-xs capitalize">
+                        {track.tipo}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs capitalize">
                         {track.status}
                       </Badge>
+                      {track.monLabel && (
+                        <span className="text-[11px] truncate max-w-[40ch] opacity-80" title={track.monLabel}>
+                          {track.monLabel}
+                        </span>
+                      )}
                       {track.status === 'executando' && (
                         <Loader2 className="h-3 w-3 animate-spin" />
                       )}
