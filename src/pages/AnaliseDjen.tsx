@@ -3238,6 +3238,12 @@ const AnaliseDjen = () => {
     }
   };
 
+  const getMonitoramentoBadgeLabel = (pub: PublicacaoUnificada) => {
+    if (!pub.monitoramento_termo) return null;
+    if (pub.monitoramento_termo === '__CAPTURA_TOTAL_KURIER__') return 'Captura total Kurier';
+    return `${(pub.monitoramento_tipo || 'TERMO').toUpperCase()} + ${pub.monitoramento_termo}`;
+  };
+
   // Use merged data for all rendering (shadow the hook's publicacoes)
   // Filtro client-side por data de disponibilização.
   const allPublicacoes = useMemo(() => {
@@ -4124,10 +4130,10 @@ const AnaliseDjen = () => {
                                   )}
                                   
                                    {/* Termo que encontrou a publicação */}
-                                   {pub.monitoramento_termo && (
+                                   {getMonitoramentoBadgeLabel(pub) && (
                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                        <Search className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
-                                       <span>{(pub.monitoramento_tipo || 'TERMO').toUpperCase()} + {pub.monitoramento_termo}</span>
+                                        <span>{getMonitoramentoBadgeLabel(pub)}</span>
                                      </Badge>
                                    )}
                                 </div>
