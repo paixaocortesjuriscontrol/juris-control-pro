@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, Printer, Copy, FileText, User, Maximize2, Minimize2 } from "lucide-react";
+import { ExternalLink, Printer, Copy, FileText, FileType, User, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -561,7 +561,31 @@ export function PublicacaoConteudoDjen({
       ? conteudo || ""
       : conteudo?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || "";
     navigator.clipboard.writeText(text);
-    toast.success(withFormatting ? "Copiado com formatação" : "Copiado sem formatação");
+    toast.success(withFormatting ? "Copiado (HTML)" : "Copiado sem formatação");
+  };
+
+  const handleCopyRich = async () => {
+    const html = conteudo || "";
+    const plain = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        const item = new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        });
+        await navigator.clipboard.write([item]);
+      } else {
+        await navigator.clipboard.writeText(plain);
+      }
+      toast.success("Copiado com formatação");
+    } catch {
+      try {
+        await navigator.clipboard.writeText(plain);
+        toast.success("Copiado (texto)");
+      } catch {
+        toast.error("Não foi possível copiar");
+      }
+    }
   };
 
   const handlePrint = () => {
@@ -637,6 +661,10 @@ export function PublicacaoConteudoDjen({
           <Button variant="outline" size="sm" onClick={() => handleCopy(true)} className="text-xs h-8">
             <Copy className="w-3.5 h-3.5 mr-1.5" />
             Copiar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCopyRich} className="text-xs h-8">
+            <FileType className="w-3.5 h-3.5 mr-1.5" />
+            Copiar com formatação
           </Button>
           <Button variant="outline" size="sm" onClick={() => handleCopy(false)} className="text-xs h-8">
             <FileText className="w-3.5 h-3.5 mr-1.5" />
