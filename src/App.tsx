@@ -59,7 +59,6 @@ import ClienteLogin from "./pages/cliente/ClienteLogin";
 import ClienteCadastro from "./pages/cliente/ClienteCadastro";
 import ClientePortal from "./pages/cliente/ClientePortal";
 import WorkerDjenVps from "./pages/WorkerDjenVps";
-import WorkerKurierVps from "./pages/WorkerKurierVps";
 import TstPrazos from "./pages/TstPrazos";
 import AnalisarPrazos from "./pages/AnalisarPrazos";
 import PlanilhaTst from "./pages/PlanilhaTst";
@@ -104,7 +103,6 @@ function App() {
                 
                 {/* VPS Worker Route - headless page for distributed DJEN search */}
                 <Route path="/worker-djen-vps" element={<ProtectedRoute><WorkerDjenVps /></ProtectedRoute>} />
-                <Route path="/worker-kurier-vps" element={<ProtectedRoute><WorkerKurierVps /></ProtectedRoute>} />
               
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Navigate to="/painel-controle" replace /></ProtectedRoute>} />

@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +17,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
-import { KurierVpsDistribuidorCard } from "./KurierVpsDistribuidorCard";
 import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
 
 function formatDuracao(s: number) {
@@ -32,6 +35,40 @@ export function MonitoramentoTermosKurierCard() {
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
   const ymd = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : undefined);
+
+  // Filtros: Coordenação e Termo (mesmo padrão da Paralela)
+  const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>("");
+  const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>("");
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ["monitoramentos-djen-coord-kurier", filtroCoordenacaoId],
+    queryFn: async () => {
+      if (!filtroCoordenacaoId) return [] as any[];
+      const { data, error } = await supabase
+        .from("monitoramentos_djen")
+        .select("id, termo_busca, descricao, tipo, oab, uf")
+        .eq("coordenacao_id", filtroCoordenacaoId)
+        .eq("ativo", true);
+      if (error) throw error;
+      const list = (data || []) as any[];
+      return list.sort((a, b) =>
+        formatMonitoramentoLabel(a).localeCompare(formatMonitoramentoLabel(b), "pt-BR", { sensitivity: "base" }),
+      );
+    },
+    enabled: !!filtroCoordenacaoId,
+  });
+  useEffect(() => {
+    if (!filtroCoordenacaoId) setFiltroMonitoramentoId("");
+  }, [filtroCoordenacaoId]);
+
+  const getFilters = () => ({
+    coordenacaoId: filtroCoordenacaoId || undefined,
+    monitoramentoIds: filtroMonitoramentoId
+      ? [filtroMonitoramentoId]
+      : (filtroCoordenacaoId && monitoramentos.length > 0
+          ? monitoramentos.map((m: any) => m.id)
+          : undefined),
+  });
 
   const baseUrlValor = baseUrlDraft ?? config.baseUrl;
   const freqValor = freqDraft ?? String(config.frequenciaMin);
@@ -104,6 +141,40 @@ export function MonitoramentoTermosKurierCard() {
 
           <Separator />
 
+          {/* Filtros: Coordenação e Termo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Coordenação</Label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroCoordenacaoId}
+                onChange={(e) => setFiltroCoordenacaoId(e.target.value)}
+                disabled={isRunning}
+              >
+                <option value="">Todas</option>
+                {coordenacoes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </div>
+            {filtroCoordenacaoId && (
+              <div className="space-y-1">
+                <Label className="text-xs">Termo</Label>
+                <select
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                  value={filtroMonitoramentoId}
+                  onChange={(e) => setFiltroMonitoramentoId(e.target.value)}
+                  disabled={isRunning}
+                >
+                  <option value="">Todos</option>
+                  {monitoramentos.map((m: any) => (
+                    <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Data início</Label>
@@ -136,12 +207,25 @@ export function MonitoramentoTermosKurierCard() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => executar(ymd(dataInicio), ymd(dataFim))} disabled={isRunning} className="bg-primary">
+            <Button
+              onClick={() => {
+                const f = getFilters();
+                executar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds);
+              }}
+              disabled={isRunning}
+              className="bg-primary"
+            >
               <Search className="h-4 w-4 mr-1" />
               Buscar Kurier com termos DJEN → Análise DJEN
             </Button>
             {canResume && !isRunning && (
-              <Button variant="secondary" onClick={() => retomar(ymd(dataInicio), ymd(dataFim))}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const f = getFilters();
+                  retomar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds);
+                }}
+              >
                 <RotateCcw className="h-4 w-4 mr-1" /> Retomar
               </Button>
             )}
@@ -213,7 +297,6 @@ export function MonitoramentoTermosKurierCard() {
       </Card>
 
       <KurierCredenciaisPanel />
-      <KurierVpsDistribuidorCard />
     </div>
   );
 }
