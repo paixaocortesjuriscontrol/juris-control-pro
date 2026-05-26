@@ -37,6 +37,12 @@ export default function WorkerKurierVps() {
   const concurrency = Math.max(1, Math.min(10, Number(searchParams.get("concurrency") || "3")));
   const dataInicio = searchParams.get("data_inicio") || undefined;
   const dataFim = searchParams.get("data_fim") || undefined;
+  const coordenacaoId = searchParams.get("coordenacao_id") || undefined;
+  const monitoramentoIdsParam = (searchParams.get("monitoramento_ids") || "").trim();
+  const monitoramentoIds = useMemo(
+    () => monitoramentoIdsParam.split(",").map((s) => s.trim()).filter(Boolean),
+    [monitoramentoIdsParam],
+  );
 
   const credenciaisFiltro = useMemo(
     () => credIdsParam.split(",").map((s) => s.trim()).filter(Boolean),
@@ -97,6 +103,8 @@ export default function WorkerKurierVps() {
             max_lotes: 1,
             data_inicio: dataInicio,
             data_fim: dataFim,
+            coordenacao_id: coordenacaoId,
+            monitoramento_ids: monitoramentoIds.length ? monitoramentoIds : undefined,
           },
         });
         if (error) throw error;
@@ -225,6 +233,8 @@ export default function WorkerKurierVps() {
                 : "Todas as credenciais ativas"}
               {" · "}concorrência {concurrency}
               {dataInicio || dataFim ? ` · ${dataInicio || "?"} → ${dataFim || "?"}` : ""}
+              {coordenacaoId ? ` · coord ${coordenacaoId.slice(0, 8)}` : ""}
+              {monitoramentoIds.length ? ` · ${monitoramentoIds.length} termo(s)` : ""}
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={copiarUrl}>
