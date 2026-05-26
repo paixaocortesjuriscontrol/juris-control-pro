@@ -233,7 +233,8 @@ export function MonitoramentoTermosKurierCard() {
             <Button
               onClick={() => {
                 const f = getFilters();
-                executar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds);
+                const usarBuscaPorData = !!(dataInicio && dataFim);
+                executar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds, usarBuscaPorData);
               }}
               disabled={isRunning}
               className="bg-primary"
@@ -246,7 +247,8 @@ export function MonitoramentoTermosKurierCard() {
                 variant="secondary"
                 onClick={() => {
                   const f = getFilters();
-                  retomar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds);
+                  const usarBuscaPorData = !!(dataInicio && dataFim);
+                  retomar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds, usarBuscaPorData);
                 }}
               >
                 <RotateCcw className="h-4 w-4 mr-1" /> Retomar
