@@ -38,7 +38,9 @@ export async function encryptKurier(plaintext: string): Promise<string> {
   return btoa(String.fromCharCode(...combined));
 }
 
-export const DEFAULT_KURIER_BASE_URL = "https://wsk.kurier.com.br";
+// URL oficial do webservice Kurier conforme documentação v.01.2019
+// (o antigo wsk.kurier.com.br foi descontinuado / sem DNS).
+export const DEFAULT_KURIER_BASE_URL = "https://www.kurierservicos.com.br/wsservicos";
 
 export function buildKurierUrl(baseUrl: string, path: string, params: Record<string, string | number | undefined>): string {
   const base = (baseUrl || DEFAULT_KURIER_BASE_URL).replace(/\/+$/, "");
