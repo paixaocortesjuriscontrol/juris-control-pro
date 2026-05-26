@@ -25,7 +25,7 @@ import {
 // Persiste em kurier_publicacoes_raw (idempotente por id_kurier) e em
 // publicacoes_djen (origem='kurier'). Confirma o lote para tirar da fila.
 //
-// Body: { credencial_id: uuid, max_lotes?: number (default 20) }
+// Body: { credencial_id: uuid, max_lotes?: number (default 1) }
 
 interface KurierPub {
   id?: string | number;
@@ -189,7 +189,8 @@ function normalizeProcesso(n: string | null): string | null {
 }
 
 const LOTE_SIZE = 50;
-const DELAY_MS = 800;
+const DELAY_MS = 150;
+const MAX_LOTES_PER_CALL = 1;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
@@ -222,7 +223,9 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({} as any));
     const credencial_id: string | undefined = body.credencial_id;
-    const max_lotes: number = Math.min(100, Math.max(1, Number(body.max_lotes ?? 5)));
+    // Edge Functions têm orçamento curto de CPU/tempo; cada chamada processa só 1 lote
+    // e o frontend faz novas chamadas pequenas até esvaziar a fila da credencial.
+    const max_lotes: number = Math.min(MAX_LOTES_PER_CALL, Math.max(1, Number(body.max_lotes ?? 1)));
     const monitoramento_ids: string[] | undefined = Array.isArray(body.monitoramento_ids)
       ? body.monitoramento_ids.filter((x: any) => typeof x === "string" && x)
       : undefined;
