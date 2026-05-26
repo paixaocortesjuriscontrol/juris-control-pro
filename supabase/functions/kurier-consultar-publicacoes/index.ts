@@ -77,6 +77,23 @@ function pickStr(p: KurierPub, ...keys: string[]): string | null {
   return null;
 }
 
+function pickInt(p: KurierPub, ...keys: string[]): number | null {
+  const raw = pickStr(p, ...keys);
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildConfirmacaoKurier(p: KurierPub): Record<string, number | string> | null {
+  const IdProcesso = pickInt(p, "IdProcesso", "idProcesso", "IDProcesso");
+  const CodigoTermoPesquisa = pickInt(p, "CodigoTermoPesquisa", "codigoTermoPesquisa");
+  const CodigoDiario = pickInt(p, "CodigoDiario", "codigoDiario");
+  const CodigoDivisaoDiario = pickInt(p, "CodigoDivisaoDiario", "codigoDivisaoDiario");
+  const DataDiario = pickStr(p, "DataDiario", "dataDiario");
+  if (!IdProcesso || !CodigoTermoPesquisa || !CodigoDiario || !CodigoDivisaoDiario || !DataDiario) return null;
+  return { IdProcesso, CodigoTermoPesquisa, CodigoDiario, CodigoDivisaoDiario, DataDiario };
+}
+
 function normalizedKey(k: string): string {
   return String(k || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
