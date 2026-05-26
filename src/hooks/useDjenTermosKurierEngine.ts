@@ -129,6 +129,7 @@ async function processarCredencial(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
+  modoPersonalizado = false,
 ) {
   track.status = "executando";
   track.startedAt = Date.now();
@@ -149,7 +150,7 @@ async function processarCredencial(
           coordenacao_id: coordenacaoId || undefined,
           data_inicio: dataInicioYmd || undefined,
           data_fim: dataFimYmd || undefined,
-          modo_personalizado: !!(dataInicioYmd && dataFimYmd && !drenarBacklog),
+          modo_personalizado: modoPersonalizado,
         },
       });
       if (error) throw error;
@@ -216,13 +217,14 @@ async function runPool(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
+  modoPersonalizado = false,
 ) {
   let idx = 0;
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
     while (!cancelRequested) {
       const i = idx++;
       if (i >= tracks.length) return;
-      await processarCredencial(tracks[i], monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
+      await processarCredencial(tracks[i], monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd, modoPersonalizado);
     }
     // Marca pendentes como cancelados
     for (let j = idx; j < tracks.length; j++) {
@@ -334,7 +336,7 @@ export async function executarDjenTermosKurier(
     emit();
 
     const aPercorrer = tracks.filter((t) => t.status === "pendente");
-    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, effInicio, effFim);
+    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, effInicio, effFim, !!(dataInicioYmd && dataFimYmd && !drenarBacklog));
 
     if (cancelRequested) {
       progress.status = "cancelado";
