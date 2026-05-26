@@ -478,17 +478,23 @@ Deno.serve(async (req: Request) => {
             totalDescartadas++;
             motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
           } else {
+            // Extrai id_djen do texto (padrão "ID COMUNICAÇÃO<digits>") para deduplicar
+            // contra publicações da indexação DJEN / DJEN Termos Paralela.
+            const idDjenMatch = conteudo.match(/ID\s*COMUNICA[ÇC][AÃ]O\s*(\d{4,})/i);
+            const idDjen = idDjenMatch ? idDjenMatch[1] : null;
             const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
             const digits = numero.replace(/\D/g, "");
 
-            // 2) Dedup: tenta inserir direto; a constraint monitoramento_id+hash_conteudo
-            // transforma repetição em 23505 sem SELECT por publicação.
+            // 2) Dedup: tenta inserir direto. O unique index (coordenacao_id, id_djen)
+            // bloqueia duplicatas entre origens (DJEN paralela / indexação / Kurier)
+            // quando o id_djen é conhecido.
             const payload: any = {
               monitoramento_id: matched.id,
               coordenacao_id: matched.coordenacao_id ?? null,
               processo_numero: numero,
               conteudo,
               fonte: "kurier",
+              id_djen: idDjen,
               hash_conteudo: hashConteudo,
               dedup_processo_digits: digits || null,
               dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
@@ -507,7 +513,7 @@ Deno.serve(async (req: Request) => {
             if (pubErr) {
               if ((pubErr as any).code === "23505") {
                 totalDuplicadas++;
-                motivoDescarte = "duplicada_hash";
+                motivoDescarte = idDjen ? "duplicada_id_djen" : "duplicada";
               } else {
                 console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
                 totalDuplicadas++;
