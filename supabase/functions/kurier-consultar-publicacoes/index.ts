@@ -369,6 +369,36 @@ Deno.serve(async (req: Request) => {
       const rawRows: any[] = [];
 
       for (const p of pubs) {
+        // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
+        // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
+        // aqui: descartamos publicações fora da janela e NÃO confirmamos
+        // (ficam na fila para outra execução).
+        const dispRaw = pickStr(p,
+          "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
+          "dtDisponibilizacao", "DtDisponibilizacao",
+          "dataDisponibilidade", "DataDisponibilidade");
+        const pubRaw = pickStr(p,
+          "data_publicacao", "DataPublicacao", "dataPublicacao",
+          "dtPublicacao", "DtPublicacao");
+        const refIso = toIsoDate(dispRaw) ?? toIsoDate(pubRaw);
+        const refYmd = refIso ? refIso.slice(0, 10) : null;
+        if ((data_inicio || data_fim) && refYmd) {
+          if ((data_inicio && refYmd < data_inicio) || (data_fim && refYmd > data_fim)) {
+            totalDescartadas++;
+            rawRows.push({
+              id_kurier: pickId(p) ?? `outwin_${sha256(JSON.stringify(p)).slice(0, 24)}`,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: p as any,
+              publicacao_djen_id: null,
+              motivo_descarte: `fora_janela_datas:${refYmd}`,
+              recebida_em: new Date().toISOString(),
+            });
+            // NÃO adicionar a confirmacoes → continua na fila Kurier
+            continue;
+          }
+        }
+
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
         // pesado em CPU. Inclui também TermoPesquisa/Processo para matching.
         const searchable = [
