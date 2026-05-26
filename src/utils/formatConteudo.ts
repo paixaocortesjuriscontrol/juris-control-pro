@@ -138,8 +138,13 @@ const stripMetadataFromContent = (text: string): string => {
   }
   
   if (startIdx === 0) return text;
-  
-  return lines.slice(startIdx).join('\n').replace(/^\n+/, '').trim();
+
+  const stripped = lines.slice(startIdx).join('\n').replace(/^\n+/, '').trim();
+  // Fallback: se o strip "engoliu" todo o conteúdo (ocorre quando o texto vem
+  // em uma única linha, como nas publicações do Kurier que começam com
+  // "Data de Publicacao ..."), preserva o texto original em vez de devolver
+  // um painel vazio para o usuário.
+  return stripped || text;
 };
 
 /**
