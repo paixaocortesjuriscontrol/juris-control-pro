@@ -135,6 +135,10 @@ export default function DistribuicaoTst() {
   const [pdfRunning, setPdfRunning] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
 
+  // Relatório Excel Distribuição TST
+  const [xlsxRunning, setXlsxRunning] = useState(false);
+  const [xlsxProgress, setXlsxProgress] = useState({ current: 0, total: 0 });
+
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
