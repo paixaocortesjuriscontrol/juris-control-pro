@@ -1219,10 +1219,19 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
-        <DistribuicaoTstStatsCards stats={stats} loading={statsLoading} activeKey={activeCardKey} onCardClick={handleCardClick} />
+        <DistribuicaoTstStatsCards
+          stats={stats}
+          loading={statsLoading}
+          activeKey={activeCardKey}
+          onCardClick={handleCardClick}
+          responsavelCard={(() => {
+            const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
+            return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
+          })()}
+        />
 
-        {/* Totais por responsável (todos os registros filtrados, > 1 processo) */}
-        {responsavelCounts.filter(c => c.count > 0).length > 0 && (
+        {/* Totais por responsável — visível apenas para administradores. */}
+        {isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
               Por responsável:
