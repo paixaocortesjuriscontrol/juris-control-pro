@@ -1176,6 +1176,19 @@ export default function DistribuicaoTst() {
                     ? `Relatório PDF Partes (${selectedIds.size})`
                     : "Relatório PDF Partes"}
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleGerarRelatorioExcel}
+                disabled={xlsxRunning}
+                title="Gera uma planilha Excel obedecendo os filtros: Processo, Dossiê, Equipe, Data da Distribuição, Responsável, Situação do Processo, Status do Envio, Em Análise e Situação Carga Santander."
+              >
+                {xlsxRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+                {xlsxRunning
+                  ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
+                  : selectedIds.size > 0
+                    ? `Relatório Excel (${selectedIds.size})`
+                    : "Relatório Excel"}
+              </Button>
               <CertidaoPdfImport onImported={handleRefresh} />
               <DistribuicaoTstImport onImported={handleRefresh} />
               <DossieUpdateImport onUpdated={handleRefresh} />
