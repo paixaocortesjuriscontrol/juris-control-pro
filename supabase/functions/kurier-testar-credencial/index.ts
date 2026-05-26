@@ -83,10 +83,23 @@ Deno.serve(async (req: Request) => {
     const ms = Date.now() - t0;
 
     if (httpStatus < 200 || httpStatus >= 300) {
+      const friendlyErro = httpStatus === 401
+        ? "HTTP 401 — login ou senha recusados pela Kurier. Confira a credencial informada no manual/portal Kurier."
+        : `HTTP ${httpStatus}${texto.trim() ? ` — ${texto.slice(0, 500)}` : " — resposta sem mensagem"}`;
+      if (body.credencial_id) {
+        await admin
+          .from("kurier_credenciais")
+          .update({
+            ultimo_uso: new Date().toISOString(),
+            ultimo_status: friendlyErro.slice(0, 180),
+          })
+          .eq("id", body.credencial_id);
+      }
       return jsonResponse({
         ok: false,
         http_status: httpStatus,
-        erro: texto.slice(0, 500),
+        erro: friendlyErro,
+        raw: texto.slice(0, 500),
         base_url: baseUrl,
         ms,
       });

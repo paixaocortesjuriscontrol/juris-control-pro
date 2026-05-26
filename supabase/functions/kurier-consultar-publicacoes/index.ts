@@ -145,7 +145,9 @@ Deno.serve(async (req: Request) => {
         break;
       }
       if (resp.status < 200 || resp.status >= 300) {
-        ultimoErro = `HTTP ${resp.status} lote ${lote}: ${texto.slice(0, 200)}`;
+        ultimoErro = resp.status === 401
+          ? "HTTP 401 — login ou senha recusados pela Kurier"
+          : `HTTP ${resp.status} lote ${lote}: ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
         break;
       }
 
