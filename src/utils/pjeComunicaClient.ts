@@ -380,6 +380,12 @@ export async function buscarPjeComunicaNoBrowser(
       qp.set("nomeParte", nomeParte);
       console.log('[PJE Comunica] ✅ Parâmetro nomeParte adicionado à query:', nomeParte);
     }
+    // TRAVA: garantir que nenhum parâmetro de texto/palavra-chave vai junto
+    // com a busca por parte. A regra é: parte usa SOMENTE nomeParte.
+    if (qp.has('texto')) {
+      console.warn('[PJE Comunica] Removendo "texto" indevido em busca tipo=parte');
+      qp.delete('texto');
+    }
   }
 
   // 2b) Busca por número de processo (parâmetro nativo da API)
