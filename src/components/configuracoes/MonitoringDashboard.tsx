@@ -35,7 +35,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getExecutionProgress } from "@/utils/executionProgress";
 import { supabase } from "@/integrations/supabase/client";
-import { DjenTermosDashboardCard } from "./DjenTermosDashboardCardV2";
 import { MonitoramentoDjenProcessosCard } from "./MonitoramentoDjenProcessosCard";
 import { DataJudDashboardCard } from "./DataJudDashboardCard";
 
@@ -1026,14 +1025,7 @@ export function MonitoringDashboard({ onNavigateToTab }: MonitoringDashboardProp
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {monitoringStatsEnhanced.map((stats) => {
           if (stats.tipo === 'djen') {
-            return (
-              <div key={stats.tipo} className="space-y-4">
-                <DjenTermosDashboardCard
-                  stats={stats}
-                  onAfterMutation={refetch}
-                />
-              </div>
-            );
+            return null;
           }
 
           if (stats.tipo === 'datajud_termos') {

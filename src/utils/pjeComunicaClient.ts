@@ -377,8 +377,8 @@ export async function buscarPjeComunicaNoBrowser(
     const nomeParte = (params.nomeParte || "").trim();
     console.log('[PJE Comunica] ✅ Tipo PARTE detectado. nomeParte:', nomeParte);
     if (nomeParte) {
-      qp.set("nomeParte", normalizeAccents(nomeParte));
-      console.log('[PJE Comunica] ✅ Parâmetro nomeParte adicionado à query:', normalizeAccents(nomeParte));
+      qp.set("nomeParte", nomeParte);
+      console.log('[PJE Comunica] ✅ Parâmetro nomeParte adicionado à query:', nomeParte);
     }
   }
 
@@ -624,7 +624,8 @@ export async function buscarPjeComunicaNoBrowser(
           siglaTribunal: params.siglaTribunal,
           dataInicio: params.dataInicio,
           dataFim: params.dataFim,
-          page: params.page ?? 0,
+          // buscar-djen usa paginação 0-based; este client usa 1-based.
+          page: Math.max((params.page ?? 1) - 1, 0),
           pageSize: params.pageSize ?? 50,
         },
       });
