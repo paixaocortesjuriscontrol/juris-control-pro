@@ -436,7 +436,10 @@ export async function buscarPjeComunicaNoBrowser(
   const REQUEST_TIMEOUT_MS = 90000;
 
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
-    await awaitGlobalCooldown();
+    // Em modo "forceVia" (Paralela: 1 worker por VPS), aguardamos apenas o
+    // cooldown daquela VPS. Sem forceVia (Kurier/Flash etc.), aguardamos o
+    // cooldown global (back-compat).
+    await awaitGlobalCooldown(options?.forceVia ?? null);
     const url = `${endpoint}?${queryParams.toString()}`;
     console.log(`[PJE Comunica] 🌐 Fetching URL: ${url}`);
     
@@ -492,13 +495,21 @@ export async function buscarPjeComunicaNoBrowser(
         if (resp.status === 429) {
           const retryAfterMs = parseRetryAfterMs(resp);
           const baseWait = retryAfterMs ?? 10000;
-          setGlobalCooldown(jitterMs(baseWait));
+          // Penaliza apenas a VPS que respondeu 429 (lida do header anotado
+          // pelo proxy pool). Fallback para forceVia ou global.
+          const viaId = (() => {
+            try { return readPoolViaFromResponse(resp)?.id ?? null; } catch { return null; }
+          })();
+          setGlobalCooldown(jitterMs(baseWait), viaId ?? options?.forceVia ?? null);
         }
         // 504 (Cloudflare Gateway Timeout) = origem PJE Comunica lenta. Aplicar
         // cooldown global curto para dar fôlego à API antes do próximo retry,
         // evitando martelar a origem e cascata de timeouts em paralelo.
         if (resp.status === 504 || resp.status === 502 || resp.status === 503) {
-          setGlobalCooldown(jitterMs(4000));
+          const viaId = (() => {
+            try { return readPoolViaFromResponse(resp)?.id ?? null; } catch { return null; }
+          })();
+          setGlobalCooldown(jitterMs(4000), viaId ?? options?.forceVia ?? null);
         }
         throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
       }
