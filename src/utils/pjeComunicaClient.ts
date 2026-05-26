@@ -799,12 +799,14 @@ export async function buscarPjeComunicaPaginado(
           if (is429) {
             // Honrar Retry-After do servidor: se doRequest já leu o header e
             // setou o cooldown global, usar esse valor como PISO mínimo do retry.
-            const serverHint = getGlobalCooldownRemainingMs();
+            // Lê o cooldown da via que falhou (forceVia em modo paralela),
+            // não o global — assim cada VPS conta o próprio backoff.
+            const serverHint = getGlobalCooldownRemainingMs(options?.forceVia ?? null);
             if (serverHint > waitTime) {
               waitTime = serverHint;
             }
             rateLimitHits += 1;
-            setGlobalCooldown(waitTime);
+            setGlobalCooldown(waitTime, options?.forceVia ?? null);
             options?.onRateLimit?.(waitTime, attempt + 1, page);
           }
           console.log(
