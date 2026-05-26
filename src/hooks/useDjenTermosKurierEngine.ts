@@ -122,7 +122,13 @@ function recompute() {
     : 0;
 }
 
-async function processarCredencial(track: KurierTrack, monitoramentoIds?: string[], coordenacaoId?: string) {
+async function processarCredencial(
+  track: KurierTrack,
+  monitoramentoIds?: string[],
+  coordenacaoId?: string,
+  dataInicioYmd?: string,
+  dataFimYmd?: string,
+) {
   track.status = "executando";
   track.startedAt = Date.now();
   track.mensagem = "Consultando lotes…";
@@ -135,6 +141,8 @@ async function processarCredencial(track: KurierTrack, monitoramentoIds?: string
         max_lotes: 20,
         monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
         coordenacao_id: coordenacaoId || undefined,
+        data_inicio: dataInicioYmd || undefined,
+        data_fim: dataFimYmd || undefined,
       },
     });
     if (error) throw error;
@@ -177,13 +185,19 @@ async function processarCredencial(track: KurierTrack, monitoramentoIds?: string
   }
 }
 
-async function runPool(tracks: KurierTrack[], monitoramentoIds?: string[], coordenacaoId?: string) {
+async function runPool(
+  tracks: KurierTrack[],
+  monitoramentoIds?: string[],
+  coordenacaoId?: string,
+  dataInicioYmd?: string,
+  dataFimYmd?: string,
+) {
   let idx = 0;
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
     while (!cancelRequested) {
       const i = idx++;
       if (i >= tracks.length) return;
-      await processarCredencial(tracks[i], monitoramentoIds, coordenacaoId);
+      await processarCredencial(tracks[i], monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
     }
     // Marca pendentes como cancelados
     for (let j = idx; j < tracks.length; j++) {
@@ -200,6 +214,8 @@ export async function executarDjenTermosKurier(
   retomar = false,
   monitoramentoIds?: string[],
   coordenacaoId?: string,
+  dataInicioYmd?: string,
+  dataFimYmd?: string,
 ): Promise<void> {
   if (running) return;
   running = true;
@@ -253,7 +269,7 @@ export async function executarDjenTermosKurier(
     emit();
 
     const aPercorrer = tracks.filter((t) => t.status === "pendente");
-    await runPool(aPercorrer, monitoramentoIds, coordenacaoId);
+    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
 
     if (cancelRequested) {
       progress.status = "cancelado";

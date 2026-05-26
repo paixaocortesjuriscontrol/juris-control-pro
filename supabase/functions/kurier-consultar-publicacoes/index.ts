@@ -228,6 +228,10 @@ Deno.serve(async (req: Request) => {
       : undefined;
     const coordenacao_id: string | undefined = typeof body.coordenacao_id === "string" && body.coordenacao_id
       ? body.coordenacao_id : undefined;
+    const data_inicio: string | undefined = typeof body.data_inicio === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_inicio)
+      ? body.data_inicio : undefined;
+    const data_fim: string | undefined = typeof body.data_fim === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_fim)
+      ? body.data_fim : undefined;
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
     const { data: cred, error: credErr } = await admin
@@ -276,8 +280,16 @@ Deno.serve(async (req: Request) => {
     let lotesProcessados = 0;
 
     for (let lote = 0; lote < max_lotes; lote++) {
-      const url = buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {
-      });
+      const qp: Record<string, string> = {};
+      if (data_inicio) {
+        qp.dataInicio = data_inicio;
+        qp.dataDisponibilizacaoInicio = data_inicio;
+      }
+      if (data_fim) {
+        qp.dataFim = data_fim;
+        qp.dataDisponibilizacaoFim = data_fim;
+      }
+      const url = buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", qp);
 
       let resp: Response;
       let texto = "";

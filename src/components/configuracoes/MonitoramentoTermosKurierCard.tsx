@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -7,10 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
-import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search } from "lucide-react";
+import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
 
 function formatDuracao(s: number) {
   if (!s) return "0s";
@@ -24,6 +27,10 @@ export function MonitoramentoTermosKurierCard() {
   const { config, saveConfig } = useDjenTermosKurierScheduler();
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
   const [freqDraft, setFreqDraft] = useState<string | null>(null);
+  const today = new Date();
+  const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
+  const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
+  const ymd = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : undefined);
 
   const baseUrlValor = baseUrlDraft ?? config.baseUrl;
   const freqValor = freqDraft ?? String(config.frequenciaMin);
@@ -96,13 +103,44 @@ export function MonitoramentoTermosKurierCard() {
 
           <Separator />
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data início</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dataInicio ? format(dataInicio, "dd/MM/yyyy") : "Início (opcional)"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dataInicio} onSelect={setDataInicio} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data fim</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dataFim ? format(dataFim, "dd/MM/yyyy") : "Fim (opcional)"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dataFim} onSelect={setDataFim} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={executar} disabled={isRunning} className="bg-primary">
+            <Button onClick={() => executar(ymd(dataInicio), ymd(dataFim))} disabled={isRunning} className="bg-primary">
               <Search className="h-4 w-4 mr-1" />
               Buscar Kurier com termos DJEN → Análise DJEN
             </Button>
             {canResume && !isRunning && (
-              <Button variant="secondary" onClick={retomar}>
+              <Button variant="secondary" onClick={() => retomar(ymd(dataInicio), ymd(dataFim))}>
                 <RotateCcw className="h-4 w-4 mr-1" /> Retomar
               </Button>
             )}
