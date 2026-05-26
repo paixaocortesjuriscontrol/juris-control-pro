@@ -168,13 +168,7 @@ export function KurierCredenciaisPanel() {
                   <TableCell>
                     <Switch
                       checked={c.ativo}
-                      onCheckedChange={(v) => {
-                        if (v && !c.senha_encrypted) {
-                          toast.error("Cadastre a senha antes de ativar");
-                          return;
-                        }
-                        update.mutate({ id: c.id, patch: { ativo: v } });
-                      }}
+                      onCheckedChange={(v) => update.mutate({ id: c.id, patch: { ativo: v } })}
                     />
                   </TableCell>
                   <TableCell>
