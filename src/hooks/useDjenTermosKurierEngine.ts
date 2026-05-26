@@ -143,7 +143,8 @@ async function processarCredencial(
       const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
         body: {
           credencial_id: track.credencialId,
-          max_lotes: 3,
+          // Em modo data, a edge function já processa todas as datas em uma chamada.
+          max_lotes: dataInicioYmd && dataFimYmd ? 1 : 3,
           monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
           coordenacao_id: coordenacaoId || undefined,
           data_inicio: dataInicioYmd || undefined,
@@ -171,6 +172,8 @@ async function processarCredencial(
         track.mensagem = `Erro: ${(r?.erro ?? "").slice(0, 80)}`;
         return;
       }
+      // Em modo data (intervalo definido), uma chamada já cobre todas as datas.
+      if (dataInicioYmd && dataFimYmd) break;
       // A fila da Kurier pode liberar publicações mais novas apenas depois de
       // confirmar um lote antigo. Mesmo lote parcial (<50) pode ser só o fim de
       // uma faixa antiga, não o fim real da fila; continue até a API voltar vazia.
