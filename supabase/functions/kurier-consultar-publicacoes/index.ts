@@ -325,6 +325,7 @@ Deno.serve(async (req: Request) => {
     let totalDuplicadas = 0;
     let totalConfirmadas = 0;
     let totalDescartadas = 0;
+    let totalForaJanela = 0;
     let ultimoErro: string | null = null;
     let lotesProcessados = 0;
 
@@ -385,7 +386,7 @@ Deno.serve(async (req: Request) => {
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
         // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
-        // aqui: descartamos publicações fora da janela e confirmamos na Kurier
+        // aqui: separamos publicações fora da janela e confirmamos na Kurier
         // para não ficar preso repetindo backlog antigo antes das publicações do dia.
         const dispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
@@ -412,11 +413,20 @@ Deno.serve(async (req: Request) => {
             || (data_inicio && refYmd < data_inicio)
             || (data_fim && refYmd > data_fim);
           if (foraJanela) {
-            totalDescartadas++;
+            totalForaJanela++;
             const confirmacaoForaJanela = buildConfirmacaoKurier(p);
             if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
             const idKForaJanela = pickId(p);
             if (idKForaJanela) idsConfirmar.push(idKForaJanela);
+            rawRows.push({
+              id_kurier: idKForaJanela ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: p as any,
+              publicacao_djen_id: null,
+              motivo_descarte: `fora_janela_datas:${refYmd ?? "sem_data"}`,
+              recebida_em: new Date().toISOString(),
+            });
             continue;
           }
         }
@@ -623,7 +633,7 @@ Deno.serve(async (req: Request) => {
           total_descartadas: totalDescartadas,
           total_confirmadas: totalConfirmadas,
           erro: ultimoErro,
-          metadata: { lotes_processados: lotesProcessados },
+          metadata: { lotes_processados: lotesProcessados, fora_janela: totalForaJanela },
           finalizado_em: new Date().toISOString(),
         })
         .eq("id", execId);
@@ -638,6 +648,7 @@ Deno.serve(async (req: Request) => {
       total_novas: totalNovas,
       total_duplicadas: totalDuplicadas,
       total_descartadas: totalDescartadas,
+      total_fora_janela: totalForaJanela,
       total_confirmadas: totalConfirmadas,
       erro: ultimoErro,
     });
