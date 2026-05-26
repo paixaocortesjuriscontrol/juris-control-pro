@@ -6,8 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useKurierCredenciais } from "@/hooks/useKurierCredenciais";
-import { CheckCircle2, KeyRound, Loader2, Plus, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, Plus, Trash2, XCircle, Users } from "lucide-react";
 import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <Badge variant="outline">—</Badge>;
