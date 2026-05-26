@@ -297,14 +297,29 @@ Deno.serve(async (req: Request) => {
     // Coordenações com captura total Kurier: recebem TODA publicação dentro da janela,
     // independente de match com monitoramento. Usa monitoramento sentinela por coord
     // para satisfazer o NOT NULL de monitoramento_id em publicacoes_djen.
-    let coordCtQuery = admin
-      .from("coordenacoes")
-      .select("id, nome")
-      .eq("kurier_captura_total", true);
-    if (coordenacao_id) coordCtQuery = coordCtQuery.eq("id", coordenacao_id);
-    const { data: coordsCtRaw } = await coordCtQuery;
+    // CRÍTICO: respeitar o vínculo credencial → coordenações. Cada login Kurier só
+    // pode replicar para as coordenações configuradas para ele em
+    // kurier_credencial_coordenacoes — senão um login do Santander acaba populando
+    // a coordenação do Dr. Thomás (e vice-versa).
+    const { data: vincCt, error: vincCtErr } = await admin
+      .from("kurier_credencial_coordenacoes")
+      .select("coordenacao_id")
+      .eq("credencial_id", cred.id);
+    if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
+    const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
+    let coordsCtRaw: Array<{ id: string; nome: string }> = [];
+    if (coordIdsDaCredencial.size > 0) {
+      let coordCtQuery = admin
+        .from("coordenacoes")
+        .select("id, nome")
+        .eq("kurier_captura_total", true)
+        .in("id", Array.from(coordIdsDaCredencial));
+      if (coordenacao_id) coordCtQuery = coordCtQuery.eq("id", coordenacao_id);
+      const { data } = await coordCtQuery;
+      coordsCtRaw = (data ?? []) as Array<{ id: string; nome: string }>;
+    }
     const capturaTotalCoords: Array<{ id: string; monit_id: string }> = [];
-    for (const c of (coordsCtRaw ?? []) as Array<{ id: string; nome: string }>) {
+    for (const c of coordsCtRaw) {
       const { data: existing } = await admin
         .from("monitoramentos_djen")
         .select("id")
