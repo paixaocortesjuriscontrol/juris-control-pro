@@ -42,7 +42,7 @@ interface CardDef {
   textClass: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard }: Props) {
   const cards: CardDef[] = [
     { key: "total", label: "Total de Processos", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
     { key: "processosUnicos", label: "Processos Únicos", value: stats.processosUnicos, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-200 dark:border-indigo-800", textClass: "text-indigo-600 dark:text-indigo-400" },
