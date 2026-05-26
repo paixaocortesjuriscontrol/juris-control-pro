@@ -1627,6 +1627,7 @@ export type Database = {
           resultado_sem_transcendencia: boolean | null
           risco_descricao: string | null
           risco_midia: string | null
+          segredo_justica: boolean | null
           situacao_envio_carga_id: string | null
           situacao_processo: string | null
           status: string
@@ -1736,6 +1737,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          segredo_justica?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
           status?: string
@@ -1845,6 +1847,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          segredo_justica?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
           status?: string
