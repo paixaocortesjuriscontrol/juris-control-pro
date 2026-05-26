@@ -38,6 +38,19 @@ import {
 
 export type TrackStatus = 'pendente' | 'executando' | 'concluido' | 'erro' | 'cancelado';
 
+/** Tipos de busca dedicados às VPS (mapeamos 'nome' → 'palavra-chave'). */
+export type WorkerTipo = 'parte' | 'advogado' | 'palavra-chave' | 'processo';
+const WORKER_TIPOS_ORDER: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave', 'processo'];
+
+function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
+  if (tipo === 'nome') return 'palavra-chave';
+  return tipo as WorkerTipo;
+}
+
+function trackKey(tipo: WorkerTipo, tribunal: string): string {
+  return `${tipo}|${tribunal}`;
+}
+
 export interface TrackProgress {
   tribunal: string;
   /** Tipo de busca dedicado a essa track (parte/advogado/palavra-chave/processo). */
