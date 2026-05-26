@@ -19,6 +19,7 @@ export interface KurierTrack {
   novas: number;
   duplicadas: number;
   descartadas: number;
+  foraJanela: number;
   confirmadas: number;
   recebidas: number;
   lotes: number;
@@ -36,6 +37,7 @@ export interface KurierProgress {
   novas: number;
   duplicadas: number;
   descartadas: number;
+  foraJanela: number;
   confirmadas: number;
   percentage: number;
   mensagem: string;
@@ -67,6 +69,7 @@ function initialProgress(): KurierProgress {
     novas: 0,
     duplicadas: 0,
     descartadas: 0,
+    foraJanela: 0,
     confirmadas: 0,
     percentage: 0,
     mensagem: "",
