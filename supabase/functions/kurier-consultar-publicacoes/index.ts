@@ -535,7 +535,7 @@ Deno.serve(async (req: Request) => {
         if (numero && conteudo) {
           // 1) Matching: Kurier já filtrou pelo TermoPesquisa. Reduz drasticamente
           // o universo de monitoramentos avaliados usando o índice por palavra-chave.
-          const termoKurier = String((p as any).TermoPesquisa || "").trim();
+          const termoKurier = String((p as any).TermoPesquisa || (p as any).NOME_PESQUISADO || "").trim();
           const termoKey = normalizar(extrairPalavraChavePura(termoKurier)).split(/\s+/)[0];
           const candidatos = termoKey ? (monitsByTermo.get(termoKey) || []) : monitoramentos;
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
