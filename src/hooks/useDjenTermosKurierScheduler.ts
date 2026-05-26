@@ -87,9 +87,10 @@ export function useDjenTermosKurierScheduler() {
         .eq("tipo", "kurier");
       await reload();
       // Sempre dispara apenas para HOJE — evita reprocessar backlog antigo da fila Kurier.
+      // modoPersonalizado=true espelha exatamente o botão manual (endpoint por data).
       const d = new Date();
       const hojeYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      void executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd);
+      void executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd, false, true);
     }, 30_000);
     return () => clearInterval(intv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
