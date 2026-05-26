@@ -1171,7 +1171,7 @@ async function processarTermoEmTribunal(
         rateLimitHits++;
         ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
       },
-      onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via),
+      onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
       forceVia: viaId,
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
       fallbackToPool: viaId !== DIRECT_SLOT_ID,
@@ -1219,7 +1219,7 @@ async function processarTermoEmTribunal(
             rateLimitHits++;
             ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
           },
-          onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via),
+          onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
           forceVia: viaId,
           fallbackToDirect: viaId === DIRECT_SLOT_ID,
           fallbackToPool: viaId !== DIRECT_SLOT_ID,
