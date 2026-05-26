@@ -84,8 +84,14 @@ const requestHeaders: HeadersInit = {
   Accept: "application/json, text/plain, */*",
 };
 
-// Backoff global para evitar tempestade de 429 entre chamadas concorrentes
-let globalCooldownUntil = 0;
+// Backoff PJE Comunica.
+// Antes era uma única variável global, o que fazia TODAS as VPS pararem
+// quando uma única recebia 429/504. Agora mantemos um mapa por "via"
+// (id da VPS ou "__direct__"), e exportamos helpers que aceitam um via
+// opcional. Sem via (callers legados Kurier/Flash) usamos a chave
+// "__global__" para preservar o comportamento anterior.
+const GLOBAL_COOLDOWN_KEY = "__global__";
+const cooldownByVia = new Map<string, number>();
 const jitterMs = (base: number) => {
   const factor = 0.8 + Math.random() * 0.5; // 0.8x..1.3x
   return Math.round(base * factor);
@@ -103,9 +109,11 @@ const parseRetryAfterMs = (resp: Response): number | null => {
   }
   return null;
 };
-const setGlobalCooldown = (ms: number) => {
+const setGlobalCooldown = (ms: number, via?: string | null) => {
+  const key = via && via.length > 0 ? via : GLOBAL_COOLDOWN_KEY;
   const until = Date.now() + ms;
-  globalCooldownUntil = Math.max(globalCooldownUntil, until);
+  const prev = cooldownByVia.get(key) ?? 0;
+  cooldownByVia.set(key, Math.max(prev, until));
 };
 
 /**
@@ -136,14 +144,21 @@ function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-const awaitGlobalCooldown = async () => {
-  const wait = globalCooldownUntil - Date.now();
+const getCooldownUntilFor = (via?: string | null): number => {
+  // Sempre considera o cooldown "__global__" (legado Kurier/Flash) como piso.
+  const globalUntil = cooldownByVia.get(GLOBAL_COOLDOWN_KEY) ?? 0;
+  if (!via) return globalUntil;
+  const viaUntil = cooldownByVia.get(via) ?? 0;
+  return Math.max(globalUntil, viaUntil);
+};
+const awaitGlobalCooldown = async (via?: string | null) => {
+  const wait = getCooldownUntilFor(via) - Date.now();
   if (wait > 0) {
     await new Promise(r => setTimeout(r, wait));
   }
 };
-const getGlobalCooldownRemainingMs = (): number => {
-  return Math.max(0, globalCooldownUntil - Date.now());
+const getGlobalCooldownRemainingMs = (via?: string | null): number => {
+  return Math.max(0, getCooldownUntilFor(via) - Date.now());
 };
 
 /**
