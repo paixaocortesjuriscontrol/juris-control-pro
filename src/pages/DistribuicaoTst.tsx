@@ -1426,6 +1426,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Apenas Em análise</SelectItem>
                     <SelectItem value="nao">Não em análise</SelectItem>
+                    <SelectItem value="analisado">Analisado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
