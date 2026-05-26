@@ -1,10 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useKurierCredenciais } from "@/hooks/useKurierCredenciais";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { supabase } from "@/integrations/supabase/client";
+import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
 import { Cloud, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,6 +22,31 @@ export function KurierVpsDistribuidorCard() {
   const [concurrency, setConcurrency] = useState(3);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [coordenacaoId, setCoordenacaoId] = useState("");
+  const [monitoramentoId, setMonitoramentoId] = useState("");
+
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ["monitoramentos-djen-coord-kurier-vps", coordenacaoId],
+    queryFn: async () => {
+      if (!coordenacaoId) return [] as any[];
+      const { data, error } = await supabase
+        .from("monitoramentos_djen")
+        .select("id, termo_busca, descricao, tipo, oab, uf")
+        .eq("coordenacao_id", coordenacaoId)
+        .eq("ativo", true);
+      if (error) throw error;
+      const list = (data || []) as any[];
+      return list.sort((a, b) =>
+        formatMonitoramentoLabel(a).localeCompare(formatMonitoramentoLabel(b), "pt-BR", { sensitivity: "base" }),
+      );
+    },
+    enabled: !!coordenacaoId,
+  });
+
+  useEffect(() => {
+    if (!coordenacaoId) setMonitoramentoId("");
+  }, [coordenacaoId]);
 
   const ativas = useMemo<any[]>(
     () => (credenciais || []).filter((c: any) => c.ativo && (c.senha_encrypted || c.tem_senha)),
@@ -40,6 +69,8 @@ export function KurierVpsDistribuidorCard() {
     params.set("concurrency", String(concurrency));
     if (dataInicio) params.set("data_inicio", dataInicio);
     if (dataFim) params.set("data_fim", dataFim);
+    if (coordenacaoId) params.set("coordenacao_id", coordenacaoId);
+    if (monitoramentoId) params.set("monitoramento_ids", monitoramentoId);
     return `${origin}/worker-kurier-vps?${params.toString()}`;
   }
 
@@ -69,6 +100,38 @@ export function KurierVpsDistribuidorCard() {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Filtros: Coordenação e Termo (espelhando DJEN Termos Paralela) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Coordenação</Label>
+            <select
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+              value={coordenacaoId}
+              onChange={(e) => setCoordenacaoId(e.target.value)}
+            >
+              <option value="">Todas</option>
+              {coordenacoes.map((c) => (
+                <option key={c.id} value={c.id}>{c.nome}</option>
+              ))}
+            </select>
+          </div>
+          {coordenacaoId && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Termo</Label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                value={monitoramentoId}
+                onChange={(e) => setMonitoramentoId(e.target.value)}
+              >
+                <option value="">Todos</option>
+                {monitoramentos.map((m: any) => (
+                  <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Nº de VPS</Label>
