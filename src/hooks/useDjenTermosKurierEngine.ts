@@ -247,12 +247,33 @@ export async function executarDjenTermosKurier(
   emit();
 
   try {
-    const { data: creds, error } = await (supabase as any)
+    let credsQuery = (supabase as any)
       .from("kurier_credenciais")
       .select("id, login, senha_encrypted")
       .eq("ativo", true)
       .not("senha_encrypted", "is", null)
       .order("prioridade", { ascending: false });
+
+    // Se houver coordenação selecionada, restringe às credenciais vinculadas
+    let credIdsPermitidos: Set<string> | null = null;
+    if (coordenacaoId) {
+      const { data: vinculos, error: errVinc } = await (supabase as any)
+        .from("kurier_credencial_coordenacoes")
+        .select("credencial_id")
+        .eq("coordenacao_id", coordenacaoId);
+      if (errVinc) throw errVinc;
+      credIdsPermitidos = new Set<string>((vinculos ?? []).map((v: any) => v.credencial_id));
+      if (credIdsPermitidos.size === 0) {
+        progress.status = "concluido";
+        progress.mensagem = "Nenhuma credencial Kurier vinculada a esta coordenação.";
+        running = false;
+        emit();
+        return;
+      }
+      credsQuery = credsQuery.in("id", Array.from(credIdsPermitidos));
+    }
+
+    const { data: creds, error } = await credsQuery;
     if (error) throw error;
 
     const ckp = retomar ? loadCheckpoint() : null;
