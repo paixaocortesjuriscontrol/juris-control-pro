@@ -269,6 +269,7 @@ Deno.serve(async (req: Request) => {
       ? body.data_inicio : undefined;
     const data_fim: string | undefined = typeof body.data_fim === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_fim)
       ? body.data_fim : undefined;
+    const modo_personalizado = body.modo_personalizado === true;
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
     const { data: cred, error: credErr } = await admin
@@ -413,7 +414,7 @@ Deno.serve(async (req: Request) => {
     // Modo "personalizado": quando o usuário escolhe um intervalo de datas, usamos
     // o endpoint ConsultarPublicacoesPersonalizado (consulta por data, NÃO confirma)
     // em vez da fila — isso permite re-buscar publicações já confirmadas/drenadas.
-    const useDateMode = !!(data_inicio && data_fim);
+    const useDateMode = !!(modo_personalizado && data_inicio && data_fim);
     const datas: string[] = [];
     if (useDateMode) {
       const start = new Date(`${data_inicio}T00:00:00Z`);
