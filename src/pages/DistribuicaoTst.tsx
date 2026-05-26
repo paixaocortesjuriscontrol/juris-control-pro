@@ -179,6 +179,7 @@ export default function DistribuicaoTst() {
   const [filtroSubidaMassa, setFiltroSubidaMassa] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
+  const autoSelectedRespRef = useRef(false);
   const [filtroSemTurma, setFiltroSemTurma] = useState<boolean>(false);
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
