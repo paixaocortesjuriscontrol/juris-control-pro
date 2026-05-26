@@ -1643,6 +1643,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="transito">Trânsito em Julgado</SelectItem>
                     <SelectItem value="outros">Outros</SelectItem>
                     <SelectItem value="outro_escritorio">Processo outro escritório</SelectItem>
+                    <SelectItem value="segredo_justica">Segredo de Justiça</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

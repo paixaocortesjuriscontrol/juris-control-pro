@@ -66,6 +66,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [problemaJudit, setProblemaJudit] = useState(false);
   const [transitoJulgado, setTransitoJulgado] = useState(false);
   const [outroEscritorio, setOutroEscritorio] = useState(false);
+  const [segredoJustica, setSegredoJustica] = useState(false);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
@@ -241,6 +242,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   useEffect(() => {
     setTransitoJulgado(!!(bennerDado as any)?.transito_julgado);
     setOutroEscritorio(!!(bennerDado as any)?.processo_outro_escritorio);
+    setSegredoJustica(!!(bennerDado as any)?.segredo_justica);
   }, [bennerDado]);
 
   // Carrega o registro Benner ao abrir o detalhe (independente da aba), para
@@ -314,7 +316,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       // Persiste switches "Trânsito em Julgado" e "Processo outro escritório".
       const currentTransito = !!(bennerDado as any)?.transito_julgado;
       const currentOutro = !!(bennerDado as any)?.processo_outro_escritorio;
-      if (currentTransito !== transitoJulgado || currentOutro !== outroEscritorio) {
+      const currentSegredo = !!(bennerDado as any)?.segredo_justica;
+      if (currentTransito !== transitoJulgado || currentOutro !== outroEscritorio || currentSegredo !== segredoJustica) {
         const targetId = (bennerDado as any)?.id || dado?.id;
         if (targetId) {
           const payload: any = {};
@@ -324,6 +327,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           }
           if (currentOutro !== outroEscritorio) {
             payload.processo_outro_escritorio = outroEscritorio;
+          }
+          if (currentSegredo !== segredoJustica) {
+            payload.segredo_justica = segredoJustica;
           }
           const { error: updErr } = await supabase
             .from("dados_benner" as any)
@@ -374,6 +380,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <div className="flex items-center gap-2">
           <Switch checked={outroEscritorio} onCheckedChange={setOutroEscritorio} />
           <Label className="text-sm font-medium text-purple-700 dark:text-purple-400">Processo outro escritório</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={segredoJustica} onCheckedChange={setSegredoJustica} />
+          <Label className="text-sm font-medium text-rose-700 dark:text-rose-400">Segredo de Justiça</Label>
         </div>
       </div>
 
