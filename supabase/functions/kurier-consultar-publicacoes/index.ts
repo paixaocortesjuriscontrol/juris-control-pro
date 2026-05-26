@@ -348,7 +348,6 @@ Deno.serve(async (req: Request) => {
       const idsConfirmar: string[] = [];
 
       const rawRows: any[] = [];
-      const idsKurierEff: string[] = [];
 
       for (const p of pubs) {
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
@@ -365,8 +364,6 @@ Deno.serve(async (req: Request) => {
         // Mesmo sem id reconhecido, persiste o payload para inspecionar depois.
         // Usa fallback hash para evitar perder o payload e poder reprocessar.
         const idKEff = idK ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
-
-        idsKurierEff.push(idKEff);
 
         const numero = normalizeProcesso(pickStr(p,
           "numero_processo", "NumeroProcesso", "processo", "Processo",
@@ -489,6 +486,13 @@ Deno.serve(async (req: Request) => {
         });
 
         if (idK) idsConfirmar.push(idK);
+      }
+
+      if (rawRows.length) {
+        const { error: rawErr } = await admin
+          .from("kurier_publicacoes_raw")
+          .upsert(rawRows, { onConflict: "id_kurier", ignoreDuplicates: true });
+        if (rawErr) console.warn("[kurier] erro upsert raw:", rawErr.message);
       }
 
       // Confirma o lote
