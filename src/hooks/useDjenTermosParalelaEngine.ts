@@ -47,14 +47,22 @@ function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   return tipo as WorkerTipo;
 }
 
-function trackKey(tipo: WorkerTipo, tribunal: string): string {
-  return `${tipo}|${tribunal}`;
+function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null): string {
+  return monId ? `${tipo}|${tribunal}|${monId}` : `${tipo}|${tribunal}`;
 }
 
 export interface TrackProgress {
   tribunal: string;
   /** Tipo de busca dedicado a essa track (parte/advogado/palavra-chave/processo). */
   tipo: 'parte' | 'advogado' | 'palavra-chave' | 'processo';
+  /**
+   * ID do monitoramento dedicado a essa track. Definido apenas para
+   * `tipo='parte'`, em que cada monitoramento vira uma unidade de fila
+   * independente para permitir paralelismo entre VPSs.
+   */
+  monId?: string | null;
+  /** Rótulo amigável do termo de busca quando monId está presente. */
+  monLabel?: string | null;
   status: TrackStatus;
   current: number; // termos processados (no tribunal × dias)
   total: number;   // total termos × dias para esse tribunal
@@ -308,9 +316,11 @@ function stopLocalExecution() {
   state.isRunning = false;
 }
 
-function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackProgress>) {
+function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackProgress>, monId?: string | null) {
   const tracks = state.progress.tracks.map(t =>
-    (t.tribunal === tribunal && t.tipo === tipo) ? { ...t, ...partial } : t
+    (t.tribunal === tribunal && t.tipo === tipo && (t.monId ?? null) === (monId ?? null))
+      ? { ...t, ...partial }
+      : t
   );
   // Recalcular agregados
   let novas = 0, duplicadas = 0, descartadas = 0, concluidos = 0;
@@ -348,9 +358,9 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
  * Atualiza tanto o "lastVia" (mostrado em destaque na UI) quanto os contadores
  * acumulados por rota para um painel de uso por tribunal.
  */
-function registrarViaTrack(tribunal: string, tipo: WorkerTipo, via: PoolViaInfo) {
+function registrarViaTrack(tribunal: string, tipo: WorkerTipo, via: PoolViaInfo, monId?: string | null) {
   const tracks = state.progress.tracks.map(t => {
-    if (t.tribunal !== tribunal || t.tipo !== tipo) return t;
+    if (t.tribunal !== tribunal || t.tipo !== tipo || (t.monId ?? null) !== (monId ?? null)) return t;
     const callsByProxy = { ...t.callsByProxy };
     let callsDirect = t.callsDirect;
     if (via.kind === 'direct') {
@@ -963,13 +973,17 @@ async function processarTribunalTrack(
   datas: string[],
   signal: AbortSignal,
   viaId?: string,
+  monId?: string | null,
 ) {
-  const track = state.progress.tracks.find(t => t.tribunal === tribunal && t.tipo === tipo);
+  const track = state.progress.tracks.find(
+    t => t.tribunal === tribunal && t.tipo === tipo && (t.monId ?? null) === (monId ?? null),
+  );
   if (!track) return;
 
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
+    if (monId && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
@@ -983,14 +997,14 @@ async function processarTribunalTrack(
     current: 0,
     startedAt: Date.now(),
     mensagem: `${tipo}: iniciando ${monsParaEsseTrib.length} termos × ${datas.length} dias`,
-  });
+  }, monId);
 
   if (total === 0) {
     updateTrack(tribunal, tipo, {
       status: 'concluido',
       finishedAt: Date.now(),
       mensagem: `${tipo}: sem termos aplicáveis a este tribunal`,
-    });
+    }, monId);
     return;
   }
 
@@ -1008,7 +1022,7 @@ async function processarTribunalTrack(
         // Cooldown global PJE
         const cooldown = getPjeComunicaGlobalCooldownRemainingMs();
         if (cooldown > 250) {
-          updateTrack(tribunal, tipo, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` });
+          updateTrack(tribunal, tipo, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` }, monId);
           await awaitPjeComunicaGlobalCooldown();
           if (signal.aborted) break;
         }
@@ -1017,10 +1031,10 @@ async function processarTribunalTrack(
           termoAtual: mon.descricao || mon.termo_busca,
           diaAtual: diaYmd,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
-        });
+        }, monId);
 
         try {
-          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo);
+          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo, monId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1040,7 +1054,7 @@ async function processarTribunalTrack(
           descartadas: acumDesc,
           rateLimitHits,
           ultimoErro,
-        });
+        }, monId);
 
         syncExecutionProgress();
         await abortableDelay(CONFIG.delay_between_terms, signal);
@@ -1054,14 +1068,14 @@ async function processarTribunalTrack(
       mensagem: signal.aborted
         ? 'Cancelado'
         : `Concluído: ${acumNovas} novas, ${acumDup} duplicadas, ${acumDesc} descartadas`,
-    });
+    }, monId);
   } catch (e: any) {
     updateTrack(tribunal, tipo, {
       status: 'erro',
       finishedAt: Date.now(),
       ultimoErro: e?.message || String(e),
       mensagem: `Erro: ${e?.message || 'desconhecido'}`,
-    });
+    }, monId);
   }
 }
 
@@ -1076,6 +1090,7 @@ async function processarTermoEmTribunal(
   signal: AbortSignal,
   viaId?: string,
   tipoTrack?: WorkerTipo,
+  monIdTrack?: string | null,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
@@ -1156,7 +1171,7 @@ async function processarTermoEmTribunal(
         rateLimitHits++;
         ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
       },
-      onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via),
+      onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
       forceVia: viaId,
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
       fallbackToPool: viaId !== DIRECT_SLOT_ID,
@@ -1204,7 +1219,7 @@ async function processarTermoEmTribunal(
             rateLimitHits++;
             ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
           },
-          onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via),
+          onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
           forceVia: viaId,
           fallbackToDirect: viaId === DIRECT_SLOT_ID,
           fallbackToPool: viaId !== DIRECT_SLOT_ID,
@@ -1677,30 +1692,45 @@ async function executarLoop(
       for (const tipo of tiposAtivos) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        const key = trackKey(tipo, trib);
-        const jaConcluido = unidadesJaConcluidas.has(key);
-        tracks.push({
-          tribunal: trib,
-          tipo,
-          status: jaConcluido ? 'concluido' : 'pendente',
-          current: 0,
-          total: 0,
-          novas: 0,
-          duplicadas: 0,
-          descartadas: 0,
-          mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-          termoAtual: null,
-          diaAtual: null,
-          rateLimitHits: 0,
-          ultimoErro: null,
-          startedAt: null,
-          finishedAt: jaConcluido ? Date.now() : null,
-          lastViaId: null,
-          lastViaLabel: null,
-          lastViaKind: null,
-          callsDirect: 0,
-          callsByProxy: {},
-        });
+        // Para tipo=parte: cada monitoramento vira uma track/unidade
+        // independente (permite que VPSs distintas processem em paralelo).
+        // Demais tipos seguem com 1 track por (tipo, tribunal).
+        const monsDoTipoNoTrib = tipo === 'parte'
+          ? (monsPorTipo.get(tipo) || []).filter((m) => {
+              const tribs = expandirTribunaisDoMon(m.tribunais);
+              return tribs.length === 0 || tribs.includes(trib);
+            })
+          : [null as Monitoramento | null];
+        for (const monAlvo of monsDoTipoNoTrib) {
+          const monId = monAlvo ? monAlvo.id : null;
+          const monLabel = monAlvo ? (monAlvo.descricao || monAlvo.termo_busca) : null;
+          const key = trackKey(tipo, trib, monId);
+          const jaConcluido = unidadesJaConcluidas.has(key);
+          tracks.push({
+            tribunal: trib,
+            tipo,
+            monId,
+            monLabel,
+            status: jaConcluido ? 'concluido' : 'pendente',
+            current: 0,
+            total: 0,
+            novas: 0,
+            duplicadas: 0,
+            descartadas: 0,
+            mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
+            termoAtual: monLabel,
+            diaAtual: null,
+            rateLimitHits: 0,
+            ultimoErro: null,
+            startedAt: null,
+            finishedAt: jaConcluido ? Date.now() : null,
+            lastViaId: null,
+            lastViaLabel: null,
+            lastViaKind: null,
+            callsDirect: 0,
+            callsByProxy: {},
+          });
+        }
       }
     }
     const totalUnidades = tracks.length;
@@ -1754,13 +1784,33 @@ async function executarLoop(
     // está desligado ou sem VPS válida.
 
     // Filas por tipo: cada tipo tem sua própria fila de tribunais pendentes.
-    type WorkUnit = { tipo: WorkerTipo; tribunal: string };
-    const filasPorTipo = new Map<WorkerTipo, string[]>();
+    // Para tipo=parte cada monitoramento é uma unidade própria — permite que
+    // VPSs distintas processem partes diferentes em paralelo (antes a fila era
+    // por tribunal e 1 VPS pegava todos os ~112 monitoramentos de parte do TST).
+    type WorkUnit = { tipo: WorkerTipo; tribunal: string; monId?: string | null };
+    const filasPorTipo = new Map<WorkerTipo, WorkUnit[]>();
     for (const tipo of tiposAtivos) {
-      const tribs = (tribunaisPorTipo.get(tipo) || []).filter(
-        (t) => !unidadesJaConcluidas.has(trackKey(tipo, t)),
-      );
-      filasPorTipo.set(tipo, tribs);
+      const tribs = tribunaisPorTipo.get(tipo) || [];
+      const fila: WorkUnit[] = [];
+      if (tipo === 'parte') {
+        const monsDoTipo = monsPorTipo.get(tipo) || [];
+        for (const trib of tribs) {
+          const monsDoTrib = monsDoTipo.filter((m) => {
+            const t = expandirTribunaisDoMon(m.tribunais);
+            return t.length === 0 || t.includes(trib);
+          });
+          for (const m of monsDoTrib) {
+            if (unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))) continue;
+            fila.push({ tipo, tribunal: trib, monId: m.id });
+          }
+        }
+      } else {
+        for (const trib of tribs) {
+          if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+          fila.push({ tipo, tribunal: trib });
+        }
+      }
+      filasPorTipo.set(tipo, fila);
     }
     const totalUnidadesPendentes = Array.from(filasPorTipo.values()).reduce((a, b) => a + b.length, 0);
     const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
@@ -1810,16 +1860,14 @@ async function executarLoop(
       // 1) Tipo primário primeiro
       const filaPrim = filasPorTipo.get(tipoPrimario);
       if (filaPrim && filaPrim.length > 0) {
-        const trib = filaPrim.shift()!;
-        return { tipo: tipoPrimario, tribunal: trib };
+        return filaPrim.shift()!;
       }
       // 2) Steal: percorre demais tipos
       for (const tipo of tiposAtivos) {
         if (tipo === tipoPrimario) continue;
         const fila = filasPorTipo.get(tipo);
         if (fila && fila.length > 0) {
-          const trib = fila.shift()!;
-          return { tipo, tribunal: trib };
+          return fila.shift()!;
         }
       }
       return null;
@@ -1830,11 +1878,11 @@ async function executarLoop(
         const unit = pickNextUnit(tipoPrimario);
         if (!unit) break;
         try {
-          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id);
+          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId ?? null);
         } catch (e) {
           console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}:`, e);
         }
-        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal));
+        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, unit.monId ?? null));
 
         saveCheckpoint({
           runKey,
