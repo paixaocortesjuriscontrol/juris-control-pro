@@ -3426,7 +3426,7 @@ const AnaliseDjen = () => {
         <DjenExecutionBanner />
 
         {/* Stats Cards - Mobile optimized */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
@@ -3510,6 +3510,23 @@ const AnaliseDjen = () => {
                   </p>
                 </div>
                 <CalendarClock className="w-6 h-6 md:w-10 md:h-10 text-indigo-500/50 flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setTipoOrigem('kurier')}
+          >
+            <CardContent className="p-3 md:pt-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-orange-600 dark:text-orange-400 truncate">Kurier</p>
+                  <p className="text-xl md:text-3xl font-bold text-orange-700 dark:text-orange-300">
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalKurierVisivel}
+                  </p>
+                </div>
+                <Zap className="w-6 h-6 md:w-10 md:h-10 text-orange-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
