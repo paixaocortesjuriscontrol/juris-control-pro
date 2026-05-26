@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
-import { fetchAllFilteredBennerIds } from "@/lib/relatorioPartesPdf";
+import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { loadResponsaveisMap } from "@/hooks/useDistribuicaoResponsaveis";
 import * as XLSX from "xlsx";
 
@@ -43,7 +42,7 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
   if (selectedIds && selectedIds.size > 0) {
     ids = Array.from(selectedIds);
   } else {
-    ids = await fetchAllFilteredBennerIds(filters);
+    ids = await fetchAllDistribuicaoTstIds(filters);
   }
 
   // Carrega situações de envio carga (id -> nome)
