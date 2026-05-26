@@ -174,11 +174,10 @@ async function processarCredencial(
         track.mensagem = `Erro: ${(r?.erro ?? "").slice(0, 80)}`;
         return;
       }
-      // Em modo data (intervalo definido), uma chamada já cobre todas as datas.
-      if (dataInicioYmd && dataFimYmd) break;
-      // A fila da Kurier pode liberar publicações mais novas apenas depois de
-      // confirmar um lote antigo. Mesmo lote parcial (<50) pode ser só o fim de
-      // uma faixa antiga, não o fim real da fila; continue até a API voltar vazia.
+      // Em modo personalizado (endpoint de data), uma chamada já cobre o intervalo.
+      if (modoPersonalizado) break;
+      // Fila: continua até a API voltar vazia. Lotes parciais podem ser apenas o
+      // fim de uma faixa antiga; ainda assim seguimos. Só paramos quando 0.
       if (recebidas === 0 || Number(r?.lotes_processados ?? 0) === 0) break;
     }
 
