@@ -47,14 +47,22 @@ function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   return tipo as WorkerTipo;
 }
 
-function trackKey(tipo: WorkerTipo, tribunal: string): string {
-  return `${tipo}|${tribunal}`;
+function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null): string {
+  return monId ? `${tipo}|${tribunal}|${monId}` : `${tipo}|${tribunal}`;
 }
 
 export interface TrackProgress {
   tribunal: string;
   /** Tipo de busca dedicado a essa track (parte/advogado/palavra-chave/processo). */
   tipo: 'parte' | 'advogado' | 'palavra-chave' | 'processo';
+  /**
+   * ID do monitoramento dedicado a essa track. Definido apenas para
+   * `tipo='parte'`, em que cada monitoramento vira uma unidade de fila
+   * independente para permitir paralelismo entre VPSs.
+   */
+  monId?: string | null;
+  /** Rótulo amigável do termo de busca quando monId está presente. */
+  monLabel?: string | null;
   status: TrackStatus;
   current: number; // termos processados (no tribunal × dias)
   total: number;   // total termos × dias para esse tribunal
