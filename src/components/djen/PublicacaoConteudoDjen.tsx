@@ -268,25 +268,29 @@ const extractPartesAndAdvogados = (
   }
 
   // ── 4. Partes de padrões rotulados no texto ───────────────────────────
-  if (texto && partes.length === 0) {
+  if (texto) {
     const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     const labelPatterns: RegExp[] = [
-      /AGRAVANTE[:\s]+([^\n]+?)(?=\s+(?:AGRAVADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /AGRAVADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /RECLAMANTE[:\s]+([^\n]+?)(?=\s+(?:RECLAMADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /RECLAMADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /EXEQUENTE[:\s]+([^\n]+?)(?=\s+(?:EXECUTADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /EXECUTADO[:\s]+([^\n]+?)(?=\s+(?:E OUTROS|INTIMAÇÃO|ADV|ADVOGADO|OAB|\d{7}|$))/i,
-      /AUTOR[:\s]+([^\n]+?)(?=\s+(?:R[ÉE]U|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /R[ÉE]U[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /REQUERENTE[:\s]+([^\n]+?)(?=\s+(?:REQUERIDO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /REQUERIDO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /IMPETRANTE[:\s]+([^\n]+?)(?=\s+(?:IMPETRADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /IMPETRADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /EMBARGANTE[:\s]+([^\n]+?)(?=\s+(?:EMBARGADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /EMBARGADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /APELANTE[:\s]+([^\n]+?)(?=\s+(?:APELADO|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
-      /APELADO[:\s]+([^\n]+?)(?=\s+(?:ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /AGRAVANTE[:\s]+([^\n]+?)(?=\s+(?:AGRAVADO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /AGRAVADO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /RECLAMANTE[:\s]+([^\n]+?)(?=\s+(?:RECLAMADO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /RECLAMADO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EXEQUENTE[:\s]+([^\n]+?)(?=\s+(?:EXECUTADO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EXECUTADO[:\s]+([^\n]+?)(?=\s+(?:E OUTROS|INTIMAÇÃO|ADV\s*\(|ADV|ADVOGADO|OAB|\d{7}|$))/i,
+      /AUTOR[:\s]+([^\n]+?)(?=\s+(?:R[ÉE]U|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /R[ÉE]U[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /REQUERENTE[:\s]+([^\n]+?)(?=\s+(?:REQUERIDO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /REQUERIDO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /IMPETRANTE[:\s]+([^\n]+?)(?=\s+(?:IMPETRADO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /IMPETRADO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EMBARGANTE[:\s]+([^\n]+?)(?=\s+(?:EMBARGADO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /EMBARGADO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /APELANTE[:\s]+([^\n]+?)(?=\s+(?:APELADO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /APELADO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /PROMOVENTE[:\s]+([^\n]+?)(?=\s+(?:PROMOVIDO|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /PROMOVIDO[:\s]+([^\n]+?)(?=\s+(?:ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /POLO\s+ATIVO[:\s]+([^\n]+?)(?=\s+(?:POLO\s+PASSIVO|SEGREDO|PARTE\s+INTIMADA|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
+      /POLO\s+PASSIVO[:\s]+([^\n]+?)(?=\s+(?:SEGREDO|PARTE\s+INTIMADA|ADV\s*\(|ADV|ADVOGADO|INTIMAÇÃO|OAB|\d{7}|$))/i,
     ];
     for (const pattern of labelPatterns) {
       const match = plainText.match(pattern);
