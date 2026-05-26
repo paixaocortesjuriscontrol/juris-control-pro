@@ -244,6 +244,11 @@ export default function DistribuicaoTst() {
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
+  // Total Geral: ignora o filtro de responsável (mostra sempre o total do escritório
+  // para os demais filtros selecionados).
+  const { stats: statsGeral } = useDistribuicaoTstStats(countsFilters);
+  const statsWithGeral = { ...stats, total: statsGeral.total };
+
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
   const [mesesAnos, setMesesAnos] = useState<{ key: string; count: number }[]>([]);
