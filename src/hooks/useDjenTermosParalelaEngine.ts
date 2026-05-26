@@ -1205,7 +1205,7 @@ async function processarTermoEmTribunal(
   // Retry automático: a API do PJE Comunica ocasionalmente devolve listagem
   // vazia (sem 429/5xx) para um termo que tem publicações. Antes de desistir,
   // refazemos uma única tentativa após pequeno delay.
-  if (tipo !== 'parte' && !signal.aborted && resultados.length === 0) {
+  if (tipo !== 'parte' && tipo !== 'processo' && !signal.aborted && resultados.length === 0) {
     try {
       await abortableDelay(1500, signal);
       if (!signal.aborted) {
