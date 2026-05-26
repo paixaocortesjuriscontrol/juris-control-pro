@@ -122,7 +122,7 @@ function recompute() {
     : 0;
 }
 
-async function processarCredencial(track: KurierTrack) {
+async function processarCredencial(track: KurierTrack, monitoramentoIds?: string[], coordenacaoId?: string) {
   track.status = "executando";
   track.startedAt = Date.now();
   track.mensagem = "Consultando lotes…";
@@ -130,7 +130,12 @@ async function processarCredencial(track: KurierTrack) {
 
   try {
     const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
-      body: { credencial_id: track.credencialId, max_lotes: 20 },
+      body: {
+        credencial_id: track.credencialId,
+        max_lotes: 20,
+        monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
+        coordenacao_id: coordenacaoId || undefined,
+      },
     });
     if (error) throw error;
     const r = data as any;
@@ -172,13 +177,13 @@ async function processarCredencial(track: KurierTrack) {
   }
 }
 
-async function runPool(tracks: KurierTrack[]) {
+async function runPool(tracks: KurierTrack[], monitoramentoIds?: string[], coordenacaoId?: string) {
   let idx = 0;
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
     while (!cancelRequested) {
       const i = idx++;
       if (i >= tracks.length) return;
-      await processarCredencial(tracks[i]);
+      await processarCredencial(tracks[i], monitoramentoIds, coordenacaoId);
     }
     // Marca pendentes como cancelados
     for (let j = idx; j < tracks.length; j++) {
@@ -191,7 +196,11 @@ async function runPool(tracks: KurierTrack[]) {
   await Promise.all(workers);
 }
 
-export async function executarDjenTermosKurier(retomar = false): Promise<void> {
+export async function executarDjenTermosKurier(
+  retomar = false,
+  monitoramentoIds?: string[],
+  coordenacaoId?: string,
+): Promise<void> {
   if (running) return;
   running = true;
   cancelRequested = false;
@@ -244,7 +253,7 @@ export async function executarDjenTermosKurier(retomar = false): Promise<void> {
     emit();
 
     const aPercorrer = tracks.filter((t) => t.status === "pendente");
-    await runPool(aPercorrer);
+    await runPool(aPercorrer, monitoramentoIds, coordenacaoId);
 
     if (cancelRequested) {
       progress.status = "cancelado";
