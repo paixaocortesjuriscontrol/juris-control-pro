@@ -54,6 +54,7 @@ function pickId(p: KurierPub): string | null {
     (p as any).idPublicacao ?? (p as any).IdPublicacao ??
     (p as any).idProcesso ?? (p as any).IdProcesso ?? (p as any).IDProcesso ??
     (p as any).IDPublicacao ?? (p as any).id_publicacao ?? (p as any).ID_PUBLICACAO ??
+    (p as any).N_RECORTE ?? (p as any).n_recorte ?? (p as any).Recorte ?? (p as any).recorte ??
     (p as any).codigoPublicacao ?? (p as any).CodigoPublicacao ??
     (p as any).codPublicacao ?? (p as any).CodPublicacao ??
     (p as any).cdPublicacao ?? (p as any).CdPublicacao ??
@@ -446,11 +447,12 @@ Deno.serve(async (req: Request) => {
         const dispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
-          "dataDisponibilidade", "DataDisponibilidade");
+          "dataDisponibilidade", "DataDisponibilidade",
+          "DATA_DIVULGACAO", "DATA_DISPONIBILIZACAO");
         const pubRaw = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
-          "dtPublicacao", "DtPublicacao");
-        const textoKurier = String((p as any).Texto ?? (p as any).texto ?? "");
+          "dtPublicacao", "DtPublicacao", "DATA_PUBLICACAO");
+        const textoKurier = String((p as any).Texto ?? (p as any).texto ?? (p as any).PUBLICACAO ?? "");
         const refIso = toIsoDate(dispRaw)
           ?? extractDateFromText(textoKurier, [
             /DATA\s+DE\s+DISPONIBILIZA[ÇC][AÃ]O\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
@@ -476,9 +478,9 @@ Deno.serve(async (req: Request) => {
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
         // pesado em CPU. Inclui também TermoPesquisa/Processo para matching.
         const searchable = [
-          (p as any).Texto ?? (p as any).texto ?? "",
-          (p as any).TermoPesquisa ?? "",
-          (p as any).Processo ?? "",
+          (p as any).Texto ?? (p as any).texto ?? (p as any).PUBLICACAO ?? "",
+          (p as any).TermoPesquisa ?? (p as any).NOME_PESQUISADO ?? "",
+          (p as any).Processo ?? (p as any).NUMERO_PROCESSO ?? "",
         ].filter(Boolean).join("\n");
         const idK = pickId(p) ?? pickDeep(p, [
           "id", "idPublicacao", "IDPublicacao", "idProcesso", "IdProcesso", "IDProcesso", "codigoPublicacao", "codPublicacao", "cdPublicacao",
