@@ -15,7 +15,6 @@ import {
 } from "../_kurier-shared/crypto.ts";
 import {
   condicaoConcomitanteAtendida,
-  conteudoContemTermoOuOr,
   extrairPalavraChavePura,
   normalizar,
   shouldExclude,
@@ -299,7 +298,7 @@ Deno.serve(async (req: Request) => {
       let pubs: KurierPub[] = [];
       try {
         const j = JSON.parse(texto);
-        pubs = Array.isArray(j) ? j : (j?.publicacoes ?? j?.Publicacoes ?? j?.items ?? []);
+        pubs = extractPublicacoes(j);
       } catch (e) {
         ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
         break;
@@ -320,7 +319,11 @@ Deno.serve(async (req: Request) => {
       const idsConfirmar: string[] = [];
 
       for (const p of pubs) {
-        const idK = pickId(p);
+        const searchable = collectSearchableText(p);
+        const idK = pickId(p) ?? pickDeep(p, [
+          "id", "idPublicacao", "IDPublicacao", "codigoPublicacao", "codPublicacao", "cdPublicacao",
+          "codigo", "idDocumento", "cdDocumento", "codigoDocumento", "numeroDocumento", "protocolo", "guid", "hash",
+        ]);
         // Mesmo sem id reconhecido, persiste o payload para inspecionar depois.
         // Usa fallback hash para evitar perder o payload e poder reprocessar.
         const idKEff = idK ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
@@ -343,24 +346,36 @@ Deno.serve(async (req: Request) => {
           "numProcesso", "NumProcesso", "nrProcesso", "NrProcesso",
           "numeroProcesso", "processoNumero", "ProcessoNumero",
           "numeroProcessoFormatado", "NumeroProcessoFormatado",
-          "processoCNJ", "ProcessoCNJ"));
+          "processoCNJ", "ProcessoCNJ") ?? pickDeep(p, [
+            "numero_processo", "NumeroProcesso", "processo", "Processo",
+            "numProcesso", "nrProcesso", "numeroProcesso", "processoNumero",
+            "numeroProcessoFormatado", "processoCNJ", "cnj",
+          ]) ?? extractProcessoFromText(searchable));
         const conteudo = pickStr(p,
           "conteudo", "Conteudo", "texto", "Texto",
           "mensagem", "Mensagem", "descricao", "Descricao",
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "movimento", "Movimento",
-          "andamento", "Andamento", "intimacao", "Intimacao");
+          "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
         const dataDisp = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
-          "dataDisponibilidade", "DataDisponibilidade");
+          "dataDisponibilidade", "DataDisponibilidade") ?? pickDeep(p, [
+            "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
+            "dtDisponibilizacao", "dataDisponibilidade", "disponibilizacao",
+          ]);
         const dataPub = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
           "dtPublicacao", "DtPublicacao",
-          "dataMovimento", "DataMovimento", "dtMovimento", "DtMovimento");
+          "dataMovimento", "DataMovimento", "dtMovimento", "DtMovimento") ?? pickDeep(p, [
+            "data_publicacao", "DataPublicacao", "dataPublicacao", "dtPublicacao",
+            "dataMovimento", "dtMovimento", "publicacao", "data",
+          ]);
         const tribunal = pickStr(p,
           "tribunal", "Tribunal", "siglaTribunal", "SiglaTribunal",
-          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador");
+          "orgao", "Orgao", "orgaoJulgador", "OrgaoJulgador") ?? pickDeep(p, [
+            "tribunal", "siglaTribunal", "orgao", "orgaoJulgador", "diario",
+          ]);
 
         let publicacaoDjenId: string | null = null;
         let motivoDescarte: string | null = null;
@@ -372,8 +387,8 @@ Deno.serve(async (req: Request) => {
           let motivoExcl: string | null = null;
           for (const m of monitoramentos) {
             try {
-              if (!conteudoContemTermoOuOr(conteudo, m as Monitoramento)) continue;
-              const motivo = shouldExclude(conteudo, m.exclusoes || [], null, null);
+              if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento)) continue;
+              const motivo = shouldExclude(searchable || conteudo, m.exclusoes || [], null, null);
               if (motivo) { motivoExcl = motivo; continue; }
               matched = m;
               break;
@@ -408,10 +423,10 @@ Deno.serve(async (req: Request) => {
                 fonte: "kurier",
                 hash_conteudo: hashConteudo,
                 dedup_processo_digits: digits || null,
-                dedup_data_ref: (dataDisp ?? dataPub ?? "").slice(0, 10) || null,
+                dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
                 tribunal,
-                data_disponibilizacao: dataDisp ?? null,
-                data_publicacao: dataPub ?? null,
+                data_disponibilizacao: toIsoDate(dataDisp) ?? null,
+                data_publicacao: toIsoDate(dataPub) ?? null,
                 tipo_publicacao: "intimacao",
               };
 
@@ -438,7 +453,7 @@ Deno.serve(async (req: Request) => {
         }
 
         // Grava raw após tentar inserir publicacoes_djen
-        await admin
+        const { error: rawErr } = await admin
           .from("kurier_publicacoes_raw")
           .insert({
             id_kurier: idKEff,
@@ -449,6 +464,7 @@ Deno.serve(async (req: Request) => {
             motivo_descarte: motivoDescarte,
             recebida_em: new Date().toISOString(),
           });
+        if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
 
         if (idK) idsConfirmar.push(idK);
       }
