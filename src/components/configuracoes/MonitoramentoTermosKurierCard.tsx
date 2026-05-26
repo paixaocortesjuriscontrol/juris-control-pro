@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
@@ -29,6 +29,7 @@ function formatDuracao(s: number) {
 export function MonitoramentoTermosKurierCard() {
   const { progress, isRunning, canResume, executar, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
   const { config, saveConfig } = useDjenTermosKurierScheduler();
+  const queryClient = useQueryClient();
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
   const [freqDraft, setFreqDraft] = useState<string | null>(null);
   const today = new Date();
@@ -40,6 +41,28 @@ export function MonitoramentoTermosKurierCard() {
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>("");
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>("");
   const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { data: coordsCapturaTotal = [] } = useQuery({
+    queryKey: ["coordenacoes-kurier-captura-total"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coordenacoes")
+        .select("id, nome, kurier_captura_total")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const toggleCapturaTotal = async (id: string, valor: boolean) => {
+    const { error } = await supabase
+      .from("coordenacoes")
+      .update({ kurier_captura_total: valor })
+      .eq("id", id);
+    if (error) {
+      console.error("Erro ao alterar captura total:", error);
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["coordenacoes-kurier-captura-total"] });
+  };
   const { data: monitoramentos = [] } = useQuery({
     queryKey: ["monitoramentos-djen-coord-kurier", filtroCoordenacaoId],
     queryFn: async () => {
@@ -297,6 +320,33 @@ export function MonitoramentoTermosKurierCard() {
       </Card>
 
       <KurierCredenciaisPanel />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Captura total Kurier por coordenação</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Quando ligado, a coordenação recebe <strong>todas</strong> as publicações trazidas pela busca Kurier
+            dentro do intervalo de datas — sem aplicar os termos cadastrados. Útil quando o time quer auditar
+            tudo que cai na fila, independente de filtro.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md divide-y max-h-96 overflow-auto">
+            {coordsCapturaTotal.map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+                <span className="truncate">{c.nome}</span>
+                <Switch
+                  checked={!!c.kurier_captura_total}
+                  onCheckedChange={(v) => void toggleCapturaTotal(c.id, v)}
+                />
+              </div>
+            ))}
+            {coordsCapturaTotal.length === 0 && (
+              <div className="p-3 text-center text-muted-foreground">Nenhuma coordenação cadastrada.</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
