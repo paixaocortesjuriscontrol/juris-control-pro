@@ -179,6 +179,7 @@ export default function DistribuicaoTst() {
   const [filtroSubidaMassa, setFiltroSubidaMassa] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
+  const autoSelectedRespRef = useRef(false);
   const [filtroSemTurma, setFiltroSemTurma] = useState<boolean>(false);
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
@@ -235,6 +236,18 @@ export default function DistribuicaoTst() {
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts } = useResponsaveisCounts(countsFilters);
 
+  // Auto-seleciona o usuário logado como responsável ao abrir a tela
+  // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
+  useEffect(() => {
+    if (autoSelectedRespRef.current) return;
+    if (!user?.id) return;
+    if (responsavelCounts.length === 0) return;
+    autoSelectedRespRef.current = true;
+    if (responsavelCounts.some((c) => c.id === user.id)) {
+      setFiltroResponsavelIds([user.id]);
+    }
+  }, [user?.id, responsavelCounts]);
+
   // Limpa o sticky se o usuário mexer em filtros, página ou recarregar.
   // (Mantemos o sticky apenas para o fluxo "salvou e voltou".)
   useEffect(() => {
@@ -243,6 +256,11 @@ export default function DistribuicaoTst() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
+
+  // Total Geral: ignora o filtro de responsável (mostra sempre o total do escritório
+  // para os demais filtros selecionados).
+  const { stats: statsGeral } = useDistribuicaoTstStats(countsFilters);
+  const statsWithGeral = { ...stats, total: statsGeral.total };
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
@@ -1226,7 +1244,7 @@ export default function DistribuicaoTst() {
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         <DistribuicaoTstStatsCards
-          stats={stats}
+          stats={statsWithGeral}
           loading={statsLoading}
           activeKey={activeCardKey}
           onCardClick={handleCardClick}
