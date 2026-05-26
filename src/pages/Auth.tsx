@@ -111,7 +111,7 @@ const Auth = () => {
           navigate(destination, { replace: true });
         }
       }
-    } catch (error: any) {
+    } catch {
       toast.error("Ocorreu um erro. Tente novamente.");
     } finally {
       setLoading(false);
