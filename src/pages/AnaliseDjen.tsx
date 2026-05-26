@@ -3338,6 +3338,10 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
+  const totalKurierVisivel = useMemo(
+    () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
+    [mergedPublicacoes]
+  );
   const usarContadoresDaLista = filtroDataDisponibilizacaoAtivo || !!tribunalFiltro;
   const totalGeralFiltrado = usarContadoresDaLista
     ? totalListaVisivel
