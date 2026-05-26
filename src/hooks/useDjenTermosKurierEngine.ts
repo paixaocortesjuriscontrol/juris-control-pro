@@ -195,7 +195,6 @@ async function processarCredencial(
         novas: progress.novas,
         duplicadas: progress.duplicadas,
         descartadas: progress.descartadas,
-        foraJanela: progress.foraJanela,
         confirmadas: progress.confirmadas,
         tempoInicio: progress.iniciadoEm ? new Date(progress.iniciadoEm).getTime() : Date.now(),
       });
@@ -299,7 +298,6 @@ export async function executarDjenTermosKurier(
       novas: 0,
       duplicadas: 0,
       descartadas: 0,
-      foraJanela: 0,
       confirmadas: 0,
       recebidas: 0,
       lotes: 0,
@@ -332,7 +330,7 @@ export async function executarDjenTermosKurier(
       progress.status = houveErro ? "erro" : "concluido";
       progress.mensagem = houveErro
         ? `Concluído com erros (${progress.novas} novas)`
-        : `Concluído: ${progress.novas} novas, ${progress.duplicadas} dup, ${progress.confirmadas} confirmadas (${progress.foraJanela} fora da data)`;
+        : `Concluído: ${progress.novas} novas, ${progress.duplicadas} dup, ${progress.confirmadas} confirmadas`;
       clearCheckpoint();
     }
   } catch (e: any) {
