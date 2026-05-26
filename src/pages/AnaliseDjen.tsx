@@ -3553,10 +3553,11 @@ const AnaliseDjen = () => {
                   value={tipoOrigem}
                   onChange={(e) => setTipoOrigem(e.target.value as any)}
                 >
-                  <option value="todos">DJEN: Termos + Processos</option>
+                  <option value="todos">Todas (todas as origens)</option>
                   <option value="termo">Por Termos/OAB</option>
                   <option value="parte">Por Parte</option>
                   <option value="processo">Por Processos</option>
+                  <option value="kurier">Kurier</option>
                   <option value="datajud">DataJud (CNJ)</option>
                   <option value="djet-pautas">DEJT Pautas</option>
                   <option value="descartada">Descartadas (auditoria)</option>
