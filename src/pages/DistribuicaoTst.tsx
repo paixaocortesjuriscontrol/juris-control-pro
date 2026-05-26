@@ -436,10 +436,20 @@ export default function DistribuicaoTst() {
     if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
     const BATCH = 200;
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id || null;
+      const nowIso = new Date().toISOString();
       for (let i = 0; i < ids.length; i += BATCH) {
         const batch = ids.slice(i, i + BATCH);
         const { error } = await supabase.from("dados_benner" as any).update({ status: "pronto_envio" } as any).in("id", batch);
         if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
+        // Se estavam Em análise, passam para Analisado e saem da lista padrão
+        const { error: errAna } = await supabase
+          .from("dados_benner" as any)
+          .update({ analisado: true, analisado_em: nowIso, analisado_por: uid, em_analise: false, em_analise_por: null, em_analise_em: null } as any)
+          .in("id", batch)
+          .eq("em_analise", true);
+        if (errAna) { toast.error("Erro ao marcar Analisado: " + errAna.message); return; }
       }
       toast.success(`${ids.length} registro(s) marcado(s) como Pronto!`);
       setSelectedIds(new Set());
@@ -1426,6 +1436,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="sim">Apenas Em análise</SelectItem>
                     <SelectItem value="nao">Não em análise</SelectItem>
+                    <SelectItem value="analisado">Analisado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
