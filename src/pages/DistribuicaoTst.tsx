@@ -38,6 +38,7 @@ import { DistribuirAutomaticoDialog } from "@/components/distribuicao-tst/Distri
 import { CopyButton } from "@/components/ui/copy-button";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
