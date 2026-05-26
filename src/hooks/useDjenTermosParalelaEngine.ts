@@ -958,16 +958,18 @@ async function markActiveParalelaExecutions(payload: Record<string, any>): Promi
  */
 async function processarTribunalTrack(
   tribunal: string,
+  tipo: WorkerTipo,
   monitoramentos: Monitoramento[],
   datas: string[],
   signal: AbortSignal,
   viaId?: string,
 ) {
-  const track = state.progress.tracks.find(t => t.tribunal === tribunal);
+  const track = state.progress.tracks.find(t => t.tribunal === tribunal && t.tipo === tipo);
   if (!track) return;
 
-  // Filtrar monitoramentos que devem ser executados nesse tribunal
+  // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
+    if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
@@ -975,19 +977,19 @@ async function processarTribunalTrack(
   });
 
   const total = monsParaEsseTrib.length * datas.length;
-  updateTrack(tribunal, {
+  updateTrack(tribunal, tipo, {
     status: 'executando',
     total,
     current: 0,
     startedAt: Date.now(),
-    mensagem: `Iniciando ${monsParaEsseTrib.length} termos × ${datas.length} dias`,
+    mensagem: `${tipo}: iniciando ${monsParaEsseTrib.length} termos × ${datas.length} dias`,
   });
 
   if (total === 0) {
-    updateTrack(tribunal, {
+    updateTrack(tribunal, tipo, {
       status: 'concluido',
       finishedAt: Date.now(),
-      mensagem: 'Sem termos aplicáveis a este tribunal',
+      mensagem: `${tipo}: sem termos aplicáveis a este tribunal`,
     });
     return;
   }
@@ -1006,19 +1008,19 @@ async function processarTribunalTrack(
         // Cooldown global PJE
         const cooldown = getPjeComunicaGlobalCooldownRemainingMs();
         if (cooldown > 250) {
-          updateTrack(tribunal, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` });
+          updateTrack(tribunal, tipo, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` });
           await awaitPjeComunicaGlobalCooldown();
           if (signal.aborted) break;
         }
 
-        updateTrack(tribunal, {
+        updateTrack(tribunal, tipo, {
           termoAtual: mon.descricao || mon.termo_busca,
           diaAtual: diaYmd,
           mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
         });
 
         try {
-          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId);
+          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1031,7 +1033,7 @@ async function processarTribunalTrack(
         }
 
         processed++;
-        updateTrack(tribunal, {
+        updateTrack(tribunal, tipo, {
           current: processed,
           novas: acumNovas,
           duplicadas: acumDup,
@@ -1045,7 +1047,7 @@ async function processarTribunalTrack(
       }
     }
 
-    updateTrack(tribunal, {
+    updateTrack(tribunal, tipo, {
       status: signal.aborted ? 'cancelado' : 'concluido',
       current: signal.aborted ? processed : total,
       finishedAt: Date.now(),
@@ -1054,7 +1056,7 @@ async function processarTribunalTrack(
         : `Concluído: ${acumNovas} novas, ${acumDup} duplicadas, ${acumDesc} descartadas`,
     });
   } catch (e: any) {
-    updateTrack(tribunal, {
+    updateTrack(tribunal, tipo, {
       status: 'erro',
       finishedAt: Date.now(),
       ultimoErro: e?.message || String(e),
