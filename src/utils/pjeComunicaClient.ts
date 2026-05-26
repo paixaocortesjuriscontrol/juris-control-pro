@@ -84,8 +84,14 @@ const requestHeaders: HeadersInit = {
   Accept: "application/json, text/plain, */*",
 };
 
-// Backoff global para evitar tempestade de 429 entre chamadas concorrentes
-let globalCooldownUntil = 0;
+// Backoff PJE Comunica.
+// Antes era uma única variável global, o que fazia TODAS as VPS pararem
+// quando uma única recebia 429/504. Agora mantemos um mapa por "via"
+// (id da VPS ou "__direct__"), e exportamos helpers que aceitam um via
+// opcional. Sem via (callers legados Kurier/Flash) usamos a chave
+// "__global__" para preservar o comportamento anterior.
+const GLOBAL_COOLDOWN_KEY = "__global__";
+const cooldownByVia = new Map<string, number>();
 const jitterMs = (base: number) => {
   const factor = 0.8 + Math.random() * 0.5; // 0.8x..1.3x
   return Math.round(base * factor);
@@ -103,9 +109,11 @@ const parseRetryAfterMs = (resp: Response): number | null => {
   }
   return null;
 };
-const setGlobalCooldown = (ms: number) => {
+const setGlobalCooldown = (ms: number, via?: string | null) => {
+  const key = via && via.length > 0 ? via : GLOBAL_COOLDOWN_KEY;
   const until = Date.now() + ms;
-  globalCooldownUntil = Math.max(globalCooldownUntil, until);
+  const prev = cooldownByVia.get(key) ?? 0;
+  cooldownByVia.set(key, Math.max(prev, until));
 };
 
 /**
@@ -136,22 +144,29 @@ function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-const awaitGlobalCooldown = async () => {
-  const wait = globalCooldownUntil - Date.now();
+const getCooldownUntilFor = (via?: string | null): number => {
+  // Sempre considera o cooldown "__global__" (legado Kurier/Flash) como piso.
+  const globalUntil = cooldownByVia.get(GLOBAL_COOLDOWN_KEY) ?? 0;
+  if (!via) return globalUntil;
+  const viaUntil = cooldownByVia.get(via) ?? 0;
+  return Math.max(globalUntil, viaUntil);
+};
+const awaitGlobalCooldown = async (via?: string | null) => {
+  const wait = getCooldownUntilFor(via) - Date.now();
   if (wait > 0) {
     await new Promise(r => setTimeout(r, wait));
   }
 };
-const getGlobalCooldownRemainingMs = (): number => {
-  return Math.max(0, globalCooldownUntil - Date.now());
+const getGlobalCooldownRemainingMs = (via?: string | null): number => {
+  return Math.max(0, getCooldownUntilFor(via) - Date.now());
 };
 
 /**
  * Exportado para que engines (DJEN Pro/Flash) possam aguardar o cooldown global
  * ANTES de iniciar um novo termo, evitando cascata de 429 entre termos consecutivos.
  */
-export const awaitPjeComunicaGlobalCooldown = awaitGlobalCooldown;
-export const getPjeComunicaGlobalCooldownRemainingMs = getGlobalCooldownRemainingMs;
+export const awaitPjeComunicaGlobalCooldown = (via?: string | null) => awaitGlobalCooldown(via);
+export const getPjeComunicaGlobalCooldownRemainingMs = (via?: string | null) => getGlobalCooldownRemainingMs(via);
 function optimizeItem(item: any) {
   // IMPORTANTE:
   // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
@@ -421,7 +436,10 @@ export async function buscarPjeComunicaNoBrowser(
   const REQUEST_TIMEOUT_MS = 90000;
 
   const doRequest = async (queryParams: URLSearchParams): Promise<PjeComunicaResponse> => {
-    await awaitGlobalCooldown();
+    // Em modo "forceVia" (Paralela: 1 worker por VPS), aguardamos apenas o
+    // cooldown daquela VPS. Sem forceVia (Kurier/Flash etc.), aguardamos o
+    // cooldown global (back-compat).
+    await awaitGlobalCooldown(options?.forceVia ?? null);
     const url = `${endpoint}?${queryParams.toString()}`;
     console.log(`[PJE Comunica] 🌐 Fetching URL: ${url}`);
     
@@ -477,13 +495,21 @@ export async function buscarPjeComunicaNoBrowser(
         if (resp.status === 429) {
           const retryAfterMs = parseRetryAfterMs(resp);
           const baseWait = retryAfterMs ?? 10000;
-          setGlobalCooldown(jitterMs(baseWait));
+          // Penaliza apenas a VPS que respondeu 429 (lida do header anotado
+          // pelo proxy pool). Fallback para forceVia ou global.
+          const viaId = (() => {
+            try { return readPoolViaFromResponse(resp)?.id ?? null; } catch { return null; }
+          })();
+          setGlobalCooldown(jitterMs(baseWait), viaId ?? options?.forceVia ?? null);
         }
         // 504 (Cloudflare Gateway Timeout) = origem PJE Comunica lenta. Aplicar
         // cooldown global curto para dar fôlego à API antes do próximo retry,
         // evitando martelar a origem e cascata de timeouts em paralelo.
         if (resp.status === 504 || resp.status === 502 || resp.status === 503) {
-          setGlobalCooldown(jitterMs(4000));
+          const viaId = (() => {
+            try { return readPoolViaFromResponse(resp)?.id ?? null; } catch { return null; }
+          })();
+          setGlobalCooldown(jitterMs(4000), viaId ?? options?.forceVia ?? null);
         }
         throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
       }
@@ -773,12 +799,14 @@ export async function buscarPjeComunicaPaginado(
           if (is429) {
             // Honrar Retry-After do servidor: se doRequest já leu o header e
             // setou o cooldown global, usar esse valor como PISO mínimo do retry.
-            const serverHint = getGlobalCooldownRemainingMs();
+            // Lê o cooldown da via que falhou (forceVia em modo paralela),
+            // não o global — assim cada VPS conta o próprio backoff.
+            const serverHint = getGlobalCooldownRemainingMs(options?.forceVia ?? null);
             if (serverHint > waitTime) {
               waitTime = serverHint;
             }
             rateLimitHits += 1;
-            setGlobalCooldown(waitTime);
+            setGlobalCooldown(waitTime, options?.forceVia ?? null);
             options?.onRateLimit?.(waitTime, attempt + 1, page);
           }
           console.log(

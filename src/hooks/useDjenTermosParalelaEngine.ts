@@ -1019,11 +1019,13 @@ async function processarTribunalTrack(
       for (const mon of monsParaEsseTrib) {
         if (signal.aborted) break;
 
-        // Cooldown global PJE
-        const cooldown = getPjeComunicaGlobalCooldownRemainingMs();
+        // Cooldown PJE por VPS — só aguarda se a VPS desse worker (viaId)
+        // estiver realmente em cooldown. Antes era global e travava todas
+        // as 6 VPSs quando uma só recebia 429.
+        const cooldown = getPjeComunicaGlobalCooldownRemainingMs(viaId);
         if (cooldown > 250) {
           updateTrack(tribunal, tipo, { mensagem: `⏸ Cooldown PJE ${Math.round(cooldown / 1000)}s` }, monId);
-          await awaitPjeComunicaGlobalCooldown();
+          await awaitPjeComunicaGlobalCooldown(viaId);
           if (signal.aborted) break;
         }
 
