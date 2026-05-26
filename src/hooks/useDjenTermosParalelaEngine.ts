@@ -1692,30 +1692,45 @@ async function executarLoop(
       for (const tipo of tiposAtivos) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        const key = trackKey(tipo, trib);
-        const jaConcluido = unidadesJaConcluidas.has(key);
-        tracks.push({
-          tribunal: trib,
-          tipo,
-          status: jaConcluido ? 'concluido' : 'pendente',
-          current: 0,
-          total: 0,
-          novas: 0,
-          duplicadas: 0,
-          descartadas: 0,
-          mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-          termoAtual: null,
-          diaAtual: null,
-          rateLimitHits: 0,
-          ultimoErro: null,
-          startedAt: null,
-          finishedAt: jaConcluido ? Date.now() : null,
-          lastViaId: null,
-          lastViaLabel: null,
-          lastViaKind: null,
-          callsDirect: 0,
-          callsByProxy: {},
-        });
+        // Para tipo=parte: cada monitoramento vira uma track/unidade
+        // independente (permite que VPSs distintas processem em paralelo).
+        // Demais tipos seguem com 1 track por (tipo, tribunal).
+        const monsDoTipoNoTrib = tipo === 'parte'
+          ? (monsPorTipo.get(tipo) || []).filter((m) => {
+              const tribs = expandirTribunaisDoMon(m.tribunais);
+              return tribs.length === 0 || tribs.includes(trib);
+            })
+          : [null as Monitoramento | null];
+        for (const monAlvo of monsDoTipoNoTrib) {
+          const monId = monAlvo ? monAlvo.id : null;
+          const monLabel = monAlvo ? (monAlvo.descricao || monAlvo.termo_busca) : null;
+          const key = trackKey(tipo, trib, monId);
+          const jaConcluido = unidadesJaConcluidas.has(key);
+          tracks.push({
+            tribunal: trib,
+            tipo,
+            monId,
+            monLabel,
+            status: jaConcluido ? 'concluido' : 'pendente',
+            current: 0,
+            total: 0,
+            novas: 0,
+            duplicadas: 0,
+            descartadas: 0,
+            mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
+            termoAtual: monLabel,
+            diaAtual: null,
+            rateLimitHits: 0,
+            ultimoErro: null,
+            startedAt: null,
+            finishedAt: jaConcluido ? Date.now() : null,
+            lastViaId: null,
+            lastViaLabel: null,
+            lastViaKind: null,
+            callsDirect: 0,
+            callsByProxy: {},
+          });
+        }
       }
     }
     const totalUnidades = tracks.length;
