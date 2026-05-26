@@ -52,6 +52,7 @@ function pickId(p: KurierPub): string | null {
   const raw =
     p.id ?? p.Id ??
     (p as any).idPublicacao ?? (p as any).IdPublicacao ??
+    (p as any).idProcesso ?? (p as any).IdProcesso ?? (p as any).IDProcesso ??
     (p as any).IDPublicacao ?? (p as any).id_publicacao ?? (p as any).ID_PUBLICACAO ??
     (p as any).codigoPublicacao ?? (p as any).CodigoPublicacao ??
     (p as any).codPublicacao ?? (p as any).CodPublicacao ??
@@ -358,7 +359,7 @@ Deno.serve(async (req: Request) => {
           (p as any).Processo ?? "",
         ].filter(Boolean).join("\n");
         const idK = pickId(p) ?? pickDeep(p, [
-          "id", "idPublicacao", "IDPublicacao", "codigoPublicacao", "codPublicacao", "cdPublicacao",
+          "id", "idPublicacao", "IDPublicacao", "idProcesso", "IdProcesso", "IDProcesso", "codigoPublicacao", "codPublicacao", "cdPublicacao",
           "codigo", "idDocumento", "cdDocumento", "codigoDocumento", "numeroDocumento", "protocolo", "guid", "hash",
         ]);
         // Mesmo sem id reconhecido, persiste o payload para inspecionar depois.
