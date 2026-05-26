@@ -120,6 +120,7 @@ function recompute() {
   progress.novas = progress.tracks.reduce((s, t) => s + t.novas, 0);
   progress.duplicadas = progress.tracks.reduce((s, t) => s + t.duplicadas, 0);
   progress.descartadas = progress.tracks.reduce((s, t) => s + t.descartadas, 0);
+  progress.foraJanela = progress.tracks.reduce((s, t) => s + t.foraJanela, 0);
   progress.confirmadas = progress.tracks.reduce((s, t) => s + t.confirmadas, 0);
   progress.percentage = progress.totalCredenciais > 0
     ? Math.floor((progress.credenciaisConcluidas / progress.totalCredenciais) * 100)
@@ -161,11 +162,12 @@ async function processarCredencial(
       track.novas += Number(r?.total_novas ?? 0);
       track.duplicadas += Number(r?.total_duplicadas ?? 0);
       track.descartadas += Number(r?.total_descartadas ?? 0);
+      track.foraJanela += Number(r?.total_fora_janela ?? 0);
       track.confirmadas += Number(r?.total_confirmadas ?? 0);
       track.recebidas += recebidas;
       track.lotes += Number(r?.lotes_processados ?? 0);
       track.erro = r?.erro ?? null;
-      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm, ${track.foraJanela} fora da data em ${track.lotes} lote(s)`;
       recompute();
       emit();
 
@@ -179,7 +181,7 @@ async function processarCredencial(
 
     track.status = cancelRequested ? "cancelado" : "concluido";
     if (track.status === "concluido") {
-      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm, ${track.foraJanela} fora da data em ${track.lotes} lote(s)`;
     }
   } catch (e: any) {
     track.status = "erro";
