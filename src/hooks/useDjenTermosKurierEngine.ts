@@ -336,7 +336,7 @@ export async function executarDjenTermosKurier(
     emit();
 
     const aPercorrer = tracks.filter((t) => t.status === "pendente");
-    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, effInicio, effFim, !!(dataInicioYmd && dataFimYmd && !drenarBacklog));
+    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, effInicio, effFim, false);
 
     if (cancelRequested) {
       progress.status = "cancelado";
