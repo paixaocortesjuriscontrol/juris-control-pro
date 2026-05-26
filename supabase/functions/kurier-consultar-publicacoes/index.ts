@@ -410,7 +410,7 @@ Deno.serve(async (req: Request) => {
           // o universo de monitoramentos avaliados usando o índice por palavra-chave.
           const termoKurier = String((p as any).TermoPesquisa || "").trim();
           const termoKey = normalizar(extrairPalavraChavePura(termoKurier)).split(/\s+/)[0];
-          const candidatos = (termoKey && monitsByTermo.get(termoKey)) || monitoramentos;
+          const candidatos = termoKey ? (monitsByTermo.get(termoKey) || []) : monitoramentos;
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
           let motivoExcl: string | null = null;
           for (const m of candidatos) {
