@@ -234,14 +234,15 @@ export async function executarDjenTermosKurier(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
+  drenarBacklog = false,
 ): Promise<void> {
   if (running) return;
   running = true;
   cancelRequested = false;
   runKey = retomar ? (loadCheckpoint()?.runKey ?? crypto.randomUUID()) : crypto.randomUUID();
 
-  // Se o usuário não preencheu data início/fim, considera HOJE (timezone local).
-  // Evita trazer publicações de dias anteriores do backlog do Kurier.
+  // Modo drenar: NÃO aplica filtro de data — consome todo backlog antigo do Kurier.
+  // Modo normal: se o usuário não preencheu, considera HOJE para evitar trazer atrasados.
   const hojeYmd = (() => {
     const d = new Date();
     const y = d.getFullYear();
@@ -249,13 +250,19 @@ export async function executarDjenTermosKurier(
     const dd = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${dd}`;
   })();
-  const effInicio = dataInicioYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataInicioYmd) ? dataInicioYmd : hojeYmd;
-  const effFim = dataFimYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataFimYmd) ? dataFimYmd : hojeYmd;
+  const effInicio = drenarBacklog
+    ? (dataInicioYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataInicioYmd) ? dataInicioYmd : undefined)
+    : (dataInicioYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataInicioYmd) ? dataInicioYmd : hojeYmd);
+  const effFim = drenarBacklog
+    ? (dataFimYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataFimYmd) ? dataFimYmd : undefined)
+    : (dataFimYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataFimYmd) ? dataFimYmd : hojeYmd);
 
   progress = initialProgress();
   progress.status = "executando";
   progress.iniciadoEm = new Date().toISOString();
-  progress.mensagem = `Carregando credenciais ativas… (janela ${effInicio} → ${effFim})`;
+  progress.mensagem = drenarBacklog
+    ? `Drenando backlog do Kurier (sem filtro de data)…`
+    : `Carregando credenciais ativas… (janela ${effInicio} → ${effFim})`;
   emit();
 
   try {

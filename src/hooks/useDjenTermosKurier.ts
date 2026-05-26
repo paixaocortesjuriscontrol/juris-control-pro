@@ -64,6 +64,13 @@ export function useDjenTermosKurier() {
     void executarDjenTermosKurier(false, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
     toast.info("Kurier iniciado");
   }, []);
+  const drenarBacklog = useCallback((
+    coordenacaoId?: string,
+    monitoramentoIds?: string[],
+  ) => {
+    void executarDjenTermosKurier(false, monitoramentoIds, coordenacaoId, undefined, undefined, true);
+    toast.info("Drenando backlog do Kurier…");
+  }, []);
   const retomar = useCallback((
     dataInicioYmd?: string,
     dataFimYmd?: string,
@@ -79,5 +86,5 @@ export function useDjenTermosKurier() {
   const forceKill = useCallback(async (clear = false) => { await forceKillDjenTermosKurier(clear); toast.success("Kurier finalizado"); }, []);
   const resetTotal = useCallback(async () => { await resetTotalDjenTermosKurier(); toast.success("Kurier resetado"); }, []);
 
-  return { progress, isRunning, canResume, checkpoint, executar, retomar, cancelar, limpar, forceKill, resetTotal };
+  return { progress, isRunning, canResume, checkpoint, executar, drenarBacklog, retomar, cancelar, limpar, forceKill, resetTotal };
 }
