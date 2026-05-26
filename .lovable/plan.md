@@ -1,41 +1,29 @@
-## Causa real
+## Mudança única
 
-O botão manual do Kurier (card) chama:
+Arquivo: `src/hooks/useDjenTermosParalelaEngine.ts`, linha ~1208.
 
-```ts
-executar(ymd(dataInicio), ymd(dataFim), coord, monIds, /* modoPersonalizado */ true)
-```
+Hoje, quando uma busca volta com 0 resultados, a engine faz **uma segunda tentativa automática** após 1,5s. Útil para palavra-chave (a API às vezes retorna vazio por falha transitória), mas para `tipo === 'processo'` "0 resultados" é o caso normal (o CNJ não existe naquele tribunal) — e o retry dobra o tempo da Paralela.
 
-→ `executarDjenTermosKurier(false, monIds, coord, dataInicio, dataFim, false, true)`
-
-O scheduler automático chama:
+Alterar a condição do bloco de retry de:
 
 ```ts
-executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd)
+if (tipo !== 'parte' && !signal.aborted && resultados.length === 0) {
 ```
 
-Sem `modoPersonalizado`. Isso cai em outro caminho da edge function (endpoint diferente) e termina rápido sem buscar direito.
-
-## Mudança
-
-Arquivo: `src/hooks/useDjenTermosKurierScheduler.ts`, linha 92.
-
-Trocar a chamada para passar `modoPersonalizado = true`, mantendo `hoje → hoje`:
+para:
 
 ```ts
-void executarDjenTermosKurier(
-  false,         // retomar
-  undefined,     // monitoramentoIds
-  undefined,     // coordenacaoId
-  hojeYmd,       // dataInicioYmd
-  hojeYmd,       // dataFimYmd
-  false,         // drenarBacklog
-  true,          // modoPersonalizado  ← igual ao botão manual
-);
+if (tipo !== 'parte' && tipo !== 'processo' && !signal.aborted && resultados.length === 0) {
 ```
 
-Nada mais muda. Sem alterações em engine, edge function, banco ou Paralela.
+Para `tipo === 'processo'` continua exatamente como hoje: uma única busca por `numeroProcesso` em cada (tribunal × dia), sem retry e sem fallback para palavra-chave.
+
+## Não muda
+
+- Nada de palavra-chave para processo.
+- Nada nos outros tipos (advogado, palavra-chave, parte, nome).
+- Nada de schema, fila, concorrência ou UI.
 
 ## Efeito
 
-Execução automática do Kurier passa a ser idêntica à manual, restrita ao dia de hoje.
+Para a coordenação do Dr. Thomás (173 termos `processo` × 26 tribunais × dias), o tempo total deve cair pela metade na parte de processos, sem alterar resultado.
