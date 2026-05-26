@@ -122,12 +122,7 @@ function recompute() {
     : 0;
 }
 
-async function processarCredencial(track: KurierTrack, monitoramentoIds?: string[], coordenacaoId?: string) {
-  // assinatura mantida; datas injetadas via closure abaixo
-  return processarCredencialInner(track, monitoramentoIds, coordenacaoId, undefined, undefined);
-}
-
-async function processarCredencialInner(
+async function processarCredencial(
   track: KurierTrack,
   monitoramentoIds?: string[],
   coordenacaoId?: string,
