@@ -79,7 +79,7 @@ export function MonitoramentoTermosKurierCard() {
                 <Input
                   value={baseUrlValor}
                   onChange={(e) => setBaseUrlDraft(e.target.value)}
-                  placeholder="https://wsk.kurier.com.br"
+                  placeholder="https://www.kurierservicos.com.br/wsservicos"
                   className="h-9 font-mono text-xs"
                 />
                 <Button
