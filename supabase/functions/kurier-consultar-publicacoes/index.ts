@@ -25,7 +25,7 @@ import {
 // Persiste em kurier_publicacoes_raw (idempotente por id_kurier) e em
 // publicacoes_djen (origem='kurier'). Confirma o lote para tirar da fila.
 //
-// Body: { credencial_id: uuid, max_lotes?: number (default 20) }
+// Body: { credencial_id: uuid, max_lotes?: number (default 1) }
 
 interface KurierPub {
   id?: string | number;
@@ -52,6 +52,7 @@ function pickId(p: KurierPub): string | null {
   const raw =
     p.id ?? p.Id ??
     (p as any).idPublicacao ?? (p as any).IdPublicacao ??
+    (p as any).idProcesso ?? (p as any).IdProcesso ?? (p as any).IDProcesso ??
     (p as any).IDPublicacao ?? (p as any).id_publicacao ?? (p as any).ID_PUBLICACAO ??
     (p as any).codigoPublicacao ?? (p as any).CodigoPublicacao ??
     (p as any).codPublicacao ?? (p as any).CodPublicacao ??
@@ -189,7 +190,8 @@ function normalizeProcesso(n: string | null): string | null {
 }
 
 const LOTE_SIZE = 50;
-const DELAY_MS = 800;
+const DELAY_MS = 150;
+const MAX_LOTES_PER_CALL = 1;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
@@ -222,7 +224,9 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({} as any));
     const credencial_id: string | undefined = body.credencial_id;
-    const max_lotes: number = Math.min(100, Math.max(1, Number(body.max_lotes ?? 5)));
+    // Edge Functions têm orçamento curto de CPU/tempo; cada chamada processa só 1 lote
+    // e o frontend faz novas chamadas pequenas até esvaziar a fila da credencial.
+    const max_lotes: number = Math.min(MAX_LOTES_PER_CALL, Math.max(1, Number(body.max_lotes ?? 1)));
     const monitoramento_ids: string[] | undefined = Array.isArray(body.monitoramento_ids)
       ? body.monitoramento_ids.filter((x: any) => typeof x === "string" && x)
       : undefined;
@@ -344,6 +348,8 @@ Deno.serve(async (req: Request) => {
       totalRecebidas += pubs.length;
       const idsConfirmar: string[] = [];
 
+      const rawRows: any[] = [];
+
       for (const p of pubs) {
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
         // pesado em CPU. Inclui também TermoPesquisa/Processo para matching.
@@ -353,25 +359,12 @@ Deno.serve(async (req: Request) => {
           (p as any).Processo ?? "",
         ].filter(Boolean).join("\n");
         const idK = pickId(p) ?? pickDeep(p, [
-          "id", "idPublicacao", "IDPublicacao", "codigoPublicacao", "codPublicacao", "cdPublicacao",
+          "id", "idPublicacao", "IDPublicacao", "idProcesso", "IdProcesso", "IDProcesso", "codigoPublicacao", "codPublicacao", "cdPublicacao",
           "codigo", "idDocumento", "cdDocumento", "codigoDocumento", "numeroDocumento", "protocolo", "guid", "hash",
         ]);
         // Mesmo sem id reconhecido, persiste o payload para inspecionar depois.
         // Usa fallback hash para evitar perder o payload e poder reprocessar.
         const idKEff = idK ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
-
-        // Idempotência: se já existe em raw, é duplicada (já foi processada antes).
-        const { data: existente } = await admin
-          .from("kurier_publicacoes_raw")
-          .select("id, publicacao_djen_id")
-          .eq("id_kurier", idKEff)
-          .maybeSingle();
-
-        if (existente) {
-          totalDuplicadas++;
-          if (idK) idsConfirmar.push(idK);
-          continue;
-        }
 
         const numero = normalizeProcesso(pickStr(p,
           "numero_processo", "NumeroProcesso", "processo", "Processo",
@@ -418,7 +411,7 @@ Deno.serve(async (req: Request) => {
           // o universo de monitoramentos avaliados usando o índice por palavra-chave.
           const termoKurier = String((p as any).TermoPesquisa || "").trim();
           const termoKey = normalizar(extrairPalavraChavePura(termoKurier)).split(/\s+/)[0];
-          const candidatos = (termoKey && monitsByTermo.get(termoKey)) || monitoramentos;
+          const candidatos = termoKey ? (monitsByTermo.get(termoKey) || []) : monitoramentos;
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
           let motivoExcl: string | null = null;
           for (const m of candidatos) {
@@ -440,46 +433,41 @@ Deno.serve(async (req: Request) => {
             const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
             const digits = numero.replace(/\D/g, "");
 
-            // 2) Dedup: se já existe publicação com mesmo hash, conta como duplicada
-            const { data: jaExiste } = await admin
+            // 2) Dedup: tenta inserir direto; a constraint monitoramento_id+hash_conteudo
+            // transforma repetição em 23505 sem SELECT por publicação.
+            const payload: any = {
+              monitoramento_id: matched.id,
+              coordenacao_id: matched.coordenacao_id ?? null,
+              processo_numero: numero,
+              conteudo,
+              fonte: "kurier",
+              hash_conteudo: hashConteudo,
+              dedup_processo_digits: digits || null,
+              dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
+              tribunal,
+              data_disponibilizacao: toIsoDate(dataDisp) ?? null,
+              data_publicacao: toIsoDate(dataPub) ?? null,
+              tipo_publicacao: "intimacao",
+            };
+
+            const { data: insPub, error: pubErr } = await admin
               .from("publicacoes_djen")
+              .insert(payload)
               .select("id")
-              .eq("hash_conteudo", hashConteudo)
               .maybeSingle();
 
-            if (jaExiste) {
-              publicacaoDjenId = jaExiste.id;
-              totalDuplicadas++;
-            } else {
-              const payload: any = {
-                monitoramento_id: matched.id,
-                coordenacao_id: matched.coordenacao_id ?? null,
-                processo_numero: numero,
-                conteudo,
-                fonte: "kurier",
-                hash_conteudo: hashConteudo,
-                dedup_processo_digits: digits || null,
-                dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
-                tribunal,
-                data_disponibilizacao: toIsoDate(dataDisp) ?? null,
-                data_publicacao: toIsoDate(dataPub) ?? null,
-                tipo_publicacao: "intimacao",
-              };
-
-              const { data: insPub, error: pubErr } = await admin
-                .from("publicacoes_djen")
-                .insert(payload)
-                .select("id")
-                .maybeSingle();
-
-              if (pubErr) {
+            if (pubErr) {
+              if ((pubErr as any).code === "23505") {
+                totalDuplicadas++;
+                motivoDescarte = "duplicada_hash";
+              } else {
                 console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
                 totalDuplicadas++;
                 motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
-              } else if (insPub) {
-                publicacaoDjenId = insPub.id;
-                totalNovas++;
               }
+            } else if (insPub) {
+              publicacaoDjenId = insPub.id;
+              totalNovas++;
             }
           }
         } else {
@@ -488,21 +476,24 @@ Deno.serve(async (req: Request) => {
           else if (!numero) motivoDescarte = motivoDescarte ?? "sem_processo";
         }
 
-        // Grava raw após tentar inserir publicacoes_djen
-        const { error: rawErr } = await admin
-          .from("kurier_publicacoes_raw")
-          .insert({
-            id_kurier: idKEff,
-            credencial_id: cred.id,
-            login_usado: cred.login,
-            payload: p as any,
-            publicacao_djen_id: publicacaoDjenId,
-            motivo_descarte: motivoDescarte,
-            recebida_em: new Date().toISOString(),
-          });
-        if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
+        rawRows.push({
+          id_kurier: idKEff,
+          credencial_id: cred.id,
+          login_usado: cred.login,
+          payload: p as any,
+          publicacao_djen_id: publicacaoDjenId,
+          motivo_descarte: motivoDescarte,
+          recebida_em: new Date().toISOString(),
+        });
 
         if (idK) idsConfirmar.push(idK);
+      }
+
+      if (rawRows.length) {
+        const { error: rawErr } = await admin
+          .from("kurier_publicacoes_raw")
+          .upsert(rawRows, { onConflict: "id_kurier", ignoreDuplicates: true });
+        if (rawErr) console.warn("[kurier] erro upsert raw:", rawErr.message);
       }
 
       // Confirma o lote
