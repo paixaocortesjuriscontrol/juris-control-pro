@@ -55,13 +55,23 @@ export function useDjenTermosKurier() {
   const checkpoint = getCheckpointKurier();
   const canResume = !!checkpoint && progress.status !== "executando";
 
-  const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string) => {
-    void executarDjenTermosKurier(false, undefined, undefined, dataInicioYmd, dataFimYmd);
+  const executar = useCallback((
+    dataInicioYmd?: string,
+    dataFimYmd?: string,
+    coordenacaoId?: string,
+    monitoramentoIds?: string[],
+  ) => {
+    void executarDjenTermosKurier(false, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
     toast.info("Kurier iniciado");
   }, []);
-  const retomar = useCallback((dataInicioYmd?: string, dataFimYmd?: string) => {
+  const retomar = useCallback((
+    dataInicioYmd?: string,
+    dataFimYmd?: string,
+    coordenacaoId?: string,
+    monitoramentoIds?: string[],
+  ) => {
     if (!checkpoint) return;
-    void executarDjenTermosKurier(true, undefined, undefined, dataInicioYmd, dataFimYmd);
+    void executarDjenTermosKurier(true, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd);
     toast.info("Kurier retomando…");
   }, [checkpoint]);
   const cancelar = useCallback(async () => { await cancelarDjenTermosKurier(); toast.info("Kurier cancelado"); }, []);
