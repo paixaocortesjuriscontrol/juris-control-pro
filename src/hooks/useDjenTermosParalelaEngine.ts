@@ -1090,6 +1090,7 @@ async function processarTermoEmTribunal(
   signal: AbortSignal,
   viaId?: string,
   tipoTrack?: WorkerTipo,
+  monIdTrack?: string | null,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
