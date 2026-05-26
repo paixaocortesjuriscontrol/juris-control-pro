@@ -316,9 +316,11 @@ function stopLocalExecution() {
   state.isRunning = false;
 }
 
-function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackProgress>) {
+function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackProgress>, monId?: string | null) {
   const tracks = state.progress.tracks.map(t =>
-    (t.tribunal === tribunal && t.tipo === tipo) ? { ...t, ...partial } : t
+    (t.tribunal === tribunal && t.tipo === tipo && (t.monId ?? null) === (monId ?? null))
+      ? { ...t, ...partial }
+      : t
   );
   // Recalcular agregados
   let novas = 0, duplicadas = 0, descartadas = 0, concluidos = 0;
