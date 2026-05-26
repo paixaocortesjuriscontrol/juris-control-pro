@@ -1,69 +1,47 @@
-## Objetivo
+## Versão simples
 
-Hoje, o motor DJEN Paralela cria 1 worker por VPS, cada worker pega um TRIBUNAL inteiro da fila e processa TODOS os tipos (parte, advogado, palavra-chave, processo) sequencialmente nesse tribunal. Isso faz o TST ficar preso em 1 única VPS, processando ~112 monitoramentos de `parte` + outros tipos um a um.
+Em vez de shards dinâmicos e re-roteamento ao vivo, faço o mínimo: trato cada **monitoramento de parte** como uma unidade de trabalho independente na fila, igual já fazemos hoje com `(tipo, tribunal)`.
 
-Vou trocar a unidade de trabalho de **`tribunal`** para **`(tipo, tribunal)`**, distribuindo as VPS por tipo de busca para maximizar o paralelismo real.
-
-## Como vai funcionar
+Hoje a unidade é `parte|TST` (1 item na fila, 112 monitoramentos dentro). Vou trocar para `parte|TST|<mon.id>` (112 itens na fila, 1 monitoramento cada). Pronto — o pool de VPSs existente puxa esses 112 itens em paralelo automaticamente, sem código novo de sharding, sem re-balance, sem leftover queue.
 
 ```text
-ANTES (1 worker/VPS, fila por tribunal):
-VPS-A: TST [parte+adv+kw+proc] → STF [parte+adv+kw+proc] → ...
-VPS-B: STJ [parte+adv+kw+proc] → ...
+ANTES: fila parte tem [parte|TST, parte|STF, parte|STJ, ...]
+       Worker pega parte|TST → processa os 112 monitoramentos sozinho.
 
-DEPOIS (1 worker/VPS, fila por (tipo, tribunal), VPS fixa em 1 tipo):
-VPS-A (parte):         TST·parte    → STF·parte    → STJ·parte    → ...
-VPS-B (advogado):      TST·adv      → STF·adv      → STJ·adv      → ...
-VPS-C (palavra-chave): TST·kw       → STF·kw       → ...
-VPS-D (processo):      TST·proc     → STF·proc     → ...
-(quando a fila do tipo primário esvazia, a VPS rouba units dos outros tipos)
+DEPOIS: fila parte tem [parte|TST|m1, parte|TST|m2, ..., parte|TST|m112,
+                        parte|STF|m1, ...]
+        Cada VPS livre pega 1 item → 1 monitoramento. Paralelismo natural.
 ```
 
-Com 4+ VPS, os 4 tipos rodam em paralelo no mesmo tribunal (TST·parte e TST·adv ao mesmo tempo, em IPs diferentes — sem 429). Com menos VPS, a distribuição é round-robin por tipo e o trabalho continua maximizado.
+## Mudanças mínimas em `useDjenTermosParalelaEngine.ts`
 
-## Mudanças no código
+1. **Granularidade da fila só para `tipo=parte`**: ao montar `queues['parte']`, expandir cada tribunal em N entradas (uma por monitoramento aplicável). Outros tipos continuam exatamente como estão.
 
-### `src/hooks/useDjenTermosParalelaEngine.ts`
+2. **Track key**: aceita formato estendido `parte|TRIBUNAL|MON_ID`. A UI exibe "TST · parte · <termo_busca>" para essa entrada. Para os outros tipos, segue `tipo|tribunal` igual a hoje.
 
-1. **Track key**: passa de `tribunal` para `${tipo}|${tribunal}` (ex.: `parte|TST`). Cada combinação vira uma linha na UI: "TST · parte", "TST · advogado", etc. Total de tracks = soma de (tribunais aplicáveis a cada tipo).
+3. **`processarTribunalTrack`** ganha parâmetro opcional `monId?: string`. Quando presente, filtra `monsParaEsseTrib` para esse único monitoramento. Quando ausente, comportamento atual (todos os mons do tribunal).
 
-2. **Build de filas por tipo**:
-   - Agrupar `monitoramentos` por `tipo` (com `nome` → `palavra-chave`).
-   - Para cada tipo, listar os tribunais aplicáveis (união dos `tribunais` dos monitoramentos daquele tipo).
-   - Criar `queues: Record<tipo, string[]>` com tribunais ordenados (TST/STF/STJ primeiro).
+4. **Checkpoint**: `unidadesConcluidas` aceita as 3 formas (`tribunal`, `tipo|tribunal`, `tipo|tribunal|monId`). Formatos antigos são ignorados.
 
-3. **Assignment de VPS → tipo primário**: round-robin sobre os tipos presentes. Cada worker recebe `{ via, tipoPrimario }`.
+5. **Bump**: `public/version.json` → `1.2.0`.
 
-4. **Loop do worker**:
-   ```text
-   while (alguma fila não vazia):
-     1. Tenta pegar próximo tribunal da fila do tipoPrimario.
-     2. Se vazia, rouba do próximo tipo com fila não-vazia (round-robin).
-     3. Processa (tipo, tribunal) — chama `processarTribunalTrack` filtrando `monsParaEsseTrib` por `mon.tipo === tipo`.
-   ```
+## Por que isso é seguro
 
-5. **`processarTribunalTrack(tribunal, tipo, ...)`**: ganha novo parâmetro `tipo`. Filtra `monsParaEsseTrib` por aquele tipo. Atualiza track pela chave `${tipo}|${tribunal}`.
+- Não muda dedup, validação de parte, anti-429, pool de VPS, steal cross-tipo, nem o caminho de busca por `nomeParte`.
+- Reaproveita 100% do código de `processarTermoEmTribunal` e da fila atual — só altera **como a fila é construída** para `tipo=parte`.
+- Sem instrumentação nova; sem mexer em `CONFIG`/delays.
+- Rollback trivial: voltar a expansão da fila para a forma anterior.
 
-6. **Agregados globais (novas/dup/desc/percentage)**: continuam somando todas as tracks — sem mudança visível além de mais linhas.
+## O que NÃO faço (cortado para reduzir risco)
 
-7. **Checkpoint**: `tribunaisConcluidos: string[]` vira `unidadesConcluidas: string[]` armazenando `${tipo}|${tribunal}`. Migration silenciosa: checkpoints antigos são ignorados (já caem por idade ou runKey).
+- Sharding por hash com sub-filas dedicadas.
+- Leftover queue / re-shard ao vivo.
+- Logs de instrumentação por mon.
+- Mudanças em delays.
 
-8. **Mensagem inicial e `concorrencia`**: passa a indicar `V VPS × T tipos = N workers ativos`, mas N segue limitado por nº de VPS (cada VPS continua sendo 1 worker; o que muda é a granularidade do que ela puxa).
+Se depois quisermos investigar a regressão de velocidade percebida, faço em uma rodada separada com logs dedicados — fora deste plano.
 
-### `public/version.json`
-Bump para `1.1.0` (mudança de arquitetura).
+## Arquivos tocados
 
-## Detalhes técnicos
-
-- **Anti-429**: hoje `HOST_BUCKET_LIMITS['pje-comunica'] = 1` era para limitar paralelismo no mesmo IP. Como cada VPS = IP distinto, 4 VPSs rodando 4 tipos contra o mesmo host é seguro (era exatamente esse o desenho do pool).
-- **Sticky por tipo**: evita que a mesma VPS alterne tipos toda hora (cada `tipo` tem um payload de URL diferente — manter sticky ajuda no cache do upstream e na leitura dos logs).
-- **Steal cross-tipo**: quando o tipo primário acaba, a VPS não fica ociosa — pega trabalho dos outros tipos, garantindo que a última VPS livre não vire gargalo.
-- **`forceVia` e fallback**: continuam idênticos; o `viaId` é repassado para `processarTermoEmTribunal` como hoje.
-- **Sem fallback por palavra-chave em `parte`**: já está bloqueado nas alterações anteriores; nada muda aqui.
-
-## Não muda
-
-- Validações por metadados estruturados (parte/advogado).
-- Dedup, hash, persistência em `publicacoes_djen`.
-- Cooldown global PJE.
-- Edge functions e cron — só o motor cliente é alterado.
+- `src/hooks/useDjenTermosParalelaEngine.ts`
+- `public/version.json`
