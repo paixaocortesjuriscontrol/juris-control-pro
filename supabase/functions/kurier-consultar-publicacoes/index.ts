@@ -385,8 +385,8 @@ Deno.serve(async (req: Request) => {
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
         // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
-        // aqui: descartamos publicações fora da janela e NÃO confirmamos
-        // (ficam na fila para outra execução).
+        // aqui: descartamos publicações fora da janela e confirmamos na Kurier
+        // para não ficar preso repetindo backlog antigo antes das publicações do dia.
         const dispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
@@ -394,18 +394,29 @@ Deno.serve(async (req: Request) => {
         const pubRaw = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
           "dtPublicacao", "DtPublicacao");
-        const refIso = toIsoDate(dispRaw) ?? toIsoDate(pubRaw);
+        const textoKurier = String((p as any).Texto ?? (p as any).texto ?? "");
+        const refIso = toIsoDate(dispRaw)
+          ?? extractDateFromText(textoKurier, [
+            /DATA\s+DE\s+DISPONIBILIZA[ÇC][AÃ]O\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
+            /Data\s+de\s+Divulga[çc][aã]o\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
+          ])
+          ?? toIsoDate(pubRaw)
+          ?? extractDateFromText(textoKurier, [
+            /Data\s+de\s+Publica[çc][aã]o\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
+          ]);
         const refYmd = refIso ? refIso.slice(0, 10) : null;
         // Filtro de janela ESTRITO: a API Kurier ignora dataInicio/dataFim na fila,
-        // então fazemos o corte aqui. Se o cliente enviou janela e a publicação
-        // está fora dela (ou sequer tem data reconhecida), descartamos e NÃO
-        // confirmamos — continua na fila para uso futuro.
+        // então fazemos o corte aqui e confirmamos o item antigo para liberar a fila.
         if (data_inicio || data_fim) {
           const foraJanela = !refYmd
             || (data_inicio && refYmd < data_inicio)
             || (data_fim && refYmd > data_fim);
           if (foraJanela) {
             totalDescartadas++;
+            const confirmacaoForaJanela = buildConfirmacaoKurier(p);
+            if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
+            const idKForaJanela = pickId(p);
+            if (idKForaJanela) idsConfirmar.push(idKForaJanela);
             rawRows.push({
               id_kurier: pickId(p) ?? `outwin_${sha256(JSON.stringify(p)).slice(0, 24)}`,
               credencial_id: cred.id,
