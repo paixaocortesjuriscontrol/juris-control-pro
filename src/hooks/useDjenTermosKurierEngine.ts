@@ -171,7 +171,10 @@ async function processarCredencial(
         track.mensagem = `Erro: ${(r?.erro ?? "").slice(0, 80)}`;
         return;
       }
-      if (recebidas < 50 || Number(r?.lotes_processados ?? 0) === 0) break;
+      // A fila da Kurier pode liberar publicações mais novas apenas depois de
+      // confirmar um lote antigo. Mesmo lote parcial (<50) pode ser só o fim de
+      // uma faixa antiga, não o fim real da fila; continue até a API voltar vazia.
+      if (recebidas === 0 || Number(r?.lotes_processados ?? 0) === 0) break;
     }
 
     track.status = cancelRequested ? "cancelado" : "concluido";
