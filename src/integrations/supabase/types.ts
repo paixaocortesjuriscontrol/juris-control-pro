@@ -3756,6 +3756,39 @@ export type Database = {
         }
         Relationships: []
       }
+      kurier_credencial_coordenacoes: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          credencial_id: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          credencial_id: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          credencial_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kurier_credencial_coordenacoes_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kurier_credencial_coordenacoes_credencial_id_fkey"
+            columns: ["credencial_id"]
+            isOneToOne: false
+            referencedRelation: "kurier_credenciais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kurier_execucoes: {
         Row: {
           credencial_id: string | null
