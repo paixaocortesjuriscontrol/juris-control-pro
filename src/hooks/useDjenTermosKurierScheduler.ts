@@ -86,7 +86,10 @@ export function useDjenTermosKurierScheduler() {
         .update({ ultima_execucao: new Date().toISOString() })
         .eq("tipo", "kurier");
       await reload();
-      void executarDjenTermosKurier(false);
+      // Sempre dispara apenas para HOJE — evita reprocessar backlog antigo da fila Kurier.
+      const d = new Date();
+      const hojeYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      void executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd);
     }, 30_000);
     return () => clearInterval(intv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
