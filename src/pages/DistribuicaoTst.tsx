@@ -1231,7 +1231,7 @@ export default function DistribuicaoTst() {
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         <DistribuicaoTstStatsCards
-          stats={stats}
+          stats={statsWithGeral}
           loading={statsLoading}
           activeKey={activeCardKey}
           onCardClick={handleCardClick}
