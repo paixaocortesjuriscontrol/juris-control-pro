@@ -2138,6 +2138,7 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     const tracksRaw: any[] = Array.isArray(det.tracks) ? det.tracks : [];
     const tracks: TrackProgress[] = tracksRaw.map((t) => ({
       tribunal: String(t?.tribunal || ''),
+      tipo: (WORKER_TIPOS_ORDER.includes(t?.tipo) ? t.tipo : 'palavra-chave') as WorkerTipo,
       status: (t?.status || 'pendente') as TrackStatus,
       current: Number(t?.current || 0),
       total: Number(t?.total || 0),
@@ -2237,15 +2238,28 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     if (!cp) return;
     state.checkpoint = cp;
     const concluidos = Array.isArray(cp.tribunaisConcluidos) ? cp.tribunaisConcluidos : [];
-    const tracks: TrackProgress[] = ordenarTribunais(concluidos).map((trib) => ({
-      tribunal: trib,
+    // Checkpoint v2: cada item já vem como "tipo|tribunal". Itens v1 (só sigla)
+    // são interpretados como concluídos para todos os tipos (legado).
+    const parsed = concluidos.map((raw) => {
+      const s = String(raw || '');
+      const sep = s.indexOf('|');
+      if (sep > 0) {
+        const tipo = s.slice(0, sep) as WorkerTipo;
+        const trib = s.slice(sep + 1);
+        return { tipo: WORKER_TIPOS_ORDER.includes(tipo) ? tipo : ('palavra-chave' as WorkerTipo), tribunal: trib };
+      }
+      return { tipo: 'palavra-chave' as WorkerTipo, tribunal: s };
+    }).filter(x => x.tribunal);
+    const tracks: TrackProgress[] = parsed.map(({ tipo, tribunal }) => ({
+      tribunal,
+      tipo,
       status: 'concluido',
       current: 0,
       total: 0,
       novas: 0,
       duplicadas: 0,
       descartadas: 0,
-      mensagem: 'Concluído (checkpoint)',
+      mensagem: `${tipo}: concluído (checkpoint)`,
       termoAtual: null,
       diaAtual: null,
       rateLimitHits: 0,
