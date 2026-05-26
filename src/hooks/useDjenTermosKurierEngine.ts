@@ -54,7 +54,7 @@ interface Checkpoint {
   tempoInicio: number;
 }
 
-const MAX_CONCURRENCY = 5;
+const MAX_CONCURRENCY = 3;
 const MAX_CALLS_PER_CREDENCIAL = 200;
 const STORAGE_KEY = "djen-termos-kurier-checkpoint-v1";
 
