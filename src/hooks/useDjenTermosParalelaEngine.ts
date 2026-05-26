@@ -308,9 +308,9 @@ function stopLocalExecution() {
   state.isRunning = false;
 }
 
-function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
+function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackProgress>) {
   const tracks = state.progress.tracks.map(t =>
-    t.tribunal === tribunal ? { ...t, ...partial } : t
+    (t.tribunal === tribunal && t.tipo === tipo) ? { ...t, ...partial } : t
   );
   // Recalcular agregados
   let novas = 0, duplicadas = 0, descartadas = 0, concluidos = 0;
@@ -348,9 +348,9 @@ function updateTrack(tribunal: string, partial: Partial<TrackProgress>) {
  * Atualiza tanto o "lastVia" (mostrado em destaque na UI) quanto os contadores
  * acumulados por rota para um painel de uso por tribunal.
  */
-function registrarViaTrack(tribunal: string, via: PoolViaInfo) {
+function registrarViaTrack(tribunal: string, tipo: WorkerTipo, via: PoolViaInfo) {
   const tracks = state.progress.tracks.map(t => {
-    if (t.tribunal !== tribunal) return t;
+    if (t.tribunal !== tribunal || t.tipo !== tipo) return t;
     const callsByProxy = { ...t.callsByProxy };
     let callsDirect = t.callsDirect;
     if (via.kind === 'direct') {
