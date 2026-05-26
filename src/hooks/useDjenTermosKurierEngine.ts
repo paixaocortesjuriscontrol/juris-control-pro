@@ -149,6 +149,7 @@ async function processarCredencial(
           coordenacao_id: coordenacaoId || undefined,
           data_inicio: dataInicioYmd || undefined,
           data_fim: dataFimYmd || undefined,
+          modo_personalizado: !!(dataInicioYmd && dataFimYmd && !drenarBacklog),
         },
       });
       if (error) throw error;
