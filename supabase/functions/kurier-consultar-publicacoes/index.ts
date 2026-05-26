@@ -347,6 +347,9 @@ Deno.serve(async (req: Request) => {
       totalRecebidas += pubs.length;
       const idsConfirmar: string[] = [];
 
+      const rawRows: any[] = [];
+      const idsKurierEff: string[] = [];
+
       for (const p of pubs) {
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
         // pesado em CPU. Inclui também TermoPesquisa/Processo para matching.
@@ -363,18 +366,7 @@ Deno.serve(async (req: Request) => {
         // Usa fallback hash para evitar perder o payload e poder reprocessar.
         const idKEff = idK ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
 
-        // Idempotência: se já existe em raw, é duplicada (já foi processada antes).
-        const { data: existente } = await admin
-          .from("kurier_publicacoes_raw")
-          .select("id, publicacao_djen_id")
-          .eq("id_kurier", idKEff)
-          .maybeSingle();
-
-        if (existente) {
-          totalDuplicadas++;
-          if (idK) idsConfirmar.push(idK);
-          continue;
-        }
+        idsKurierEff.push(idKEff);
 
         const numero = normalizeProcesso(pickStr(p,
           "numero_processo", "NumeroProcesso", "processo", "Processo",
