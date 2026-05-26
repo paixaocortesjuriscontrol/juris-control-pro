@@ -1448,6 +1448,7 @@ export type Database = {
           created_at: string
           descricao: string | null
           id: string
+          kurier_captura_total: boolean
           monitorar_distribuicoes: boolean
           monitorar_redistribuicoes: boolean
           nome: string
@@ -1459,6 +1460,7 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
+          kurier_captura_total?: boolean
           monitorar_distribuicoes?: boolean
           monitorar_redistribuicoes?: boolean
           nome: string
@@ -1470,6 +1472,7 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
+          kurier_captura_total?: boolean
           monitorar_distribuicoes?: boolean
           monitorar_redistribuicoes?: boolean
           nome?: string

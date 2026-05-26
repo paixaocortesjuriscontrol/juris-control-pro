@@ -293,6 +293,46 @@ Deno.serve(async (req: Request) => {
     const monitoramentos: (Monitoramento & { coordenacao_id?: string | null })[] = (monitsRaw ?? []) as any;
     console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length}`);
 
+    // Coordenações com captura total Kurier: recebem TODA publicação dentro da janela,
+    // independente de match com monitoramento. Usa monitoramento sentinela por coord
+    // para satisfazer o NOT NULL de monitoramento_id em publicacoes_djen.
+    let coordCtQuery = admin
+      .from("coordenacoes")
+      .select("id, nome")
+      .eq("kurier_captura_total", true);
+    if (coordenacao_id) coordCtQuery = coordCtQuery.eq("id", coordenacao_id);
+    const { data: coordsCtRaw } = await coordCtQuery;
+    const capturaTotalCoords: Array<{ id: string; monit_id: string }> = [];
+    for (const c of (coordsCtRaw ?? []) as Array<{ id: string; nome: string }>) {
+      const { data: existing } = await admin
+        .from("monitoramentos_djen")
+        .select("id")
+        .eq("coordenacao_id", c.id)
+        .eq("termo_busca", "__CAPTURA_TOTAL_KURIER__")
+        .maybeSingle();
+      let monitId: string | undefined = existing?.id;
+      if (!monitId) {
+        const { data: newM, error: newMErr } = await admin
+          .from("monitoramentos_djen")
+          .insert({
+            coordenacao_id: c.id,
+            termo_busca: "__CAPTURA_TOTAL_KURIER__",
+            tipo: "palavra-chave",
+            ativo: true,
+            descricao: "Captura total Kurier (sentinela - não editar)",
+          })
+          .select("id")
+          .maybeSingle();
+        if (newMErr) {
+          console.warn(`[kurier] erro criar sentinel captura_total para coord ${c.id}:`, newMErr.message);
+          continue;
+        }
+        monitId = newM?.id;
+      }
+      if (monitId) capturaTotalCoords.push({ id: c.id, monit_id: monitId });
+    }
+    console.log(`[kurier] coordenações captura_total: ${capturaTotalCoords.length}`);
+
     // Pré-indexa monitoramentos por palavra-chave pura normalizada para
     // evitar varrer 271 monitoramentos por publicação (CPU exceeded).
     const monitsByTermo = new Map<string, (Monitoramento & { coordenacao_id?: string | null })[]>();
@@ -486,39 +526,33 @@ Deno.serve(async (req: Request) => {
             }
           }
 
-          if (!matched) {
-            totalDescartadas++;
-            motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
-          } else {
-            // Extrai id_djen do texto (padrão "ID COMUNICAÇÃO<digits>") para deduplicar
-            // contra publicações da indexação DJEN / DJEN Termos Paralela.
-            const idDjenMatch = conteudo.match(/ID\s*COMUNICA[ÇC][AÃ]O\s*(\d{4,})/i);
-            const idDjen = idDjenMatch ? idDjenMatch[1] : null;
-            const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
-            const digits = numero.replace(/\D/g, "");
+          // Pré-computa campos comuns para reutilizar nas inserções de match e captura_total.
+          const idDjenMatch = conteudo.match(/ID\s*COMUNICA[ÇC][AÃ]O\s*(\d{4,})/i);
+          const idDjen = idDjenMatch ? idDjenMatch[1] : null;
+          const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
+          const digits = numero.replace(/\D/g, "");
+          const basePayload: any = {
+            processo_numero: numero,
+            conteudo,
+            fonte: "kurier",
+            id_djen: idDjen,
+            hash_conteudo: hashConteudo,
+            dedup_processo_digits: digits || null,
+            dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
+            tribunal,
+            data_disponibilizacao: toIsoDate(dataDisp) ?? null,
+            data_publicacao: toIsoDate(dataPub) ?? null,
+            tipo_publicacao: "intimacao",
+          };
 
-            // 2) Dedup: tenta inserir direto. O unique index (coordenacao_id, id_djen)
-            // bloqueia duplicatas entre origens (DJEN paralela / indexação / Kurier)
-            // quando o id_djen é conhecido.
-            const payload: any = {
-              monitoramento_id: matched.id,
-              coordenacao_id: matched.coordenacao_id ?? null,
-              processo_numero: numero,
-              conteudo,
-              fonte: "kurier",
-              id_djen: idDjen,
-              hash_conteudo: hashConteudo,
-              dedup_processo_digits: digits || null,
-              dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
-              tribunal,
-              data_disponibilizacao: toIsoDate(dataDisp) ?? null,
-              data_publicacao: toIsoDate(dataPub) ?? null,
-              tipo_publicacao: "intimacao",
-            };
-
+          if (matched) {
             const { data: insPub, error: pubErr } = await admin
               .from("publicacoes_djen")
-              .insert(payload)
+              .insert({
+                ...basePayload,
+                monitoramento_id: matched.id,
+                coordenacao_id: matched.coordenacao_id ?? null,
+              })
               .select("id")
               .maybeSingle();
 
@@ -533,6 +567,34 @@ Deno.serve(async (req: Request) => {
               }
             } else if (insPub) {
               publicacaoDjenId = insPub.id;
+              totalNovas++;
+            }
+          } else if (capturaTotalCoords.length === 0) {
+            totalDescartadas++;
+            motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
+          }
+
+          // 3) Captura total: replica para cada coordenação marcada, ignorando filtros.
+          // O unique index (coordenacao_id, id_djen) protege contra duplicidade dentro da coord.
+          for (const ct of capturaTotalCoords) {
+            if (matched && (matched.coordenacao_id ?? null) === ct.id) continue;
+            const { data: insCt, error: ctErr } = await admin
+              .from("publicacoes_djen")
+              .insert({
+                ...basePayload,
+                monitoramento_id: ct.monit_id,
+                coordenacao_id: ct.id,
+              })
+              .select("id")
+              .maybeSingle();
+            if (ctErr) {
+              if ((ctErr as any).code === "23505") {
+                totalDuplicadas++;
+              } else {
+                console.warn(`[kurier] erro captura_total insert coord ${ct.id}:`, ctErr.message);
+              }
+            } else if (insCt) {
+              if (!publicacaoDjenId) publicacaoDjenId = insCt.id;
               totalNovas++;
             }
           }

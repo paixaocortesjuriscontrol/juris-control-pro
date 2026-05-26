@@ -1,0 +1,1 @@
+ALTER TABLE public.coordenacoes ADD COLUMN IF NOT EXISTS kurier_captura_total boolean NOT NULL DEFAULT false;
