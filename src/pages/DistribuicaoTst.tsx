@@ -236,6 +236,18 @@ export default function DistribuicaoTst() {
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts } = useResponsaveisCounts(countsFilters);
 
+  // Auto-seleciona o usuário logado como responsável ao abrir a tela
+  // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
+  useEffect(() => {
+    if (autoSelectedRespRef.current) return;
+    if (!user?.id) return;
+    if (responsavelCounts.length === 0) return;
+    autoSelectedRespRef.current = true;
+    if (responsavelCounts.some((c) => c.id === user.id)) {
+      setFiltroResponsavelIds([user.id]);
+    }
+  }, [user?.id, responsavelCounts]);
+
   // Limpa o sticky se o usuário mexer em filtros, página ou recarregar.
   // (Mantemos o sticky apenas para o fluxo "salvou e voltou".)
   useEffect(() => {
