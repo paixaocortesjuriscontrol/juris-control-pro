@@ -351,7 +351,6 @@ export default function DistribuicaoTst() {
     if (filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "total" as const;
     if (filtroSituacaoProcesso === "ativo" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosAtivos" as const;
     if (filtroSituacaoProcesso === "transito" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "transitoJulgado" as const;
-    if (filtroSituacaoProcesso === "outros" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "outrosSituacao" as const;
     if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
     if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
@@ -397,7 +396,6 @@ export default function DistribuicaoTst() {
       case "bennerNao": setFiltroBenner("nao"); break;
       case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
       case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
-      case "outrosSituacao": setFiltroSituacaoProcesso("outros"); break;
       case "semTurma": setFiltroSemTurma(true); break;
       case "problemaJudit": setFiltroProblemaJudit("sim"); break;
       case "ate2025":
