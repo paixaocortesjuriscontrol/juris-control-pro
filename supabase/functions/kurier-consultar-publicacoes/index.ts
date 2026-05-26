@@ -481,10 +481,7 @@ Deno.serve(async (req: Request) => {
 
       const rawRows: any[] = [];
 
-      let publicacoesProcessadasNesteLote = 0;
       for (const p of pubs) {
-        if (publicacoesProcessadasNesteLote >= MAX_PUBS_PER_CALL) break;
-        publicacoesProcessadasNesteLote++;
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
         // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
         // aqui: ignora publicações fora da janela e confirma na Kurier
