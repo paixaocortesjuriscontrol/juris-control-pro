@@ -331,7 +331,6 @@ export async function fetchAllDistribuicaoTstIds(
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
     }
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
-    else query = query.or("analisado.is.null,analisado.eq.false");
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
     if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
@@ -482,7 +481,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
     }
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
-    else query = query.or("analisado.is.null,analisado.eq.false");
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
     if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
