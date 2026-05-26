@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
-import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2 } from "lucide-react";
+import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search } from "lucide-react";
 
 function formatDuracao(s: number) {
   if (!s) return "0s";
@@ -97,8 +97,9 @@ export function MonitoramentoTermosKurierCard() {
           <Separator />
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={executar} disabled={isRunning}>
-              <Play className="h-4 w-4 mr-1" /> Executar agora
+            <Button onClick={executar} disabled={isRunning} className="bg-primary">
+              <Search className="h-4 w-4 mr-1" />
+              Buscar Kurier com termos DJEN → Análise DJEN
             </Button>
             {canResume && !isRunning && (
               <Button variant="secondary" onClick={retomar}>
@@ -115,6 +116,11 @@ export function MonitoramentoTermosKurierCard() {
               Reset total
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Consome todas as publicações pendentes na fila Kurier (todas as credenciais ativas), aplica os termos
+            de todos os monitoramentos DJEN ativos, e envia os matches para a tela Análise DJEN com origem
+            <span className="font-mono"> kurier</span>. Duplicadas são marcadas automaticamente.
+          </p>
 
           {progress.status !== "idle" && (
             <div className="space-y-3">
