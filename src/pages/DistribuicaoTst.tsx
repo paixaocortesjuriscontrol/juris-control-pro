@@ -110,6 +110,7 @@ export default function DistribuicaoTst() {
   // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const { user } = useAuth();
   const [delegarOpen, setDelegarOpen] = useState(false);
   const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
