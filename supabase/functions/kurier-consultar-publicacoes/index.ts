@@ -155,8 +155,22 @@ function toIsoDate(value: string | null): string | null {
   const s = value.trim();
   const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
   if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}${br[4] ? `T${br[4]}` : "T12:00:00"}.000Z`;
+  const dashBr = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
+  if (dashBr) return `${dashBr[3]}-${dashBr[2].padStart(2, "0")}-${dashBr[1].padStart(2, "0")}${dashBr[4] ? `T${dashBr[4]}` : "T12:00:00"}.000Z`;
+  const ymd = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}:\d{2}(?::\d{2})?))?/);
+  if (ymd) return `${ymd[1]}-${ymd[2].padStart(2, "0")}-${ymd[3].padStart(2, "0")}${ymd[4] ? `T${ymd[4]}` : "T12:00:00"}.000Z`;
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function extractDateFromText(texto: string, labels: RegExp[]): string | null {
+  for (const label of labels) {
+    const after = texto.match(label);
+    if (!after?.[1]) continue;
+    const iso = toIsoDate(after[1].trim());
+    if (iso) return iso;
+  }
+  return null;
 }
 
 function containsPhraseOrAnd(searchNorm: string, termo: string | null | undefined): boolean {
