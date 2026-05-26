@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Scale, Eye, EyeOff, Loader2, Mail, Lock, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -36,12 +36,17 @@ const Auth = () => {
 
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectPath = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const destination = redirectPath?.pathname
+    ? `${redirectPath.pathname}${redirectPath.search ?? ""}`
+    : "/painel-controle";
 
   useEffect(() => {
     if (user) {
-      navigate("/");
+      navigate(destination, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, destination]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -91,7 +96,7 @@ const Auth = () => {
           }
         } else {
           toast.success("Login realizado com sucesso!");
-          navigate("/");
+          navigate(destination, { replace: true });
         }
       } else {
         const { error } = await signUp(formData.email, formData.password, formData.nome);
@@ -103,10 +108,10 @@ const Auth = () => {
           }
         } else {
           toast.success("Conta criada com sucesso!");
-          navigate("/");
+          navigate(destination, { replace: true });
         }
       }
-    } catch (error: any) {
+    } catch {
       toast.error("Ocorreu um erro. Tente novamente.");
     } finally {
       setLoading(false);
