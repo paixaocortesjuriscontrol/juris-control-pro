@@ -225,7 +225,7 @@ const extractPartesAndAdvogados = (
   // ── 3a. Kurier: blocos compactos em uma linha (PARTES NOMEx POLOA ... ADVOGADOS NOMEx Nº OAB123 UFSP) ──
   if (texto) {
     const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-    const partesBlock = plainText.match(/\bPARTES\b([\s\S]*?)(?=\bADVOGADOS\b|\bMOVIMENTOS\b|\bINTIMAÇÃO\s+EFETIVADA\b|\bLOCAL\b|\bNR\.?\s*PROCESSO\b|$)/i)?.[1];
+    const partesBlock = plainText.match(/\bPARTES\b([\s\S]*?)(?=\bADVOGADOS\b\s+\bNOME\b|\bMOVIMENTOS\b|\bINTIMAÇÃO\s+EFETIVADA\b|\bLOCAL\b|\bNR\.?\s*PROCESSO\b|$)/i)?.[1];
     if (partesBlock) {
       for (const match of partesBlock.matchAll(/\bNOME\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9][\s\S]*?)\s+POLO\s*([AP])\b/gi)) {
         const nome = cleanKurierEntityName(match[1] || "");
@@ -247,6 +247,17 @@ const extractPartesAndAdvogados = (
         const numero = (match[2] || "").trim();
         const uf = (match[3] || "").toUpperCase();
         if (nome.length >= 4 && numero && uf) addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+      }
+    }
+
+    for (const advs of plainText.matchAll(/\bAdv\s*\(\s*s\s*\)\s*([\s\S]*?)(?=\s+(?:Agravado|Agravante|Apelado|Apelante|Reclamado|Reclamante|Exequente|Executado|Promovido|Promovente|POLO\s+ATIVO|POLO\s+PASSIVO|https?:?\/\/|Página\b|Tribunal\b|$))/gi)) {
+      const bloco = (advs[1] || "").trim();
+      for (const item of bloco.split(/\s*,\s*/)) {
+        const m = item.match(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.']{4,}?)\s*[-–—]\s*([\d.]+\s*\/?\s*[a-z]?)$/i);
+        if (!m) continue;
+        const nome = cleanKurierEntityName(m[1] || "");
+        const numero = (m[2] || "").replace(/\s+/g, "").trim();
+        if (nome.length >= 4 && numero) addAdvogado(`${nome} - OAB ${numero}`, numero.toUpperCase());
       }
     }
   }
