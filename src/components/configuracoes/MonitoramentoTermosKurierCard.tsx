@@ -265,7 +265,8 @@ export function MonitoramentoTermosKurierCard() {
                 <span><strong className="text-foreground">{progress.novas}</strong> novas</span>
                 <span><strong className="text-foreground">{progress.duplicadas}</strong> dup</span>
                 <span><strong className="text-foreground">{progress.confirmadas}</strong> confirmadas</span>
-                <span><strong className="text-foreground">{progress.descartadas}</strong> descartadas</span>
+                <span><strong className="text-foreground">{progress.foraJanela}</strong> fora da data</span>
+                <span><strong className="text-foreground">{progress.descartadas}</strong> descartadas por regra</span>
               </div>
 
               <div className="border rounded-md divide-y max-h-72 overflow-auto">
