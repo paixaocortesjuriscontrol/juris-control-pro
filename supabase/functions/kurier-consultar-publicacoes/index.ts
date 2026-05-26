@@ -222,8 +222,9 @@ function normalizeProcesso(n: string | null): string | null {
 }
 
 const LOTE_SIZE = 50;
+const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
-const MAX_LOTES_PER_CALL = 3;
+const MAX_LOTES_PER_CALL = 1;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
@@ -479,7 +480,10 @@ Deno.serve(async (req: Request) => {
 
       const rawRows: any[] = [];
 
+      let publicacoesProcessadasNesteLote = 0;
       for (const p of pubs) {
+        if (publicacoesProcessadasNesteLote >= MAX_PUBS_PER_CALL) break;
+        publicacoesProcessadasNesteLote++;
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
         // A Kurier ignora esses parâmetros no endpoint de fila, então filtramos
         // aqui: ignora publicações fora da janela e confirma na Kurier
