@@ -2119,24 +2119,32 @@ async function executarLoop(
           break;
         }
         processed++;
-        try {
-          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId ?? null);
-        } catch (e) {
-          console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}:`, e);
+        // monIds vazio/undefined → 1 chamada com monId=null (comportamento legado).
+        // monIds com 1+ ids → executa SERIALMENTE no mesmo worker, atualizando
+        // checkpoint por monitoramento concluído.
+        const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
+          ? unit.monIds
+          : [null];
+        for (const monIdAtual of monIdsParaExec) {
+          if (signal.aborted) break;
+          try {
+            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+          } catch (e) {
+            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+          }
+          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
+          saveCheckpoint({
+            runKey,
+            dataInicioYmd,
+            dataFimYmd,
+            tribunaisConcluidos: unidadesConcluidasLista,
+            novas: state.progress.novas,
+            duplicadas: state.progress.duplicadas,
+            descartadas: state.progress.descartadas,
+            tempoInicio,
+          });
+          syncExecutionProgress({}, true);
         }
-        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, unit.monId ?? null));
-
-        saveCheckpoint({
-          runKey,
-          dataInicioYmd,
-          dataFimYmd,
-          tribunaisConcluidos: unidadesConcluidasLista,
-          novas: state.progress.novas,
-          duplicadas: state.progress.duplicadas,
-          descartadas: state.progress.descartadas,
-          tempoInicio,
-        });
-        syncExecutionProgress({}, true);
       }
     };
 
