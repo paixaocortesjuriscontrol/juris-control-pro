@@ -1001,6 +1001,7 @@ async function processarTribunalTrack(
   signal: AbortSignal,
   viaId?: string,
   monId?: string | null,
+  monIdsFilter?: string[],
 ) {
   const track = state.progress.tracks.find(
     t => t.tribunal === tribunal && t.tipo === tipo && (t.monId ?? null) === (monId ?? null),
@@ -1010,6 +1011,7 @@ async function processarTribunalTrack(
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
+    if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
     if (monId && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
@@ -1893,26 +1895,31 @@ async function executarLoop(
       for (const tipo of tiposAtivos) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        // Para tipo=parte: cada monitoramento vira uma track/unidade
-        // independente (permite que VPSs distintas processem em paralelo).
-        // Demais tipos seguem com 1 track por (tipo, tribunal).
-        const monsDoTipoNoTrib = tipo === 'parte'
-          ? (monsPorTipo.get(tipo) || []).filter((m) => {
-              const tribs = expandirTribunaisDoMon(m.tribunais);
-              return tribs.length === 0 || tribs.includes(trib);
-            })
-          : [null as Monitoramento | null];
-        for (const monAlvo of monsDoTipoNoTrib) {
-          const monId = monAlvo ? monAlvo.id : null;
-          const monLabel = monAlvo ? (monAlvo.descricao || monAlvo.termo_busca) : null;
+        // Para tipo=parte: TST mantém 1 track por termo; demais tribunais
+        // ficam com 1 única track por tribunal e executam os termos em série.
+        const monsDoTipoNoTrib = (monsPorTipo.get(tipo) || []).filter((m) => {
+          const tribs = expandirTribunaisDoMon(m.tribunais);
+          return tribs.length === 0 || tribs.includes(trib);
+        });
+        const trackTargets = tipo === 'parte'
+          ? (trib === 'TST'
+              ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
+              : [{
+                  monId: null,
+                  monLabel: `${monsDoTipoNoTrib.length} termos`,
+                  total: monsDoTipoNoTrib.length * datas.length,
+                }])
+          : [{
+              monId: null,
+              monLabel: null,
+              total: monsDoTipoNoTrib.length * datas.length,
+            }];
+        for (const target of trackTargets) {
+          const monId = target.monId;
+          const monLabel = target.monLabel;
           const key = trackKey(tipo, trib, monId);
           const jaConcluido = unidadesJaConcluidas.has(key);
-          const totalTrack = (monAlvo
-            ? 1
-            : (monsPorTipo.get(tipo) || []).filter((m) => {
-                const tribs = expandirTribunaisDoMon(m.tribunais);
-                return tribs.length === 0 || tribs.includes(trib);
-              }).length) * datas.length;
+          const totalTrack = target.total;
           tracks.push({
             tribunal: trib,
             tipo,
@@ -1925,7 +1932,7 @@ async function executarLoop(
             duplicadas: 0,
             descartadas: 0,
             mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-            termoAtual: monLabel,
+            termoAtual: tipo === 'parte' && trib !== 'TST' ? null : monLabel,
             diaAtual: null,
             rateLimitHits: 0,
             ultimoErro: null,
@@ -2017,17 +2024,22 @@ async function executarLoop(
             const t = expandirTribunaisDoMon(m.tribunais);
             return t.length === 0 || t.includes(trib);
           });
-          const pendentes = monsDoTrib.filter(
-            (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
-          );
-          if (pendentes.length === 0) continue;
           if (trib === 'TST') {
             // TST mantém paralelismo: 1 unidade por monitoramento.
+            const pendentes = monsDoTrib.filter(
+              (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
+            );
+            if (pendentes.length === 0) continue;
             for (const m of pendentes) {
               fila.push({ tipo, tribunal: trib, monIds: [m.id] });
             }
           } else {
             // Demais tribunais: 1 unidade serial por tribunal.
+            if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+            const pendentes = monsDoTrib.filter(
+              (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
+            );
+            if (pendentes.length === 0) continue;
             fila.push({ tipo, tribunal: trib, monIds: pendentes.map((m) => m.id) });
           }
         }
@@ -2142,19 +2154,16 @@ async function executarLoop(
         }
         processed++;
         // monIds vazio/undefined → 1 chamada com monId=null (comportamento legado).
-        // monIds com 1+ ids → executa SERIALMENTE no mesmo worker, atualizando
-        // checkpoint por monitoramento concluído.
-        const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
-          ? unit.monIds
-          : [null];
-        for (const monIdAtual of monIdsParaExec) {
-          if (signal.aborted) break;
+        // Para parte fora do TST, monIds com vários ids rodam em UMA track por
+        // tribunal, serialmente dentro de processarTribunalTrack, sem OR.
+        const groupedParteTribunal = unit.tipo === 'parte' && unit.tribunal !== 'TST' && (unit.monIds?.length ?? 0) > 1;
+        if (groupedParteTribunal) {
           try {
-            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, null, unit.monIds);
           } catch (e) {
-            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal} grupo=${unit.monIds?.length ?? 0}:`, e);
           }
-          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
+          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal));
           saveCheckpoint({
             runKey,
             dataInicioYmd,
@@ -2166,6 +2175,30 @@ async function executarLoop(
             tempoInicio,
           });
           syncExecutionProgress({}, true);
+        } else {
+          const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
+            ? unit.monIds
+            : [null];
+          for (const monIdAtual of monIdsParaExec) {
+            if (signal.aborted) break;
+            try {
+              await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+            } catch (e) {
+              console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+            }
+            unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
+            saveCheckpoint({
+              runKey,
+              dataInicioYmd,
+              dataFimYmd,
+              tribunaisConcluidos: unidadesConcluidasLista,
+              novas: state.progress.novas,
+              duplicadas: state.progress.duplicadas,
+              descartadas: state.progress.descartadas,
+              tempoInicio,
+            });
+            syncExecutionProgress({}, true);
+          }
         }
       }
     };
