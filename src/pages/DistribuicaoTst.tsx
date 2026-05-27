@@ -1190,6 +1190,16 @@ export default function DistribuicaoTst() {
             {mostrarCards ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </Button>
           <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMostrarFiltros(v => !v)}
+            className="text-muted-foreground hover:text-foreground"
+            title={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+            aria-label={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+          >
+            {mostrarFiltros ? <SlidersHorizontal className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4 opacity-50" />}
+          </Button>
+          <Button
             onClick={() => gerarManualDistribuicaoTst()}
             className="bg-blue-600 hover:bg-blue-700 text-white"
             title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
