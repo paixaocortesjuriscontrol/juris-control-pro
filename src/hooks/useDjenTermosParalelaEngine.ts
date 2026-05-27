@@ -1902,14 +1902,20 @@ async function executarLoop(
           const monLabel = monAlvo ? (monAlvo.descricao || monAlvo.termo_busca) : null;
           const key = trackKey(tipo, trib, monId);
           const jaConcluido = unidadesJaConcluidas.has(key);
+          const totalTrack = (monAlvo
+            ? 1
+            : (monsPorTipo.get(tipo) || []).filter((m) => {
+                const tribs = expandirTribunaisDoMon(m.tribunais);
+                return tribs.length === 0 || tribs.includes(trib);
+              }).length) * datas.length;
           tracks.push({
             tribunal: trib,
             tipo,
             monId,
             monLabel,
             status: jaConcluido ? 'concluido' : 'pendente',
-            current: 0,
-            total: 0,
+            current: jaConcluido ? totalTrack : 0,
+            total: totalTrack,
             novas: 0,
             duplicadas: 0,
             descartadas: 0,
