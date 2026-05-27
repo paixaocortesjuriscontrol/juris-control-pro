@@ -1,66 +1,50 @@
-## Objetivo
+# Serializar busca de "parte" por tribunal (exceto TST)
 
-Reduzir o tempo da pesquisa "DJEN Termos Paralela" agrupando termos do mesmo tipo num único request por tribunal/dia, usando a sintaxe `OR` no `palavraChave` (até 20 termos por chamada). O TST mantém o comportamento atual (1 termo por chamada), pois já é rápido assim.
+## Problema
+Hoje, em `useDjenTermosParalelaEngine.ts`, o tipo `parte` gera **uma unidade por (tribunal × monitoramento de parte)**. Resultado: o mesmo tribunal (TJPI, TJSP, etc.) é chamado N vezes em concorrência pelas diferentes VPSs — gera ruído, 429 e a sensação de "monte de TJPI" na execução.
 
-## Escopo
+A regra correta (sem `OR` no `nomeParte`, conforme constraint `djen-paralela-parte-sem-palavra-chave`): para cada tribunal não-TST, as N partes devem ser consultadas **em série dentro do mesmo worker**. TST continua paralelo (1 unidade por parte) por ser o tribunal mais pesado e o que mais se beneficia de paralelismo.
 
-Só `src/hooks/useDjenTermosParalelaEngine.ts`. Sem mudanças de UI, schema ou edge functions.
+## Mudanças (arquivo único)
 
-## Comportamento por tipo
+`src/hooks/useDjenTermosParalelaEngine.ts`
 
-| Tipo do monitoramento | TST | Demais tribunais |
-|---|---|---|
-| `processo` | 1 chamada por termo (`numeroProcesso`) | Agrupa até 20 números num `palavraChave: "N1 OR N2 OR ..."` |
-| `palavra-chave` / `nome` | 1 chamada por termo | Agrupa até 20 termos num `palavraChave: "(T1) OR (T2) OR ..."` |
-| `advogado` | 1 chamada por termo (`nomeAdvogado`+`oab`) | Sem alteração — API exige campo dedicado por advogado |
-| `parte` | 1 chamada por variação (`nomeParte`) | Sem alteração — API exige campo dedicado por parte |
+1. **WorkUnit ganha lista de monitoramentos**
+   - Trocar `WorkUnit = { tipo; tribunal; monId? }` por `{ tipo; tribunal; monIds?: string[] }`.
 
-Justificativa: a API PJE Comunica não aceita lista em `nomeAdvogado`/`nomeParte`. Só `palavraChave` (e por extensão `numeroProcesso` reescrito como query) admite OR.
+2. **Montagem da fila (`filasPorTipo`) para `tipo === 'parte'`**
+   - Se `trib === 'TST'` → mantém o comportamento atual: 1 unidade por monitoramento (paralelo entre VPSs).
+   - Se `trib !== 'TST'` → cria **1 única unidade** com `monIds = [todos os monitoramentos de parte daquele tribunal ainda não concluídos]`. Pula a unidade se a lista ficar vazia (todos já no checkpoint).
 
-## Como o agrupamento funciona
+3. **Loop do worker (`worker(...)`)**
+   - Após `pickNextUnit`, se `unit.monIds` tem múltiplos elementos, iterar serialmente:
+     ```
+     for (const monId of unit.monIds) {
+       if (signal.aborted) break;
+       await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monId);
+       unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monId));
+       saveCheckpoint({...});
+       syncExecutionProgress({}, true);
+     }
+     ```
+   - Para `tipo !== 'parte'` (monIds vazio/undefined): chama uma única vez como hoje, com `monId = null`.
 
-No loop `processarTribunal` (linhas ~970-1082), antes de iterar `mon × dia`:
+4. **Tracks (visualização) — sem alteração estrutural**
+   - Continuam 1 track por `(tipo, trib, monId)` para que a UI mostre cada parte individualmente. O que muda é só **quem despacha**: um único worker percorre todas as tracks daquele tribunal em sequência, em vez de várias VPSs disputarem o mesmo CloudFront.
 
-1. Separar `monsParaEsseTrib` em dois conjuntos:
-   - **agrupáveis**: tipos `processo`, `palavra-chave`, `nome` quando `tribunal !== 'TST'`.
-   - **individuais**: tudo o mais (incluindo todos os tipos no TST).
-2. Para cada `diaYmd`:
-   - Quebrar os agrupáveis por subtipo (`processo` separado de `palavra-chave`/`nome`) em lotes de até 20.
-   - Para cada lote, montar a query OR e fazer 1 chamada via novo helper `processarGrupoEmTribunal(...)`. Filtrar localmente cada publicação contra o termo de origem (usando os filtros já existentes: `validarParteSecaoPartes`, `validarPalavrasChave`, comparação de `numeroProcesso` etc.) e atribuir cada match ao `mon` correto.
-   - Para os individuais, manter o caminho atual `processarTermoEmTribunal(mon, diaYmd, ...)`.
-3. Contadores de progresso (`processed`, `total`, `acumNovas/Dup/Desc`) continuam sendo atualizados por termo. O `total` por track passa a contar termos (não chamadas), então a barra continua coerente; o `processed` é incrementado por termo após o lote ser processado.
+5. **Mensagem inicial / log de spawn**
+   - Atualizar contagem de "unidades pendentes" considerando que partes não-TST viram 1 unidade agrupada (apenas para fins de mensagem; o total de tracks na UI permanece o mesmo, então a barra de progresso não muda de denominador).
 
-## Novo helper `processarGrupoEmTribunal`
+6. **Checkpoint**
+   - Continua usando `trackKey(tipo, trib, monId)` por parte individual — assim retomadas após queda só refazem as partes pendentes daquele tribunal, sem regredir as já concluídas dentro da mesma unidade serial.
 
-Mesma assinatura/retorno de `processarTermoEmTribunal`, mas recebe um array `mons: Monitoramento[]` e:
+## Fora de escopo
+- Não mexer em `useDjenTermosParalela.ts` (hook React).
+- Não tocar em `processarTribunalTrack` nem na lógica de busca (`nomeParte`, validação, dedupe).
+- Não alterar TST (parte) — continua paralelo.
+- Não alterar tipos `palavra-chave`, `advogado`, `processo`.
 
-- Monta `palavraChave`:
-  - `processo`: `numeros.map(n => n.replace(/\D/g,'')).join(' OR ')`.
-  - `palavra-chave`/`nome`: para cada termo, se contém `+`, pegar o maior fragmento via `encurtarParaApi` (mesma lógica atual); juntar como `(t1) OR (t2) OR ...`.
-- Usa `tipo: 'palavra-chave'` no request (mesmo para grupos de processo) — o filtro local garante a correção.
-- Reaproveita `buscarPjeComunicaPaginado` com os mesmos parâmetros (`pageSize: 50`, `continueUntilEmpty: true`, mesmo `forceVia`, etc.).
-- Após receber `resp.items`, distribuir cada publicação entre os `mons` do lote, validando com as funções existentes:
-  - Para grupo `processo`: comparar `numeroProcesso` (só dígitos) com cada `mon.termo_busca`.
-  - Para grupo `palavra-chave`/`nome`: rodar `validarPalavrasChave` / `validarExclusoes` / `validarConcomitancia` de cada `mon` contra o item, escolhendo o primeiro `mon` cujo termo casa.
-- Itens sem nenhum match são descartados (contam em `descartadas` do tribunal, sem vincular a `mon`).
-- Sem retry automático (já desativado para `processo`; para `palavra-chave` em grupo o retry deixa de fazer sentido — fica desligado também).
-
-## Detalhamento técnico
-
-- Configuração: adicionar `CONFIG.group_search_size = 20` (constante) com possibilidade futura de tornar configurável.
-- Detecção do TST: comparação `tribunal === 'TST'` (já é o literal usado em `TODOS_TRT`).
-- O `executarBusca` atual permanece para o caminho individual; o helper de grupo chama `buscarPjeComunicaPaginado` diretamente.
-- `registrarViaTrack` continua sendo chamado por chamada (1 por grupo, 1 por termo individual).
-- O cooldown PJE por VPS (`getPjeComunicaGlobalCooldownRemainingMs`) é respeitado também antes de cada chamada de grupo.
-- Dedup por `id_djen` continua igual.
-
-## Impacto esperado
-
-- Coordenações com muitos termos `palavra-chave`/`processo` (ex.: Dr. Thomás com 173 processos × 26 tribunais × N dias) caem de ~4.500 chamadas para ~225 chamadas nos tribunais não-TST (90%+ redução), mantendo o TST rápido.
-
-## Validação
-
-- Build automático.
-- Conferir nos logs do console que para tribunais não-TST aparecem mensagens do tipo `Grupo X/Y (20 termos)` e que o número de chamadas por dia caiu.
-- Conferir que para TST as chamadas continuam 1-por-termo.
-- Conferir um termo conhecido (ex.: processo CNJ específico do Bradesco) para garantir que ele ainda casa e é gravado no `mon` correto.
+## Resultado esperado
+- TJPI, TJSP, TRT2 etc. aparecem **1 vez** por execução, com a parte atual sendo atualizada serialmente (`termoAtual` da track ativa).
+- TST permanece distribuído entre as VPSs do pool.
+- Mantém constraint `djen-paralela-parte-sem-palavra-chave` (nada de `OR`, nada de `palavraChave` para `parte`).
