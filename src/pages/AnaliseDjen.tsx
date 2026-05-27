@@ -63,7 +63,7 @@ import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { prepararConteudoParaIA } from "@/lib/publicacao-markdown";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull, stripHtmlAndDecodeEntities } from "@/utils/formatConteudo";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenUnificadas";
