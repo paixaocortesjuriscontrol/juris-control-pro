@@ -1179,6 +1179,16 @@ export default function DistribuicaoTst() {
       headerActions={
         <div className="flex items-center gap-2">
           <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMostrarCards(v => !v)}
+            className="text-muted-foreground hover:text-foreground"
+            title={mostrarCards ? "Ocultar cards totalizadores" : "Mostrar cards totalizadores"}
+            aria-label={mostrarCards ? "Ocultar cards totalizadores" : "Mostrar cards totalizadores"}
+          >
+            {mostrarCards ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </Button>
+          <Button
             onClick={() => gerarManualDistribuicaoTst()}
             className="bg-blue-600 hover:bg-blue-700 text-white"
             title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
@@ -1248,18 +1258,6 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMostrarCards(v => !v)}
-            className="text-muted-foreground hover:text-foreground"
-            title={mostrarCards ? "Ocultar cards totalizadores" : "Mostrar cards totalizadores"}
-          >
-            {mostrarCards ? <EyeOff className="w-4 h-4 mr-1.5" /> : <Eye className="w-4 h-4 mr-1.5" />}
-            {mostrarCards ? "Ocultar cards" : "Mostrar cards"}
-          </Button>
-        </div>
         {mostrarCards && (
           <DistribuicaoTstStatsCards
             stats={statsWithGeral}
@@ -1274,7 +1272,7 @@ export default function DistribuicaoTst() {
         )}
 
         {/* Totais por responsável — visível apenas para administradores. */}
-        {isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
+        {mostrarCards && isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
               Por responsável:
