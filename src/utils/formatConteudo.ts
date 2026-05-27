@@ -6,7 +6,7 @@ import React from "react";
  * preparando o texto para ser exibido com whitespace-pre-wrap.
  */
 
-const decodeHtmlEntities = (value: string): string => {
+export const decodeHtmlEntities = (value: string): string => {
   if (!value) return value;
   try {
     const textarea = document.createElement("textarea");
