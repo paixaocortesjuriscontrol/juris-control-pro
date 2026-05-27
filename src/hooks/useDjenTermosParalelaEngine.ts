@@ -1995,7 +1995,12 @@ async function executarLoop(
     // Para tipo=parte cada monitoramento é uma unidade própria — permite que
     // VPSs distintas processem partes diferentes em paralelo (antes a fila era
     // por tribunal e 1 VPS pegava todos os ~112 monitoramentos de parte do TST).
-    type WorkUnit = { tipo: WorkerTipo; tribunal: string; monId?: string | null };
+    // monIds: lista de monitoramentos a processar serialmente nesta unidade.
+    // - tipo !== 'parte'         → undefined/[] (1 chamada com monId=null)
+    // - tipo === 'parte' & TST   → 1 unidade por monitoramento (paralelo)
+    // - tipo === 'parte' & outros → 1 unidade por tribunal contendo todos
+    //   os monitoramentos daquele tribunal (executados serialmente no mesmo worker)
+    type WorkUnit = { tipo: WorkerTipo; tribunal: string; monIds?: string[] };
     const filasPorTipo = new Map<WorkerTipo, WorkUnit[]>();
     for (const tipo of tiposAtivos) {
       const tribs = tribunaisPorTipo.get(tipo) || [];
@@ -2007,9 +2012,18 @@ async function executarLoop(
             const t = expandirTribunaisDoMon(m.tribunais);
             return t.length === 0 || t.includes(trib);
           });
-          for (const m of monsDoTrib) {
-            if (unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))) continue;
-            fila.push({ tipo, tribunal: trib, monId: m.id });
+          const pendentes = monsDoTrib.filter(
+            (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
+          );
+          if (pendentes.length === 0) continue;
+          if (trib === 'TST') {
+            // TST mantém paralelismo: 1 unidade por monitoramento.
+            for (const m of pendentes) {
+              fila.push({ tipo, tribunal: trib, monIds: [m.id] });
+            }
+          } else {
+            // Demais tribunais: 1 unidade serial por tribunal.
+            fila.push({ tipo, tribunal: trib, monIds: pendentes.map((m) => m.id) });
           }
         }
       } else {
@@ -2105,24 +2119,32 @@ async function executarLoop(
           break;
         }
         processed++;
-        try {
-          await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId ?? null);
-        } catch (e) {
-          console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}:`, e);
+        // monIds vazio/undefined → 1 chamada com monId=null (comportamento legado).
+        // monIds com 1+ ids → executa SERIALMENTE no mesmo worker, atualizando
+        // checkpoint por monitoramento concluído.
+        const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
+          ? unit.monIds
+          : [null];
+        for (const monIdAtual of monIdsParaExec) {
+          if (signal.aborted) break;
+          try {
+            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+          } catch (e) {
+            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+          }
+          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
+          saveCheckpoint({
+            runKey,
+            dataInicioYmd,
+            dataFimYmd,
+            tribunaisConcluidos: unidadesConcluidasLista,
+            novas: state.progress.novas,
+            duplicadas: state.progress.duplicadas,
+            descartadas: state.progress.descartadas,
+            tempoInicio,
+          });
+          syncExecutionProgress({}, true);
         }
-        unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, unit.monId ?? null));
-
-        saveCheckpoint({
-          runKey,
-          dataInicioYmd,
-          dataFimYmd,
-          tribunaisConcluidos: unidadesConcluidasLista,
-          novas: state.progress.novas,
-          duplicadas: state.progress.duplicadas,
-          descartadas: state.progress.descartadas,
-          tempoInicio,
-        });
-        syncExecutionProgress({}, true);
       }
     };
 
