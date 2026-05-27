@@ -40,7 +40,12 @@ export type TrackStatus = 'pendente' | 'executando' | 'concluido' | 'erro' | 'ca
 
 /** Tipos de busca dedicados às VPS (mapeamos 'nome' → 'palavra-chave'). */
 export type WorkerTipo = 'parte' | 'advogado' | 'palavra-chave' | 'processo';
+// Ordem de prioridade global das filas. `palavra-chave` (termo) e `processo`
+// SEMPRE rodam por último — todos os workers só começam essas filas depois que
+// `parte` e `advogado` esgotam, independentemente do tipo primário de cada VPS.
 const WORKER_TIPOS_ORDER: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave', 'processo'];
+const TIPOS_PRIORITARIOS: WorkerTipo[] = ['parte', 'advogado'];
+const TIPOS_FINAIS: WorkerTipo[] = ['palavra-chave', 'processo'];
 
 function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   if (tipo === 'nome') return 'palavra-chave';
@@ -2091,21 +2096,33 @@ async function executarLoop(
     // Cada worker (VPS) recebe um tipo PRIMÁRIO em round-robin.
     // Quando a fila do tipo primário esvazia, o worker rouba unidades das filas
     // de outros tipos (round-robin) para maximizar utilização das VPS.
-    const pickNextUnit = (tipoPrimario: WorkerTipo): WorkUnit | null => {
-      // 1) Tipo primário primeiro
-      const filaPrim = filasPorTipo.get(tipoPrimario);
-      if (filaPrim && filaPrim.length > 0) {
-        return filaPrim.shift()!;
+    // Prioridade global: enquanto houver QUALQUER unidade pendente em tipos
+    // prioritários (parte/advogado), nenhum worker pega palavra-chave/processo.
+    // Dentro de cada faixa, o tipo primário do worker é tentado primeiro;
+    // se vazio, faz steal nos demais tipos da MESMA faixa.
+    const temPendentesEm = (tipos: WorkerTipo[]): boolean =>
+      tipos.some((t) => (filasPorTipo.get(t)?.length ?? 0) > 0);
+
+    const pickFromFaixa = (faixa: WorkerTipo[], tipoPrimario: WorkerTipo): WorkUnit | null => {
+      if (faixa.includes(tipoPrimario)) {
+        const fila = filasPorTipo.get(tipoPrimario);
+        if (fila && fila.length > 0) return fila.shift()!;
       }
-      // 2) Steal: percorre demais tipos
-      for (const tipo of tiposAtivos) {
+      for (const tipo of faixa) {
         if (tipo === tipoPrimario) continue;
         const fila = filasPorTipo.get(tipo);
-        if (fila && fila.length > 0) {
-          return fila.shift()!;
-        }
+        if (fila && fila.length > 0) return fila.shift()!;
       }
       return null;
+    };
+
+    const pickNextUnit = (tipoPrimario: WorkerTipo): WorkUnit | null => {
+      // 1) Sempre tenta esvaziar a faixa prioritária primeiro.
+      const u1 = pickFromFaixa(TIPOS_PRIORITARIOS, tipoPrimario);
+      if (u1) return u1;
+      // 2) Só entra na faixa final quando NÃO há mais prioritários pendentes.
+      if (temPendentesEm(TIPOS_PRIORITARIOS)) return null;
+      return pickFromFaixa(TIPOS_FINAIS, tipoPrimario);
     };
 
     const worker = async (via: ViaSpec, tipoPrimario: WorkerTipo) => {
@@ -2115,6 +2132,11 @@ async function executarLoop(
       while (!signal.aborted) {
         const unit = pickNextUnit(tipoPrimario);
         if (!unit) {
+          // Pode estar apenas esperando faixa prioritária terminar.
+          if (temPendentesEm(TIPOS_PRIORITARIOS)) {
+            await new Promise((r) => setTimeout(r, 500));
+            continue;
+          }
           console.log(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] ⏹ fila vazia, encerrando após ${processed} unidades em ${Math.round((Date.now()-t0)/1000)}s`);
           break;
         }
