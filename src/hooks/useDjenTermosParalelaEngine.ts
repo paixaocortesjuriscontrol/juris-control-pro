@@ -1045,9 +1045,8 @@ async function processarTribunalTrack(
     for (const diaYmd of datas) {
       if (signal.aborted) break;
 
-      // Agrupamento OR foi desativado: estava gerando HTTP 403 no CloudFront
-      // e perturbando a barra de progresso. Mantemos 1 chamada por termo,
-      // tanto no TST quanto nos demais tribunais (comportamento anterior).
+      // Sem OR: cada termo é consultado individualmente. Quando há vários
+      // termos no mesmo tribunal, eles rodam em série dentro desta track.
       const grupos: Monitoramento[][] = monsParaEsseTrib.map((m) => [m]);
 
       for (const grupo of grupos) {
@@ -1063,9 +1062,7 @@ async function processarTribunalTrack(
           if (signal.aborted) break;
         }
 
-        const mensagemTermo = grupo.length === 1
-          ? (grupo[0].descricao || grupo[0].termo_busca)
-          : `Grupo de ${grupo.length} termos`;
+        const mensagemTermo = grupo[0].descricao || grupo[0].termo_busca;
         updateTrack(tribunal, tipo, {
           termoAtual: mensagemTermo,
           diaAtual: diaYmd,
@@ -1073,9 +1070,7 @@ async function processarTribunalTrack(
         }, monId);
 
         try {
-          const r = grupo.length === 1
-            ? await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId)
-            : await processarGrupoEmTribunal(grupo, diaYmd, tribunal, signal, viaId, tipo, monId);
+          const r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
