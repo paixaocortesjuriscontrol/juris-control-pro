@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -80,6 +80,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
+  const [mostrarCards, setMostrarCards] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -1247,16 +1248,30 @@ export default function DistribuicaoTst() {
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
-        <DistribuicaoTstStatsCards
-          stats={statsWithGeral}
-          loading={statsLoading}
-          activeKey={activeCardKey}
-          onCardClick={handleCardClick}
-          responsavelCard={(() => {
-            const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
-            return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
-          })()}
-        />
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMostrarCards(v => !v)}
+            className="text-muted-foreground hover:text-foreground"
+            title={mostrarCards ? "Ocultar cards totalizadores" : "Mostrar cards totalizadores"}
+          >
+            {mostrarCards ? <EyeOff className="w-4 h-4 mr-1.5" /> : <Eye className="w-4 h-4 mr-1.5" />}
+            {mostrarCards ? "Ocultar cards" : "Mostrar cards"}
+          </Button>
+        </div>
+        {mostrarCards && (
+          <DistribuicaoTstStatsCards
+            stats={statsWithGeral}
+            loading={statsLoading}
+            activeKey={activeCardKey}
+            onCardClick={handleCardClick}
+            responsavelCard={(() => {
+              const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
+              return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
+            })()}
+          />
+        )}
 
         {/* Totais por responsável — visível apenas para administradores. */}
         {isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
