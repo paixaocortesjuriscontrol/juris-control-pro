@@ -1111,6 +1111,7 @@ async function processarTermoEmTribunal(
   viaId?: string,
   tipoTrack?: WorkerTipo,
   monIdTrack?: string | null,
+  preloaded?: { items: any[]; rateLimitHits: number; ultimoErro: string | null } | null,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
@@ -1123,8 +1124,8 @@ async function processarTermoEmTribunal(
       : mon.tipo;
   const resultados: any[] = [];
   const seen = new Set<string>();
-  let rateLimitHits = 0;
-  let ultimoErro: string | null = null;
+  let rateLimitHits = preloaded?.rateLimitHits ?? 0;
+  let ultimoErro: string | null = preloaded?.ultimoErro ?? null;
 
   const addResults = (items: any[], matchMeta: Record<string, any> = {}) => {
     for (const item of items) {
@@ -1135,6 +1136,19 @@ async function processarTermoEmTribunal(
       resultados.push({ ...item, ...matchMeta, id_djen: idDjen, id: idDjen ?? item?.id, siglaTribunal: item?.siglaTribunal ?? tribunal });
     }
   };
+
+  // Caminho rápido: items vindos de uma busca agrupada (OR no palavraChave),
+  // já pré-filtrados para casarem com este `mon`. Pula a chamada de rede.
+  if (preloaded) {
+    addResults(preloaded.items);
+    if (signal.aborted) {
+      return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+    }
+    if (resultados.length === 0) {
+      return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+    }
+    return await consolidarResultadosTermo(mon, diaYmd, tribunal, resultados, rateLimitHits, ultimoErro);
+  }
 
   const baseParams: any = {
     tipo,
