@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, stripHtmlAndDecodeEntities } from "@/utils/formatConteudo";
 import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import {
@@ -1692,7 +1692,7 @@ const BuscarDJEN = () => {
 
                             {!isExpanded && (
                               <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 ml-4 md:ml-6 break-words overflow-hidden">
-                                {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 200) || "Sem conteúdo"}...
+                                {stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 200) || "Sem conteúdo"}...
                               </p>
                             )}
                           </div>
