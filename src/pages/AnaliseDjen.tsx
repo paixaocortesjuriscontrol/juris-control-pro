@@ -1183,7 +1183,7 @@ const AnaliseDjen = () => {
   // Detecta se a publicação é uma Pauta de Julgamento (sessão virtual/presencial).
   const isPautaDeJulgamento = (conteudo?: string | null): boolean => {
     if (!conteudo) return false;
-    const txt = String(conteudo).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const txt = decodeHtmlEntities(String(conteudo).replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
     return /Pauta\s+de\s+Julgamento/i.test(txt) ||
       /\bCEJUSC\b/i.test(txt) ||
       (/\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
@@ -1194,11 +1194,11 @@ const AnaliseDjen = () => {
   // Evita trazer a pauta completa ou repetir as linhas iniciais no resumo.
   const extractTrechoPauta = (conteudo?: string | null, processo?: string | null): string => {
     if (!conteudo || !isPautaDeJulgamento(conteudo)) return "";
-    const linhas = String(conteudo)
+    const linhas = decodeHtmlEntities(String(conteudo)
       .replace(/<br\s*\/?>(?=)/gi, "\n")
       .replace(/<\/p>/gi, "\n\n")
       .replace(/<[^>]+>/g, "")
-      .replace(/\r\n?/g, "\n")
+      .replace(/\r\n?/g, "\n"))
       .split("\n")
       .map(l => l.replace(/[ \t]+/g, " ").trim())
       .filter(Boolean);
@@ -1315,11 +1315,11 @@ const AnaliseDjen = () => {
   const extractTrechoFinalCore = (conteudo?: string | null): string => {
     if (!conteudo) return "";
     // 1) Normaliza HTML/whitespace e devolve a lista de parágrafos.
-    const semHtml = String(conteudo)
+    const semHtml = decodeHtmlEntities(String(conteudo)
       .replace(/<br\s*\/?>(?=)/gi, "\n")
       .replace(/<\/p>/gi, "\n\n")
       .replace(/<[^>]+>/g, "")
-      .replace(/\r\n?/g, "\n");
+      .replace(/\r\n?/g, "\n"));
     const normalizadoBruto = semHtml
       .split("\n")
       .map((l) => l.replace(/[ \t]+/g, " ").trim())
@@ -1534,13 +1534,14 @@ const AnaliseDjen = () => {
       .replace(/\r\n?/g, "\n")
       .split("\n").map(l => l.replace(/[ \t]+/g, " ").trim()).join("\n")
       .replace(/\n{3,}/g, "\n\n").trim();
+    const limparHtmlDecoded = (s: string) => decodeHtmlEntities(limparHtml(s));
 
     // Pauta: íntegra
     if (isPautaDeJulgamento(conteudo)) {
-      return limparHtml(conteudo);
+      return limparHtmlDecoded(conteudo);
     }
 
-    const normalizado = limparHtml(conteudo);
+    const normalizado = limparHtmlDecoded(conteudo);
 
     // ===== INDEXAÇÃO =====
     // 1) Quebra inicial por blocos
