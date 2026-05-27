@@ -757,7 +757,7 @@ const AnaliseDjen = () => {
         .from('movimentacoes')
         .insert({
           processo_id: processoId,
-          descricao: `Publicação DJEN: ${pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 1000) || 'Importado do DJEN'}`,
+          descricao: `Publicação DJEN: ${stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 1000) || 'Importado do DJEN'}`,
           tipo: 'publicacao',
           fonte: 'DJEN',
           data_movimentacao: pub.data_publicacao || new Date().toISOString(),
@@ -861,7 +861,7 @@ const AnaliseDjen = () => {
           tribunal: pub.tribunal || pub.fonte || 'Não identificado',
           polo_ativo: pub.polo_ativo || 'A identificar',
           polo_passivo: pub.polo_passivo || 'A identificar',
-          assunto: pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 500) || 'Processo importado do DJEN',
+          assunto: stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 500) || 'Processo importado do DJEN',
           pasta_id: pastaId,
           coordenacao_id: pub.coordenacao_id || userCoordenacao || null,
           monitorar_andamentos: true,
@@ -884,7 +884,7 @@ const AnaliseDjen = () => {
         .from('movimentacoes')
         .insert({
           processo_id: processo.id,
-          descricao: `Publicação DJEN: ${pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 1000) || 'Importado do DJEN'}`,
+          descricao: `Publicação DJEN: ${stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 1000) || 'Importado do DJEN'}`,
           tipo: 'publicacao',
           fonte: 'DJEN',
           data_movimentacao: pub.data_publicacao || new Date().toISOString(),
@@ -1128,7 +1128,7 @@ const AnaliseDjen = () => {
         // RIGHT: Content
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
-        const rawContent = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const rawContent = stripHtmlAndDecodeEntities(pub.conteudo) || "Sem conteúdo";
         const contentLines: string[] = doc.splitTextToSize(rawContent, colRightW);
         let yRight = yStart;
         contentLines.forEach((line: string) => {
@@ -3130,7 +3130,7 @@ const AnaliseDjen = () => {
       type ClassInfo = { id: string; categoria: Categoria; tema_irr?: string };
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: ClassInfo };
       const classificarLocal = (pub: typeof allPublicacoes[0]): ClassInfo => {
-        const texto = (pub.conteudo || "").replace(/<[^>]*>/g, " ");
+        const texto = stripHtmlAndDecodeEntities(pub.conteudo);
         const lower = texto.toLowerCase();
         const tipoCom = (pub.tipo_comunicacao || "").toLowerCase();
         const orgaoTxt = (pub.orgao || "").toString();
@@ -4392,7 +4392,7 @@ const AnaliseDjen = () => {
 
                                   {!isExpanded && (
                                     <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 ml-4 md:ml-6 break-words overflow-hidden">
-                                      {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 200) || "Sem conteúdo"}...
+                                      {stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 200) || "Sem conteúdo"}...
                                     </p>
                                   )}
                                 </div>
