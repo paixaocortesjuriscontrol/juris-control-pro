@@ -145,9 +145,6 @@ const CONFIG = {
   delay_between_termos_or: 1800,
   max_retries: 3,
   retry_base_delay: 20000,
-  // Quantidade máxima de termos agrupados num único request OR no palavraChave.
-  // Aplica-se a worker tipos 'processo' e 'palavra-chave' em tribunais != TST.
-  group_search_size: 20,
 };
 
 // ============================================================================
@@ -919,6 +916,9 @@ function buildSnapshot(overrides: Record<string, any> = {}): any {
     iniciadoEm,
     tracks: state.progress.tracks.map(t => ({
       tribunal: t.tribunal,
+      tipo: t.tipo,
+      monId: t.monId ?? null,
+      monLabel: t.monLabel ?? null,
       status: t.status,
       current: t.current,
       total: t.total,
@@ -1001,6 +1001,7 @@ async function processarTribunalTrack(
   signal: AbortSignal,
   viaId?: string,
   monId?: string | null,
+  monIdsFilter?: string[],
 ) {
   const track = state.progress.tracks.find(
     t => t.tribunal === tribunal && t.tipo === tipo && (t.monId ?? null) === (monId ?? null),
@@ -1010,6 +1011,7 @@ async function processarTribunalTrack(
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
+    if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
     if (monId && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
@@ -1043,9 +1045,8 @@ async function processarTribunalTrack(
     for (const diaYmd of datas) {
       if (signal.aborted) break;
 
-      // Agrupamento OR foi desativado: estava gerando HTTP 403 no CloudFront
-      // e perturbando a barra de progresso. Mantemos 1 chamada por termo,
-      // tanto no TST quanto nos demais tribunais (comportamento anterior).
+      // Sem OR: cada termo é consultado individualmente. Quando há vários
+      // termos no mesmo tribunal, eles rodam em série dentro desta track.
       const grupos: Monitoramento[][] = monsParaEsseTrib.map((m) => [m]);
 
       for (const grupo of grupos) {
@@ -1061,9 +1062,7 @@ async function processarTribunalTrack(
           if (signal.aborted) break;
         }
 
-        const mensagemTermo = grupo.length === 1
-          ? (grupo[0].descricao || grupo[0].termo_busca)
-          : `Grupo de ${grupo.length} termos`;
+        const mensagemTermo = grupo[0].descricao || grupo[0].termo_busca;
         updateTrack(tribunal, tipo, {
           termoAtual: mensagemTermo,
           diaAtual: diaYmd,
@@ -1071,9 +1070,7 @@ async function processarTribunalTrack(
         }, monId);
 
         try {
-          const r = grupo.length === 1
-            ? await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId)
-            : await processarGrupoEmTribunal(grupo, diaYmd, tribunal, signal, viaId, tipo, monId);
+          const r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1593,135 +1590,6 @@ async function consolidarResultadosTermo(
   };
 }
 
-/**
- * Processa um GRUPO de termos do mesmo tipo num tribunal/dia com uma única
- * chamada ao PJE Comunica, usando sintaxe OR no `palavraChave`. Os resultados
- * são distribuídos para cada `mon` do grupo via `validarTermo` antes da
- * consolidação. Aplica-se a worker tipos 'processo' e 'palavra-chave' fora do TST.
- */
-async function processarGrupoEmTribunal(
-  mons: Monitoramento[],
-  diaYmd: string,
-  tribunal: string,
-  signal: AbortSignal,
-  viaId?: string,
-  tipoTrack?: WorkerTipo,
-  monIdTrack?: string | null,
-): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
-  if (signal.aborted || mons.length === 0) {
-    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
-  }
-
-  const workerTipo: WorkerTipo = tipoTrack ?? mapMonTipoToWorkerTipo(mons[0].tipo);
-  let rateLimitHits = 0;
-  let ultimoErro: string | null = null;
-
-  // Monta termo OR: para processo usa só dígitos; para palavra-chave usa o
-  // fragmento mais longo de cada termo (mesma lógica do caminho individual),
-  // envolto em parênteses para isolar cada termo.
-  const orParts: string[] = [];
-  for (const mon of mons) {
-    const tipoMon = mon.tipo;
-    if (tipoMon === 'processo') {
-      const digits = String(mon.termo_busca || '').replace(/\D/g, '');
-      if (digits) orParts.push(digits);
-      continue;
-    }
-    // palavra-chave / nome
-    let termoBase = String(mon.termo_busca || '').trim();
-    if (!termoBase) continue;
-    if (termoBase.includes('+')) {
-      const partes = termoBase.split('+').map((p) => p.trim()).filter(Boolean).filter((p) => !/^OAB\s/i.test(p));
-      termoBase = partes.sort((a, b) => b.length - a.length)[0] || termoBase;
-    }
-    const encurtado = encurtarParaApi(termoBase);
-    if (encurtado) orParts.push(`(${encurtado})`);
-  }
-
-  if (orParts.length === 0) {
-    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
-  }
-
-  const palavraChaveOr = orParts.join(' OR ');
-
-  const baseParams: any = {
-    tipo: 'palavra-chave' as PjeSearchType,
-    dataInicio: diaYmd,
-    dataFim: diaYmd,
-    pageSize: 50,
-    siglaTribunal: tribunal,
-    palavraChave: palavraChaveOr,
-  };
-
-  let items: any[] = [];
-  try {
-    const resp = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
-      signal,
-      maxPages: null,
-      continueUntilEmpty: true,
-      delayMs: CONFIG.delay_between_pages,
-      maxRetries: CONFIG.max_retries,
-      retryBaseDelay: CONFIG.retry_base_delay,
-      onRateLimit: (waitMs, attempt, page) => {
-        rateLimitHits++;
-        ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
-      },
-      onPoolVia: (via) => registrarViaTrack(tribunal, workerTipo, via, monIdTrack),
-      forceVia: viaId,
-      fallbackToDirect: viaId === DIRECT_SLOT_ID,
-      fallbackToPool: viaId !== DIRECT_SLOT_ID,
-    });
-    items = (resp.items || []).map((it: any) => ({
-      ...it,
-      id_djen: extrairIdDjen(it),
-      id: extrairIdDjen(it) ?? it?.id,
-      siglaTribunal: it?.siglaTribunal ?? tribunal,
-    }));
-    ultimoErro = resp.lastError ?? ultimoErro;
-    console.log(`[DJEN Paralela][${tribunal}] Grupo ${workerTipo} (${mons.length} termos): ${items.length} item(ns) brutos, pages=${resp.pagesFetched}`);
-  } catch (e: any) {
-    if (e?.name === 'AbortError') throw e;
-    ultimoErro = e?.message || 'Falha de busca em grupo';
-    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
-  }
-
-  if (signal.aborted) {
-    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
-  }
-
-  // Distribui os items para cada mon: para processo, comparação por dígitos do
-  // numeroProcesso; para palavra-chave/nome, usa validarTermo do próprio mon.
-  let acumNovas = 0, acumDup = 0, acumDesc = 0;
-  for (const mon of mons) {
-    if (signal.aborted) break;
-    let matched: any[];
-    if (mon.tipo === 'processo') {
-      const nd = String(mon.termo_busca || '').replace(/\D/g, '');
-      if (!nd) continue;
-      matched = items.filter((it) => {
-        const pn = String(it?.numeroProcesso || it?.numero_processo || it?.processo_numero || it?.processo || '').replace(/\D/g, '');
-        return pn.includes(nd);
-      });
-    } else {
-      matched = items.filter((it) => validarTermo(it, mon));
-    }
-    if (matched.length === 0) continue;
-    try {
-      const r = await consolidarResultadosTermo(mon, diaYmd, tribunal, matched, 0, null);
-      acumNovas += r.novas;
-      acumDup += r.duplicadas;
-      acumDesc += r.descartadas;
-      if (r.ultimoErro) ultimoErro = r.ultimoErro;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') throw e;
-      console.warn(`[DJEN Paralela][${tribunal}] erro consolidando termo "${mon.termo_busca}":`, e?.message);
-      ultimoErro = e?.message || ultimoErro;
-    }
-  }
-
-  return { novas: acumNovas, duplicadas: acumDup, descartadas: acumDesc, rateLimitHits, ultimoErro };
-}
-
 // ============================================================================
 // SEMÁFORO + LOOP PRINCIPAL
 // ============================================================================
@@ -1893,26 +1761,31 @@ async function executarLoop(
       for (const tipo of tiposAtivos) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        // Para tipo=parte: cada monitoramento vira uma track/unidade
-        // independente (permite que VPSs distintas processem em paralelo).
-        // Demais tipos seguem com 1 track por (tipo, tribunal).
-        const monsDoTipoNoTrib = tipo === 'parte'
-          ? (monsPorTipo.get(tipo) || []).filter((m) => {
-              const tribs = expandirTribunaisDoMon(m.tribunais);
-              return tribs.length === 0 || tribs.includes(trib);
-            })
-          : [null as Monitoramento | null];
-        for (const monAlvo of monsDoTipoNoTrib) {
-          const monId = monAlvo ? monAlvo.id : null;
-          const monLabel = monAlvo ? (monAlvo.descricao || monAlvo.termo_busca) : null;
+        // Para tipo=parte: TST mantém 1 track por termo; demais tribunais
+        // ficam com 1 única track por tribunal e executam os termos em série.
+        const monsDoTipoNoTrib = (monsPorTipo.get(tipo) || []).filter((m) => {
+          const tribs = expandirTribunaisDoMon(m.tribunais);
+          return tribs.length === 0 || tribs.includes(trib);
+        });
+        const trackTargets = tipo === 'parte'
+          ? (trib === 'TST'
+              ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
+              : [{
+                  monId: null,
+                  monLabel: `${monsDoTipoNoTrib.length} termos`,
+                  total: monsDoTipoNoTrib.length * datas.length,
+                }])
+          : [{
+              monId: null,
+              monLabel: null,
+              total: monsDoTipoNoTrib.length * datas.length,
+            }];
+        for (const target of trackTargets) {
+          const monId = target.monId;
+          const monLabel = target.monLabel;
           const key = trackKey(tipo, trib, monId);
           const jaConcluido = unidadesJaConcluidas.has(key);
-          const totalTrack = (monAlvo
-            ? 1
-            : (monsPorTipo.get(tipo) || []).filter((m) => {
-                const tribs = expandirTribunaisDoMon(m.tribunais);
-                return tribs.length === 0 || tribs.includes(trib);
-              }).length) * datas.length;
+          const totalTrack = target.total;
           tracks.push({
             tribunal: trib,
             tipo,
@@ -1925,7 +1798,7 @@ async function executarLoop(
             duplicadas: 0,
             descartadas: 0,
             mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-            termoAtual: monLabel,
+            termoAtual: tipo === 'parte' && trib !== 'TST' ? null : monLabel,
             diaAtual: null,
             rateLimitHits: 0,
             ultimoErro: null,
@@ -2017,17 +1890,22 @@ async function executarLoop(
             const t = expandirTribunaisDoMon(m.tribunais);
             return t.length === 0 || t.includes(trib);
           });
-          const pendentes = monsDoTrib.filter(
-            (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
-          );
-          if (pendentes.length === 0) continue;
           if (trib === 'TST') {
             // TST mantém paralelismo: 1 unidade por monitoramento.
+            const pendentes = monsDoTrib.filter(
+              (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
+            );
+            if (pendentes.length === 0) continue;
             for (const m of pendentes) {
               fila.push({ tipo, tribunal: trib, monIds: [m.id] });
             }
           } else {
             // Demais tribunais: 1 unidade serial por tribunal.
+            if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+            const pendentes = monsDoTrib.filter(
+              (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
+            );
+            if (pendentes.length === 0) continue;
             fila.push({ tipo, tribunal: trib, monIds: pendentes.map((m) => m.id) });
           }
         }
@@ -2142,19 +2020,16 @@ async function executarLoop(
         }
         processed++;
         // monIds vazio/undefined → 1 chamada com monId=null (comportamento legado).
-        // monIds com 1+ ids → executa SERIALMENTE no mesmo worker, atualizando
-        // checkpoint por monitoramento concluído.
-        const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
-          ? unit.monIds
-          : [null];
-        for (const monIdAtual of monIdsParaExec) {
-          if (signal.aborted) break;
+        // Para parte fora do TST, monIds com vários ids rodam em UMA track por
+        // tribunal, serialmente dentro de processarTribunalTrack, sem OR.
+        const groupedParteTribunal = unit.tipo === 'parte' && unit.tribunal !== 'TST' && (unit.monIds?.length ?? 0) > 0;
+        if (groupedParteTribunal) {
           try {
-            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, null, unit.monIds);
           } catch (e) {
-            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal} grupo=${unit.monIds?.length ?? 0}:`, e);
           }
-          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
+          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal));
           saveCheckpoint({
             runKey,
             dataInicioYmd,
@@ -2166,6 +2041,30 @@ async function executarLoop(
             tempoInicio,
           });
           syncExecutionProgress({}, true);
+        } else {
+          const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
+            ? unit.monIds
+            : [null];
+          for (const monIdAtual of monIdsParaExec) {
+            if (signal.aborted) break;
+            try {
+              await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+            } catch (e) {
+              console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+            }
+            unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
+            saveCheckpoint({
+              runKey,
+              dataInicioYmd,
+              dataFimYmd,
+              tribunaisConcluidos: unidadesConcluidasLista,
+              novas: state.progress.novas,
+              duplicadas: state.progress.duplicadas,
+              descartadas: state.progress.descartadas,
+              tempoInicio,
+            });
+            syncExecutionProgress({}, true);
+          }
         }
       }
     };
@@ -2467,6 +2366,8 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     const tracks: TrackProgress[] = tracksRaw.map((t) => ({
       tribunal: String(t?.tribunal || ''),
       tipo: (WORKER_TIPOS_ORDER.includes(t?.tipo) ? t.tipo : 'palavra-chave') as WorkerTipo,
+      monId: t?.monId ?? null,
+      monLabel: t?.monLabel ?? null,
       status: (t?.status || 'pendente') as TrackStatus,
       current: Number(t?.current || 0),
       total: Number(t?.total || 0),
