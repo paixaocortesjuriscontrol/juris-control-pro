@@ -1724,6 +1724,7 @@ export default function DistribuicaoTst() {
             )}
           </div>
         </div>
+        )}
 
         {/* Bulk Judit progress */}
         {bulkJuditRunning && (
