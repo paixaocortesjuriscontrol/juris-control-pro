@@ -302,7 +302,20 @@ function notifyListeners() {
 }
 
 function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
-  state.progress = { ...state.progress, ...partial };
+  const prev = state.progress;
+  const next = { ...prev, ...partial };
+  if (prev.status === 'executando' || next.status === 'executando') {
+    if (typeof partial.tempoDecorrido === 'number') {
+      next.tempoDecorrido = Math.max(prev.tempoDecorrido || 0, partial.tempoDecorrido);
+    }
+    if (typeof partial.percentage === 'number') {
+      next.percentage = Math.max(prev.percentage || 0, partial.percentage);
+    }
+    if (typeof partial.tribunaisConcluidos === 'number') {
+      next.tribunaisConcluidos = Math.max(prev.tribunaisConcluidos || 0, partial.tribunaisConcluidos);
+    }
+  }
+  state.progress = next;
   state.lastUpdatedAt = Date.now();
   notifyListeners();
 }
@@ -336,12 +349,18 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
     totalCurrent += t.current;
     totalGlobal += t.total;
   }
-  const tempoDecorrido = state.progress.iniciadoEm && state.progress.status === 'executando'
+  const tempoComputado = state.progress.iniciadoEm && state.progress.status === 'executando'
     ? Math.floor(Math.max(0, Date.now() - new Date(state.progress.iniciadoEm).getTime()) / 1000)
     : state.progress.tempoDecorrido;
-  const percentage = totalGlobal > 0
+  const tempoDecorrido = state.progress.status === 'executando'
+    ? Math.max(state.progress.tempoDecorrido || 0, tempoComputado)
+    : tempoComputado;
+  const percentageComputado = totalGlobal > 0
     ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
     : 0;
+  const percentage = state.progress.status === 'executando'
+    ? Math.max(state.progress.percentage || 0, percentageComputado)
+    : percentageComputado;
   state.progress = {
     ...state.progress,
     tracks,
