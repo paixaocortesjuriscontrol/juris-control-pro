@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto, highlightTermInContent } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto, highlightTermInContent, stripHtmlAndDecodeEntities } from "@/utils/formatConteudo";
 
 interface PublicacaoConteudoDjenProps {
   processoNumero: string | null;
@@ -559,14 +559,14 @@ export function PublicacaoConteudoDjen({
   const handleCopy = (withFormatting: boolean) => {
     const text = withFormatting
       ? conteudo || ""
-      : conteudo?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || "";
+      : stripHtmlAndDecodeEntities(conteudo);
     navigator.clipboard.writeText(text);
     toast.success(withFormatting ? "Copiado (HTML)" : "Copiado sem formatação");
   };
 
   const handleCopyRich = async () => {
     const html = conteudo || "";
-    const plain = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const plain = stripHtmlAndDecodeEntities(html);
     try {
       if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
         const item = new ClipboardItem({
