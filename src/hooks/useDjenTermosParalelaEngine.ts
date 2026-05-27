@@ -2437,12 +2437,18 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       : execStatus === 'cancelado' ? 'cancelado'
       : 'concluido';
 
-    const tempoDecorrido = finalStatus === 'executando' && data.iniciado_em
+    const tempoComputado = finalStatus === 'executando' && data.iniciado_em
       ? Math.floor(Math.max(0, Date.now() - new Date(data.iniciado_em).getTime()) / 1000)
       : Number(det.tempoDecorrido || 0)
         || (data.iniciado_em && data.finalizado_em
             ? Math.floor(Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime()) / 1000)
             : 0);
+    // Mantém o tempo monotônico — nunca diminui durante uma execução ativa
+    // (snapshots remotos podem estar atrasados em relação ao relógio local).
+    const tempoAtualLocal = Number(state.progress.tempoDecorrido || 0);
+    const tempoDecorrido = finalStatus === 'executando'
+      ? Math.max(tempoComputado, tempoAtualLocal)
+      : tempoComputado;
 
     const registrosEncontrados = Number((data as any).registros_encontrados || 0);
     const registrosProcessados = Number((data as any).registros_processados || 0);
