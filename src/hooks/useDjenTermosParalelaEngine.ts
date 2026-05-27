@@ -1019,15 +1019,10 @@ async function processarTribunalTrack(
     for (const diaYmd of datas) {
       if (signal.aborted) break;
 
-      // Agrupa termos do mesmo tipo num único request OR para acelerar buscas
-      // em tribunais com muitos termos. TST mantém 1-por-chamada (já é rápido).
-      const podeAgrupar =
-        tribunal !== 'TST' &&
-        (tipo === 'processo' || tipo === 'palavra-chave') &&
-        monsParaEsseTrib.length > 1;
-      const grupos: Monitoramento[][] = podeAgrupar
-        ? chunkArray(monsParaEsseTrib, CONFIG.group_search_size)
-        : monsParaEsseTrib.map((m) => [m]);
+      // Agrupamento OR foi desativado: estava gerando HTTP 403 no CloudFront
+      // e perturbando a barra de progresso. Mantemos 1 chamada por termo,
+      // tanto no TST quanto nos demais tribunais (comportamento anterior).
+      const grupos: Monitoramento[][] = monsParaEsseTrib.map((m) => [m]);
 
       for (const grupo of grupos) {
         if (signal.aborted) break;
@@ -2442,12 +2437,18 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       : execStatus === 'cancelado' ? 'cancelado'
       : 'concluido';
 
-    const tempoDecorrido = finalStatus === 'executando' && data.iniciado_em
+    const tempoComputado = finalStatus === 'executando' && data.iniciado_em
       ? Math.floor(Math.max(0, Date.now() - new Date(data.iniciado_em).getTime()) / 1000)
       : Number(det.tempoDecorrido || 0)
         || (data.iniciado_em && data.finalizado_em
             ? Math.floor(Math.max(0, new Date(data.finalizado_em).getTime() - new Date(data.iniciado_em).getTime()) / 1000)
             : 0);
+    // Mantém o tempo monotônico — nunca diminui durante uma execução ativa
+    // (snapshots remotos podem estar atrasados em relação ao relógio local).
+    const tempoAtualLocal = Number(state.progress.tempoDecorrido || 0);
+    const tempoDecorrido = finalStatus === 'executando'
+      ? Math.max(tempoComputado, tempoAtualLocal)
+      : tempoComputado;
 
     const registrosEncontrados = Number((data as any).registros_encontrados || 0);
     const registrosProcessados = Number((data as any).registros_processados || 0);
@@ -2459,11 +2460,15 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       status: finalStatus,
       tracks,
       totalTribunais: Math.max(Number(det.totalTribunais || 0), totalLotes, tracks.length),
-      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados),
+      tribunaisConcluidos: finalStatus === 'executando'
+        ? Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados, Number(state.progress.tribunaisConcluidos || 0))
+        : Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados),
       novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas, registrosEncontrados),
       duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
       descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas, registrosProcessados),
-      percentage: Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
+      percentage: finalStatus === 'executando'
+        ? Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks, Number(state.progress.percentage || 0))
+        : Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
       iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
