@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
+import { stripHtmlAndDecodeEntities } from "@/utils/formatConteudo";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useNotificacoesCountsByCoordenacao, type NotificacoesCounts } from "@/hooks/useNotificacoesCounts";
 import { toast } from "sonner";
@@ -981,7 +982,7 @@ export function GerarRelatorioPdfDialog({
                           {pub.processo_numero || extractProcessoNumero(pub.conteudo) || "-"}
                         </td>
                         <td style={{ padding: "4px", border: "1px solid #e5e7eb" }}>
-                          {(pub.conteudo || "").replace(/<[^>]*>/g, " ").slice(0, 200)}...
+                          {stripHtmlAndDecodeEntities(pub.conteudo).slice(0, 200)}...
                         </td>
                         <td style={{ padding: "4px", textAlign: "center", border: "1px solid #e5e7eb" }}>
                           {formatDate(pub.data_publicacao || pub.created_at)}
