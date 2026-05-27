@@ -140,6 +140,9 @@ const CONFIG = {
   delay_between_termos_or: 1800,
   max_retries: 3,
   retry_base_delay: 20000,
+  // Quantidade máxima de termos agrupados num único request OR no palavraChave.
+  // Aplica-se a worker tipos 'processo' e 'palavra-chave' em tribunais != TST.
+  group_search_size: 20,
 };
 
 // ============================================================================
@@ -1016,7 +1019,17 @@ async function processarTribunalTrack(
     for (const diaYmd of datas) {
       if (signal.aborted) break;
 
-      for (const mon of monsParaEsseTrib) {
+      // Agrupa termos do mesmo tipo num único request OR para acelerar buscas
+      // em tribunais com muitos termos. TST mantém 1-por-chamada (já é rápido).
+      const podeAgrupar =
+        tribunal !== 'TST' &&
+        (tipo === 'processo' || tipo === 'palavra-chave') &&
+        monsParaEsseTrib.length > 1;
+      const grupos: Monitoramento[][] = podeAgrupar
+        ? chunkArray(monsParaEsseTrib, CONFIG.group_search_size)
+        : monsParaEsseTrib.map((m) => [m]);
+
+      for (const grupo of grupos) {
         if (signal.aborted) break;
 
         // Cooldown PJE por VPS — só aguarda se a VPS desse worker (viaId)
@@ -1029,14 +1042,19 @@ async function processarTribunalTrack(
           if (signal.aborted) break;
         }
 
+        const mensagemTermo = grupo.length === 1
+          ? (grupo[0].descricao || grupo[0].termo_busca)
+          : `Grupo de ${grupo.length} termos`;
         updateTrack(tribunal, tipo, {
-          termoAtual: mon.descricao || mon.termo_busca,
+          termoAtual: mensagemTermo,
           diaAtual: diaYmd,
-          mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+          mensagem: `[${diaYmd}] ${mensagemTermo}`,
         }, monId);
 
         try {
-          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo, monId);
+          const r = grupo.length === 1
+            ? await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId)
+            : await processarGrupoEmTribunal(grupo, diaYmd, tribunal, signal, viaId, tipo, monId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1045,10 +1063,10 @@ async function processarTribunalTrack(
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
           ultimoErro = e?.message || String(e);
-          console.warn(`[DJEN Paralela][${tribunal}] erro termo:`, e?.message);
+          console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
 
-        processed++;
+        processed += grupo.length;
         updateTrack(tribunal, tipo, {
           current: processed,
           novas: acumNovas,
@@ -1093,6 +1111,7 @@ async function processarTermoEmTribunal(
   viaId?: string,
   tipoTrack?: WorkerTipo,
   monIdTrack?: string | null,
+  preloaded?: { items: any[]; rateLimitHits: number; ultimoErro: string | null } | null,
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
@@ -1105,8 +1124,8 @@ async function processarTermoEmTribunal(
       : mon.tipo;
   const resultados: any[] = [];
   const seen = new Set<string>();
-  let rateLimitHits = 0;
-  let ultimoErro: string | null = null;
+  let rateLimitHits = preloaded?.rateLimitHits ?? 0;
+  let ultimoErro: string | null = preloaded?.ultimoErro ?? null;
 
   const addResults = (items: any[], matchMeta: Record<string, any> = {}) => {
     for (const item of items) {
@@ -1117,6 +1136,19 @@ async function processarTermoEmTribunal(
       resultados.push({ ...item, ...matchMeta, id_djen: idDjen, id: idDjen ?? item?.id, siglaTribunal: item?.siglaTribunal ?? tribunal });
     }
   };
+
+  // Caminho rápido: items vindos de uma busca agrupada (OR no palavraChave),
+  // já pré-filtrados para casarem com este `mon`. Pula a chamada de rede.
+  if (preloaded) {
+    addResults(preloaded.items);
+    if (signal.aborted) {
+      return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+    }
+    if (resultados.length === 0) {
+      return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+    }
+    return await consolidarResultadosTermo(mon, diaYmd, tribunal, resultados, rateLimitHits, ultimoErro);
+  }
 
   const baseParams: any = {
     tipo,
@@ -1243,6 +1275,25 @@ async function processarTermoEmTribunal(
   if (resultados.length === 0) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
+
+  return await consolidarResultadosTermo(mon, diaYmd, tribunal, resultados, rateLimitHits, ultimoErro);
+}
+
+/**
+ * Consolida (filtra, dedup, persiste) os resultados de uma busca para um único
+ * monitoramento. Extraído de `processarTermoEmTribunal` para ser reutilizado
+ * pelo caminho de busca agrupada (OR).
+ */
+async function consolidarResultadosTermo(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+  resultados: any[],
+  rateLimitHitsIn: number,
+  ultimoErroIn: string | null,
+): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
+  let rateLimitHits = rateLimitHitsIn;
+  let ultimoErro = ultimoErroIn;
 
   // Filtros declarados pelo monitoramento
   const tribunaisMon = expandirTribunaisDoMon(mon.tribunais);
@@ -1521,6 +1572,135 @@ async function processarTermoEmTribunal(
     rateLimitHits,
     ultimoErro,
   };
+}
+
+/**
+ * Processa um GRUPO de termos do mesmo tipo num tribunal/dia com uma única
+ * chamada ao PJE Comunica, usando sintaxe OR no `palavraChave`. Os resultados
+ * são distribuídos para cada `mon` do grupo via `validarTermo` antes da
+ * consolidação. Aplica-se a worker tipos 'processo' e 'palavra-chave' fora do TST.
+ */
+async function processarGrupoEmTribunal(
+  mons: Monitoramento[],
+  diaYmd: string,
+  tribunal: string,
+  signal: AbortSignal,
+  viaId?: string,
+  tipoTrack?: WorkerTipo,
+  monIdTrack?: string | null,
+): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
+  if (signal.aborted || mons.length === 0) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
+  }
+
+  const workerTipo: WorkerTipo = tipoTrack ?? mapMonTipoToWorkerTipo(mons[0].tipo);
+  let rateLimitHits = 0;
+  let ultimoErro: string | null = null;
+
+  // Monta termo OR: para processo usa só dígitos; para palavra-chave usa o
+  // fragmento mais longo de cada termo (mesma lógica do caminho individual),
+  // envolto em parênteses para isolar cada termo.
+  const orParts: string[] = [];
+  for (const mon of mons) {
+    const tipoMon = mon.tipo;
+    if (tipoMon === 'processo') {
+      const digits = String(mon.termo_busca || '').replace(/\D/g, '');
+      if (digits) orParts.push(digits);
+      continue;
+    }
+    // palavra-chave / nome
+    let termoBase = String(mon.termo_busca || '').trim();
+    if (!termoBase) continue;
+    if (termoBase.includes('+')) {
+      const partes = termoBase.split('+').map((p) => p.trim()).filter(Boolean).filter((p) => !/^OAB\s/i.test(p));
+      termoBase = partes.sort((a, b) => b.length - a.length)[0] || termoBase;
+    }
+    const encurtado = encurtarParaApi(termoBase);
+    if (encurtado) orParts.push(`(${encurtado})`);
+  }
+
+  if (orParts.length === 0) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
+  }
+
+  const palavraChaveOr = orParts.join(' OR ');
+
+  const baseParams: any = {
+    tipo: 'palavra-chave' as PjeSearchType,
+    dataInicio: diaYmd,
+    dataFim: diaYmd,
+    pageSize: 50,
+    siglaTribunal: tribunal,
+    palavraChave: palavraChaveOr,
+  };
+
+  let items: any[] = [];
+  try {
+    const resp = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
+      signal,
+      maxPages: null,
+      continueUntilEmpty: true,
+      delayMs: CONFIG.delay_between_pages,
+      maxRetries: CONFIG.max_retries,
+      retryBaseDelay: CONFIG.retry_base_delay,
+      onRateLimit: (waitMs, attempt, page) => {
+        rateLimitHits++;
+        ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
+      },
+      onPoolVia: (via) => registrarViaTrack(tribunal, workerTipo, via, monIdTrack),
+      forceVia: viaId,
+      fallbackToDirect: viaId === DIRECT_SLOT_ID,
+      fallbackToPool: viaId !== DIRECT_SLOT_ID,
+    });
+    items = (resp.items || []).map((it: any) => ({
+      ...it,
+      id_djen: extrairIdDjen(it),
+      id: extrairIdDjen(it) ?? it?.id,
+      siglaTribunal: it?.siglaTribunal ?? tribunal,
+    }));
+    ultimoErro = resp.lastError ?? ultimoErro;
+    console.log(`[DJEN Paralela][${tribunal}] Grupo ${workerTipo} (${mons.length} termos): ${items.length} item(ns) brutos, pages=${resp.pagesFetched}`);
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e;
+    ultimoErro = e?.message || 'Falha de busca em grupo';
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  if (signal.aborted) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  // Distribui os items para cada mon: para processo, comparação por dígitos do
+  // numeroProcesso; para palavra-chave/nome, usa validarTermo do próprio mon.
+  let acumNovas = 0, acumDup = 0, acumDesc = 0;
+  for (const mon of mons) {
+    if (signal.aborted) break;
+    let matched: any[];
+    if (mon.tipo === 'processo') {
+      const nd = String(mon.termo_busca || '').replace(/\D/g, '');
+      if (!nd) continue;
+      matched = items.filter((it) => {
+        const pn = String(it?.numeroProcesso || it?.numero_processo || it?.processo_numero || it?.processo || '').replace(/\D/g, '');
+        return pn.includes(nd);
+      });
+    } else {
+      matched = items.filter((it) => validarTermo(it, mon));
+    }
+    if (matched.length === 0) continue;
+    try {
+      const r = await consolidarResultadosTermo(mon, diaYmd, tribunal, matched, 0, null);
+      acumNovas += r.novas;
+      acumDup += r.duplicadas;
+      acumDesc += r.descartadas;
+      if (r.ultimoErro) ultimoErro = r.ultimoErro;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+      console.warn(`[DJEN Paralela][${tribunal}] erro consolidando termo "${mon.termo_busca}":`, e?.message);
+      ultimoErro = e?.message || ultimoErro;
+    }
+  }
+
+  return { novas: acumNovas, duplicadas: acumDup, descartadas: acumDesc, rateLimitHits, ultimoErro };
 }
 
 // ============================================================================
