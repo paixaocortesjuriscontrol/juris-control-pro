@@ -257,10 +257,14 @@ export default function DistribuicaoTst() {
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
-  // Total Geral: ignora o filtro de responsável (mostra sempre o total do escritório
-  // para os demais filtros selecionados).
+  // Total Geral e Prontos para Enviar (geral): ignoram o filtro de responsável
+  // (mostram sempre o total do escritório para os demais filtros selecionados).
   const { stats: statsGeral } = useDistribuicaoTstStats(countsFilters);
-  const statsWithGeral = { ...stats, total: statsGeral.total };
+  const statsWithGeral = {
+    ...stats,
+    total: statsGeral.total,
+    prontoEnvio: statsGeral.prontoEnvio,
+  };
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
