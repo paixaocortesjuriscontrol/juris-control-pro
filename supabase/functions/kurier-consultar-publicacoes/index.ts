@@ -535,11 +535,15 @@ Deno.serve(async (req: Request) => {
           "data_publicacao", "DataPublicacao", "dataPublicacao",
           "dtPublicacao", "DtPublicacao", "DATA_PUBLICACAO");
         const textoKurier = String((p as any).Texto ?? (p as any).texto ?? (p as any).PUBLICACAO ?? "");
-        const refIso = toIsoDate(dispRaw)
+        const refIsoOriginal = toIsoDate(dispRaw)
           ?? extractDateFromText(textoKurier, [
             /DATA\s+DE\s+DISPONIBILIZA[ÇC][AÃ]O\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
             /Data\s+de\s+Divulga[çc][aã]o\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
           ]);
+        // Se a Kurier não informar a disponibilização, assume a data do filtro
+        // (que já cai para hoje quando a tela não envia período). Isso evita
+        // descartar/cadastrar captura total com data errada ou nula.
+        const refIso = refIsoOriginal ?? toIsoDate(data_inicio);
         const refYmd = refIso ? refIso.slice(0, 10) : null;
         // Filtro de janela ESTRITO por DATA DE DISPONIBILIZAÇÃO em TODOS os modos.
         // - Fila: a API Kurier ignora dataInicio/dataFim, então cortamos aqui e
@@ -592,7 +596,7 @@ Deno.serve(async (req: Request) => {
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "PUBLICACAO", "movimento", "Movimento",
           "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
-        const dataDisp = pickStr(p,
+        const dataDispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
           "dataDisponibilidade", "DataDisponibilidade",
@@ -600,6 +604,7 @@ Deno.serve(async (req: Request) => {
             "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
             "dtDisponibilizacao", "dataDisponibilidade", "disponibilizacao",
           ]);
+        const dataDisp = toIsoDate(dataDispRaw) ?? refIso;
         const dataPub = pickStr(p,
           "data_publicacao", "DataPublicacao", "dataPublicacao",
           "dtPublicacao", "DtPublicacao", "DATA_PUBLICACAO",
@@ -650,9 +655,9 @@ Deno.serve(async (req: Request) => {
             id_djen: idDjen,
             hash_conteudo: hashConteudo,
             dedup_processo_digits: digits || null,
-            dedup_data_ref: (toIsoDate(dataDisp ?? dataPub) ?? "").slice(0, 10) || null,
+            dedup_data_ref: (dataDisp ?? toIsoDate(dataPub) ?? "").slice(0, 10) || null,
             tribunal,
-            data_disponibilizacao: toIsoDate(dataDisp) ?? null,
+            data_disponibilizacao: dataDisp ?? null,
             data_publicacao: toIsoDate(dataPub) ?? null,
             tipo_publicacao: "intimacao",
           };
