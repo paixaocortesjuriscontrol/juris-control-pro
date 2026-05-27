@@ -38,7 +38,17 @@ export function useDjenTermosParalela() {
 
   useEffect(() => {
     const unsub = subscribeDjenTermosParalela((p) => {
-      setProgress(p);
+      setProgress((current) => {
+        if (current.status === 'executando' && p.status === 'executando') {
+          return {
+            ...p,
+            percentage: Math.max(current.percentage || 0, p.percentage || 0),
+            tempoDecorrido: Math.max(current.tempoDecorrido || 0, p.tempoDecorrido || 0),
+            tribunaisConcluidos: Math.max(current.tribunaisConcluidos || 0, p.tribunaisConcluidos || 0),
+          };
+        }
+        return p;
+      });
       setIsRunning(isDjenTermosParalelaRunning());
       const prevStatus = lastNotifiedStatusRef.current;
       const statusChanged = prevStatus !== p.status;
@@ -90,11 +100,12 @@ export function useDjenTermosParalela() {
       setProgress((current) => {
         if (current.status !== 'executando') return current;
         const startedAt = current.iniciadoEm ? new Date(current.iniciadoEm).getTime() : 0;
+        const nextTempo = startedAt > 0
+          ? Math.floor(Math.max(0, Date.now() - startedAt) / 1000)
+          : current.tempoDecorrido + 1;
         return {
           ...current,
-          tempoDecorrido: startedAt > 0
-            ? Math.floor(Math.max(0, Date.now() - startedAt) / 1000)
-            : current.tempoDecorrido + 1,
+          tempoDecorrido: Math.max(current.tempoDecorrido || 0, nextTempo),
         };
       });
       setIsRunning(isDjenTermosParalelaRunning());
