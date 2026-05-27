@@ -18,6 +18,24 @@ const decodeHtmlEntities = (value: string): string => {
 };
 
 /**
+ * Strip HTML tags AND decode HTML entities (named + numeric) into plain text.
+ * Usar em geradores de PDF/DOCX/exportação e em qualquer lugar que renderize
+ * o conteúdo como texto puro (sem HTML), para não vazar entidades cruas como
+ * "&atilde;", "&ccedil;", "&aacute;" na saída.
+ */
+export const stripHtmlAndDecodeEntities = (
+  value: string | null | undefined,
+): string => {
+  if (!value) return "";
+  // 1) Remove tags HTML
+  const noTags = String(value).replace(/<[^>]*>/g, " ");
+  // 2) Decodifica entidades (named + numéricas) via DOM
+  const decoded = decodeHtmlEntities(noTags);
+  // 3) Normaliza espaços
+  return decoded.replace(/\s+/g, " ").trim();
+};
+
+/**
  * Normaliza conteúdo HTML para texto puro com quebras de linha.
  * Remove scripts, estilos, converte <br>, <p>, <li> etc. em \n.
  * O resultado deve ser renderizado com whitespace-pre-wrap.
