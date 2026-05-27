@@ -2460,11 +2460,15 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       status: finalStatus,
       tracks,
       totalTribunais: Math.max(Number(det.totalTribunais || 0), totalLotes, tracks.length),
-      tribunaisConcluidos: Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados),
+      tribunaisConcluidos: finalStatus === 'executando'
+        ? Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados, Number(state.progress.tribunaisConcluidos || 0))
+        : Math.max(Number(det.tribunaisConcluidos || 0), aggregateFromTracks.concluidos, lotesProcessados),
       novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas, registrosEncontrados),
       duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
       descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas, registrosProcessados),
-      percentage: Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
+      percentage: finalStatus === 'executando'
+        ? Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks, Number(state.progress.percentage || 0))
+        : Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
       iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
