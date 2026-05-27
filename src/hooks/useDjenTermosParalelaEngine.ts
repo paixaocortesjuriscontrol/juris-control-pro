@@ -140,6 +140,9 @@ const CONFIG = {
   delay_between_termos_or: 1800,
   max_retries: 3,
   retry_base_delay: 20000,
+  // Quantidade máxima de termos agrupados num único request OR no palavraChave.
+  // Aplica-se a worker tipos 'processo' e 'palavra-chave' em tribunais != TST.
+  group_search_size: 20,
 };
 
 // ============================================================================
