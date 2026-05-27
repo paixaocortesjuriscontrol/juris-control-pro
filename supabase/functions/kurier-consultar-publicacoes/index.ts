@@ -451,7 +451,15 @@ Deno.serve(async (req: Request) => {
     if (useDateMode) {
       const start = new Date(`${data_inicio}T00:00:00Z`);
       const end = new Date(`${data_fim}T00:00:00Z`);
-      for (let d = new Date(start); d.getTime() <= end.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+      // CRÍTICO: o endpoint Kurier "Personalizado?data=X" filtra pela DATA DE
+      // PUBLICAÇÃO (do jornal), não pela DATA DE DISPONIBILIZAÇÃO. Como a
+      // publicação ocorre normalmente em D+1 da disponibilização, para capturar
+      // itens DISPONIBILIZADOS em [data_inicio..data_fim] precisamos consultar
+      // a API entre data_inicio e data_fim+1 (e ainda assim filtrar localmente
+      // por data_disponibilizacao para evitar trazer itens fora da janela).
+      const extendedEnd = new Date(end);
+      extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 1);
+      for (let d = new Date(start); d.getTime() <= extendedEnd.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
         datas.push(d.toISOString().slice(0, 10));
       }
     }
@@ -533,20 +541,24 @@ Deno.serve(async (req: Request) => {
             /Data\s+de\s+Divulga[çc][aã]o\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i,
           ]);
         const refYmd = refIso ? refIso.slice(0, 10) : null;
-        // Filtro de janela ESTRITO: a API Kurier ignora dataInicio/dataFim na fila,
-        // então fazemos o corte aqui e confirmamos o item antigo para liberar a fila.
-        // Em modo personalizado já pedimos por data, sem necessidade de filtro nem confirmação.
-        if (!useDateMode) {
-          const foraJanela = !refYmd
-            || (data_inicio && refYmd < data_inicio)
-            || (data_fim && refYmd > data_fim);
-          if (foraJanela) {
+        // Filtro de janela ESTRITO por DATA DE DISPONIBILIZAÇÃO em TODOS os modos.
+        // - Fila: a API Kurier ignora dataInicio/dataFim, então cortamos aqui e
+        //   confirmamos o item antigo para liberar a fila.
+        // - Personalizado: o endpoint "Personalizado?data=X" filtra pela data de
+        //   publicação do jornal (não disponibilização), então também precisamos
+        //   descartar localmente itens cuja disponibilização caia fora da janela.
+        //   NÃO confirmamos em modo personalizado (endpoint é só leitura).
+        const foraJanela = !refYmd
+          || (data_inicio && refYmd < data_inicio)
+          || (data_fim && refYmd > data_fim);
+        if (foraJanela) {
+          if (!useDateMode) {
             const confirmacaoForaJanela = buildConfirmacaoKurier(p);
             if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
             const idKForaJanela = pickId(p);
             if (idKForaJanela) idsConfirmar.push(idKForaJanela);
-            continue;
           }
+          continue;
         }
 
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
