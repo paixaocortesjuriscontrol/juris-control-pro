@@ -916,6 +916,9 @@ function buildSnapshot(overrides: Record<string, any> = {}): any {
     iniciadoEm,
     tracks: state.progress.tracks.map(t => ({
       tribunal: t.tribunal,
+      tipo: t.tipo,
+      monId: t.monId ?? null,
+      monLabel: t.monLabel ?? null,
       status: t.status,
       current: t.current,
       total: t.total,
@@ -2363,6 +2366,8 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     const tracks: TrackProgress[] = tracksRaw.map((t) => ({
       tribunal: String(t?.tribunal || ''),
       tipo: (WORKER_TIPOS_ORDER.includes(t?.tipo) ? t.tipo : 'palavra-chave') as WorkerTipo,
+      monId: t?.monId ?? null,
+      monLabel: t?.monLabel ?? null,
       status: (t?.status || 'pendente') as TrackStatus,
       current: Number(t?.current || 0),
       total: Number(t?.total || 0),
