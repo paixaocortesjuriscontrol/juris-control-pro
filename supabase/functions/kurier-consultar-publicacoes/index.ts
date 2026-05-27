@@ -164,6 +164,14 @@ function toIsoDate(value: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function hojeLocalYmd(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function extractDateFromText(texto: string, labels: RegExp[]): string | null {
   for (const label of labels) {
     const after = texto.match(label);
@@ -265,10 +273,13 @@ Deno.serve(async (req: Request) => {
       : undefined;
     const coordenacao_id: string | undefined = typeof body.coordenacao_id === "string" && body.coordenacao_id
       ? body.coordenacao_id : undefined;
-    const data_inicio: string | undefined = typeof body.data_inicio === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_inicio)
+    const data_inicio_body: string | undefined = typeof body.data_inicio === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_inicio)
       ? body.data_inicio : undefined;
-    const data_fim: string | undefined = typeof body.data_fim === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_fim)
+    const data_fim_body: string | undefined = typeof body.data_fim === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.data_fim)
       ? body.data_fim : undefined;
+    const hojeYmd = hojeLocalYmd();
+    const data_inicio = data_inicio_body ?? hojeYmd;
+    const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
@@ -525,7 +536,7 @@ Deno.serve(async (req: Request) => {
         // Filtro de janela ESTRITO: a API Kurier ignora dataInicio/dataFim na fila,
         // então fazemos o corte aqui e confirmamos o item antigo para liberar a fila.
         // Em modo personalizado já pedimos por data, sem necessidade de filtro nem confirmação.
-        if (!useDateMode && (data_inicio || data_fim)) {
+        if (!useDateMode) {
           const foraJanela = !refYmd
             || (data_inicio && refYmd < data_inicio)
             || (data_fim && refYmd > data_fim);
