@@ -1937,12 +1937,18 @@ async function executarLoop(
     }
     const totalUnidades = tracks.length;
     const unidadesConcluidasInicial = tracks.filter(t => t.status === 'concluido').length;
+    const totalWorkInicial = tracks.reduce((sum, t) => sum + Number(t.total || 0), 0);
+    const currentWorkInicial = tracks.reduce((sum, t) => sum + Number(t.current || 0), 0);
+    const percentageInicial = totalWorkInicial > 0
+      ? Math.min(100, Math.max(0, Math.round((currentWorkInicial / totalWorkInicial) * 100)))
+      : 0;
 
     updateProgress({
       status: 'executando',
       tracks,
       totalTribunais: totalUnidades,
       tribunaisConcluidos: unidadesConcluidasInicial,
+      percentage: percentageInicial,
       novas: cp?.novas || 0,
       duplicadas: cp?.duplicadas || 0,
       descartadas: cp?.descartadas || 0,
