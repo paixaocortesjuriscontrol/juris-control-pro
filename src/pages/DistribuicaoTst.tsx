@@ -80,6 +80,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
+  const [mostrarCards, setMostrarCards] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
