@@ -28,7 +28,7 @@ import {
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull, stripHtmlAndDecodeEntities } from "@/utils/formatConteudo";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -156,7 +156,7 @@ export function PublicacoesDjenList({
 
   const extractAdvogados = (conteudo: string | null): string[] => {
     if (!conteudo) return [];
-    const plainText = conteudo.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const plainText = stripHtmlAndDecodeEntities(conteudo);
     const advogados: string[] = [];
     const advSet = new Set<string>();
 
@@ -331,7 +331,7 @@ export function PublicacoesDjenList({
         // RIGHT: Content
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
-        const rawText = (pub.conteudo || "Sem conteúdo").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        const rawText = stripHtmlAndDecodeEntities(pub.conteudo) || "Sem conteúdo";
         const cleanText = stripMeta(rawText);
         const contentLines: string[] = doc.splitTextToSize(cleanText, colRightW);
         let yRight = yStart;
@@ -545,7 +545,7 @@ export function PublicacoesDjenList({
 
                     {!isExpanded && (
                       <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 ml-4 md:ml-6 break-words overflow-hidden">
-                        {pub.conteudo?.replace(/<[^>]*>/g, ' ').substring(0, 200) || "Sem conteúdo"}...
+                        {stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 200) || "Sem conteúdo"}...
                       </p>
                     )}
                   </div>
