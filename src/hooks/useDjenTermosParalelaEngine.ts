@@ -1019,7 +1019,17 @@ async function processarTribunalTrack(
     for (const diaYmd of datas) {
       if (signal.aborted) break;
 
-      for (const mon of monsParaEsseTrib) {
+      // Agrupa termos do mesmo tipo num único request OR para acelerar buscas
+      // em tribunais com muitos termos. TST mantém 1-por-chamada (já é rápido).
+      const podeAgrupar =
+        tribunal !== 'TST' &&
+        (tipo === 'processo' || tipo === 'palavra-chave') &&
+        monsParaEsseTrib.length > 1;
+      const grupos: Monitoramento[][] = podeAgrupar
+        ? chunkArray(monsParaEsseTrib, CONFIG.group_search_size)
+        : monsParaEsseTrib.map((m) => [m]);
+
+      for (const grupo of grupos) {
         if (signal.aborted) break;
 
         // Cooldown PJE por VPS — só aguarda se a VPS desse worker (viaId)
@@ -1032,14 +1042,19 @@ async function processarTribunalTrack(
           if (signal.aborted) break;
         }
 
+        const mensagemTermo = grupo.length === 1
+          ? (grupo[0].descricao || grupo[0].termo_busca)
+          : `Grupo de ${grupo.length} termos`;
         updateTrack(tribunal, tipo, {
-          termoAtual: mon.descricao || mon.termo_busca,
+          termoAtual: mensagemTermo,
           diaAtual: diaYmd,
-          mensagem: `[${diaYmd}] ${mon.descricao || mon.termo_busca}`,
+          mensagem: `[${diaYmd}] ${mensagemTermo}`,
         }, monId);
 
         try {
-          const r = await processarTermoEmTribunal(mon, diaYmd, tribunal, signal, viaId, tipo, monId);
+          const r = grupo.length === 1
+            ? await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId)
+            : await processarGrupoEmTribunal(grupo, diaYmd, tribunal, signal, viaId, tipo, monId);
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1048,10 +1063,10 @@ async function processarTribunalTrack(
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
           ultimoErro = e?.message || String(e);
-          console.warn(`[DJEN Paralela][${tribunal}] erro termo:`, e?.message);
+          console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
 
-        processed++;
+        processed += grupo.length;
         updateTrack(tribunal, tipo, {
           current: processed,
           novas: acumNovas,
