@@ -283,32 +283,53 @@ Deno.serve(async (req: Request) => {
     const senha = await decryptKurier(cred.senha_encrypted);
     const baseUrl = await getKurierBaseUrlFromDb(admin);
 
-    // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
-    // recebidas via Kurier. Sem monitoramento que case, a publicação é descartada
-    // (consumida na fila, mas não persistida em publicacoes_djen).
-    let monitQuery = admin
-      .from("monitoramentos_djen")
-      .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por")
-      .eq("ativo", true);
-    if (monitoramento_ids?.length) monitQuery = monitQuery.in("id", monitoramento_ids);
-    if (coordenacao_id) monitQuery = monitQuery.eq("coordenacao_id", coordenacao_id);
-    const { data: monitsRaw } = await monitQuery;
-    const monitoramentos: (Monitoramento & { coordenacao_id?: string | null })[] = (monitsRaw ?? []) as any;
-    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length}`);
-
-    // Coordenações com captura total Kurier: recebem TODA publicação dentro da janela,
-    // independente de match com monitoramento. Usa monitoramento sentinela por coord
-    // para satisfazer o NOT NULL de monitoramento_id em publicacoes_djen.
     // CRÍTICO: respeitar o vínculo credencial → coordenações. Cada login Kurier só
-    // pode replicar para as coordenações configuradas para ele em
+    // pode gerar publicações para as coordenações configuradas para ele em
     // kurier_credencial_coordenacoes — senão um login do Santander acaba populando
-    // a coordenação do Dr. Thomás (e vice-versa).
+    // a coordenação do Dr. Thomás (e vice-versa). Carregamos o vínculo ANTES dos
+    // monitoramentos para filtrar a query de monitoramentos por coordenação.
     const { data: vincCt, error: vincCtErr } = await admin
       .from("kurier_credencial_coordenacoes")
       .select("coordenacao_id")
       .eq("credencial_id", cred.id);
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
+    const coordIdsArr = Array.from(coordIdsDaCredencial);
+
+    // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
+    // recebidas via Kurier. Sem monitoramento que case, a publicação é descartada
+    // (consumida na fila, mas não persistida em publicacoes_djen).
+    // ISOLAMENTO POR COORDENAÇÃO: só aceitamos monitoramentos cujo coordenacao_id
+    // esteja entre as coordenações vinculadas à credencial. Se a credencial não
+    // tem nenhuma coordenação vinculada, NÃO carregamos nenhum monitoramento —
+    // isso evita que uma credencial sem vínculo grave publicações em coords
+    // alheias por coincidência de termo.
+    let monitoramentos: (Monitoramento & { coordenacao_id?: string | null })[] = [];
+    if (coordIdsArr.length > 0) {
+      let monitQuery = admin
+        .from("monitoramentos_djen")
+        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por")
+        .eq("ativo", true)
+        .in("coordenacao_id", coordIdsArr);
+      if (monitoramento_ids?.length) monitQuery = monitQuery.in("id", monitoramento_ids);
+      if (coordenacao_id) {
+        if (!coordIdsDaCredencial.has(coordenacao_id)) {
+          console.warn(`[kurier] coordenacao_id ${coordenacao_id} não vinculada à credencial ${cred.id} — sem monitoramentos`);
+          monitQuery = monitQuery.eq("coordenacao_id", "__nenhum__");
+        } else {
+          monitQuery = monitQuery.eq("coordenacao_id", coordenacao_id);
+        }
+      }
+      const { data: monitsRaw } = await monitQuery;
+      monitoramentos = (monitsRaw ?? []) as any;
+    } else {
+      console.warn(`[kurier] credencial ${cred.id} sem coordenações vinculadas — pulando matching de monitoramentos`);
+    }
+    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length} (coords vinculadas: ${coordIdsArr.length})`);
+
+    // Coordenações com captura total Kurier: recebem TODA publicação dentro da janela,
+    // independente de match com monitoramento. Usa monitoramento sentinela por coord
+    // para satisfazer o NOT NULL de monitoramento_id em publicacoes_djen.
     let coordsCtRaw: Array<{ id: string; nome: string }> = [];
     if (coordIdsDaCredencial.size > 0) {
       let coordCtQuery = admin
