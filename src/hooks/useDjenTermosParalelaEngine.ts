@@ -304,7 +304,7 @@ function notifyListeners() {
 function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
   const prev = state.progress;
   const next = { ...prev, ...partial };
-  if (prev.status === 'executando' || next.status === 'executando') {
+  if (prev.status === 'executando' && next.status === 'executando') {
     if (typeof partial.tempoDecorrido === 'number') {
       next.tempoDecorrido = Math.max(prev.tempoDecorrido || 0, partial.tempoDecorrido);
     }
