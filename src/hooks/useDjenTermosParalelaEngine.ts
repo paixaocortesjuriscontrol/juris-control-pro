@@ -302,7 +302,20 @@ function notifyListeners() {
 }
 
 function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
-  state.progress = { ...state.progress, ...partial };
+  const prev = state.progress;
+  const next = { ...prev, ...partial };
+  if (prev.status === 'executando' && next.status === 'executando') {
+    if (typeof partial.tempoDecorrido === 'number') {
+      next.tempoDecorrido = Math.max(prev.tempoDecorrido || 0, partial.tempoDecorrido);
+    }
+    if (typeof partial.percentage === 'number') {
+      next.percentage = Math.max(prev.percentage || 0, partial.percentage);
+    }
+    if (typeof partial.tribunaisConcluidos === 'number') {
+      next.tribunaisConcluidos = Math.max(prev.tribunaisConcluidos || 0, partial.tribunaisConcluidos);
+    }
+  }
+  state.progress = next;
   state.lastUpdatedAt = Date.now();
   notifyListeners();
 }
@@ -336,12 +349,18 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
     totalCurrent += t.current;
     totalGlobal += t.total;
   }
-  const tempoDecorrido = state.progress.iniciadoEm && state.progress.status === 'executando'
+  const tempoComputado = state.progress.iniciadoEm && state.progress.status === 'executando'
     ? Math.floor(Math.max(0, Date.now() - new Date(state.progress.iniciadoEm).getTime()) / 1000)
     : state.progress.tempoDecorrido;
-  const percentage = totalGlobal > 0
+  const tempoDecorrido = state.progress.status === 'executando'
+    ? Math.max(state.progress.tempoDecorrido || 0, tempoComputado)
+    : tempoComputado;
+  const percentageComputado = totalGlobal > 0
     ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
     : 0;
+  const percentage = state.progress.status === 'executando'
+    ? Math.max(state.progress.percentage || 0, percentageComputado)
+    : percentageComputado;
   state.progress = {
     ...state.progress,
     tracks,
@@ -1883,14 +1902,20 @@ async function executarLoop(
           const monLabel = monAlvo ? (monAlvo.descricao || monAlvo.termo_busca) : null;
           const key = trackKey(tipo, trib, monId);
           const jaConcluido = unidadesJaConcluidas.has(key);
+          const totalTrack = (monAlvo
+            ? 1
+            : (monsPorTipo.get(tipo) || []).filter((m) => {
+                const tribs = expandirTribunaisDoMon(m.tribunais);
+                return tribs.length === 0 || tribs.includes(trib);
+              }).length) * datas.length;
           tracks.push({
             tribunal: trib,
             tipo,
             monId,
             monLabel,
             status: jaConcluido ? 'concluido' : 'pendente',
-            current: 0,
-            total: 0,
+            current: jaConcluido ? totalTrack : 0,
+            total: totalTrack,
             novas: 0,
             duplicadas: 0,
             descartadas: 0,
@@ -1912,12 +1937,18 @@ async function executarLoop(
     }
     const totalUnidades = tracks.length;
     const unidadesConcluidasInicial = tracks.filter(t => t.status === 'concluido').length;
+    const totalWorkInicial = tracks.reduce((sum, t) => sum + Number(t.total || 0), 0);
+    const currentWorkInicial = tracks.reduce((sum, t) => sum + Number(t.current || 0), 0);
+    const percentageInicial = totalWorkInicial > 0
+      ? Math.min(100, Math.max(0, Math.round((currentWorkInicial / totalWorkInicial) * 100)))
+      : 0;
 
     updateProgress({
       status: 'executando',
       tracks,
       totalTribunais: totalUnidades,
       tribunaisConcluidos: unidadesConcluidasInicial,
+      percentage: percentageInicial,
       novas: cp?.novas || 0,
       duplicadas: cp?.duplicadas || 0,
       descartadas: cp?.descartadas || 0,
