@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -81,6 +81,7 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 export default function DistribuicaoTst() {
   const [showForm, setShowForm] = useState(false);
   const [mostrarCards, setMostrarCards] = useState(true);
+  const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -1189,6 +1190,16 @@ export default function DistribuicaoTst() {
             {mostrarCards ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </Button>
           <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMostrarFiltros(v => !v)}
+            className="text-muted-foreground hover:text-foreground"
+            title={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+            aria-label={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+          >
+            {mostrarFiltros ? <SlidersHorizontal className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4 opacity-50" />}
+          </Button>
+          <Button
             onClick={() => gerarManualDistribuicaoTst()}
             className="bg-blue-600 hover:bg-blue-700 text-white"
             title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
@@ -1427,6 +1438,7 @@ export default function DistribuicaoTst() {
         )}
 
         {/* Filters */}
+        {mostrarFiltros && (
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1 flex-1 min-w-[220px] max-w-xs">
@@ -1712,6 +1724,7 @@ export default function DistribuicaoTst() {
             )}
           </div>
         </div>
+        )}
 
         {/* Bulk Judit progress */}
         {bulkJuditRunning && (
