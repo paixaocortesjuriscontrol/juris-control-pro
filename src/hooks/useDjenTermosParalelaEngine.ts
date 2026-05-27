@@ -1019,15 +1019,10 @@ async function processarTribunalTrack(
     for (const diaYmd of datas) {
       if (signal.aborted) break;
 
-      // Agrupa termos do mesmo tipo num único request OR para acelerar buscas
-      // em tribunais com muitos termos. TST mantém 1-por-chamada (já é rápido).
-      const podeAgrupar =
-        tribunal !== 'TST' &&
-        (tipo === 'processo' || tipo === 'palavra-chave') &&
-        monsParaEsseTrib.length > 1;
-      const grupos: Monitoramento[][] = podeAgrupar
-        ? chunkArray(monsParaEsseTrib, CONFIG.group_search_size)
-        : monsParaEsseTrib.map((m) => [m]);
+      // Agrupamento OR foi desativado: estava gerando HTTP 403 no CloudFront
+      // e perturbando a barra de progresso. Mantemos 1 chamada por termo,
+      // tanto no TST quanto nos demais tribunais (comportamento anterior).
+      const grupos: Monitoramento[][] = monsParaEsseTrib.map((m) => [m]);
 
       for (const grupo of grupos) {
         if (signal.aborted) break;
