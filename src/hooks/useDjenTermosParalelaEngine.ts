@@ -2156,7 +2156,7 @@ async function executarLoop(
         // monIds vazio/undefined → 1 chamada com monId=null (comportamento legado).
         // Para parte fora do TST, monIds com vários ids rodam em UMA track por
         // tribunal, serialmente dentro de processarTribunalTrack, sem OR.
-        const groupedParteTribunal = unit.tipo === 'parte' && unit.tribunal !== 'TST' && (unit.monIds?.length ?? 0) > 1;
+        const groupedParteTribunal = unit.tipo === 'parte' && unit.tribunal !== 'TST' && (unit.monIds?.length ?? 0) > 0;
         if (groupedParteTribunal) {
           try {
             await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, null, unit.monIds);
