@@ -316,10 +316,22 @@ Deno.serve(async (req: Request) => {
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
     const coordIdsArr = Array.from(coordIdsDaCredencial);
-    // coords com flag "Só Kurier" ligada: nessas, só aplicamos termos com somente_kurier=true.
-    const coordsSoKurier = new Set<string>(
+    // Coords com flag "Só Kurier" ligada (regra a nível de COORDENAÇÃO): se QUALQUER
+    // vínculo credencial→coord tiver somente_kurier_only=true, a coord inteira passa
+    // a operar em modo "Só Kurier" — independente de qual login está executando.
+    // Isso evita que outro login da mesma coord (sem o flag marcado) furtivamente
+    // injete publicações que não casam com termos somente_kurier=true.
+    let coordsSoKurier = new Set<string>(
       (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
     );
+    if (coordIdsArr.length > 0) {
+      const { data: vincGlobais } = await admin
+        .from("kurier_credencial_coordenacoes")
+        .select("coordenacao_id, somente_kurier_only")
+        .in("coordenacao_id", coordIdsArr)
+        .eq("somente_kurier_only", true);
+      for (const v of (vincGlobais ?? []) as any[]) coordsSoKurier.add(v.coordenacao_id);
+    }
 
     // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
     // recebidas via Kurier. Sem monitoramento que case, a publicação é descartada
