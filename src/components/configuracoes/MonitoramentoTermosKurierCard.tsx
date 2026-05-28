@@ -83,7 +83,7 @@ export function MonitoramentoTermosKurierCard() {
                 <Activity className="h-5 w-5" /> Monitoramento Kurier
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Consome a fila de publicações Kurier via API REST KJuridico. Cada login ativo é processado em paralelo (até 3 simultâneos), em lotes de 50, e confirmado automaticamente.
+                Busca publicações Kurier por data de disponibilização/publicação na API REST KJuridico, igual à tela Kurier, sem depender da fila/backlog.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -240,8 +240,7 @@ export function MonitoramentoTermosKurierCard() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Consome todas as publicações pendentes na fila Kurier (todas as credenciais ativas), aplica os termos
-            de todos os monitoramentos DJEN ativos, e envia os matches para a tela Análise DJEN com origem
+            Consulta o endpoint personalizado da Kurier para o período escolhido, registra o total recebido e envia os matches para a tela Análise DJEN com origem
             <span className="font-mono"> kurier</span>. Duplicadas são marcadas automaticamente.
           </p>
 
