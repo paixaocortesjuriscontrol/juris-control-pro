@@ -297,33 +297,6 @@ export function MonitoramentoTermosKurierCard() {
       </Card>
 
       <KurierCredenciaisPanel />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Captura total Kurier por coordenação</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Quando ligado, a coordenação recebe <strong>todas</strong> as publicações trazidas pela busca Kurier
-            dentro do intervalo de datas — sem aplicar os termos cadastrados. Útil quando o time quer auditar
-            tudo que cai na fila, independente de filtro.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-md divide-y max-h-96 overflow-auto">
-            {coordsCapturaTotal.map((c: any) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-                <span className="truncate">{c.nome}</span>
-                <Switch
-                  checked={!!c.kurier_captura_total}
-                  onCheckedChange={(v) => void toggleCapturaTotal(c.id, v)}
-                />
-              </div>
-            ))}
-            {coordsCapturaTotal.length === 0 && (
-              <div className="p-3 text-center text-muted-foreground">Nenhuma coordenação cadastrada.</div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
