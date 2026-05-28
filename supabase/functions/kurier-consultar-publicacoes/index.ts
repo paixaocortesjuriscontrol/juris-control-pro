@@ -91,8 +91,17 @@ function buildConfirmacaoKurier(p: KurierPub): Record<string, number | string> |
   const CodigoDiario = pickInt(p, "CodigoDiario", "codigoDiario");
   const CodigoDivisaoDiario = pickInt(p, "CodigoDivisaoDiario", "codigoDivisaoDiario");
   const DataDiario = pickStr(p, "DataDiario", "dataDiario");
-  if (!IdProcesso || !CodigoTermoPesquisa || !CodigoDiario || !CodigoDivisaoDiario || !DataDiario) return null;
-  return { IdProcesso, CodigoTermoPesquisa, CodigoDiario, CodigoDivisaoDiario, DataDiario };
+  if (IdProcesso && CodigoTermoPesquisa && CodigoDiario && CodigoDivisaoDiario && DataDiario) {
+    return { IdProcesso, CodigoTermoPesquisa, CodigoDiario, CodigoDivisaoDiario, DataDiario };
+  }
+  // Fallback tolerante: o endpoint ConfirmarPublicacoes da Kurier aceita
+  // confirmação por IdPublicacao quando os 5 campos estruturados não vêm
+  // completos. Sem isso, o item fica preso na fila e bloqueia os novos.
+  const IdPublicacao = pickInt(p, "IdPublicacao", "idPublicacao", "IDPublicacao", "id", "Id");
+  if (IdPublicacao) {
+    return { IdPublicacao };
+  }
+  return null;
 }
 
 function normalizedKey(k: string): string {
@@ -232,7 +241,7 @@ function normalizeProcesso(n: string | null): string | null {
 const LOTE_SIZE = 50;
 const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
-const MAX_LOTES_PER_CALL = 5;
+const MAX_LOTES_PER_CALL = 20;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
