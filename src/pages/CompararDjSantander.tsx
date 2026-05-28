@@ -1335,7 +1335,7 @@ export default function CompararDjSantander() {
           .in("monitoramento_id", monIds)
           .eq("dedup_processo_digits", digits);
         if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
-        if (pubInicio) q = q.gte("data_publicacao", pubInicio).lte("data_publicacao", pubFim!);
+        if (pubInicio) q = q.gte("data_publicacao", `${pubInicio}T00:00:00.000Z`).lte("data_publicacao", `${pubFim}T23:59:59.999Z`);
         const { data: descartadas } = await q;
         if (descartadas && descartadas.length > 0) {
           const unicos = [...new Set(descartadas.map(d => d.motivo_descarte).filter(Boolean))];
@@ -1354,7 +1354,7 @@ export default function CompararDjSantander() {
           .select("coordenacao_id, monitoramento_id, tribunal, orgao, tipo_comunicacao, coordenacoes:coordenacao_id(nome)")
           .eq("dedup_processo_digits", digits);
         if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
-        if (pubInicio) q = q.gte("data_publicacao", pubInicio).lte("data_publicacao", pubFim!);
+        if (pubInicio) q = q.gte("data_publicacao", `${pubInicio}T00:00:00.000Z`).lte("data_publicacao", `${pubFim}T23:59:59.999Z`);
         const { data: capturadas } = await q;
         if (capturadas && capturadas.length > 0) {
           const naSelecionada = capturadas.filter((c: any) => monIds.includes(c.monitoramento_id));
@@ -1439,7 +1439,7 @@ export default function CompararDjSantander() {
           .in("monitoramento_id", monIds)
           .eq("dedup_processo_digits", digits);
         if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
-        if (pubInicio) q = q.gte("data_publicacao", pubInicio).lte("data_publicacao", pubFim!);
+        if (pubInicio) q = q.gte("data_publicacao", `${pubInicio}T00:00:00.000Z`).lte("data_publicacao", `${pubFim}T23:59:59.999Z`);
         const { data: capturadas } = await q;
         if (capturadas && capturadas.length > 0) {
           return [`Capturado via ${descreverCaptura(capturadas)}`];
