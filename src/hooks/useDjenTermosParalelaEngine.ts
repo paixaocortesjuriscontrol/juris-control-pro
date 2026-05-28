@@ -267,6 +267,8 @@ let state: {
   executionId: string | null;
   resetExecutionIds: Set<string>;
   lastExecutionSyncAt: number;
+  unitTotal: number;
+  unitDone: number;
 } = {
   isRunning: false,
   progress: createDefaultProgress(),
@@ -278,6 +280,8 @@ let state: {
   executionId: null,
   resetExecutionIds: new Set(),
   lastExecutionSyncAt: 0,
+  unitTotal: 0,
+  unitDone: 0,
 };
 
 function createDefaultProgress(): DjenTermosParalelaProgress {
