@@ -706,10 +706,18 @@ Deno.serve(async (req: Request) => {
           };
 
           if (matched) {
+            // Sempre insere o item Kurier mesmo que já exista vindo do DJEN
+            // Termos (id_djen=null dribla o unique coord+id_djen; hash único
+            // garante que múltiplas execuções/lotes não colidam). O usuário
+            // quer enxergar TODAS as publicações trazidas pela Kurier na tela
+            // Análise DJEN, com ou sem captura_total.
+            const uniqueHashMatch = sha256(`${matched.coordenacao_id ?? "_"}|${cred.id}|${idKEff}|${hashConteudo}|${Date.now()}|${Math.random()}`);
             const { data: insPub, error: pubErr } = await admin
               .from("publicacoes_djen")
               .insert({
                 ...basePayload,
+                id_djen: null,
+                hash_conteudo: uniqueHashMatch,
                 monitoramento_id: matched.id,
                 coordenacao_id: matched.coordenacao_id ?? null,
               })
@@ -717,14 +725,8 @@ Deno.serve(async (req: Request) => {
               .maybeSingle();
 
             if (pubErr) {
-              if ((pubErr as any).code === "23505") {
-                totalDuplicadas++;
-                motivoDescarte = idDjen ? "duplicada_id_djen" : "duplicada";
-              } else {
-                console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
-                totalDuplicadas++;
-                motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
-              }
+              console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
+              motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
             } else if (insPub) {
               publicacaoDjenId = insPub.id;
               totalNovas++;
