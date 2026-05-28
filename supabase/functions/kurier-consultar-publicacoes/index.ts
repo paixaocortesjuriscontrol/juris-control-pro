@@ -341,7 +341,7 @@ Deno.serve(async (req: Request) => {
     // tem nenhuma coordenação vinculada, NÃO carregamos nenhum monitoramento —
     // isso evita que uma credencial sem vínculo grave publicações em coords
     // alheias por coincidência de termo.
-    let monitoramentos: (Monitoramento & { coordenacao_id?: string | null })[] = [];
+    let monitoramentos: (Monitoramento & { coordenacao_id?: string | null; somente_kurier?: boolean | null })[] = [];
     if (coordIdsArr.length > 0) {
       let monitQuery = admin
         .from("monitoramentos_djen")
@@ -362,9 +362,10 @@ Deno.serve(async (req: Request) => {
       // Filtra por coord: se a coord está marcada como "Só Kurier" no vínculo da
       // credencial, mantém apenas monitoramentos com somente_kurier=true; senão,
       // mantém todos (Kurier pode usar termos comuns e os marcados como somente_kurier).
-      monitoramentos = allMonits.filter((m: any) =>
-        coordsSoKurier.has(m.coordenacao_id) ? m.somente_kurier === true : true,
-      ) as any;
+      monitoramentos = allMonits.filter((m: any) => {
+        const coordId = m.coordenacao_id ?? "";
+        return coordsSoKurier.has(coordId) ? m.somente_kurier === true : true;
+      }) as any;
     } else {
       console.warn(`[kurier] credencial ${cred.id} sem coordenações vinculadas — pulando matching de monitoramentos`);
     }
@@ -448,7 +449,7 @@ Deno.serve(async (req: Request) => {
 
     // Pré-indexa monitoramentos por palavra-chave pura normalizada para
     // evitar varrer 271 monitoramentos por publicação (CPU exceeded).
-    const monitsByTermo = new Map<string, (Monitoramento & { coordenacao_id?: string | null })[]>();
+    const monitsByTermo = new Map<string, (Monitoramento & { coordenacao_id?: string | null; somente_kurier?: boolean | null })[]>();
     for (const m of monitoramentos) {
       const termos = [m.termo_busca, ...(m.termos_or || [])].filter(Boolean) as string[];
       for (const t of termos) {
