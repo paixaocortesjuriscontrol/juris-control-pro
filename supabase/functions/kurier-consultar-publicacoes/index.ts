@@ -200,6 +200,11 @@ function containsPhraseOrAnd(searchNorm: string, termo: string | null | undefine
   return parts.every((part) => new RegExp(`(?:^|\\s)${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`).test(searchNorm));
 }
 
+function termoTokens(raw: string | null | undefined): string[] {
+  const norm = normalizar(extrairPalavraChavePura(String(raw || "").trim()));
+  return Array.from(new Set(norm.split(/\s+/).filter((t) => t.length >= 3)));
+}
+
 function kurierMatchesMonitoramento(searchable: string, monitoramento: Monitoramento): boolean {
   const searchNorm = normalizar(searchable);
   const searchDigits = searchable.replace(/\D/g, "");
@@ -316,22 +321,13 @@ Deno.serve(async (req: Request) => {
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
     const coordIdsArr = Array.from(coordIdsDaCredencial);
-    // Coords com flag "Só Kurier" ligada (regra a nível de COORDENAÇÃO): se QUALQUER
-    // vínculo credencial→coord tiver somente_kurier_only=true, a coord inteira passa
-    // a operar em modo "Só Kurier" — independente de qual login está executando.
-    // Isso evita que outro login da mesma coord (sem o flag marcado) furtivamente
-    // injete publicações que não casam com termos somente_kurier=true.
-    let coordsSoKurier = new Set<string>(
+    // Coords com flag "Só termos Kurier" ligada PARA ESTA CREDENCIAL:
+    // a busca no Kurier continua trazendo o dia inteiro, mas esta credencial só
+    // pode inserir na coordenação publicações que casem com termos marcados
+    // como monitoramentos_djen.somente_kurier=true.
+    const coordsSoKurier = new Set<string>(
       (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
     );
-    if (coordIdsArr.length > 0) {
-      const { data: vincGlobais } = await admin
-        .from("kurier_credencial_coordenacoes")
-        .select("coordenacao_id, somente_kurier_only")
-        .in("coordenacao_id", coordIdsArr)
-        .eq("somente_kurier_only", true);
-      for (const v of (vincGlobais ?? []) as any[]) coordsSoKurier.add(v.coordenacao_id);
-    }
 
     // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
     // recebidas via Kurier. Sem monitoramento que case, a publicação é descartada
@@ -359,8 +355,8 @@ Deno.serve(async (req: Request) => {
       }
       const { data: monitsRaw } = await monitQuery;
       const allMonits = (monitsRaw ?? []) as any[];
-      // Filtra por coord: se a coord está marcada como "Só Kurier" no vínculo da
-      // credencial, mantém apenas monitoramentos com somente_kurier=true; senão,
+      // Filtra por coord: se a coord está marcada como "Só termos Kurier" no vínculo
+      // DESTA credencial, mantém apenas monitoramentos com somente_kurier=true; senão,
       // mantém todos (Kurier pode usar termos comuns e os marcados como somente_kurier).
       monitoramentos = allMonits.filter((m: any) => {
         const coordId = m.coordenacao_id ?? "";
@@ -369,7 +365,7 @@ Deno.serve(async (req: Request) => {
     } else {
       console.warn(`[kurier] credencial ${cred.id} sem coordenações vinculadas — pulando matching de monitoramentos`);
     }
-    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length} (coords vinculadas: ${coordIdsArr.length})`);
+    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length} (coords vinculadas: ${coordIdsArr.length}; coords só termos Kurier desta credencial: ${coordsSoKurier.size})`);
 
     // Coordenações com captura total Kurier neste login: recebem TODA publicação
     // dentro da janela, independente de match com monitoramento. A flag agora vive
@@ -447,17 +443,18 @@ Deno.serve(async (req: Request) => {
     }
     console.log(`[kurier] coordenações captura_total: ${capturaTotalCoords.length}`);
 
-    // Pré-indexa monitoramentos por palavra-chave pura normalizada para
-    // evitar varrer 271 monitoramentos por publicação (CPU exceeded).
+    // Pré-indexa monitoramentos por tokens do termo Kurier. Indexar todos os
+    // tokens (não só o primeiro) evita perder termos como "310314/OSMAR..."
+    // quando o monitoramento foi cadastrado como "OSMAR...".
     const monitsByTermo = new Map<string, (Monitoramento & { coordenacao_id?: string | null; somente_kurier?: boolean | null })[]>();
     for (const m of monitoramentos) {
       const termos = [m.termo_busca, ...(m.termos_or || [])].filter(Boolean) as string[];
       for (const t of termos) {
-        const key = normalizar(extrairPalavraChavePura(String(t).trim())).split(/\s+/)[0];
-        if (!key) continue;
-        const arr = monitsByTermo.get(key) || [];
-        arr.push(m);
-        monitsByTermo.set(key, arr);
+        for (const key of termoTokens(t)) {
+          const arr = monitsByTermo.get(key) || [];
+          arr.push(m);
+          monitsByTermo.set(key, arr);
+        }
       }
     }
 
