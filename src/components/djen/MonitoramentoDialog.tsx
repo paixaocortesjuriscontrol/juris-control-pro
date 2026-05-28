@@ -340,6 +340,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       oab: tipo === 'advogado' ? oab : undefined,
       uf: ufValue,
       coordenacao_id: coordenacaoId || undefined,
+      somente_kurier: somenteKurier,
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
