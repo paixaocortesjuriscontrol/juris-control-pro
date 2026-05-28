@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte='kurier' AND id IN (SELECT publicacao_djen_id FROM public.kurier_publicacoes_raw WHERE login_usado='paixaoc' AND publicacao_djen_id IS NOT NULL);
