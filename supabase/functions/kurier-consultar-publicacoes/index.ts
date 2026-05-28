@@ -718,6 +718,7 @@ Deno.serve(async (req: Request) => {
             data_disponibilizacao: dataDisp ?? null,
             data_publicacao: toIsoDate(dataPub) ?? null,
             tipo_publicacao: "intimacao",
+            kurier_login: cred.login ?? null,
           };
 
           if (matched) {
