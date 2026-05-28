@@ -430,7 +430,7 @@ async function executarLoop(
       .from('monitoramentos_djen')
       .select('*')
       .eq('ativo', true)
-      .neq('tipo', 'kurier_only');
+      .neq('somente_kurier', true);
 
     if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
     if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);

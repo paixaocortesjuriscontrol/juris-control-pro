@@ -1696,7 +1696,7 @@ async function runEngine(
     .from('monitoramentos_djen')
     .select('*, coordenacoes(id, nome)')
     .eq('ativo', true)
-    .neq('tipo', 'kurier_only');
+    .neq('somente_kurier', true);
   if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
   if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
   const { data: monitoramentos, error } = await query;

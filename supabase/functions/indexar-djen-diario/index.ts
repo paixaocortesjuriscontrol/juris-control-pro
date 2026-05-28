@@ -232,7 +232,7 @@ serve(async (req) => {
           .from("monitoramentos_djen")
           .select("tribunais")
           .eq("ativo", true)
-          .neq("tipo", "kurier_only");
+          .neq("somente_kurier", true);
         const base: string[] = [];
         (mons || []).forEach((m: any) => {
           const ts = Array.isArray(m?.tribunais) ? m.tribunais : [];

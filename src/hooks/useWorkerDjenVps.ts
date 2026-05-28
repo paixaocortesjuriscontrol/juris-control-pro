@@ -358,7 +358,7 @@ export function useWorkerDjenVps({ coordenacaoId, autoStart = false }: UseWorker
         .select('*')
         .eq('coordenacao_id', coordenacaoId)
         .eq('ativo', true)
-        .neq('tipo', 'kurier_only');
+        .neq('somente_kurier', true);
       
       if (error) throw error;
       if (!monitoramentos || monitoramentos.length === 0) {

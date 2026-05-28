@@ -1302,7 +1302,7 @@ export function useBuscaDjenDireta() {
       .from('monitoramentos_djen')
       .select('*')
       .eq('ativo', true)
-      .neq('tipo', 'kurier_only');
+      .neq('somente_kurier', true);
 
     if (monitoramentosIds?.length) {
       query = query.in('id', monitoramentosIds);

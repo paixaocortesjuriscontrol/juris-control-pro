@@ -195,7 +195,7 @@ export function useSincronizarDjenBrowser() {
         .from('monitoramentos_djen')
         .select('*')
         .eq('ativo', true)
-        .neq('tipo', 'kurier_only');
+        .neq('somente_kurier', true);
       
       if (monitoramentoIds && monitoramentoIds.length > 0) {
         query = query.in('id', monitoramentoIds);

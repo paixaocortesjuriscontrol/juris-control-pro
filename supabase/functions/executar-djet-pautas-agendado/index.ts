@@ -195,7 +195,7 @@ async function runJob(
       .from("monitoramentos_djen")
       .select("id, tipo, termo_busca, oab, uf, ativo, exclusoes, tribunais, condicao_concomitante, coordenacao_id")
       .eq("ativo", true)
-      .neq("tipo", "kurier_only");
+      .neq("somente_kurier", true);
 
     if (monitsErr) throw monitsErr;
     const monits = (monitsData || []) as unknown as Monitoramento[];
