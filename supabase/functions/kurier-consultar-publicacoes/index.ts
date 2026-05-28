@@ -734,25 +734,32 @@ Deno.serve(async (req: Request) => {
             motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
           }
 
-          // 3) Captura total: replica para cada coordenação marcada, ignorando filtros.
-          // O unique index (coordenacao_id, id_djen) protege contra duplicidade dentro da coord.
+          // 3) Captura total: garante 1 linha por item recebido em CADA coord
+          // com captura_total no login, INDEPENDENTE de já existir no DJEN Termos
+          // ou de já ter sido inserido na coord pelo path de match. Para isso
+          // forçamos id_djen=null (driblando o unique index coord+id_djen) e
+          // damos um hash único por inserção. O usuário quer enxergar TODAS as
+          // publicações trazidas pela Kurier na tela Análise DJEN.
           for (const ct of capturaTotalCoords) {
-            if (matched && (matched.coordenacao_id ?? null) === ct.id) continue;
+            // Se o item já foi inserido pelo path de match NA MESMA coord,
+            // pulamos para não duplicar a mesma linha desnecessariamente. Mas
+            // se o match não inseriu (ex.: 23505 por já existir vindo do DJEN
+            // Termos OU sem_match), seguimos com a captura total.
+            if (matched && (matched.coordenacao_id ?? null) === ct.id && publicacaoDjenId) continue;
+            const uniqueHash = sha256(`${ct.id}|${cred.id}|${idKEff}|${hashConteudo}|${Date.now()}|${Math.random()}`);
             const { data: insCt, error: ctErr } = await admin
               .from("publicacoes_djen")
               .insert({
                 ...basePayload,
+                id_djen: null,           // <- evita conflito no unique (coord, id_djen)
+                hash_conteudo: uniqueHash,
                 monitoramento_id: ct.monit_id,
                 coordenacao_id: ct.id,
               })
               .select("id")
               .maybeSingle();
             if (ctErr) {
-              if ((ctErr as any).code === "23505") {
-                totalDuplicadas++;
-              } else {
-                console.warn(`[kurier] erro captura_total insert coord ${ct.id}:`, ctErr.message);
-              }
+              console.warn(`[kurier] erro captura_total insert coord ${ct.id}:`, ctErr.message);
             } else if (insCt) {
               if (!publicacaoDjenId) publicacaoDjenId = insCt.id;
               totalNovas++;
