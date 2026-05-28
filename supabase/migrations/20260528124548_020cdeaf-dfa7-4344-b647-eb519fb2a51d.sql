@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte='kurier' AND coordenacao_id='b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f' AND created_at >= CURRENT_DATE;
