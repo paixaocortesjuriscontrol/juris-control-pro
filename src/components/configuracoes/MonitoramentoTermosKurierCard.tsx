@@ -262,7 +262,8 @@ export function MonitoramentoTermosKurierCard() {
               </div>
               <Progress value={progress.percentage} />
               <div className="flex gap-3 text-xs text-muted-foreground">
-                <span><strong className="text-foreground">{progress.novas}</strong> novas</span>
+                  <span><strong className="text-foreground">{progress.recebidas ?? 0}</strong> recebidas</span>
+                  <span><strong className="text-foreground">{progress.novas}</strong> novas</span>
                 <span><strong className="text-foreground">{progress.duplicadas}</strong> dup</span>
                 <span><strong className="text-foreground">{progress.confirmadas}</strong> confirmadas</span>
                 <span><strong className="text-foreground">{progress.descartadas}</strong> descartadas</span>
