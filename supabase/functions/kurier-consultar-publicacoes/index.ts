@@ -666,6 +666,7 @@ Deno.serve(async (req: Request) => {
         let publicacaoDjenId: string | null = null;
         let motivoDescarte: string | null = null;
         if (!idK) motivoDescarte = "id_nao_reconhecido";
+        let qtdInsercoes = 0;
 
         if (numero && conteudo) {
           // 1) Matching: Kurier já filtrou pelo TermoPesquisa. Reduz drasticamente
@@ -731,6 +732,17 @@ Deno.serve(async (req: Request) => {
             } else if (insPub) {
               publicacaoDjenId = insPub.id;
               totalNovas++;
+              qtdInsercoes++;
+              // 1 raw por publicação inserida — garante rastreio do login_usado
+              rawRows.push({
+                id_kurier: idKEff,
+                credencial_id: cred.id,
+                login_usado: cred.login,
+                payload: p as any,
+                publicacao_djen_id: insPub.id,
+                motivo_descarte: null,
+                recebida_em: new Date().toISOString(),
+              });
             }
           } else if (capturaTotalCoords.length === 0) {
             totalDescartadas++;
@@ -766,6 +778,16 @@ Deno.serve(async (req: Request) => {
             } else if (insCt) {
               if (!publicacaoDjenId) publicacaoDjenId = insCt.id;
               totalNovas++;
+              qtdInsercoes++;
+              rawRows.push({
+                id_kurier: idKEff,
+                credencial_id: cred.id,
+                login_usado: cred.login,
+                payload: p as any,
+                publicacao_djen_id: insCt.id,
+                motivo_descarte: null,
+                recebida_em: new Date().toISOString(),
+              });
             }
           }
         } else {
@@ -774,15 +796,19 @@ Deno.serve(async (req: Request) => {
           else if (!numero) motivoDescarte = motivoDescarte ?? "sem_processo";
         }
 
-        rawRows.push({
-          id_kurier: idKEff,
-          credencial_id: cred.id,
-          login_usado: cred.login,
-          payload: p as any,
-          publicacao_djen_id: publicacaoDjenId,
-          motivo_descarte: motivoDescarte,
-          recebida_em: new Date().toISOString(),
-        });
+        // Se nenhuma publicação foi inserida, grava 1 raw de auditoria
+        // com motivo de descarte e login_usado preservado.
+        if (qtdInsercoes === 0) {
+          rawRows.push({
+            id_kurier: idKEff,
+            credencial_id: cred.id,
+            login_usado: cred.login,
+            payload: p as any,
+            publicacao_djen_id: null,
+            motivo_descarte: motivoDescarte ?? "sem_insercao",
+            recebida_em: new Date().toISOString(),
+          });
+        }
 
         // Em modo data, NÃO confirmamos — o endpoint Personalizado é só leitura
         // e queremos preservar a fila para o monitoramento normal.
@@ -794,10 +820,13 @@ Deno.serve(async (req: Request) => {
       }
 
       if (rawRows.length) {
+        // Insere todas as linhas raw — sem unique(id_kurier), múltiplas
+        // linhas por id_kurier são permitidas (uma por publicação inserida
+        // + uma por descarte), sempre com login_usado da credencial atual.
         const { error: rawErr } = await admin
           .from("kurier_publicacoes_raw")
-          .upsert(rawRows, { onConflict: "id_kurier", ignoreDuplicates: true });
-        if (rawErr) console.warn("[kurier] erro upsert raw:", rawErr.message);
+          .insert(rawRows);
+        if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
       }
 
       // Confirma o lote
