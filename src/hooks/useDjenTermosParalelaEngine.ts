@@ -1877,56 +1877,93 @@ async function executarLoop(
     // worker dedicado. O browser direto fica apenas como fallback quando o pool
     // está desligado ou sem VPS válida.
 
-    // Filas por tipo: cada tipo tem sua própria fila de tribunais pendentes.
-    // Para tipo=parte cada monitoramento é uma unidade própria — permite que
-    // VPSs distintas processem partes diferentes em paralelo (antes a fila era
-    // por tribunal e 1 VPS pegava todos os ~112 monitoramentos de parte do TST).
-    // monIds: lista de monitoramentos a processar serialmente nesta unidade.
-    // - tipo !== 'parte'         → undefined/[] (1 chamada com monId=null)
-    // - tipo === 'parte' & TST   → 1 unidade por monitoramento (paralelo)
-    // - tipo === 'parte' & outros → 1 unidade por tribunal contendo todos
-    //   os monitoramentos daquele tribunal (executados serialmente no mesmo worker)
-    type WorkUnit = { tipo: WorkerTipo; tribunal: string; monIds?: string[] };
-    const filasPorTipo = new Map<WorkerTipo, WorkUnit[]>();
-    for (const tipo of tiposAtivos) {
-      const tribs = tribunaisPorTipo.get(tipo) || [];
-      const fila: WorkUnit[] = [];
-      if (tipo === 'parte') {
-        const monsDoTipo = monsPorTipo.get(tipo) || [];
-        for (const trib of tribs) {
-          const monsDoTrib = monsDoTipo.filter((m) => {
-            const t = expandirTribunaisDoMon(m.tribunais);
-            return t.length === 0 || t.includes(trib);
-          });
-          if (trib === 'TST') {
-            // TST mantém paralelismo: 1 unidade por monitoramento.
-            const pendentes = monsDoTrib.filter(
-              (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
-            );
-            if (pendentes.length === 0) continue;
-            for (const m of pendentes) {
-              fila.push({ tipo, tribunal: trib, monIds: [m.id] });
-            }
-          } else {
-            // Demais tribunais: 1 unidade serial por tribunal.
-            if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-            const pendentes = monsDoTrib.filter(
-              (m) => !unidadesJaConcluidas.has(trackKey(tipo, trib, m.id))
-            );
-            if (pendentes.length === 0) continue;
-            fila.push({ tipo, tribunal: trib, monIds: pendentes.map((m) => m.id) });
-          }
-        }
-      } else {
-        for (const trib of tribs) {
-          if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-          fila.push({ tipo, tribunal: trib });
-        }
+    // ========================================================================
+    // FILAS POR BANDA DE PRIORIDADE
+    // ========================================================================
+    // Banda 0 — TST (parte / advogado / palavra-chave): 1 unidade por
+    //          monitoramento, executadas em PARALELO entre as VPSs.
+    // Banda 1 — STF e STJ: 1 unidade por tribunal, agrupando TODOS os tipos
+    //          (parte → advogado → palavra-chave) e termos serialmente
+    //          dentro do mesmo worker. Diferentes tribunais podem rodar em
+    //          paralelo entre VPSs.
+    // Banda 2 — Demais tribunais: idem banda 1.
+    // Banda 3 — Tipo 'processo' em TODOS os tribunais: 1 unidade por
+    //          tribunal, sempre por último. Diferentes tribunais em paralelo.
+    //
+    // Workers só consomem da próxima banda quando a banda anterior está
+    // 100% drenada (sem unidades pendentes e sem unidades em processamento).
+    type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
+    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[] };
+
+    const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
+    const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
+
+    const filaBand0: WorkUnit[] = [];
+    const filaBand1: WorkUnit[] = [];
+    const filaBand2: WorkUnit[] = [];
+    const filaBand3: WorkUnit[] = [];
+
+    // Banda 0: TST paralelo (1 unidade por monitoramento, por tipo)
+    for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
+      const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
+      if (!tribsDoTipo.includes('TST')) continue;
+      const mons = (monsPorTipo.get(tipo) || []).filter((m) => {
+        const t = expandirTribunaisDoMon(m.tribunais);
+        return t.length === 0 || t.includes('TST');
+      });
+      for (const m of mons) {
+        if (unidadesJaConcluidas.has(trackKey(tipo, 'TST', m.id))) continue;
+        filaBand0.push({ band: 0, tribunal: 'TST', steps: [{ tipo, monIds: [m.id] }] });
       }
-      filasPorTipo.set(tipo, fila);
     }
-    const totalUnidadesPendentes = Array.from(filasPorTipo.values()).reduce((a, b) => a + b.length, 0);
+
+    // Helper para bandas 1 e 2: agrupa todos os tipos principais do tribunal
+    // como steps de uma única unidade serial.
+    const buildStepsSerialPorTrib = (trib: string): UnitStep[] => {
+      const steps: UnitStep[] = [];
+      for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
+        const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
+        if (!tribsDoTipo.includes(trib)) continue;
+        if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+        steps.push({ tipo, monIds: [null] }); // 1 chamada agregada (processa todos os mons daquele tipo no trib serialmente)
+      }
+      return steps;
+    };
+
+    // Banda 1: STF e STJ
+    for (const trib of TRIBUNAIS_BAND1) {
+      if (!tribunaisGlobalSet.has(trib)) continue;
+      const steps = buildStepsSerialPorTrib(trib);
+      if (steps.length === 0) continue;
+      filaBand1.push({ band: 1, tribunal: trib, steps });
+    }
+
+    // Banda 2: demais tribunais (excluindo TST, STF, STJ)
+    for (const trib of tribunais) {
+      if (trib === 'TST' || TRIBUNAIS_BAND1.includes(trib)) continue;
+      const steps = buildStepsSerialPorTrib(trib);
+      if (steps.length === 0) continue;
+      filaBand2.push({ band: 2, tribunal: trib, steps });
+    }
+
+    // Banda 3: tipo 'processo' em todos os tribunais (sempre por último)
+    const tribsProcesso = tribunaisPorTipo.get('processo') || [];
+    for (const trib of tribsProcesso) {
+      if (unidadesJaConcluidas.has(trackKey('processo', trib))) continue;
+      filaBand3.push({ band: 3, tribunal: trib, steps: [{ tipo: 'processo', monIds: [null] }] });
+    }
+
+    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2, filaBand3];
+    const totalUnidadesPendentes = bands.reduce((a, b) => a + b.length, 0);
+    const totalStepsPendentes = bands.reduce(
+      (a, b) => a + b.reduce((aa, u) => aa + u.steps.reduce((s, st) => s + st.monIds.length, 0), 0),
+      0,
+    );
     const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
+
+    // Inicializa progresso por unidade (steps) para a barra refletir realidade.
+    state.unitTotal = totalStepsPendentes + unidadesConcluidasLista.length;
+    state.unitDone = unidadesConcluidasLista.length;
 
     try {
       // Sempre sincroniza antes de definir workers. O agendamento automático pode
@@ -1956,22 +1993,24 @@ async function executarLoop(
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
-    // Diagnóstico: confirma quantas VPSs realmente subiram e o tamanho das filas.
     try {
-      const filasResumo: Record<string, number> = {};
-      filasPorTipo.forEach((f, t) => { filasResumo[t] = f.length; });
-      console.log('[DJEN Paralela] 🚀 Spawning workers', {
+      console.log('[DJEN Paralela] 🚀 Spawning workers (bandas)', {
         viasDisponiveis: vias.length,
         concorrenciaEfetiva,
         totalUnidadesPendentes,
-        filasPorTipo: filasResumo,
+        bandas: {
+          band0_TST: filaBand0.length,
+          band1_STF_STJ: filaBand1.length,
+          band2_outros: filaBand2.length,
+          band3_processo: filaBand3.length,
+        },
         vias: vias.map(v => v.label),
         poolAtivo,
       });
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Executando: ${totalUnidadesPendentes} unidades (${tribunais.length} tribunais × ${tiposAtivos.length} tipos), ${concorrenciaEfetiva} workers VPS`,
+      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
@@ -1979,109 +2018,81 @@ async function executarLoop(
       tipos_ativos: tiposAtivos,
     }, true);
 
-    // Cada worker (VPS) recebe um tipo PRIMÁRIO em round-robin.
-    // Quando a fila do tipo primário esvazia, o worker rouba unidades das filas
-    // de outros tipos (round-robin) para maximizar utilização das VPS.
-    // Prioridade global: enquanto houver QUALQUER unidade pendente em tipos
-    // prioritários (parte/advogado), nenhum worker pega palavra-chave/processo.
-    // Dentro de cada faixa, o tipo primário do worker é tentado primeiro;
-    // se vazio, faz steal nos demais tipos da MESMA faixa.
-    const temPendentesEm = (tipos: WorkerTipo[]): boolean =>
-      tipos.some((t) => (filasPorTipo.get(t)?.length ?? 0) > 0);
+    // ========================================================================
+    // DISPATCH POR BANDA — workers só avançam de banda quando a anterior
+    // está totalmente drenada (fila vazia + nenhum worker processando).
+    // ========================================================================
+    let bandAtual = 0;
+    const emProcessamentoPorBand = [0, 0, 0, 0];
 
-    const pickFromFaixa = (faixa: WorkerTipo[], tipoPrimario: WorkerTipo): WorkUnit | null => {
-      if (faixa.includes(tipoPrimario)) {
-        const fila = filasPorTipo.get(tipoPrimario);
-        if (fila && fila.length > 0) return fila.shift()!;
-      }
-      for (const tipo of faixa) {
-        if (tipo === tipoPrimario) continue;
-        const fila = filasPorTipo.get(tipo);
-        if (fila && fila.length > 0) return fila.shift()!;
+    const pickNextUnit = (): WorkUnit | null => {
+      while (bandAtual < bands.length) {
+        const fila = bands[bandAtual];
+        if (fila.length > 0) return fila.shift()!;
+        if (emProcessamentoPorBand[bandAtual] > 0) return null; // aguardar drenar
+        bandAtual++;
       }
       return null;
     };
 
-    const pickNextUnit = (tipoPrimario: WorkerTipo): WorkUnit | null => {
-      // 1) Sempre tenta esvaziar a faixa prioritária primeiro.
-      const u1 = pickFromFaixa(TIPOS_PRIORITARIOS, tipoPrimario);
-      if (u1) return u1;
-      // 2) Só entra na faixa final quando NÃO há mais prioritários pendentes.
-      if (temPendentesEm(TIPOS_PRIORITARIOS)) return null;
-      return pickFromFaixa(TIPOS_FINAIS, tipoPrimario);
-    };
+    const BAND_LABEL: Record<number, string> = { 0: 'TST', 1: 'STF/STJ', 2: 'outros', 3: 'processo' };
 
-    const worker = async (via: ViaSpec, tipoPrimario: WorkerTipo) => {
+    const worker = async (via: ViaSpec) => {
       let processed = 0;
       const t0 = Date.now();
-      console.log(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] ▶ iniciado`);
+      console.log(`[DJEN Paralela][worker ${via.label}] ▶ iniciado`);
       while (!signal.aborted) {
-        const unit = pickNextUnit(tipoPrimario);
+        const unit = pickNextUnit();
         if (!unit) {
-          // Pode estar apenas esperando faixa prioritária terminar.
-          if (temPendentesEm(TIPOS_PRIORITARIOS)) {
+          if (bandAtual < bands.length && emProcessamentoPorBand[bandAtual] > 0) {
             await new Promise((r) => setTimeout(r, 500));
             continue;
           }
-          console.log(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] ⏹ fila vazia, encerrando após ${processed} unidades em ${Math.round((Date.now()-t0)/1000)}s`);
+          console.log(`[DJEN Paralela][worker ${via.label}] ⏹ filas vazias, encerrando após ${processed} unidades em ${Math.round((Date.now() - t0) / 1000)}s`);
           break;
         }
         processed++;
-        // monIds vazio/undefined → 1 chamada com monId=null (comportamento legado).
-        // Para parte fora do TST, monIds com vários ids rodam em UMA track por
-        // tribunal, serialmente dentro de processarTribunalTrack, sem OR.
-        const groupedParteTribunal = unit.tipo === 'parte' && unit.tribunal !== 'TST' && (unit.monIds?.length ?? 0) > 0;
-        if (groupedParteTribunal) {
-          try {
-            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, null, unit.monIds);
-          } catch (e) {
-            console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal} grupo=${unit.monIds?.length ?? 0}:`, e);
-          }
-          unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal));
-          saveCheckpoint({
-            runKey,
-            dataInicioYmd,
-            dataFimYmd,
-            tribunaisConcluidos: unidadesConcluidasLista,
-            novas: state.progress.novas,
-            duplicadas: state.progress.duplicadas,
-            descartadas: state.progress.descartadas,
-            tempoInicio,
-          });
-          syncExecutionProgress({}, true);
-        } else {
-          const monIdsParaExec: (string | null)[] = (unit.monIds && unit.monIds.length > 0)
-            ? unit.monIds
-            : [null];
-          for (const monIdAtual of monIdsParaExec) {
+        emProcessamentoPorBand[unit.band]++;
+        try {
+          for (const step of unit.steps) {
             if (signal.aborted) break;
-            try {
-              await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
-            } catch (e) {
-              console.error(`[DJEN Paralela][worker ${via.label}/${tipoPrimario}] erro ${unit.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+            for (const monIdAtual of step.monIds) {
+              if (signal.aborted) break;
+              try {
+                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+              } catch (e) {
+                console.error(`[DJEN Paralela][worker ${via.label}] erro ${step.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
+              }
+              unidadesConcluidasLista.push(trackKey(step.tipo, unit.tribunal, monIdAtual));
+              state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
+              saveCheckpoint({
+                runKey,
+                dataInicioYmd,
+                dataFimYmd,
+                tribunaisConcluidos: unidadesConcluidasLista,
+                novas: state.progress.novas,
+                duplicadas: state.progress.duplicadas,
+                descartadas: state.progress.descartadas,
+                tempoInicio,
+              });
+              const pct = state.unitTotal > 0
+                ? Math.min(100, Math.round((state.unitDone / state.unitTotal) * 100))
+                : 0;
+              updateProgress({
+                percentage: pct,
+                tribunaisConcluidos: unidadesConcluidasLista.length,
+                mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
+              });
+              syncExecutionProgress({}, true);
             }
-            unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monIdAtual));
-            saveCheckpoint({
-              runKey,
-              dataInicioYmd,
-              dataFimYmd,
-              tribunaisConcluidos: unidadesConcluidasLista,
-              novas: state.progress.novas,
-              duplicadas: state.progress.duplicadas,
-              descartadas: state.progress.descartadas,
-              tempoInicio,
-            });
-            syncExecutionProgress({}, true);
           }
+        } finally {
+          emProcessamentoPorBand[unit.band]--;
         }
       }
     };
 
-    // Atribuição de tipo primário por VPS — round-robin sobre os tipos ativos.
-    const workersToRun = vias.slice(0, concorrenciaEfetiva).map((v, idx) => {
-      const tipoPrimario = tiposAtivos[idx % tiposAtivos.length];
-      return worker(v, tipoPrimario);
-    });
+    const workersToRun = vias.slice(0, concorrenciaEfetiva).map((v) => worker(v));
     await Promise.all(workersToRun);
 
     if (signal.aborted) {
