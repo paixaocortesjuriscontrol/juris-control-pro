@@ -1,0 +1,1 @@
+DELETE FROM public.kurier_publicacoes_raw WHERE created_at >= CURRENT_DATE;
