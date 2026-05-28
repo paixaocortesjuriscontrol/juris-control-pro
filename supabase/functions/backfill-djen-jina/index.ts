@@ -369,6 +369,7 @@ serve(async (req) => {
       .from("monitoramentos_djen")
       .select("*")
       .eq("ativo", true)
+      .neq("tipo", "kurier_only")
       .range(offset, offset + MAX_MONITORAMENTOS_PER_CALL - 1);
 
     if (monitoramentoId) {
@@ -398,7 +399,8 @@ serve(async (req) => {
     const { count: totalCount } = await supabase
       .from("monitoramentos_djen")
       .select("*", { count: "exact", head: true })
-      .eq("ativo", true);
+      .eq("ativo", true)
+      .neq("tipo", "kurier_only");
 
     const hasMoreMonitoramentos = !monitoramentoId && offset + monitoramentos.length < (totalCount || 0);
 
