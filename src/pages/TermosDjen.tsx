@@ -80,6 +80,7 @@ export default function TermosDjen() {
   const [tipoFiltro, setTipoFiltro] = useState<string>("todos");
   const [tribunalFiltro, setTribunalFiltro] = useState<string>("todos");
   const [statusFiltro, setStatusFiltro] = useState<string>("todos");
+  const [kurierFiltro, setKurierFiltro] = useState<string>("todos");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMonitoramento, setEditingMonitoramento] = useState<MonitoramentoDjen | null>(null);
@@ -136,6 +137,10 @@ export default function TermosDjen() {
       if (statusFiltro === "ativo" && !m.ativo) return false;
       if (statusFiltro === "pausado" && m.ativo) return false;
 
+      // Filtro Somente Kurier
+      if (kurierFiltro === "somente" && !m.somente_kurier) return false;
+      if (kurierFiltro === "excluir" && m.somente_kurier) return false;
+
       // Filtro de tribunal
       if (tribunalFiltro !== "todos") {
         if (tribunalFiltro === "sem-tribunal") {
@@ -164,13 +169,14 @@ export default function TermosDjen() {
       if (!db) return -1;
       return da.localeCompare(db, 'pt-BR');
     });
-  }, [todosMonitoramentos, isAdmin, coordenacoesPermitidas, coordenacaoFiltro, tipoFiltro, statusFiltro, tribunalFiltro, termoBusca]);
+  }, [todosMonitoramentos, isAdmin, coordenacoesPermitidas, coordenacaoFiltro, tipoFiltro, statusFiltro, kurierFiltro, tribunalFiltro, termoBusca]);
 
   const filtrosAtivos =
     coordenacaoFiltro !== "__all__" ||
     tipoFiltro !== "todos" ||
     tribunalFiltro !== "todos" ||
     statusFiltro !== "todos" ||
+    kurierFiltro !== "todos" ||
     termoBusca.trim() !== "";
 
   const limparFiltros = () => {
@@ -178,6 +184,7 @@ export default function TermosDjen() {
     setTipoFiltro("todos");
     setTribunalFiltro("todos");
     setStatusFiltro("todos");
+    setKurierFiltro("todos");
     setTermoBusca("");
   };
 
@@ -456,6 +463,18 @@ export default function TermosDjen() {
                     <SelectItem value="todos">Todos status</SelectItem>
                     <SelectItem value="ativo">Ativos</SelectItem>
                     <SelectItem value="pausado">Pausados</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Filtro Somente Kurier */}
+                <Select value={kurierFiltro} onValueChange={setKurierFiltro}>
+                  <SelectTrigger className="w-full sm:w-[170px] h-9">
+                    <SelectValue placeholder="Kurier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos (Kurier)</SelectItem>
+                    <SelectItem value="somente">Somente Kurier</SelectItem>
+                    <SelectItem value="excluir">Excluir Somente Kurier</SelectItem>
                   </SelectContent>
                 </Select>
 
