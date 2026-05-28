@@ -361,9 +361,14 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
   const tempoDecorrido = state.progress.status === 'executando'
     ? Math.max(state.progress.tempoDecorrido || 0, tempoComputado)
     : tempoComputado;
-  const percentageComputado = totalGlobal > 0
-    ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
-    : 0;
+  // Progresso baseado em unidades concluídas (mais estável que current/total
+  // de tracks, que oscila enquanto tracks de bandas futuras esperam com
+  // current=0). Cai pro modo antigo se unitTotal não estiver inicializado.
+  const percentageComputado = state.unitTotal > 0
+    ? Math.min(100, Math.max(0, Math.round((state.unitDone / state.unitTotal) * 100)))
+    : (totalGlobal > 0
+      ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
+      : 0);
   const percentage = state.progress.status === 'executando'
     ? Math.max(state.progress.percentage || 0, percentageComputado)
     : percentageComputado;
