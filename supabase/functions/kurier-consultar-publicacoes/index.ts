@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
     const coordIdsArr = Array.from(coordIdsDaCredencial);
-    // coords com flag "Só Kurier" ligada: nessas, só aplicamos termos tipo='kurier_only'.
+    // coords com flag "Só Kurier" ligada: nessas, só aplicamos termos com somente_kurier=true.
     const coordsSoKurier = new Set<string>(
       (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
     );
