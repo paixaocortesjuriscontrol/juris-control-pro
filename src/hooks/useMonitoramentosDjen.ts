@@ -6,7 +6,7 @@ import { normalizeTribunais } from "@/utils/djenTribunais";
 
 export interface MonitoramentoDjen {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'kurier_only';
   termo_busca: string;
   oab?: string;
   uf?: string;
