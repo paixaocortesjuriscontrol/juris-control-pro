@@ -129,7 +129,7 @@ async function processarCredencial(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  modoPersonalizado = false,
+  modoPersonalizado = true,
 ) {
   track.status = "executando";
   track.startedAt = Date.now();
