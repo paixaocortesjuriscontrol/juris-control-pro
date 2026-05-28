@@ -368,12 +368,15 @@ Deno.serve(async (req: Request) => {
         .from("kurier_credencial_coordenacoes")
         .select("coordenacao_id, coordenacoes!inner(id, nome)")
         .eq("credencial_id", cred.id)
-        .eq("captura_total", true);
+        .eq("captura_total", true)
+        // Coords marcadas como "Só Kurier" NÃO recebem captura total —
+        // só entram publicações que casem com termos somente_kurier=true.
+        .eq("somente_kurier_only", false);
       if (coordenacao_id) vincCtQuery = vincCtQuery.eq("coordenacao_id", coordenacao_id);
       const { data: vincCtData } = await vincCtQuery;
       coordsCtRaw = ((vincCtData ?? []) as any[])
         .map((v) => v.coordenacoes)
-        .filter((c) => c && coordIdsDaCredencial.has(c.id));
+        .filter((c) => c && coordIdsDaCredencial.has(c.id) && !coordsSoKurier.has(c.id));
     }
     const capturaTotalCoords: Array<{ id: string; monit_id: string }> = [];
     for (const c of coordsCtRaw) {
