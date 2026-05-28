@@ -227,7 +227,8 @@ async function fetchActiveMonitoramentos(
   let q = supabase
     .from("monitoramentos_djen")
     .select("id, tipo, termo_busca, oab, uf, ativo, exclusoes, tribunais, termos_or, condicao_concomitante, coordenacao_id")
-    .eq("ativo", true);
+    .eq("ativo", true)
+    .neq("tipo", "kurier_only");
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
   if (ids && ids.length > 0) q = q.in("id", ids);
   const { data, error } = await q;
