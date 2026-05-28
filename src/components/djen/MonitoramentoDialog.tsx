@@ -117,8 +117,8 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const { data: coordenacoesAll = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
   
-  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte'>(
-    fonte?.tipo || 'palavra-chave'
+  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'kurier_only'>(
+    (fonte?.tipo as any) || 'palavra-chave'
   );
   const [termoBusca, setTermoBusca] = useState(fonte?.termo_busca || '');
   const [oab, setOab] = useState(fonte?.oab || '');
@@ -424,6 +424,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                     <SelectItem value="advogado">Advogado (OAB ou Nome)</SelectItem>
                     <SelectItem value="processo">Número do Processo</SelectItem>
                     <SelectItem value="parte">Polo passivo ou ativo</SelectItem>
+                    <SelectItem value="kurier_only">Termo só Kurier</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
