@@ -37,6 +37,7 @@ export interface KurierProgress {
   duplicadas: number;
   descartadas: number;
   confirmadas: number;
+  recebidas: number;
   percentage: number;
   mensagem: string;
   tempoDecorrido: number;
@@ -68,6 +69,7 @@ function initialProgress(): KurierProgress {
     duplicadas: 0,
     descartadas: 0,
     confirmadas: 0,
+    recebidas: 0,
     percentage: 0,
     mensagem: "",
     tempoDecorrido: 0,
@@ -118,6 +120,7 @@ function recompute() {
   progress.duplicadas = progress.tracks.reduce((s, t) => s + t.duplicadas, 0);
   progress.descartadas = progress.tracks.reduce((s, t) => s + t.descartadas, 0);
   progress.confirmadas = progress.tracks.reduce((s, t) => s + t.confirmadas, 0);
+  progress.recebidas = progress.tracks.reduce((s, t) => s + t.recebidas, 0);
   progress.percentage = progress.totalCredenciais > 0
     ? Math.floor((progress.credenciaisConcluidas / progress.totalCredenciais) * 100)
     : 0;
@@ -166,7 +169,9 @@ async function processarCredencial(
       track.recebidas += recebidas;
       track.lotes += Number(r?.lotes_processados ?? 0);
       track.erro = r?.erro ?? null;
-      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+      track.mensagem = modoPersonalizado
+        ? `${track.recebidas} recebidas, ${track.novas} novas, ${track.duplicadas} dup em ${track.lotes} lote(s)`
+        : `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
       recompute();
       emit();
 
@@ -187,7 +192,9 @@ async function processarCredencial(
 
     track.status = cancelRequested ? "cancelado" : "concluido";
     if (track.status === "concluido") {
-      track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+      track.mensagem = modoPersonalizado
+        ? `${track.recebidas} recebidas, ${track.novas} novas, ${track.duplicadas} dup em ${track.lotes} lote(s)`
+        : `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
     }
   } catch (e: any) {
     track.status = "erro";
@@ -350,6 +357,8 @@ export async function executarDjenTermosKurier(
       progress.status = houveErro ? "erro" : "concluido";
       progress.mensagem = houveErro
         ? `Concluído com erros (${progress.novas} novas)`
+        : modoPersonalizado && !drenarBacklog
+        ? `Concluído: ${progress.recebidas} recebidas da Kurier, ${progress.novas} novas, ${progress.duplicadas} dup`
         : `Concluído: ${progress.novas} novas, ${progress.duplicadas} dup, ${progress.confirmadas} confirmadas`;
       clearCheckpoint();
     }
