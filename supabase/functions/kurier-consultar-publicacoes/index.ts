@@ -466,15 +466,13 @@ Deno.serve(async (req: Request) => {
     if (useDateMode) {
       const start = new Date(`${data_inicio}T00:00:00Z`);
       const end = new Date(`${data_fim}T00:00:00Z`);
-      // CRÍTICO: o endpoint Kurier "Personalizado?data=X" filtra pela DATA DE
-      // PUBLICAÇÃO (do jornal), não pela DATA DE DISPONIBILIZAÇÃO. Como a
-      // publicação ocorre normalmente em D+1 da disponibilização, para capturar
-      // itens DISPONIBILIZADOS em [data_inicio..data_fim] precisamos consultar
-      // a API entre data_inicio e data_fim+1 (e ainda assim filtrar localmente
-      // por data_disponibilizacao para evitar trazer itens fora da janela).
-      const extendedEnd = new Date(end);
-      extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 1);
-      for (let d = new Date(start); d.getTime() <= extendedEnd.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+      // O endpoint Kurier "Personalizado?data=X" filtra pela DATA DE PUBLICAÇÃO
+      // (do jornal/diário). Espelhamos exatamente o comportamento da tela
+      // Kurier: data_inicio/data_fim são tratados como datas de PUBLICAÇÃO e
+      // trazemos TODOS os itens devolvidos pela API, sem filtro local por
+      // disponibilização (a tela mostra "X publicações encontradas" — queremos
+      // o mesmo número aqui).
+      for (let d = new Date(start); d.getTime() <= end.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
         datas.push(d.toISOString().slice(0, 10));
       }
     }
@@ -562,16 +560,17 @@ Deno.serve(async (req: Request) => {
         // descartar/cadastrar captura total com data errada ou nula.
         const refIso = refIsoOriginal ?? toIsoDate(data_inicio);
         const refYmd = refIso ? refIso.slice(0, 10) : null;
-        // Filtro de janela ESTRITO por DATA DE DISPONIBILIZAÇÃO em TODOS os modos.
-        // - Fila: a API Kurier ignora dataInicio/dataFim, então cortamos aqui e
+        // Filtro de janela:
+        // - Fila: ESTRITO por DATA DE DISPONIBILIZAÇÃO. A API Kurier ignora
+        //   dataInicio/dataFim no endpoint de fila, então cortamos aqui e
         //   confirmamos o item antigo para liberar a fila.
-        // - Personalizado: o endpoint "Personalizado?data=X" filtra pela data de
-        //   publicação do jornal (não disponibilização), então também precisamos
-        //   descartar localmente itens cuja disponibilização caia fora da janela.
-        //   NÃO confirmamos em modo personalizado (endpoint é só leitura).
-        const antesDaJanela = !!(refYmd && data_inicio && refYmd < data_inicio);
-        const depoisDaJanela = !!(refYmd && data_fim && refYmd > data_fim);
-        const semData = !refYmd;
+        // - Personalizado: NENHUM filtro local. O próprio endpoint
+        //   "Personalizado?data=X" já filtrou por data de PUBLICAÇÃO; aceitamos
+        //   todos os itens retornados (espelhando a tela Kurier que mostra
+        //   "X publicações encontradas").
+        const antesDaJanela = !useDateMode && !!(refYmd && data_inicio && refYmd < data_inicio);
+        const depoisDaJanela = !useDateMode && !!(refYmd && data_fim && refYmd > data_fim);
+        const semData = !useDateMode && !refYmd;
         const foraJanela = semData || antesDaJanela || depoisDaJanela;
         if (foraJanela) {
           totalDescartadas++;
