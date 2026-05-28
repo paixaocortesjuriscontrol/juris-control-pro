@@ -1,0 +1,2 @@
+ALTER TABLE public.publicacoes_djen ADD COLUMN IF NOT EXISTS kurier_login text;
+CREATE INDEX IF NOT EXISTS idx_publicacoes_djen_kurier_login ON public.publicacoes_djen(kurier_login) WHERE kurier_login IS NOT NULL;
