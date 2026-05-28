@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       .from("monitoramentos_djen")
       .select("id, termo, tipo, tribunal")
       .eq("ativo", true)
-      .neq("tipo", "kurier_only");
+      .neq("somente_kurier", true);
 
     if (tribunal) {
       monitoramentosQuery = monitoramentosQuery.eq("tribunal", tribunal);

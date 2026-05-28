@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useMonitoramentosDjen, MonitoramentoDjen } from "@/hooks/useMonitoramentosDjen";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -117,11 +118,12 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const { data: coordenacoesAll = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
   
-  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'kurier_only'>(
+  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte'>(
     (fonte?.tipo as any) || 'palavra-chave'
   );
   const [termoBusca, setTermoBusca] = useState(fonte?.termo_busca || '');
   const [oab, setOab] = useState(fonte?.oab || '');
+  const [somenteKurier, setSomenteKurier] = useState<boolean>(!!(fonte as any)?.somente_kurier);
   const [selectedUfs, setSelectedUfs] = useState<string[]>([]);
   const [todasRegioes, setTodasRegioes] = useState(false);
   const [coordenacaoId, setCoordenacaoId] = useState<string>(fonte?.coordenacao_id || '');
@@ -147,6 +149,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setTipo(src.tipo as typeof tipo);
       setTermoBusca(src.termo_busca || '');
       setOab(src.oab || '');
+      setSomenteKurier(!!(src as any).somente_kurier);
       setCoordenacaoId(src.coordenacao_id || '');
       // Em duplicação, sufixar a descrição para o usuário identificar
       const baseDesc = src.descricao || '';
@@ -190,6 +193,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setTipo('palavra-chave');
       setTermoBusca('');
       setOab('');
+      setSomenteKurier(false);
       setCoordenacaoId('');
       setDescricao('');
       setExclusoes([]);
@@ -336,6 +340,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       oab: tipo === 'advogado' ? oab : undefined,
       uf: ufValue,
       coordenacao_id: coordenacaoId || undefined,
+      somente_kurier: somenteKurier,
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
@@ -424,9 +429,22 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                     <SelectItem value="advogado">Advogado (OAB ou Nome)</SelectItem>
                     <SelectItem value="processo">Número do Processo</SelectItem>
                     <SelectItem value="parte">Polo passivo ou ativo</SelectItem>
-                    <SelectItem value="kurier_only">Termo só Kurier</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+                <Switch
+                  id="somente-kurier"
+                  checked={somenteKurier}
+                  onCheckedChange={setSomenteKurier}
+                />
+                <label htmlFor="somente-kurier" className="cursor-pointer space-y-1 text-sm leading-none">
+                  <span className="font-medium">Termo somente para Kurier</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Quando ativo, este termo só será usado na busca via Kurier. Não será aplicado nas demais buscas DJEN (PJE Comunica, paralela, STF, etc.).
+                  </span>
+                </label>
               </div>
 
               {tipo === 'advogado' ? (

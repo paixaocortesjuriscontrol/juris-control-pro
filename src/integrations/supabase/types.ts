@@ -4126,6 +4126,7 @@ export type Database = {
           exclusoes: string[] | null
           id: string
           oab: string | null
+          somente_kurier: boolean
           termo_busca: string
           termos_or: string[] | null
           tipo: string
@@ -4145,6 +4146,7 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
+          somente_kurier?: boolean
           termo_busca: string
           termos_or?: string[] | null
           tipo: string
@@ -4164,6 +4166,7 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
+          somente_kurier?: boolean
           termo_busca?: string
           termos_or?: string[] | null
           tipo?: string

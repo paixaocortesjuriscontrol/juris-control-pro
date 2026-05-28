@@ -6,7 +6,7 @@ import { normalizeTribunais } from "@/utils/djenTribunais";
 
 export interface MonitoramentoDjen {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'kurier_only';
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte';
   termo_busca: string;
   oab?: string;
   uf?: string;
@@ -23,6 +23,7 @@ export interface MonitoramentoDjen {
   tribunais?: string[];
   tribunais_ufs?: string[];
   buscar_parte?: boolean;
+  somente_kurier?: boolean;
 }
 
 export interface PublicacaoDjen {

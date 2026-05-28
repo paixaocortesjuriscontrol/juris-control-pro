@@ -1679,7 +1679,7 @@ async function executarLoop(
 
   try {
     // Carregar monitoramentos
-    let query = supabase.from('monitoramentos_djen').select('*').eq('ativo', true).neq('tipo', 'kurier_only');
+    let query = supabase.from('monitoramentos_djen').select('*').eq('ativo', true).neq('somente_kurier', true);
     if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
     if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
     const { data: termos, error } = await query;

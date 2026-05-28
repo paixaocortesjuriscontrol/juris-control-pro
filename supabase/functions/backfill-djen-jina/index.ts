@@ -369,7 +369,7 @@ serve(async (req) => {
       .from("monitoramentos_djen")
       .select("*")
       .eq("ativo", true)
-      .neq("tipo", "kurier_only")
+      .neq("somente_kurier", true)
       .range(offset, offset + MAX_MONITORAMENTOS_PER_CALL - 1);
 
     if (monitoramentoId) {
@@ -400,7 +400,7 @@ serve(async (req) => {
       .from("monitoramentos_djen")
       .select("*", { count: "exact", head: true })
       .eq("ativo", true)
-      .neq("tipo", "kurier_only");
+      .neq("somente_kurier", true);
 
     const hasMoreMonitoramentos = !monitoramentoId && offset + monitoramentos.length < (totalCount || 0);
 

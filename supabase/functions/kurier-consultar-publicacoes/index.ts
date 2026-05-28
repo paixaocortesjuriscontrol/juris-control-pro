@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
     const coordIdsArr = Array.from(coordIdsDaCredencial);
-    // coords com flag "Só Kurier" ligada: nessas, só aplicamos termos tipo='kurier_only'.
+    // coords com flag "Só Kurier" ligada: nessas, só aplicamos termos com somente_kurier=true.
     const coordsSoKurier = new Set<string>(
       (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
     );
@@ -333,7 +333,7 @@ Deno.serve(async (req: Request) => {
     if (coordIdsArr.length > 0) {
       let monitQuery = admin
         .from("monitoramentos_djen")
-        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por")
+        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por, somente_kurier")
         .eq("ativo", true)
         .in("coordenacao_id", coordIdsArr);
       if (monitoramento_ids?.length) monitQuery = monitQuery.in("id", monitoramento_ids);
@@ -347,10 +347,11 @@ Deno.serve(async (req: Request) => {
       }
       const { data: monitsRaw } = await monitQuery;
       const allMonits = (monitsRaw ?? []) as any[];
-      // Filtra por coord: se a coord está em "Só Kurier", mantém apenas tipo='kurier_only';
-      // senão, mantém todos (incluindo kurier_only).
+      // Filtra por coord: se a coord está marcada como "Só Kurier" no vínculo da
+      // credencial, mantém apenas monitoramentos com somente_kurier=true; senão,
+      // mantém todos (Kurier pode usar termos comuns e os marcados como somente_kurier).
       monitoramentos = allMonits.filter((m: any) =>
-        coordsSoKurier.has(m.coordenacao_id) ? m.tipo === "kurier_only" : true,
+        coordsSoKurier.has(m.coordenacao_id) ? m.somente_kurier === true : true,
       ) as any;
     } else {
       console.warn(`[kurier] credencial ${cred.id} sem coordenações vinculadas — pulando matching de monitoramentos`);
