@@ -311,11 +311,15 @@ Deno.serve(async (req: Request) => {
     // monitoramentos para filtrar a query de monitoramentos por coordenação.
     const { data: vincCt, error: vincCtErr } = await admin
       .from("kurier_credencial_coordenacoes")
-      .select("coordenacao_id")
+      .select("coordenacao_id, somente_kurier_only")
       .eq("credencial_id", cred.id);
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
     const coordIdsArr = Array.from(coordIdsDaCredencial);
+    // coords com flag "Só Kurier" ligada: nessas, só aplicamos termos tipo='kurier_only'.
+    const coordsSoKurier = new Set<string>(
+      (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
+    );
 
     // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
     // recebidas via Kurier. Sem monitoramento que case, a publicação é descartada
@@ -342,7 +346,12 @@ Deno.serve(async (req: Request) => {
         }
       }
       const { data: monitsRaw } = await monitQuery;
-      monitoramentos = (monitsRaw ?? []) as any;
+      const allMonits = (monitsRaw ?? []) as any[];
+      // Filtra por coord: se a coord está em "Só Kurier", mantém apenas tipo='kurier_only';
+      // senão, mantém todos (incluindo kurier_only).
+      monitoramentos = allMonits.filter((m: any) =>
+        coordsSoKurier.has(m.coordenacao_id) ? m.tipo === "kurier_only" : true,
+      ) as any;
     } else {
       console.warn(`[kurier] credencial ${cred.id} sem coordenações vinculadas — pulando matching de monitoramentos`);
     }
