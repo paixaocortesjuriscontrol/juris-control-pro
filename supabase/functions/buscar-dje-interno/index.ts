@@ -144,7 +144,8 @@ Deno.serve(async (req) => {
     let monitoramentosQuery = supabase
       .from("monitoramentos_djen")
       .select("id, termo, tipo, tribunal")
-      .eq("ativo", true);
+      .eq("ativo", true)
+      .neq("tipo", "kurier_only");
 
     if (tribunal) {
       monitoramentosQuery = monitoramentosQuery.eq("tribunal", tribunal);
