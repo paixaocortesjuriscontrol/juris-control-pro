@@ -1,50 +1,44 @@
-# Serializar busca de "parte" por tribunal (exceto TST)
+## Objetivo
 
-## Problema
-Hoje, em `useDjenTermosParalelaEngine.ts`, o tipo `parte` gera **uma unidade por (tribunal × monitoramento de parte)**. Resultado: o mesmo tribunal (TJPI, TJSP, etc.) é chamado N vezes em concorrência pelas diferentes VPSs — gera ruído, 429 e a sensação de "monte de TJPI" na execução.
+Hoje o `makeDedupKey` em `src/utils/djenDedup.ts` tem duas estratégias:
+1. **Chave forte:** `coordenacao + id_djen` (quando `id_djen` existe).
+2. **Fallback:** `coordenacao + processo_digits + data + conteúdo normalizado` (quando `id_djen` é nulo).
 
-A regra correta (sem `OR` no `nomeParte`, conforme constraint `djen-paralela-parte-sem-palavra-chave`): para cada tribunal não-TST, as N partes devem ser consultadas **em série dentro do mesmo worker**. TST continua paralelo (1 unidade por parte) por ser o tribunal mais pesado e o que mais se beneficia de paralelismo.
+Investigação confirmou que **100% das publicações inseridas pelo DJEN Termos Paralela nas últimas 24h têm `id_djen` preenchido**. Os 178 registros com `id_djen` nulo vêm exclusivamente de outras fontes (`kurier` e `dejt-pdf`), que devem continuar usando o fallback.
 
-## Mudanças (arquivo único)
+## Mudança
 
-`src/hooks/useDjenTermosParalelaEngine.ts`
+Em `src/utils/djenDedup.ts`, dentro de `makeDedupKey`:
 
-1. **WorkUnit ganha lista de monitoramentos**
-   - Trocar `WorkUnit = { tipo; tribunal; monId? }` por `{ tipo; tribunal; monIds?: string[] }`.
+- Se `id_djen` estiver presente → continua usando `coordenacao|id_djen|<id>` (sem alteração).
+- Se `id_djen` for nulo **e** a publicação for da Paralela → não aplicar fallback de conteúdo; gerar chave única por registro (`coordenacao|paralela-no-id|<pub.id>`) para que ela nunca seja colapsada com nenhuma outra.
+- Se `id_djen` for nulo e a fonte **não** for Paralela (kurier, dejt-pdf, scrapers TJ/TRT) → manter o fallback atual (processo + data + conteúdo).
 
-2. **Montagem da fila (`filasPorTipo`) para `tipo === 'parte'`**
-   - Se `trib === 'TST'` → mantém o comportamento atual: 1 unidade por monitoramento (paralelo entre VPSs).
-   - Se `trib !== 'TST'` → cria **1 única unidade** com `monIds = [todos os monitoramentos de parte daquele tribunal ainda não concluídos]`. Pula a unidade se a lista ficar vazia (todos já no checkpoint).
+### Como identificar Paralela
 
-3. **Loop do worker (`worker(...)`)**
-   - Após `pickNextUnit`, se `unit.monIds` tem múltiplos elementos, iterar serialmente:
-     ```
-     for (const monId of unit.monIds) {
-       if (signal.aborted) break;
-       await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, monId);
-       unidadesConcluidasLista.push(trackKey(unit.tipo, unit.tribunal, monId));
-       saveCheckpoint({...});
-       syncExecutionProgress({}, true);
-     }
-     ```
-   - Para `tipo !== 'parte'` (monIds vazio/undefined): chama uma única vez como hoje, com `monId = null`.
+Paralela insere com `tipo_origem === 'termo' | 'processo'` e `fonte` igual à sigla do tribunal vinda do PJE Comunica (ex.: `TST`, `STJ`, `TRT2`, `TJSP`) ou literal `DJEN-PARALELA`. As fontes que **não** são Paralela e populam `publicacoes_djen` são bem definidas:
 
-4. **Tracks (visualização) — sem alteração estrutural**
-   - Continuam 1 track por `(tipo, trib, monId)` para que a UI mostre cada parte individualmente. O que muda é só **quem despacha**: um único worker percorre todas as tracks daquele tribunal em sequência, em vez de várias VPSs disputarem o mesmo CloudFront.
+- `kurier`
+- `dejt-pdf`
+- scrapers DJE estaduais (gravam `fonte = 'TJBA'`, `'TJMG'`, `'TRT3'`, etc., **mas sempre sem id_djen** e vindos de outra rota)
 
-5. **Mensagem inicial / log de spawn**
-   - Atualizar contagem de "unidades pendentes" considerando que partes não-TST viram 1 unidade agrupada (apenas para fins de mensagem; o total de tracks na UI permanece o mesmo, então a barra de progresso não muda de denominador).
+Para evitar ambiguidade com siglas (a sigla `TJBA` aparece tanto via Paralela quanto via scraper TJBA), a regra mais segura é:
 
-6. **Checkpoint**
-   - Continua usando `trackKey(tipo, trib, monId)` por parte individual — assim retomadas após queda só refazem as partes pendentes daquele tribunal, sem regredir as já concluídas dentro da mesma unidade serial.
+> "Paralela" = qualquer publicação cuja `fonte` **não** seja `kurier`, `dejt-pdf` nem uma das siglas reservadas aos scrapers DJE estaduais. Na prática, como Paralela sempre tem `id_djen`, essa classificação só importa no caso patológico de `id_djen` nulo — e nesse caso a chave única evita colapso indevido.
 
-## Fora de escopo
-- Não mexer em `useDjenTermosParalela.ts` (hook React).
-- Não tocar em `processarTribunalTrack` nem na lógica de busca (`nomeParte`, validação, dedupe).
-- Não alterar TST (parte) — continua paralelo.
-- Não alterar tipos `palavra-chave`, `advogado`, `processo`.
+Implementação proposta: lista de fontes que continuam usando fallback (`FONTES_COM_FALLBACK = new Set(['kurier','dejt-pdf', ...scrapers estaduais conhecidos])`). Para qualquer outra fonte sem `id_djen`, retornar chave única baseada em `pub.id`.
 
-## Resultado esperado
-- TJPI, TJSP, TRT2 etc. aparecem **1 vez** por execução, com a parte atual sendo atualizada serialmente (`termoAtual` da track ativa).
-- TST permanece distribuído entre as VPSs do pool.
-- Mantém constraint `djen-paralela-parte-sem-palavra-chave` (nada de `OR`, nada de `palavraChave` para `parte`).
+## Arquivo afetado
+
+- `src/utils/djenDedup.ts` (única mudança).
+
+## Validação
+
+- Sanity check com a query atual (24h): nenhuma publicação Paralela tem `id_djen` nulo → nenhum efeito visível na UI hoje.
+- Garante que, se alguma vez uma publicação Paralela vier sem `id_djen` (regressão de API), ela aparece como registro independente em vez de ser colapsada incorretamente com outra de conteúdo similar.
+
+## Não incluído
+
+- Backfill histórico de `id_djen`.
+- Mudanças no dedup do backend (`hash_conteudo`).
+- Mudanças em Kurier/dejt-pdf (continuam com fallback).
