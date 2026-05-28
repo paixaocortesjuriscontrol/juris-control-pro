@@ -231,7 +231,8 @@ serve(async (req) => {
         const { data: mons } = await supabase
           .from("monitoramentos_djen")
           .select("tribunais")
-          .eq("ativo", true);
+          .eq("ativo", true)
+          .neq("tipo", "kurier_only");
         const base: string[] = [];
         (mons || []).forEach((m: any) => {
           const ts = Array.isArray(m?.tribunais) ? m.tribunais : [];
