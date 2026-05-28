@@ -64,16 +64,25 @@ export function KurierCredenciaisPanel() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("kurier_credencial_coordenacoes")
-        .select("credencial_id, coordenacao_id, captura_total");
+        .select("credencial_id, coordenacao_id, captura_total, somente_kurier_only");
       if (error) throw error;
-      return data as { credencial_id: string; coordenacao_id: string; captura_total: boolean }[];
+      return data as {
+        credencial_id: string;
+        coordenacao_id: string;
+        captura_total: boolean;
+        somente_kurier_only: boolean;
+      }[];
     },
   });
 
-  const vinculosPorCred = new Map<string, Map<string, boolean>>();
+  type VincFlags = { capturaTotal: boolean; somenteKurierOnly: boolean };
+  const vinculosPorCred = new Map<string, Map<string, VincFlags>>();
   for (const v of vinculos) {
     if (!vinculosPorCred.has(v.credencial_id)) vinculosPorCred.set(v.credencial_id, new Map());
-    vinculosPorCred.get(v.credencial_id)!.set(v.coordenacao_id, !!v.captura_total);
+    vinculosPorCred.get(v.credencial_id)!.set(v.coordenacao_id, {
+      capturaTotal: !!v.captura_total,
+      somenteKurierOnly: !!v.somente_kurier_only,
+    });
   }
 
   async function toggleVinculo(credencialId: string, coordenacaoId: string, marcar: boolean) {
@@ -108,6 +117,20 @@ export function KurierCredenciaisPanel() {
       await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
     } catch (e: any) {
       toast.error(`Falha ao atualizar captura total: ${e?.message ?? e}`);
+    }
+  }
+
+  async function toggleSomenteKurierOnlyVinculo(credencialId: string, coordenacaoId: string, valor: boolean) {
+    try {
+      const { error } = await (supabase as any)
+        .from("kurier_credencial_coordenacoes")
+        .update({ somente_kurier_only: valor })
+        .eq("credencial_id", credencialId)
+        .eq("coordenacao_id", coordenacaoId);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
+    } catch (e: any) {
+      toast.error(`Falha ao atualizar "Só Kurier": ${e?.message ?? e}`);
     }
   }
 
