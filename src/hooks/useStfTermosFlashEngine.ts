@@ -429,7 +429,8 @@ async function executarLoop(
     let query = supabase
       .from('monitoramentos_djen')
       .select('*')
-      .eq('ativo', true);
+      .eq('ativo', true)
+      .neq('tipo', 'kurier_only');
 
     if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
     if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
