@@ -4413,6 +4413,12 @@ const AnaliseDjen = () => {
                                       <span className="text-muted-foreground font-medium">Captura:</span>
                                       <span className="text-muted-foreground">{formatDateShort(pub.created_at)}</span>
                                     </div>
+                                    {(pub.fonte || '').toLowerCase() === 'kurier' && kurierLoginsMap[pub.id] && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-muted-foreground font-medium">Login Kurier:</span>
+                                        <span className="font-mono text-orange-700 dark:text-orange-400">{kurierLoginsMap[pub.id]}</span>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
