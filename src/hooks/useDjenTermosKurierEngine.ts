@@ -144,8 +144,9 @@ async function processarCredencial(
       const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
         body: {
           credencial_id: track.credencialId,
-          // Em modo data, a edge function já processa todas as datas em uma chamada.
-          max_lotes: dataInicioYmd && dataFimYmd ? 1 : 3,
+          // A edge function consome até MAX_LOTES_PER_CALL lotes de 50 itens por
+          // chamada. O engine encadeia chamadas até a fila esvaziar.
+          max_lotes: 5,
           monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
           coordenacao_id: coordenacaoId || undefined,
           data_inicio: dataInicioYmd || undefined,
@@ -179,6 +180,9 @@ async function processarCredencial(
       // Fila: continua até a API voltar vazia. Lotes parciais podem ser apenas o
       // fim de uma faixa antiga; ainda assim seguimos. Só paramos quando 0.
       if (recebidas === 0 || Number(r?.lotes_processados ?? 0) === 0) break;
+      // Sinal explícito da edge function de que ultrapassamos a janela
+      // (todos os itens do lote têm data_disponibilizacao > data_fim).
+      if (r?.janela_ultrapassada === true) break;
     }
 
     track.status = cancelRequested ? "cancelado" : "concluido";

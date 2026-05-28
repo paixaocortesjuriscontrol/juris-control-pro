@@ -86,11 +86,14 @@ export function useDjenTermosKurierScheduler() {
         .update({ ultima_execucao: new Date().toISOString() })
         .eq("tipo", "kurier");
       await reload();
-      // Sempre dispara apenas para HOJE — evita reprocessar backlog antigo da fila Kurier.
-      // modoPersonalizado=true espelha exatamente o botão manual (endpoint por data).
+      // Sempre dispara para HOJE em MODO FILA (ConsultarPublicacoes). O modo
+      // personalizado filtra pela DATA DE PUBLICAÇÃO do jornal e perde itens
+      // disponibilizados hoje; a fila devolve a sequência ordenada com
+      // data_disponibilizacao correta e permite drenar lotes de 50 até alcançar
+      // o dia atual.
       const d = new Date();
       const hojeYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      void executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd, false, true);
+      void executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd, false, false);
     }, 30_000);
     return () => clearInterval(intv);
     // eslint-disable-next-line react-hooks/exhaustive-deps

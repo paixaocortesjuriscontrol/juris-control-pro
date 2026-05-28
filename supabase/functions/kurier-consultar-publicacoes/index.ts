@@ -232,7 +232,7 @@ function normalizeProcesso(n: string | null): string | null {
 const LOTE_SIZE = 50;
 const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
-const MAX_LOTES_PER_CALL = 1;
+const MAX_LOTES_PER_CALL = 5;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req: Request) => {
@@ -442,6 +442,9 @@ Deno.serve(async (req: Request) => {
     let totalDescartadas = 0;
     let ultimoErro: string | null = null;
     let lotesProcessados = 0;
+    let janelaUltrapassada = false;
+    let totalForaJanelaAntes = 0;
+    let totalForaJanelaDepois = 0;
 
     // Modo "personalizado": quando o usuário escolhe um intervalo de datas, usamos
     // o endpoint ConsultarPublicacoesPersonalizado (consulta por data, NÃO confirma)
@@ -520,6 +523,8 @@ Deno.serve(async (req: Request) => {
       const confirmacoes: Record<string, number | string>[] = [];
 
       const rawRows: any[] = [];
+      let itensNaJanelaNesteLote = 0;
+      let itensDepoisDaJanelaNesteLote = 0;
 
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
@@ -552,18 +557,45 @@ Deno.serve(async (req: Request) => {
         //   publicação do jornal (não disponibilização), então também precisamos
         //   descartar localmente itens cuja disponibilização caia fora da janela.
         //   NÃO confirmamos em modo personalizado (endpoint é só leitura).
-        const foraJanela = !refYmd
-          || (data_inicio && refYmd < data_inicio)
-          || (data_fim && refYmd > data_fim);
+        const antesDaJanela = !!(refYmd && data_inicio && refYmd < data_inicio);
+        const depoisDaJanela = !!(refYmd && data_fim && refYmd > data_fim);
+        const semData = !refYmd;
+        const foraJanela = semData || antesDaJanela || depoisDaJanela;
         if (foraJanela) {
-          if (!useDateMode) {
+          totalDescartadas++;
+          if (antesDaJanela) totalForaJanelaAntes++;
+          if (depoisDaJanela) {
+            totalForaJanelaDepois++;
+            itensDepoisDaJanelaNesteLote++;
+          }
+          // Confirmamos APENAS itens atrasados (antes da janela) para drenar a
+          // fila Kurier. Itens com data futura (depois da janela) NÃO são
+          // confirmados — precisam continuar na fila para serem processados
+          // no dia correto. Itens sem data também não são confirmados.
+          if (!useDateMode && antesDaJanela) {
             const confirmacaoForaJanela = buildConfirmacaoKurier(p);
             if (confirmacaoForaJanela) confirmacoes.push(confirmacaoForaJanela);
             const idKForaJanela = pickId(p);
             if (idKForaJanela) idsConfirmar.push(idKForaJanela);
           }
+          // Persiste motivo no raw para auditoria
+          const idKRaw = pickId(p) ?? `unknown_${sha256(JSON.stringify(p)).slice(0, 24)}`;
+          rawRows.push({
+            id_kurier: idKRaw,
+            credencial_id: cred.id,
+            login_usado: cred.login,
+            payload: p as any,
+            publicacao_djen_id: null,
+            motivo_descarte: antesDaJanela
+              ? "fora_janela_disp_antes"
+              : depoisDaJanela
+              ? "fora_janela_disp_depois"
+              : "fora_janela_sem_data",
+            recebida_em: new Date().toISOString(),
+          });
           continue;
         }
+        itensNaJanelaNesteLote++;
 
         // Kurier sempre traz o conteúdo completo em `Texto`; evita walk recursivo
         // pesado em CPU. Inclui também TermoPesquisa/Processo para matching.
@@ -773,6 +805,18 @@ Deno.serve(async (req: Request) => {
       }
 
       if (!useDateMode && pubs.length < LOTE_SIZE) break; // último lote da fila
+      // Se TODOS os itens deste lote são posteriores à janela, paramos: a fila
+      // ultrapassou o dia atual e seguir consumiria itens futuros sem necessidade
+      // (eles não devem ser confirmados nem persistidos).
+      if (!useDateMode
+          && itensNaJanelaNesteLote === 0
+          && itensDepoisDaJanelaNesteLote === pubs.length
+          && pubs.length > 0) {
+        janelaUltrapassada = true;
+        console.log(`[kurier] janela ultrapassada — todos os ${pubs.length} itens do lote são posteriores a ${data_fim}; parando.`);
+        break;
+      }
+      console.log(`[kurier] lote ${lote+1}: recebidos=${pubs.length} naJanela=${itensNaJanelaNesteLote} antes=${pubs.length - itensNaJanelaNesteLote - itensDepoisDaJanelaNesteLote} depois=${itensDepoisDaJanelaNesteLote}`);
       await delay(DELAY_MS);
     }
 
@@ -812,6 +856,9 @@ Deno.serve(async (req: Request) => {
       total_duplicadas: totalDuplicadas,
       total_descartadas: totalDescartadas,
       total_confirmadas: totalConfirmadas,
+      total_fora_janela_antes: totalForaJanelaAntes,
+      total_fora_janela_depois: totalForaJanelaDepois,
+      janela_ultrapassada: janelaUltrapassada,
       erro: ultimoErro,
     });
   } catch (e) {
