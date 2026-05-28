@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte='kurier' AND date(created_at AT TIME ZONE 'America/Sao_Paulo') = CURRENT_DATE;
