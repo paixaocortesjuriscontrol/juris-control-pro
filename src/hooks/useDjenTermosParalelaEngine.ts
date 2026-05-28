@@ -1776,17 +1776,16 @@ async function executarLoop(
           const tribs = expandirTribunaisDoMon(m.tribunais);
           return tribs.length === 0 || tribs.includes(trib);
         });
-        const trackTargets = tipo === 'parte'
-          ? (trib === 'TST'
-              ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
-              : [{
-                  monId: null,
-                  monLabel: `${monsDoTipoNoTrib.length} termos`,
-                  total: monsDoTipoNoTrib.length * datas.length,
-                }])
+        // TST roda em paralelo entre VPSs para TODOS os tipos exceto
+        // 'processo' (que vai sempre na faixa final). Para isso cada
+        // monitoramento vira uma track própria. Demais tribunais agrupam
+        // todos os termos em UMA única track serial por (tipo, tribunal).
+        const tstParalelo = trib === 'TST' && tipo !== 'processo';
+        const trackTargets = tstParalelo
+          ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
           : [{
               monId: null,
-              monLabel: null,
+              monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
               total: monsDoTipoNoTrib.length * datas.length,
             }];
         for (const target of trackTargets) {
@@ -1807,7 +1806,7 @@ async function executarLoop(
             duplicadas: 0,
             descartadas: 0,
             mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-            termoAtual: tipo === 'parte' && trib !== 'TST' ? null : monLabel,
+            termoAtual: tstParalelo ? monLabel : null,
             diaAtual: null,
             rateLimitHits: 0,
             ultimoErro: null,
