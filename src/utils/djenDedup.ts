@@ -28,6 +28,31 @@ const normalizeText = (text: string): string =>
     .toLowerCase();
 
 /**
+ * Fontes que NÃO são da DJEN Paralela e podem inserir publicações sem `id_djen`.
+ * Para essas continuamos aplicando o fallback de dedup por
+ * processo + data + conteúdo. Para qualquer outra fonte (Paralela, que sempre
+ * popula `id_djen`), uma publicação sem `id_djen` é tratada como registro único
+ * em vez de ser colapsada com outras de conteúdo similar.
+ */
+const FONTES_COM_FALLBACK = new Set([
+  "kurier",
+  "dejt-pdf",
+  // Scrapers DJE estaduais (gravam sigla do tribunal e nunca id_djen):
+  "tjba", "tjmg", "tjrj", "tjsp", "tjsc", "tjpe", "tjpb", "tjes",
+  "tjgo", "tjdft", "tjal", "tjse", "tjrn", "tjpr", "tjrs", "tjma",
+  "tjam", "tjpi",
+  "trt1", "trt2", "trt3", "trt4", "trt5", "trt6", "trt7", "trt8",
+  "trt9", "trt10", "trt11", "trt12", "trt13", "trt14", "trt15",
+  "trt16", "trt17", "trt18", "trt19", "trt20", "trt21", "trt22",
+  "trt23", "trt24",
+]);
+
+const isFonteComFallback = (fonte: string | null | undefined): boolean => {
+  const f = String(fonte ?? "").trim().toLowerCase();
+  return f.length > 0 && FONTES_COM_FALLBACK.has(f);
+};
+
+/**
  * Extrai a data (YYYY-MM-DD) de uma string ISO ou retorna "null".
  */
 const extractDateKey = (dateStr: string | null | undefined): string => {
@@ -54,6 +79,14 @@ const makeDedupKey = (pub: PublicacaoUnificada): string => {
   // id_djen distintos — nunca podem ser colapsadas pela deduplicação visual.
   const idDjen = String(pub.id_djen ?? "").trim();
   if (idDjen) return `${coordenacao}|id_djen|${idDjen}`;
+
+  // DJEN Termos Paralela SEMPRE popula `id_djen`. Se chegou aqui sem id_djen e
+  // a fonte não é uma das engines legadas (kurier, dejt-pdf, scrapers DJE),
+  // tratamos como Paralela e damos chave única para nunca colapsar com outra
+  // publicação por similaridade de conteúdo.
+  if (!isFonteComFallback(pub.fonte)) {
+    return `${coordenacao}|paralela-no-id|${pub.id}`;
+  }
 
   const processo = (pub.processo_numero ?? "").replace(/\D/g, ""); // só dígitos
   
