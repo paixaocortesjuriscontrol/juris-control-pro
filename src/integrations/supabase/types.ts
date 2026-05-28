@@ -5847,6 +5847,7 @@ export type Database = {
           id: string
           id_djen: string | null
           importada_de_descartada: boolean | null
+          kurier_login: string | null
           lida: boolean
           meio: string | null
           monitoramento_id: string
@@ -5878,6 +5879,7 @@ export type Database = {
           id?: string
           id_djen?: string | null
           importada_de_descartada?: boolean | null
+          kurier_login?: string | null
           lida?: boolean
           meio?: string | null
           monitoramento_id: string
@@ -5909,6 +5911,7 @@ export type Database = {
           id?: string
           id_djen?: string | null
           importada_de_descartada?: boolean | null
+          kurier_login?: string | null
           lida?: boolean
           meio?: string | null
           monitoramento_id?: string
