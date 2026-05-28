@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte = 'kurier' AND created_at::date = CURRENT_DATE;
