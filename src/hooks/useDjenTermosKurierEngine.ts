@@ -220,7 +220,7 @@ async function runPool(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  modoPersonalizado = false,
+  modoPersonalizado = true,
 ) {
   let idx = 0;
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
@@ -247,7 +247,7 @@ export async function executarDjenTermosKurier(
   dataInicioYmd?: string,
   dataFimYmd?: string,
   drenarBacklog = false,
-  modoPersonalizado = false,
+  modoPersonalizado = true,
 ): Promise<void> {
   if (running) return;
   running = true;
