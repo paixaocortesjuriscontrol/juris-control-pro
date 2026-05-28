@@ -64,16 +64,16 @@ export function KurierCredenciaisPanel() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("kurier_credencial_coordenacoes")
-        .select("credencial_id, coordenacao_id");
+        .select("credencial_id, coordenacao_id, captura_total");
       if (error) throw error;
-      return data as { credencial_id: string; coordenacao_id: string }[];
+      return data as { credencial_id: string; coordenacao_id: string; captura_total: boolean }[];
     },
   });
 
-  const vinculosPorCred = new Map<string, Set<string>>();
+  const vinculosPorCred = new Map<string, Map<string, boolean>>();
   for (const v of vinculos) {
-    if (!vinculosPorCred.has(v.credencial_id)) vinculosPorCred.set(v.credencial_id, new Set());
-    vinculosPorCred.get(v.credencial_id)!.add(v.coordenacao_id);
+    if (!vinculosPorCred.has(v.credencial_id)) vinculosPorCred.set(v.credencial_id, new Map());
+    vinculosPorCred.get(v.credencial_id)!.set(v.coordenacao_id, !!v.captura_total);
   }
 
   async function toggleVinculo(credencialId: string, coordenacaoId: string, marcar: boolean) {
@@ -94,6 +94,20 @@ export function KurierCredenciaisPanel() {
       await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
     } catch (e: any) {
       toast.error(`Falha ao atualizar vínculo: ${e?.message ?? e}`);
+    }
+  }
+
+  async function toggleCapturaTotalVinculo(credencialId: string, coordenacaoId: string, valor: boolean) {
+    try {
+      const { error } = await (supabase as any)
+        .from("kurier_credencial_coordenacoes")
+        .update({ captura_total: valor })
+        .eq("credencial_id", credencialId)
+        .eq("coordenacao_id", coordenacaoId);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
+    } catch (e: any) {
+      toast.error(`Falha ao atualizar captura total: ${e?.message ?? e}`);
     }
   }
 
@@ -173,34 +187,60 @@ export function KurierCredenciaisPanel() {
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const selected = vinculosPorCred.get(c.id) ?? new Set<string>();
+                      const selected = vinculosPorCred.get(c.id) ?? new Map<string, boolean>();
                       const count = selected.size;
+                      const totalCount = Array.from(selected.values()).filter(Boolean).length;
                       return (
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button size="sm" variant="outline" className="h-8 gap-1">
                               <Users className="h-3 w-3" />
                               {count === 0 ? "Nenhuma" : `${count} coord.`}
+                              {totalCount > 0 && (
+                                <Badge variant="default" className="h-4 px-1 text-[10px]">
+                                  {totalCount} total
+                                </Badge>
+                              )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-72 max-h-80 overflow-auto" align="start">
-                            <div className="text-xs font-medium mb-2 text-muted-foreground">
+                          <PopoverContent className="w-96 max-h-96 overflow-auto" align="start">
+                            <div className="text-xs font-medium mb-1 text-muted-foreground">
                               Coordenações que usam este login
+                            </div>
+                            <div className="text-[10px] text-muted-foreground mb-2 leading-tight">
+                              Marque <strong>Vincular</strong> para o login buscar publicações da coordenação.
+                              Ligue <strong>Captura total</strong> para entregar à coord <em>todas</em> as publicações
+                              trazidas por este login, sem aplicar termos.
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground border-b pb-1 mb-1">
+                              <span className="flex-1">Coordenação</span>
+                              <span className="w-14 text-center">Vincular</span>
+                              <span className="w-20 text-center">Captura total</span>
                             </div>
                             {coordenacoes.length === 0 ? (
                               <div className="text-xs text-muted-foreground">Nenhuma coordenação disponível.</div>
                             ) : (
                               <div className="space-y-1.5">
                                 {coordenacoes.map((coord: any) => {
-                                  const checked = selected.has(coord.id);
+                                  const vinculado = selected.has(coord.id);
+                                  const capturaTotal = selected.get(coord.id) === true;
                                   return (
-                                    <label key={coord.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded p-1">
-                                      <Checkbox
-                                        checked={checked}
-                                        onCheckedChange={(v) => toggleVinculo(c.id, coord.id, !!v)}
-                                      />
-                                      <span className="truncate">{coord.nome}</span>
-                                    </label>
+                                    <div key={coord.id} className="flex items-center gap-2 text-sm hover:bg-muted/50 rounded p-1">
+                                      <span className="flex-1 truncate" title={coord.nome}>{coord.nome}</span>
+                                      <div className="w-14 flex justify-center">
+                                        <Checkbox
+                                          checked={vinculado}
+                                          onCheckedChange={(v) => toggleVinculo(c.id, coord.id, !!v)}
+                                        />
+                                      </div>
+                                      <div className="w-20 flex justify-center">
+                                        <Switch
+                                          checked={capturaTotal}
+                                          disabled={!vinculado}
+                                          onCheckedChange={(v) => toggleCapturaTotalVinculo(c.id, coord.id, v)}
+                                        />
+                                      </div>
+                                    </div>
                                   );
                                 })}
                               </div>

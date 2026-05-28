@@ -338,19 +338,22 @@ Deno.serve(async (req: Request) => {
     }
     console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length} (coords vinculadas: ${coordIdsArr.length})`);
 
-    // Coordenações com captura total Kurier: recebem TODA publicação dentro da janela,
-    // independente de match com monitoramento. Usa monitoramento sentinela por coord
-    // para satisfazer o NOT NULL de monitoramento_id em publicacoes_djen.
+    // Coordenações com captura total Kurier neste login: recebem TODA publicação
+    // dentro da janela, independente de match com monitoramento. A flag agora vive
+    // por vínculo (kurier_credencial_coordenacoes.captura_total), permitindo que a
+    // mesma coord tenha captura total em um login e busca filtrada em outro.
     let coordsCtRaw: Array<{ id: string; nome: string }> = [];
     if (coordIdsDaCredencial.size > 0) {
-      let coordCtQuery = admin
-        .from("coordenacoes")
-        .select("id, nome")
-        .eq("kurier_captura_total", true)
-        .in("id", Array.from(coordIdsDaCredencial));
-      if (coordenacao_id) coordCtQuery = coordCtQuery.eq("id", coordenacao_id);
-      const { data } = await coordCtQuery;
-      coordsCtRaw = (data ?? []) as Array<{ id: string; nome: string }>;
+      let vincCtQuery = admin
+        .from("kurier_credencial_coordenacoes")
+        .select("coordenacao_id, coordenacoes!inner(id, nome)")
+        .eq("credencial_id", cred.id)
+        .eq("captura_total", true);
+      if (coordenacao_id) vincCtQuery = vincCtQuery.eq("coordenacao_id", coordenacao_id);
+      const { data: vincCtData } = await vincCtQuery;
+      coordsCtRaw = ((vincCtData ?? []) as any[])
+        .map((v) => v.coordenacoes)
+        .filter((c) => c && coordIdsDaCredencial.has(c.id));
     }
     const capturaTotalCoords: Array<{ id: string; monit_id: string }> = [];
     for (const c of coordsCtRaw) {

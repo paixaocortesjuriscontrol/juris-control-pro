@@ -3764,16 +3764,19 @@ export type Database = {
       }
       kurier_credencial_coordenacoes: {
         Row: {
+          captura_total: boolean
           coordenacao_id: string
           created_at: string
           credencial_id: string
         }
         Insert: {
+          captura_total?: boolean
           coordenacao_id: string
           created_at?: string
           credencial_id: string
         }
         Update: {
+          captura_total?: boolean
           coordenacao_id?: string
           created_at?: string
           credencial_id?: string
