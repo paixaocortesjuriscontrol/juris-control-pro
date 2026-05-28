@@ -265,6 +265,39 @@ const AnaliseDjen = () => {
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
 
+  // === Login Kurier por publicação ===
+  // O `kurier_login` é gravado na tabela `publicacoes_djen` no momento da captura,
+  // mas a RPC unificada (get_djen_publicacoes_unificadas) não devolve essa coluna.
+  // Buscamos lateralmente apenas os IDs das publicações Kurier visíveis para exibir
+  // o login responsável pela captura no badge "Captura:".
+  const kurierIdsVisiveis = useMemo(() => {
+    const ids = new Set<string>();
+    for (const p of publicacoes) {
+      if ((p.fonte || '').toLowerCase() === 'kurier') ids.add(p.id);
+    }
+    return Array.from(ids);
+  }, [publicacoes]);
+
+  const { data: kurierLoginsMap = {} } = useQuery({
+    queryKey: ['kurier-logins-por-pub', kurierIdsVisiveis],
+    enabled: kurierIdsVisiveis.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const out: Record<string, string> = {};
+      // chunk para evitar URLs longos
+      const chunkSize = 200;
+      for (let i = 0; i < kurierIdsVisiveis.length; i += chunkSize) {
+        const slice = kurierIdsVisiveis.slice(i, i + chunkSize);
+        const { data } = await (supabase as any)
+          .from('publicacoes_djen')
+          .select('id, kurier_login')
+          .in('id', slice);
+        (data || []).forEach((r: any) => { if (r.kurier_login) out[r.id] = r.kurier_login; });
+      }
+      return out;
+    },
+  });
+
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
     queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicioDebounced, dataFimDebounced, termoBuscaDebounced, monitoramentoId, readStatus],
@@ -4380,6 +4413,12 @@ const AnaliseDjen = () => {
                                       <span className="text-muted-foreground font-medium">Captura:</span>
                                       <span className="text-muted-foreground">{formatDateShort(pub.created_at)}</span>
                                     </div>
+                                    {(pub.fonte || '').toLowerCase() === 'kurier' && kurierLoginsMap[pub.id] && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-muted-foreground font-medium">Login Kurier:</span>
+                                        <span className="font-mono text-orange-700 dark:text-orange-400">{kurierLoginsMap[pub.id]}</span>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
