@@ -194,7 +194,8 @@ async function runJob(
     const { data: monitsData, error: monitsErr } = await supabase
       .from("monitoramentos_djen")
       .select("id, tipo, termo_busca, oab, uf, ativo, exclusoes, tribunais, condicao_concomitante, coordenacao_id")
-      .eq("ativo", true);
+      .eq("ativo", true)
+      .neq("tipo", "kurier_only");
 
     if (monitsErr) throw monitsErr;
     const monits = (monitsData || []) as unknown as Monitoramento[];

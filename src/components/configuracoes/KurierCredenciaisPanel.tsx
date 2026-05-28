@@ -64,16 +64,25 @@ export function KurierCredenciaisPanel() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("kurier_credencial_coordenacoes")
-        .select("credencial_id, coordenacao_id, captura_total");
+        .select("credencial_id, coordenacao_id, captura_total, somente_kurier_only");
       if (error) throw error;
-      return data as { credencial_id: string; coordenacao_id: string; captura_total: boolean }[];
+      return data as {
+        credencial_id: string;
+        coordenacao_id: string;
+        captura_total: boolean;
+        somente_kurier_only: boolean;
+      }[];
     },
   });
 
-  const vinculosPorCred = new Map<string, Map<string, boolean>>();
+  type VincFlags = { capturaTotal: boolean; somenteKurierOnly: boolean };
+  const vinculosPorCred = new Map<string, Map<string, VincFlags>>();
   for (const v of vinculos) {
     if (!vinculosPorCred.has(v.credencial_id)) vinculosPorCred.set(v.credencial_id, new Map());
-    vinculosPorCred.get(v.credencial_id)!.set(v.coordenacao_id, !!v.captura_total);
+    vinculosPorCred.get(v.credencial_id)!.set(v.coordenacao_id, {
+      capturaTotal: !!v.captura_total,
+      somenteKurierOnly: !!v.somente_kurier_only,
+    });
   }
 
   async function toggleVinculo(credencialId: string, coordenacaoId: string, marcar: boolean) {
@@ -108,6 +117,20 @@ export function KurierCredenciaisPanel() {
       await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
     } catch (e: any) {
       toast.error(`Falha ao atualizar captura total: ${e?.message ?? e}`);
+    }
+  }
+
+  async function toggleSomenteKurierOnlyVinculo(credencialId: string, coordenacaoId: string, valor: boolean) {
+    try {
+      const { error } = await (supabase as any)
+        .from("kurier_credencial_coordenacoes")
+        .update({ somente_kurier_only: valor })
+        .eq("credencial_id", credencialId)
+        .eq("coordenacao_id", coordenacaoId);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
+    } catch (e: any) {
+      toast.error(`Falha ao atualizar "Só Kurier": ${e?.message ?? e}`);
     }
   }
 
@@ -187,9 +210,10 @@ export function KurierCredenciaisPanel() {
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const selected = vinculosPorCred.get(c.id) ?? new Map<string, boolean>();
-                      const count = selected.size;
-                      const totalCount = Array.from(selected.values()).filter(Boolean).length;
+                       const selected = vinculosPorCred.get(c.id) ?? new Map<string, VincFlags>();
+                       const count = selected.size;
+                       const totalCount = Array.from(selected.values()).filter((f) => f.capturaTotal).length;
+                       const soKurierCount = Array.from(selected.values()).filter((f) => f.somenteKurierOnly).length;
                       return (
                         <Popover>
                           <PopoverTrigger asChild>
@@ -201,9 +225,14 @@ export function KurierCredenciaisPanel() {
                                   {totalCount} total
                                 </Badge>
                               )}
+                              {soKurierCount > 0 && (
+                                <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                                  {soKurierCount} só K
+                                </Badge>
+                              )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-96 max-h-96 overflow-auto" align="start">
+                          <PopoverContent className="w-[34rem] max-h-[36rem] overflow-auto" align="start">
                             <div className="text-xs font-medium mb-1 text-muted-foreground">
                               Coordenações que usam este login
                             </div>
@@ -211,11 +240,14 @@ export function KurierCredenciaisPanel() {
                               Marque <strong>Vincular</strong> para o login buscar publicações da coordenação.
                               Ligue <strong>Captura total</strong> para entregar à coord <em>todas</em> as publicações
                               trazidas por este login, sem aplicar termos.
+                              Ligue <strong>Só Kurier</strong> para usar somente os termos cadastrados como
+                              <em>"Termo só Kurier"</em> nessa coord.
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground border-b pb-1 mb-1">
                               <span className="flex-1">Coordenação</span>
                               <span className="w-14 text-center">Vincular</span>
                               <span className="w-20 text-center">Captura total</span>
+                              <span className="w-16 text-center">Só Kurier</span>
                             </div>
                             {coordenacoes.length === 0 ? (
                               <div className="text-xs text-muted-foreground">Nenhuma coordenação disponível.</div>
@@ -223,7 +255,9 @@ export function KurierCredenciaisPanel() {
                               <div className="space-y-1.5">
                                 {coordenacoes.map((coord: any) => {
                                   const vinculado = selected.has(coord.id);
-                                  const capturaTotal = selected.get(coord.id) === true;
+                                  const flags = selected.get(coord.id);
+                                  const capturaTotal = !!flags?.capturaTotal;
+                                  const somenteKurierOnly = !!flags?.somenteKurierOnly;
                                   return (
                                     <div key={coord.id} className="flex items-center gap-2 text-sm hover:bg-muted/50 rounded p-1">
                                       <span className="flex-1 truncate" title={coord.nome}>{coord.nome}</span>
@@ -238,6 +272,13 @@ export function KurierCredenciaisPanel() {
                                           checked={capturaTotal}
                                           disabled={!vinculado}
                                           onCheckedChange={(v) => toggleCapturaTotalVinculo(c.id, coord.id, v)}
+                                        />
+                                      </div>
+                                      <div className="w-16 flex justify-center">
+                                        <Switch
+                                          checked={somenteKurierOnly}
+                                          disabled={!vinculado || capturaTotal}
+                                          onCheckedChange={(v) => toggleSomenteKurierOnlyVinculo(c.id, coord.id, v)}
                                         />
                                       </div>
                                     </div>

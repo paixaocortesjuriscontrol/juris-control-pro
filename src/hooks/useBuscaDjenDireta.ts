@@ -1301,7 +1301,8 @@ export function useBuscaDjenDireta() {
     let query = supabase
       .from('monitoramentos_djen')
       .select('*')
-      .eq('ativo', true);
+      .eq('ativo', true)
+      .neq('tipo', 'kurier_only');
 
     if (monitoramentosIds?.length) {
       query = query.in('id', monitoramentosIds);

@@ -3768,18 +3768,21 @@ export type Database = {
           coordenacao_id: string
           created_at: string
           credencial_id: string
+          somente_kurier_only: boolean
         }
         Insert: {
           captura_total?: boolean
           coordenacao_id: string
           created_at?: string
           credencial_id: string
+          somente_kurier_only?: boolean
         }
         Update: {
           captura_total?: boolean
           coordenacao_id?: string
           created_at?: string
           credencial_id?: string
+          somente_kurier_only?: boolean
         }
         Relationships: [
           {

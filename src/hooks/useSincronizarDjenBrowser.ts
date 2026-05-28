@@ -194,7 +194,8 @@ export function useSincronizarDjenBrowser() {
       let query = supabase
         .from('monitoramentos_djen')
         .select('*')
-        .eq('ativo', true);
+        .eq('ativo', true)
+        .neq('tipo', 'kurier_only');
       
       if (monitoramentoIds && monitoramentoIds.length > 0) {
         query = query.in('id', monitoramentoIds);
