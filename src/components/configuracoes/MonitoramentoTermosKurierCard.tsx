@@ -29,7 +29,6 @@ function formatDuracao(s: number) {
 export function MonitoramentoTermosKurierCard() {
   const { progress, isRunning, canResume, executar, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
   const { config, saveConfig } = useDjenTermosKurierScheduler();
-  const queryClient = useQueryClient();
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
   const [freqDraft, setFreqDraft] = useState<string | null>(null);
   const today = new Date();
@@ -41,28 +40,6 @@ export function MonitoramentoTermosKurierCard() {
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>("");
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>("");
   const { data: coordenacoes = [] } = useCoordenacoesFull();
-  const { data: coordsCapturaTotal = [] } = useQuery({
-    queryKey: ["coordenacoes-kurier-captura-total"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("coordenacoes")
-        .select("id, nome, kurier_captura_total")
-        .order("nome");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-  const toggleCapturaTotal = async (id: string, valor: boolean) => {
-    const { error } = await supabase
-      .from("coordenacoes")
-      .update({ kurier_captura_total: valor })
-      .eq("id", id);
-    if (error) {
-      console.error("Erro ao alterar captura total:", error);
-      return;
-    }
-    await queryClient.invalidateQueries({ queryKey: ["coordenacoes-kurier-captura-total"] });
-  };
   const { data: monitoramentos = [] } = useQuery({
     queryKey: ["monitoramentos-djen-coord-kurier", filtroCoordenacaoId],
     queryFn: async () => {
