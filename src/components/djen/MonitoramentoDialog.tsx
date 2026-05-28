@@ -428,9 +428,22 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                     <SelectItem value="advogado">Advogado (OAB ou Nome)</SelectItem>
                     <SelectItem value="processo">Número do Processo</SelectItem>
                     <SelectItem value="parte">Polo passivo ou ativo</SelectItem>
-                    <SelectItem value="kurier_only">Termo só Kurier</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+                <Switch
+                  id="somente-kurier"
+                  checked={somenteKurier}
+                  onCheckedChange={setSomenteKurier}
+                />
+                <label htmlFor="somente-kurier" className="cursor-pointer space-y-1 text-sm leading-none">
+                  <span className="font-medium">Termo somente para Kurier</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Quando ativo, este termo só será usado na busca via Kurier. Não será aplicado nas demais buscas DJEN (PJE Comunica, paralela, STF, etc.).
+                  </span>
+                </label>
               </div>
 
               {tipo === 'advogado' ? (
