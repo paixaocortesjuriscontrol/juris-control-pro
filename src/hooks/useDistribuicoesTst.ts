@@ -508,6 +508,16 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     let rawRows: any[] = [];
     let count = 0;
 
+    // Curto-circuito: se idsAllowed foi explicitamente passado e estiver vazio,
+    // não há resultados possíveis.
+    if (filters.idsAllowed && filters.idsAllowed.length === 0) {
+      setDados([]);
+      setTotalCount(0);
+      setResponsaveisMap(new Map());
+      setLoading(false);
+      return;
+    }
+
     if (wantsUnassigned && idsWithoutResponsavel) {
       // URL com 6000+ UUIDs estoura → executa em chunks de 200, agrega client-side.
       const CHUNK = 200;
