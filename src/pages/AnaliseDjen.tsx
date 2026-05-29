@@ -3160,7 +3160,7 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações...`);
     try {
-      type Categoria = "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "PRAZOS";
+      type Categoria = "TEMAS_IRR" | "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "PRAZOS";
       type ClassInfo = { id: string; categoria: Categoria; tema_irr?: string };
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: ClassInfo };
       const classificarLocal = (pub: typeof allPublicacoes[0]): ClassInfo => {
@@ -3168,6 +3168,18 @@ const AnaliseDjen = () => {
         const lower = texto.toLowerCase();
         const tipoCom = (pub.tipo_comunicacao || "").toLowerCase();
         const orgaoTxt = (pub.orgao || "").toString();
+        // 1. TEMAS_IRR — sobrestamento/suspensão + sinal de Tema/IRR
+        const textoSemAcento = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const condA = /\b(sobrestamento|sobrestar|sobresta(?:r[aá]|do|da|dos|das)?|suspens[ao]o?|suspend[oa]|suspensao)\b/i.test(textoSemAcento);
+        if (condA) {
+          const mTema = textoSemAcento.match(/\btema\s+(?:vinculante\s+)?(?:n[º°o]?\s*)?(\d{1,4})\b/i);
+          const temVinculante = /\btema\s+vinculante\b/i.test(textoSemAcento);
+          const temIncJulg = /IncJulgRREmbRep/i.test(texto);
+          if (mTema || temVinculante || temIncJulg) {
+            const temaLabel = mTema ? `Tema ${mTema[1]}` : (temVinculante ? "Tema vinculante" : "IncJulgRREmbRep");
+            return { id: pub.id, categoria: "TEMAS_IRR", tema_irr: temaLabel };
+          }
+        }
         // CEJUSC — basta encontrar "CEJUSC" + "plataforma ZOOM" no órgão OU no texto da publicação
         const temCejusc = /\bCEJUSC\b/i.test(orgaoTxt) || /\bCEJUSC\b/i.test(texto);
         if (temCejusc && /plataforma\s+zoom/i.test(texto)) {
@@ -3185,6 +3197,7 @@ const AnaliseDjen = () => {
         // c. Prazos gerais (default)
         return { id: pub.id, categoria: "PRAZOS" };
       };
+      const pubsTemasIrr: PubComClass[] = [];
       const pubsPauta: PubComClass[] = [];
       const pubsCejusc: PubComClass[] = [];
       const pubsDistribuicoes: PubComClass[] = [];
@@ -3193,13 +3206,14 @@ const AnaliseDjen = () => {
         const ci = classificarLocal(pub);
         const item = { pub, class_info: ci };
         switch (ci.categoria) {
+          case "TEMAS_IRR": pubsTemasIrr.push(item); break;
           case "PAUTA": pubsPauta.push(item); break;
           case "CEJUSC": pubsCejusc.push(item); break;
           case "DISTRIBUICOES": pubsDistribuicoes.push(item); break;
           default: pubsPrazos.push(item);
         }
       });
-      toast.loading(`Gerando documentos... (Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      toast.loading(`Gerando documentos... (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, modo: "integral" | "resumo"): Paragraph[] => {
@@ -3233,11 +3247,12 @@ const AnaliseDjen = () => {
       const mkDoc = (ch: Paragraph[]) => new Document({ styles: { default: { document: { run: { font: docFont, size: docFontSize } } } }, sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children: ch }] });
       const dl = async (d: Document, fn: string) => { const b = await Packer.toBlob(d); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u); };
       let dg = 0;
+      if (pubsTemasIrr.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsTemasIrr, `Temas IRR - ${dataStr}`, "integral")), `JURISCONTROL_TEMAS_IRR_${dataStr}.docx`); dg++; }
       if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral")), `JURISCONTROL_PAUTA_${dataStr}.docx`); dg++; }
       if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`, "integral")), `JURISCONTROL_CEJUSC_${dataStr}.docx`); dg++; }
       if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo")), `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`); dg++; }
       if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo")), `JURISCONTROL_PRAZOS_${dataStr}.docx`); dg++; }
-      toast.success(`${dg} documento(s) gerado(s)! (Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      toast.success(`${dg} documento(s) gerado(s)! (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
       toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
