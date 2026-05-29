@@ -266,6 +266,9 @@ export default function DistribuicaoTst() {
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
+  // Mapa { dado_id => tagIds[] } para a página visível
+  const visibleDadoIds = dados.map((d) => d.id);
+  const { data: tagsMap } = useTagsForDados(visibleDadoIds);
 
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
