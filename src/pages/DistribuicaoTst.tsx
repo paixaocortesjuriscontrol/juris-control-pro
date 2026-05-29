@@ -210,6 +210,20 @@ export default function DistribuicaoTst() {
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
   const [filtroEquipe, setFiltroEquipe] = useState<string>("todos");
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
+  // ===== TAGs (admin/coord) =====
+  const [filtroTagId, setFiltroTagId] = useState<string>("todas");
+  const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
+  // Quando uma TAG é escolhida, busca o conjunto de ids permitidos.
+  const { data: idsAllowedFromTag } = useQuery({
+    queryKey: ["tag-filter-ids", filtroTagId],
+    enabled: filtroTagId !== "todas" && filtroTagId !== "__sem__",
+    queryFn: () => fetchDadoIdsByTag(filtroTagId),
+  });
+  const idsAllowedForFilters = filtroTagId === "todas"
+    ? undefined
+    : filtroTagId === "__sem__"
+      ? undefined // tratado abaixo
+      : (idsAllowedFromTag ?? []);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -244,10 +258,11 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
+      idsAllowed: idsAllowedForFilters,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
