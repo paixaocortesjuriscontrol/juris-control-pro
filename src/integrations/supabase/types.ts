@@ -2139,6 +2139,42 @@ export type Database = {
         }
         Relationships: []
       }
+      dados_benner_processo_tags: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          dado_benner_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          dado_benner_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          dado_benner_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dados_benner_processo_tags_dado_benner_id_fkey"
+            columns: ["dado_benner_id"]
+            isOneToOne: false
+            referencedRelation: "dados_benner"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dados_benner_processo_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "processo_tags_catalogo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dados_benner_responsaveis: {
         Row: {
           created_at: string
@@ -4901,6 +4937,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      processo_tags_catalogo: {
+        Row: {
+          ativo: boolean
+          cor: string
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       processos: {
         Row: {
