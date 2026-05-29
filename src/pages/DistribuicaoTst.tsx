@@ -1550,22 +1550,24 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* VERMELHO */}
-              <div className="space-y-1">
-                <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
-                <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Situação Carga Santander" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    <SelectItem value="__sem__">Sem situação definida</SelectItem>
-                    {situacoesCarga.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* VERMELHO — apenas admin/coordenador */}
+              {isAdminOrCoordinator && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
+                  <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Situação Carga Santander" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      <SelectItem value="__sem__">Sem situação definida</SelectItem>
+                      {situacoesCarga.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {/* LARANJA */}
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-orange-600">Em análise</Label>
