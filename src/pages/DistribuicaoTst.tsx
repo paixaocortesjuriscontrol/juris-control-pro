@@ -2079,6 +2079,22 @@ export default function DistribuicaoTst() {
         totalCount={totalCount}
         onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
       />
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => { if (!o) setDeleteTargetId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir distribuição?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá o processo da lista de Distribuição TST. Esta operação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
