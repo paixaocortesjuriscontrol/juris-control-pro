@@ -155,6 +155,7 @@ export default function DistribuicaoTst() {
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
   // mesmo se ele não bater mais com os filtros, e destaca a linha por alguns
