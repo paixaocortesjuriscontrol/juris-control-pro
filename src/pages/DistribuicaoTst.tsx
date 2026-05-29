@@ -1891,7 +1891,7 @@ export default function DistribuicaoTst() {
                               )}
                               {(() => {
                                 const sid = (d as any).situacao_envio_carga_id;
-                                if (!sid) return null;
+                                if (!sid || !isAdminOrCoordinator) return null;
                                 const s = situacoesCarga.find((x) => x.id === sid);
                                 if (!s) return null;
                                 return (
@@ -1941,7 +1941,7 @@ export default function DistribuicaoTst() {
                           )}
                           {(() => {
                             const sid = (d as any).situacao_envio_carga_id;
-                            if (!sid) return null;
+                            if (!sid || !isAdminOrCoordinator) return null;
                             const s = situacoesCarga.find((x) => x.id === sid);
                             if (!s) return null;
                             return (
