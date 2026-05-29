@@ -387,7 +387,15 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+      <Tabs
+        value={tab}
+        onValueChange={async (v) => {
+          if (v === tab) return;
+          try { await handleSaveTop(); } catch { /* erros já são toastados em handleSaveTop */ }
+          setTab(v as any);
+        }}
+        className="w-full"
+      >
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <TabsList className="justify-start">
             <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
